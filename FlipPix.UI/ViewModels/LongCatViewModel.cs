@@ -572,6 +572,17 @@ public partial class LongCatViewModel : ObservableObject, IDisposable
         fallbackTimer.Start();
     }
 
+    public async void SetInitialImage(string imagePath)
+    {
+        if (!string.IsNullOrEmpty(imagePath) && File.Exists(imagePath))
+        {
+            ImageFilePath = imagePath;
+            await LoadImagePreviewAsync(imagePath);
+            await UpdateImageInfoAsync(imagePath);
+            AddLog($"Initial image loaded: {Path.GetFileName(imagePath)}");
+        }
+    }
+
     public void Dispose()
     {
         _timer?.Stop();

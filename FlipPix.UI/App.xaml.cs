@@ -129,7 +129,7 @@ namespace FlipPix.UI
                 var comfyUIService = provider.GetRequiredService<ComfyUIService>();
                 var logger = provider.GetRequiredService<IAppLogger>();
                 var settingsService = provider.GetRequiredService<SettingsService>();
-                return new FlipPixViewModel(comfyUIService, logger, settingsService);
+                return new FlipPixViewModel(comfyUIService, logger, settingsService, provider);
             });
             services.AddTransient<ComfyUIFolderSetupViewModel>();
 

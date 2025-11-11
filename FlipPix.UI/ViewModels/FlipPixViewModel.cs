@@ -12,6 +12,7 @@ using System.Windows;
 using System.Windows.Input;
 using System.Windows.Media.Imaging;
 using Microsoft.Win32;
+using Microsoft.Extensions.DependencyInjection;
 using FlipPix.ComfyUI.Services;
 using FlipPix.Core.Interfaces;
 
@@ -22,6 +23,7 @@ namespace FlipPix.UI.ViewModels
         private readonly ComfyUIService _comfyUIService;
         private readonly IAppLogger _logger;
         private readonly FlipPix.Core.Services.SettingsService _settingsService;
+        private readonly IServiceProvider _serviceProvider;
 
         private string _imageFilePath = string.Empty;
         private BitmapImage? _imagePreviewSource;
@@ -49,16 +51,18 @@ namespace FlipPix.UI.ViewModels
 
         public event PropertyChangedEventHandler? PropertyChanged;
 
-        public FlipPixViewModel(ComfyUIService comfyUIService, IAppLogger logger, FlipPix.Core.Services.SettingsService settingsService)
+        public FlipPixViewModel(ComfyUIService comfyUIService, IAppLogger logger, FlipPix.Core.Services.SettingsService settingsService, IServiceProvider serviceProvider)
         {
             _comfyUIService = comfyUIService ?? throw new ArgumentNullException(nameof(comfyUIService));
             _logger = logger ?? throw new ArgumentNullException(nameof(logger));
             _settingsService = settingsService ?? throw new ArgumentNullException(nameof(settingsService));
+            _serviceProvider = serviceProvider ?? throw new ArgumentNullException(nameof(serviceProvider));
 
             // Initialize commands
             SelectImageCommand = new RelayCommand(SelectImage);
             ProcessImageCommand = new RelayCommand(async () => await ProcessImageAsync(), () => CanProcess);
             OpenResultFolderCommand = new RelayCommand(OpenResultFolder, () => HasResultImage);
+            CreateVideoCommand = new RelayCommand(CreateVideo, () => HasResultImage);
             SelectCameraControlCommand = new RelayCommand<string>(SelectCameraControl);
             SaveCustomPromptCommand = new RelayCommand(SaveCustomPrompt, () => CanSavePrompt);
             DeleteSavedPromptCommand = new RelayCommand(DeleteSavedPrompt, () => CanDeletePrompt);
@@ -329,6 +333,7 @@ namespace FlipPix.UI.ViewModels
         public ICommand SelectImageCommand { get; }
         public ICommand ProcessImageCommand { get; }
         public ICommand OpenResultFolderCommand { get; }
+        public ICommand CreateVideoCommand { get; }
         public ICommand SelectCameraControlCommand { get; }
         public ICommand SaveCustomPromptCommand { get; }
         public ICommand DeleteSavedPromptCommand { get; }
@@ -829,6 +834,42 @@ namespace FlipPix.UI.ViewModels
             if (!string.IsNullOrEmpty(ResultImagePath) && File.Exists(ResultImagePath))
             {
                 Process.Start("explorer.exe", $"/select,\"{ResultImagePath}\"");
+            }
+        }
+
+        private void CreateVideo()
+        {
+            if (!string.IsNullOrEmpty(ResultImagePath) && File.Exists(ResultImagePath))
+            {
+                try
+                {
+                    AddLog("Opening LongCat video generator...");
+
+                    // Get LongCatWindow from service provider (ViewModel is automatically injected)
+                    var longCatWindow = _serviceProvider.GetRequiredService<LongCatWindow>();
+
+                    // Access the ViewModel from the window's DataContext
+                    if (longCatWindow.DataContext is LongCatViewModel longCatViewModel)
+                    {
+                        // Set the initial image in the ViewModel
+                        longCatViewModel.SetInitialImage(ResultImagePath);
+                    }
+
+                    // Show the window
+                    longCatWindow.Show();
+
+                    AddLog($"LongCat window opened with image: {Path.GetFileName(ResultImagePath)}");
+                }
+                catch (Exception ex)
+                {
+                    AddLog($"ERROR opening LongCat window: {ex.Message}");
+                    _logger.LogError($"Error opening LongCat window: {ex}");
+                    System.Windows.MessageBox.Show(
+                        $"Error opening video generator:\n\n{ex.Message}",
+                        "Error",
+                        System.Windows.MessageBoxButton.OK,
+                        System.Windows.MessageBoxImage.Error);
+                }
             }
         }
 
