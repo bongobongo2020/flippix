@@ -1,10 +1,18 @@
 # FlipPix
 
+![FlipPix Logo](flippix.png)
+
 AI-powered image processing application that transforms image perspectives and camera angles using Qwen Image Edit models via ComfyUI.
 
 ## Overview
 
 FlipPix processes images to apply camera angle transformations, perspective changes, and visual modifications. It requires a local ComfyUI server with specific custom nodes and models to function.
+
+## Demo
+
+https://github.com/user-attachments/assets/flippix.mp4
+
+*Watch the demo video above to see FlipPix in action, or [download it directly](flippix.mp4).*
 
 ## Prerequisites
 
