@@ -1,0 +1,48 @@
+================================================================================
+FlipPix - Installation Instructions
+================================================================================
+
+QUICK START
+-----------
+1. Extract all files from this ZIP to a folder of your choice
+2. Make sure ComfyUI is running on http://127.0.0.1:8188
+3. Run FlipPix.UI.exe
+4. Start transforming your images!
+
+SYSTEM REQUIREMENTS
+-------------------
+- Windows 10/11 (x64)
+- 16GB RAM minimum (32GB recommended)
+- NVIDIA GPU with 12GB+ VRAM (for ComfyUI)
+- ComfyUI installed and running locally
+
+IMPORTANT: ComfyUI Setup Required
+----------------------------------
+FlipPix requires a local ComfyUI server with specific models and nodes.
+See the full README.md for detailed setup instructions:
+https://github.com/bongobongo2020/flippix
+
+Quick ComfyUI Requirements:
+- Custom nodes: ComfyUI-GGUF, ComfyUI-QwenImageEdit-MZ, rgthree-comfy
+- Models: Qwen 2.5 VL, Qwen Image VAE, Qwen Image Edit UNET
+- LoRAs: Qwen-Image-Lightning, mult-angles
+
+FOLDER STRUCTURE
+----------------
+FlipPix.UI.exe       - Main application executable
+workflow/            - ComfyUI workflow configurations
+README.md            - Full documentation
+
+TROUBLESHOOTING
+---------------
+- Ensure ComfyUI is running before starting FlipPix
+- Check that ComfyUI is accessible at http://127.0.0.1:8188
+- Verify all required models are installed in ComfyUI
+- See README.md for detailed troubleshooting
+
+SUPPORT & DOCUMENTATION
+-----------------------
+GitHub: https://github.com/bongobongo2020/flippix
+Issues: https://github.com/bongobongo2020/flippix/issues
+
+================================================================================
