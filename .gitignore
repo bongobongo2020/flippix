@@ -49,6 +49,7 @@ publish*/
 *-Release.zip
 *-Setup.exe
 FlipPix*.zip
+temp_package/
 
 # NuGet
 *.nupkg
