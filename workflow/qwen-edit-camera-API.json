@@ -1,0 +1,304 @@
+{
+  "3": {
+    "inputs": {
+      "seed": 433046496352572,
+      "steps": 8,
+      "cfg": 1.5,
+      "sampler_name": "euler",
+      "scheduler": "beta57",
+      "denoise": 1,
+      "model": [
+        "75",
+        0
+      ],
+      "positive": [
+        "111",
+        0
+      ],
+      "negative": [
+        "110",
+        0
+      ],
+      "latent_image": [
+        "88",
+        0
+      ]
+    },
+    "class_type": "KSampler",
+    "_meta": {
+      "title": "KSampler"
+    }
+  },
+  "8": {
+    "inputs": {
+      "samples": [
+        "3",
+        0
+      ],
+      "vae": [
+        "39",
+        0
+      ]
+    },
+    "class_type": "VAEDecode",
+    "_meta": {
+      "title": "VAE Decode"
+    }
+  },
+  "38": {
+    "inputs": {
+      "clip_name": "qwen_2.5_vl_7b_fp8_scaled.safetensors",
+      "type": "qwen_image",
+      "device": "default"
+    },
+    "class_type": "CLIPLoader",
+    "_meta": {
+      "title": "Load CLIP"
+    }
+  },
+  "39": {
+    "inputs": {
+      "vae_name": "qwen_image_vae.safetensors"
+    },
+    "class_type": "VAELoader",
+    "_meta": {
+      "title": "Load VAE"
+    }
+  },
+  "60": {
+    "inputs": {
+      "filename_prefix": "Qwen-avg-10-11-25",
+      "images": [
+        "8",
+        0
+      ]
+    },
+    "class_type": "SaveImage",
+    "_meta": {
+      "title": "Save Image"
+    }
+  },
+  "66": {
+    "inputs": {
+      "shift": 3,
+      "model": [
+        "116",
+        0
+      ]
+    },
+    "class_type": "ModelSamplingAuraFlow",
+    "_meta": {
+      "title": "ModelSamplingAuraFlow"
+    }
+  },
+  "75": {
+    "inputs": {
+      "strength": 1,
+      "model": [
+        "66",
+        0
+      ]
+    },
+    "class_type": "CFGNorm",
+    "_meta": {
+      "title": "CFGNorm"
+    }
+  },
+  "78": {
+    "inputs": {
+      "image": "koympsapu9pf1.jpeg"
+    },
+    "class_type": "LoadImage",
+    "_meta": {
+      "title": "Load Image"
+    }
+  },
+  "88": {
+    "inputs": {
+      "pixels": [
+        "93",
+        0
+      ],
+      "vae": [
+        "39",
+        0
+      ]
+    },
+    "class_type": "VAEEncode",
+    "_meta": {
+      "title": "VAE Encode"
+    }
+  },
+  "93": {
+    "inputs": {
+      "upscale_method": "lanczos",
+      "megapixels": 1,
+      "image": [
+        "78",
+        0
+      ]
+    },
+    "class_type": "ImageScaleToTotalPixels",
+    "_meta": {
+      "title": "Scale Image to Total Pixels"
+    }
+  },
+  "110": {
+    "inputs": {
+      "prompt": "ugly face, fat, noise, low resolution, lack of detail, wide shoulders, muscular",
+      "clip": [
+        "116",
+        1
+      ],
+      "vae": [
+        "39",
+        0
+      ],
+      "image1": [
+        "93",
+        0
+      ]
+    },
+    "class_type": "TextEncodeQwenImageEditPlus",
+    "_meta": {
+      "title": "TextEncodeQwenImageEditPlus"
+    }
+  },
+  "111": {
+    "inputs": {
+      "prompt": [
+        "141",
+        0
+      ],
+      "clip": [
+        "116",
+        1
+      ],
+      "vae": [
+        "39",
+        0
+      ],
+      "image1": [
+        "93",
+        0
+      ]
+    },
+    "class_type": "TextEncodeQwenImageEditPlus",
+    "_meta": {
+      "title": "TextEncodeQwenImageEditPlus"
+    }
+  },
+  "112": {
+    "inputs": {
+      "width": 1328,
+      "height": 800,
+      "batch_size": 1
+    },
+    "class_type": "EmptySD3LatentImage",
+    "_meta": {
+      "title": "EmptySD3LatentImage"
+    }
+  },
+  "115": {
+    "inputs": {
+      "unet_name": "qwen\\Qwen-Image-Edit-2509-Q8_0.gguf"
+    },
+    "class_type": "UnetLoaderGGUF",
+    "_meta": {
+      "title": "Unet Loader (GGUF)"
+    }
+  },
+  "116": {
+    "inputs": {
+      "PowerLoraLoaderHeaderWidget": {
+        "type": "PowerLoraLoaderHeaderWidget"
+      },
+      "lora_1": {
+        "on": true,
+        "lora": "qwen\\Qwen-Image-Lightning-8steps-V2.0.safetensors",
+        "strength": 1
+      },
+      "lora_2": {
+        "on": true,
+        "lora": "qwen\\mult-angles.safetensors",
+        "strength": 1
+      },
+      "➕ Add Lora": "",
+      "model": [
+        "115",
+        0
+      ],
+      "clip": [
+        "38",
+        0
+      ]
+    },
+    "class_type": "Power Lora Loader (rgthree)",
+    "_meta": {
+      "title": "Power Lora Loader (rgthree)"
+    }
+  },
+  "136": {
+    "inputs": {
+      "text1": "将镜头向下移动（Move the camera down.）, Rotate the angle of the photo to an ultra-low angle shot of the subject, with the camera's point of view positioned very close to the legs. The perspective should exaggerate the subject's height and create a sense of monumentality, prominently showcasing the details of the legs, thighs, while the rest of the figure dramatically rises towards up, foreshortened but visible. the legs are a focal point of the image, enhanced by the perspective. Important, keep the subject's id, clothes, facial features, pose, and hairstyle identical. Ensure that other elements in the background also change to complement the subject's new imposing presence. Ensure that the lighting and overall composition reinforce this effect of grandeur and power within the new setting.\nMaintain the original ... body type and soft figure"
+    },
+    "class_type": "TextBox1",
+    "_meta": {
+      "title": "low angle 0"
+    }
+  },
+  "137": {
+    "inputs": {
+      "text1": ""
+    },
+    "class_type": "TextBox1",
+    "_meta": {
+      "title": "low angle back 0"
+    }
+  },
+  "138": {
+    "inputs": {
+      "text1": "将镜头转为俯视（Turn the camera to a top-down view, Rotate the angle of the photo to an ultra-high angle shot (bird's eye view) of the subject, with the camera's point of view positioned far above and looking directly down. "
+    },
+    "class_type": "TextBox1",
+    "_meta": {
+      "title": "High Angle 0"
+    }
+  },
+  "139": {
+    "inputs": {
+      "text1": "将镜头向右旋转90度（Rotate the camera 90 degrees to the right.）"
+    },
+    "class_type": "TextBox1",
+    "_meta": {
+      "title": "Rotate t1"
+    }
+  },
+  "140": {
+    "inputs": {
+      "text1": ""
+    },
+    "class_type": "TextBox1",
+    "_meta": {
+      "title": "Low angle - v2"
+    }
+  },
+  "141": {
+    "inputs": {
+      "text1": "将镜头向右旋转90度 ,wide hips and legs, b slim upper body, looking away from the camera"
+    },
+    "class_type": "TextBox1",
+    "_meta": {
+      "title": "Rotate t2"
+    }
+  },
+  "142": {
+    "inputs": {
+      "text1": "将镜头向下移动, ultra low angle shot, exaggerated perspective, 将镜头转为广角镜头（wide lens)"
+    },
+    "class_type": "TextBox1",
+    "_meta": {
+      "title": "Free"
+    }
+  }
+}

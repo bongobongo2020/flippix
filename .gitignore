@@ -1,0 +1,59 @@
+# Build results
+[Dd]ebug/
+[Dd]ebugPublic/
+[Rr]elease/
+[Rr]eleases/
+x64/
+x86/
+[Aa][Rr][Mm]/
+[Aa][Rr][Mm]64/
+bld/
+[Bb]in/
+[Oo]bj/
+[Ll]og/
+[Ll]ogs/
+
+# Visual Studio / VS Code
+.vs/
+.vscode/
+*.user
+*.userosscache
+*.sln.docstates
+
+# Windows image files
+*.ico
+*.jpg
+*.jpeg
+*.png
+*.gif
+
+# Test videos
+*.mp4
+*.avi
+*.mov
+*.mkv
+*.webm
+
+# Publish folders and build artifacts
+publish/
+publish*/
+*.pdb
+
+# NuGet
+*.nupkg
+*.snupkg
+[Pp]ackages/
+
+# User specific files
+launchSettings.json
+
+# Application logs
+logs/
+*.log
+
+# IDE and editor settings
+.claude/
+
+# Task tracking (local only)
+taskscompleted.md
+tasksdone.md

@@ -1,0 +1,438 @@
+<Window x:Class="FlipPix.UI.LongCatWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+        xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+        mc:Ignorable="d"
+        Title="LongCat Video Generator" Height="700" Width="1000"
+        WindowStartupLocation="CenterScreen"
+        MinHeight="600" MinWidth="900"
+        MaxHeight="900" MaxWidth="1400"
+        ResizeMode="CanResize">
+
+    <Window.Resources>
+        <BooleanToVisibilityConverter x:Key="BooleanToVisibilityConverter"/>
+
+        <Style x:Key="HeaderTextStyle" TargetType="TextBlock">
+            <Setter Property="FontSize" Value="16"/>
+            <Setter Property="FontWeight" Value="Bold"/>
+            <Setter Property="Margin" Value="0,0,0,10"/>
+        </Style>
+
+        <Style x:Key="SectionPanelStyle" TargetType="Border">
+            <Setter Property="Background" Value="#F8F9FA"/>
+            <Setter Property="BorderBrush" Value="#DEE2E6"/>
+            <Setter Property="BorderThickness" Value="1"/>
+            <Setter Property="CornerRadius" Value="8"/>
+            <Setter Property="Padding" Value="20"/>
+            <Setter Property="Margin" Value="0,0,0,15"/>
+        </Style>
+
+        <Style x:Key="PrimaryButtonStyle" TargetType="Button">
+            <Setter Property="Background" Value="#6A4C93"/>
+            <Setter Property="Foreground" Value="White"/>
+            <Setter Property="BorderThickness" Value="0"/>
+            <Setter Property="Padding" Value="20,10"/>
+            <Setter Property="FontWeight" Value="Bold"/>
+            <Setter Property="FontSize" Value="14"/>
+            <Setter Property="Cursor" Value="Hand"/>
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="Button">
+                        <Border Background="{TemplateBinding Background}"
+                                CornerRadius="5"
+                                Padding="{TemplateBinding Padding}">
+                            <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                        </Border>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+            <Style.Triggers>
+                <Trigger Property="IsMouseOver" Value="True">
+                    <Setter Property="Background" Value="#8D6CAD"/>
+                </Trigger>
+                <Trigger Property="IsEnabled" Value="False">
+                    <Setter Property="Background" Value="#CCC"/>
+                    <Setter Property="Cursor" Value="Arrow"/>
+                </Trigger>
+            </Style.Triggers>
+        </Style>
+
+        <Style x:Key="SecondaryButtonStyle" TargetType="Button">
+            <Setter Property="Background" Value="#4CAF50"/>
+            <Setter Property="Foreground" Value="White"/>
+            <Setter Property="BorderThickness" Value="0"/>
+            <Setter Property="Padding" Value="15,8"/>
+            <Setter Property="Cursor" Value="Hand"/>
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="Button">
+                        <Border Background="{TemplateBinding Background}"
+                                CornerRadius="5"
+                                Padding="{TemplateBinding Padding}">
+                            <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                        </Border>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+            <Style.Triggers>
+                <Trigger Property="IsMouseOver" Value="True">
+                    <Setter Property="Background" Value="#66BB6A"/>
+                </Trigger>
+            </Style.Triggers>
+        </Style>
+    </Window.Resources>
+
+    <Grid>
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="*"/>
+            <RowDefinition Height="Auto"/>
+        </Grid.RowDefinitions>
+
+        <!-- Header -->
+        <Border Grid.Row="0">
+            <Border.Background>
+                <LinearGradientBrush StartPoint="0,0" EndPoint="1,0">
+                    <GradientStop Color="#6A4C93" Offset="0"/>
+                    <GradientStop Color="#8D6CAD" Offset="1"/>
+                </LinearGradientBrush>
+            </Border.Background>
+            <Grid Margin="25,20">
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="*"/>
+                    <ColumnDefinition Width="Auto"/>
+                </Grid.ColumnDefinitions>
+
+                <StackPanel Grid.Column="0">
+                    <TextBlock Text="🎬 LongCat Video Generator"
+                              FontSize="28" FontWeight="Bold"
+                              Foreground="White"/>
+                    <TextBlock Text="Transform images into extended videos with customizable length"
+                              FontSize="13" Foreground="#E8E8E8"
+                              Margin="0,5,0,0"/>
+                </StackPanel>
+
+                <Button Grid.Column="1"
+                       Content="📷 FlipPix"
+                       Click="OpenCameraControl_Click"
+                       Background="#FF6B35"
+                       Foreground="White"
+                       BorderThickness="0"
+                       Padding="20,10"
+                       FontWeight="Bold"
+                       FontSize="14"
+                       Cursor="Hand"
+                       VerticalAlignment="Center">
+                    <Button.Style>
+                        <Style TargetType="Button">
+                            <Setter Property="Template">
+                                <Setter.Value>
+                                    <ControlTemplate TargetType="Button">
+                                        <Border Background="{TemplateBinding Background}"
+                                               CornerRadius="5"
+                                               Padding="{TemplateBinding Padding}">
+                                            <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                                        </Border>
+                                    </ControlTemplate>
+                                </Setter.Value>
+                            </Setter>
+                            <Style.Triggers>
+                                <Trigger Property="IsMouseOver" Value="True">
+                                    <Setter Property="Background" Value="#FF8556"/>
+                                </Trigger>
+                            </Style.Triggers>
+                        </Style>
+                    </Button.Style>
+                </Button>
+            </Grid>
+        </Border>
+
+        <!-- Main Content -->
+        <ScrollViewer Grid.Row="1" VerticalScrollBarVisibility="Auto">
+            <Grid Margin="30,20">
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="1.2*"/>
+                    <ColumnDefinition Width="1.8*"/>
+                </Grid.ColumnDefinitions>
+
+                <!-- Left Panel - Input Configuration -->
+                <StackPanel Grid.Column="0" Margin="0,0,15,0">
+
+                    <!-- Image Input Section -->
+                    <Border Style="{StaticResource SectionPanelStyle}">
+                        <StackPanel>
+                            <TextBlock Text="📷 Image Input" Style="{StaticResource HeaderTextStyle}" Foreground="#6A4C93"/>
+
+                            <!-- Image Preview -->
+                            <Border BorderBrush="#DEE2E6" BorderThickness="2"
+                                    Background="White" Height="200" Margin="0,0,0,15"
+                                    CornerRadius="5">
+                                <Image Name="ImagePreview"
+                                       Source="{Binding ImagePreviewSource}"
+                                       Stretch="Uniform"
+                                       HorizontalAlignment="Center"
+                                       VerticalAlignment="Center"/>
+                            </Border>
+
+                            <Grid>
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*"/>
+                                    <ColumnDefinition Width="Auto"/>
+                                </Grid.ColumnDefinitions>
+
+                                <TextBox Grid.Column="0"
+                                        Text="{Binding ImageFilePath, Mode=TwoWay}"
+                                        IsReadOnly="True"
+                                        Padding="10"
+                                        Background="White"
+                                        BorderBrush="#CED4DA"
+                                        VerticalAlignment="Center"/>
+
+                                <Button Grid.Column="1"
+                                       Content="Browse Image"
+                                       Style="{StaticResource SecondaryButtonStyle}"
+                                       Margin="10,0,0,0"
+                                       Command="{Binding SelectImageCommand}"/>
+                            </Grid>
+
+                            <!-- Image Info -->
+                            <TextBlock Text="{Binding ImageInfo}"
+                                      FontStyle="Italic"
+                                      Foreground="#666"
+                                      Margin="0,10,0,0"
+                                      TextWrapping="Wrap"/>
+                        </StackPanel>
+                    </Border>
+
+                    <!-- Video Settings Section -->
+                    <Border Style="{StaticResource SectionPanelStyle}">
+                        <StackPanel>
+                            <TextBlock Text="⚙️ Video Settings" Style="{StaticResource HeaderTextStyle}" Foreground="#6A4C93"/>
+
+                            <!-- Video Length Slider -->
+                            <TextBlock Text="Video Length (Seconds)" FontWeight="Bold" Margin="0,0,0,5"/>
+                            <Grid Margin="0,0,0,15">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*"/>
+                                    <ColumnDefinition Width="Auto"/>
+                                </Grid.ColumnDefinitions>
+
+                                <Slider Grid.Column="0"
+                                        Value="{Binding VideoLengthSeconds, Mode=TwoWay}"
+                                        Minimum="1"
+                                        Maximum="60"
+                                        TickFrequency="1"
+                                        IsSnapToTickEnabled="True"
+                                        VerticalAlignment="Center"/>
+
+                                <Border Grid.Column="1"
+                                        Background="#6A4C93"
+                                        CornerRadius="15"
+                                        Padding="12,5"
+                                        Margin="10,0,0,0">
+                                    <TextBlock Text="{Binding VideoLengthSeconds, StringFormat={}{0}s}"
+                                              Foreground="White"
+                                              FontWeight="Bold"
+                                              FontSize="14"/>
+                                </Border>
+                            </Grid>
+
+                            <!-- FPS -->
+                            <TextBlock Text="Frame Rate (FPS)" FontWeight="Bold" Margin="0,0,0,5"/>
+                            <ComboBox SelectedValue="{Binding FPS, Mode=TwoWay}"
+                                     Padding="10"
+                                     Margin="0,0,0,15">
+                                <ComboBoxItem Content="16 FPS" Tag="16" IsSelected="True"/>
+                                <ComboBoxItem Content="24 FPS" Tag="24"/>
+                                <ComboBoxItem Content="30 FPS" Tag="30"/>
+                            </ComboBox>
+
+                            <!-- Dimensions -->
+                            <TextBlock Text="Output Dimensions" FontWeight="Bold" Margin="0,0,0,5"/>
+                            <Grid Margin="0,0,0,5">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*"/>
+                                    <ColumnDefinition Width="Auto"/>
+                                    <ColumnDefinition Width="*"/>
+                                </Grid.ColumnDefinitions>
+
+                                <TextBox Grid.Column="0"
+                                        Text="{Binding Width, Mode=TwoWay}"
+                                        Padding="10"
+                                        VerticalAlignment="Center"/>
+
+                                <TextBlock Grid.Column="1"
+                                          Text=" × "
+                                          VerticalAlignment="Center"
+                                          HorizontalAlignment="Center"
+                                          Margin="10,0"
+                                          FontWeight="Bold"
+                                          FontSize="16"/>
+
+                                <TextBox Grid.Column="2"
+                                        Text="{Binding Height, Mode=TwoWay}"
+                                        Padding="10"
+                                        VerticalAlignment="Center"/>
+                            </Grid>
+
+                            <CheckBox IsChecked="{Binding MaintainAspectRatio}"
+                                     Content="Maintain aspect ratio"
+                                     Margin="0,5,0,0"/>
+                        </StackPanel>
+                    </Border>
+
+                    <!-- ComfyUI Connection Section -->
+                    <Border Style="{StaticResource SectionPanelStyle}">
+                        <StackPanel>
+                            <TextBlock Text="🔌 ComfyUI Connection" Style="{StaticResource HeaderTextStyle}" Foreground="#6A4C93"/>
+
+                            <Grid Margin="0,0,0,10">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="Auto"/>
+                                    <ColumnDefinition Width="*"/>
+                                </Grid.ColumnDefinitions>
+                                <Grid.RowDefinitions>
+                                    <RowDefinition Height="Auto"/>
+                                    <RowDefinition Height="Auto"/>
+                                </Grid.RowDefinitions>
+
+                                <TextBlock Grid.Row="0" Grid.Column="0"
+                                          Text="Server:"
+                                          VerticalAlignment="Center"
+                                          Margin="0,0,10,5"/>
+                                <TextBox Grid.Row="0" Grid.Column="1"
+                                        Text="{Binding ComfyUIServer, Mode=TwoWay}"
+                                        Padding="8"
+                                        Margin="0,0,0,5"/>
+
+                                <TextBlock Grid.Row="1" Grid.Column="0"
+                                          Text="Port:"
+                                          VerticalAlignment="Center"
+                                          Margin="0,0,10,0"/>
+                                <TextBox Grid.Row="1" Grid.Column="1"
+                                        Text="{Binding ComfyUIPort, Mode=TwoWay}"
+                                        Padding="8"/>
+                            </Grid>
+
+                            <TextBlock Text="{Binding ConnectionStatus}"
+                                      Margin="0,5,0,0"
+                                      FontSize="11"
+                                      FontStyle="Italic"/>
+                        </StackPanel>
+                    </Border>
+
+                </StackPanel>
+
+                <!-- Right Panel - Processing and Results -->
+                <StackPanel Grid.Column="1" Margin="15,0,0,0">
+
+                    <!-- Processing Controls -->
+                    <Border Style="{StaticResource SectionPanelStyle}">
+                        <StackPanel>
+                            <TextBlock Text="🚀 Generate Video" Style="{StaticResource HeaderTextStyle}" Foreground="#6A4C93"/>
+
+                            <TextBlock Text="Total Frames:" FontWeight="Bold" Margin="0,0,0,5"/>
+                            <TextBlock Text="{Binding TotalFrames}"
+                                      FontSize="24"
+                                      Foreground="#6A4C93"
+                                      FontWeight="Bold"
+                                      Margin="0,0,0,15"/>
+
+                            <Button Content="🎬 Generate Video"
+                                   Style="{StaticResource PrimaryButtonStyle}"
+                                   IsEnabled="{Binding CanGenerate}"
+                                   Command="{Binding GenerateVideoCommand}"
+                                   HorizontalAlignment="Stretch"
+                                   Height="50"
+                                   FontSize="16"/>
+                        </StackPanel>
+                    </Border>
+
+                    <!-- Processing Status -->
+                    <Border Style="{StaticResource SectionPanelStyle}"
+                            Visibility="{Binding IsProcessing, Converter={StaticResource BooleanToVisibilityConverter}}">
+                        <StackPanel>
+                            <TextBlock Text="📊 Processing Status" Style="{StaticResource HeaderTextStyle}" Foreground="#6A4C93"/>
+
+                            <TextBlock Text="{Binding ProcessingStatus}"
+                                      FontWeight="Bold"
+                                      Margin="0,0,0,10"
+                                      FontSize="14"/>
+
+                            <ProgressBar Value="{Binding ProcessingProgress}"
+                                        Height="30"
+                                        Margin="0,0,0,10"
+                                        Foreground="#6A4C93"/>
+
+                            <TextBlock Text="{Binding ProgressPercentage}"
+                                      HorizontalAlignment="Center"
+                                      FontSize="12"
+                                      FontWeight="Bold"/>
+                        </StackPanel>
+                    </Border>
+
+                    <!-- Output Video -->
+                    <Border Style="{StaticResource SectionPanelStyle}"
+                            Visibility="{Binding HasOutputVideo, Converter={StaticResource BooleanToVisibilityConverter}}">
+                        <StackPanel>
+                            <TextBlock Text="✅ Video Generated!" Style="{StaticResource HeaderTextStyle}" Foreground="#4CAF50"/>
+
+                            <TextBlock Text="Output Path:" FontWeight="Bold" Margin="0,0,0,5"/>
+                            <TextBox Text="{Binding OutputVideoPath, Mode=OneWay}"
+                                    IsReadOnly="True"
+                                    Background="White"
+                                    Padding="10"
+                                    BorderBrush="#CED4DA"
+                                    BorderThickness="1"
+                                    TextWrapping="Wrap"
+                                    FontFamily="Consolas"
+                                    FontSize="11"
+                                    Margin="0,0,0,15"/>
+
+                            <Button Content="📂 Open Output Folder"
+                                   Style="{StaticResource SecondaryButtonStyle}"
+                                   Command="{Binding OpenOutputFolderCommand}"
+                                   HorizontalAlignment="Left"/>
+                        </StackPanel>
+                    </Border>
+
+                    <!-- Processing Log -->
+                    <Border Style="{StaticResource SectionPanelStyle}">
+                        <StackPanel>
+                            <TextBlock Text="📝 Processing Log" Style="{StaticResource HeaderTextStyle}" Foreground="#6A4C93"/>
+
+                            <ScrollViewer Height="250"
+                                         VerticalScrollBarVisibility="Auto"
+                                         Background="White"
+                                         BorderBrush="#DEE2E6"
+                                         BorderThickness="1">
+                                <TextBox Text="{Binding LogOutput}"
+                                        TextWrapping="Wrap"
+                                        IsReadOnly="True"
+                                        FontFamily="Consolas"
+                                        FontSize="10"
+                                        Background="Transparent"
+                                        BorderThickness="0"
+                                        Padding="10"/>
+                            </ScrollViewer>
+                        </StackPanel>
+                    </Border>
+
+                </StackPanel>
+
+            </Grid>
+        </ScrollViewer>
+
+        <!-- Status Bar -->
+        <StatusBar Grid.Row="2" Background="#F8F9FA" BorderBrush="#DEE2E6" BorderThickness="0,1,0,0" Height="30">
+            <StatusBarItem>
+                <TextBlock Text="{Binding StatusBarMessage}" FontSize="11"/>
+            </StatusBarItem>
+            <StatusBarItem HorizontalAlignment="Right">
+                <TextBlock Text="{Binding CurrentTime}" FontSize="11"/>
+            </StatusBarItem>
+        </StatusBar>
+
+    </Grid>
+</Window>

@@ -1,0 +1,358 @@
+{
+  "2": {
+    "inputs": {
+      "model": "wan2.1\\LongCat_TI2V_comfy_fp8_e4m3fn_scaled_KJ.safetensors",
+      "base_precision": "bf16",
+      "quantization": "fp8_e4m3fn_scaled",
+      "load_device": "offload_device",
+      "attention_mode": "sageattn_compiled",
+      "rms_norm_function": "default",
+      "compile_args": [
+        "5",
+        0
+      ]
+    },
+    "class_type": "WanVideoModelLoader",
+    "_meta": {
+      "title": "WanVideo Model Loader"
+    }
+  },
+  "5": {
+    "inputs": {
+      "backend": "inductor",
+      "fullgraph": false,
+      "mode": "default",
+      "dynamic": false,
+      "dynamo_cache_size_limit": 64,
+      "compile_transformer_blocks_only": true,
+      "dynamo_recompile_limit": 128,
+      "force_parameter_static_shapes": false,
+      "allow_unmerged_lora_compile": false
+    },
+    "class_type": "WanVideoTorchCompileSettings",
+    "_meta": {
+      "title": "WanVideo Torch Compile Settings"
+    }
+  },
+  "7": {
+    "inputs": {
+      "model": [
+        "2",
+        0
+      ],
+      "lora": [
+        "10",
+        0
+      ]
+    },
+    "class_type": "WanVideoSetLoRAs",
+    "_meta": {
+      "title": "WanVideo Set LoRAs"
+    }
+  },
+  "8": {
+    "inputs": {
+      "model": [
+        "7",
+        0
+      ],
+      "block_swap_args": [
+        "9",
+        0
+      ]
+    },
+    "class_type": "WanVideoSetBlockSwap",
+    "_meta": {
+      "title": "WanVideo Set BlockSwap"
+    }
+  },
+  "9": {
+    "inputs": {
+      "blocks_to_swap": 20,
+      "offload_img_emb": false,
+      "offload_txt_emb": false,
+      "use_non_blocking": false,
+      "vace_blocks_to_swap": 0,
+      "prefetch_blocks": 1,
+      "block_swap_debug": false
+    },
+    "class_type": "WanVideoBlockSwap",
+    "_meta": {
+      "title": "WanVideo Block Swap"
+    }
+  },
+  "10": {
+    "inputs": {
+      "lora": "LongCat_distill_lora_alpha64_bf16.safetensors",
+      "strength": 1,
+      "low_mem_load": false,
+      "merge_loras": false
+    },
+    "class_type": "WanVideoLoraSelect",
+    "_meta": {
+      "title": "WanVideo Lora Select"
+    }
+  },
+  "11": {
+    "inputs": {
+      "model_name": "wan_2.1_vae.safetensors",
+      "precision": "bf16"
+    },
+    "class_type": "WanVideoVAELoader",
+    "_meta": {
+      "title": "WanVideo VAE Loader"
+    }
+  },
+  "12": {
+    "inputs": {
+      "image": "AnimateDiff_00011.png"
+    },
+    "class_type": "LoadImage",
+    "_meta": {
+      "title": "Load Image"
+    }
+  },
+  "16": {
+    "inputs": {
+      "width": [
+        "103",
+        0
+      ],
+      "height": [
+        "104",
+        0
+      ],
+      "upscale_method": "lanczos",
+      "keep_proportion": "crop",
+      "pad_color": "0, 0, 0",
+      "crop_position": "center",
+      "divisible_by": 16,
+      "device": "cpu",
+      "image": [
+        "12",
+        0
+      ]
+    },
+    "class_type": "ImageResizeKJv2",
+    "_meta": {
+      "title": "Resize Image v2"
+    }
+  },
+  "18": {
+    "inputs": {
+      "enable_vae_tiling": false,
+      "tile_x": 272,
+      "tile_y": 272,
+      "tile_stride_x": 144,
+      "tile_stride_y": 128,
+      "noise_aug_strength": 0,
+      "latent_strength": 1,
+      "vae": [
+        "11",
+        0
+      ],
+      "image": [
+        "16",
+        0
+      ]
+    },
+    "class_type": "WanVideoEncode",
+    "_meta": {
+      "title": "WanVideo Encode"
+    }
+  },
+  "19": {
+    "inputs": {
+      "width": [
+        "16",
+        1
+      ],
+      "height": [
+        "16",
+        2
+      ],
+      "num_frames": [
+        "102",
+        0
+      ],
+      "extra_latents": [
+        "18",
+        0
+      ]
+    },
+    "class_type": "WanVideoEmptyEmbeds",
+    "_meta": {
+      "title": "WanVideo Empty Embeds"
+    }
+  },
+  "21": {
+    "inputs": {
+      "model_name": "umt5-xxl-enc-bf16.safetensors",
+      "precision": "bf16",
+      "positive_prompt": [
+        "37",
+        0
+      ],
+      "negative_prompt": "Bright tones, overexposed, static, blurred details, subtitles, style, works, paintings, images, static, overall gray, worst quality, low quality, JPEG compression residue, ugly, incomplete, extra fingers, poorly drawn hands, poorly drawn faces, deformed, disfigured, misshapen limbs, fused fingers, still picture, messy background, three legs, many people in the background, walking backwards",
+      "quantization": "disabled",
+      "use_disk_cache": true,
+      "device": "gpu"
+    },
+    "class_type": "WanVideoTextEncodeCached",
+    "_meta": {
+      "title": "WanVideo TextEncode Cached"
+    }
+  },
+  "22": {
+    "inputs": {
+      "enable_vae_tiling": false,
+      "tile_x": 272,
+      "tile_y": 272,
+      "tile_stride_x": 144,
+      "tile_stride_y": 128,
+      "normalization": "default",
+      "vae": [
+        "11",
+        0
+      ],
+      "samples": [
+        "26",
+        0
+      ]
+    },
+    "class_type": "WanVideoDecode",
+    "_meta": {
+      "title": "WanVideo Decode"
+    }
+  },
+  "26": {
+    "inputs": {
+      "steps": 10,
+      "cfg": 1,
+      "shift": 12,
+      "seed": 518635359581528,
+      "force_offload": true,
+      "scheduler": "longcat_distill_euler",
+      "riflex_freq_index": 0,
+      "denoise_strength": 1,
+      "batched_cfg": false,
+      "rope_function": "comfy",
+      "start_step": 0,
+      "end_step": -1,
+      "add_noise_to_samples": false,
+      "model": [
+        "8",
+        0
+      ],
+      "image_embeds": [
+        "19",
+        0
+      ],
+      "text_embeds": [
+        "21",
+        0
+      ]
+    },
+    "class_type": "WanVideoSampler",
+    "_meta": {
+      "title": "WanVideo Sampler"
+    }
+  },
+  "27": {
+    "inputs": {
+      "frame_rate": [
+        "101",
+        0
+      ],
+      "loop_count": 0,
+      "filename_prefix": "LongCat_Video",
+      "format": "video/h264-mp4",
+      "pix_fmt": "yuv420p",
+      "crf": 19,
+      "save_metadata": true,
+      "trim_to_audio": false,
+      "pingpong": false,
+      "save_output": true,
+      "images": [
+        "22",
+        0
+      ]
+    },
+    "class_type": "VHS_VideoCombine",
+    "_meta": {
+      "title": "Video Combine 🎥🅥🅗🅢"
+    }
+  },
+  "37": {
+    "inputs": {
+      "model_name": "Qwen3-VL-4B-Instruct",
+      "quantization": "None (FP16)",
+      "preset_prompt": "Creative - Short Story",
+      "custom_prompt": "You are an experienced film concept designer and video generation expert. Based on the given image, conduct a detailed analysis and generate a highly detailed and professional video prompt in JSON format for a 5-second video.\nPlease strictly adhere to the following JSON structure and content specifications. Each field should be as specific, vivid, and imaginative as possible to capture real-world filmmaking details.\n--------------------------------------------------------------------------------\n**JSON Structure Template:**\n{\n  \"shot\": {\n    \"composition\": \"string\",\n    \"camera_motion\": \"string\"\n  },\n  \"subject\": {\n    \"description\": \"string\",\n    \"wardrobe\": \"string\" // Use \"null\" if the subject is an animal or has no specific wardrobe\n  },\n  \"scene\": {\n    \"location\": \"string\",\n    \"time_of_day\": \"string\",\n    \"environment\": \"string\"\n  },\n  \"visual_details\": {\n    \"action\": \"string\",\n    \"props\": \"string\", // Use \"null\" if there are no props\n    \"action_sequence\": \"array of objects\"\n  },\n  \"cinematography\": {\n    \"lighting\": \"string\",\n    \"tone\": \"string\"\n  }\n}\n--------------------------------------------------------------------------------\n**Content Generation Guidelines (Please keep these principles in mind during generation):**\n\n**1. shot**\n*   **composition**: Describe the shot type in detail (e.g., wide shot, medium shot, close-up, long shot), focal length (e.g., 35mm lens, 85mm lens, 50mm lens, 100mm macro telephoto lens, 26mm equivalent lens), camera equipment (e.g., Sony Venice, ARRI Alexa series, RED series, iPhone 15 Pro Max, DJI Inspire 3 drone), and depth of field (e.g., deep depth of field, shallow depth of field).\n*   **camera_motion**: Precisely describe how the camera moves (e.g., smooth Steadicam arc, slow lateral dolly, static, handheld shake, slow pan, drone orbit, rising crane).\n\n**2. subject**\n*   **description**: Provide an extremely detailed depiction of the subject, including their age (e.g., 25-year-old, 23-year-old, 40-year-old, 92-year-old), gender, ethnicity (e.g., Chinese female, Egyptian female, K-pop artist, European female, East Asian female, African male, Korean female, German female, Italian female, Japanese), body type (e.g., slender and athletic), hair (color, style), and any unique facial features. For non-human subjects (e.g., beluga whale, phoenix, emu, golden eagle, duck, snail), describe their physical characteristics in detail.\n\n**3. scene**\n*   **location**: Specify the exact shooting location.\n*   **time_of_day**: State the specific time of day (e.g., dawn, early morning, morning, midday, afternoon, dusk, night).\n*   **environment**: Provide a detailed environmental description that captures the atmosphere and background details.\n\n**4. visual_details**\n*   **action**: A general summary of the action depicted in the video.\n*   **action_sequence**: To enhance the visual tension of the generated 5s video, analyze the image and expand upon it creatively. Design a key action for each second, using the format `\"0-1s: subject + action\"` to briefly and precisely describe the action occurring in that second.\n*   **props**: List all relevant props and elements in the scene (e.g., silver-hilted sword, campfire, candelabra, matcha latte and cheesecake, futuristic motorcycle). If there are no props in the scene, this field should be explicitly set to `\"null\"`.\n\n**5. cinematography**\n*   **lighting**: Describe the light source, quality, color, and direction in detail (e.g., natural dawn light softened by fog, campfire as the key light, natural sunlight through stained glass windows, soft HDR reflections, warm tungsten light and natural window light).\n*   **tone**: Capture the abstract emotional or stylistic feel of the video (e.g., \"fierce, elegant, fluid\", \"mystical, elegant, enchanting\", \"hyperrealistic with an ironic, dark comedic twist\", \"dreamy, serene, emotionally healing\", \"documentary realism\", \"epic, majestic, awe-inspiring\", \"wild, dynamic, uninhibited\").\n\n--------------------------------------------------------------------------------\n**Additional Considerations for Prompt Generation:**\n\n*   **Granularity of Detail**: The LLM should understand that every field requires as much specific detail as possible, not generalizations. For example, instead of writing \"a woman,\" write \"a 25-year-old Chinese female with long black hair tied back with a silk ribbon, a slender build, wearing a flowing, pale blue Hanfu...\".\n*   **Consistency and Diversity**: While the JSON structure must be strictly consistent, the content of each video prompt should be creative and diverse, reflecting the unique elements of different video types (e.g., martial arts, dance, drama, nature documentary, sci-fi action, motivational, commercial, fantasy).\n*   **Handling Null Values**: When a field is not applicable (e.g., wardrobe for an animal), the LLM should use `null` rather than an empty string or omitting the field, to maintain the integrity of the JSON structure.\n*   **Contextual Description**: When describing action, lighting, and sound, think about how these elements work together to create a specific **\"tone\"** and express it using vivid language.\n*   **Language Requirements**: All output should be clear, concise, and use professional filmmaking terminology.",
+      "max_tokens": 1024,
+      "keep_model_loaded": false,
+      "seed": 1124550784473835,
+      "image": [
+        "12",
+        0
+      ]
+    },
+    "class_type": "AILab_QwenVL",
+    "_meta": {
+      "title": "QwenVL"
+    }
+  },
+  "100": {
+    "inputs": {
+      "value": 6
+    },
+    "class_type": "PrimitiveInt",
+    "_meta": {
+      "title": "Video Length (Seconds)"
+    }
+  },
+  "101": {
+    "inputs": {
+      "value": 16
+    },
+    "class_type": "PrimitiveFloat",
+    "_meta": {
+      "title": "FPS"
+    }
+  },
+  "102": {
+    "inputs": {
+      "value": "a*b",
+      "a": [
+        "100",
+        0
+      ],
+      "b": [
+        "101",
+        0
+      ]
+    },
+    "class_type": "SimpleMath+",
+    "_meta": {
+      "title": "Calculate Total Frames"
+    }
+  },
+  "103": {
+    "inputs": {
+      "value": 512
+    },
+    "class_type": "PrimitiveInt",
+    "_meta": {
+      "title": "Width"
+    }
+  },
+  "104": {
+    "inputs": {
+      "value": 512
+    },
+    "class_type": "PrimitiveInt",
+    "_meta": {
+      "title": "Height"
+    }
+  }
+}
