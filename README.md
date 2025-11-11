@@ -2,11 +2,13 @@
 
 ![FlipPix Logo](flippix.png)
 
-AI-powered image processing application that transforms image perspectives and camera angles using Qwen Image Edit models via ComfyUI.
+AI-powered image processing application that transforms image perspectives and camera angles using Qwen Image Edit models via ComfyUI. Now with **LongCat video generation** (Beta)!
 
 ## Overview
 
 FlipPix processes images to apply camera angle transformations, perspective changes, and visual modifications. It requires a local ComfyUI server with specific custom nodes and models to function.
+
+> **🆕 Beta Branch**: This branch includes the new **LongCat Video Generation** feature, which allows you to create videos from your processed images with a single click!
 
 ## Demo
 
@@ -19,8 +21,9 @@ FlipPix processes images to apply camera angle transformations, perspective chan
 ### System Requirements
 - Windows x64 operating system
 - .NET 8.0 runtime (included in self-contained build)
-- Minimum 16GB RAM (32GB recommended for processing)
-- NVIDIA GPU with 12GB+ VRAM recommended
+- Minimum 16GB RAM (32GB recommended for image processing, 48GB+ for video generation)
+- NVIDIA GPU with 12GB+ VRAM (24GB+ recommended for LongCat video generation)
+- ~100GB free disk space for all models (image + video models)
 
 ### ComfyUI Setup
 
@@ -65,6 +68,35 @@ cd ComfyUI/custom_nodes
 git clone https://github.com/Suzie1/ComfyUI_Comfyroll_CustomNodes.git
 ```
 
+**For LongCat Video Generation (Beta Feature):**
+```bash
+cd ComfyUI/custom_nodes
+
+# WanVideo nodes for video generation
+git clone https://github.com/logtd/ComfyUI-WanVideo.git
+
+# QwenVL for image analysis and prompt generation
+git clone https://github.com/smthemex/ComfyUI_VisionLM.git
+
+# Video Helper Suite for video combining
+git clone https://github.com/Kosinkadink/ComfyUI-VideoHelperSuite.git
+
+# KJNodes for image resizing
+git clone https://github.com/kijai/ComfyUI-KJNodes.git
+
+# ComfyMath for mathematical operations
+git clone https://github.com/evanspearman/ComfyMath.git
+
+# pythongosssss custom scripts for utilities
+git clone https://github.com/pythongosssss/ComfyUI-Custom-Scripts.git
+
+# ComfyUI-Easy-Use for loop nodes
+git clone https://github.com/yolain/ComfyUI-Easy-Use.git
+
+# WAS Node Suite for image batch operations
+git clone https://github.com/WASasquatch/was-node-suite-comfyui.git
+```
+
 After installing custom nodes, restart ComfyUI or click "Restart" in the ComfyUI Manager.
 
 #### 3. Download Required Models
@@ -89,10 +121,37 @@ Place the following models in their respective directories:
 **LoRA Models**
 - File: `Qwen-Image-Lightning-8steps-V2.0.safetensors`
 - Location: `ComfyUI/models/loras/qwen/`
-Source: [Hugging Face - Qwen LoRAs](https://huggingface.co/lightx2v/Qwen-Image-Lightning/blob/main/Qwen-Image-Lightning-8steps-V2.0.safetensors)
-- File: `mult-angles.safetensors` (Rename the file to mult-angles.safetensors )
+- Source: [Hugging Face - Qwen LoRAs](https://huggingface.co/lightx2v/Qwen-Image-Lightning/blob/main/Qwen-Image-Lightning-8steps-V2.0.safetensors)
+- File: `mult-angles.safetensors` (Rename the file to mult-angles.safetensors)
 - Location: `ComfyUI/models/loras/qwen/`
 - Source: [Hugging Face - Qwen LoRAs](https://huggingface.co/dx8152/Qwen-Edit-2509-Multiple-angles/blob/main/%E9%95%9C%E5%A4%B4%E8%BD%AC%E6%8D%A2.safetensors)
+
+**For LongCat Video Generation (Beta Feature):**
+
+**WanVideo Model (Image-to-Video)**
+- File: `LongCat_TI2V_comfy_fp8_e4m3fn_scaled_KJ.safetensors`
+- Location: `ComfyUI/models/wan2.1/`
+- Source: [Hugging Face - LongCat Models](https://huggingface.co/Kijai/LongCat_fp8_scaled_comfy)
+
+**WanVideo VAE**
+- File: `wan_2.1_vae.safetensors`
+- Location: `ComfyUI/models/vae/`
+- Source: [Hugging Face - WanVideo VAE](https://huggingface.co/Kijai/LongCat_fp8_scaled_comfy)
+
+**WanVideo LoRA**
+- File: `LongCat_distill_lora_alpha64_bf16.safetensors`
+- Location: `ComfyUI/models/loras/`
+- Source: [Hugging Face - LongCat LoRA](https://huggingface.co/Kijai/LongCat_fp8_scaled_comfy)
+
+**Text Encoder (UMT5)**
+- File: `umt5-xxl-enc-bf16.safetensors`
+- Location: `ComfyUI/models/clip/`
+- Source: [Hugging Face - UMT5](https://huggingface.co/Kijai/LongCat_fp8_scaled_comfy)
+
+**QwenVL Vision Model (for prompt generation)**
+- Model: `Qwen3-VL-4B-Instruct`
+- Location: Auto-downloaded by ComfyUI_VisionLM on first use
+- Note: Requires ~8GB additional disk space
 
 #### 4. Start ComfyUI
 
@@ -132,6 +191,11 @@ Open the workflow file in ComfyUI to verify all nodes load correctly:
 - **Multiple Perspective Options**: Ultra-low angle, bird's eye view, wide-angle lens effects
 - **Subject Preservation**: Maintains subject identity, clothing, facial features, pose, and hairstyle
 - **ComfyUI API Integration**: Full integration with ComfyUI workflow API
+- **🎬 LongCat Video Generation (Beta)**: One-click video generation from processed images
+  - Automatic image-to-video conversion using LongCat models
+  - Configurable video length (1-60 seconds) and frame rate
+  - AI-powered prompt generation with QwenVL
+  - Chunked processing to prevent memory issues
 
 ### Processing Details
 
@@ -139,15 +203,31 @@ Open the workflow file in ComfyUI to verify all nodes load correctly:
 - **Scaling**: Images are scaled to 1 megapixel (1,000,000 pixels total) using Lanczos resampling
 - **Output**: Processed images maintain aspect ratio with enhanced perspective transformations
 
+### Using LongCat Video Generation (Beta)
+
+After processing an image with FlipPix:
+
+1. **Process Image**: Complete any camera angle transformation using FlipPix
+2. **Create Video**: Click the **"🎬 Create Video"** button that appears after processing
+3. **Configure Video Settings**:
+   - Set video length (1-60 seconds)
+   - Choose frame rate (16, 24, or 30 FPS)
+   - Adjust output dimensions (512x512 default, maintains aspect ratio)
+4. **Generate Video**: Click "Generate Video" to start the image-to-video conversion
+5. **Output**: Video will be saved in ComfyUI's output folder as MP4
+
+**Note**: Video generation uses the LongCat workflow at `workflow/LongCatAPI_Chunked.json` which automatically handles long videos by processing in chunks to prevent out-of-memory errors.
+
 ## Project Structure
 
 ```
 flippix/
-├── WanVaceProcessor.Core/          # Core models and interfaces
-├── WanVaceProcessor.ComfyUI/       # ComfyUI integration services
-├── WanVaceProcessor.UI/            # WPF user interface
+├── FlipPix.Core/                   # Core models and interfaces
+├── FlipPix.ComfyUI/                # ComfyUI integration services
+├── FlipPix.UI/                     # WPF user interface
 ├── workflow/                       # ComfyUI workflow definitions
-│   └── qwen-edit-camera-API.json  # Main processing workflow
+│   ├── qwen-edit-camera-API.json  # Main processing workflow
+│   └── LongCatAPI_Chunked.json    # Video generation workflow (Beta)
 ├── publish/                        # Built executable files
 └── publish.bat                     # Build script
 ```
