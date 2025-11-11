@@ -27,12 +27,18 @@ bld/
 *.png
 *.gif
 
+# Exception for README assets
+!flippix.png
+
 # Test videos
 *.mp4
 *.avi
 *.mov
 *.mkv
 *.webm
+
+# Exception for README demo video
+!flippix.mp4
 
 # Publish folders and build artifacts
 publish/
