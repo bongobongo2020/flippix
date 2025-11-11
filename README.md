@@ -10,9 +10,9 @@ FlipPix processes images to apply camera angle transformations, perspective chan
 
 ## Demo
 
-https://github.com/user-attachments/assets/flippix.mp4
+<video src="https://github.com/bongobongo2020/flippix/raw/main/flippix.mp4" controls width="100%"></video>
 
-*Watch the demo video above to see FlipPix in action, or [download it directly](flippix.mp4).*
+> **[📥 Download demo video (20MB)](https://github.com/bongobongo2020/flippix/raw/main/flippix.mp4)** if the video doesn't play above.
 
 ## Prerequisites
 
