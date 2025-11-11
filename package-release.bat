@@ -27,9 +27,19 @@ echo.
 REM Copy INSTALL.txt to publish folder
 copy /Y INSTALL.txt publish\INSTALL.txt >nul 2>&1
 
-REM Create ZIP archive excluding debug files and output folder
+REM Create temporary directory for clean packaging
+if exist "temp_package" rmdir /s /q temp_package
+mkdir temp_package
+
+REM Copy files excluding .pdb and output folder
 echo Excluding: .pdb files, output folder and all its contents
-powershell -Command "& { $publishPath = 'publish'; $files = Get-ChildItem -Path $publishPath -Recurse -File | Where-Object { $_.FullName -notmatch '\\output\\' -and $_.Extension -ne '.pdb' }; $dirs = Get-ChildItem -Path $publishPath -Recurse -Directory | Where-Object { $_.FullName -notmatch '\\output' }; $allItems = $files + $dirs; if (Test-Path 'FlipPix-Release.zip') { Remove-Item 'FlipPix-Release.zip' -Force }; Compress-Archive -Path $allItems.FullName -DestinationPath 'FlipPix-Release.zip' -Force }"
+robocopy publish temp_package /E /XF *.pdb /XD output /NFL /NDL /NJH /NJS >nul 2>&1
+
+REM Create ZIP from temp directory
+powershell -Command "Compress-Archive -Path 'temp_package\*' -DestinationPath 'FlipPix-Release.zip' -Force"
+
+REM Clean up temp directory
+rmdir /s /q temp_package
 
 if exist "FlipPix-Release.zip" (
     echo.
