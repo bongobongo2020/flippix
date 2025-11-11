@@ -45,6 +45,11 @@ publish/
 publish*/
 *.pdb
 
+# Release packages (generated files)
+*-Release.zip
+*-Setup.exe
+FlipPix*.zip
+
 # NuGet
 *.nupkg
 *.snupkg
