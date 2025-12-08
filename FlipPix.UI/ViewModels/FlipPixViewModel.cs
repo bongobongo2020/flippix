@@ -22,6 +22,7 @@ namespace FlipPix.UI.ViewModels
         private readonly ComfyUIService _comfyUIService;
         private readonly IAppLogger _logger;
         private readonly FlipPix.Core.Services.SettingsService _settingsService;
+        private readonly IServiceProvider? _serviceProvider;
 
         private string _imageFilePath = string.Empty;
         private BitmapImage? _imagePreviewSource;
@@ -49,11 +50,12 @@ namespace FlipPix.UI.ViewModels
 
         public event PropertyChangedEventHandler? PropertyChanged;
 
-        public FlipPixViewModel(ComfyUIService comfyUIService, IAppLogger logger, FlipPix.Core.Services.SettingsService settingsService)
+        public FlipPixViewModel(ComfyUIService comfyUIService, IAppLogger logger, FlipPix.Core.Services.SettingsService settingsService, IServiceProvider? serviceProvider = null)
         {
             _comfyUIService = comfyUIService ?? throw new ArgumentNullException(nameof(comfyUIService));
             _logger = logger ?? throw new ArgumentNullException(nameof(logger));
             _settingsService = settingsService ?? throw new ArgumentNullException(nameof(settingsService));
+            _serviceProvider = serviceProvider;
 
             // Initialize commands
             SelectImageCommand = new RelayCommand(SelectImage);
@@ -62,6 +64,7 @@ namespace FlipPix.UI.ViewModels
             SelectCameraControlCommand = new RelayCommand<string>(SelectCameraControl);
             SaveCustomPromptCommand = new RelayCommand(SaveCustomPrompt, () => CanSavePrompt);
             DeleteSavedPromptCommand = new RelayCommand(DeleteSavedPrompt, () => CanDeletePrompt);
+            SendToVideoGeneratorCommand = new RelayCommand(SendToVideoGenerator, () => HasResultImage);
 
             // Initialize camera control options
             InitializeCameraControlOptions();
@@ -332,6 +335,7 @@ namespace FlipPix.UI.ViewModels
         public ICommand SelectCameraControlCommand { get; }
         public ICommand SaveCustomPromptCommand { get; }
         public ICommand DeleteSavedPromptCommand { get; }
+        public ICommand SendToVideoGeneratorCommand { get; }
 
         // Methods
         private void InitializeCameraControlOptions()
@@ -829,6 +833,51 @@ namespace FlipPix.UI.ViewModels
             if (!string.IsNullOrEmpty(ResultImagePath) && File.Exists(ResultImagePath))
             {
                 Process.Start("explorer.exe", $"/select,\"{ResultImagePath}\"");
+            }
+        }
+
+        private void SendToVideoGenerator()
+        {
+            if (string.IsNullOrEmpty(ResultImagePath) || !File.Exists(ResultImagePath))
+            {
+                AddLog("ERROR: No result image to send to video generator");
+                return;
+            }
+
+            if (_serviceProvider == null)
+            {
+                System.Windows.MessageBox.Show("Cannot open Video Generator - service provider not available.", "Error", System.Windows.MessageBoxButton.OK, System.Windows.MessageBoxImage.Error);
+                return;
+            }
+
+            try
+            {
+                AddLog($"Opening Video Generator with image: {Path.GetFileName(ResultImagePath)}");
+
+                // Get the VideoGeneratorWindow from DI
+                var videoGeneratorWindow = _serviceProvider.GetService(typeof(VideoGeneratorWindow)) as VideoGeneratorWindow;
+
+                if (videoGeneratorWindow != null)
+                {
+                    // Get the ViewModel and set the image path
+                    if (videoGeneratorWindow.DataContext is VideoGeneratorViewModel viewModel)
+                    {
+                        viewModel.SetImagePath(ResultImagePath);
+                    }
+
+                    videoGeneratorWindow.Show();
+                    AddLog("Video Generator window opened successfully");
+                }
+                else
+                {
+                    AddLog("ERROR: Failed to create Video Generator window");
+                    System.Windows.MessageBox.Show("Failed to open Video Generator window.", "Error", System.Windows.MessageBoxButton.OK, System.Windows.MessageBoxImage.Error);
+                }
+            }
+            catch (Exception ex)
+            {
+                AddLog($"ERROR opening Video Generator: {ex.Message}");
+                System.Windows.MessageBox.Show($"Error opening Video Generator:\n{ex.Message}", "Error", System.Windows.MessageBoxButton.OK, System.Windows.MessageBoxImage.Error);
             }
         }
 

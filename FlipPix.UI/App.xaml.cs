@@ -158,7 +158,14 @@ namespace FlipPix.UI
                 var comfyUIService = provider.GetRequiredService<ComfyUIService>();
                 var logger = provider.GetRequiredService<IAppLogger>();
                 var settingsService = provider.GetRequiredService<SettingsService>();
-                return new FlipPixViewModel(comfyUIService, logger, settingsService);
+                return new FlipPixViewModel(comfyUIService, logger, settingsService, provider);
+            });
+            services.AddTransient<VideoGeneratorViewModel>(provider =>
+            {
+                var comfyUIService = provider.GetRequiredService<ComfyUIService>();
+                var logger = provider.GetRequiredService<IAppLogger>();
+                var settingsService = provider.GetRequiredService<SettingsService>();
+                return new VideoGeneratorViewModel(comfyUIService, logger, settingsService);
             });
             services.AddTransient<ComfyUIFolderSetupViewModel>();
 
@@ -167,6 +174,7 @@ namespace FlipPix.UI
             services.AddTransient<ChunkCreatorWindow>();
             services.AddTransient<LongCatWindow>();
             services.AddTransient<FlipPixWindow>();
+            services.AddTransient<VideoGeneratorWindow>();
             services.AddTransient<ComfyUIFolderSetupWindow>();
         }
 

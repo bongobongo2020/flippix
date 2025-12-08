@@ -203,11 +203,26 @@
                                 </Grid>
                             </Border>
 
-                            <Button Content="📂 Open Result Folder"
-                                   Style="{StaticResource SecondaryButtonStyle}"
-                                   Command="{Binding OpenResultFolderCommand}"
-                                   IsEnabled="{Binding HasResultImage}"
-                                   HorizontalAlignment="Stretch"/>
+                            <Grid>
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*"/>
+                                    <ColumnDefinition Width="*"/>
+                                </Grid.ColumnDefinitions>
+
+                                <Button Grid.Column="0"
+                                       Content="📂 Open Folder"
+                                       Style="{StaticResource SecondaryButtonStyle}"
+                                       Command="{Binding OpenResultFolderCommand}"
+                                       IsEnabled="{Binding HasResultImage}"
+                                       Margin="0,0,4,0"/>
+
+                                <Button Grid.Column="1"
+                                       Content="🎬 To Video"
+                                       Style="{StaticResource SecondaryButtonStyle}"
+                                       Command="{Binding SendToVideoGeneratorCommand}"
+                                       IsEnabled="{Binding HasResultImage}"
+                                       Margin="4,0,0,0"/>
+                            </Grid>
                         </StackPanel>
                     </Grid>
                 </Border>
