@@ -126,51 +126,88 @@ namespace FlipPix.UI.ViewModels
 
         private void ValidateFolderPath()
         {
-            if (string.IsNullOrWhiteSpace(FolderPath))
+            try
             {
-                ValidationMessage = "Please select a folder.";
+                if (string.IsNullOrWhiteSpace(FolderPath))
+                {
+                    ValidationMessage = "Please select a folder.";
+                    ValidationMessageColor = new System.Windows.Media.SolidColorBrush(System.Windows.Media.Color.FromRgb(255, 100, 100));
+                    CanSave = false;
+                    OutputFolderInfoVisibility = System.Windows.Visibility.Collapsed;
+                    System.Diagnostics.Debug.WriteLine("FlipPix Setup: Validation failed - No folder path provided");
+                    return;
+                }
+
+                System.Diagnostics.Debug.WriteLine($"FlipPix Setup: Validating folder path: {FolderPath}");
+
+                if (!Directory.Exists(FolderPath))
+                {
+                    ValidationMessage = "The selected folder does not exist.";
+                    ValidationMessageColor = new System.Windows.Media.SolidColorBrush(System.Windows.Media.Color.FromRgb(255, 100, 100));
+                    CanSave = false;
+                    OutputFolderInfoVisibility = System.Windows.Visibility.Collapsed;
+                    System.Diagnostics.Debug.WriteLine($"FlipPix Setup: Validation failed - Folder does not exist: {FolderPath}");
+                    return;
+                }
+
+                var outputFolder = Path.Combine(FolderPath, "output");
+                System.Diagnostics.Debug.WriteLine($"FlipPix Setup: Checking for output folder: {outputFolder}");
+
+                if (!Directory.Exists(outputFolder))
+                {
+                    ValidationMessage = "Error: 'output' folder not found in the selected ComfyUI folder.\n" +
+                                      "Please ensure you selected the root ComfyUI folder (not a subfolder).";
+                    ValidationMessageColor = new System.Windows.Media.SolidColorBrush(System.Windows.Media.Color.FromRgb(255, 100, 100));
+                    CanSave = false;
+                    OutputFolderInfoVisibility = System.Windows.Visibility.Collapsed;
+                    System.Diagnostics.Debug.WriteLine($"FlipPix Setup: Validation failed - Output folder not found: {outputFolder}");
+                    return;
+                }
+
+                ValidationMessage = "Folder validated successfully! Saving settings...";
+                ValidationMessageColor = new System.Windows.Media.SolidColorBrush(System.Windows.Media.Color.FromRgb(100, 255, 100));
+                CanSave = true;
+                OutputFolderInfo = $"Output folder: {outputFolder}";
+                OutputFolderInfoVisibility = System.Windows.Visibility.Visible;
+                System.Diagnostics.Debug.WriteLine($"FlipPix Setup: Validation successful - CanSave set to true");
+
+                // Auto-save and proceed after successful validation
+                System.Diagnostics.Debug.WriteLine("FlipPix Setup: Auto-saving settings after validation");
+                Save();
+            }
+            catch (Exception ex)
+            {
+                ValidationMessage = $"Error validating folder: {ex.Message}";
                 ValidationMessageColor = new System.Windows.Media.SolidColorBrush(System.Windows.Media.Color.FromRgb(255, 100, 100));
                 CanSave = false;
                 OutputFolderInfoVisibility = System.Windows.Visibility.Collapsed;
-                return;
+                System.Diagnostics.Debug.WriteLine($"FlipPix Setup: Exception during validation - {ex}");
             }
-
-            if (!Directory.Exists(FolderPath))
-            {
-                ValidationMessage = "The selected folder does not exist.";
-                ValidationMessageColor = new System.Windows.Media.SolidColorBrush(System.Windows.Media.Color.FromRgb(255, 100, 100));
-                CanSave = false;
-                OutputFolderInfoVisibility = System.Windows.Visibility.Collapsed;
-                return;
-            }
-
-            var outputFolder = Path.Combine(FolderPath, "output");
-            if (!Directory.Exists(outputFolder))
-            {
-                ValidationMessage = "Error: 'output' folder not found in the selected ComfyUI folder.";
-                ValidationMessageColor = new System.Windows.Media.SolidColorBrush(System.Windows.Media.Color.FromRgb(255, 100, 100));
-                CanSave = false;
-                OutputFolderInfoVisibility = System.Windows.Visibility.Collapsed;
-                return;
-            }
-
-            ValidationMessage = "Folder validated successfully!";
-            ValidationMessageColor = new System.Windows.Media.SolidColorBrush(System.Windows.Media.Color.FromRgb(100, 255, 100));
-            CanSave = true;
-            OutputFolderInfo = $"Output folder: {outputFolder}";
-            OutputFolderInfoVisibility = System.Windows.Visibility.Visible;
         }
 
         private void Save()
         {
-            if (_settingsService.ValidateAndSetComfyUIFolder(FolderPath))
+            try
             {
-                CloseRequested?.Invoke(this, true);
+                System.Diagnostics.Debug.WriteLine($"FlipPix Setup: Save button clicked. Attempting to save folder path: {FolderPath}");
+
+                if (_settingsService.ValidateAndSetComfyUIFolder(FolderPath))
+                {
+                    System.Diagnostics.Debug.WriteLine("FlipPix Setup: Settings saved successfully. Closing setup window.");
+                    CloseRequested?.Invoke(this, true);
+                }
+                else
+                {
+                    ValidationMessage = "Failed to save settings. Please ensure the 'output' folder exists in the selected ComfyUI folder.";
+                    ValidationMessageColor = new System.Windows.Media.SolidColorBrush(System.Windows.Media.Color.FromRgb(255, 100, 100));
+                    System.Diagnostics.Debug.WriteLine("FlipPix Setup: Save failed - ValidateAndSetComfyUIFolder returned false");
+                }
             }
-            else
+            catch (Exception ex)
             {
-                ValidationMessage = "Failed to save settings. Please try again.";
+                ValidationMessage = $"Error saving settings: {ex.Message}";
                 ValidationMessageColor = new System.Windows.Media.SolidColorBrush(System.Windows.Media.Color.FromRgb(255, 100, 100));
+                System.Diagnostics.Debug.WriteLine($"FlipPix Setup: Exception during save - {ex}");
             }
         }
 

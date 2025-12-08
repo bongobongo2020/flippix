@@ -74,9 +74,18 @@ public class FileLogger : IAppLogger
 
     public void LogWarning(string message, params object[] args)
     {
-        var formattedMessage = string.Format(message, args);
-        _logger.LogWarning(formattedMessage);
-        WriteToFile("WARNING", formattedMessage);
+        try
+        {
+            var formattedMessage = args?.Length > 0 ? string.Format(message, args) : message;
+            _logger.LogWarning(message, args ?? Array.Empty<object>());
+            WriteToFile("WARNING", formattedMessage);
+        }
+        catch (FormatException)
+        {
+            // Fallback for structured logging patterns
+            _logger.LogWarning(message, args ?? Array.Empty<object>());
+            WriteToFile("WARNING", message);
+        }
     }
 
     public void LogError(string message, params object[] args)

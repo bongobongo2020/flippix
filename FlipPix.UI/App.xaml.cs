@@ -30,24 +30,53 @@ namespace FlipPix.UI
             _serviceProvider = services.BuildServiceProvider();
 
             // Check if ComfyUI folder is configured
+            System.Diagnostics.Debug.WriteLine("FlipPix App: OnStartup - Checking if ComfyUI folder is configured");
             var settingsService = _serviceProvider.GetRequiredService<SettingsService>();
             if (!settingsService.IsComfyUIFolderConfigured())
             {
+                System.Diagnostics.Debug.WriteLine("FlipPix App: ComfyUI folder not configured. Showing setup window.");
                 var setupViewModel = _serviceProvider.GetRequiredService<ComfyUIFolderSetupViewModel>();
                 var setupWindow = new ComfyUIFolderSetupWindow(setupViewModel);
                 var result = setupWindow.ShowDialog();
 
+                System.Diagnostics.Debug.WriteLine($"FlipPix App: Setup window closed with result: {result}");
+
                 // If user cancelled, exit the application
                 if (result != true)
                 {
+                    System.Diagnostics.Debug.WriteLine("FlipPix App: User cancelled setup. Shutting down application.");
                     Shutdown();
                     return;
                 }
+
+                System.Diagnostics.Debug.WriteLine("FlipPix App: Setup completed successfully. Proceeding to main window.");
+            }
+            else
+            {
+                System.Diagnostics.Debug.WriteLine($"FlipPix App: ComfyUI folder already configured: {settingsService.Settings.ComfyUIFolderPath}");
             }
 
             // Create and show FlipPix window
-            var flipPixWindow = _serviceProvider.GetRequiredService<FlipPixWindow>();
-            flipPixWindow.Show();
+            try
+            {
+                System.Diagnostics.Debug.WriteLine("FlipPix App: Creating and showing main FlipPix window");
+                var flipPixWindow = _serviceProvider.GetRequiredService<FlipPixWindow>();
+                System.Diagnostics.Debug.WriteLine("FlipPix App: FlipPixWindow created successfully");
+
+                flipPixWindow.Show();
+                System.Diagnostics.Debug.WriteLine("FlipPix App: Main window shown successfully");
+            }
+            catch (Exception ex)
+            {
+                System.Diagnostics.Debug.WriteLine($"FlipPix App: CRITICAL ERROR - Failed to create/show main window: {ex}");
+                System.Windows.MessageBox.Show(
+                    $"Failed to open main window:\n\n{ex.Message}\n\nStack trace:\n{ex.StackTrace}",
+                    "FlipPix Error",
+                    System.Windows.MessageBoxButton.OK,
+                    System.Windows.MessageBoxImage.Error
+                );
+                Shutdown();
+            }
         }
 
         private void ConfigureServices(IServiceCollection services)
