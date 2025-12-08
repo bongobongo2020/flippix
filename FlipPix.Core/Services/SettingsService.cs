@@ -72,22 +72,40 @@ namespace FlipPix.Core.Services
 
         public bool ValidateAndSetComfyUIFolder(string folderPath)
         {
-            if (string.IsNullOrEmpty(folderPath) || !Directory.Exists(folderPath))
+            try
             {
-                return false;
-            }
+                System.Diagnostics.Debug.WriteLine($"SettingsService: ValidateAndSetComfyUIFolder called with path: {folderPath}");
 
-            // Check if the output folder exists
-            var outputFolder = Path.Combine(folderPath, "output");
-            if (!Directory.Exists(outputFolder))
+                if (string.IsNullOrEmpty(folderPath) || !Directory.Exists(folderPath))
+                {
+                    System.Diagnostics.Debug.WriteLine($"SettingsService: Validation failed - Invalid or non-existent folder: {folderPath}");
+                    return false;
+                }
+
+                // Check if the output folder exists
+                var outputFolder = Path.Combine(folderPath, "output");
+                System.Diagnostics.Debug.WriteLine($"SettingsService: Checking for output folder: {outputFolder}");
+
+                if (!Directory.Exists(outputFolder))
+                {
+                    System.Diagnostics.Debug.WriteLine($"SettingsService: Validation failed - Output folder does not exist: {outputFolder}");
+                    return false;
+                }
+
+                _settings.ComfyUIFolderPath = folderPath;
+                _settings.OutputFolderPath = outputFolder;
+
+                System.Diagnostics.Debug.WriteLine($"SettingsService: Saving settings to: {_settingsFilePath}");
+                SaveSettings(_settings);
+
+                System.Diagnostics.Debug.WriteLine("SettingsService: Settings saved successfully");
+                return true;
+            }
+            catch (Exception ex)
             {
-                return false;
+                System.Diagnostics.Debug.WriteLine($"SettingsService: Exception in ValidateAndSetComfyUIFolder - {ex}");
+                throw;
             }
-
-            _settings.ComfyUIFolderPath = folderPath;
-            _settings.OutputFolderPath = outputFolder;
-            SaveSettings(_settings);
-            return true;
         }
     }
 }

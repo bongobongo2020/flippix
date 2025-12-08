@@ -1,7 +1,7 @@
 {
   "3": {
     "inputs": {
-      "seed": 433046496352572,
+      "seed": 632416668016971,
       "steps": 8,
       "cfg": 1.5,
       "sampler_name": "euler",
@@ -106,7 +106,7 @@
   },
   "78": {
     "inputs": {
-      "image": "koympsapu9pf1.jpeg"
+      "image": "ComfyUI_00014.png"
     },
     "class_type": "LoadImage",
     "_meta": {
@@ -199,15 +199,6 @@
       "title": "EmptySD3LatentImage"
     }
   },
-  "115": {
-    "inputs": {
-      "unet_name": "qwen\\Qwen-Image-Edit-2509-Q8_0.gguf"
-    },
-    "class_type": "UnetLoaderGGUF",
-    "_meta": {
-      "title": "Unet Loader (GGUF)"
-    }
-  },
   "116": {
     "inputs": {
       "PowerLoraLoaderHeaderWidget": {
@@ -225,7 +216,7 @@
       },
       "➕ Add Lora": "",
       "model": [
-        "115",
+        "143",
         0
       ],
       "clip": [
@@ -299,6 +290,16 @@
     "class_type": "TextBox1",
     "_meta": {
       "title": "Free"
+    }
+  },
+  "143": {
+    "inputs": {
+      "unet_name": "Qwen-Image-Edit-2509_fp8_e4m3fn.safetensors",
+      "weight_dtype": "fp8_e4m3fn"
+    },
+    "class_type": "UNETLoader",
+    "_meta": {
+      "title": "Load Diffusion Model"
     }
   }
 }
