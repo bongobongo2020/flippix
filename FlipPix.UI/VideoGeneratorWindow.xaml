@@ -1,0 +1,542 @@
+<Window x:Class="FlipPix.UI.VideoGeneratorWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+        xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+        mc:Ignorable="d"
+        Title="FlipPix - Video Generator" Height="750" Width="950"
+        WindowStartupLocation="CenterScreen"
+        MinHeight="650" MinWidth="850"
+        ResizeMode="CanResize">
+
+    <Window.Resources>
+        <BooleanToVisibilityConverter x:Key="BooleanToVisibilityConverter"/>
+
+        <Style x:Key="HeaderTextStyle" TargetType="TextBlock">
+            <Setter Property="FontSize" Value="16"/>
+            <Setter Property="FontWeight" Value="Bold"/>
+            <Setter Property="Margin" Value="0,0,0,10"/>
+        </Style>
+
+        <Style x:Key="SectionPanelStyle" TargetType="Border">
+            <Setter Property="Background" Value="#F8F9FA"/>
+            <Setter Property="BorderBrush" Value="#DEE2E6"/>
+            <Setter Property="BorderThickness" Value="1"/>
+            <Setter Property="CornerRadius" Value="8"/>
+            <Setter Property="Padding" Value="20"/>
+            <Setter Property="Margin" Value="0,0,0,15"/>
+        </Style>
+
+        <Style x:Key="PrimaryButtonStyle" TargetType="Button">
+            <Setter Property="Background" Value="#FF6B35"/>
+            <Setter Property="Foreground" Value="White"/>
+            <Setter Property="BorderThickness" Value="0"/>
+            <Setter Property="Padding" Value="20,10"/>
+            <Setter Property="FontWeight" Value="Bold"/>
+            <Setter Property="FontSize" Value="14"/>
+            <Setter Property="Cursor" Value="Hand"/>
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="Button">
+                        <Border Background="{TemplateBinding Background}"
+                                CornerRadius="5"
+                                Padding="{TemplateBinding Padding}">
+                            <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                        </Border>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+            <Style.Triggers>
+                <Trigger Property="IsMouseOver" Value="True">
+                    <Setter Property="Background" Value="#FF8556"/>
+                </Trigger>
+                <Trigger Property="IsEnabled" Value="False">
+                    <Setter Property="Background" Value="#CCC"/>
+                    <Setter Property="Cursor" Value="Arrow"/>
+                </Trigger>
+            </Style.Triggers>
+        </Style>
+
+        <Style x:Key="SecondaryButtonStyle" TargetType="Button">
+            <Setter Property="Background" Value="#4CAF50"/>
+            <Setter Property="Foreground" Value="White"/>
+            <Setter Property="BorderThickness" Value="0"/>
+            <Setter Property="Padding" Value="15,8"/>
+            <Setter Property="Cursor" Value="Hand"/>
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="Button">
+                        <Border Background="{TemplateBinding Background}"
+                                CornerRadius="5"
+                                Padding="{TemplateBinding Padding}">
+                            <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                        </Border>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+            <Style.Triggers>
+                <Trigger Property="IsMouseOver" Value="True">
+                    <Setter Property="Background" Value="#66BB6A"/>
+                </Trigger>
+            </Style.Triggers>
+        </Style>
+
+    </Window.Resources>
+
+    <Grid>
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="*"/>
+            <RowDefinition Height="Auto"/>
+        </Grid.RowDefinitions>
+
+        <!-- Header -->
+        <Border Grid.Row="0">
+            <Border.Background>
+                <LinearGradientBrush StartPoint="0,0" EndPoint="1,0">
+                    <GradientStop Color="#FF6B35" Offset="0"/>
+                    <GradientStop Color="#F7931E" Offset="1"/>
+                </LinearGradientBrush>
+            </Border.Background>
+            <StackPanel Margin="25,20">
+                <TextBlock Text="🎬 Video Generator"
+                          FontSize="28" FontWeight="Bold"
+                          Foreground="White"/>
+                <TextBlock Text="Generate videos from images using AI - Upload an image and describe the motion"
+                          FontSize="13" Foreground="#FFFAF0"
+                          Margin="0,5,0,0"/>
+            </StackPanel>
+        </Border>
+
+        <!-- Main Content -->
+        <ScrollViewer Grid.Row="1" VerticalScrollBarVisibility="Auto">
+            <StackPanel Margin="20,15,20,15">
+
+                <!-- Image Input Section -->
+                <Border Style="{StaticResource SectionPanelStyle}">
+                    <StackPanel>
+                        <TextBlock Text="📤 Input Image" Style="{StaticResource HeaderTextStyle}" Foreground="#FF6B35"/>
+
+                        <Grid>
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="300"/>
+                                <ColumnDefinition Width="*"/>
+                            </Grid.ColumnDefinitions>
+
+                            <!-- Image Preview -->
+                            <Border Grid.Column="0"
+                                    BorderBrush="#DEE2E6" BorderThickness="2"
+                                    Background="White" Height="300"
+                                    CornerRadius="5" Margin="0,0,15,0">
+                                <Grid>
+                                    <TextBlock Text="No image selected"
+                                              HorizontalAlignment="Center"
+                                              VerticalAlignment="Center"
+                                              Foreground="#999"
+                                              FontStyle="Italic">
+                                        <TextBlock.Style>
+                                            <Style TargetType="TextBlock">
+                                                <Setter Property="Visibility" Value="Collapsed"/>
+                                                <Style.Triggers>
+                                                    <DataTrigger Binding="{Binding ImagePreviewSource}" Value="{x:Null}">
+                                                        <Setter Property="Visibility" Value="Visible"/>
+                                                    </DataTrigger>
+                                                </Style.Triggers>
+                                            </Style>
+                                        </TextBlock.Style>
+                                    </TextBlock>
+                                    <Image Source="{Binding ImagePreviewSource}"
+                                           Stretch="Uniform"/>
+                                </Grid>
+                            </Border>
+
+                            <!-- File Selection -->
+                            <StackPanel Grid.Column="1" VerticalAlignment="Center">
+                                <TextBlock Text="Select Image File" FontWeight="SemiBold" FontSize="13" Margin="0,0,0,10"/>
+
+                                <Grid Margin="0,0,0,15">
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="*"/>
+                                        <ColumnDefinition Width="Auto"/>
+                                    </Grid.ColumnDefinitions>
+                                    <TextBox Grid.Column="0"
+                                            Text="{Binding ImageFilePath, Mode=TwoWay}"
+                                            IsReadOnly="True"
+                                            Padding="10"
+                                            Background="White"
+                                            BorderBrush="#CED4DA"
+                                            FontSize="12"
+                                            VerticalAlignment="Center"/>
+                                    <Button Grid.Column="1"
+                                           Content="Browse..."
+                                           Style="{StaticResource SecondaryButtonStyle}"
+                                           Margin="8,0,0,0"
+                                           Command="{Binding SelectImageCommand}"/>
+                                </Grid>
+
+                                <TextBlock Text="{Binding ImageInfo}"
+                                          FontStyle="Italic"
+                                          Foreground="#666"
+                                          FontSize="11"
+                                          Margin="0,0,0,15"/>
+
+                                <TextBlock Text="Supported formats: JPG, PNG, BMP"
+                                          FontSize="11"
+                                          Foreground="#999"
+                                          FontStyle="Italic"/>
+                            </StackPanel>
+                        </Grid>
+                    </StackPanel>
+                </Border>
+
+                <!-- Video Prompt Section -->
+                <Border Style="{StaticResource SectionPanelStyle}">
+                    <StackPanel>
+                        <TextBlock Text="✍️ Video Prompt" Style="{StaticResource HeaderTextStyle}" Foreground="#FF6B35"/>
+
+                        <TextBlock Text="Describe the motion or camera movement you want in the video"
+                                   FontSize="12"
+                                   Foreground="#666"
+                                   Margin="0,0,0,10"/>
+
+                        <TextBox Text="{Binding VideoPrompt, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                                TextWrapping="Wrap"
+                                AcceptsReturn="True"
+                                Height="100"
+                                Padding="12"
+                                VerticalScrollBarVisibility="Auto"
+                                Background="White"
+                                BorderBrush="#CED4DA"
+                                FontSize="13"
+                                Margin="0,0,0,10"/>
+
+                        <TextBlock Text="Example prompts:" FontWeight="SemiBold" FontSize="11" Margin="0,0,0,5"/>
+                        <TextBlock FontSize="11" Foreground="#666" Margin="0,0,0,3">
+                            <Run Text="• "/>
+                            <Run Text="The camera slowly zooms in on the subject's face"/>
+                        </TextBlock>
+                        <TextBlock FontSize="11" Foreground="#666" Margin="0,0,0,3">
+                            <Run Text="• "/>
+                            <Run Text="The warrior stands still while the camera circles around"/>
+                        </TextBlock>
+                        <TextBlock FontSize="11" Foreground="#666">
+                            <Run Text="• "/>
+                            <Run Text="Gentle panning motion from left to right across the landscape"/>
+                        </TextBlock>
+                    </StackPanel>
+                </Border>
+
+                <!-- Video Settings and Generate -->
+                <Border Style="{StaticResource SectionPanelStyle}">
+                    <Grid>
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="2*"/>
+                            <ColumnDefinition Width="*"/>
+                        </Grid.ColumnDefinitions>
+
+                        <!-- Settings -->
+                        <StackPanel Grid.Column="0" Margin="0,0,20,0">
+                            <TextBlock Text="⚙️ Video Settings" Style="{StaticResource HeaderTextStyle}" Foreground="#FF6B35"/>
+
+                            <Grid>
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*"/>
+                                    <ColumnDefinition Width="*"/>
+                                </Grid.ColumnDefinitions>
+
+                                <!-- Video Length -->
+                                <StackPanel Grid.Column="0" Margin="0,0,15,0">
+                                    <TextBlock Text="Video Length (frames)" FontWeight="SemiBold" FontSize="12" Margin="0,0,0,5"/>
+                                    <Grid>
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="*"/>
+                                            <ColumnDefinition Width="Auto"/>
+                                        </Grid.ColumnDefinitions>
+                                        <Slider Grid.Column="0"
+                                                Value="{Binding VideoLength, Mode=TwoWay}"
+                                                Minimum="21" Maximum="121"
+                                                TickFrequency="20"
+                                                IsSnapToTickEnabled="True"
+                                                VerticalAlignment="Center"/>
+                                        <TextBlock Grid.Column="1"
+                                                  Text="{Binding VideoLength}"
+                                                  Margin="8,0,0,0"
+                                                  VerticalAlignment="Center"
+                                                  MinWidth="35"
+                                                  FontWeight="Bold"/>
+                                    </Grid>
+                                    <TextBlock Text="{Binding VideoLengthSeconds}"
+                                              FontSize="10"
+                                              Foreground="#999"
+                                              Margin="0,3,0,0"/>
+                                </StackPanel>
+
+                                <!-- FPS -->
+                                <StackPanel Grid.Column="1">
+                                    <TextBlock Text="FPS (Frames Per Second)" FontWeight="SemiBold" FontSize="12" Margin="0,0,0,5"/>
+                                    <Grid>
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="*"/>
+                                            <ColumnDefinition Width="Auto"/>
+                                        </Grid.ColumnDefinitions>
+                                        <Slider Grid.Column="0"
+                                                Value="{Binding Fps, Mode=TwoWay}"
+                                                Minimum="8" Maximum="30"
+                                                TickFrequency="2"
+                                                IsSnapToTickEnabled="True"
+                                                VerticalAlignment="Center"/>
+                                        <TextBlock Grid.Column="1"
+                                                  Text="{Binding Fps}"
+                                                  Margin="8,0,0,0"
+                                                  VerticalAlignment="Center"
+                                                  MinWidth="25"
+                                                  FontWeight="Bold"/>
+                                    </Grid>
+                                </StackPanel>
+                            </Grid>
+                        </StackPanel>
+
+                        <!-- Generate Button and Status -->
+                        <StackPanel Grid.Column="1" VerticalAlignment="Center">
+                            <Button Content="🎬 Generate Video"
+                                   Style="{StaticResource PrimaryButtonStyle}"
+                                   Command="{Binding GenerateVideoCommand}"
+                                   HorizontalAlignment="Stretch"
+                                   Height="55"
+                                   FontSize="15"
+                                   Margin="0,0,0,15"/>
+
+                            <!-- Processing Status -->
+                            <Border Background="#FFF9F0"
+                                    BorderBrush="#FFE0B0"
+                                    BorderThickness="1"
+                                    CornerRadius="5"
+                                    Padding="12"
+                                    Visibility="{Binding IsProcessing, Converter={StaticResource BooleanToVisibilityConverter}}">
+                                <StackPanel>
+                                    <TextBlock Text="{Binding ProcessingStatus}"
+                                              FontWeight="SemiBold"
+                                              FontSize="11"
+                                              Margin="0,0,0,5"
+                                              TextAlignment="Center"
+                                              TextWrapping="Wrap"/>
+                                    <ProgressBar Value="{Binding ProcessingProgress}"
+                                                Height="16"
+                                                Foreground="#FF6B35"
+                                                Margin="0,0,0,5"/>
+                                    <TextBlock Text="{Binding ProgressPercentage}"
+                                              HorizontalAlignment="Center"
+                                              FontSize="11"
+                                              FontWeight="Bold"
+                                              Foreground="#FF6B35"/>
+                                </StackPanel>
+                            </Border>
+                        </StackPanel>
+                    </Grid>
+                </Border>
+
+                <!-- Result Video Section -->
+                <Border Style="{StaticResource SectionPanelStyle}">
+                    <StackPanel>
+                        <TextBlock Text="🎥 Result Video" Style="{StaticResource HeaderTextStyle}" Foreground="#FF6B35"/>
+
+                        <Border BorderBrush="#DEE2E6" BorderThickness="2"
+                                Background="White" Height="250"
+                                CornerRadius="5" Margin="0,0,0,10">
+                            <Grid>
+                                <TextBlock Text="Video will appear here after generation"
+                                          HorizontalAlignment="Center"
+                                          VerticalAlignment="Center"
+                                          Foreground="#999"
+                                          FontStyle="Italic">
+                                    <TextBlock.Style>
+                                        <Style TargetType="TextBlock">
+                                            <Setter Property="Visibility" Value="Collapsed"/>
+                                            <Style.Triggers>
+                                                <DataTrigger Binding="{Binding HasResultVideo}" Value="False">
+                                                    <Setter Property="Visibility" Value="Visible"/>
+                                                </DataTrigger>
+                                            </Style.Triggers>
+                                        </Style>
+                                    </TextBlock.Style>
+                                </TextBlock>
+
+                                <!-- Video Player -->
+                                <MediaElement x:Name="VideoPlayer"
+                                            Source="{Binding ResultVideoPath}"
+                                            LoadedBehavior="Manual"
+                                            UnloadedBehavior="Stop"
+                                            Stretch="Uniform"
+                                            Visibility="{Binding HasResultVideo, Converter={StaticResource BooleanToVisibilityConverter}}"/>
+                            </Grid>
+                        </Border>
+
+                        <Grid>
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="*"/>
+                                <ColumnDefinition Width="Auto"/>
+                                <ColumnDefinition Width="Auto"/>
+                            </Grid.ColumnDefinitions>
+
+                            <Button Grid.Column="0"
+                                   Content="▶️ Play"
+                                   Style="{StaticResource SecondaryButtonStyle}"
+                                   Command="{Binding PlayVideoCommand}"
+                                   IsEnabled="{Binding HasResultVideo}"
+                                   Margin="0,0,8,0"/>
+
+                            <Button Grid.Column="1"
+                                   Content="📂 Open Folder"
+                                   Style="{StaticResource SecondaryButtonStyle}"
+                                   Command="{Binding OpenResultFolderCommand}"
+                                   IsEnabled="{Binding HasResultVideo}"
+                                   Margin="0,0,8,0"/>
+
+                            <Button Grid.Column="2"
+                                   Content="📷 Send to Edit Camera"
+                                   Style="{StaticResource SecondaryButtonStyle}"
+                                   Command="{Binding SendToEditCameraCommand}"
+                                   IsEnabled="{Binding HasResultVideo}"/>
+                        </Grid>
+
+                        <TextBlock Text="{Binding VideoInfo}"
+                                  FontStyle="Italic"
+                                  Foreground="#666"
+                                  FontSize="11"
+                                  Margin="0,10,0,0"/>
+                    </StackPanel>
+                </Border>
+
+                <!-- Advanced Settings (Collapsible) -->
+                <Expander Header="⚙️ Advanced Settings"
+                         Margin="0,0,0,15"
+                         IsExpanded="False">
+                    <Border Background="#F8F9FA"
+                            BorderBrush="#DEE2E6"
+                            BorderThickness="1"
+                            CornerRadius="5"
+                            Padding="15"
+                            Margin="0,8,0,0">
+                        <StackPanel>
+                            <Grid>
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*"/>
+                                    <ColumnDefinition Width="*"/>
+                                    <ColumnDefinition Width="*"/>
+                                </Grid.ColumnDefinitions>
+
+                                <!-- Steps -->
+                                <StackPanel Grid.Column="0" Margin="0,0,15,0">
+                                    <TextBlock Text="Steps" FontWeight="SemiBold" FontSize="11" Margin="0,0,0,5"/>
+                                    <Grid>
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="*"/>
+                                            <ColumnDefinition Width="Auto"/>
+                                        </Grid.ColumnDefinitions>
+                                        <Slider Grid.Column="0"
+                                                Value="{Binding Steps, Mode=TwoWay}"
+                                                Minimum="1" Maximum="10"
+                                                TickFrequency="1"
+                                                IsSnapToTickEnabled="True"
+                                                VerticalAlignment="Center"/>
+                                        <TextBlock Grid.Column="1"
+                                                  Text="{Binding Steps}"
+                                                  Margin="8,0,0,0"
+                                                  VerticalAlignment="Center"
+                                                  MinWidth="25"
+                                                  FontWeight="Bold"/>
+                                    </Grid>
+                                </StackPanel>
+
+                                <!-- CFG -->
+                                <StackPanel Grid.Column="1" Margin="0,0,15,0">
+                                    <TextBlock Text="CFG Scale" FontWeight="SemiBold" FontSize="11" Margin="0,0,0,5"/>
+                                    <Grid>
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="*"/>
+                                            <ColumnDefinition Width="Auto"/>
+                                        </Grid.ColumnDefinitions>
+                                        <Slider Grid.Column="0"
+                                                Value="{Binding Cfg, Mode=TwoWay}"
+                                                Minimum="1" Maximum="5"
+                                                TickFrequency="0.5"
+                                                IsSnapToTickEnabled="True"
+                                                VerticalAlignment="Center"/>
+                                        <TextBlock Grid.Column="1"
+                                                  Text="{Binding Cfg, StringFormat={}{0:F1}}"
+                                                  Margin="8,0,0,0"
+                                                  VerticalAlignment="Center"
+                                                  MinWidth="25"
+                                                  FontWeight="Bold"/>
+                                    </Grid>
+                                </StackPanel>
+
+                                <!-- Seed -->
+                                <StackPanel Grid.Column="2">
+                                    <TextBlock Text="Seed (0 = Random)" FontWeight="SemiBold" FontSize="11" Margin="0,0,0,5"/>
+                                    <TextBox Text="{Binding Seed, Mode=TwoWay}"
+                                            Padding="8"
+                                            Background="White"
+                                            BorderBrush="#CED4DA"
+                                            FontSize="11"/>
+                                </StackPanel>
+                            </Grid>
+
+                            <!-- Negative Prompt -->
+                            <StackPanel Margin="0,15,0,0">
+                                <TextBlock Text="Negative Prompt" FontWeight="SemiBold" FontSize="11" Margin="0,0,0,5"/>
+                                <TextBox Text="{Binding NegativePrompt, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                                        TextWrapping="Wrap"
+                                        AcceptsReturn="True"
+                                        Height="60"
+                                        Padding="8"
+                                        Background="White"
+                                        BorderBrush="#CED4DA"
+                                        FontSize="11"/>
+                            </StackPanel>
+                        </StackPanel>
+                    </Border>
+                </Expander>
+
+                <!-- Log (Collapsible) -->
+                <Expander Header="📝 Processing Log"
+                         IsExpanded="True"
+                         Margin="0,0,0,0">
+                    <Border Background="White"
+                            BorderBrush="#DEE2E6"
+                            BorderThickness="1"
+                            Margin="0,8,0,0">
+                        <ScrollViewer MaxHeight="150"
+                                     VerticalScrollBarVisibility="Auto">
+                            <TextBox Text="{Binding LogOutput}"
+                                    TextWrapping="Wrap"
+                                    IsReadOnly="True"
+                                    FontFamily="Consolas"
+                                    FontSize="10"
+                                    Background="Transparent"
+                                    BorderThickness="0"
+                                    Padding="10"/>
+                        </ScrollViewer>
+                    </Border>
+                </Expander>
+
+            </StackPanel>
+        </ScrollViewer>
+
+        <!-- Status Bar -->
+        <StatusBar Grid.Row="2" Background="#F8F9FA" BorderBrush="#DEE2E6" BorderThickness="0,1,0,0" Height="28">
+            <StatusBarItem>
+                <TextBlock Text="{Binding StatusBarMessage}" FontSize="11"/>
+            </StatusBarItem>
+            <StatusBarItem HorizontalAlignment="Right">
+                <StackPanel Orientation="Horizontal">
+                    <TextBlock Text="ComfyUI: " FontSize="11" Foreground="#666"/>
+                    <TextBlock Text="{Binding ComfyUIServer}" FontSize="11" FontWeight="Bold"/>
+                    <TextBlock Text=":" FontSize="11"/>
+                    <TextBlock Text="{Binding ComfyUIPort}" FontSize="11" FontWeight="Bold"/>
+                </StackPanel>
+            </StatusBarItem>
+        </StatusBar>
+
+    </Grid>
+</Window>
