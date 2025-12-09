@@ -4,6 +4,12 @@
 
 AI-powered image processing application that transforms image perspectives and camera angles using Qwen Image Edit models via ComfyUI.
 
+## 🚀 Quick Start
+
+**New to FlipPix?** Get up and running fast!
+
+→ **[QUICKSTART.md](QUICKSTART.md)** - 3-step installation guide with automated setup
+
 ## Overview
 
 FlipPix processes images to apply camera angle transformations, perspective changes, and visual modifications. It requires a local ComfyUI server with specific custom nodes and models to function.
@@ -20,98 +26,33 @@ FlipPix processes images to apply camera angle transformations, perspective chan
 - Windows x64 operating system
 - .NET 8.0 runtime (included in self-contained build)
 - Minimum 16GB RAM (32GB recommended for processing)
-- NVIDIA GPU with 12GB+ VRAM recommended
+- NVIDIA GPU with 12GB+ VRAM (16GB+ recommended for video generation)
 
 ### ComfyUI Setup
 
 FlipPix requires **ComfyUI running on localhost** (default: `http://127.0.0.1:8188`).
 
-#### 1. Install ComfyUI (if not already installed)
+**📖 [Complete ComfyUI Setup Guide](COMFYUI_SETUP.md)** - Comprehensive step-by-step instructions for setting up ComfyUI from scratch
 
-```bash
-# Clone ComfyUI repository
-git clone https://github.com/comfyanonymous/ComfyUI.git
-cd ComfyUI
+**🚀 [Automated Setup Scripts](scripts/README.md)** - One-click scripts to download all custom nodes and models automatically
 
-# Install dependencies
-pip install -r requirements.txt
-```
+#### Quick Setup Summary
 
-#### 2. Install Required Custom Nodes
+FlipPix uses three different AI workflows:
+- **Image Editing** (Qwen models) - Camera angle transformations
+- **Video Generation** (Wan models) - Image-to-video animation
+- **Image Generation** (Z-Image models) - Text-to-image creation
 
-FlipPix uses the following custom nodes. Install them in `ComfyUI/custom_nodes/`:
+**Required Custom Nodes:**
+- [ComfyUI-QwenImageEdit-MZ](https://github.com/MinusZoneAI/ComfyUI-QwenImageEdit-MZ)
+- [rgthree-comfy](https://github.com/rgthree/rgthree-comfy)
+- [ComfyUI_Comfyroll_CustomNodes](https://github.com/Suzie1/ComfyUI_Comfyroll_CustomNodes)
+- [ComfyUI-WanVideoGenerator](https://github.com/chaojie/ComfyUI-WanVideoGenerator)
+- [ComfyUI-GGUF](https://github.com/city96/ComfyUI-GGUF) (optional)
 
-**GGUF Support (for Qwen models)**
-```bash
-cd ComfyUI/custom_nodes
-git clone https://github.com/city96/ComfyUI-GGUF.git
-```
+**Storage Requirements:** ~60GB for all models
 
-**Qwen Image Edit Nodes**
-```bash
-cd ComfyUI/custom_nodes
-git clone https://github.com/MinusZoneAI/ComfyUI-QwenImageEdit-MZ.git
-```
-
-**rgthree Custom Nodes (for Power Lora Loader)**
-```bash
-cd ComfyUI/custom_nodes
-git clone https://github.com/rgthree/rgthree-comfy.git
-```
-
-**Additional Utility Nodes**
-```bash
-cd ComfyUI/custom_nodes
-git clone https://github.com/Suzie1/ComfyUI_Comfyroll_CustomNodes.git
-```
-
-After installing custom nodes, restart ComfyUI or click "Restart" in the ComfyUI Manager.
-
-#### 3. Download Required Models
-
-Place the following models in their respective directories:
-
-**CLIP Model**
-- File: `qwen_2.5_vl_7b_fp8_scaled.safetensors`
-- Location: `ComfyUI/models/clip/`
-- Source: [Hugging Face - Qwen Models](https://huggingface.co/Comfy-Org/Qwen-Image_ComfyUI/blob/main/split_files/text_encoders/qwen_2.5_vl_7b_fp8_scaled.safetensors)
-
-**VAE Model**
-- File: `qwen_image_vae.safetensors`
-- Location: `ComfyUI/models/vae/`
-- Source: [Hugging Face - Qwen VAE](https://huggingface.co/QuantStack/Qwen-Image-GGUF/blob/main/VAE/Qwen_Image-VAE.safetensors)
-
-**UNET Model (GGUF)**
-- File: `Qwen-Image-Edit-2509-Q8_0.gguf`
-- Location: `ComfyUI/models/unet/qwen/`
-- Source: [Hugging Face - Qwen Image Edit](https://huggingface.co/QuantStack/Qwen-Image-Edit-2509-GGUF/blob/main/Qwen-Image-Edit-2509-Q8_0.gguf)
-
-**LoRA Models**
-- File: `Qwen-Image-Lightning-8steps-V2.0.safetensors`
-- Location: `ComfyUI/models/loras/qwen/`
-Source: [Hugging Face - Qwen LoRAs](https://huggingface.co/lightx2v/Qwen-Image-Lightning/blob/main/Qwen-Image-Lightning-8steps-V2.0.safetensors)
-- File: `mult-angles.safetensors` (Rename the file to mult-angles.safetensors )
-- Location: `ComfyUI/models/loras/qwen/`
-- Source: [Hugging Face - Qwen LoRAs](https://huggingface.co/dx8152/Qwen-Edit-2509-Multiple-angles/blob/main/%E9%95%9C%E5%A4%B4%E8%BD%AC%E6%8D%A2.safetensors)
-
-#### 4. Start ComfyUI
-
-```bash
-# From ComfyUI directory
-python main.py
-
-# Or with GPU optimization
-python main.py --highvram
-```
-
-Verify ComfyUI is running by accessing `http://127.0.0.1:8188` in your browser.
-
-#### 5. Verify Workflow Compatibility
-
-Open the workflow file in ComfyUI to verify all nodes load correctly:
-- File location: `/mnt/c/Users/x2/Documents/projects/wan-exp/flippix/workflow/qwen-edit-camera-API.json`
-- Drag and drop the JSON file into ComfyUI interface
-- Check that all nodes appear without red errors
+For detailed installation instructions, model downloads, and troubleshooting, see **[COMFYUI_SETUP.md](COMFYUI_SETUP.md)**
 
 ## Using FlipPix
 

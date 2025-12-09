@@ -35,6 +35,16 @@ REM Copy files excluding .pdb and output folder
 echo Excluding: .pdb files, output folder and all its contents
 robocopy publish temp_package /E /XF *.pdb /XD output /NFL /NDL /NJH /NJS >nul 2>&1
 
+REM Copy workflow folder (required for app functionality)
+echo Copying workflow folder...
+robocopy workflow temp_package\workflow /E /NFL /NDL /NJH /NJS >nul 2>&1
+
+REM Copy other essential files
+echo Copying README and setup files...
+copy README.md temp_package\README.md >nul 2>&1
+copy QUICKSTART.md temp_package\QUICKSTART.md >nul 2>&1
+copy COMFYUI_SETUP.md temp_package\COMFYUI_SETUP.md >nul 2>&1
+
 REM Create ZIP from temp directory
 powershell -Command "Compress-Archive -Path 'temp_package\*' -DestinationPath 'FlipPix-Release.zip' -Force"
 

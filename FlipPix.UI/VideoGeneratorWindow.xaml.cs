@@ -1,4 +1,5 @@
 using System.Windows;
+using System.Windows.Input;
 using FlipPix.UI.ViewModels;
 
 namespace FlipPix.UI
@@ -15,7 +16,14 @@ namespace FlipPix.UI
 
             // Wire up video player controls
             _viewModel.PlayRequested += OnPlayRequested;
-            _viewModel.StopRequested += OnStopRequested;
+        }
+
+        private void Header_MouseLeftButtonDown(object sender, MouseButtonEventArgs e)
+        {
+            if (e.ButtonState == MouseButtonState.Pressed)
+            {
+                this.DragMove();
+            }
         }
 
         private void OnPlayRequested(object? sender, System.EventArgs e)
@@ -27,14 +35,6 @@ namespace FlipPix.UI
             }
         }
 
-        private void OnStopRequested(object? sender, System.EventArgs e)
-        {
-            if (VideoPlayer != null)
-            {
-                VideoPlayer.Stop();
-            }
-        }
-
         protected override void OnClosed(System.EventArgs e)
         {
             if (VideoPlayer != null)
@@ -42,7 +42,6 @@ namespace FlipPix.UI
                 VideoPlayer.Stop();
             }
             _viewModel.PlayRequested -= OnPlayRequested;
-            _viewModel.StopRequested -= OnStopRequested;
             base.OnClosed(e);
         }
     }

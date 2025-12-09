@@ -21,6 +21,7 @@ namespace FlipPix.UI.ViewModels
         private readonly ComfyUIService _comfyUIService;
         private readonly IAppLogger _logger;
         private readonly FlipPix.Core.Services.SettingsService _settingsService;
+        private readonly IServiceProvider? _serviceProvider;
 
         private string _imageFilePath = string.Empty;
         private BitmapImage? _imagePreviewSource;
@@ -47,13 +48,13 @@ namespace FlipPix.UI.ViewModels
 
         public event PropertyChangedEventHandler? PropertyChanged;
         public event EventHandler? PlayRequested;
-        public event EventHandler? StopRequested;
 
-        public VideoGeneratorViewModel(ComfyUIService comfyUIService, IAppLogger logger, FlipPix.Core.Services.SettingsService settingsService)
+        public VideoGeneratorViewModel(ComfyUIService comfyUIService, IAppLogger logger, FlipPix.Core.Services.SettingsService settingsService, IServiceProvider? serviceProvider = null)
         {
             _comfyUIService = comfyUIService ?? throw new ArgumentNullException(nameof(comfyUIService));
             _logger = logger ?? throw new ArgumentNullException(nameof(logger));
             _settingsService = settingsService ?? throw new ArgumentNullException(nameof(settingsService));
+            _serviceProvider = serviceProvider;
 
             // Initialize commands
             SelectImageCommand = new RelayCommand(SelectImage);
@@ -61,6 +62,8 @@ namespace FlipPix.UI.ViewModels
             PlayVideoCommand = new RelayCommand(PlayVideo, () => HasResultVideo);
             OpenResultFolderCommand = new RelayCommand(OpenResultFolder, () => HasResultVideo);
             SendToEditCameraCommand = new RelayCommand(SendToEditCamera, () => HasResultVideo);
+            NavigateToImageGeneratorCommand = new RelayCommand(NavigateToImageGenerator);
+            NavigateToCameraEditCommand = new RelayCommand(NavigateToCameraEdit);
 
             AddLog("Video Generator initialized");
 
@@ -305,6 +308,8 @@ namespace FlipPix.UI.ViewModels
         public ICommand PlayVideoCommand { get; }
         public ICommand OpenResultFolderCommand { get; }
         public ICommand SendToEditCameraCommand { get; }
+        public ICommand NavigateToImageGeneratorCommand { get; }
+        public ICommand NavigateToCameraEditCommand { get; }
 
         // Methods
         private void SelectImage()
@@ -459,28 +464,19 @@ namespace FlipPix.UI.ViewModels
                 await Task.Delay(3000);
 
                 // Get the video from ComfyUI output folder
-                var outputVideo = await GetOutputVideoFromComfyUI();
+                var outputVideo = await GetOutputVideoFromComfyUI(promptId);
 
                 if (outputVideo != null && File.Exists(outputVideo))
                 {
-                    var outputDir = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "output", "video-generation");
-                    Directory.CreateDirectory(outputDir);
-
-                    var timestamp = DateTime.Now.ToString("yyyyMMdd_HHmmss");
-                    var outputPath = Path.Combine(outputDir, $"video_{timestamp}.mp4");
-
-                    File.Copy(outputVideo, outputPath, true);
-                    AddLog($"Output saved: {outputPath}");
-
-                    ResultVideoPath = outputPath;
+                    ResultVideoPath = outputVideo;
                     HasResultVideo = true;
 
-                    var fileInfo = new FileInfo(outputPath);
+                    var fileInfo = new FileInfo(outputVideo);
                     VideoInfo = $"Video: {VideoLength} frames @ {Fps} FPS • {fileInfo.Length / 1024}KB";
 
                     ProcessingProgress = 100;
                     ProcessingStatus = "Complete!";
-                    StatusBarMessage = $"Video generation complete - {Path.GetFileName(outputPath)}";
+                    StatusBarMessage = $"Video generation complete - {Path.GetFileName(outputVideo)}";
 
                     AddLog("=== Video generation completed successfully ===");
                 }
@@ -626,44 +622,135 @@ namespace FlipPix.UI.ViewModels
             return updatedWorkflow;
         }
 
-        private Task<string?> GetOutputVideoFromComfyUI()
+        private async Task<string?> GetOutputVideoFromComfyUI(string promptId)
         {
             try
             {
-                // Get ComfyUI output folder from settings
-                var settings = _settingsService.LoadSettings();
-                if (settings == null || string.IsNullOrEmpty(settings.OutputFolderPath))
+                AddLog("=== GetOutputVideoFromComfyUI START ===");
+
+                // Get the actual ComfyUI server settings
+                var baseUrl = _settingsService.Settings?.BaseUrl ?? "http://127.0.0.1:8188";
+                AddLog($"BaseUrl from settings: {baseUrl}");
+
+                // Parse the URL to get server and port
+                var uri = new Uri(baseUrl);
+                var actualServer = uri.Host;
+                var actualPort = uri.Port.ToString();
+
+                // Check if ComfyUI is running locally or remotely
+                bool isRemoteComfyUI = IsComfyUIRemote(actualServer);
+
+                AddLog($"Parsed server: {actualServer}:{actualPort}");
+                AddLog($"Is remote ComfyUI: {isRemoteComfyUI}");
+
+                if (isRemoteComfyUI)
                 {
-                    AddLog("ERROR: ComfyUI output path not configured");
-                    return Task.FromResult<string?>(null);
+                    AddLog("Detected remote ComfyUI server, accessing generated video...");
+
+                    // For remote ComfyUI, require a network path to the output folder
+                    var remoteOutputPath = _settingsService.Settings?.RemoteOutputFolderPath;
+
+                    // Check if we have a valid remote output path
+                    if (!string.IsNullOrEmpty(remoteOutputPath) && Directory.Exists(remoteOutputPath))
+                    {
+                        AddLog($"Using remote output folder: {remoteOutputPath}");
+                        return await CopyVideoFromRemoteFolder(remoteOutputPath, promptId);
+                    }
+
+                    // If we don't have a valid remote output path, require user to configure it
+                    if (string.IsNullOrEmpty(remoteOutputPath))
+                    {
+                        AddLog("Remote output folder not configured for remote ComfyUI server.");
+
+                        var result = System.Windows.MessageBox.Show(
+                            "ComfyUI is running on a remote server.\n\n" +
+                            "To retrieve generated videos, you must configure the network path to the remote ComfyUI output folder.\n\n" +
+                            "Would you like to configure it now?",
+                            "Remote Output Folder Required",
+                            System.Windows.MessageBoxButton.OKCancel,
+                            System.Windows.MessageBoxImage.Warning);
+
+                        if (result == System.Windows.MessageBoxResult.OK)
+                        {
+                            ShowRemoteOutputFolderSetup();
+                            // After setup, check again if the folder was configured
+                            remoteOutputPath = _settingsService.Settings?.RemoteOutputFolderPath;
+                            if (!string.IsNullOrEmpty(remoteOutputPath) && Directory.Exists(remoteOutputPath))
+                            {
+                                AddLog($"Remote output folder configured: {remoteOutputPath}");
+                                return await CopyVideoFromRemoteFolder(remoteOutputPath, promptId);
+                            }
+                        }
+                    }
+                    else
+                    {
+                        // Remote output path is configured but not accessible
+                        AddLog($"Remote output folder not accessible: {remoteOutputPath}");
+
+                        var result = System.Windows.MessageBox.Show(
+                            "The configured remote output folder is not accessible.\n\n" +
+                            "Please check the network path and permissions.\n\n" +
+                            "Would you like to reconfigure it?",
+                            "Remote Output Folder Not Accessible",
+                            System.Windows.MessageBoxButton.OKCancel,
+                            System.Windows.MessageBoxImage.Error);
+
+                        if (result == System.Windows.MessageBoxResult.OK)
+                        {
+                            ShowRemoteOutputFolderSetup();
+                            // After setup, check again if the folder was configured
+                            remoteOutputPath = _settingsService.Settings?.RemoteOutputFolderPath;
+                            if (!string.IsNullOrEmpty(remoteOutputPath) && Directory.Exists(remoteOutputPath))
+                            {
+                                AddLog($"Remote output folder reconfigured: {remoteOutputPath}");
+                                return await CopyVideoFromRemoteFolder(remoteOutputPath, promptId);
+                            }
+                        }
+                    }
+
+                    // If we get here, no valid remote output folder is available
+                    AddLog("ERROR: Remote output folder is required for remote ComfyUI server access.");
+                    AddLog("Video retrieval failed - please configure the remote output folder and try again.");
+                    return null;
+                }
+                else
+                {
+                    // Local ComfyUI - check the output folder directly
+                    var settings = _settingsService.Settings;
+                    if (settings == null || string.IsNullOrEmpty(settings.OutputFolderPath))
+                    {
+                        AddLog("ERROR: ComfyUI output path not configured");
+                        return null;
+                    }
+
+                    var outputFolder = Path.Combine(settings.OutputFolderPath, "video");
+                    if (!Directory.Exists(outputFolder))
+                    {
+                        AddLog($"ERROR: Output folder not found: {outputFolder}");
+                        return null;
+                    }
+
+                    // Get the most recent video file
+                    var videoFiles = Directory.GetFiles(outputFolder, "*.mp4")
+                        .OrderByDescending(f => new FileInfo(f).LastWriteTime)
+                        .ToList();
+
+                    if (videoFiles.Any())
+                    {
+                        var latestVideo = videoFiles.First();
+                        AddLog($"Found output video: {Path.GetFileName(latestVideo)}");
+                        return latestVideo;
+                    }
+
+                    AddLog("No video files found in output folder");
                 }
 
-                var outputFolder = Path.Combine(settings.OutputFolderPath, "video");
-                if (!Directory.Exists(outputFolder))
-                {
-                    AddLog($"ERROR: Output folder not found: {outputFolder}");
-                    return Task.FromResult<string?>(null);
-                }
-
-                // Get the most recent video file
-                var videoFiles = Directory.GetFiles(outputFolder, "*.mp4")
-                    .OrderByDescending(f => new FileInfo(f).LastWriteTime)
-                    .ToList();
-
-                if (videoFiles.Any())
-                {
-                    var latestVideo = videoFiles.First();
-                    AddLog($"Found output video: {Path.GetFileName(latestVideo)}");
-                    return Task.FromResult<string?>(latestVideo);
-                }
-
-                AddLog("No video files found in output folder");
-                return Task.FromResult<string?>(null);
+                return null;
             }
             catch (Exception ex)
             {
                 AddLog($"ERROR getting output video: {ex.Message}");
-                return Task.FromResult<string?>(null);
+                return null;
             }
         }
 
@@ -692,12 +779,366 @@ namespace FlipPix.UI.ViewModels
             AddLog("Send to Edit Camera requested");
         }
 
+        private void NavigateToImageGenerator()
+        {
+            if (_serviceProvider == null) return;
+
+            try
+            {
+                var imageGeneratorWindow = _serviceProvider.GetService(typeof(ImageGeneratorWindow)) as ImageGeneratorWindow;
+                imageGeneratorWindow?.Show();
+            }
+            catch (Exception ex)
+            {
+                AddLog($"ERROR navigating to Image Generator: {ex.Message}");
+            }
+        }
+
+        private void NavigateToCameraEdit()
+        {
+            if (_serviceProvider == null) return;
+
+            try
+            {
+                var cameraEditWindow = _serviceProvider.GetService(typeof(FlipPixWindow)) as FlipPixWindow;
+                cameraEditWindow?.Show();
+            }
+            catch (Exception ex)
+            {
+                AddLog($"ERROR navigating to Camera Edit: {ex.Message}");
+            }
+        }
+
         private void AddLog(string message)
         {
             var timestamp = DateTime.Now.ToString("HH:mm:ss");
             var logEntry = $"[{timestamp}] {message}\n";
             LogOutput += logEntry;
             _logger.LogInfo(message);
+        }
+
+        private async Task<string?> CopyVideoFromRemoteFolder(string remoteOutputPath, string promptId)
+    {
+        try
+        {
+            AddLog("=== CopyVideoFromRemoteFolder START ===");
+            AddLog($"Remote output path: {remoteOutputPath}");
+
+            // Wait a moment for files to be written
+            await Task.Delay(2000);
+
+            // Look for recent video files in the remote output folder
+            var videoFiles = Directory.GetFiles(remoteOutputPath, "*.mp4", SearchOption.AllDirectories)
+                .OrderByDescending(f => new FileInfo(f).LastWriteTime)
+                .ToList();
+
+            AddLog($"Found {videoFiles.Count} MP4 files in remote folder");
+
+            // Also check for subfolders that might contain videos
+            var subfolders = new[] { "output", "videos", "temp", "input" };
+            foreach (var subfolder in subfolders)
+            {
+                var subfolderPath = Path.Combine(remoteOutputPath, subfolder);
+                if (Directory.Exists(subfolderPath))
+                {
+                    var subfolderVideos = Directory.GetFiles(subfolderPath, "*.mp4")
+                        .OrderByDescending(f => new FileInfo(f).LastWriteTime);
+                    videoFiles.AddRange(subfolderVideos);
+                }
+            }
+
+            videoFiles = videoFiles.Distinct().OrderByDescending(f => new FileInfo(f).LastWriteTime).ToList();
+            AddLog($"Total unique MP4 files found: {videoFiles.Count}");
+
+            // Filter for files created in the last 10 minutes (more generous timeframe)
+            var recentFiles = videoFiles.Where(f =>
+            {
+                var fileInfo = new FileInfo(f);
+                var age = DateTime.Now - fileInfo.LastWriteTime;
+                return age.TotalMinutes <= 10;
+            }).ToList();
+
+            AddLog($"Found {recentFiles.Count} recent video files (within last 10 minutes)");
+
+            if (recentFiles.Any())
+            {
+                var latestVideo = recentFiles.First();
+                var fileInfo = new FileInfo(latestVideo);
+                AddLog($"Most recent video: {fileInfo.Name} (Modified: {fileInfo.LastWriteTime:yyyy-MM-dd HH:mm:ss})");
+
+                // Create local output directory
+                var outputDir = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "output", "video-generation");
+                Directory.CreateDirectory(outputDir);
+
+                var timestamp = DateTime.Now.ToString("yyyyMMdd_HHmmss");
+                var localFileName = $"video_{timestamp}.mp4";
+                var outputPath = Path.Combine(outputDir, localFileName);
+
+                AddLog($"Copying video to: {outputPath}");
+
+                // Copy the file
+                File.Copy(latestVideo, outputPath, true);
+
+                var copiedFileInfo = new FileInfo(outputPath);
+                AddLog($"Video copied successfully: {copiedFileInfo.Name} ({copiedFileInfo.Length / 1024}KB)");
+                AddLog("=== CopyVideoFromRemoteFolder END ===");
+
+                return outputPath;
+            }
+            else
+            {
+                // If no recent files found, show all files for debugging
+                if (videoFiles.Any())
+                {
+                    AddLog("All video files found (showing last 10):");
+                    foreach (var file in videoFiles.Take(10))
+                    {
+                        var info = new FileInfo(file);
+                        var age = DateTime.Now - info.LastWriteTime;
+                        AddLog($"  - {info.Name} ({age.TotalMinutes:F1} minutes old)");
+                    }
+                }
+                else
+                {
+                    AddLog("No MP4 files found in remote output folder or subfolders");
+                }
+
+                AddLog("=== CopyVideoFromRemoteFolder END (NO FILES) ===");
+                return null;
+            }
+        }
+        catch (Exception ex)
+        {
+            AddLog($"ERROR accessing remote folder: {ex.Message}");
+            AddLog($"Stack trace: {ex.StackTrace}");
+            return null;
+        }
+    }
+
+    private async Task<string?> TryHttpDownloadFallback(string promptId)
+    {
+        try
+        {
+            AddLog("=== HTTP Download Fallback START ===");
+
+            // First try the history API approach
+            var outputFiles = await _comfyUIService.HttpClient.GetOutputFilesAsync();
+            AddLog($"Found {outputFiles.Count} potential output files");
+
+            // Look for video files in the output
+            var videoFiles = outputFiles.Where(f => f.EndsWith(".mp4") || f.EndsWith(".webm") || f.EndsWith(".mov")).ToList();
+
+            if (videoFiles.Any())
+            {
+                // Download the most recent video file
+                var filename = videoFiles.Last(); // Get the last/most recent
+                AddLog($"Downloading generated video: {filename}");
+
+                // Try downloading with different subfolder approaches
+                var videoData = await _comfyUIService.HttpClient.DownloadOutputVideoAsync(filename);
+
+                // If direct download fails, try common subfolders
+                if (videoData == null)
+                {
+                    AddLog("Direct download failed, trying with 'output' subfolder...");
+                    videoData = await _comfyUIService.HttpClient.DownloadOutputVideoAsync(filename, "output");
+                }
+
+                if (videoData == null)
+                {
+                    AddLog("Trying with 'videos' subfolder...");
+                    videoData = await _comfyUIService.HttpClient.DownloadOutputVideoAsync(filename, "videos");
+                }
+
+                if (videoData != null)
+                {
+                    var outputDir = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "output", "video-generation");
+                    Directory.CreateDirectory(outputDir);
+
+                    var timestamp = DateTime.Now.ToString("yyyyMMdd_HHmmss");
+                    var outputPath = Path.Combine(outputDir, $"video_{timestamp}.mp4");
+
+                    await File.WriteAllBytesAsync(outputPath, videoData);
+                    AddLog($"Video downloaded and saved: {outputPath}");
+                    return outputPath;
+                }
+                else
+                {
+                    AddLog($"Failed to download video: {filename}");
+                }
+            }
+            else
+            {
+                AddLog("No video files found in history, trying alternative approach...");
+
+                // Try the fallback approach
+                var fallbackVideo = await _comfyUIService.HttpClient.TryDownloadRecentVideoAsync(promptId);
+                if (fallbackVideo != null)
+                {
+                    var outputDir = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "output", "video-generation");
+                    Directory.CreateDirectory(outputDir);
+
+                    var timestamp = DateTime.Now.ToString("yyyyMMdd_HHmmss");
+                    var outputPath = Path.Combine(outputDir, $"video_{timestamp}.mp4");
+
+                    await File.WriteAllBytesAsync(outputPath, fallbackVideo);
+                    AddLog($"Video downloaded and saved via fallback method: {outputPath}");
+                    return outputPath;
+                }
+                else
+                {
+                    AddLog("Failed to download video using all available methods");
+                    AddLog("This might be due to:");
+                    AddLog("- ComfyUI output folder not being accessible via HTTP");
+                    AddLog("- Different filename pattern than expected");
+                    AddLog("- ComfyUI server configuration preventing file access");
+                }
+            }
+
+            // Debug info about what files we found
+            if (outputFiles.Any())
+            {
+                AddLog("All files found in history:");
+                foreach (var file in outputFiles.Take(5))
+                {
+                    AddLog($"  - {file}");
+                }
+            }
+
+            AddLog("=== HTTP Download Fallback END ===");
+            return null;
+        }
+        catch (Exception ex)
+        {
+            AddLog($"ERROR in HTTP download fallback: {ex.Message}");
+            return null;
+        }
+    }
+
+    private void ShowRemoteOutputFolderSetup()
+        {
+            try
+            {
+                // Use a simple folder browser dialog to select the remote output folder
+                using (var folderDialog = new System.Windows.Forms.FolderBrowserDialog())
+                {
+                    folderDialog.Description = "Select the network path to the remote ComfyUI output folder";
+                    folderDialog.ShowNewFolderButton = false;
+
+                    // Try to use previously configured path as starting point
+                    var currentPath = _settingsService.Settings?.RemoteOutputFolderPath;
+                    if (!string.IsNullOrEmpty(currentPath) && System.IO.Directory.Exists(currentPath))
+                    {
+                        folderDialog.SelectedPath = currentPath;
+                    }
+
+                    if (folderDialog.ShowDialog() == System.Windows.Forms.DialogResult.OK)
+                    {
+                        var selectedPath = folderDialog.SelectedPath;
+
+                        // Validate that the path is accessible
+                        if (System.IO.Directory.Exists(selectedPath))
+                        {
+                            // Save the remote output folder path
+                            var settings = _settingsService.Settings;
+                            if (settings != null)
+                            {
+                                settings.RemoteOutputFolderPath = selectedPath;
+                                _settingsService.SaveSettings(settings);
+                            }
+
+                            AddLog($"Remote output folder configured: {selectedPath}");
+                        }
+                        else
+                        {
+                            System.Windows.MessageBox.Show(
+                                "The selected folder is not accessible. Please check the network path and permissions.",
+                                "Folder Not Accessible",
+                                System.Windows.MessageBoxButton.OK,
+                                System.Windows.MessageBoxImage.Error);
+                        }
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                AddLog($"Error configuring remote output folder: {ex.Message}");
+                System.Windows.MessageBox.Show(
+                    $"Error configuring remote output folder: {ex.Message}",
+                    "Configuration Error",
+                    System.Windows.MessageBoxButton.OK,
+                    System.Windows.MessageBoxImage.Error);
+            }
+        }
+
+        private void ShowComfyUIFolderSetup()
+        {
+            try
+            {
+                // Create the ViewModel
+                var setupViewModel = new ComfyUIFolderSetupViewModel(_settingsService);
+
+                // Create and show the ComfyUI folder setup window
+                var setupWindow = new ComfyUIFolderSetupWindow(setupViewModel);
+
+                // Show the window as a dialog
+                bool? result = setupWindow.ShowDialog();
+
+                if (result == true)
+                {
+                    AddLog("ComfyUI settings updated successfully");
+                }
+            }
+            catch (Exception ex)
+            {
+                AddLog($"Error opening ComfyUI setup: {ex.Message}");
+            }
+        }
+
+        private bool IsComfyUIRemote(string serverAddress)
+        {
+            try
+            {
+                // Check if it's a local address
+                if (serverAddress.Equals("127.0.0.1", StringComparison.OrdinalIgnoreCase) ||
+                    serverAddress.Equals("localhost", StringComparison.OrdinalIgnoreCase) ||
+                    serverAddress.Equals("0.0.0.0", StringComparison.OrdinalIgnoreCase))
+                {
+                    return false;
+                }
+
+                // Check if it's a local network IP (192.168.x.x, 10.x.x.x, 172.16-31.x.x)
+                if (System.Net.IPAddress.TryParse(serverAddress, out var ip))
+                {
+                    var bytes = ip.GetAddressBytes();
+                    if (bytes.Length == 4)
+                    {
+                        // 192.168.x.x
+                        if (bytes[0] == 192 && bytes[1] == 168)
+                        {
+                            return true; // This is a LAN IP
+                        }
+                        // 10.x.x.x
+                        if (bytes[0] == 10)
+                        {
+                            return true; // This is a LAN IP
+                        }
+                        // 172.16-31.x.x
+                        if (bytes[0] == 172 && bytes[1] >= 16 && bytes[1] <= 31)
+                        {
+                            return true; // This is a LAN IP
+                        }
+                    }
+                }
+
+                // If we get here, assume it's remote
+                return !string.IsNullOrEmpty(serverAddress) && serverAddress != ".";
+            }
+            catch
+            {
+                // If we can't determine, assume it's remote to be safe
+                return true;
+            }
         }
 
         protected void OnPropertyChanged([CallerMemberName] string? propertyName = null)

@@ -1,4 +1,5 @@
 using System.Windows;
+using System.Windows.Input;
 using FlipPix.UI.ViewModels;
 
 namespace FlipPix.UI
@@ -9,6 +10,14 @@ namespace FlipPix.UI
         {
             InitializeComponent();
             DataContext = viewModel;
+        }
+
+        private void Header_MouseLeftButtonDown(object sender, MouseButtonEventArgs e)
+        {
+            if (e.ButtonState == MouseButtonState.Pressed)
+            {
+                this.DragMove();
+            }
         }
     }
 }

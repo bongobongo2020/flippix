@@ -1,0 +1,464 @@
+<Window x:Class="FlipPix.UI.ImageGeneratorWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+        xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+        mc:Ignorable="d"
+        Title="FlipPix - Image Generator" Height="750" Width="950"
+        WindowStartupLocation="Manual"
+        WindowState="Normal"
+        WindowStyle="SingleBorderWindow"
+        MinHeight="650" MinWidth="850"
+        ResizeMode="CanResize">
+
+    <Window.Resources>
+        <BooleanToVisibilityConverter x:Key="BooleanToVisibilityConverter"/>
+
+        <Style x:Key="HeaderTextStyle" TargetType="TextBlock">
+            <Setter Property="FontSize" Value="16"/>
+            <Setter Property="FontWeight" Value="Bold"/>
+            <Setter Property="Margin" Value="0,0,0,10"/>
+        </Style>
+
+        <Style x:Key="SectionPanelStyle" TargetType="Border">
+            <Setter Property="Background" Value="#F8F9FA"/>
+            <Setter Property="BorderBrush" Value="#DEE2E6"/>
+            <Setter Property="BorderThickness" Value="1"/>
+            <Setter Property="CornerRadius" Value="8"/>
+            <Setter Property="Padding" Value="20"/>
+            <Setter Property="Margin" Value="0,0,0,15"/>
+        </Style>
+
+        <Style x:Key="PrimaryButtonStyle" TargetType="Button">
+            <Setter Property="Background" Value="#FF6B35"/>
+            <Setter Property="Foreground" Value="White"/>
+            <Setter Property="BorderThickness" Value="0"/>
+            <Setter Property="Padding" Value="20,10"/>
+            <Setter Property="FontWeight" Value="Bold"/>
+            <Setter Property="FontSize" Value="14"/>
+            <Setter Property="Cursor" Value="Hand"/>
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="Button">
+                        <Border Background="{TemplateBinding Background}"
+                                CornerRadius="5"
+                                Padding="{TemplateBinding Padding}">
+                            <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                        </Border>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+            <Style.Triggers>
+                <Trigger Property="IsMouseOver" Value="True">
+                    <Setter Property="Background" Value="#FF8556"/>
+                </Trigger>
+                <Trigger Property="IsEnabled" Value="False">
+                    <Setter Property="Background" Value="#CCC"/>
+                    <Setter Property="Cursor" Value="Arrow"/>
+                </Trigger>
+            </Style.Triggers>
+        </Style>
+
+        <Style x:Key="SecondaryButtonStyle" TargetType="Button">
+            <Setter Property="Background" Value="#4CAF50"/>
+            <Setter Property="Foreground" Value="White"/>
+            <Setter Property="BorderThickness" Value="0"/>
+            <Setter Property="Padding" Value="15,8"/>
+            <Setter Property="Cursor" Value="Hand"/>
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="Button">
+                        <Border Background="{TemplateBinding Background}"
+                                CornerRadius="5"
+                                Padding="{TemplateBinding Padding}">
+                            <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                        </Border>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+            <Style.Triggers>
+                <Trigger Property="IsMouseOver" Value="True">
+                    <Setter Property="Background" Value="#66BB6A"/>
+                </Trigger>
+                <Trigger Property="IsEnabled" Value="False">
+                    <Setter Property="Background" Value="#CCC"/>
+                    <Setter Property="Cursor" Value="Arrow"/>
+                </Trigger>
+            </Style.Triggers>
+        </Style>
+
+        <Style x:Key="NavButtonStyle" TargetType="Button">
+            <Setter Property="Background" Value="#6C757D"/>
+            <Setter Property="Foreground" Value="White"/>
+            <Setter Property="BorderThickness" Value="0"/>
+            <Setter Property="Padding" Value="12,8"/>
+            <Setter Property="Margin" Value="0,0,8,0"/>
+            <Setter Property="FontSize" Value="12"/>
+            <Setter Property="Cursor" Value="Hand"/>
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="Button">
+                        <Border Background="{TemplateBinding Background}"
+                                CornerRadius="4"
+                                Padding="{TemplateBinding Padding}">
+                            <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                        </Border>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+            <Style.Triggers>
+                <Trigger Property="IsMouseOver" Value="True">
+                    <Setter Property="Background" Value="#5A6268"/>
+                </Trigger>
+            </Style.Triggers>
+        </Style>
+
+    </Window.Resources>
+
+    <Grid>
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="*"/>
+            <RowDefinition Height="Auto"/>
+        </Grid.RowDefinitions>
+
+        <!-- Header -->
+        <Border Grid.Row="0" MouseLeftButtonDown="Header_MouseLeftButtonDown" Cursor="SizeAll">
+            <Border.Background>
+                <LinearGradientBrush StartPoint="0,0" EndPoint="1,0">
+                    <GradientStop Color="#FF6B35" Offset="0"/>
+                    <GradientStop Color="#F7931E" Offset="1"/>
+                </LinearGradientBrush>
+            </Border.Background>
+            <StackPanel Margin="25,20">
+                <TextBlock Text="Image Generator"
+                          FontSize="28" FontWeight="Bold"
+                          Foreground="White"/>
+                <TextBlock Text="Generate images from text descriptions using AI"
+                          FontSize="13" Foreground="#FFFAF0"
+                          Margin="0,5,0,0"/>
+            </StackPanel>
+        </Border>
+
+        <!-- Navigation Bar -->
+        <Border Grid.Row="1" Background="#E9ECEF" BorderBrush="#DEE2E6" BorderThickness="0,1,0,1" Padding="15,10">
+            <StackPanel Orientation="Horizontal">
+                <TextBlock Text="Navigate:" FontWeight="SemiBold" FontSize="12" VerticalAlignment="Center" Margin="0,0,12,0" Foreground="#495057"/>
+                <Button Content="Camera Edit" Style="{StaticResource NavButtonStyle}" Command="{Binding NavigateToCameraEditCommand}"/>
+                <Button Content="Video Generator" Style="{StaticResource NavButtonStyle}" Command="{Binding NavigateToVideoGeneratorCommand}"/>
+            </StackPanel>
+        </Border>
+
+        <!-- Main Content -->
+        <ScrollViewer Grid.Row="2" VerticalScrollBarVisibility="Auto">
+            <StackPanel Margin="20,15,20,15">
+
+                <!-- Image Prompt Section -->
+                <Border Style="{StaticResource SectionPanelStyle}">
+                    <StackPanel>
+                        <TextBlock Text="Image Prompt" Style="{StaticResource HeaderTextStyle}" Foreground="#FF6B35"/>
+
+                        <TextBlock Text="Describe the image you want to generate"
+                                   FontSize="12"
+                                   Foreground="#666"
+                                   Margin="0,0,0,10"/>
+
+                        <TextBox Text="{Binding ImagePrompt, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                                TextWrapping="Wrap"
+                                AcceptsReturn="True"
+                                Height="120"
+                                Padding="12"
+                                VerticalScrollBarVisibility="Auto"
+                                Background="White"
+                                BorderBrush="#CED4DA"
+                                FontSize="13"
+                                Margin="0,0,0,10"/>
+
+                        <TextBlock Text="Example prompts:" FontWeight="SemiBold" FontSize="11" Margin="0,0,0,5"/>
+                        <TextBlock FontSize="11" Foreground="#666" Margin="0,0,0,3">
+                            <Run Text="• "/>
+                            <Run Text="Latina female with thick wavy hair, harbor boats and pastel houses behind. Breezy seaside light, warm tones, cinematic close-up."/>
+                        </TextBlock>
+                        <TextBlock FontSize="11" Foreground="#666" Margin="0,0,0,3">
+                            <Run Text="• "/>
+                            <Run Text="A majestic mountain landscape at sunset with dramatic clouds and golden light"/>
+                        </TextBlock>
+                        <TextBlock FontSize="11" Foreground="#666">
+                            <Run Text="• "/>
+                            <Run Text="Portrait of a cyberpunk character with neon lights reflecting on metallic surfaces"/>
+                        </TextBlock>
+                    </StackPanel>
+                </Border>
+
+                <!-- Image Settings and Generate -->
+                <Border Style="{StaticResource SectionPanelStyle}">
+                    <Grid>
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="2*"/>
+                            <ColumnDefinition Width="*"/>
+                        </Grid.ColumnDefinitions>
+
+                        <!-- Settings -->
+                        <StackPanel Grid.Column="0" Margin="0,0,20,0">
+                            <TextBlock Text="Image Settings" Style="{StaticResource HeaderTextStyle}" Foreground="#FF6B35"/>
+
+                            <!-- Aspect Ratio -->
+                            <StackPanel Margin="0,0,0,15">
+                                <TextBlock Text="Aspect Ratio" FontWeight="SemiBold" FontSize="12" Margin="0,0,0,5"/>
+                                <ComboBox SelectedIndex="{Binding AspectRatioIndex, Mode=TwoWay}"
+                                         Padding="10"
+                                         Background="White"
+                                         BorderBrush="#CED4DA"
+                                         FontSize="12">
+                                    <ComboBoxItem Content="SDXL - 1:1 square 1024x1024"/>
+                                    <ComboBoxItem Content="SDXL - 3:4 portrait 896x1152"/>
+                                    <ComboBoxItem Content="SDXL - 9:16 portrait 768x1344"/>
+                                    <ComboBoxItem Content="SDXL - 4:3 landscape 1152x896"/>
+                                    <ComboBoxItem Content="SDXL - 16:9 landscape 1344x768"/>
+                                </ComboBox>
+                            </StackPanel>
+
+                            <!-- Steps -->
+                            <StackPanel Margin="0,0,0,10">
+                                <TextBlock Text="Steps" FontWeight="SemiBold" FontSize="12" Margin="0,0,0,5"/>
+                                <Grid>
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="*"/>
+                                        <ColumnDefinition Width="Auto"/>
+                                    </Grid.ColumnDefinitions>
+                                    <Slider Grid.Column="0"
+                                            Value="{Binding Steps, Mode=TwoWay}"
+                                            Minimum="4" Maximum="20"
+                                            TickFrequency="1"
+                                            IsSnapToTickEnabled="True"
+                                            VerticalAlignment="Center"/>
+                                    <TextBlock Grid.Column="1"
+                                              Text="{Binding Steps}"
+                                              Margin="8,0,0,0"
+                                              VerticalAlignment="Center"
+                                              MinWidth="25"
+                                              FontWeight="Bold"/>
+                                </Grid>
+                            </StackPanel>
+
+                            <!-- CFG -->
+                            <StackPanel>
+                                <TextBlock Text="CFG Scale" FontWeight="SemiBold" FontSize="12" Margin="0,0,0,5"/>
+                                <Grid>
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="*"/>
+                                        <ColumnDefinition Width="Auto"/>
+                                    </Grid.ColumnDefinitions>
+                                    <Slider Grid.Column="0"
+                                            Value="{Binding Cfg, Mode=TwoWay}"
+                                            Minimum="1" Maximum="3"
+                                            TickFrequency="0.5"
+                                            IsSnapToTickEnabled="True"
+                                            VerticalAlignment="Center"/>
+                                    <TextBlock Grid.Column="1"
+                                              Text="{Binding Cfg, StringFormat={}{0:F1}}"
+                                              Margin="8,0,0,0"
+                                              VerticalAlignment="Center"
+                                              MinWidth="25"
+                                              FontWeight="Bold"/>
+                                </Grid>
+                            </StackPanel>
+                        </StackPanel>
+
+                        <!-- Generate Button and Status -->
+                        <StackPanel Grid.Column="1" VerticalAlignment="Center">
+                            <Button Content="Generate Image"
+                                   Style="{StaticResource PrimaryButtonStyle}"
+                                   Command="{Binding GenerateImageCommand}"
+                                   HorizontalAlignment="Stretch"
+                                   Height="55"
+                                   FontSize="15"
+                                   Margin="0,0,0,15"/>
+
+                            <!-- Processing Status -->
+                            <Border Background="#FFF9F0"
+                                    BorderBrush="#FFE0B0"
+                                    BorderThickness="1"
+                                    CornerRadius="5"
+                                    Padding="12"
+                                    Visibility="{Binding IsProcessing, Converter={StaticResource BooleanToVisibilityConverter}}">
+                                <StackPanel>
+                                    <TextBlock Text="{Binding ProcessingStatus}"
+                                              FontWeight="SemiBold"
+                                              FontSize="11"
+                                              Margin="0,0,0,5"
+                                              TextAlignment="Center"
+                                              TextWrapping="Wrap"/>
+                                    <ProgressBar Value="{Binding ProcessingProgress}"
+                                                Height="16"
+                                                Foreground="#FF6B35"
+                                                Margin="0,0,0,5"/>
+                                    <TextBlock Text="{Binding ProgressPercentage}"
+                                              HorizontalAlignment="Center"
+                                              FontSize="11"
+                                              FontWeight="Bold"
+                                              Foreground="#FF6B35"/>
+                                </StackPanel>
+                            </Border>
+                        </StackPanel>
+                    </Grid>
+                </Border>
+
+                <!-- Result Image Section -->
+                <Border Style="{StaticResource SectionPanelStyle}">
+                    <StackPanel>
+                        <TextBlock Text="Result Image" Style="{StaticResource HeaderTextStyle}" Foreground="#FF6B35"/>
+
+                        <Border BorderBrush="#DEE2E6" BorderThickness="2"
+                                Background="White" Height="400"
+                                CornerRadius="5" Margin="0,0,0,10">
+                            <Grid>
+                                <TextBlock Text="Image will appear here after generation"
+                                          HorizontalAlignment="Center"
+                                          VerticalAlignment="Center"
+                                          Foreground="#999"
+                                          FontStyle="Italic">
+                                    <TextBlock.Style>
+                                        <Style TargetType="TextBlock">
+                                            <Setter Property="Visibility" Value="Collapsed"/>
+                                            <Style.Triggers>
+                                                <DataTrigger Binding="{Binding HasResultImage}" Value="False">
+                                                    <Setter Property="Visibility" Value="Visible"/>
+                                                </DataTrigger>
+                                            </Style.Triggers>
+                                        </Style>
+                                    </TextBlock.Style>
+                                </TextBlock>
+
+                                <Image Source="{Binding ResultImageSource}"
+                                       Stretch="Uniform"
+                                       Visibility="{Binding HasResultImage, Converter={StaticResource BooleanToVisibilityConverter}}"/>
+                            </Grid>
+                        </Border>
+
+                        <Grid>
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="*"/>
+                                <ColumnDefinition Width="Auto"/>
+                                <ColumnDefinition Width="Auto"/>
+                            </Grid.ColumnDefinitions>
+
+                            <Button Grid.Column="0"
+                                   Content="Camera Edit"
+                                   Style="{StaticResource SecondaryButtonStyle}"
+                                   Command="{Binding SendToCameraEditCommand}"
+                                   IsEnabled="{Binding HasResultImage}"
+                                   Margin="0,0,8,0"/>
+
+                            <Button Grid.Column="1"
+                                   Content="Video Generator"
+                                   Style="{StaticResource SecondaryButtonStyle}"
+                                   Command="{Binding SendToVideoGeneratorCommand}"
+                                   IsEnabled="{Binding HasResultImage}"
+                                   Margin="0,0,8,0"/>
+
+                            <Button Grid.Column="2"
+                                   Content="Open Folder"
+                                   Style="{StaticResource SecondaryButtonStyle}"
+                                   Command="{Binding OpenResultFolderCommand}"
+                                   IsEnabled="{Binding HasResultImage}"/>
+                        </Grid>
+
+                        <TextBlock Text="{Binding ImageInfo}"
+                                  FontStyle="Italic"
+                                  Foreground="#666"
+                                  FontSize="11"
+                                  Margin="0,10,0,0"/>
+                    </StackPanel>
+                </Border>
+
+                <!-- Advanced Settings (Collapsible) -->
+                <Expander Header="Advanced Settings"
+                         Margin="0,0,0,15"
+                         IsExpanded="False">
+                    <Border Background="#F8F9FA"
+                            BorderBrush="#DEE2E6"
+                            BorderThickness="1"
+                            CornerRadius="5"
+                            Padding="15"
+                            Margin="0,8,0,0">
+                        <StackPanel>
+                            <!-- Seed -->
+                            <StackPanel Margin="0,0,0,10">
+                                <TextBlock Text="Seed (0 = Random)" FontWeight="SemiBold" FontSize="11" Margin="0,0,0,5"/>
+                                <TextBox Text="{Binding Seed, Mode=TwoWay}"
+                                        Padding="8"
+                                        Background="White"
+                                        BorderBrush="#CED4DA"
+                                        FontSize="11"/>
+                            </StackPanel>
+
+                            <!-- Denoise -->
+                            <StackPanel>
+                                <TextBlock Text="Denoise" FontWeight="SemiBold" FontSize="11" Margin="0,0,0,5"/>
+                                <Grid>
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="*"/>
+                                        <ColumnDefinition Width="Auto"/>
+                                    </Grid.ColumnDefinitions>
+                                    <Slider Grid.Column="0"
+                                            Value="{Binding Denoise, Mode=TwoWay}"
+                                            Minimum="0.5" Maximum="1"
+                                            TickFrequency="0.1"
+                                            IsSnapToTickEnabled="True"
+                                            VerticalAlignment="Center"/>
+                                    <TextBlock Grid.Column="1"
+                                              Text="{Binding Denoise, StringFormat={}{0:F1}}"
+                                              Margin="8,0,0,0"
+                                              VerticalAlignment="Center"
+                                              MinWidth="25"
+                                              FontWeight="Bold"/>
+                                </Grid>
+                            </StackPanel>
+                        </StackPanel>
+                    </Border>
+                </Expander>
+
+                <!-- Log (Collapsible) -->
+                <Expander Header="Processing Log"
+                         IsExpanded="True"
+                         Margin="0,0,0,0">
+                    <Border Background="White"
+                            BorderBrush="#DEE2E6"
+                            BorderThickness="1"
+                            Margin="0,8,0,0">
+                        <ScrollViewer MaxHeight="150"
+                                     VerticalScrollBarVisibility="Auto">
+                            <TextBox Text="{Binding LogOutput}"
+                                    TextWrapping="Wrap"
+                                    IsReadOnly="True"
+                                    FontFamily="Consolas"
+                                    FontSize="10"
+                                    Background="Transparent"
+                                    BorderThickness="0"
+                                    Padding="10"/>
+                        </ScrollViewer>
+                    </Border>
+                </Expander>
+
+            </StackPanel>
+        </ScrollViewer>
+
+        <!-- Status Bar -->
+        <StatusBar Grid.Row="3" Background="#F8F9FA" BorderBrush="#DEE2E6" BorderThickness="0,1,0,0" Height="28">
+            <StatusBarItem>
+                <TextBlock Text="{Binding StatusBarMessage}" FontSize="11"/>
+            </StatusBarItem>
+            <StatusBarItem HorizontalAlignment="Right">
+                <StackPanel Orientation="Horizontal">
+                    <TextBlock Text="ComfyUI: " FontSize="11" Foreground="#666"/>
+                    <TextBlock Text="{Binding ComfyUIServer}" FontSize="11" FontWeight="Bold"/>
+                    <TextBlock Text=":" FontSize="11"/>
+                    <TextBlock Text="{Binding ComfyUIPort}" FontSize="11" FontWeight="Bold"/>
+                </StackPanel>
+            </StatusBarItem>
+        </StatusBar>
+
+    </Grid>
+</Window>
