@@ -66,8 +66,35 @@ namespace FlipPix.Core.Services
 
         public bool IsComfyUIFolderConfigured()
         {
-            return !string.IsNullOrEmpty(_settings.ComfyUIFolderPath) &&
-                   Directory.Exists(_settings.ComfyUIFolderPath);
+            // Check if we have a local ComfyUI folder configured
+            if (!string.IsNullOrEmpty(_settings.ComfyUIFolderPath) && Directory.Exists(_settings.ComfyUIFolderPath))
+            {
+                return true;
+            }
+
+            // Check if we have a remote server configuration (no local folder needed)
+            if (!string.IsNullOrEmpty(_settings.BaseUrl) && !string.IsNullOrEmpty(_settings.RemoteOutputFolderPath))
+            {
+                try
+                {
+                    // For remote servers, just check if we can parse the URL and the output folder exists
+                    var uri = new Uri(_settings.BaseUrl);
+                    var isRemote = !uri.Host.Equals("localhost", StringComparison.OrdinalIgnoreCase) &&
+                                   !uri.Host.Equals("127.0.0.1", StringComparison.OrdinalIgnoreCase) &&
+                                   !uri.Host.Equals("0.0.0.0", StringComparison.OrdinalIgnoreCase);
+
+                    if (isRemote && Directory.Exists(_settings.RemoteOutputFolderPath))
+                    {
+                        return true;
+                    }
+                }
+                catch
+                {
+                    // Invalid URL, return false
+                }
+            }
+
+            return false;
         }
 
         public bool ValidateAndSetComfyUIFolder(string folderPath)

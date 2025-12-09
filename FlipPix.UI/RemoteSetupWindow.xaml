@@ -1,0 +1,117 @@
+<Window x:Class="FlipPix.UI.RemoteSetupWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+        xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+        mc:Ignorable="d"
+        Title="Remote ComfyUI Setup"
+        Height="350"
+        Width="600"
+        WindowStartupLocation="CenterScreen"
+        ResizeMode="NoResize"
+        Background="#1E1E1E">
+    <Grid Margin="20">
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="*"/>
+            <RowDefinition Height="Auto"/>
+        </Grid.RowDefinitions>
+
+        <!-- Title -->
+        <TextBlock Grid.Row="0"
+                   Text="Remote ComfyUI Setup"
+                   FontSize="20"
+                   FontWeight="Bold"
+                   Foreground="White"
+                   Margin="0,0,0,20"/>
+
+        <!-- Server URL -->
+        <TextBlock Grid.Row="1"
+                   Text="ComfyUI Server Address:"
+                   FontSize="14"
+                   FontWeight="SemiBold"
+                   Foreground="White"
+                   Margin="0,0,0,5"/>
+
+        <TextBox Grid.Row="2"
+                 Name="ServerUrlTextBox"
+                 Text="http://192.168.1.218:8188"
+                 Padding="8"
+                 FontSize="14"
+                 Background="#2D2D30"
+                 Foreground="White"
+                 BorderBrush="#3F3F46"
+                 BorderThickness="1"
+                 Margin="0,0,0,15"/>
+
+        <!-- Remote Output Folder -->
+        <TextBlock Grid.Row="3"
+                   Text="Remote Output Folder:"
+                   FontSize="14"
+                   FontWeight="SemiBold"
+                   Foreground="White"
+                   Margin="0,0,0,5"/>
+
+        <TextBlock Grid.Row="4"
+                   Text="Enter the network path to the remote ComfyUI output folder"
+                   FontSize="12"
+                   Foreground="#AAAAAA"
+                   Margin="0,0,0,5"/>
+
+        <!-- Remote Output Folder Input -->
+        <Grid Grid.Row="5" Margin="0,0,0,15">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="*"/>
+                <ColumnDefinition Width="Auto"/>
+            </Grid.ColumnDefinitions>
+
+            <TextBox Grid.Column="0"
+                     Name="RemoteOutputFolderTextBox"
+                     Padding="8"
+                     FontSize="14"
+                     Background="#2D2D30"
+                     Foreground="White"
+                     BorderBrush="#3F3F46"
+                     BorderThickness="1"/>
+
+            <Button Grid.Column="1"
+                    Content="Browse..."
+                    Click="BrowseButton_Click"
+                    Margin="10,0,0,0"
+                    Padding="20,8"
+                    Background="#0E639C"
+                    Foreground="White"
+                    BorderThickness="0"
+                    Cursor="Hand"/>
+        </Grid>
+
+        <!-- Spacer -->
+        <Border Grid.Row="6"/>
+
+        <!-- Buttons -->
+        <StackPanel Grid.Row="7"
+                    Orientation="Horizontal"
+                    HorizontalAlignment="Right">
+            <Button Content="Cancel"
+                    Click="CancelButton_Click"
+                    Padding="30,10"
+                    Margin="0,0,10,0"
+                    Background="#3F3F46"
+                    Foreground="White"
+                    BorderThickness="0"
+                    Cursor="Hand"/>
+            <Button Content="Save"
+                    Click="SaveButton_Click"
+                    Padding="30,10"
+                    Background="#0E639C"
+                    Foreground="White"
+                    BorderThickness="0"
+                    Cursor="Hand"/>
+        </StackPanel>
+    </Grid>
+</Window>

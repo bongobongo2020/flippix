@@ -10,6 +10,7 @@ public class ComfyUISettings
     public int RetryDelayMilliseconds { get; set; } = 2000;
     public string ComfyUIFolderPath { get; set; } = string.Empty;
     public string OutputFolderPath { get; set; } = string.Empty;
+    public string RemoteOutputFolderPath { get; set; } = string.Empty; // Network path to remote ComfyUI output folder
     public List<SavedCameraPrompt> SavedCameraPrompts { get; set; } = new();
 }
 

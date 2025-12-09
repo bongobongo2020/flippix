@@ -50,6 +50,8 @@ publish*/
 *-Setup.exe
 FlipPix*.zip
 temp_package/
+package-release.bat
+PACKAGING.md
 
 # NuGet
 *.nupkg

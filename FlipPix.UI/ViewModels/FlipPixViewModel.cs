@@ -9,6 +9,7 @@ using System.Runtime.CompilerServices;
 using System.Text.Json;
 using System.Threading.Tasks;
 using System.Windows;
+using System.Windows.Forms;
 using System.Windows.Input;
 using System.Windows.Media.Imaging;
 using Microsoft.Win32;
@@ -40,6 +41,7 @@ namespace FlipPix.UI.ViewModels
         private string _statusBarMessage = "Ready";
         private bool _hasResultImage = false;
         private string _resultImagePath = string.Empty;
+        private System.Threading.CancellationTokenSource? _cancellationTokenSource;
 
         // Sampler settings
         private int _steps = 8;
@@ -60,11 +62,14 @@ namespace FlipPix.UI.ViewModels
             // Initialize commands
             SelectImageCommand = new RelayCommand(SelectImage);
             ProcessImageCommand = new RelayCommand(async () => await ProcessImageAsync(), () => CanProcess);
+            CancelProcessingCommand = new RelayCommand(CancelProcessing, () => IsProcessing);
             OpenResultFolderCommand = new RelayCommand(OpenResultFolder, () => HasResultImage);
             SelectCameraControlCommand = new RelayCommand<string>(SelectCameraControl);
             SaveCustomPromptCommand = new RelayCommand(SaveCustomPrompt, () => CanSavePrompt);
             DeleteSavedPromptCommand = new RelayCommand(DeleteSavedPrompt, () => CanDeletePrompt);
             SendToVideoGeneratorCommand = new RelayCommand(SendToVideoGenerator, () => HasResultImage);
+            NavigateToImageGeneratorCommand = new RelayCommand(NavigateToImageGenerator);
+            NavigateToVideoGeneratorCommand = new RelayCommand(NavigateToVideoGenerator);
 
             // Initialize camera control options
             InitializeCameraControlOptions();
@@ -165,9 +170,12 @@ namespace FlipPix.UI.ViewModels
                 _isProcessing = value;
                 OnPropertyChanged();
                 OnPropertyChanged(nameof(CanProcess));
+                OnPropertyChanged(nameof(CanCancel));
                 CommandManager.InvalidateRequerySuggested();
             }
         }
+
+        public bool CanCancel => IsProcessing;
 
         public string ProcessingStatus
         {
@@ -331,11 +339,14 @@ namespace FlipPix.UI.ViewModels
         // Commands
         public ICommand SelectImageCommand { get; }
         public ICommand ProcessImageCommand { get; }
+        public ICommand CancelProcessingCommand { get; }
         public ICommand OpenResultFolderCommand { get; }
         public ICommand SelectCameraControlCommand { get; }
         public ICommand SaveCustomPromptCommand { get; }
         public ICommand DeleteSavedPromptCommand { get; }
         public ICommand SendToVideoGeneratorCommand { get; }
+        public ICommand NavigateToImageGeneratorCommand { get; }
+        public ICommand NavigateToVideoGeneratorCommand { get; }
 
         // Methods
         private void InitializeCameraControlOptions()
@@ -514,6 +525,25 @@ namespace FlipPix.UI.ViewModels
             }
         }
 
+        public void SetImagePath(string imagePath)
+        {
+            if (File.Exists(imagePath))
+            {
+                ImageFilePath = imagePath;
+                AddLog($"Image loaded from image generator: {Path.GetFileName(ImageFilePath)}");
+            }
+        }
+
+        private void CancelProcessing()
+        {
+            if (_cancellationTokenSource != null && !_cancellationTokenSource.IsCancellationRequested)
+            {
+                AddLog("Cancellation requested by user");
+                _cancellationTokenSource.Cancel();
+                ProcessingStatus = "Cancelling...";
+            }
+        }
+
         private void LoadImagePreview()
         {
             if (!string.IsNullOrEmpty(ImageFilePath) && File.Exists(ImageFilePath))
@@ -552,6 +582,9 @@ namespace FlipPix.UI.ViewModels
         {
             if (!CanProcess) return;
 
+            _cancellationTokenSource?.Dispose();
+            _cancellationTokenSource = new System.Threading.CancellationTokenSource();
+
             try
             {
                 AddLog("=== Starting new image processing ===");
@@ -575,13 +608,15 @@ namespace FlipPix.UI.ViewModels
                 {
                     ProcessingStatus = "Connecting to ComfyUI...";
                     AddLog("Connecting to ComfyUI WebSocket...");
-                    await _comfyUIService.ConnectAsync();
+                    await _comfyUIService.ConnectAsync(_cancellationTokenSource.Token);
                     AddLog("Connected to ComfyUI");
                 }
                 else
                 {
                     AddLog("ComfyUI already connected");
                 }
+
+                _cancellationTokenSource.Token.ThrowIfCancellationRequested();
 
                 // Load workflow
                 var workflowPath = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "workflow", "qwen-edit-camera-API.json");
@@ -593,8 +628,10 @@ namespace FlipPix.UI.ViewModels
                 }
 
                 AddLog($"Loading workflow: {workflowPath}");
-                var workflowJson = await File.ReadAllTextAsync(workflowPath);
+                var workflowJson = await File.ReadAllTextAsync(workflowPath, _cancellationTokenSource.Token);
                 var workflow = JsonSerializer.Deserialize<JsonElement>(workflowJson);
+
+                _cancellationTokenSource.Token.ThrowIfCancellationRequested();
 
                 // Update workflow with parameters
                 ProcessingStatus = "Updating workflow parameters...";
@@ -629,7 +666,7 @@ namespace FlipPix.UI.ViewModels
                     }
                 });
 
-                var promptId = await _comfyUIService.ExecuteWorkflowAsync(updatedWorkflow, progress);
+                var promptId = await _comfyUIService.ExecuteWorkflowAsync(updatedWorkflow, progress, _cancellationTokenSource.Token);
 
                 // Force progress update after workflow completes
                 System.Windows.Application.Current.Dispatcher.Invoke(() =>
@@ -648,16 +685,17 @@ namespace FlipPix.UI.ViewModels
                 // Retry image retrieval with delays to give ComfyUI time to write the file
                 List<byte[]> outputImages = new();
                 int retryCount = 0;
-                int maxRetries = 5;
+                int maxRetries = 20; // Increased from 5 to 20 retries
 
                 while (retryCount < maxRetries && !outputImages.Any())
                 {
                     if (retryCount > 0)
                     {
-                        AddLog($"Retry {retryCount}/{maxRetries} - waiting 2 seconds before checking again...");
-                        await Task.Delay(2000);
+                        AddLog($"Retry {retryCount}/{maxRetries} - waiting 5 seconds before checking again...");
+                        await Task.Delay(5000, _cancellationTokenSource.Token); // Increased from 2s to 5s delay
                     }
 
+                    _cancellationTokenSource.Token.ThrowIfCancellationRequested();
                     outputImages = await GetOutputImagesFromComfyUI(promptId);
                     retryCount++;
                 }
@@ -688,6 +726,13 @@ namespace FlipPix.UI.ViewModels
                     ProcessingStatus = "No output generated";
                     System.Windows.MessageBox.Show("No output images were generated. Please check the ComfyUI console for errors.", "Warning", System.Windows.MessageBoxButton.OK, System.Windows.MessageBoxImage.Warning);
                 }
+            }
+            catch (OperationCanceledException)
+            {
+                AddLog("Image processing cancelled by user");
+                ProcessingStatus = "Cancelled";
+                ProcessingProgress = 0;
+                StatusBarMessage = "Processing cancelled";
             }
             catch (Exception ex)
             {
@@ -881,67 +926,263 @@ namespace FlipPix.UI.ViewModels
             }
         }
 
-        private async Task<List<byte[]>> GetOutputImagesFromComfyUI(string promptId)
+        private void NavigateToImageGenerator()
         {
-            var images = new List<byte[]>();
-
-            // Use the configured output folder path
-            var comfyUIOutputDir = _settingsService.Settings.OutputFolderPath;
-
-            if (string.IsNullOrEmpty(comfyUIOutputDir))
-            {
-                AddLog("ERROR: ComfyUI output folder not configured");
-                AddLog("Please restart the application and configure the ComfyUI folder path");
-                return images;
-            }
-
-            AddLog($"Searching for output images in: {comfyUIOutputDir}");
+            if (_serviceProvider == null) return;
 
             try
             {
-                if (!Directory.Exists(comfyUIOutputDir))
+                var imageGeneratorWindow = _serviceProvider.GetService(typeof(ImageGeneratorWindow)) as ImageGeneratorWindow;
+                if (imageGeneratorWindow != null)
                 {
-                    AddLog($"ERROR: Output directory does not exist: {comfyUIOutputDir}");
-                    AddLog("Please check the ComfyUI folder configuration in settings");
-                    return images;
-                }
+                    imageGeneratorWindow.WindowState = WindowState.Normal;
 
-                // Look for recently created images (png, jpg, jpeg) within the last 2 minutes
-                var imageExtensions = new[] { "*.png", "*.jpg", "*.jpeg" };
-                var allRecentFiles = new List<FileInfo>();
+                    // Ensure the window opens on screen with title bar visible
+                    var screenWidth = SystemParameters.PrimaryScreenWidth;
+                    var screenHeight = SystemParameters.PrimaryScreenHeight;
+                    var windowWidth = imageGeneratorWindow.Width;
+                    var windowHeight = imageGeneratorWindow.Height;
 
-                foreach (var extension in imageExtensions)
-                {
-                    var files = Directory.GetFiles(comfyUIOutputDir, extension)
-                        .Select(f => new FileInfo(f))
-                        .Where(f => (DateTime.Now - f.LastWriteTime).TotalMinutes < 2);
-                    allRecentFiles.AddRange(files);
-                }
+                    // Position with offset to ensure title bar is visible
+                    imageGeneratorWindow.Left = Math.Max(100, (screenWidth - windowWidth) / 2 - 200);
+                    imageGeneratorWindow.Top = Math.Max(100, (screenHeight - windowHeight) / 2 - 100);
 
-                var recentFiles = allRecentFiles
-                    .OrderByDescending(f => f.LastWriteTime)
-                    .ToList();
+                    // Ensure title bar is visible by keeping some margin from screen edges
+                    if (imageGeneratorWindow.Top < 50) imageGeneratorWindow.Top = 50;
+                    if (imageGeneratorWindow.Left < 50) imageGeneratorWindow.Left = 50;
+                    if (imageGeneratorWindow.Top + windowHeight > screenHeight - 50)
+                        imageGeneratorWindow.Top = screenHeight - windowHeight - 50;
+                    if (imageGeneratorWindow.Left + windowWidth > screenWidth - 50)
+                        imageGeneratorWindow.Left = screenWidth - windowWidth - 50;
 
-                AddLog($"Found {recentFiles.Count} recent image files");
-
-                if (recentFiles.Any())
-                {
-                    var latestFile = recentFiles.First();
-                    AddLog($"Using latest file: {latestFile.Name} (modified: {latestFile.LastWriteTime})");
-                    images.Add(await File.ReadAllBytesAsync(latestFile.FullName));
-                }
-                else
-                {
-                    AddLog("WARNING: No recent output images found");
-                    AddLog("Please check that ComfyUI completed successfully and saved the output");
+                    imageGeneratorWindow.Show();
                 }
             }
             catch (Exception ex)
             {
-                AddLog($"ERROR: Error checking output directory: {ex.Message}");
+                AddLog($"ERROR navigating to Image Generator: {ex.Message}");
+            }
+        }
+
+        private void NavigateToVideoGenerator()
+        {
+            if (_serviceProvider == null) return;
+
+            try
+            {
+                var videoWindow = _serviceProvider.GetService(typeof(VideoGeneratorWindow)) as VideoGeneratorWindow;
+                if (videoWindow != null)
+                {
+                    videoWindow.WindowState = WindowState.Normal;
+
+                    // Ensure the window opens on screen with title bar visible
+                    var screenWidth = SystemParameters.PrimaryScreenWidth;
+                    var screenHeight = SystemParameters.PrimaryScreenHeight;
+                    var windowWidth = videoWindow.Width;
+                    var windowHeight = videoWindow.Height;
+
+                    // Position with offset to ensure title bar is visible
+                    videoWindow.Left = Math.Max(100, (screenWidth - windowWidth) / 2 + 200);
+                    videoWindow.Top = Math.Max(100, (screenHeight - windowHeight) / 2 + 100);
+
+                    // Ensure title bar is visible by keeping some margin from screen edges
+                    if (videoWindow.Top < 50) videoWindow.Top = 50;
+                    if (videoWindow.Left < 50) videoWindow.Left = 50;
+                    if (videoWindow.Top + windowHeight > screenHeight - 50)
+                        videoWindow.Top = screenHeight - windowHeight - 50;
+                    if (videoWindow.Left + windowWidth > screenWidth - 50)
+                        videoWindow.Left = screenWidth - windowWidth - 50;
+
+                    videoWindow.Show();
+                }
+            }
+            catch (Exception ex)
+            {
+                AddLog($"ERROR navigating to Video Generator: {ex.Message}");
+            }
+        }
+
+        private async Task<List<byte[]>> GetOutputImagesFromComfyUI(string promptId)
+        {
+            var images = new List<byte[]>();
+
+            try
+            {
+                // Get the actual ComfyUI server settings
+                var baseUrl = _settingsService.Settings?.BaseUrl ?? "http://127.0.0.1:8188";
+
+                // Parse the URL to get server and port
+                var uri = new Uri(baseUrl);
+                var actualServer = uri.Host;
+                var actualPort = uri.Port.ToString();
+
+                // Check if ComfyUI is running locally or remotely
+                bool isRemoteComfyUI = IsComfyUIRemote(actualServer);
+
+                AddLog($"ComfyUI server: {actualServer}:{actualPort}");
+                AddLog($"Is remote ComfyUI: {isRemoteComfyUI}");
+
+                if (isRemoteComfyUI)
+                {
+                    AddLog("Detected remote ComfyUI server, downloading generated image...");
+
+                    // First try the history API approach
+                    var outputFiles = await _comfyUIService.HttpClient.GetOutputFilesAsync();
+                    AddLog($"Found {outputFiles.Count} potential output files");
+
+                    // Look for recent image files in the output
+                    var imageFiles = outputFiles.Where(f =>
+                        (f.EndsWith(".png") || f.EndsWith(".jpg") || f.EndsWith(".jpeg")) &&
+                        !f.StartsWith("z-image_")) // Exclude z-image files (those are from image generator)
+                        .ToList();
+
+                    if (imageFiles.Any())
+                    {
+                        // Download the most recent file
+                        var filename = imageFiles.Last(); // Get the last/most recent
+                        AddLog($"Downloading generated image: {filename}");
+
+                        var imageData = await _comfyUIService.HttpClient.DownloadOutputImageAsync(filename);
+                        if (imageData != null)
+                        {
+                            images.Add(imageData);
+                            AddLog($"Successfully downloaded image ({imageData.Length} bytes)");
+                        }
+                        else
+                        {
+                            AddLog($"Failed to download image: {filename}");
+                        }
+                    }
+                    else
+                    {
+                        AddLog("No suitable image files found in history, trying alternative approach...");
+
+                        // Try the fallback approach
+                        var fallbackImage = await _comfyUIService.HttpClient.TryDownloadRecentOutputAsync(promptId);
+                        if (fallbackImage != null)
+                        {
+                            images.Add(fallbackImage);
+                            AddLog($"Successfully downloaded image via fallback method ({fallbackImage.Length} bytes)");
+                        }
+                        else
+                        {
+                            AddLog("Failed to download image using all available methods");
+                        }
+                    }
+
+                    // Debug info about what files we found
+                    if (outputFiles.Any())
+                    {
+                        AddLog("All files found in history:");
+                        foreach (var file in outputFiles.Take(10))
+                        {
+                            AddLog($"  - {file}");
+                        }
+                    }
+                }
+                else
+                {
+                    // Local ComfyUI - check the output folder directly
+                    var comfyUIOutputDir = _settingsService.Settings?.OutputFolderPath;
+                    if (string.IsNullOrEmpty(comfyUIOutputDir))
+                    {
+                        AddLog("ERROR: ComfyUI output folder not configured");
+                        AddLog("Please restart the application and configure the ComfyUI folder path");
+                        return images;
+                    }
+
+                    if (!Directory.Exists(comfyUIOutputDir))
+                    {
+                        AddLog($"ERROR: ComfyUI output folder not found: {comfyUIOutputDir}");
+                        AddLog("Please check the ComfyUI folder configuration in settings");
+                        return images;
+                    }
+
+                    AddLog($"Searching for output images in: {comfyUIOutputDir}");
+
+                    // Look for recently created images (png, jpg, jpeg) within the last 2 minutes
+                    var imageExtensions = new[] { "*.png", "*.jpg", "*.jpeg" };
+                    var allRecentFiles = new List<FileInfo>();
+
+                    foreach (var extension in imageExtensions)
+                    {
+                        var files = Directory.GetFiles(comfyUIOutputDir, extension)
+                            .Select(f => new FileInfo(f))
+                            .Where(f => (DateTime.Now - f.LastWriteTime).TotalMinutes < 2);
+                        allRecentFiles.AddRange(files);
+                    }
+
+                    var recentFiles = allRecentFiles
+                        .OrderByDescending(f => f.LastWriteTime)
+                        .ToList();
+
+                    AddLog($"Found {recentFiles.Count} recent image files");
+
+                    if (recentFiles.Any())
+                    {
+                        var latestFile = recentFiles.First();
+                        AddLog($"Using latest file: {latestFile.Name} (modified: {latestFile.LastWriteTime})");
+                        images.Add(await File.ReadAllBytesAsync(latestFile.FullName));
+                    }
+                    else
+                    {
+                        AddLog("WARNING: No recent output images found");
+                        AddLog("Please check that ComfyUI completed successfully and saved the output");
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                AddLog($"ERROR retrieving output images: {ex.Message}");
             }
 
             return images;
+        }
+
+        private bool IsComfyUIRemote(string serverAddress)
+        {
+            try
+            {
+                // Check if it's a local address
+                if (serverAddress.Equals("127.0.0.1", StringComparison.OrdinalIgnoreCase) ||
+                    serverAddress.Equals("localhost", StringComparison.OrdinalIgnoreCase) ||
+                    serverAddress.Equals("0.0.0.0", StringComparison.OrdinalIgnoreCase))
+                {
+                    return false;
+                }
+
+                // Check if it's a local network IP (192.168.x.x, 10.x.x.x, 172.16-31.x.x)
+                if (System.Net.IPAddress.TryParse(serverAddress, out var ip))
+                {
+                    var bytes = ip.GetAddressBytes();
+                    if (bytes.Length == 4)
+                    {
+                        // 192.168.x.x
+                        if (bytes[0] == 192 && bytes[1] == 168)
+                        {
+                            return true; // This is a LAN IP
+                        }
+                        // 10.x.x.x
+                        if (bytes[0] == 10)
+                        {
+                            return true; // This is a LAN IP
+                        }
+                        // 172.16-31.x.x
+                        if (bytes[0] == 172 && bytes[1] >= 16 && bytes[1] <= 31)
+                        {
+                            return true; // This is a LAN IP
+                        }
+                    }
+                }
+
+                // If we get here, assume it's remote
+                return !string.IsNullOrEmpty(serverAddress) && serverAddress != ".";
+            }
+            catch
+            {
+                // If we can't determine, assume it's remote to be safe
+                return true;
+            }
         }
 
         private void SaveCustomPrompt()

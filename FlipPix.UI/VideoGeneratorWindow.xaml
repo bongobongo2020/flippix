@@ -5,7 +5,9 @@
         xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
         mc:Ignorable="d"
         Title="FlipPix - Video Generator" Height="750" Width="950"
-        WindowStartupLocation="CenterScreen"
+        WindowStartupLocation="Manual"
+        WindowState="Normal"
+        WindowStyle="SingleBorderWindow"
         MinHeight="650" MinWidth="850"
         ResizeMode="CanResize">
 
@@ -81,17 +83,44 @@
             </Style.Triggers>
         </Style>
 
+        <Style x:Key="NavButtonStyle" TargetType="Button">
+            <Setter Property="Background" Value="#6C757D"/>
+            <Setter Property="Foreground" Value="White"/>
+            <Setter Property="BorderThickness" Value="0"/>
+            <Setter Property="Padding" Value="12,8"/>
+            <Setter Property="Margin" Value="0,0,8,0"/>
+            <Setter Property="FontSize" Value="12"/>
+            <Setter Property="Cursor" Value="Hand"/>
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="Button">
+                        <Border Background="{TemplateBinding Background}"
+                                CornerRadius="4"
+                                Padding="{TemplateBinding Padding}">
+                            <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                        </Border>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+            <Style.Triggers>
+                <Trigger Property="IsMouseOver" Value="True">
+                    <Setter Property="Background" Value="#5A6268"/>
+                </Trigger>
+            </Style.Triggers>
+        </Style>
+
     </Window.Resources>
 
     <Grid>
         <Grid.RowDefinitions>
+            <RowDefinition Height="Auto"/>
             <RowDefinition Height="Auto"/>
             <RowDefinition Height="*"/>
             <RowDefinition Height="Auto"/>
         </Grid.RowDefinitions>
 
         <!-- Header -->
-        <Border Grid.Row="0">
+        <Border Grid.Row="0" MouseLeftButtonDown="Header_MouseLeftButtonDown" Cursor="SizeAll">
             <Border.Background>
                 <LinearGradientBrush StartPoint="0,0" EndPoint="1,0">
                     <GradientStop Color="#FF6B35" Offset="0"/>
@@ -108,8 +137,17 @@
             </StackPanel>
         </Border>
 
+        <!-- Navigation Bar -->
+        <Border Grid.Row="1" Background="#E9ECEF" BorderBrush="#DEE2E6" BorderThickness="0,1,0,1" Padding="15,10">
+            <StackPanel Orientation="Horizontal">
+                <TextBlock Text="Navigate:" FontWeight="SemiBold" FontSize="12" VerticalAlignment="Center" Margin="0,0,12,0" Foreground="#495057"/>
+                <Button Content="Image Generator" Style="{StaticResource NavButtonStyle}" Command="{Binding NavigateToImageGeneratorCommand}"/>
+                <Button Content="Camera Edit" Style="{StaticResource NavButtonStyle}" Command="{Binding NavigateToCameraEditCommand}"/>
+            </StackPanel>
+        </Border>
+
         <!-- Main Content -->
-        <ScrollViewer Grid.Row="1" VerticalScrollBarVisibility="Auto">
+        <ScrollViewer Grid.Row="2" VerticalScrollBarVisibility="Auto">
             <StackPanel Margin="20,15,20,15">
 
                 <!-- Image Input Section -->
@@ -524,7 +562,7 @@
         </ScrollViewer>
 
         <!-- Status Bar -->
-        <StatusBar Grid.Row="2" Background="#F8F9FA" BorderBrush="#DEE2E6" BorderThickness="0,1,0,0" Height="28">
+        <StatusBar Grid.Row="3" Background="#F8F9FA" BorderBrush="#DEE2E6" BorderThickness="0,1,0,0" Height="28">
             <StatusBarItem>
                 <TextBlock Text="{Binding StatusBarMessage}" FontSize="11"/>
             </StatusBarItem>

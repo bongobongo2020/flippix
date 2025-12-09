@@ -22,6 +22,8 @@ public class ComfyUIService : IDisposable
 
     public bool IsConnected => _webSocketClient.IsConnected;
 
+    public ComfyUIHttpClient HttpClient => _httpClient;
+
     public ComfyUIService(ComfyUIHttpClient httpClient, ComfyUIWebSocketClient webSocketClient, 
         IAppLogger logger, ComfyUISettings settings)
     {
@@ -245,11 +247,11 @@ public class ComfyUIService : IDisposable
             using var timeoutCts = new CancellationTokenSource(timeout);
             using var combinedCts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken, timeoutCts.Token);
 
-            // Start a fallback completion detection task - extended to 60 seconds for longer workflows
+            // Start a fallback completion detection task - extended to 180 seconds for longer workflows
             var fallbackTask = Task.Run(async () =>
             {
-                await Task.Delay(TimeSpan.FromSeconds(60), cancellationToken); // Wait 60 seconds
-                _logger.LogWarning("Fallback completion triggered after 60 seconds for prompt: {PromptId}", promptId);
+                await Task.Delay(TimeSpan.FromSeconds(180), cancellationToken); // Wait 180 seconds (3 minutes)
+                _logger.LogWarning("Fallback completion triggered after 180 seconds for prompt: {PromptId}", promptId);
                 lock (lockObj)
                 {
                     if (!isCompleted)
@@ -300,14 +302,19 @@ public class ComfyUIService : IDisposable
     {
         try
         {
-            _logger.LogInfo($"Processing WebSocket message type: {message.Type}");
+            // Only log important message types to reduce clutter
+            bool shouldLog = message.Type is "progress" or "executing" or "execution_complete" or "executed";
+            if (shouldLog)
+            {
+                _logger.LogInfo($"Processing WebSocket message type: {message.Type}");
+            }
 
             switch (message.Type)
             {
                 case "progress":
                     if (message is ProgressMessage progressMsg)
                     {
-                        _logger.LogInfo($"Progress message - PromptId: {progressMsg.Data?.PromptId}, Value: {progressMsg.Data?.Value}, Max: {progressMsg.Data?.Max}");
+                        _logger.LogInfo($"Progress: {progressMsg.Data?.Value}/{progressMsg.Data?.Max} ({(progressMsg.Data?.Value * 100.0 / progressMsg.Data?.Max):F0}%)");
                         ProgressUpdated?.Invoke(this, progressMsg);
                     }
                     else
@@ -319,12 +326,9 @@ public class ComfyUIService : IDisposable
                 case "executing":
                     if (message is ExecutingMessage execingMsg)
                     {
-                        _logger.LogInfo($"Executing message - PromptId: {execingMsg.Data?.PromptId}, Node: {execingMsg.Data?.Node ?? "null"}");
-
-                        // When node is null, it means execution has completed
                         if (execingMsg.Data?.Node == null && !string.IsNullOrEmpty(execingMsg.Data?.PromptId))
                         {
-                            _logger.LogInfo($"Execution completed (executing with null node) for prompt: {execingMsg.Data.PromptId}");
+                            _logger.LogInfo($"Execution completed for prompt: {execingMsg.Data.PromptId}");
 
                             // Create a synthetic ExecutionCompleteMessage
                             var syntheticComplete = new ExecutionCompleteMessage
@@ -337,20 +341,23 @@ public class ComfyUIService : IDisposable
                             };
                             ExecutionCompleted?.Invoke(this, syntheticComplete);
                         }
-                    }
-                    else
-                    {
-                        _logger.LogInfo($"Received executing message but failed to cast: {message.RawData}");
+                        else
+                        {
+                            // Only log non-null nodes
+                            if (shouldLog && execingMsg.Data?.Node != null)
+                            {
+                                _logger.LogInfo($"Executing node: {execingMsg.Data.Node}");
+                            }
+                        }
                     }
                     break;
 
                 case "executed":
-                    _logger.LogInfo($"Received executed message: {message.RawData}");
                     // Some workflows send "executed" instead of "execution_complete"
                     // Treat this as completion
                     if (message is ExecutionCompleteMessage execMsg)
                     {
-                        _logger.LogInfo($"Executed message - PromptId: {execMsg.Data?.PromptId}");
+                        _logger.LogInfo($"Execution completed via 'executed' message for prompt: {execMsg.Data?.PromptId}");
                         ExecutionCompleted?.Invoke(this, execMsg);
                     }
                     break;
@@ -358,18 +365,27 @@ public class ComfyUIService : IDisposable
                 case "execution_complete":
                     if (message is ExecutionCompleteMessage completeMsg)
                     {
-                        _logger.LogInfo($"Execution complete message - PromptId: {completeMsg.Data?.PromptId}");
+                        _logger.LogInfo($"Execution completed for prompt: {completeMsg.Data?.PromptId}");
                         ExecutionCompleted?.Invoke(this, completeMsg);
                     }
                     else
                     {
                         _logger.LogWarning("Received execution_complete message but failed to cast to ExecutionCompleteMessage");
-                        _logger.LogInfo($"Raw message: {message.RawData}");
                     }
                     break;
 
+                // Silently ignore these common but unimportant message types
+                case "execution_start":
+                case "execution_cached":
+                case "progress_state":
+                case "status":
+                case "crystools.monitor":
+                case "kaytool.resources":
+                    break;
+
                 default:
-                    _logger.LogInfo($"Unhandled message type: {message.Type}, Raw: {message.RawData}");
+                    // Only log truly unexpected message types at debug level
+                    _logger.LogDebug($"Unhandled message type: {message.Type}");
                     break;
             }
         }
