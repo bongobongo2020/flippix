@@ -9,13 +9,13 @@ namespace FlipPix.UI.Services;
 
 public class WorkflowExecutionService
 {
-    private readonly ComfyUIService _comfyUIService;
+    private readonly FlipPix.ComfyUI.Services.ComfyUIService _comfyUIService;
     private readonly IAppLogger _logger;
     private readonly string _workflowPath;
     private readonly VideoJoiningService _videoJoiningService;
     private readonly VideoAnalysisService _videoAnalysisService;
     private CancellationTokenSource? _cancellationTokenSource;
-    private ComfyUIService? _activeComfyUIService; // Keep track of the active service for reuse
+    private FlipPix.ComfyUI.Services.ComfyUIService? _activeComfyUIService; // Keep track of the active service for reuse
 
     public event EventHandler<int>? ProgressUpdated;
     public event EventHandler<string>? StatusUpdated;
@@ -24,7 +24,7 @@ public class WorkflowExecutionService
     public event EventHandler<List<string>>? AllVideosCompleted;
     public event EventHandler<string>? FinalVideoCompleted;
 
-    public WorkflowExecutionService(ComfyUIService comfyUIService, IAppLogger logger)
+    public WorkflowExecutionService(FlipPix.ComfyUI.Services.ComfyUIService comfyUIService, IAppLogger logger)
     {
         _comfyUIService = comfyUIService;
         _logger = logger;
@@ -60,7 +60,7 @@ public class WorkflowExecutionService
                 
                 var comfyUIHttpClient = new FlipPix.ComfyUI.Http.ComfyUIHttpClient(httpClient, _logger, settings);
                 var webSocketClient = new FlipPix.ComfyUI.WebSocket.ComfyUIWebSocketClient(_logger, settings.BaseUrl);
-                _activeComfyUIService = new ComfyUIService(comfyUIHttpClient, webSocketClient, _logger, settings);
+                _activeComfyUIService = new FlipPix.ComfyUI.Services.ComfyUIService(comfyUIHttpClient, webSocketClient, _logger, settings);
             }
             else
             {
@@ -183,7 +183,7 @@ public class WorkflowExecutionService
     private async Task<string> ExecuteWorkflowChunkAsync(
         string videoPath, string stylePath, string facePath,
         int startFrame, int frameCount,
-        ComfyUIService comfyUIService, CancellationToken cancellationToken,
+        FlipPix.ComfyUI.Services.ComfyUIService comfyUIService, CancellationToken cancellationToken,
         int baseProgress, int progressRange, int chunkIndex, VideoInfo? videoInfo = null)
     {
         try
@@ -191,7 +191,7 @@ public class WorkflowExecutionService
             _logger.LogInfo($"Starting chunk execution: frames {startFrame}-{startFrame + frameCount - 1}");
             
             // Use the provided ComfyUI service
-            ComfyUIService serviceToUse = comfyUIService;
+            FlipPix.ComfyUI.Services.ComfyUIService serviceToUse = comfyUIService;
 
             // Subscribe to events with progress offset
             EventHandler<ProgressMessage> progressHandler = (sender, msg) =>
@@ -321,7 +321,7 @@ public class WorkflowExecutionService
                 
                 var comfyUIHttpClient = new FlipPix.ComfyUI.Http.ComfyUIHttpClient(httpClient, _logger, settings);
                 var webSocketClient = new FlipPix.ComfyUI.WebSocket.ComfyUIWebSocketClient(_logger, settings.BaseUrl);
-                var tempComfyUIService = new ComfyUIService(comfyUIHttpClient, webSocketClient, _logger, settings);
+                var tempComfyUIService = new FlipPix.ComfyUI.Services.ComfyUIService(comfyUIHttpClient, webSocketClient, _logger, settings);
                 
                 // Use the temporary service for this execution
                 return await ExecuteWithService(tempComfyUIService, videoPath, stylePath, facePath, cancellationToken);
@@ -360,7 +360,7 @@ public class WorkflowExecutionService
         }
     }
 
-    private async Task<bool> ExecuteWithService(ComfyUIService service, string videoPath, string stylePath, string facePath, CancellationToken cancellationToken, VideoInfo? videoInfo = null)
+    private async Task<bool> ExecuteWithService(FlipPix.ComfyUI.Services.ComfyUIService service, string videoPath, string stylePath, string facePath, CancellationToken cancellationToken, VideoInfo? videoInfo = null)
     {
         // Subscribe to the service's events for progress reporting
         service.ProgressUpdated += OnComfyUIProgress;

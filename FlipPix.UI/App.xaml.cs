@@ -20,6 +20,8 @@ namespace FlipPix.UI
     {
         private ServiceProvider? _serviceProvider;
 
+        public ServiceProvider? Services => _serviceProvider;
+
         protected override async void OnStartup(StartupEventArgs e)
         {
             base.OnStartup(e);
@@ -103,19 +105,20 @@ namespace FlipPix.UI
                 await CheckServerConnectivityAsync(settingsService);
             }
 
-            // Create and show FlipPix window
+            // Create and show Image Generator window as default
             try
             {
-                System.Diagnostics.Debug.WriteLine("FlipPix App: Creating and showing main FlipPix window");
-                var flipPixWindow = _serviceProvider.GetRequiredService<FlipPixWindow>();
-                System.Diagnostics.Debug.WriteLine("FlipPix App: FlipPixWindow created successfully");
+                System.Diagnostics.Debug.WriteLine("FlipPix App: Creating and showing Image Generator window as default");
+                var imageGeneratorViewModel = _serviceProvider.GetRequiredService<ImageGeneratorViewModel>();
+                var imageGeneratorWindow = new ImageGeneratorWindow(imageGeneratorViewModel, settingsService);
+                System.Diagnostics.Debug.WriteLine("FlipPix App: ImageGeneratorWindow created successfully");
 
                 // Set shutdown mode to close when main window closes
                 ShutdownMode = ShutdownMode.OnMainWindowClose;
-                MainWindow = flipPixWindow;
+                MainWindow = imageGeneratorWindow;
 
-                flipPixWindow.Show();
-                System.Diagnostics.Debug.WriteLine("FlipPix App: Main window shown successfully");
+                imageGeneratorWindow.Show();
+                System.Diagnostics.Debug.WriteLine("FlipPix App: Main Image Generator window shown successfully");
             }
             catch (Exception ex)
             {
@@ -161,6 +164,10 @@ namespace FlipPix.UI
             services.AddSingleton<ImageAnalysisService>();
             services.AddSingleton<WorkflowExecutionService>();
             services.AddSingleton<ChunkCreatorService>();
+            services.AddHttpClient<OllamaService>();
+
+            // Prompt service
+            services.AddSingleton<IPromptService, PromptService>();
 
             // ComfyUI configuration - use settings from SettingsService
             services.AddSingleton<ComfyUISettings>(provider =>
@@ -184,13 +191,13 @@ namespace FlipPix.UI
                 var settings = provider.GetRequiredService<ComfyUISettings>();
                 return new ComfyUIWebSocketClient(logger, settings.BaseUrl);
             });
-            services.AddSingleton<ComfyUIService>();
+            services.AddSingleton<FlipPix.ComfyUI.Services.ComfyUIService>();
 
             // ViewModels
             services.AddTransient<MainViewModel>();
             services.AddTransient<ChunkCreatorViewModel>(provider =>
             {
-                var comfyUIService = provider.GetRequiredService<ComfyUIService>();
+                var comfyUIService = provider.GetRequiredService<FlipPix.ComfyUI.Services.ComfyUIService>();
                 var logger = provider.GetRequiredService<IAppLogger>();
                 var chunkCreatorService = provider.GetRequiredService<ChunkCreatorService>();
                 var videoAnalysisService = provider.GetRequiredService<VideoAnalysisService>();
@@ -199,31 +206,53 @@ namespace FlipPix.UI
             });
             services.AddTransient<LongCatViewModel>(provider =>
             {
-                var comfyUIService = provider.GetRequiredService<ComfyUIService>();
+                var comfyUIService = provider.GetRequiredService<FlipPix.ComfyUI.Services.ComfyUIService>();
                 var logger = provider.GetRequiredService<IAppLogger>();
                 var imageAnalysisService = provider.GetRequiredService<ImageAnalysisService>();
                 return new LongCatViewModel(comfyUIService, logger, imageAnalysisService);
             });
             services.AddTransient<FlipPixViewModel>(provider =>
             {
-                var comfyUIService = provider.GetRequiredService<ComfyUIService>();
+                var comfyUIService = provider.GetRequiredService<FlipPix.ComfyUI.Services.ComfyUIService>();
                 var logger = provider.GetRequiredService<IAppLogger>();
                 var settingsService = provider.GetRequiredService<SettingsService>();
-                return new FlipPixViewModel(comfyUIService, logger, settingsService, provider);
+                var promptService = provider.GetRequiredService<IPromptService>();
+                return new FlipPixViewModel(comfyUIService, logger, settingsService, provider, promptService);
             });
             services.AddTransient<VideoGeneratorViewModel>(provider =>
             {
-                var comfyUIService = provider.GetRequiredService<ComfyUIService>();
+                var comfyUIService = provider.GetRequiredService<FlipPix.ComfyUI.Services.ComfyUIService>();
                 var logger = provider.GetRequiredService<IAppLogger>();
                 var settingsService = provider.GetRequiredService<SettingsService>();
                 return new VideoGeneratorViewModel(comfyUIService, logger, settingsService, provider);
             });
             services.AddTransient<ImageGeneratorViewModel>(provider =>
             {
-                var comfyUIService = provider.GetRequiredService<ComfyUIService>();
+                var comfyUIService = provider.GetRequiredService<FlipPix.ComfyUI.Services.ComfyUIService>();
                 var logger = provider.GetRequiredService<IAppLogger>();
                 var settingsService = provider.GetRequiredService<SettingsService>();
-                return new ImageGeneratorViewModel(comfyUIService, logger, settingsService, provider);
+                var promptService = provider.GetRequiredService<IPromptService>();
+                return new ImageGeneratorViewModel(comfyUIService, logger, settingsService, provider, promptService);
+            });
+            services.AddTransient<ImageAnalyzerViewModel>(provider =>
+            {
+                var comfyUIService = provider.GetRequiredService<FlipPix.ComfyUI.Services.ComfyUIService>();
+                var logger = provider.GetRequiredService<IAppLogger>();
+                var settingsService = provider.GetRequiredService<SettingsService>();
+                return new ImageAnalyzerViewModel(comfyUIService, logger, settingsService);
+            });
+            services.AddTransient<StoryVideoViewModel>(provider =>
+            {
+                var comfyUIService = provider.GetRequiredService<FlipPix.ComfyUI.Services.ComfyUIService>();
+                var logger = provider.GetRequiredService<IAppLogger>();
+                var settingsService = provider.GetRequiredService<SettingsService>();
+                return new StoryVideoViewModel(comfyUIService, logger, settingsService);
+            });
+            services.AddTransient<OllamaViewModel>(provider =>
+            {
+                var ollamaService = provider.GetRequiredService<OllamaService>();
+                var logger = provider.GetRequiredService<IAppLogger>();
+                return new OllamaViewModel(ollamaService, logger, provider);
             });
             services.AddTransient<ComfyUIFolderSetupViewModel>();
 
@@ -234,6 +263,9 @@ namespace FlipPix.UI
             services.AddTransient<FlipPixWindow>();
             services.AddTransient<VideoGeneratorWindow>();
             services.AddTransient<ImageGeneratorWindow>();
+            services.AddTransient<ImageAnalyzerWindow>();
+            services.AddTransient<StoryVideoWindow>();
+              services.AddTransient<OllamaWindow>();
             services.AddTransient<ComfyUIFolderSetupWindow>();
         }
 

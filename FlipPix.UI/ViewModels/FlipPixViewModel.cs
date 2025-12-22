@@ -15,13 +15,16 @@ using System.Windows.Media.Imaging;
 using Microsoft.Win32;
 using FlipPix.ComfyUI.Services;
 using FlipPix.Core.Interfaces;
+using FlipPix.UI.Commands;
+using FlipPix.UI.Services;
+using FlipPix.UI.Models;
 
 namespace FlipPix.UI.ViewModels
 {
-    public class FlipPixViewModel : INotifyPropertyChanged
+    public class FlipPixViewModel : BasePromptViewModel
     {
-        private readonly ComfyUIService _comfyUIService;
-        private readonly IAppLogger _logger;
+        private readonly FlipPix.ComfyUI.Services.ComfyUIService _comfyUIService;
+        private new readonly IAppLogger _logger;
         private readonly FlipPix.Core.Services.SettingsService _settingsService;
         private readonly IServiceProvider? _serviceProvider;
 
@@ -44,15 +47,20 @@ namespace FlipPix.UI.ViewModels
         private System.Threading.CancellationTokenSource? _cancellationTokenSource;
 
         // Sampler settings
-        private int _steps = 8;
-        private double _cfg = 1.5;
         private string _samplerName = "euler";
         private string _scheduler = "beta57";
+
+        // Override base class properties
+        private int _steps = 8;
+        private double _cfg = 1.5;
+        private long _seed = 0;
         private double _denoise = 1.0;
+        private int _aspectRatioIndex = 0;
 
-        public event PropertyChangedEventHandler? PropertyChanged;
+        public new event PropertyChangedEventHandler? PropertyChanged;
 
-        public FlipPixViewModel(ComfyUIService comfyUIService, IAppLogger logger, FlipPix.Core.Services.SettingsService settingsService, IServiceProvider? serviceProvider = null)
+        public FlipPixViewModel(FlipPix.ComfyUI.Services.ComfyUIService comfyUIService, IAppLogger logger, FlipPix.Core.Services.SettingsService settingsService, IServiceProvider? serviceProvider = null, IPromptService? promptService = null)
+            : base(promptService ?? new PromptService(logger), logger, "CameraEdit")
         {
             _comfyUIService = comfyUIService ?? throw new ArgumentNullException(nameof(comfyUIService));
             _logger = logger ?? throw new ArgumentNullException(nameof(logger));
@@ -70,6 +78,7 @@ namespace FlipPix.UI.ViewModels
             SendToVideoGeneratorCommand = new RelayCommand(SendToVideoGenerator, () => HasResultImage);
             NavigateToImageGeneratorCommand = new RelayCommand(NavigateToImageGenerator);
             NavigateToVideoGeneratorCommand = new RelayCommand(NavigateToVideoGenerator);
+            NavigateToStoryVideoCommand = new RelayCommand(NavigateToStoryVideo);
 
             // Initialize camera control options
             InitializeCameraControlOptions();
@@ -99,8 +108,14 @@ namespace FlipPix.UI.ViewModels
             get => _imagePreviewSource;
             set
             {
+                var oldValue = _imagePreviewSource;
                 _imagePreviewSource = value;
+                AddLog($"ImagePreviewSource changed: {oldValue?.ToString() ?? "null"} -> {value?.ToString() ?? "null"}, Dimensions: {value?.PixelWidth}x{value?.PixelHeight}");
                 OnPropertyChanged();
+
+                // Force UI refresh
+                OnPropertyChanged(nameof(ImageFilePath));
+                OnPropertyChanged(nameof(ImageInfo));
             }
         }
 
@@ -109,8 +124,14 @@ namespace FlipPix.UI.ViewModels
             get => _resultPreviewSource;
             set
             {
+                var oldValue = _resultPreviewSource;
                 _resultPreviewSource = value;
+                AddLog($"ResultPreviewSource changed: {oldValue?.ToString() ?? "null"} -> {value?.ToString() ?? "null"}, Dimensions: {value?.PixelWidth}x{value?.PixelHeight}");
                 OnPropertyChanged();
+
+                // Force UI refresh
+                OnPropertyChanged(nameof(HasResultImage));
+                OnPropertyChanged(nameof(ResultImagePath));
             }
         }
 
@@ -262,25 +283,6 @@ namespace FlipPix.UI.ViewModels
         }
 
         // Sampler Settings
-        public int Steps
-        {
-            get => _steps;
-            set
-            {
-                _steps = value;
-                OnPropertyChanged();
-            }
-        }
-
-        public double Cfg
-        {
-            get => _cfg;
-            set
-            {
-                _cfg = value;
-                OnPropertyChanged();
-            }
-        }
 
         public string SamplerName
         {
@@ -302,23 +304,14 @@ namespace FlipPix.UI.ViewModels
             }
         }
 
-        public double Denoise
-        {
-            get => _denoise;
-            set
-            {
-                _denoise = value;
-                OnPropertyChanged();
-            }
-        }
-
+        
         public bool CanProcess => !string.IsNullOrEmpty(ImageFilePath) &&
                                   File.Exists(ImageFilePath) &&
                                   !IsProcessing;
 
-        public bool CanSavePrompt => !string.IsNullOrEmpty(CustomPrompt);
+        public new bool CanSavePrompt => !string.IsNullOrEmpty(CustomPrompt);
 
-        public bool CanDeletePrompt
+        public new bool CanDeletePrompt
         {
             get
             {
@@ -347,6 +340,7 @@ namespace FlipPix.UI.ViewModels
         public ICommand SendToVideoGeneratorCommand { get; }
         public ICommand NavigateToImageGeneratorCommand { get; }
         public ICommand NavigateToVideoGeneratorCommand { get; }
+        public ICommand NavigateToStoryVideoCommand { get; }
 
         // Methods
         private void InitializeCameraControlOptions()
@@ -473,9 +467,12 @@ namespace FlipPix.UI.ViewModels
                 Description = "Enter your own camera control prompt",
                 Prompt = ""
             });
+
+            // Initialize the default prompt based on the selected camera control
+            UpdateCustomPromptFromSelection();
         }
 
-        private void LoadSavedPrompts()
+        protected new void LoadSavedPrompts()
         {
             var savedPrompts = _settingsService.Settings.SavedCameraPrompts;
             if (savedPrompts != null && savedPrompts.Any())
@@ -527,10 +524,16 @@ namespace FlipPix.UI.ViewModels
 
         public void SetImagePath(string imagePath)
         {
+            AddLog($"SetImagePath called with: '{imagePath}', FileExists: {File.Exists(imagePath)}");
+
             if (File.Exists(imagePath))
             {
                 ImageFilePath = imagePath;
                 AddLog($"Image loaded from image generator: {Path.GetFileName(ImageFilePath)}");
+            }
+            else
+            {
+                AddLog($"SetImagePath failed - file does not exist: {imagePath}");
             }
         }
 
@@ -546,28 +549,38 @@ namespace FlipPix.UI.ViewModels
 
         private void LoadImagePreview()
         {
+            AddLog($"LoadImagePreview called: ImageFilePath='{ImageFilePath}', FileExists={(!string.IsNullOrEmpty(ImageFilePath) && File.Exists(ImageFilePath))}");
+
             if (!string.IsNullOrEmpty(ImageFilePath) && File.Exists(ImageFilePath))
             {
                 try
                 {
-                    // Load image from stream to avoid file locking
+                    AddLog($"Loading image from: {ImageFilePath}");
+
+                    // Load image using URI source to avoid stream issues
                     var bitmap = new BitmapImage();
                     bitmap.BeginInit();
-                    bitmap.CacheOption = BitmapCacheOption.OnLoad;
 
-                    // Load file into memory stream to avoid file locking
-                    using (var fileStream = new FileStream(ImageFilePath, FileMode.Open, FileAccess.Read, FileShare.Read))
+                    // Create URI safely
+                    Uri imageUri;
+                    if (Path.IsPathRooted(ImageFilePath))
                     {
-                        var memoryStream = new MemoryStream();
-                        fileStream.CopyTo(memoryStream);
-                        memoryStream.Position = 0;
-                        bitmap.StreamSource = memoryStream;
-                        bitmap.EndInit();
+                        imageUri = new Uri(ImageFilePath);
+                    }
+                    else
+                    {
+                        imageUri = new Uri(Path.GetFullPath(ImageFilePath));
                     }
 
+                    bitmap.UriSource = imageUri;
+                    bitmap.CacheOption = BitmapCacheOption.OnLoad;
+                    bitmap.EndInit();
                     bitmap.Freeze();
+
                     ImagePreviewSource = bitmap;
                     ImageInfo = $"{bitmap.PixelWidth} × {bitmap.PixelHeight} pixels";
+
+                    AddLog($"Image loaded successfully: {bitmap.PixelWidth}x{bitmap.PixelHeight}, ImagePreviewSource is null: {ImagePreviewSource == null}");
                 }
                 catch (Exception ex)
                 {
@@ -575,6 +588,11 @@ namespace FlipPix.UI.ViewModels
                     _logger.LogError($"Error loading image preview from {ImageFilePath}: {ex}");
                     ImageInfo = "Error loading image";
                 }
+            }
+            else
+            {
+                AddLog($"Cannot load image preview - ImageFilePath is empty or file does not exist");
+                ImagePreviewSource = null;
             }
         }
 
@@ -844,32 +862,49 @@ namespace FlipPix.UI.ViewModels
 
         private void LoadResultPreview(string imagePath)
         {
-            try
-            {
-                // Load image from stream to avoid file locking
-                var bitmap = new BitmapImage();
-                bitmap.BeginInit();
-                bitmap.CacheOption = BitmapCacheOption.OnLoad;
+            AddLog($"LoadResultPreview called: imagePath='{imagePath}', FileExists={(!string.IsNullOrEmpty(imagePath) && File.Exists(imagePath))}");
 
-                // Load file into memory stream to avoid file locking
-                using (var fileStream = new FileStream(imagePath, FileMode.Open, FileAccess.Read, FileShare.Read))
+            if (!string.IsNullOrEmpty(imagePath) && File.Exists(imagePath))
+            {
+                try
                 {
-                    var memoryStream = new MemoryStream();
-                    fileStream.CopyTo(memoryStream);
-                    memoryStream.Position = 0;
-                    bitmap.StreamSource = memoryStream;
+                    AddLog($"Loading result image from: {imagePath}");
+
+                    // Load image using URI source to avoid stream issues
+                    var bitmap = new BitmapImage();
+                    bitmap.BeginInit();
+
+                    // Create URI safely
+                    Uri imageUri;
+                    if (Path.IsPathRooted(imagePath))
+                    {
+                        imageUri = new Uri(imagePath);
+                    }
+                    else
+                    {
+                        imageUri = new Uri(Path.GetFullPath(imagePath));
+                    }
+
+                    bitmap.UriSource = imageUri;
+                    bitmap.CacheOption = BitmapCacheOption.OnLoad;
                     bitmap.EndInit();
+                    bitmap.Freeze();
+
+                    ResultPreviewSource = bitmap;
+
+                    AddLog($"Result image loaded successfully: {bitmap.PixelWidth}x{bitmap.PixelHeight}, ResultPreviewSource is null: {ResultPreviewSource == null}");
                 }
-
-                bitmap.Freeze();
-                ResultPreviewSource = bitmap;
-
-                AddLog($"Result preview loaded successfully");
+                catch (Exception ex)
+                {
+                    AddLog($"Error loading result preview: {ex.Message}");
+                    _logger.LogError($"Error loading result preview from {imagePath}: {ex}");
+                    ResultPreviewSource = null;
+                }
             }
-            catch (Exception ex)
+            else
             {
-                AddLog($"Error loading result preview: {ex.Message}");
-                _logger.LogError($"Error loading result preview from {imagePath}: {ex}");
+                AddLog($"Cannot load result preview - imagePath is empty or file does not exist");
+                ResultPreviewSource = null;
             }
         }
 
@@ -964,6 +999,43 @@ namespace FlipPix.UI.ViewModels
             }
         }
 
+        private void NavigateToImageAnalyzer()
+        {
+            if (_serviceProvider == null) return;
+
+            try
+            {
+                var imageAnalyzerWindow = _serviceProvider.GetService(typeof(ImageAnalyzerWindow)) as ImageAnalyzerWindow;
+                if (imageAnalyzerWindow != null)
+                {
+                    imageAnalyzerWindow.WindowState = WindowState.Normal;
+
+                    // Ensure the window opens on screen with title bar visible
+                    var screenWidth = SystemParameters.PrimaryScreenWidth;
+                    var screenHeight = SystemParameters.PrimaryScreenHeight;
+                    var windowWidth = imageAnalyzerWindow.Width;
+                    var windowHeight = imageAnalyzerWindow.Height;
+
+                    // Use conservative positioning
+                    imageAnalyzerWindow.Left = 100;
+                    imageAnalyzerWindow.Top = 100;
+
+                    // Ensure window is fully visible on screen
+                    if (imageAnalyzerWindow.Left + windowWidth > screenWidth)
+                        imageAnalyzerWindow.Left = Math.Max(25, screenWidth - windowWidth - 25);
+                    if (imageAnalyzerWindow.Top + windowHeight > screenHeight)
+                        imageAnalyzerWindow.Top = Math.Max(25, screenHeight - windowHeight - 25);
+
+                    imageAnalyzerWindow.Show();
+                    AddLog("Opened Image Analyzer window");
+                }
+            }
+            catch (Exception ex)
+            {
+                AddLog($"ERROR navigating to Image Analyzer: {ex.Message}");
+            }
+        }
+
         private void NavigateToVideoGenerator()
         {
             if (_serviceProvider == null) return;
@@ -999,6 +1071,50 @@ namespace FlipPix.UI.ViewModels
             catch (Exception ex)
             {
                 AddLog($"ERROR navigating to Video Generator: {ex.Message}");
+            }
+        }
+
+  
+        private void NavigateToStoryVideo()
+        {
+            if (_serviceProvider == null) return;
+
+            try
+            {
+                var storyVideoWindow = _serviceProvider.GetService(typeof(StoryVideoWindow)) as StoryVideoWindow;
+                if (storyVideoWindow != null)
+                {
+                    storyVideoWindow.WindowState = WindowState.Normal;
+
+                    // Ensure the window opens on screen with title bar visible
+                    var screenWidth = SystemParameters.PrimaryScreenWidth;
+                    var screenHeight = SystemParameters.PrimaryScreenHeight;
+                    var windowWidth = storyVideoWindow.Width;
+                    var windowHeight = storyVideoWindow.Height;
+
+                    // Position with offset to ensure title bar is visible
+                    storyVideoWindow.Left = Math.Max(100, (screenWidth - windowWidth) / 2);
+                    storyVideoWindow.Top = Math.Max(100, (screenHeight - windowHeight) / 2);
+
+                    // Ensure title bar is visible by keeping some margin from screen edges
+                    if (storyVideoWindow.Top < 50) storyVideoWindow.Top = 50;
+                    if (storyVideoWindow.Left < 50) storyVideoWindow.Left = 50;
+                    if (storyVideoWindow.Top + windowHeight > screenHeight - 50)
+                        storyVideoWindow.Top = screenHeight - windowHeight - 50;
+                    if (storyVideoWindow.Left + windowWidth > screenWidth - 50)
+                        storyVideoWindow.Left = screenWidth - windowWidth - 50;
+
+                    storyVideoWindow.Show();
+                    AddLog("Opened Story Video window");
+                }
+                else
+                {
+                    AddLog("ERROR: Could not create Story Video Window - missing dependencies");
+                }
+            }
+            catch (Exception ex)
+            {
+                AddLog($"ERROR navigating to Story Video: {ex.Message}");
             }
         }
 
@@ -1306,9 +1422,126 @@ namespace FlipPix.UI.ViewModels
             _logger.LogInfo(message);
         }
 
-        protected void OnPropertyChanged([CallerMemberName] string? propertyName = null)
+        protected new void OnPropertyChanged([CallerMemberName] string? propertyName = null)
         {
             PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(propertyName));
+        }
+
+        // Implementation of abstract base class properties
+        public override string CurrentPromptText => CustomPrompt;
+
+        public override int AspectRatioIndex
+        {
+            get => _aspectRatioIndex;
+            set
+            {
+                _aspectRatioIndex = value;
+                OnPropertyChanged();
+            }
+        }
+
+        public override long Seed
+        {
+            get => _seed;
+            set
+            {
+                _seed = value;
+                OnPropertyChanged();
+            }
+        }
+
+        public override int Steps
+        {
+            get => _steps;
+            set
+            {
+                _steps = value;
+                OnPropertyChanged();
+            }
+        }
+
+        public override double Cfg
+        {
+            get => _cfg;
+            set
+            {
+                _cfg = value;
+                OnPropertyChanged();
+            }
+        }
+
+        public override double Denoise
+        {
+            get => _denoise;
+            set
+            {
+                _denoise = value;
+                OnPropertyChanged();
+            }
+        }
+
+        // Override base class methods
+        protected override void OnPromptSaved(string promptName)
+        {
+            AddLog($"Prompt saved: {promptName}");
+            StatusBarMessage = $"Prompt saved: {promptName}";
+        }
+
+        protected override void OnPromptDeleted(string promptName)
+        {
+            AddLog($"Prompt deleted: {promptName}");
+            StatusBarMessage = $"Prompt deleted: {promptName}";
+        }
+
+        protected override void OnPromptLoaded(SavedPrompt savedPrompt)
+        {
+            CustomPrompt = savedPrompt.Prompt;
+            AspectRatioIndex = savedPrompt.AspectRatioIndex;
+            Steps = savedPrompt.Steps;
+            Cfg = savedPrompt.Cfg;
+            Seed = savedPrompt.Seed;
+            Denoise = savedPrompt.Denoise;
+
+            // Load additional data if present
+            if (savedPrompt.AdditionalData != null)
+            {
+                LoadAdditionalPromptData(savedPrompt.AdditionalData);
+            }
+
+            AddLog($"Prompt loaded: {savedPrompt.Name}");
+            StatusBarMessage = $"Prompt loaded: {savedPrompt.Name}";
+        }
+
+        protected override void OnPromptError(string error)
+        {
+            AddLog($"ERROR: {error}");
+            StatusBarMessage = error;
+        }
+
+        public override Dictionary<string, object> GetAdditionalPromptData()
+        {
+            return new Dictionary<string, object>
+            {
+                ["NegativePrompt"] = NegativePrompt,
+                ["SamplerName"] = SamplerName,
+                ["Scheduler"] = Scheduler,
+                ["SelectedCameraControl"] = SelectedCameraControl
+            };
+        }
+
+        public override void LoadAdditionalPromptData(Dictionary<string, object> data)
+        {
+            if (data.TryGetValue("NegativePrompt", out var negPrompt) && negPrompt is string neg)
+                NegativePrompt = neg;
+
+            if (data.TryGetValue("SamplerName", out var sampler) && sampler is string sam)
+                SamplerName = sam;
+
+            if (data.TryGetValue("Scheduler", out var scheduler) && scheduler is string sch)
+                Scheduler = sch;
+
+            if (data.TryGetValue("SelectedCameraControl", out var control) && control is string ctrl)
+                SelectedCameraControl = ctrl;
         }
     }
 

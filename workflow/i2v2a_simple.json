@@ -1,0 +1,184 @@
+{
+    "4": {
+    "inputs": {
+      "unet_name": "checkpoint\\DasiwaWAN22I2V14BLightspeed_midnightflirtLow.safetensors",
+      "weight_dtype": "default"
+    },
+    "class_type": "UNETLoader",
+    "_meta": {
+      "title": "Load Diffusion Model"
+    }
+  },
+  "5": {
+    "inputs": {
+      "clip_name": "umt5_xxl_fp8_e4m3fn_scaled.safetensors",
+      "type": "wan"
+    },
+    "class_type": "CLIPLoader",
+    "_meta": {
+      "title": "Load CLIP"
+    }
+  },
+  "6": {
+    "inputs": {
+      "text": "Digital anime girl, reverse cowgirl (facing viewer), large bouncing breasts with extreme jiggle physics, straddling man's hips, her body glistening and slick with sweat and wetness. Extreme upward perspective, camera low. Long, deep penetration. She is heavily bouncing and gripping his cock. She is squirting fluid and slick on every deep thrust.",
+      "clip": [
+        "5",
+        0
+      ]
+    },
+    "class_type": "CLIPTextEncode",
+    "_meta": {
+      "title": "CLIP Text Encode (Prompt)"
+    }
+  },
+  "7": {
+    "inputs": {
+      "text": "low quality, short thrusts, no movement, small penis, face change, realistic, photorealistic, face morph, worst quality, blurry, grainy, noise, jpeg artifacts, watermark, censored, mosaic, signature, text, logo, writing, mutated, deformed, extra limbs, missing limbs, fused fingers, bad hands, bad anatomy, disproportionate, poor lighting, ugly face, sad, crying, bored, pensive, expressionless, looking away, closed eyes, unnecessary clothing, shoes, socks, unsexy, distracting background, out of frame, out of focus, easy pose.",
+      "clip": [
+        "5",
+        0
+      ]
+    },
+    "class_type": "CLIPTextEncode",
+    "_meta": {
+      "title": "CLIP Text Encode (Negative)"
+    }
+  },
+  "8": {
+    "inputs": {
+      "width": 800,
+      "height": 600,
+      "length": 125,
+      "batch_size": 1,
+      "positive": [
+        "6",
+        0
+      ],
+      "negative": [
+        "7",
+        0
+      ],
+      "vae": [
+        "9",
+        0
+      ],
+      "start_image": [
+        "10",
+        0
+      ]
+    },
+    "class_type": "WanImageToVideo",
+    "_meta": {
+      "title": "WanImageToVideo"
+    }
+  },
+  "9": {
+    "inputs": {
+      "vae_name": "wan_2.1_vae.safetensors"
+    },
+    "class_type": "VAELoader",
+    "_meta": {
+      "title": "Load VAE"
+    }
+  },
+  "10": {
+    "inputs": {
+      "image": "input.png"
+    },
+    "class_type": "LoadImage",
+    "_meta": {
+      "title": "Load Image"
+    }
+  },
+  "11": {
+    "inputs": {
+      "samples": [
+        "3",
+        0
+      ],
+      "vae": [
+        "9",
+        0
+      ]
+    },
+    "class_type": "VAEDecode",
+    "_meta": {
+      "title": "VAE Decode"
+    }
+  },
+  "12": {
+    "inputs": {
+      "filename_prefix": "video/I2V2A",
+      "format": "video/h265-mp4",
+      "pix_fmt": "yuv420p10le",
+      "crf": 19,
+      "save_metadata": true,
+      "pingpong": false,
+      "save_output": true,
+      "images": [
+        "11",
+        0
+      ],
+      "audio": [
+        "13",
+        0
+      ]
+    },
+    "class_type": "VHS_VideoCombine",
+    "_meta": {
+      "title": "Video Combine"
+    }
+  },
+  "13": {
+    "inputs": {
+      "duration": 5,
+      "steps": 25,
+      "cfg": 4.5,
+      "seed": 0,
+      "prompt": "Wet, gentle throat suction, soft gawk-gawk sounds, slow deepthroat blowjob, subtle nasal breathing, quiet spit bubbles, muffled whimpers, soft gasps caught in the throat, slick mouth movement, warm sloppy sucking, barely-audible chokes, soft wet gliding, restrained moans, continuous slippery throat sounds with breathy edge, distinct muffled thock as the tip hits the back of the throat, occasional deep, sticky gag at full depth",
+      "negative_prompt": "Robot voice, loud moan animal, very high pitch, metallic sound, screaming, crying, man, male, flat emotion, stuttering, digital artifacts, static, clipping, harsh noise, out-of-context speech, non-human sounds, distorted frequency, excessive reverb, generic ambient sound, sudden silence, unnecessary echo, microphone feedback",
+      "mask_away_clip": false,
+      "force_offload": false,
+      "mmaudio_model": [
+        "14",
+        0
+      ],
+      "feature_utils": [
+        "15",
+        0
+      ],
+      "images": [
+        "11",
+        0
+      ]
+    },
+    "class_type": "MMAudioSampler",
+    "_meta": {
+      "title": "MMAudio Sampler"
+    }
+  },
+  "14": {
+    "inputs": {
+      "mmaudio_model": "mmaudio_large_44k_nsfw_gold_8.5k_final_fp16.safetensors",
+      "base_precision": "fp16"
+    },
+    "class_type": "MMAudioModelLoader",
+    "_meta": {
+      "title": "MMAudio ModelLoader"
+    }
+  },
+  "15": {
+    "inputs": {
+      "vae_model": "mmaudio_vae_44k_fp16.safetensors",
+      "synchformer_model": "mmaudio_synchformer_fp16.safetensors",
+      "clip_model": "apple_DFN5B-CLIP-ViT-H-14-384_fp16.safetensors",
+      "mode": "44k",
+      "precision": "fp16"
+    },
+    "class_type": "MMAudioFeatureUtilsLoader",
+    "_meta": {
+      "title": "MMAudio FeatureUtilsLoader"
+    }
+  }
+}

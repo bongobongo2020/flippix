@@ -13,7 +13,7 @@ namespace FlipPix.UI.ViewModels;
 
 public partial class ChunkCreatorViewModel : ObservableObject
 {
-    private readonly ComfyUIService _comfyUIService;
+    private readonly FlipPix.ComfyUI.Services.ComfyUIService _comfyUIService;
     private readonly IAppLogger _logger;
     private readonly ChunkCreatorService _chunkCreatorService;
     private readonly VideoAnalysisService _videoAnalysisService;
@@ -95,7 +95,7 @@ public partial class ChunkCreatorViewModel : ObservableObject
     private List<string> _completedChunkPaths = new();
     private const string FinishedVideosFolder = "finished-videos";
 
-    public ChunkCreatorViewModel(ComfyUIService comfyUIService, IAppLogger logger, ChunkCreatorService chunkCreatorService, VideoAnalysisService videoAnalysisService, WorkflowExecutionService workflowExecutionService)
+    public ChunkCreatorViewModel(FlipPix.ComfyUI.Services.ComfyUIService comfyUIService, IAppLogger logger, ChunkCreatorService chunkCreatorService, VideoAnalysisService videoAnalysisService, WorkflowExecutionService workflowExecutionService)
     {
         _comfyUIService = comfyUIService;
         _logger = logger;

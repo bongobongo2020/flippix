@@ -16,7 +16,7 @@ namespace FlipPix.UI.ViewModels;
 
 public partial class MainViewModel : ObservableObject
 {
-    private readonly ComfyUIService _comfyUIService;
+    private readonly FlipPix.ComfyUI.Services.ComfyUIService _comfyUIService;
     private readonly IAppLogger _logger;
     private readonly WorkflowExecutionService _workflowExecutionService;
     private readonly VideoAnalysisService _videoAnalysisService;
@@ -90,7 +90,7 @@ public partial class MainViewModel : ObservableObject
 
     private VideoInfo? _currentVideoInfo;
 
-    public MainViewModel(ComfyUIService comfyUIService, IAppLogger logger, WorkflowExecutionService workflowExecutionService, VideoAnalysisService videoAnalysisService)
+    public MainViewModel(FlipPix.ComfyUI.Services.ComfyUIService comfyUIService, IAppLogger logger, WorkflowExecutionService workflowExecutionService, VideoAnalysisService videoAnalysisService)
     {
         _comfyUIService = comfyUIService;
         _logger = logger;
