@@ -1,5 +1,5 @@
 ================================================================================
-FlipPix - Installation Instructions
+FlipPix - AI Content Creation Platform - Installation Instructions
 ================================================================================
 
 QUICK START
@@ -7,14 +7,25 @@ QUICK START
 1. Extract all files from this ZIP to a folder of your choice
 2. Make sure ComfyUI is running on http://127.0.0.1:8188
 3. Run FlipPix.UI.exe
-4. Start transforming your images!
+4. Start creating AI content!
+
+WHAT'S NEW IN FLIPIX
+-------------------
+FlipPix is now a comprehensive AI content creation platform featuring:
+• Image Processing - Camera angle transformations and perspective changes
+• Video Generation - Image-to-video animation with advanced AI models
+• Image Generation - Text-to-image creation with multiple aspect ratios
+• Story Creation - AI-powered narrative and visual story generation
+• Multimedia Content - Image-to-video-to-audio generation pipelines
+• Ollama Integration - Local LLM support for enhanced text generation
 
 SYSTEM REQUIREMENTS
 -------------------
 - Windows 10/11 (x64)
 - 16GB RAM minimum (32GB recommended)
-- NVIDIA GPU with 12GB+ VRAM (for ComfyUI)
+- NVIDIA GPU with 12GB+ VRAM (16GB+ recommended for video generation)
 - ComfyUI installed and running locally
+- 60GB+ free disk space for all AI models
 
 IMPORTANT: ComfyUI Setup Required
 ----------------------------------
@@ -22,23 +33,38 @@ FlipPix requires a local ComfyUI server with specific models and nodes.
 See the full README.md for detailed setup instructions:
 https://github.com/bongobongo2020/flippix
 
-Quick ComfyUI Requirements:
-- Custom nodes: ComfyUI-GGUF, ComfyUI-QwenImageEdit-MZ, rgthree-comfy
-- Models: Qwen 2.5 VL, Qwen Image VAE, Qwen Image Edit UNET
-- LoRAs: Qwen-Image-Lightning, mult-angles
+Comprehensive ComfyUI Requirements:
+• Custom Nodes: ComfyUI-Manager, ComfyUI-QwenImageEdit-MZ, rgthree-comfy,
+  ComfyUI_Comfyroll_CustomNodes, ComfyUI-GGUF, ComfyUI-WanVideoGenerator
+• Models: Qwen 2.5 VL, UMT5, Qwen 3, multiple VAEs, UNETs, and LoRAs
+• Total download size: ~60GB for all models and nodes
 
 FOLDER STRUCTURE
 ----------------
 FlipPix.UI.exe       - Main application executable
-workflow/            - ComfyUI workflow configurations
-README.md            - Full documentation
+workflow/            - ComfyUI workflow configurations (10+ AI workflows)
+README.md            - Complete documentation and setup guide
+QUICKSTART.md        - 3-step installation guide
+COMFYUI_SETUP.md     - Detailed ComfyUI setup instructions
+
+APPLICATION WINDOWS
+-------------------
+• ImageGeneratorWindow - Image processing and generation
+• VideoGeneratorWindow - Video creation and editing
+• StoryVideoWindow - AI story creation and visualization
+• I2V2AWindow - Image-to-video-to-audio workflows
+• ImageAnalyzerWindow - Image analysis and understanding
+• OllamaWindow - Local LLM integration
+• SettingsWindow - Application configuration
 
 TROUBLESHOOTING
 ---------------
-- Ensure ComfyUI is running before starting FlipPix
-- Check that ComfyUI is accessible at http://127.0.0.1:8188
-- Verify all required models are installed in ComfyUI
-- See README.md for detailed troubleshooting
+• Ensure ComfyUI is running before starting FlipPix
+• Check that ComfyUI is accessible at http://127.0.0.1:8188
+• Verify all required models are installed in ComfyUI (60GB total)
+• Check workflow JSON files for any custom model requirements
+• See README.md for detailed troubleshooting
+• Use scripts/setup-comfyui-windows.bat for automated setup
 
 SUPPORT & DOCUMENTATION
 -----------------------

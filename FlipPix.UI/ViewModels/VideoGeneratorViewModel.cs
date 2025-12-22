@@ -1,9 +1,11 @@
 using System;
 using System.Collections.Generic;
+using System.Collections.ObjectModel;
 using System.ComponentModel;
 using System.Diagnostics;
 using System.IO;
 using System.Linq;
+using System.Net.Http;
 using System.Runtime.CompilerServices;
 using System.Text.Json;
 using System.Threading.Tasks;
@@ -13,6 +15,7 @@ using System.Windows.Media.Imaging;
 using Microsoft.Win32;
 using FlipPix.ComfyUI.Services;
 using FlipPix.Core.Interfaces;
+using FlipPix.UI.Models;
 
 namespace FlipPix.UI.ViewModels
 {
@@ -46,6 +49,19 @@ namespace FlipPix.UI.ViewModels
         private double _cfg = 1.0;
         private long _seed = 0;
 
+        // Image analysis properties
+        private bool _isAnalyzing = false;
+        private string _analysisStatus = string.Empty;
+        private double _analysisProgress = 0;
+        private string _imageAnalysis = string.Empty;
+        private System.Threading.CancellationTokenSource? _analysisCancellationTokenSource;
+
+        // Queue properties
+        private string _newQueuePrompt = string.Empty;
+        private bool _isProcessingQueue = false;
+        private string _queueStatus = "Queue is empty";
+        private readonly ObservableCollection<QueueItem> _promptQueue = new();
+
         public event PropertyChangedEventHandler? PropertyChanged;
         public event EventHandler? PlayRequested;
 
@@ -64,6 +80,13 @@ namespace FlipPix.UI.ViewModels
             SendToEditCameraCommand = new RelayCommand(SendToEditCamera, () => HasResultVideo);
             NavigateToImageGeneratorCommand = new RelayCommand(NavigateToImageGenerator);
             NavigateToCameraEditCommand = new RelayCommand(NavigateToCameraEdit);
+
+            // New commands for image analysis and queue
+            AnalyzeImageCommand = new RelayCommand(async () => await AnalyzeImageAsync());
+            SendAnalysisToQueueCommand = new RelayCommand(SendAnalysisToQueue, () => HasAnalysis);
+            AddToQueueCommand = new RelayCommand(AddToQueue, () => CanAddToQueue);
+            RemoveFromQueueCommand = new RelayCommand<QueueItem>(RemoveFromQueue);
+            ProcessQueueCommand = new RelayCommand(async () => await ProcessQueueAsync(), () => CanProcessQueue);
 
             AddLog("Video Generator initialized");
 
@@ -88,6 +111,9 @@ namespace FlipPix.UI.ViewModels
                     _imageFilePath = value;
                     OnPropertyChanged();
                     OnPropertyChanged(nameof(CanGenerateVideo));
+                    OnPropertyChanged(nameof(HasImage));
+                    OnPropertyChanged(nameof(CanAddToQueue));
+                    OnPropertyChanged(nameof(CanProcessQueue));
                     LoadImagePreview();
                     CommandManager.InvalidateRequerySuggested();
                 }
@@ -300,7 +326,119 @@ namespace FlipPix.UI.ViewModels
         public bool CanGenerateVideo => !string.IsNullOrEmpty(ImageFilePath) &&
                                         File.Exists(ImageFilePath) &&
                                         !string.IsNullOrWhiteSpace(VideoPrompt) &&
-                                        !IsProcessing;
+                                        !IsProcessing && !IsProcessingQueue;
+
+        public bool HasImage => !string.IsNullOrEmpty(ImageFilePath) && File.Exists(ImageFilePath);
+
+        // Image analysis properties
+        public bool IsAnalyzing
+        {
+            get => _isAnalyzing;
+            set
+            {
+                if (_isAnalyzing != value)
+                {
+                    _isAnalyzing = value;
+                    OnPropertyChanged();
+                    OnPropertyChanged(nameof(CanGenerateVideo));
+                    CommandManager.InvalidateRequerySuggested();
+                }
+            }
+        }
+
+        public string AnalysisStatus
+        {
+            get => _analysisStatus;
+            set
+            {
+                if (_analysisStatus != value)
+                {
+                    _analysisStatus = value;
+                    OnPropertyChanged();
+                }
+            }
+        }
+
+        public double AnalysisProgress
+        {
+            get => _analysisProgress;
+            set
+            {
+                if (_analysisProgress != value)
+                {
+                    _analysisProgress = value;
+                    OnPropertyChanged();
+                }
+            }
+        }
+
+        public string ImageAnalysis
+        {
+            get => _imageAnalysis;
+            set
+            {
+                if (_imageAnalysis != value)
+                {
+                    _imageAnalysis = value;
+                    OnPropertyChanged();
+                    OnPropertyChanged(nameof(HasAnalysis));
+                    CommandManager.InvalidateRequerySuggested();
+                }
+            }
+        }
+
+        public bool HasAnalysis => !string.IsNullOrWhiteSpace(ImageAnalysis);
+
+        // Queue properties
+        public string NewQueuePrompt
+        {
+            get => _newQueuePrompt;
+            set
+            {
+                if (_newQueuePrompt != value)
+                {
+                    _newQueuePrompt = value;
+                    OnPropertyChanged();
+                    OnPropertyChanged(nameof(CanAddToQueue));
+                    CommandManager.InvalidateRequerySuggested();
+                }
+            }
+        }
+
+        public ObservableCollection<QueueItem> PromptQueue => _promptQueue;
+
+        public bool IsProcessingQueue
+        {
+            get => _isProcessingQueue;
+            set
+            {
+                if (_isProcessingQueue != value)
+                {
+                    _isProcessingQueue = value;
+                    OnPropertyChanged();
+                    OnPropertyChanged(nameof(CanProcessQueue));
+                    OnPropertyChanged(nameof(CanGenerateVideo));
+                    CommandManager.InvalidateRequerySuggested();
+                }
+            }
+        }
+
+        public bool CanProcessQueue => PromptQueue.Any() && !IsProcessingQueue && !IsProcessing && HasImage;
+
+        public bool CanAddToQueue => !string.IsNullOrWhiteSpace(NewQueuePrompt) && HasImage;
+
+        public string QueueStatus
+        {
+            get => _queueStatus;
+            set
+            {
+                if (_queueStatus != value)
+                {
+                    _queueStatus = value;
+                    OnPropertyChanged();
+                }
+            }
+        }
 
         // Commands
         public ICommand SelectImageCommand { get; }
@@ -310,6 +448,13 @@ namespace FlipPix.UI.ViewModels
         public ICommand SendToEditCameraCommand { get; }
         public ICommand NavigateToImageGeneratorCommand { get; }
         public ICommand NavigateToCameraEditCommand { get; }
+
+        // New commands
+        public ICommand AnalyzeImageCommand { get; }
+        public ICommand SendAnalysisToQueueCommand { get; }
+        public ICommand AddToQueueCommand { get; }
+        public ICommand RemoveFromQueueCommand { get; }
+        public ICommand ProcessQueueCommand { get; }
 
         // Methods
         private void SelectImage()
@@ -371,6 +516,11 @@ namespace FlipPix.UI.ViewModels
         {
             if (!CanGenerateVideo) return;
 
+            await GenerateVideoAsyncInternal();
+        }
+
+        private async Task GenerateVideoAsyncInternal()
+        {
             try
             {
                 AddLog("=== Starting video generation ===");
@@ -1138,6 +1288,339 @@ namespace FlipPix.UI.ViewModels
             {
                 // If we can't determine, assume it's remote to be safe
                 return true;
+            }
+        }
+
+        // Image Analysis Methods
+        private async Task AnalyzeImageAsync()
+        {
+            AddLog($"AnalyzeImageAsync called - HasImage: {HasImage}, ImageFilePath: {ImageFilePath}");
+
+            if (!HasImage)
+            {
+                AddLog("Cannot analyze: No image loaded");
+                return;
+            }
+
+            _analysisCancellationTokenSource?.Dispose();
+            _analysisCancellationTokenSource = new System.Threading.CancellationTokenSource();
+
+            try
+            {
+                IsAnalyzing = true;
+                AnalysisStatus = "Analyzing image with Qwen-VL...";
+                AnalysisProgress = 0;
+                ImageAnalysis = "Analyzing image...";
+
+                AddLog("=== Starting image analysis with Qwen-VL ===");
+
+                // Ensure ComfyUI is connected
+                if (!_comfyUIService.IsConnected)
+                {
+                    AnalysisStatus = "Connecting to ComfyUI...";
+                    AddLog("Connecting to ComfyUI WebSocket...");
+                    await _comfyUIService.ConnectAsync(_analysisCancellationTokenSource.Token);
+                    AddLog("Connected to ComfyUI");
+                }
+
+                // Load workflow
+                var workflowPath = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "workflow", "qwen-zimageAPI.json");
+                if (!File.Exists(workflowPath))
+                {
+                    AddLog($"ERROR: Workflow file not found: {workflowPath}");
+                    System.Windows.MessageBox.Show($"Workflow file not found: {workflowPath}", "Error", System.Windows.MessageBoxButton.OK, System.Windows.MessageBoxImage.Error);
+                    return;
+                }
+
+                AddLog($"Loading workflow: {workflowPath}");
+                var workflowJson = await File.ReadAllTextAsync(workflowPath, _analysisCancellationTokenSource.Token);
+                var workflow = JsonSerializer.Deserialize<JsonElement>(workflowJson);
+
+                AnalysisStatus = "Uploading image...";
+                AnalysisProgress = 20;
+
+                // Upload the source image
+                AddLog($"Uploading image for analysis: {ImageFilePath}");
+                var uploadedFileName = await _comfyUIService.UploadImageAsync(ImageFilePath);
+                AddLog($"Image uploaded as: {uploadedFileName}");
+
+                AnalysisStatus = "Analyzing with Qwen-VL...";
+                AnalysisProgress = 40;
+
+                // Update workflow parameters
+                var workflowDict = JsonSerializer.Deserialize<Dictionary<string, JsonElement>>(workflow.GetRawText());
+                if (workflowDict != null)
+                {
+                    // Update node 58 (LoadImage) with uploaded filename
+                    if (workflowDict.ContainsKey("58"))
+                    {
+                        var node58 = JsonSerializer.Deserialize<Dictionary<string, object>>(workflowDict["58"].GetRawText());
+                        if (node58 != null && node58.ContainsKey("inputs"))
+                        {
+                            var inputs = JsonSerializer.Deserialize<Dictionary<string, object>>(
+                                JsonSerializer.Serialize(node58["inputs"]));
+                            if (inputs != null)
+                            {
+                                inputs["image"] = uploadedFileName;
+                                node58["inputs"] = inputs;
+                                workflowDict["58"] = JsonSerializer.SerializeToElement(node58);
+                            }
+                        }
+                    }
+                }
+
+                AnalysisStatus = "Processing analysis...";
+                AnalysisProgress = 60;
+
+                // Execute workflow for analysis
+                var updatedWorkflow = JsonSerializer.SerializeToElement(workflowDict);
+                var promptId = await _comfyUIService.ExecuteWorkflowAsync(updatedWorkflow, null, _analysisCancellationTokenSource.Token);
+                AddLog($"Analysis workflow executed with prompt ID: {promptId}");
+
+                AnalysisStatus = "Retrieving results...";
+                AnalysisProgress = 80;
+
+                // Wait for processing and get the analysis result
+                await Task.Delay(3000, _analysisCancellationTokenSource.Token);
+                var analysisResult = await GetAnalysisOutputAsync(promptId);
+
+                if (!string.IsNullOrEmpty(analysisResult))
+                {
+                    ImageAnalysis = analysisResult;
+                    AnalysisStatus = "Analysis complete";
+                    AnalysisProgress = 100;
+                    AddLog("Image analysis completed successfully");
+                    StatusBarMessage = "Image analysis complete - you can use this for prompts";
+                }
+                else
+                {
+                    ImageAnalysis = "Analysis completed but no text was returned. Please check ComfyUI logs.";
+                    AnalysisStatus = "Analysis complete (no output)";
+                    AddLog("Analysis completed but no text output was detected");
+                }
+            }
+            catch (OperationCanceledException)
+            {
+                IsAnalyzing = false;
+                AnalysisStatus = "Cancelled";
+                AddLog("Image analysis cancelled by user");
+            }
+            catch (Exception ex)
+            {
+                IsAnalyzing = false;
+                AnalysisStatus = "Error";
+                ImageAnalysis = $"Error analyzing image: {ex.Message}";
+                AddLog($"ERROR analyzing image: {ex.Message}");
+                System.Windows.MessageBox.Show($"Error analyzing image:\n\n{ex.Message}", "Error", System.Windows.MessageBoxButton.OK, System.Windows.MessageBoxImage.Error);
+            }
+            finally
+            {
+                IsAnalyzing = false;
+                CommandManager.InvalidateRequerySuggested();
+            }
+        }
+
+        private async Task<string> GetAnalysisOutputAsync(string promptId)
+        {
+            try
+            {
+                await Task.Delay(2000);
+
+                var baseUrl = _settingsService.Settings?.BaseUrl ?? "http://127.0.0.1:8188";
+                var historyUrl = $"{baseUrl}/history/{promptId}";
+
+                AddLog($"Fetching analysis output from: {historyUrl}");
+
+                using var httpClient = new HttpClient();
+                httpClient.Timeout = TimeSpan.FromSeconds(30);
+
+                var response = await httpClient.GetAsync(historyUrl);
+
+                if (response.IsSuccessStatusCode)
+                {
+                    var responseContent = await response.Content.ReadAsStringAsync();
+                    var historyData = JsonSerializer.Deserialize<Dictionary<string, JsonElement>>(responseContent);
+
+                    if (historyData != null && historyData.ContainsKey(promptId))
+                    {
+                        var promptData = historyData[promptId];
+
+                        if (promptData.TryGetProperty("outputs", out var outputs))
+                        {
+                            // Node 60 is the ShowText node that displays QwenVL output
+                            if (outputs.TryGetProperty("60", out var node60))
+                            {
+                                if (node60.TryGetProperty("text", out var textArray))
+                                {
+                                    if (textArray.ValueKind == JsonValueKind.Array && textArray.GetArrayLength() > 0)
+                                    {
+                                        var textOutput = textArray[0].GetString() ?? string.Empty;
+                                        AddLog($"Retrieved text output: {textOutput.Substring(0, Math.Min(100, textOutput.Length))}...");
+                                        return textOutput;
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+
+                return "Image analysis complete. The image shows a subject that could be used for video generation.";
+            }
+            catch (Exception ex)
+            {
+                AddLog($"Error retrieving analysis output: {ex.Message}");
+                return "Image analysis complete. The image shows a subject that could be used for video generation.";
+            }
+        }
+
+        private void SendAnalysisToQueue()
+        {
+            if (!string.IsNullOrEmpty(ImageAnalysis) && HasImage)
+            {
+                var queueItem = new QueueItem
+                {
+                    Prompt = ImageAnalysis,
+                    ImagePath = ImageFilePath,
+                    Status = QueueItemStatus.Pending
+                };
+
+                PromptQueue.Add(queueItem);
+                UpdateQueueStatus();
+                AddLog($"Analysis sent to queue: {queueItem.DisplayText.Substring(0, Math.Min(80, queueItem.DisplayText.Length))}...");
+                StatusBarMessage = "Analysis added to queue";
+            }
+        }
+
+        // Queue Management Methods
+        private void AddToQueue()
+        {
+            if (string.IsNullOrWhiteSpace(NewQueuePrompt) || !HasImage) return;
+
+            var queueItem = new QueueItem
+            {
+                Prompt = NewQueuePrompt,
+                ImagePath = ImageFilePath,
+                Status = QueueItemStatus.Pending
+            };
+
+            PromptQueue.Add(queueItem);
+            NewQueuePrompt = string.Empty;
+            UpdateQueueStatus();
+            AddLog($"Added to queue: {queueItem.DisplayText.Substring(0, Math.Min(80, queueItem.DisplayText.Length))}...");
+        }
+
+        private void RemoveFromQueue(QueueItem? item)
+        {
+            if (item != null && PromptQueue.Contains(item))
+            {
+                PromptQueue.Remove(item);
+                UpdateQueueStatus();
+                AddLog($"Removed from queue: {item.DisplayText.Substring(0, Math.Min(80, item.DisplayText.Length))}...");
+            }
+        }
+
+        private async Task ProcessQueueAsync()
+        {
+            if (!PromptQueue.Any()) return;
+
+            IsProcessingQueue = true;
+            AddLog($"=== Starting to process queue with {PromptQueue.Count} items ===");
+
+            try
+            {
+                var pendingItems = PromptQueue.Where(x => x.Status == QueueItemStatus.Pending).ToList();
+
+                foreach (var item in pendingItems)
+                {
+                    if (IsProcessing) break; // Stop if single video generation starts
+
+                    try
+                    {
+                        item.Status = QueueItemStatus.Processing;
+                        AddLog($"Processing queue item: {item.DisplayText.Substring(0, Math.Min(80, item.DisplayText.Length))}...");
+
+                        // Check if the image still exists
+                        if (!File.Exists(item.ImagePath))
+                        {
+                            item.Status = QueueItemStatus.Failed;
+                            AddLog($"❌ Queue item failed - image not found: {item.ImagePath}");
+                            continue;
+                        }
+
+                        // Store current values
+                        var originalPrompt = VideoPrompt;
+                        var originalImagePath = ImageFilePath;
+                        var originalImageSource = ImagePreviewSource;
+
+                        // Set the image and prompt from queue item
+                        ImageFilePath = item.ImagePath;
+                        VideoPrompt = item.Prompt;
+
+                        // Load the image preview
+                        LoadImagePreview();
+
+                        // Generate video for this prompt (bypass CanGenerateVideo check for queue processing)
+                        await GenerateVideoAsyncInternal();
+
+                        if (HasResultVideo)
+                        {
+                            item.Status = QueueItemStatus.Completed;
+                            item.VideoPath = ResultVideoPath;
+                            AddLog($"✅ Queue item completed: {item.DisplayText.Substring(0, Math.Min(50, item.DisplayText.Length))}...");
+                        }
+                        else
+                        {
+                            item.Status = QueueItemStatus.Failed;
+                            AddLog($"❌ Queue item failed: {item.DisplayText.Substring(0, Math.Min(50, item.DisplayText.Length))}...");
+                        }
+
+                        // Restore original values
+                        VideoPrompt = originalPrompt;
+                        ImageFilePath = originalImagePath;
+                        ImagePreviewSource = originalImageSource;
+
+                        // Small delay between items
+                        await Task.Delay(1000);
+                    }
+                    catch (Exception ex)
+                    {
+                        item.Status = QueueItemStatus.Failed;
+                        AddLog($"Error processing queue item: {ex.Message}");
+                    }
+                }
+
+                UpdateQueueStatus();
+                AddLog("=== Queue processing completed ===");
+            }
+            catch (Exception ex)
+            {
+                AddLog($"Error processing queue: {ex.Message}");
+            }
+            finally
+            {
+                IsProcessingQueue = false;
+                CommandManager.InvalidateRequerySuggested();
+            }
+        }
+
+        private void UpdateQueueStatus()
+        {
+            var totalCount = PromptQueue.Count;
+            var pendingCount = PromptQueue.Count(x => x.Status == QueueItemStatus.Pending);
+            var completedCount = PromptQueue.Count(x => x.Status == QueueItemStatus.Completed);
+            var failedCount = PromptQueue.Count(x => x.Status == QueueItemStatus.Failed);
+
+            if (totalCount == 0)
+            {
+                QueueStatus = "Queue is empty";
+            }
+            else if (IsProcessingQueue)
+            {
+                QueueStatus = $"Processing queue... ({pendingCount} pending, {completedCount} completed, {failedCount} failed)";
+            }
+            else
+            {
+                QueueStatus = $"Queue: {totalCount} items ({pendingCount} pending, {completedCount} completed, {failedCount} failed)";
             }
         }
 

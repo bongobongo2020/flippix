@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Collections.ObjectModel;
 using System.ComponentModel;
 using System.Diagnostics;
 using System.IO;
@@ -7,17 +8,20 @@ using System.Linq;
 using System.Runtime.CompilerServices;
 using System.Text.Json;
 using System.Threading.Tasks;
+using System.Windows;
 using System.Windows.Input;
 using System.Windows.Media.Imaging;
 using FlipPix.ComfyUI.Services;
 using FlipPix.Core.Interfaces;
+using FlipPix.UI.Models;
+using FlipPix.UI.Services;
+using YamlDotNet.Serialization;
 
 namespace FlipPix.UI.ViewModels
 {
-    public class ImageGeneratorViewModel : INotifyPropertyChanged
+    public class ImageGeneratorViewModel : BasePromptViewModel
     {
-        private readonly ComfyUIService _comfyUIService;
-        private readonly IAppLogger _logger;
+        private readonly FlipPix.ComfyUI.Services.ComfyUIService _comfyUIService;
         private readonly FlipPix.Core.Services.SettingsService _settingsService;
         private readonly IServiceProvider? _serviceProvider;
 
@@ -39,15 +43,25 @@ namespace FlipPix.UI.ViewModels
         private BitmapImage? _resultImageSource;
         private string _imageInfo = string.Empty;
         private System.Threading.CancellationTokenSource? _cancellationTokenSource;
+        private ObservableCollection<string> _availableLoras = new();
+        private string _selectedLora = string.Empty;
+        private bool _loraEnabled = false;
 
-        public event PropertyChangedEventHandler? PropertyChanged;
+        // Nested ViewModels for tabs
+        private ImageAnalyzerViewModel _analyzer;
+        private FlipPixViewModel _cameraEdit;
 
-        public ImageGeneratorViewModel(ComfyUIService comfyUIService, IAppLogger logger, FlipPix.Core.Services.SettingsService settingsService, IServiceProvider? serviceProvider = null)
+        
+        public ImageGeneratorViewModel(FlipPix.ComfyUI.Services.ComfyUIService comfyUIService, IAppLogger logger, FlipPix.Core.Services.SettingsService settingsService, IServiceProvider? serviceProvider = null, IPromptService? promptService = null)
+            : base(promptService ?? new PromptService(logger), logger, "ImageGenerator")
         {
             _comfyUIService = comfyUIService ?? throw new ArgumentNullException(nameof(comfyUIService));
-            _logger = logger ?? throw new ArgumentNullException(nameof(logger));
             _settingsService = settingsService ?? throw new ArgumentNullException(nameof(settingsService));
             _serviceProvider = serviceProvider;
+
+            // Initialize nested ViewModels
+            _analyzer = new ImageAnalyzerViewModel(comfyUIService, logger, settingsService);
+            _cameraEdit = new FlipPixViewModel(comfyUIService, logger, settingsService, serviceProvider);
 
             // Initialize commands
             GenerateImageCommand = new RelayCommand(async () => await GenerateImageAsync(), () => CanGenerate);
@@ -56,7 +70,13 @@ namespace FlipPix.UI.ViewModels
             SendToCameraEditCommand = new RelayCommand(SendToCameraEdit, () => HasResultImage);
             SendToVideoGeneratorCommand = new RelayCommand(SendToVideoGenerator, () => HasResultImage);
             NavigateToCameraEditCommand = new RelayCommand(NavigateToCameraEdit);
+            NavigateToImageAnalyzerCommand = new RelayCommand(NavigateToImageAnalyzer);
             NavigateToVideoGeneratorCommand = new RelayCommand(NavigateToVideoGenerator);
+                NavigateToStoryVideoCommand = new RelayCommand(NavigateToStoryVideo);
+            RefreshLorasCommand = new RelayCommand(RefreshLoras);
+
+            // Load available Loras
+            LoadAvailableLoras();
 
             AddLog("Image Generator initialized");
         }
@@ -74,17 +94,7 @@ namespace FlipPix.UI.ViewModels
             }
         }
 
-        public int AspectRatioIndex
-        {
-            get => _aspectRatioIndex;
-            set
-            {
-                _aspectRatioIndex = value;
-                OnPropertyChanged();
-            }
-        }
-
-        public int Steps
+        public override int Steps
         {
             get => _steps;
             set
@@ -94,7 +104,7 @@ namespace FlipPix.UI.ViewModels
             }
         }
 
-        public double Cfg
+        public override double Cfg
         {
             get => _cfg;
             set
@@ -104,17 +114,7 @@ namespace FlipPix.UI.ViewModels
             }
         }
 
-        public long Seed
-        {
-            get => _seed;
-            set
-            {
-                _seed = value;
-                OnPropertyChanged();
-            }
-        }
-
-        public double Denoise
+        public override double Denoise
         {
             get => _denoise;
             set
@@ -138,6 +138,10 @@ namespace FlipPix.UI.ViewModels
         }
 
         public bool CanCancel => IsProcessing;
+
+        // Nested ViewModel properties
+        public ImageAnalyzerViewModel Analyzer => _analyzer;
+        public FlipPixViewModel CameraEdit => _cameraEdit;
 
         public string ProcessingStatus
         {
@@ -245,6 +249,37 @@ namespace FlipPix.UI.ViewModels
 
         public bool CanGenerate => !string.IsNullOrEmpty(ImagePrompt) && !IsProcessing;
 
+        // Lora Properties
+        public ObservableCollection<string> AvailableLoras
+        {
+            get => _availableLoras;
+            set
+            {
+                _availableLoras = value;
+                OnPropertyChanged();
+            }
+        }
+
+        public string SelectedLora
+        {
+            get => _selectedLora;
+            set
+            {
+                _selectedLora = value;
+                OnPropertyChanged();
+            }
+        }
+
+        public bool LoraEnabled
+        {
+            get => _loraEnabled;
+            set
+            {
+                _loraEnabled = value;
+                OnPropertyChanged();
+            }
+        }
+
         // Commands
         public ICommand GenerateImageCommand { get; }
         public ICommand CancelGenerationCommand { get; }
@@ -252,7 +287,27 @@ namespace FlipPix.UI.ViewModels
         public ICommand SendToCameraEditCommand { get; }
         public ICommand SendToVideoGeneratorCommand { get; }
         public ICommand NavigateToCameraEditCommand { get; }
+        public ICommand NavigateToImageAnalyzerCommand { get; }
         public ICommand NavigateToVideoGeneratorCommand { get; }
+              public ICommand NavigateToStoryVideoCommand { get; }
+        public ICommand RefreshLorasCommand { get; }
+
+        // Navigation properties
+        private int _selectedTabIndex = 0; // Default to Text Generation tab
+
+        public int SelectedTabIndex
+        {
+            get => _selectedTabIndex;
+            set
+            {
+                if (_selectedTabIndex != value)
+                {
+                    _selectedTabIndex = value;
+                    OnPropertyChanged();
+                }
+            }
+        }
+
 
         // Methods
         private async Task GenerateImageAsync()
@@ -429,11 +484,250 @@ namespace FlipPix.UI.ViewModels
             }
         }
 
+        private void RefreshLoras()
+        {
+            LoadAvailableLoras();
+            AddLog("Refreshed LoRA list");
+        }
+
+        private string? GetLoraModelPath()
+        {
+            try
+            {
+                var comfyUIPath = _settingsService.Settings?.ComfyUIFolderPath;
+                if (string.IsNullOrEmpty(comfyUIPath))
+                {
+                    AddLog("ComfyUI installation path not configured");
+                    return null;
+                }
+
+                // First try to get path from extra_model_paths.yaml
+                var extraModelPathsFile = Path.Combine(comfyUIPath, "extra_model_paths.yaml");
+                AddLog($"Looking for extra_model_paths.yaml at: {extraModelPathsFile}");
+
+                if (File.Exists(extraModelPathsFile))
+                {
+                    try
+                    {
+                        AddLog("Found extra_model_paths.yaml, reading content...");
+                        var yamlContent = File.ReadAllText(extraModelPathsFile);
+                        var deserializer = new DeserializerBuilder().Build();
+                        var yamlData = deserializer.Deserialize<Dictionary<string, object>>(yamlContent);
+
+                        AddLog($"YAML parsed successfully. Keys found: {string.Join(", ", yamlData.Keys)}");
+
+                        if (yamlData != null)
+                        {
+                            string basePath = string.Empty;
+                            string lorasRelativePath = string.Empty;
+
+                            // Check for "comfyui" section (most common format)
+                            if (yamlData.ContainsKey("comfyui"))
+                            {
+                                AddLog("Found 'comfyui' section in YAML");
+                                var comfyuiSectionObject = yamlData["comfyui"];
+                                var comfyuiSection = comfyuiSectionObject as Dictionary<object, object>;
+
+                                if (comfyuiSection != null)
+                                {
+                                    // Convert to Dictionary<string, object> for easier use
+                                    var comfyuiStringDict = new Dictionary<string, object>();
+                                    foreach (var kvp in comfyuiSection)
+                                    {
+                                        if (kvp.Key != null)
+                                        {
+                                            comfyuiStringDict[kvp.Key.ToString() ?? string.Empty] = kvp.Value;
+                                        }
+                                    }
+
+                                    AddLog($"ComfyUI section keys: {string.Join(", ", comfyuiStringDict.Keys)}");
+
+                                    // Get base_path if it exists
+                                    if (comfyuiStringDict.ContainsKey("base_path"))
+                                    {
+                                        basePath = comfyuiStringDict["base_path"]?.ToString() ?? string.Empty;
+                                        AddLog($"Found base_path: {basePath}");
+                                    }
+
+                                    // Get loras path if it exists
+                                    if (comfyuiStringDict.ContainsKey("loras"))
+                                    {
+                                        lorasRelativePath = comfyuiStringDict["loras"]?.ToString() ?? string.Empty;
+                                        AddLog($"Found loras path: {lorasRelativePath}");
+                                    }
+                                    else
+                                    {
+                                        AddLog("No 'loras' key found in comfyui section");
+                                    }
+                                }
+                            }
+                            else
+                            {
+                                AddLog("No 'comfyui' section found in YAML");
+
+                                // Fallback to direct "loras" key
+                                if (yamlData.ContainsKey("loras"))
+                                {
+                                    lorasRelativePath = yamlData["loras"]?.ToString() ?? string.Empty;
+                                    AddLog($"Found direct loras path: {lorasRelativePath}");
+                                }
+                            }
+
+                            // Construct full path
+                            if (!string.IsNullOrEmpty(lorasRelativePath))
+                            {
+                                string fullLoraPath;
+                                if (!string.IsNullOrEmpty(basePath))
+                                {
+                                    // Combine base_path with loras relative path
+                                    fullLoraPath = Path.Combine(basePath, lorasRelativePath);
+                                    AddLog($"Combined base_path and loras: {basePath} + {lorasRelativePath} = {fullLoraPath}");
+                                }
+                                else
+                                {
+                                    // Use just the loras path (might be absolute)
+                                    fullLoraPath = lorasRelativePath;
+                                    AddLog($"Using loras path directly: {fullLoraPath}");
+                                }
+
+                                // Normalize path separators
+                                fullLoraPath = fullLoraPath.Replace('/', Path.DirectorySeparatorChar);
+
+                                AddLog($"Final LoRA path: {fullLoraPath}");
+
+                                if (Directory.Exists(fullLoraPath))
+                                {
+                                    AddLog($"SUCCESS: LoRA directory exists: {fullLoraPath}");
+                                    return fullLoraPath;
+                                }
+                                else
+                                {
+                                    AddLog($"ERROR: LoRA path from extra_model_paths.yaml exists but directory not found: {fullLoraPath}");
+                                }
+                            }
+                            else
+                            {
+                                AddLog("ERROR: No loras path found in YAML configuration");
+                            }
+                        }
+                    }
+                    catch (Exception ex)
+                    {
+                        AddLog($"ERROR reading extra_model_paths.yaml: {ex.Message}");
+                        AddLog($"Stack trace: {ex.StackTrace}");
+                    }
+                }
+                else
+                {
+                    AddLog($"ERROR: extra_model_paths.yaml not found in ComfyUI directory: {extraModelPathsFile}");
+                }
+
+                // Fallback to default ComfyUI models directory
+                var defaultLoraPath = Path.Combine(comfyUIPath, "models", "loras");
+                if (Directory.Exists(defaultLoraPath))
+                {
+                    AddLog($"Using default ComfyUI LoRA path: {defaultLoraPath}");
+                    return defaultLoraPath;
+                }
+
+                AddLog($"No LoRA directory found in: {comfyUIPath}");
+                return null;
+            }
+            catch (Exception ex)
+            {
+                AddLog($"Error getting LoRA model path: {ex.Message}");
+                return null;
+            }
+        }
+
+        private void LoadAvailableLoras()
+        {
+            try
+            {
+                // Priority 1: Get LoRA path from ComfyUI extra_model_paths.yaml or default location
+                var loraBasePath = GetLoraModelPath();
+                if (!string.IsNullOrEmpty(loraBasePath))
+                {
+                    // Look for zimage subfolder
+                    var zimageLoraPath = Path.Combine(loraBasePath, "zimage");
+                    if (Directory.Exists(zimageLoraPath))
+                    {
+                        LoadLorasFromDirectory(zimageLoraPath, "ComfyUI LoRA directory");
+                        return;
+                    }
+                    else
+                    {
+                        // If zimage subfolder doesn't exist, use the base LoRA directory
+                        LoadLorasFromDirectory(loraBasePath, "ComfyUI LoRA directory");
+                        return;
+                    }
+                }
+
+                // Priority 2: Fallback to local directory
+                var localLoraPath = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "loras", "zimage");
+                LoadLorasFromDirectory(localLoraPath, "local directory");
+            }
+            catch (Exception ex)
+            {
+                AddLog($"Error loading LoRAs: {ex.Message}");
+                AvailableLoras.Clear();
+                AvailableLoras.Add("Error loading LoRAs");
+            }
+        }
+
+        private void LoadLorasFromDirectory(string loraPath, string pathDescription)
+        {
+            AddLog($"Looking for LoRAs in {pathDescription}: {loraPath}");
+
+            if (!Directory.Exists(loraPath))
+            {
+                AddLog($"LoRA directory not found: {loraPath}");
+                AvailableLoras.Clear();
+                AvailableLoras.Add("No LoRAs available");
+                return;
+            }
+
+            var loraFiles = Directory.GetFiles(loraPath, "*.safetensors")
+                .Select(Path.GetFileNameWithoutExtension)
+                .Where(name => !string.IsNullOrEmpty(name))
+                .OrderBy(name => name)
+                .ToList();
+
+            AvailableLoras.Clear();
+
+            if (loraFiles.Any())
+            {
+                foreach (var lora in loraFiles)
+                {
+                    if (!string.IsNullOrEmpty(lora))
+                        AvailableLoras.Add(lora);
+                }
+
+                if (string.IsNullOrEmpty(SelectedLora) && AvailableLoras.Any())
+                {
+                    SelectedLora = AvailableLoras.First();
+                }
+
+                AddLog($"Loaded {AvailableLoras.Count} LoRAs from {loraPath}");
+            }
+            else
+            {
+                AvailableLoras.Add("No LoRAs available");
+                AddLog($"No LoRA files found in {pathDescription}");
+            }
+        }
+
         private JsonElement UpdateWorkflowParameters(JsonElement workflow)
         {
             var workflowDict = JsonSerializer.Deserialize<Dictionary<string, JsonElement>>(workflow.GetRawText());
 
             if (workflowDict == null) return workflow;
+
+            // Add Lora if enabled and a Lora is selected
+            if (LoraEnabled && !string.IsNullOrEmpty(SelectedLora) && SelectedLora != "No Loras available")
+            {
+                workflowDict = AddLoraToWorkflow(workflowDict, SelectedLora);
+            }
 
             // Update prompt (node 45 - CLIPTextEncode)
             if (workflowDict.ContainsKey("45"))
@@ -504,6 +798,78 @@ namespace FlipPix.UI.ViewModels
             }
 
             return JsonSerializer.SerializeToElement(workflowDict);
+        }
+
+        private Dictionary<string, JsonElement> AddLoraToWorkflow(Dictionary<string, JsonElement> workflowDict, string loraName)
+        {
+            try
+            {
+                AddLog($"Applying Lora: {loraName}");
+
+                // Create LoraLoader node (using a high node number to avoid conflicts)
+                var loraNodeNumber = "100";
+                var loraNode = new
+                {
+                    inputs = new
+                    {
+                        lora_name = $"zimage\\{loraName}.safetensors",
+                        strength_model = 1.0,
+                        strength_clip = 1.0,
+                        model = new object[] { "46", 0 }, // Connect to UNETLoader (node 46)
+                        clip = new object[] { "39", 0 }   // Connect to CLIPLoader (node 39)
+                    },
+                    class_type = "LoraLoader",
+                    _meta = new
+                    {
+                        title = "Load LoRA"
+                    }
+                };
+
+                workflowDict[loraNodeNumber] = JsonSerializer.SerializeToElement(loraNode);
+
+                // Update nodes that use the model to use the Lora-enhanced model instead
+                // Update ModelSamplingAuraFlow (node 47) to use Lora output
+                if (workflowDict.ContainsKey("47"))
+                {
+                    var node47 = JsonSerializer.Deserialize<Dictionary<string, object>>(workflowDict["47"].GetRawText());
+                    if (node47 != null && node47.ContainsKey("inputs"))
+                    {
+                        var inputs = JsonSerializer.Deserialize<Dictionary<string, object>>(
+                            JsonSerializer.Serialize(node47["inputs"]));
+                        if (inputs != null)
+                        {
+                            inputs["model"] = new object[] { loraNodeNumber, 0 }; // Use Lora-enhanced model
+                            node47["inputs"] = inputs;
+                            workflowDict["47"] = JsonSerializer.SerializeToElement(node47);
+                        }
+                    }
+                }
+
+                // Update CLIPTextEncode (node 45) to use Lora-enhanced CLIP
+                if (workflowDict.ContainsKey("45"))
+                {
+                    var node45 = JsonSerializer.Deserialize<Dictionary<string, object>>(workflowDict["45"].GetRawText());
+                    if (node45 != null && node45.ContainsKey("inputs"))
+                    {
+                        var inputs = JsonSerializer.Deserialize<Dictionary<string, object>>(
+                            JsonSerializer.Serialize(node45["inputs"]));
+                        if (inputs != null && inputs.ContainsKey("clip"))
+                        {
+                            inputs["clip"] = new object[] { loraNodeNumber, 1 }; // Use Lora-enhanced CLIP (output 1)
+                            node45["inputs"] = inputs;
+                            workflowDict["45"] = JsonSerializer.SerializeToElement(node45);
+                        }
+                    }
+                }
+
+                AddLog($"Successfully added Lora node {loraNodeNumber} for {loraName}");
+            }
+            catch (Exception ex)
+            {
+                AddLog($"Error adding Lora to workflow: {ex.Message}");
+            }
+
+            return workflowDict;
         }
 
         private async Task<List<byte[]>> GetOutputImagesFromComfyUI(string promptId)
@@ -603,31 +969,108 @@ namespace FlipPix.UI.ViewModels
                         return images;
                     }
 
-                    // Look for z-image files
-                    var imageFiles = Directory.GetFiles(comfyUIOutputDir, "z-image_*.png")
-                        .OrderByDescending(f => File.GetLastWriteTime(f))
+                    // Look for z-image files specifically since that's what our workflow generates
+                    var zImageFiles = Directory.GetFiles(comfyUIOutputDir, "z-image_*.png")
+                        .OrderByDescending(f => ExtractFileNumber(f)) // Sort by extracted number for proper numeric ordering
                         .ToList();
 
-                    if (imageFiles.Any())
-                    {
-                        var latestFile = imageFiles.First();
-                        var fileAge = DateTime.Now - File.GetLastWriteTime(latestFile);
+                    AddLog($"Output directory path: {comfyUIOutputDir}");
+                    AddLog($"Directory exists: {Directory.Exists(comfyUIOutputDir)}");
 
-                        // Only use files created in the last 60 seconds
-                        if (fileAge.TotalSeconds < 60)
+                    if (!Directory.Exists(comfyUIOutputDir))
+                    {
+                        AddLog($"ERROR: Output directory does not exist: {comfyUIOutputDir}");
+                        return images;
+                    }
+
+                    // Debug: List ALL files in the directory to understand what's there
+                    try
+                    {
+                        var allFiles = Directory.GetFiles(comfyUIOutputDir, "*.png")
+                            .OrderByDescending(f => ExtractFileNumber(f))
+                            .Take(10)
+                            .Select(f => $"{Path.GetFileName(f)} (#{ExtractFileNumber(f)})");
+
+                        AddLog("All PNG files in directory (first 10 by number):");
+                        foreach (var file in allFiles)
                         {
-                            AddLog($"Found output image: {Path.GetFileName(latestFile)}");
+                            AddLog($"  - {file}");
+                        }
+                    }
+                    catch (Exception ex)
+                    {
+                        AddLog($"Error listing files: {ex.Message}");
+                    }
+
+                    AddLog($"Found {zImageFiles.Count} z-image PNG files in output directory");
+
+                    if (zImageFiles.Any())
+                    {
+                        var latestFile = zImageFiles.First();
+                        var fileAge = DateTime.Now - File.GetLastWriteTime(latestFile);
+                        var fileNumber = ExtractFileNumber(latestFile);
+
+                        AddLog($"Latest z-image file: {Path.GetFileName(latestFile)} (number: {fileNumber})");
+                        AddLog($"File modification time: {File.GetLastWriteTime(latestFile):yyyy-MM-dd HH:mm:ss}");
+                        AddLog($"Current time: {DateTime.Now:yyyy-MM-dd HH:mm:ss}");
+                        AddLog($"File age: {fileAge.TotalSeconds:F0} seconds");
+
+                        // Debug: show the top 5 files found
+                        AddLog("Top 5 files found (by numeric order):");
+                        foreach (var file in zImageFiles.Take(5))
+                        {
+                            var number = ExtractFileNumber(file);
+                            AddLog($"  - {Path.GetFileName(file)} (number: {number})");
+                        }
+
+                        // Since ComfyUI generates sequentially numbered files, the highest number should be the newest
+                        // This is more reliable than file timestamps which can have inconsistencies
+                        AddLog($"Using latest z-image file by numeric order: {Path.GetFileName(latestFile)}");
+                        var imageData = await File.ReadAllBytesAsync(latestFile);
+                        images.Add(imageData);
+                    }
+                    else
+                    {
+                        AddLog("No z-image files found, looking for any other PNG files...");
+
+                        // Fallback to any PNG files
+                        var allImageFiles = Directory.GetFiles(comfyUIOutputDir, "*.png")
+                            .Where(f => !Path.GetFileName(f).StartsWith("temp_")) // Exclude temporary files
+                            .OrderByDescending(f => File.GetLastWriteTime(f))
+                            .ToList();
+
+                        AddLog($"Found {allImageFiles.Count} other PNG files");
+
+                        if (allImageFiles.Any())
+                        {
+                            var latestFile = allImageFiles.First();
+                            AddLog($"Using latest file as fallback: {Path.GetFileName(latestFile)}");
                             var imageData = await File.ReadAllBytesAsync(latestFile);
                             images.Add(imageData);
                         }
                         else
                         {
-                            AddLog($"Latest file is too old ({fileAge.TotalSeconds:F0} seconds), waiting for new output...");
+                            AddLog("No PNG output files found in directory...");
+
+                            // Try to list what files are actually there
+                            try
+                            {
+                                var allFiles = Directory.GetFiles(comfyUIOutputDir)
+                                    .OrderByDescending(f => File.GetLastWriteTime(f))
+                                    .Take(10)
+                                    .Select(f => $"{Path.GetFileName(f)} ({(DateTime.Now - File.GetLastWriteTime(f)).TotalSeconds:F0}s old)");
+
+                                AddLog("Files in output directory (first 10):");
+                                foreach (var file in allFiles)
+                                {
+                                    AddLog($"  - {file}");
+                                }
+                            }
+                            catch (Exception ex)
+                            {
+                                AddLog($"Could not list directory contents: {ex.Message}");
+                            }
                         }
-                    }
-                    else
-                    {
-                        AddLog("No z-image output files found yet...");
                     }
                 }
             }
@@ -637,6 +1080,21 @@ namespace FlipPix.UI.ViewModels
             }
 
             return images;
+        }
+
+        private int ExtractFileNumber(string filePath)
+        {
+            var fileName = Path.GetFileNameWithoutExtension(filePath);
+
+            // Extract the number from "z-image_XXXXX_" pattern
+            var match = System.Text.RegularExpressions.Regex.Match(fileName, @"z-image_(\d+)_");
+            if (match.Success && int.TryParse(match.Groups[1].Value, out var number))
+            {
+                return number;
+            }
+
+            // Fallback: return 0 if we can't extract the number
+            return 0;
         }
 
         private void LoadResultPreview(string imagePath)
@@ -747,12 +1205,11 @@ namespace FlipPix.UI.ViewModels
 
         private void NavigateToCameraEdit()
         {
-            if (_serviceProvider == null) return;
-
             try
             {
-                var cameraEditWindow = _serviceProvider.GetService(typeof(FlipPixWindow)) as FlipPixWindow;
-                cameraEditWindow?.Show();
+                // Camera Edit is tab index 2 (Text Generation = 0, Image Analyzer = 1, Camera Edit = 2)
+                SelectedTabIndex = 2;
+                AddLog("Navigated to Camera Edit tab");
             }
             catch (Exception ex)
             {
@@ -775,6 +1232,77 @@ namespace FlipPix.UI.ViewModels
             }
         }
 
+        private void NavigateToImageAnalyzer()
+        {
+            if (_serviceProvider == null) return;
+
+            try
+            {
+                var imageAnalyzerWindow = _serviceProvider.GetService(typeof(ImageAnalyzerWindow)) as ImageAnalyzerWindow;
+                if (imageAnalyzerWindow != null)
+                {
+                    // Ensure window appears on screen
+                    var screenWidth = SystemParameters.PrimaryScreenWidth;
+                    var screenHeight = SystemParameters.PrimaryScreenHeight;
+                    var windowWidth = imageAnalyzerWindow.Width;
+                    var windowHeight = imageAnalyzerWindow.Height;
+
+                    // Use conservative positioning
+                    imageAnalyzerWindow.Left = 150;
+                    imageAnalyzerWindow.Top = 150;
+
+                    // Ensure window is fully visible on screen
+                    if (imageAnalyzerWindow.Left + windowWidth > screenWidth)
+                        imageAnalyzerWindow.Left = Math.Max(50, screenWidth - windowWidth - 50);
+                    if (imageAnalyzerWindow.Top + windowHeight > screenHeight)
+                        imageAnalyzerWindow.Top = Math.Max(50, screenHeight - windowHeight - 50);
+
+                    imageAnalyzerWindow.Show();
+                    AddLog("Opened Image Analyzer window");
+                }
+            }
+            catch (Exception ex)
+            {
+                AddLog($"ERROR navigating to Image Analyzer: {ex.Message}");
+            }
+        }
+
+  
+        private void NavigateToStoryVideo()
+        {
+            if (_serviceProvider == null) return;
+
+            try
+            {
+                var storyVideoWindow = _serviceProvider.GetService(typeof(StoryVideoWindow)) as StoryVideoWindow;
+                if (storyVideoWindow != null)
+                {
+                    // Ensure window appears on screen
+                    var screenWidth = SystemParameters.PrimaryScreenWidth;
+                    var screenHeight = SystemParameters.PrimaryScreenHeight;
+                    var windowWidth = storyVideoWindow.Width;
+                    var windowHeight = storyVideoWindow.Height;
+
+                    // Use conservative positioning
+                    storyVideoWindow.Left = 200;
+                    storyVideoWindow.Top = 200;
+
+                    // Ensure window is fully visible on screen
+                    if (storyVideoWindow.Left + windowWidth > screenWidth)
+                        storyVideoWindow.Left = Math.Max(50, screenWidth - windowWidth - 50);
+                    if (storyVideoWindow.Top + windowHeight > screenHeight)
+                        storyVideoWindow.Top = Math.Max(50, screenHeight - windowHeight - 50);
+
+                    storyVideoWindow.Show();
+                    AddLog("Opened Story Video window");
+                }
+            }
+            catch (Exception ex)
+            {
+                AddLog($"ERROR navigating to Story Video: {ex.Message}");
+            }
+        }
+
         private void AddLog(string message)
         {
             var timestamp = DateTime.Now.ToString("HH:mm:ss");
@@ -782,6 +1310,7 @@ namespace FlipPix.UI.ViewModels
             _logger.LogInfo(message);
         }
 
+        
         private bool IsComfyUIRemote(string serverAddress)
         {
             try
@@ -828,9 +1357,83 @@ namespace FlipPix.UI.ViewModels
             }
         }
 
-        protected void OnPropertyChanged([CallerMemberName] string? propertyName = null)
+        // Implementation of abstract base class properties
+        public override string CurrentPromptText => ImagePrompt;
+
+        public override int AspectRatioIndex
         {
-            PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(propertyName));
+            get => _aspectRatioIndex;
+            set
+            {
+                _aspectRatioIndex = value;
+                OnPropertyChanged();
+            }
+        }
+
+        public override long Seed
+        {
+            get => _seed;
+            set
+            {
+                _seed = value;
+                OnPropertyChanged();
+            }
+        }
+
+        // Override base class methods
+        protected override void OnPromptSaved(string promptName)
+        {
+            AddLog($"Prompt saved: {promptName}");
+            StatusBarMessage = $"Prompt saved: {promptName}";
+        }
+
+        protected override void OnPromptDeleted(string promptName)
+        {
+            AddLog($"Prompt deleted: {promptName}");
+            StatusBarMessage = $"Prompt deleted: {promptName}";
+        }
+
+        protected override void OnPromptLoaded(SavedPrompt savedPrompt)
+        {
+            ImagePrompt = savedPrompt.Prompt;
+            AspectRatioIndex = savedPrompt.AspectRatioIndex;
+            Steps = savedPrompt.Steps;
+            Cfg = savedPrompt.Cfg;
+            Seed = savedPrompt.Seed;
+            Denoise = savedPrompt.Denoise;
+
+            // Load Lora settings if they exist in the additional data
+            if (savedPrompt.AdditionalData != null && savedPrompt.AdditionalData is Dictionary<string, object> additionalData)
+            {
+                if (additionalData.TryGetValue("LoraEnabled", out var loraEnabledObj) && loraEnabledObj is bool loraEnabled)
+                {
+                    LoraEnabled = loraEnabled;
+                }
+
+                if (additionalData.TryGetValue("SelectedLora", out var selectedLoraObj) && selectedLoraObj is string selectedLora)
+                {
+                    SelectedLora = selectedLora;
+                }
+            }
+
+            AddLog($"Prompt loaded: {savedPrompt.Name}");
+            StatusBarMessage = $"Prompt loaded: {savedPrompt.Name}";
+        }
+
+        protected override void OnPromptError(string error)
+        {
+            AddLog($"ERROR: {error}");
+            StatusBarMessage = error;
+        }
+
+        public override Dictionary<string, object> GetAdditionalPromptData()
+        {
+            var additionalData = new Dictionary<string, object>
+            {
+                { "LoraEnabled", LoraEnabled },
+                { "SelectedLora", SelectedLora }
+            };
+            return additionalData;
         }
     }
 }

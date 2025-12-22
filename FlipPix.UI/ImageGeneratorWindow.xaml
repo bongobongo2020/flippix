@@ -5,7 +5,7 @@
         xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
         mc:Ignorable="d"
         Title="FlipPix - Image Generator" Height="750" Width="950"
-        WindowStartupLocation="Manual"
+        WindowStartupLocation="CenterScreen"
         WindowState="Normal"
         WindowStyle="SingleBorderWindow"
         MinHeight="650" MinWidth="850"
@@ -113,6 +113,36 @@
             </Style.Triggers>
         </Style>
 
+        <Style x:Key="AnalyzeButtonStyle" TargetType="Button">
+            <Setter Property="Background" Value="#F59E0B"/>
+            <Setter Property="Foreground" Value="White"/>
+            <Setter Property="BorderThickness" Value="0"/>
+            <Setter Property="Padding" Value="18,10"/>
+            <Setter Property="FontWeight" Value="Bold"/>
+            <Setter Property="FontSize" Value="14"/>
+            <Setter Property="Cursor" Value="Hand"/>
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="Button">
+                        <Border Background="{TemplateBinding Background}"
+                                CornerRadius="6"
+                                Padding="{TemplateBinding Padding}">
+                            <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                        </Border>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+            <Style.Triggers>
+                <Trigger Property="IsMouseOver" Value="True">
+                    <Setter Property="Background" Value="#D97706"/>
+                </Trigger>
+                <Trigger Property="IsEnabled" Value="False">
+                    <Setter Property="Background" Value="#CBD5E1"/>
+                    <Setter Property="Cursor" Value="Arrow"/>
+                </Trigger>
+            </Style.Triggers>
+        </Style>
+
     </Window.Resources>
 
     <Grid>
@@ -131,319 +161,1088 @@
                     <GradientStop Color="#F7931E" Offset="1"/>
                 </LinearGradientBrush>
             </Border.Background>
-            <StackPanel Margin="25,20">
-                <TextBlock Text="Image Generator"
-                          FontSize="28" FontWeight="Bold"
-                          Foreground="White"/>
-                <TextBlock Text="Generate images from text descriptions using AI"
-                          FontSize="13" Foreground="#FFFAF0"
-                          Margin="0,5,0,0"/>
-            </StackPanel>
+            <Grid Margin="25,20">
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="*"/>
+                    <ColumnDefinition Width="Auto"/>
+                </Grid.ColumnDefinitions>
+
+                <!-- Title Section -->
+                <StackPanel Grid.Column="0">
+                    <TextBlock Text="Image Generator"
+                              FontSize="28" FontWeight="Bold"
+                              Foreground="White"/>
+                    <TextBlock Text="Generate images from text descriptions using AI"
+                              FontSize="13" Foreground="#FFFAF0"
+                              Margin="0,5,0,0"/>
+                </StackPanel>
+
+                <!-- Settings Button -->
+                <Button Grid.Column="1"
+                        Name="SettingsButton"
+                        Click="SettingsButton_Click"
+                        Background="Transparent"
+                        BorderThickness="0"
+                        Padding="10"
+                        Cursor="Hand"
+                        ToolTip="Open Settings"
+                        Margin="20,0,0,0">
+                    <Button.Template>
+                        <ControlTemplate TargetType="Button">
+                            <Border Background="{TemplateBinding Background}"
+                                    CornerRadius="5"
+                                    Padding="{TemplateBinding Padding}">
+                                <Border.Effect>
+                                    <DropShadowEffect BlurRadius="0" ShadowDepth="0"/>
+                                </Border.Effect>
+                                <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                            </Border>
+                            <ControlTemplate.Triggers>
+                                <Trigger Property="IsMouseOver" Value="True">
+                                    <Setter Property="Background" Value="#33FFFFFF"/>
+                                </Trigger>
+                                <Trigger Property="IsPressed" Value="True">
+                                    <Setter Property="Background" Value="#22FFFFFF"/>
+                                </Trigger>
+                            </ControlTemplate.Triggers>
+                        </ControlTemplate>
+                    </Button.Template>
+                    <TextBlock Text="⚙️" FontSize="24" Foreground="White" VerticalAlignment="Center" HorizontalAlignment="Center"/>
+                </Button>
+            </Grid>
         </Border>
 
         <!-- Navigation Bar -->
         <Border Grid.Row="1" Background="#E9ECEF" BorderBrush="#DEE2E6" BorderThickness="0,1,0,1" Padding="15,10">
             <StackPanel Orientation="Horizontal">
                 <TextBlock Text="Navigate:" FontWeight="SemiBold" FontSize="12" VerticalAlignment="Center" Margin="0,0,12,0" Foreground="#495057"/>
-                <Button Content="Camera Edit" Style="{StaticResource NavButtonStyle}" Command="{Binding NavigateToCameraEditCommand}"/>
-                <Button Content="Video Generator" Style="{StaticResource NavButtonStyle}" Command="{Binding NavigateToVideoGeneratorCommand}"/>
+                <Button Content="🎬 Video Generator" Style="{StaticResource NavButtonStyle}" Command="{Binding NavigateToVideoGeneratorCommand}" Background="#6366F1"/>
+                <Button Content="📖 Story Generator" Style="{StaticResource NavButtonStyle}" Command="{Binding NavigateToStoryVideoCommand}" Background="#10B981"/>
             </StackPanel>
         </Border>
 
-        <!-- Main Content -->
-        <ScrollViewer Grid.Row="2" VerticalScrollBarVisibility="Auto">
-            <StackPanel Margin="20,15,20,15">
+        <!-- Main Content with Tabbed Interface -->
+        <TabControl Grid.Row="2" Margin="15,10,15,10" Background="Transparent"
+                   SelectedIndex="{Binding SelectedTabIndex}">
 
-                <!-- Image Prompt Section -->
-                <Border Style="{StaticResource SectionPanelStyle}">
-                    <StackPanel>
-                        <TextBlock Text="Image Prompt" Style="{StaticResource HeaderTextStyle}" Foreground="#FF6B35"/>
+            <!-- Tab 1: Text Generation -->
+            <TabItem Header="✏️ Text Generation" FontWeight="Bold" FontSize="13">
+                <ScrollViewer VerticalScrollBarVisibility="Auto">
+                    <StackPanel Margin="5,15,5,15">
 
-                        <TextBlock Text="Describe the image you want to generate"
-                                   FontSize="12"
-                                   Foreground="#666"
-                                   Margin="0,0,0,10"/>
+                        <!-- Image Prompt Section -->
+                        <Border Style="{StaticResource SectionPanelStyle}">
+                            <StackPanel>
+                                <TextBlock Text="Image Prompt" Style="{StaticResource HeaderTextStyle}" Foreground="#FF6B35"/>
 
-                        <TextBox Text="{Binding ImagePrompt, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
-                                TextWrapping="Wrap"
-                                AcceptsReturn="True"
-                                Height="120"
-                                Padding="12"
-                                VerticalScrollBarVisibility="Auto"
-                                Background="White"
-                                BorderBrush="#CED4DA"
-                                FontSize="13"
-                                Margin="0,0,0,10"/>
+                                <!-- Saved Prompts Section -->
+                                <Border Background="#FFF8DC" BorderBrush="#DEB887" BorderThickness="1" CornerRadius="5" Padding="10" Margin="0,0,0,10">
+                                    <StackPanel>
+                                        <TextBlock Text="📝 Saved Prompts" FontWeight="Bold" FontSize="13" Foreground="#8B4513" Margin="0,0,0,8"/>
+                                        <Grid>
+                                            <Grid.ColumnDefinitions>
+                                                <ColumnDefinition Width="*"/>
+                                                <ColumnDefinition Width="Auto"/>
+                                                <ColumnDefinition Width="Auto"/>
+                                            </Grid.ColumnDefinitions>
 
-                        <TextBlock Text="Example prompts:" FontWeight="SemiBold" FontSize="11" Margin="0,0,0,5"/>
-                        <TextBlock FontSize="11" Foreground="#666" Margin="0,0,0,3">
-                            <Run Text="• "/>
-                            <Run Text="Latina female with thick wavy hair, harbor boats and pastel houses behind. Breezy seaside light, warm tones, cinematic close-up."/>
-                        </TextBlock>
-                        <TextBlock FontSize="11" Foreground="#666" Margin="0,0,0,3">
-                            <Run Text="• "/>
-                            <Run Text="A majestic mountain landscape at sunset with dramatic clouds and golden light"/>
-                        </TextBlock>
-                        <TextBlock FontSize="11" Foreground="#666">
-                            <Run Text="• "/>
-                            <Run Text="Portrait of a cyberpunk character with neon lights reflecting on metallic surfaces"/>
-                        </TextBlock>
+                                            <TextBlock Grid.Column="0" Text="Select a saved prompt or save current:" FontWeight="SemiBold" FontSize="12" VerticalAlignment="Center"/>
+                                            <Button Grid.Column="1" Content="💾 Save" Style="{StaticResource SecondaryButtonStyle}"
+                                                    Command="{Binding SavePromptCommand}" Padding="10,5" Margin="5,0,5,0"
+                                                    ToolTip="Save current prompt settings"
+                                                    Background="#4CAF50"/>
+                                            <Button Grid.Column="2" Content="🗑️ Delete" Style="{StaticResource SecondaryButtonStyle}"
+                                                    Command="{Binding DeletePromptCommand}" Padding="10,5" Margin="0,0,0,0"
+                                                    ToolTip="Delete selected saved prompt"
+                                                    Background="#F44336"/>
+                                        </Grid>
+
+                                    <ComboBox ItemsSource="{Binding SavedPrompts}"
+                                              SelectedItem="{Binding SelectedSavedPrompt, Mode=TwoWay}"
+                                              SelectedValuePath="Id"
+                                              Padding="10"
+                                              Background="White"
+                                              BorderBrush="#CED4DA"
+                                              FontSize="12"
+                                              Margin="0,5,0,10"
+                                              Height="40">
+                                        <ComboBox.ItemTemplate>
+                                            <DataTemplate>
+                                                <StackPanel>
+                                                    <TextBlock Text="{Binding Name}" FontWeight="SemiBold" FontSize="12"/>
+                                                    <TextBlock Text="{Binding LastUsed, StringFormat='Last used: {0:yyyy-MM-dd HH:mm}'}"
+                                                               FontSize="10" Foreground="#666"/>
+                                                </StackPanel>
+                                            </DataTemplate>
+                                        </ComboBox.ItemTemplate>
+                                    </ComboBox>
+                                    <TextBlock Text="💡 Tip: Your saved prompts appear here. Click Save to store the current prompt settings."
+                                               FontSize="11" Foreground="#666" FontStyle="Italic" Margin="0,5,0,0"/>
+                                </StackPanel>
+                            </Border>
+
+                                <TextBlock Text="Describe the image you want to generate"
+                                           FontSize="12"
+                                           Foreground="#666"
+                                           Margin="0,0,0,10"/>
+
+                                <TextBox Text="{Binding ImagePrompt, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                                        TextWrapping="Wrap"
+                                        AcceptsReturn="True"
+                                        Height="120"
+                                        Padding="12"
+                                        VerticalScrollBarVisibility="Auto"
+                                        Background="White"
+                                        BorderBrush="#CED4DA"
+                                        FontSize="13"
+                                        Margin="0,0,0,10"/>
+
+                                <TextBlock Text="Example prompts:" FontWeight="SemiBold" FontSize="11" Margin="0,0,0,5"/>
+                                <TextBlock FontSize="11" Foreground="#666" Margin="0,0,0,3">
+                                    <Run Text="• "/>
+                                    <Run Text="Latina female with thick wavy hair, harbor boats and pastel houses behind. Breezy seaside light, warm tones, cinematic close-up."/>
+                                </TextBlock>
+                                <TextBlock FontSize="11" Foreground="#666" Margin="0,0,0,3">
+                                    <Run Text="• "/>
+                                    <Run Text="A majestic mountain landscape at sunset with dramatic clouds and golden light"/>
+                                </TextBlock>
+                                <TextBlock FontSize="11" Foreground="#666">
+                                    <Run Text="• "/>
+                                    <Run Text="Portrait of a cyberpunk character with neon lights reflecting on metallic surfaces"/>
+                                </TextBlock>
+                            </StackPanel>
+                        </Border>
+
+                        <!-- Image Settings and Generate -->
+                        <Border Style="{StaticResource SectionPanelStyle}">
+                            <Grid>
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="2*"/>
+                                    <ColumnDefinition Width="*"/>
+                                </Grid.ColumnDefinitions>
+
+                                <!-- Settings -->
+                                <StackPanel Grid.Column="0" Margin="0,0,20,0">
+                                    <TextBlock Text="Image Settings" Style="{StaticResource HeaderTextStyle}" Foreground="#FF6B35"/>
+
+                                    <!-- Aspect Ratio -->
+                                    <StackPanel Margin="0,0,0,15">
+                                        <TextBlock Text="Aspect Ratio" FontWeight="SemiBold" FontSize="12" Margin="0,0,0,5"/>
+                                        <ComboBox SelectedIndex="{Binding AspectRatioIndex, Mode=TwoWay}"
+                                                 Padding="10"
+                                                 Background="White"
+                                                 BorderBrush="#CED4DA"
+                                                 FontSize="12">
+                                            <ComboBoxItem Content="SDXL - 1:1 square 1024x1024"/>
+                                            <ComboBoxItem Content="SDXL - 3:4 portrait 896x1152"/>
+                                            <ComboBoxItem Content="SDXL - 9:16 portrait 768x1344"/>
+                                            <ComboBoxItem Content="SDXL - 4:3 landscape 1152x896"/>
+                                            <ComboBoxItem Content="SDXL - 16:9 landscape 1344x768"/>
+                                        </ComboBox>
+                                    </StackPanel>
+
+                                    <!-- Steps -->
+                                    <StackPanel Margin="0,0,0,10">
+                                        <TextBlock Text="Steps" FontWeight="SemiBold" FontSize="12" Margin="0,0,0,5"/>
+                                        <Grid>
+                                            <Grid.ColumnDefinitions>
+                                                <ColumnDefinition Width="*"/>
+                                                <ColumnDefinition Width="Auto"/>
+                                            </Grid.ColumnDefinitions>
+                                            <Slider Grid.Column="0"
+                                                    Value="{Binding Steps, Mode=TwoWay}"
+                                                    Minimum="4" Maximum="20"
+                                                    TickFrequency="1"
+                                                    IsSnapToTickEnabled="True"
+                                                    VerticalAlignment="Center"/>
+                                            <TextBlock Grid.Column="1"
+                                                      Text="{Binding Steps}"
+                                                      Margin="8,0,0,0"
+                                                      VerticalAlignment="Center"
+                                                      MinWidth="25"
+                                                      FontWeight="Bold"/>
+                                        </Grid>
+                                    </StackPanel>
+
+                                    <!-- CFG -->
+                                    <StackPanel>
+                                        <TextBlock Text="CFG Scale" FontWeight="SemiBold" FontSize="12" Margin="0,0,0,5"/>
+                                        <Grid>
+                                            <Grid.ColumnDefinitions>
+                                                <ColumnDefinition Width="*"/>
+                                                <ColumnDefinition Width="Auto"/>
+                                            </Grid.ColumnDefinitions>
+                                            <Slider Grid.Column="0"
+                                                    Value="{Binding Cfg, Mode=TwoWay}"
+                                                    Minimum="1" Maximum="3"
+                                                    TickFrequency="0.5"
+                                                    IsSnapToTickEnabled="True"
+                                                    VerticalAlignment="Center"/>
+                                            <TextBlock Grid.Column="1"
+                                                      Text="{Binding Cfg, StringFormat={}{0:F1}}"
+                                                      Margin="8,0,0,0"
+                                                      VerticalAlignment="Center"
+                                                      MinWidth="25"
+                                                      FontWeight="Bold"/>
+                                        </Grid>
+                                    </StackPanel>
+
+                                    <!-- Lora Settings -->
+                                    <StackPanel Margin="0,15,0,0">
+                                        <TextBlock Text="LoRA Model" FontWeight="SemiBold" FontSize="12" Margin="0,0,0,5"/>
+
+                                        <!-- Lora Enable Toggle -->
+                                        <CheckBox Content="Enable LoRA"
+                                                 IsChecked="{Binding LoraEnabled, Mode=TwoWay}"
+                                                 FontWeight="SemiBold"
+                                                 FontSize="12"
+                                                 Margin="0,0,0,8"/>
+
+                                        <!-- Lora Selection (only visible when enabled) -->
+                                        <Grid Visibility="{Binding LoraEnabled, Converter={StaticResource BooleanToVisibilityConverter}}">
+                                            <Grid.RowDefinitions>
+                                                <RowDefinition Height="Auto"/>
+                                                <RowDefinition Height="Auto"/>
+                                            </Grid.RowDefinitions>
+
+                                            <Grid Grid.Row="0">
+                                                <Grid.ColumnDefinitions>
+                                                    <ColumnDefinition Width="*"/>
+                                                    <ColumnDefinition Width="Auto"/>
+                                                </Grid.ColumnDefinitions>
+
+                                                <ComboBox Grid.Column="0"
+                                                         ItemsSource="{Binding AvailableLoras}"
+                                                         SelectedItem="{Binding SelectedLora, Mode=TwoWay}"
+                                                         Padding="10"
+                                                         Background="White"
+                                                         BorderBrush="#CED4DA"
+                                                         FontSize="12"
+                                                         Height="35"
+                                                         Margin="0,0,8,0"/>
+
+                                                <Button Grid.Column="1"
+                                                       Content="↻"
+                                                       Command="{Binding RefreshLorasCommand}"
+                                                       Padding="10,5"
+                                                       Background="#6C757D"
+                                                       Foreground="White"
+                                                       BorderThickness="0"
+                                                       FontSize="14"
+                                                       FontWeight="Bold"
+                                                       Width="35"
+                                                       Height="35"
+                                                       Cursor="Hand"
+                                                       ToolTip="Refresh LoRA list">
+                                                    <Button.Template>
+                                                        <ControlTemplate TargetType="Button">
+                                                            <Border Background="{TemplateBinding Background}"
+                                                                   CornerRadius="5"
+                                                                   Padding="{TemplateBinding Padding}">
+                                                                <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                                                            </Border>
+                                                            <ControlTemplate.Triggers>
+                                                                <Trigger Property="IsMouseOver" Value="True">
+                                                                    <Setter Property="Background" Value="#5A6268"/>
+                                                                </Trigger>
+                                                            </ControlTemplate.Triggers>
+                                                        </ControlTemplate>
+                                                    </Button.Template>
+                                                </Button>
+                                            </Grid>
+
+                                            <TextBlock Grid.Row="1"
+                                                     Text="Configure ComfyUI installation path in Settings. LoRAs will be auto-detected from ComfyUI's model paths"
+                                                     FontSize="10"
+                                                     Foreground="#666"
+                                                     FontStyle="Italic"
+                                                     Margin="0,5,0,0"/>
+                                        </Grid>
+                                    </StackPanel>
+                                </StackPanel>
+
+                                <!-- Generate Button and Status -->
+                                <StackPanel Grid.Column="1" VerticalAlignment="Center">
+                                    <Button Content="Generate Image"
+                                           Style="{StaticResource PrimaryButtonStyle}"
+                                           Command="{Binding GenerateImageCommand}"
+                                           HorizontalAlignment="Stretch"
+                                           Height="55"
+                                           FontSize="15"
+                                           Margin="0,0,0,15"/>
+
+                                    <!-- Processing Status -->
+                                    <Border Background="#FFF9F0"
+                                            BorderBrush="#FFE0B0"
+                                            BorderThickness="1"
+                                            CornerRadius="5"
+                                            Padding="12"
+                                            Visibility="{Binding IsProcessing, Converter={StaticResource BooleanToVisibilityConverter}}">
+                                        <StackPanel>
+                                            <TextBlock Text="{Binding ProcessingStatus}"
+                                                      FontWeight="SemiBold"
+                                                      FontSize="11"
+                                                      Margin="0,0,0,5"
+                                                      TextAlignment="Center"
+                                                      TextWrapping="Wrap"/>
+                                            <ProgressBar Value="{Binding ProcessingProgress}"
+                                                        Height="16"
+                                                        Foreground="#FF6B35"
+                                                        Margin="0,0,0,5"/>
+                                            <TextBlock Text="{Binding ProgressPercentage}"
+                                                      HorizontalAlignment="Center"
+                                                      FontSize="11"
+                                                      FontWeight="Bold"
+                                                      Foreground="#FF6B35"/>
+                                        </StackPanel>
+                                    </Border>
+                                </StackPanel>
+                            </Grid>
+                        </Border>
+
+                        <!-- Result Image Section -->
+                        <Border Style="{StaticResource SectionPanelStyle}">
+                            <StackPanel>
+                                <TextBlock Text="Result Image" Style="{StaticResource HeaderTextStyle}" Foreground="#FF6B35"/>
+
+                                <Border BorderBrush="#DEE2E6" BorderThickness="2"
+                                        Background="White" Height="400"
+                                        CornerRadius="5" Margin="0,0,0,10">
+                                    <Grid>
+                                        <TextBlock Text="Image will appear here after generation"
+                                                  HorizontalAlignment="Center"
+                                                  VerticalAlignment="Center"
+                                                  Foreground="#999"
+                                                  FontStyle="Italic">
+                                            <TextBlock.Style>
+                                                <Style TargetType="TextBlock">
+                                                    <Setter Property="Visibility" Value="Collapsed"/>
+                                                    <Style.Triggers>
+                                                        <DataTrigger Binding="{Binding HasResultImage}" Value="False">
+                                                            <Setter Property="Visibility" Value="Visible"/>
+                                                        </DataTrigger>
+                                                    </Style.Triggers>
+                                                </Style>
+                                            </TextBlock.Style>
+                                        </TextBlock>
+
+                                        <Image Source="{Binding ResultImageSource}"
+                                               Stretch="Uniform"
+                                               Visibility="{Binding HasResultImage, Converter={StaticResource BooleanToVisibilityConverter}}"/>
+                                    </Grid>
+                                </Border>
+
+                                <Grid>
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="*"/>
+                                        <ColumnDefinition Width="Auto"/>
+                                        <ColumnDefinition Width="Auto"/>
+                                    </Grid.ColumnDefinitions>
+
+                                    <Button Grid.Column="0"
+                                           Content="🎥 Camera Edit"
+                                           Style="{StaticResource SecondaryButtonStyle}"
+                                           Command="{Binding SendToCameraEditCommand}"
+                                           IsEnabled="{Binding HasResultImage}"
+                                           Margin="0,0,8,0"/>
+
+                                    <Button Grid.Column="1"
+                                           Content="🎬 Video Generator"
+                                           Style="{StaticResource SecondaryButtonStyle}"
+                                           Command="{Binding SendToVideoGeneratorCommand}"
+                                           IsEnabled="{Binding HasResultImage}"
+                                           Margin="0,0,8,0"/>
+
+                                    <Button Grid.Column="2"
+                                           Content="📂 Open Folder"
+                                           Style="{StaticResource SecondaryButtonStyle}"
+                                           Command="{Binding OpenResultFolderCommand}"
+                                           IsEnabled="{Binding HasResultImage}"/>
+                                </Grid>
+
+                                <TextBlock Text="{Binding ImageInfo}"
+                                          FontStyle="Italic"
+                                          Foreground="#666"
+                                          FontSize="11"
+                                          Margin="0,10,0,0"/>
+                            </StackPanel>
+                        </Border>
+
+                        <!-- Advanced Settings (Collapsible) -->
+                        <Expander Header="Advanced Settings"
+                                 Margin="0,0,0,15"
+                                 IsExpanded="False">
+                            <Border Background="#F8F9FA"
+                                    BorderBrush="#DEE2E6"
+                                    BorderThickness="1"
+                                    CornerRadius="5"
+                                    Padding="15"
+                                    Margin="0,8,0,0">
+                                <StackPanel>
+                                    <!-- Seed -->
+                                    <StackPanel Margin="0,0,0,10">
+                                        <TextBlock Text="Seed (0 = Random)" FontWeight="SemiBold" FontSize="11" Margin="0,0,0,5"/>
+                                        <TextBox Text="{Binding Seed, Mode=TwoWay}"
+                                                Padding="8"
+                                                Background="White"
+                                                BorderBrush="#CED4DA"
+                                                FontSize="11"/>
+                                    </StackPanel>
+
+                                    <!-- Denoise -->
+                                    <StackPanel>
+                                        <TextBlock Text="Denoise" FontWeight="SemiBold" FontSize="11" Margin="0,0,0,5"/>
+                                        <Grid>
+                                            <Grid.ColumnDefinitions>
+                                                <ColumnDefinition Width="*"/>
+                                                <ColumnDefinition Width="Auto"/>
+                                            </Grid.ColumnDefinitions>
+                                            <Slider Grid.Column="0"
+                                                    Value="{Binding Denoise, Mode=TwoWay}"
+                                                    Minimum="0.5" Maximum="1"
+                                                    TickFrequency="0.1"
+                                                    IsSnapToTickEnabled="True"
+                                                    VerticalAlignment="Center"/>
+                                            <TextBlock Grid.Column="1"
+                                                      Text="{Binding Denoise, StringFormat={}{0:F1}}"
+                                                      Margin="8,0,0,0"
+                                                      VerticalAlignment="Center"
+                                                      MinWidth="25"
+                                                      FontWeight="Bold"/>
+                                        </Grid>
+                                    </StackPanel>
+                                </StackPanel>
+                            </Border>
+                        </Expander>
+
+                        <!-- Log (Collapsible) -->
+                        <Expander Header="Processing Log"
+                                 IsExpanded="True"
+                                 Margin="0,0,0,0">
+                            <Border Background="White"
+                                    BorderBrush="#DEE2E6"
+                                    BorderThickness="1"
+                                    Margin="0,8,0,0">
+                                <ScrollViewer MaxHeight="150"
+                                             VerticalScrollBarVisibility="Auto">
+                                    <TextBox Text="{Binding LogOutput}"
+                                            TextWrapping="Wrap"
+                                            IsReadOnly="True"
+                                            FontFamily="Consolas"
+                                            FontSize="10"
+                                            Background="Transparent"
+                                            BorderThickness="0"
+                                            Padding="10"/>
+                                </ScrollViewer>
+                            </Border>
+                        </Expander>
+
                     </StackPanel>
-                </Border>
+                </ScrollViewer>
+            </TabItem>
 
-                <!-- Image Settings and Generate -->
-                <Border Style="{StaticResource SectionPanelStyle}">
-                    <Grid>
+            <!-- Tab 2: Image Analysis -->
+            <TabItem Header="🔍 Image Analysis" FontWeight="Bold" FontSize="13">
+                <ScrollViewer VerticalScrollBarVisibility="Auto">
+                    <Grid Margin="10,15,10,15">
                         <Grid.ColumnDefinitions>
-                            <ColumnDefinition Width="2*"/>
+                            <ColumnDefinition Width="*"/>
                             <ColumnDefinition Width="*"/>
                         </Grid.ColumnDefinitions>
 
-                        <!-- Settings -->
-                        <StackPanel Grid.Column="0" Margin="0,0,20,0">
-                            <TextBlock Text="Image Settings" Style="{StaticResource HeaderTextStyle}" Foreground="#FF6B35"/>
+                        <!-- Left Column - Image Input -->
+                        <StackPanel Grid.Column="0" Margin="0,0,15,0">
+                            <!-- Source Image Upload Section -->
+                            <Border Style="{StaticResource SectionPanelStyle}">
+                                <StackPanel>
+                                    <TextBlock Text="Source Image" Style="{StaticResource HeaderTextStyle}" Foreground="#6366F1"/>
 
-                            <!-- Aspect Ratio -->
-                            <StackPanel Margin="0,0,0,15">
-                                <TextBlock Text="Aspect Ratio" FontWeight="SemiBold" FontSize="12" Margin="0,0,0,5"/>
-                                <ComboBox SelectedIndex="{Binding AspectRatioIndex, Mode=TwoWay}"
-                                         Padding="10"
-                                         Background="White"
-                                         BorderBrush="#CED4DA"
-                                         FontSize="12">
-                                    <ComboBoxItem Content="SDXL - 1:1 square 1024x1024"/>
-                                    <ComboBoxItem Content="SDXL - 3:4 portrait 896x1152"/>
-                                    <ComboBoxItem Content="SDXL - 9:16 portrait 768x1344"/>
-                                    <ComboBoxItem Content="SDXL - 4:3 landscape 1152x896"/>
-                                    <ComboBoxItem Content="SDXL - 16:9 landscape 1344x768"/>
-                                </ComboBox>
-                            </StackPanel>
+                                    <TextBlock Text="Upload an image to analyze"
+                                               FontSize="12"
+                                               Foreground="#666"
+                                               Margin="0,0,0,10"/>
 
-                            <!-- Steps -->
-                            <StackPanel Margin="0,0,0,10">
-                                <TextBlock Text="Steps" FontWeight="SemiBold" FontSize="12" Margin="0,0,0,5"/>
-                                <Grid>
-                                    <Grid.ColumnDefinitions>
-                                        <ColumnDefinition Width="*"/>
-                                        <ColumnDefinition Width="Auto"/>
-                                    </Grid.ColumnDefinitions>
-                                    <Slider Grid.Column="0"
-                                            Value="{Binding Steps, Mode=TwoWay}"
-                                            Minimum="4" Maximum="20"
-                                            TickFrequency="1"
-                                            IsSnapToTickEnabled="True"
-                                            VerticalAlignment="Center"/>
-                                    <TextBlock Grid.Column="1"
-                                              Text="{Binding Steps}"
-                                              Margin="8,0,0,0"
-                                              VerticalAlignment="Center"
-                                              MinWidth="25"
-                                              FontWeight="Bold"/>
-                                </Grid>
-                            </StackPanel>
+                                    <Grid Margin="0,0,0,10">
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="*"/>
+                                            <ColumnDefinition Width="Auto"/>
+                                        </Grid.ColumnDefinitions>
 
-                            <!-- CFG -->
-                            <StackPanel>
-                                <TextBlock Text="CFG Scale" FontWeight="SemiBold" FontSize="12" Margin="0,0,0,5"/>
-                                <Grid>
-                                    <Grid.ColumnDefinitions>
-                                        <ColumnDefinition Width="*"/>
-                                        <ColumnDefinition Width="Auto"/>
-                                    </Grid.ColumnDefinitions>
-                                    <Slider Grid.Column="0"
-                                            Value="{Binding Cfg, Mode=TwoWay}"
-                                            Minimum="1" Maximum="3"
-                                            TickFrequency="0.5"
-                                            IsSnapToTickEnabled="True"
-                                            VerticalAlignment="Center"/>
-                                    <TextBlock Grid.Column="1"
-                                              Text="{Binding Cfg, StringFormat={}{0:F1}}"
-                                              Margin="8,0,0,0"
-                                              VerticalAlignment="Center"
-                                              MinWidth="25"
-                                              FontWeight="Bold"/>
-                                </Grid>
-                            </StackPanel>
+                                        <TextBox Grid.Column="0"
+                                                Text="{Binding Analyzer.SourceImagePath, Mode=TwoWay}"
+                                                IsReadOnly="True"
+                                                Padding="10"
+                                                Background="White"
+                                                BorderBrush="#CED4DA"
+                                                VerticalContentAlignment="Center"/>
+
+                                        <Button Grid.Column="1"
+                                               Content="Browse"
+                                               Style="{StaticResource SecondaryButtonStyle}"
+                                               Command="{Binding Analyzer.BrowseImageCommand}"
+                                               Margin="8,0,0,0"/>
+                                    </Grid>
+
+                                    <!-- Image Preview -->
+                                    <Border BorderBrush="#DEE2E6" BorderThickness="2"
+                                            Background="White" Height="300"
+                                            CornerRadius="5">
+                                        <Grid>
+                                            <TextBlock Text="No image selected"
+                                                      HorizontalAlignment="Center"
+                                                      VerticalAlignment="Center"
+                                                      Foreground="#999"
+                                                      FontStyle="Italic"
+                                                      FontSize="14">
+                                                <TextBlock.Style>
+                                                    <Style TargetType="TextBlock">
+                                                        <Setter Property="Visibility" Value="Collapsed"/>
+                                                        <Style.Triggers>
+                                                            <DataTrigger Binding="{Binding Analyzer.HasSourceImage}" Value="False">
+                                                                <Setter Property="Visibility" Value="Visible"/>
+                                                            </DataTrigger>
+                                                        </Style.Triggers>
+                                                    </Style>
+                                                </TextBlock.Style>
+                                            </TextBlock>
+
+                                            <Image Source="{Binding Analyzer.SourceImageSource}"
+                                                   Stretch="Uniform"
+                                                   Margin="5"
+                                                   Visibility="{Binding Analyzer.HasSourceImage, Converter={StaticResource BooleanToVisibilityConverter}}"/>
+                                        </Grid>
+                                    </Border>
+
+                                    <!-- Analyze Button -->
+                                    <Button Content="Analyze Image with QwenVL"
+                                           Style="{StaticResource AnalyzeButtonStyle}"
+                                           Command="{Binding Analyzer.AnalyzeImageCommand}"
+                                           HorizontalAlignment="Stretch"
+                                           Margin="0,15,0,0"
+                                           Height="45"
+                                           Background="#F59E0B"/>
+                                </StackPanel>
+                            </Border>
+
+                            <!-- Analysis Settings -->
+                            <Border Style="{StaticResource SectionPanelStyle}">
+                                <StackPanel>
+                                    <TextBlock Text="Analysis Settings" Style="{StaticResource HeaderTextStyle}" Foreground="#6366F1"/>
+
+                                    <!-- Aspect Ratio -->
+                                    <StackPanel Margin="0,0,0,12">
+                                        <TextBlock Text="Aspect Ratio" FontWeight="SemiBold" FontSize="12" Margin="0,0,0,5"/>
+                                        <ComboBox SelectedIndex="{Binding Analyzer.AspectRatioIndex, Mode=TwoWay}"
+                                                 Padding="10"
+                                                 Background="White"
+                                                 BorderBrush="#CED4DA"
+                                                 FontSize="12">
+                                            <ComboBoxItem Content="SDXL - 1:1 square 1024x1024"/>
+                                            <ComboBoxItem Content="SDXL - 3:4 portrait 896x1152"/>
+                                            <ComboBoxItem Content="SDXL - 9:16 portrait 768x1344"/>
+                                            <ComboBoxItem Content="SDXL - 4:3 landscape 1152x896"/>
+                                            <ComboBoxItem Content="SDXL - 16:9 landscape 1344x768"/>
+                                        </ComboBox>
+                                    </StackPanel>
+
+                                    <!-- Steps -->
+                                    <StackPanel Margin="0,0,0,12">
+                                        <TextBlock Text="Steps" FontWeight="SemiBold" FontSize="12" Margin="0,0,0,5"/>
+                                        <Grid>
+                                            <Grid.ColumnDefinitions>
+                                                <ColumnDefinition Width="*"/>
+                                                <ColumnDefinition Width="Auto"/>
+                                            </Grid.ColumnDefinitions>
+                                            <Slider Grid.Column="0"
+                                                    Value="{Binding Analyzer.Steps, Mode=TwoWay}"
+                                                    Minimum="4" Maximum="20"
+                                                    TickFrequency="1"
+                                                    IsSnapToTickEnabled="True"
+                                                    VerticalAlignment="Center"/>
+                                            <TextBlock Grid.Column="1"
+                                                      Text="{Binding Analyzer.Steps}"
+                                                      Margin="10,0,0,0"
+                                                      VerticalAlignment="Center"
+                                                      MinWidth="30"
+                                                      FontWeight="Bold"/>
+                                        </Grid>
+                                    </StackPanel>
+
+                                    <!-- CFG -->
+                                    <StackPanel>
+                                        <TextBlock Text="CFG Scale" FontWeight="SemiBold" FontSize="12" Margin="0,0,0,5"/>
+                                        <Grid>
+                                            <Grid.ColumnDefinitions>
+                                                <ColumnDefinition Width="*"/>
+                                                <ColumnDefinition Width="Auto"/>
+                                            </Grid.ColumnDefinitions>
+                                            <Slider Grid.Column="0"
+                                                    Value="{Binding Analyzer.Cfg, Mode=TwoWay}"
+                                                    Minimum="1" Maximum="3"
+                                                    TickFrequency="0.5"
+                                                    IsSnapToTickEnabled="True"
+                                                    VerticalAlignment="Center"/>
+                                            <TextBlock Grid.Column="1"
+                                                      Text="{Binding Analyzer.Cfg, StringFormat={}{0:F1}}"
+                                                      Margin="10,0,0,0"
+                                                      VerticalAlignment="Center"
+                                                      MinWidth="30"
+                                                      FontWeight="Bold"/>
+                                        </Grid>
+                                    </StackPanel>
+                                </StackPanel>
+                            </Border>
                         </StackPanel>
 
-                        <!-- Generate Button and Status -->
-                        <StackPanel Grid.Column="1" VerticalAlignment="Center">
-                            <Button Content="Generate Image"
-                                   Style="{StaticResource PrimaryButtonStyle}"
-                                   Command="{Binding GenerateImageCommand}"
-                                   HorizontalAlignment="Stretch"
-                                   Height="55"
-                                   FontSize="15"
-                                   Margin="0,0,0,15"/>
-
-                            <!-- Processing Status -->
-                            <Border Background="#FFF9F0"
-                                    BorderBrush="#FFE0B0"
-                                    BorderThickness="1"
-                                    CornerRadius="5"
-                                    Padding="12"
-                                    Visibility="{Binding IsProcessing, Converter={StaticResource BooleanToVisibilityConverter}}">
+                        <!-- Right Column - Analysis Result -->
+                        <StackPanel Grid.Column="1" Margin="15,0,0,0">
+                            <!-- Analysis Result Section -->
+                            <Border Style="{StaticResource SectionPanelStyle}">
                                 <StackPanel>
-                                    <TextBlock Text="{Binding ProcessingStatus}"
-                                              FontWeight="SemiBold"
+                                    <TextBlock Text="AI Analysis Result" Style="{StaticResource HeaderTextStyle}" Foreground="#8B5CF6"/>
+
+                                    <TextBlock Text="Edit the analysis before generating the image"
+                                               FontSize="12"
+                                               Foreground="#666"
+                                               Margin="0,0,0,10"/>
+
+                                    <TextBox Text="{Binding Analyzer.AnalysisText, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                                            TextWrapping="Wrap"
+                                            AcceptsReturn="True"
+                                            Height="200"
+                                            Padding="12"
+                                            VerticalScrollBarVisibility="Auto"
+                                            Background="White"
+                                            BorderBrush="#CED4DA"
+                                            FontSize="13"
+                                            Margin="0,0,0,15"/>
+
+                                    <!-- Processing Status for Analysis -->
+                                    <Border Background="#FEF3C7"
+                                            BorderBrush="#FCD34D"
+                                            BorderThickness="2"
+                                            CornerRadius="6"
+                                            Padding="15"
+                                            Margin="0,0,0,15"
+                                            Visibility="{Binding Analyzer.IsAnalyzing, Converter={StaticResource BooleanToVisibilityConverter}}">
+                                        <StackPanel>
+                                            <TextBlock Text="Analyzing image..."
+                                                      FontWeight="Bold"
+                                                      FontSize="12"
+                                                      Margin="0,0,0,8"
+                                                      TextAlignment="Center"
+                                                      Foreground="#92400E"/>
+                                            <ProgressBar IsIndeterminate="True"
+                                                        Height="20"
+                                                        Foreground="#F59E0B"/>
+                                        </StackPanel>
+                                    </Border>
+
+                                    <!-- Generate Button -->
+                                    <Button Content="Process &amp; Generate Image"
+                                           Style="{StaticResource PrimaryButtonStyle}"
+                                           Command="{Binding Analyzer.GenerateImageCommand}"
+                                           HorizontalAlignment="Stretch"
+                                           Height="50"
+                                           FontSize="16"
+                                           Background="#8B5CF6"/>
+                                </StackPanel>
+                            </Border>
+
+                            <!-- Result Image Section -->
+                            <Border Style="{StaticResource SectionPanelStyle}">
+                                <StackPanel>
+                                    <TextBlock Text="Generated Image" Style="{StaticResource HeaderTextStyle}" Foreground="#10B981"/>
+
+                                    <Border BorderBrush="#DEE2E6" BorderThickness="2"
+                                            Background="White" Height="350"
+                                            CornerRadius="5" Margin="0,0,0,12">
+                                        <Grid>
+                                            <TextBlock Text="Generated image will appear here"
+                                                      HorizontalAlignment="Center"
+                                                      VerticalAlignment="Center"
+                                                      Foreground="#999"
+                                                      FontStyle="Italic"
+                                                      FontSize="14">
+                                                <TextBlock.Style>
+                                                    <Style TargetType="TextBlock">
+                                                        <Setter Property="Visibility" Value="Collapsed"/>
+                                                        <Style.Triggers>
+                                                            <DataTrigger Binding="{Binding Analyzer.HasResultImage}" Value="False">
+                                                                <Setter Property="Visibility" Value="Visible"/>
+                                                            </DataTrigger>
+                                                        </Style.Triggers>
+                                                    </Style>
+                                                </TextBlock.Style>
+                                            </TextBlock>
+
+                                            <Image Source="{Binding Analyzer.ResultImageSource}"
+                                                   Stretch="Uniform"
+                                                   Margin="5"
+                                                   Visibility="{Binding Analyzer.HasResultImage, Converter={StaticResource BooleanToVisibilityConverter}}"/>
+                                        </Grid>
+                                    </Border>
+
+                                    <Button Content="Open Output Folder"
+                                           Style="{StaticResource SecondaryButtonStyle}"
+                                           Command="{Binding Analyzer.OpenResultFolderCommand}"
+                                           IsEnabled="{Binding Analyzer.HasResultImage}"
+                                           HorizontalAlignment="Stretch"/>
+
+                                    <TextBlock Text="{Binding Analyzer.ImageInfo}"
+                                              FontStyle="Italic"
+                                              Foreground="#666"
                                               FontSize="11"
-                                              Margin="0,0,0,5"
-                                              TextAlignment="Center"
-                                              TextWrapping="Wrap"/>
-                                    <ProgressBar Value="{Binding ProcessingProgress}"
-                                                Height="16"
-                                                Foreground="#FF6B35"
-                                                Margin="0,0,0,5"/>
-                                    <TextBlock Text="{Binding ProgressPercentage}"
-                                              HorizontalAlignment="Center"
-                                              FontSize="11"
-                                              FontWeight="Bold"
-                                              Foreground="#FF6B35"/>
+                                              Margin="0,10,0,0"
+                                              TextAlignment="Center"/>
                                 </StackPanel>
                             </Border>
                         </StackPanel>
                     </Grid>
-                </Border>
+                </ScrollViewer>
+            </TabItem>
 
-                <!-- Result Image Section -->
-                <Border Style="{StaticResource SectionPanelStyle}">
-                    <StackPanel>
-                        <TextBlock Text="Result Image" Style="{StaticResource HeaderTextStyle}" Foreground="#FF6B35"/>
+            <!-- Tab 3: Camera Edit -->
+            <TabItem Header="🎥 Camera Edit" FontWeight="Bold" FontSize="13">
+                <ScrollViewer VerticalScrollBarVisibility="Auto">
+                    <StackPanel Margin="5,15,5,15">
 
-                        <Border BorderBrush="#DEE2E6" BorderThickness="2"
-                                Background="White" Height="400"
-                                CornerRadius="5" Margin="0,0,0,10">
+                        <!-- Image Upload Section -->
+                        <Border Style="{StaticResource SectionPanelStyle}">
                             <Grid>
-                                <TextBlock Text="Image will appear here after generation"
-                                          HorizontalAlignment="Center"
-                                          VerticalAlignment="Center"
-                                          Foreground="#999"
-                                          FontStyle="Italic">
-                                    <TextBlock.Style>
-                                        <Style TargetType="TextBlock">
-                                            <Setter Property="Visibility" Value="Collapsed"/>
-                                            <Style.Triggers>
-                                                <DataTrigger Binding="{Binding HasResultImage}" Value="False">
-                                                    <Setter Property="Visibility" Value="Visible"/>
-                                                </DataTrigger>
-                                            </Style.Triggers>
-                                        </Style>
-                                    </TextBlock.Style>
-                                </TextBlock>
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*"/>
+                                    <ColumnDefinition Width="*"/>
+                                </Grid.ColumnDefinitions>
 
-                                <Image Source="{Binding ResultImageSource}"
-                                       Stretch="Uniform"
-                                       Visibility="{Binding HasResultImage, Converter={StaticResource BooleanToVisibilityConverter}}"/>
+                                <!-- Input Image -->
+                                <StackPanel Grid.Column="0" Margin="0,0,10,0">
+                                    <TextBlock Text="📤 Input Image" Style="{StaticResource HeaderTextStyle}" Foreground="#FF6B35"/>
+
+                                    <Border BorderBrush="#DEE2E6" BorderThickness="2"
+                                            Background="White" Height="250"
+                                            CornerRadius="5" Margin="0,0,0,10">
+                                        <Grid>
+                                            <TextBlock Text="No image selected"
+                                                      HorizontalAlignment="Center"
+                                                      VerticalAlignment="Center"
+                                                      Foreground="#999"
+                                                      FontStyle="Italic">
+                                                <TextBlock.Style>
+                                                    <Style TargetType="TextBlock">
+                                                        <Setter Property="Visibility" Value="Collapsed"/>
+                                                        <Style.Triggers>
+                                                            <DataTrigger Binding="{Binding CameraEdit.ImagePreviewSource}" Value="{x:Null}">
+                                                                <Setter Property="Visibility" Value="Visible"/>
+                                                            </DataTrigger>
+                                                        </Style.Triggers>
+                                                    </Style>
+                                                </TextBlock.Style>
+                                            </TextBlock>
+                                            <Image Source="{Binding CameraEdit.ImagePreviewSource}"
+                                                   Stretch="Uniform"/>
+                                        </Grid>
+                                    </Border>
+
+                                    <Grid>
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="*"/>
+                                            <ColumnDefinition Width="Auto"/>
+                                        </Grid.ColumnDefinitions>
+                                        <TextBox Grid.Column="0"
+                                                Text="{Binding CameraEdit.ImageFilePath, Mode=TwoWay}"
+                                                IsReadOnly="True"
+                                                Padding="8"
+                                                Background="White"
+                                                BorderBrush="#CED4DA"
+                                                FontSize="11"/>
+                                        <Button Grid.Column="1"
+                                               Content="Browse"
+                                               Style="{StaticResource SecondaryButtonStyle}"
+                                               Margin="8,0,0,0"
+                                               Command="{Binding CameraEdit.SelectImageCommand}"/>
+                                    </Grid>
+                                    <TextBlock Text="{Binding CameraEdit.ImageInfo}"
+                                              FontStyle="Italic"
+                                              Foreground="#666"
+                                              FontSize="10"
+                                              Margin="0,5,0,0"/>
+                                </StackPanel>
+
+                                <!-- Result Image -->
+                                <StackPanel Grid.Column="1" Margin="10,0,0,0">
+                                    <TextBlock Text="✨ Result Image" Style="{StaticResource HeaderTextStyle}" Foreground="#FF6B35"/>
+
+                                    <Border BorderBrush="#DEE2E6" BorderThickness="2"
+                                            Background="White" Height="250"
+                                            CornerRadius="5" Margin="0,0,0,10">
+                                        <Grid>
+                                            <TextBlock Text="Result will appear here"
+                                                      HorizontalAlignment="Center"
+                                                      VerticalAlignment="Center"
+                                                      Foreground="#999"
+                                                      FontStyle="Italic">
+                                                <TextBlock.Style>
+                                                    <Style TargetType="TextBlock">
+                                                        <Setter Property="Visibility" Value="Collapsed"/>
+                                                        <Style.Triggers>
+                                                            <DataTrigger Binding="{Binding CameraEdit.ResultPreviewSource}" Value="{x:Null}">
+                                                                <Setter Property="Visibility" Value="Visible"/>
+                                                            </DataTrigger>
+                                                        </Style.Triggers>
+                                                    </Style>
+                                                </TextBlock.Style>
+                                            </TextBlock>
+                                            <Image Source="{Binding CameraEdit.ResultPreviewSource}"
+                                                   Stretch="Uniform"/>
+                                        </Grid>
+                                    </Border>
+
+                                    <Grid>
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="*"/>
+                                            <ColumnDefinition Width="*"/>
+                                        </Grid.ColumnDefinitions>
+
+                                        <Button Grid.Column="0"
+                                               Content="📂 Open Folder"
+                                               Style="{StaticResource SecondaryButtonStyle}"
+                                               Command="{Binding CameraEdit.OpenResultFolderCommand}"
+                                               IsEnabled="{Binding CameraEdit.HasResultImage}"
+                                               Margin="0,0,4,0"/>
+
+                                        <Button Grid.Column="1"
+                                               Content="🎬 To Video"
+                                               Style="{StaticResource SecondaryButtonStyle}"
+                                               Command="{Binding CameraEdit.SendToVideoGeneratorCommand}"
+                                               IsEnabled="{Binding CameraEdit.HasResultImage}"
+                                               Margin="4,0,0,0"/>
+                                    </Grid>
+                                </StackPanel>
                             </Grid>
                         </Border>
 
-                        <Grid>
-                            <Grid.ColumnDefinitions>
-                                <ColumnDefinition Width="*"/>
-                                <ColumnDefinition Width="Auto"/>
-                                <ColumnDefinition Width="Auto"/>
-                            </Grid.ColumnDefinitions>
+                        <!-- Camera Control and Processing Section -->
+                        <Border Style="{StaticResource SectionPanelStyle}">
+                            <Grid>
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="2*"/>
+                                    <ColumnDefinition Width="*"/>
+                                </Grid.ColumnDefinitions>
 
-                            <Button Grid.Column="0"
-                                   Content="Camera Edit"
-                                   Style="{StaticResource SecondaryButtonStyle}"
-                                   Command="{Binding SendToCameraEditCommand}"
-                                   IsEnabled="{Binding HasResultImage}"
-                                   Margin="0,0,8,0"/>
+                                <!-- Camera Control -->
+                                <StackPanel Grid.Column="0" Margin="0,0,20,0">
+                                    <TextBlock Text="🎥 Camera Control" Style="{StaticResource HeaderTextStyle}" Foreground="#FF6B35"/>
 
-                            <Button Grid.Column="1"
-                                   Content="Video Generator"
-                                   Style="{StaticResource SecondaryButtonStyle}"
-                                   Command="{Binding SendToVideoGeneratorCommand}"
-                                   IsEnabled="{Binding HasResultImage}"
-                                   Margin="0,0,8,0"/>
+                                    <TextBlock Text="Preset" FontWeight="SemiBold" FontSize="12" Margin="0,0,0,5"/>
+                                    <ComboBox ItemsSource="{Binding CameraEdit.CameraControlOptions}"
+                                             SelectedValue="{Binding CameraEdit.SelectedCameraControl, Mode=TwoWay}"
+                                             SelectedValuePath="Name"
+                                             Padding="10,8"
+                                             FontSize="13"
+                                             Margin="0,0,0,15">
+                                        <ComboBox.ItemTemplate>
+                                            <DataTemplate>
+                                                <StackPanel Orientation="Horizontal">
+                                                    <TextBlock Text="{Binding Icon}" FontSize="16" Margin="0,0,8,0"/>
+                                                    <TextBlock Text="{Binding Name}" FontWeight="SemiBold"/>
+                                                </StackPanel>
+                                            </DataTemplate>
+                                        </ComboBox.ItemTemplate>
+                                    </ComboBox>
 
-                            <Button Grid.Column="2"
-                                   Content="Open Folder"
-                                   Style="{StaticResource SecondaryButtonStyle}"
-                                   Command="{Binding OpenResultFolderCommand}"
-                                   IsEnabled="{Binding HasResultImage}"/>
-                        </Grid>
+                                    <TextBlock Text="Camera Instruction" FontWeight="SemiBold" FontSize="12" Margin="0,0,0,5"/>
+                                    <TextBox Text="{Binding CameraEdit.CustomPrompt, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                                            TextWrapping="Wrap"
+                                            AcceptsReturn="True"
+                                            Height="85"
+                                            Padding="10"
+                                            VerticalScrollBarVisibility="Auto"
+                                            Background="White"
+                                            BorderBrush="#CED4DA"
+                                            FontSize="12"
+                                            Margin="0,0,0,10"/>
 
-                        <TextBlock Text="{Binding ImageInfo}"
-                                  FontStyle="Italic"
-                                  Foreground="#666"
-                                  FontSize="11"
-                                  Margin="0,10,0,0"/>
+                                    <Grid>
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="*"/>
+                                            <ColumnDefinition Width="Auto"/>
+                                        </Grid.ColumnDefinitions>
+
+                                        <Button Grid.Column="0"
+                                               Content="💾 Save Prompt"
+                                               Style="{StaticResource SecondaryButtonStyle}"
+                                               Command="{Binding CameraEdit.SaveCustomPromptCommand}"
+                                               HorizontalAlignment="Stretch"
+                                               Margin="0,0,8,0"/>
+
+                                        <Button Grid.Column="1"
+                                               Content="🗑️ Delete Saved"
+                                               Command="{Binding CameraEdit.DeleteSavedPromptCommand}"
+                                               HorizontalAlignment="Right">
+                                            <Button.Style>
+                                                <Style TargetType="Button" BasedOn="{StaticResource SecondaryButtonStyle}">
+                                                    <Setter Property="Background" Value="#DC3545"/>
+                                                    <Style.Triggers>
+                                                        <Trigger Property="IsMouseOver" Value="True">
+                                                            <Setter Property="Background" Value="#E55563"/>
+                                                        </Trigger>
+                                                        <Trigger Property="IsEnabled" Value="False">
+                                                            <Setter Property="Background" Value="#CCC"/>
+                                                        </Trigger>
+                                                    </Style.Triggers>
+                                                </Style>
+                                            </Button.Style>
+                                        </Button>
+                                    </Grid>
+                                </StackPanel>
+
+                                <!-- Process Image and Status -->
+                                <StackPanel Grid.Column="1" VerticalAlignment="Center">
+                                    <Button Content="🚀 Process Image"
+                                           Style="{StaticResource PrimaryButtonStyle}"
+                                           Command="{Binding CameraEdit.ProcessImageCommand}"
+                                           HorizontalAlignment="Stretch"
+                                           Height="50"
+                                           FontSize="14"
+                                           Margin="0,0,0,15"/>
+
+                                    <!-- Processing Status -->
+                                    <Border Background="#FFF9F0"
+                                            BorderBrush="#FFE0B0"
+                                            BorderThickness="1"
+                                            CornerRadius="5"
+                                            Padding="12"
+                                            Visibility="{Binding CameraEdit.IsProcessing, Converter={StaticResource BooleanToVisibilityConverter}}">
+                                        <StackPanel>
+                                            <TextBlock Text="{Binding CameraEdit.ProcessingStatus}"
+                                                      FontWeight="SemiBold"
+                                                      FontSize="11"
+                                                      Margin="0,0,0,5"
+                                                      TextAlignment="Center"/>
+                                            <ProgressBar Value="{Binding CameraEdit.ProcessingProgress}"
+                                                        Height="16"
+                                                        Foreground="#FF6B35"
+                                                        Margin="0,0,0,5"/>
+                                            <TextBlock Text="{Binding CameraEdit.ProgressPercentage}"
+                                                      HorizontalAlignment="Center"
+                                                      FontSize="11"
+                                                      FontWeight="Bold"
+                                                      Foreground="#FF6B35"/>
+                                        </StackPanel>
+                                    </Border>
+                                </StackPanel>
+                            </Grid>
+                        </Border>
+
+                        <!-- Advanced Settings (Collapsible) -->
+                        <Expander Header="⚙️ Advanced Settings"
+                                 Margin="0,0,0,15"
+                                 IsExpanded="False">
+                            <Border Background="#F8F9FA"
+                                    BorderBrush="#DEE2E6"
+                                    BorderThickness="1"
+                                    CornerRadius="5"
+                                    Padding="15"
+                                    Margin="0,8,0,0">
+                                <StackPanel>
+                                    <Grid>
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="*"/>
+                                            <ColumnDefinition Width="*"/>
+                                            <ColumnDefinition Width="*"/>
+                                        </Grid.ColumnDefinitions>
+
+                                        <!-- Steps -->
+                                        <StackPanel Grid.Column="0" Margin="0,0,15,0">
+                                            <TextBlock Text="Steps" FontWeight="SemiBold" FontSize="11" Margin="0,0,0,5"/>
+                                            <Grid>
+                                                <Grid.ColumnDefinitions>
+                                                    <ColumnDefinition Width="*"/>
+                                                    <ColumnDefinition Width="Auto"/>
+                                                </Grid.ColumnDefinitions>
+                                                <Slider Grid.Column="0"
+                                                        Value="{Binding CameraEdit.Steps, Mode=TwoWay}"
+                                                        Minimum="1" Maximum="20"
+                                                        TickFrequency="1"
+                                                        IsSnapToTickEnabled="True"
+                                                        VerticalAlignment="Center"/>
+                                                <TextBlock Grid.Column="1"
+                                                          Text="{Binding CameraEdit.Steps}"
+                                                          Margin="8,0,0,0"
+                                                          VerticalAlignment="Center"
+                                                          MinWidth="25"
+                                                          FontWeight="Bold"/>
+                                            </Grid>
+                                        </StackPanel>
+
+                                        <!-- CFG -->
+                                        <StackPanel Grid.Column="1" Margin="0,0,15,0">
+                                            <TextBlock Text="CFG Scale" FontWeight="SemiBold" FontSize="11" Margin="0,0,0,5"/>
+                                            <Grid>
+                                                <Grid.ColumnDefinitions>
+                                                    <ColumnDefinition Width="*"/>
+                                                    <ColumnDefinition Width="Auto"/>
+                                                </Grid.ColumnDefinitions>
+                                                <Slider Grid.Column="0"
+                                                        Value="{Binding CameraEdit.Cfg, Mode=TwoWay}"
+                                                        Minimum="1" Maximum="10"
+                                                        TickFrequency="0.5"
+                                                        IsSnapToTickEnabled="True"
+                                                        VerticalAlignment="Center"/>
+                                                <TextBlock Grid.Column="1"
+                                                          Text="{Binding CameraEdit.Cfg, StringFormat={}{0:F1}}"
+                                                          Margin="8,0,0,0"
+                                                          VerticalAlignment="Center"
+                                                          MinWidth="25"
+                                                          FontWeight="Bold"/>
+                                            </Grid>
+                                        </StackPanel>
+
+                                        <!-- Denoise -->
+                                        <StackPanel Grid.Column="2">
+                                            <TextBlock Text="Denoise" FontWeight="SemiBold" FontSize="11" Margin="0,0,0,5"/>
+                                            <Grid>
+                                                <Grid.ColumnDefinitions>
+                                                    <ColumnDefinition Width="*"/>
+                                                    <ColumnDefinition Width="Auto"/>
+                                                </Grid.ColumnDefinitions>
+                                                <Slider Grid.Column="0"
+                                                        Value="{Binding CameraEdit.Denoise, Mode=TwoWay}"
+                                                        Minimum="0" Maximum="1"
+                                                        TickFrequency="0.05"
+                                                        IsSnapToTickEnabled="True"
+                                                        VerticalAlignment="Center"/>
+                                                <TextBlock Grid.Column="1"
+                                                          Text="{Binding CameraEdit.Denoise, StringFormat={}{0:F2}}"
+                                                          Margin="8,0,0,0"
+                                                          VerticalAlignment="Center"
+                                                          MinWidth="25"
+                                                          FontWeight="Bold"/>
+                                            </Grid>
+                                        </StackPanel>
+                                    </Grid>
+
+                                    <!-- Negative Prompt -->
+                                    <StackPanel Margin="0,15,0,0">
+                                        <TextBlock Text="Negative Prompt" FontWeight="SemiBold" FontSize="11" Margin="0,0,0,5"/>
+                                        <TextBox Text="{Binding CameraEdit.NegativePrompt, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                                                TextWrapping="Wrap"
+                                                AcceptsReturn="True"
+                                                Height="50"
+                                                Padding="8"
+                                                Background="White"
+                                                BorderBrush="#CED4DA"
+                                                FontSize="11"/>
+                                    </StackPanel>
+                                </StackPanel>
+                            </Border>
+                        </Expander>
+
                     </StackPanel>
-                </Border>
-
-                <!-- Advanced Settings (Collapsible) -->
-                <Expander Header="Advanced Settings"
-                         Margin="0,0,0,15"
-                         IsExpanded="False">
-                    <Border Background="#F8F9FA"
-                            BorderBrush="#DEE2E6"
-                            BorderThickness="1"
-                            CornerRadius="5"
-                            Padding="15"
-                            Margin="0,8,0,0">
-                        <StackPanel>
-                            <!-- Seed -->
-                            <StackPanel Margin="0,0,0,10">
-                                <TextBlock Text="Seed (0 = Random)" FontWeight="SemiBold" FontSize="11" Margin="0,0,0,5"/>
-                                <TextBox Text="{Binding Seed, Mode=TwoWay}"
-                                        Padding="8"
-                                        Background="White"
-                                        BorderBrush="#CED4DA"
-                                        FontSize="11"/>
-                            </StackPanel>
-
-                            <!-- Denoise -->
-                            <StackPanel>
-                                <TextBlock Text="Denoise" FontWeight="SemiBold" FontSize="11" Margin="0,0,0,5"/>
-                                <Grid>
-                                    <Grid.ColumnDefinitions>
-                                        <ColumnDefinition Width="*"/>
-                                        <ColumnDefinition Width="Auto"/>
-                                    </Grid.ColumnDefinitions>
-                                    <Slider Grid.Column="0"
-                                            Value="{Binding Denoise, Mode=TwoWay}"
-                                            Minimum="0.5" Maximum="1"
-                                            TickFrequency="0.1"
-                                            IsSnapToTickEnabled="True"
-                                            VerticalAlignment="Center"/>
-                                    <TextBlock Grid.Column="1"
-                                              Text="{Binding Denoise, StringFormat={}{0:F1}}"
-                                              Margin="8,0,0,0"
-                                              VerticalAlignment="Center"
-                                              MinWidth="25"
-                                              FontWeight="Bold"/>
-                                </Grid>
-                            </StackPanel>
-                        </StackPanel>
-                    </Border>
-                </Expander>
-
-                <!-- Log (Collapsible) -->
-                <Expander Header="Processing Log"
-                         IsExpanded="True"
-                         Margin="0,0,0,0">
-                    <Border Background="White"
-                            BorderBrush="#DEE2E6"
-                            BorderThickness="1"
-                            Margin="0,8,0,0">
-                        <ScrollViewer MaxHeight="150"
-                                     VerticalScrollBarVisibility="Auto">
-                            <TextBox Text="{Binding LogOutput}"
-                                    TextWrapping="Wrap"
-                                    IsReadOnly="True"
-                                    FontFamily="Consolas"
-                                    FontSize="10"
-                                    Background="Transparent"
-                                    BorderThickness="0"
-                                    Padding="10"/>
-                        </ScrollViewer>
-                    </Border>
-                </Expander>
-
-            </StackPanel>
-        </ScrollViewer>
+                </ScrollViewer>
+            </TabItem>
+        </TabControl>
 
         <!-- Status Bar -->
         <StatusBar Grid.Row="3" Background="#F8F9FA" BorderBrush="#DEE2E6" BorderThickness="0,1,0,0" Height="28">

@@ -10,11 +10,11 @@ namespace FlipPix.UI.Services;
 
 public class ChunkCreatorService
 {
-    private readonly ComfyUIService _comfyUIService;
+    private readonly FlipPix.ComfyUI.Services.ComfyUIService _comfyUIService;
     private readonly IAppLogger _logger;
     private readonly VideoAnalysisService _videoAnalysisService;
     private readonly ImageAnalysisService _imageAnalysisService;
-    private ComfyUIService? _activeComfyUIService;
+    private FlipPix.ComfyUI.Services.ComfyUIService? _activeComfyUIService;
     private CancellationTokenSource? _cancellationTokenSource;
     
     private const string WORKFLOW_PATH = "workflow/step1-chunkcreatorAPI.json";
@@ -26,7 +26,7 @@ public class ChunkCreatorService
     public event EventHandler<(int completed, int total)>? ChunkProgressUpdated;
     public event EventHandler<bool>? ProcessingCompleted;
 
-    public ChunkCreatorService(ComfyUIService comfyUIService, IAppLogger logger, VideoAnalysisService videoAnalysisService, ImageAnalysisService imageAnalysisService)
+    public ChunkCreatorService(FlipPix.ComfyUI.Services.ComfyUIService comfyUIService, IAppLogger logger, VideoAnalysisService videoAnalysisService, ImageAnalysisService imageAnalysisService)
     {
         _comfyUIService = comfyUIService;
         _logger = logger;
@@ -464,7 +464,7 @@ public class ChunkCreatorService
         return null;
     }
 
-    private ComfyUIService CreateComfyUIService(ComfyUISettings settings)
+    private FlipPix.ComfyUI.Services.ComfyUIService CreateComfyUIService(ComfyUISettings settings)
     {
         _logger.LogInfo($"Creating ComfyUI service with settings: {settings.BaseUrl}");
         
@@ -476,7 +476,7 @@ public class ChunkCreatorService
 
         var comfyUIHttpClient = new FlipPix.ComfyUI.Http.ComfyUIHttpClient(httpClient, _logger, settings);
         var webSocketClient = new FlipPix.ComfyUI.WebSocket.ComfyUIWebSocketClient(_logger, settings.BaseUrl);
-        return new ComfyUIService(comfyUIHttpClient, webSocketClient, _logger, settings);
+        return new FlipPix.ComfyUI.Services.ComfyUIService(comfyUIHttpClient, webSocketClient, _logger, settings);
     }
 
     public void StopProcessing()

@@ -79,11 +79,11 @@
   },
   "44": {
     "inputs": {
-      "seed": 222139691159290,
+      "seed": 454581483419295,
       "steps": 9,
       "cfg": 1,
-      "sampler_name": "uni_pc",
-      "scheduler": "simple",
+      "sampler_name": "res_2m",
+      "scheduler": "bong_tangent",
       "denoise": 1,
       "model": [
         "47",
@@ -109,10 +109,13 @@
   },
   "45": {
     "inputs": {
-      "text": "sexy screaming busty tomboy short hair sweaty oily natural athletic woman in sexy army skimpy attire close up view looking at the camera with her karate fight pose taunting the viewer with a sword, very dark empty desert with sand dunes in the background, with all the lighting on her making her pop out more.",
+      "text": [
+        "60",
+        0
+      ],
       "clip": [
-        "58",
-        1
+        "39",
+        0
       ]
     },
     "class_type": "CLIPTextEncode",
@@ -134,7 +137,7 @@
     "inputs": {
       "shift": 3,
       "model": [
-        "58",
+        "46",
         0
       ]
     },
@@ -152,9 +155,9 @@
   },
   "57": {
     "inputs": {
-      "width": 1344,
-      "height": 768,
-      "aspect_ratio": "SDXL - 16:9 landscape 1344x768",
+      "width": 1024,
+      "height": 1024,
+      "aspect_ratio": "SDXL - 9:16 portrait 768x1344",
       "swap_dimensions": "Off",
       "upscale_factor": 1,
       "prescale_factor": 1,
@@ -167,21 +170,43 @@
   },
   "58": {
     "inputs": {
-      "lora_name": "zimage\\zimage_gilliananderson_v1.safetensors",
-      "strength_model": 1,
-      "strength_clip": 1,
-      "model": [
-        "46",
-        0
-      ],
-      "clip": [
-        "39",
+      "image": "Capture.PNG"
+    },
+    "class_type": "LoadImage",
+    "_meta": {
+      "title": "Load Image"
+    }
+  },
+  "59": {
+    "inputs": {
+      "model_name": "Qwen3-VL-4B-Instruct",
+      "quantization": "None (FP16)",
+      "attention_mode": "auto",
+      "preset_prompt": "🖼️ Detailed Description",
+      "custom_prompt": "",
+      "max_tokens": 512,
+      "keep_model_loaded": true,
+      "seed": 285783567,
+      "image": [
+        "58",
         0
       ]
     },
-    "class_type": "LoraLoader",
+    "class_type": "AILab_QwenVL",
     "_meta": {
-      "title": "Load LoRA"
+      "title": "QwenVL"
+    }
+  },
+  "60": {
+    "inputs": {
+      "text": [
+        "59",
+        0
+      ]
+    },
+    "class_type": "ShowText|pysssss",
+    "_meta": {
+      "title": "Show Text 🐍"
     }
   }
 }

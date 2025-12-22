@@ -140,9 +140,10 @@
         <!-- Navigation Bar -->
         <Border Grid.Row="1" Background="#E9ECEF" BorderBrush="#DEE2E6" BorderThickness="0,1,0,1" Padding="15,10">
             <StackPanel Orientation="Horizontal">
-                <TextBlock Text="Navigate:" FontWeight="SemiBold" FontSize="12" VerticalAlignment="Center" Margin="0,0,12,0" Foreground="#495057"/>
-                <Button Content="Image Generator" Style="{StaticResource NavButtonStyle}" Command="{Binding NavigateToImageGeneratorCommand}"/>
-                <Button Content="Video Generator" Style="{StaticResource NavButtonStyle}" Command="{Binding NavigateToVideoGeneratorCommand}"/>
+                <TextBlock Text="Tools:" FontWeight="SemiBold" FontSize="12" VerticalAlignment="Center" Margin="0,0,12,0" Foreground="#495057"/>
+                <Button Content="🖼️ Image Generator" Style="{StaticResource NavButtonStyle}" Command="{Binding NavigateToImageGeneratorCommand}" Background="#FF6B35"/>
+                <Button Content="🎬 Video Generator" Style="{StaticResource NavButtonStyle}" Command="{Binding NavigateToVideoGeneratorCommand}" Background="#6366F1"/>
+                <Button Content="📖 Story Generator" Style="{StaticResource NavButtonStyle}" Command="{Binding NavigateToStoryVideoCommand}" Background="#10B981"/>
             </StackPanel>
         </Border>
 
