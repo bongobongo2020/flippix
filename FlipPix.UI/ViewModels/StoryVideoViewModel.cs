@@ -19,13 +19,14 @@ namespace FlipPix.UI.ViewModels
     public class StoryVideoViewModel : INotifyPropertyChanged
     {
         private readonly ComfyUIService _comfyUIService;
+        private readonly FlipPix.UI.Services.LMStudioService _lmStudioService;
         private readonly IAppLogger _logger;
         private readonly FlipPix.Core.Services.SettingsService _settingsService;
 
         private string _selectedImagePath = string.Empty;
         private BitmapImage? _selectedImageSource;
         private bool _hasSelectedImage = false;
-        private string _customPrompt = "as a world class fight director , create ten 5 second action videos based on the image. generate only 10 clean prompts without numbering, prefixes, or any formatting like 'Video 1' etc.";
+        private string _customPrompt = "Act as a world-class fight director and choreographer. Analyze the uploaded image and create ten distinct, highly detailed prompts for 5-second action videos inspired by the scene. Each prompt must be descriptive, focusing on dynamic combat mechanics, cinematography, lighting, and atmosphere. Format: Return each prompt on a new line starting with 'Prompt #N:' followed by the full detailed prompt text in quotes. Example: Prompt #1: \"A dynamic close-up shot of...\" Prompt #2: \"Slow-motion capture of...\"";
         private string _generatedPrompt1 = string.Empty;
         private string _generatedPrompt2 = string.Empty;
         private string _generatedPrompt3 = string.Empty;
@@ -48,14 +49,16 @@ namespace FlipPix.UI.ViewModels
 
         public event PropertyChangedEventHandler? PropertyChanged;
 
-        public StoryVideoViewModel(ComfyUIService comfyUIService, IAppLogger logger, FlipPix.Core.Services.SettingsService settingsService)
+        public StoryVideoViewModel(ComfyUIService comfyUIService, FlipPix.UI.Services.LMStudioService lmStudioService, IAppLogger logger, FlipPix.Core.Services.SettingsService settingsService)
         {
             _comfyUIService = comfyUIService ?? throw new ArgumentNullException(nameof(comfyUIService));
+            _lmStudioService = lmStudioService ?? throw new ArgumentNullException(nameof(lmStudioService));
             _logger = logger ?? throw new ArgumentNullException(nameof(logger));
             _settingsService = settingsService ?? throw new ArgumentNullException(nameof(settingsService));
 
             // Initialize commands
             SelectImageCommand = new RelayCommand(SelectImage);
+            AnalyzeImageCommand = new RelayCommand(async () => await AnalyzeImageAsync(), () => HasSelectedImage && !IsProcessing);
             GeneratePromptsCommand = new RelayCommand(async () => await GeneratePromptsAsync(), () => CanGeneratePrompts);
             GenerateVideoCommand = new RelayCommand(async () => await GenerateVideoAsync(), () => CanGenerateVideo);
             CancelGenerationCommand = new RelayCommand(CancelGeneration, () => IsProcessing);
@@ -298,11 +301,61 @@ namespace FlipPix.UI.ViewModels
             }
         }
 
+        // Image analysis properties
+        private bool _isAnalyzing = false;
+        private string _analysisStatus = string.Empty;
+        private double _analysisProgress = 0;
+        private string _imageAnalysis = string.Empty;
+
+        public bool IsAnalyzing
+        {
+            get => _isAnalyzing;
+            set
+            {
+                _isAnalyzing = value;
+                OnPropertyChanged();
+                System.Windows.Input.CommandManager.InvalidateRequerySuggested();
+            }
+        }
+
+        public string AnalysisStatus
+        {
+            get => _analysisStatus;
+            set
+            {
+                _analysisStatus = value;
+                OnPropertyChanged();
+            }
+        }
+
+        public double AnalysisProgress
+        {
+            get => _analysisProgress;
+            set
+            {
+                _analysisProgress = value;
+                OnPropertyChanged();
+            }
+        }
+
+        public string ImageAnalysis
+        {
+            get => _imageAnalysis;
+            set
+            {
+                _imageAnalysis = value;
+                OnPropertyChanged();
+            }
+        }
+
+        public bool HasAnalysis => !string.IsNullOrWhiteSpace(ImageAnalysis);
+
         public bool CanGeneratePrompts => HasSelectedImage && !IsProcessing;
         public bool CanGenerateVideo => HasGeneratedPrompts && !IsProcessing;
 
         // Commands
         public ICommand SelectImageCommand { get; }
+        public ICommand AnalyzeImageCommand { get; }
         public ICommand GeneratePromptsCommand { get; }
         public ICommand GenerateVideoCommand { get; }
         public ICommand CancelGenerationCommand { get; }
@@ -348,6 +401,113 @@ namespace FlipPix.UI.ViewModels
             }
         }
 
+        private async Task AnalyzeImageAsync()
+        {
+            if (!HasSelectedImage)
+            {
+                AddLog("Cannot analyze: No image loaded");
+                return;
+            }
+
+            _cancellationTokenSource?.Dispose();
+            _cancellationTokenSource = new System.Threading.CancellationTokenSource();
+
+            try
+            {
+                IsAnalyzing = true;
+                AnalysisStatus = "Analyzing image with LM Studio Qwen-VL...";
+                AnalysisProgress = 0;
+                ImageAnalysis = "Analyzing image with LM Studio Qwen-VL AI...";
+
+                AddLog("=== Starting image analysis with LM Studio Qwen-VL ===");
+
+                // Get the selected model from settings
+                var baseUrl = _settingsService.Settings?.LMStudioSettings?.BaseUrl ?? "http://localhost:1234";
+                await _lmStudioService.SetBaseUrlAsync(baseUrl);
+                AddLog($"Using LM Studio at: {baseUrl}");
+
+                // Get the selected model or try to find a qwen-vl model
+                var models = await _lmStudioService.GetAvailableModelsAsync(_cancellationTokenSource.Token);
+                string selectedModel = _settingsService.Settings?.LMStudioSettings?.SelectedModel ?? string.Empty;
+
+                if (string.IsNullOrEmpty(selectedModel))
+                {
+                    // Try to find qwen-vl model
+                    var qwenModel = models.FirstOrDefault(m =>
+                        m.Name.ToLower().Contains("qwen") && m.Name.ToLower().Contains("vl"));
+
+                    if (qwenModel != null)
+                    {
+                        selectedModel = qwenModel.Name;
+                        AddLog($"Auto-selected Qwen VL model: {selectedModel}");
+                    }
+                    else if (models.Any())
+                    {
+                        selectedModel = models.First().Name;
+                        AddLog($"Using first available model: {selectedModel}");
+                    }
+                    else
+                    {
+                        throw new Exception("No models available in LM Studio. Please load a vision model like Qwen-VL.");
+                    }
+                }
+                else
+                {
+                    AddLog($"Using configured model: {selectedModel}");
+                }
+
+                AnalysisStatus = "Analyzing with LM Studio Qwen-VL...";
+                AnalysisProgress = 30;
+
+                // Use LM Studio for image analysis
+                var analysisPrompt = "Analyze this image in detail for story video generation. Describe the scene, characters, mood, atmosphere, and any key elements that would be useful for creating a compelling video story.";
+
+                var analysisResult = await _lmStudioService.AnalyzeImageAsync(
+                    selectedModel,
+                    SelectedImagePath,
+                    analysisPrompt,
+                    maxTokens: 500,
+                    _cancellationTokenSource.Token);
+
+                AnalysisProgress = 90;
+                AddLog("Analysis received from LM Studio");
+
+                if (!string.IsNullOrEmpty(analysisResult))
+                {
+                    ImageAnalysis = analysisResult;
+                    AnalysisStatus = "Analysis complete";
+                    AnalysisProgress = 100;
+                    AddLog("Image analysis completed successfully");
+                    StatusBarMessage = "Image analysis complete - you can use this for story prompts";
+                }
+                else
+                {
+                    ImageAnalysis = "Analysis completed but no text was returned from LM Studio.";
+                    AnalysisStatus = "Analysis complete (no output)";
+                    AddLog("Analysis completed but no text output was detected");
+                }
+            }
+            catch (OperationCanceledException)
+            {
+                IsAnalyzing = false;
+                AnalysisStatus = "Cancelled";
+                AddLog("Image analysis cancelled by user");
+            }
+            catch (Exception ex)
+            {
+                IsAnalyzing = false;
+                AnalysisStatus = "Error";
+                ImageAnalysis = $"Error analyzing image: {ex.Message}";
+                AddLog($"ERROR analyzing image: {ex.Message}");
+                System.Windows.MessageBox.Show($"Error analyzing image:\n\n{ex.Message}\n\nPlease ensure LM Studio is running and the Qwen-VL model is loaded.", "Error", System.Windows.MessageBoxButton.OK, System.Windows.MessageBoxImage.Error);
+            }
+            finally
+            {
+                IsAnalyzing = false;
+                System.Windows.Input.CommandManager.InvalidateRequerySuggested();
+            }
+        }
+
         private async Task GeneratePromptsAsync()
         {
             if (!CanGeneratePrompts) return;
@@ -357,91 +517,68 @@ namespace FlipPix.UI.ViewModels
 
             try
             {
-                AddLog("=== Starting prompt generation ===");
+                AddLog("=== Starting prompt generation with LM Studio ===");
                 IsProcessing = true;
                 ProcessingProgress = 0;
-                ProcessingStatus = "Preparing workflow...";
+                ProcessingStatus = "Connecting to LM Studio...";
 
-                // Ensure ComfyUI is connected
-                if (!_comfyUIService.IsConnected)
-                {
-                    ProcessingStatus = "Connecting to ComfyUI...";
-                    AddLog("Connecting to ComfyUI WebSocket...");
-                    await _comfyUIService.ConnectAsync(_cancellationTokenSource.Token);
-                    AddLog("Connected to ComfyUI");
-                }
+                // Get the selected model from settings
+                var baseUrl = _settingsService.Settings?.LMStudioSettings?.BaseUrl ?? "http://localhost:1234";
+                await _lmStudioService.SetBaseUrlAsync(baseUrl);
+                AddLog($"Using LM Studio at: {baseUrl}");
 
-                _cancellationTokenSource.Token.ThrowIfCancellationRequested();
-
-                // Load workflow
-                var workflowPath = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "workflow", "QwenSTORY-API.json");
-                if (!File.Exists(workflowPath))
-                {
-                    AddLog($"ERROR: Workflow file not found: {workflowPath}");
-                    System.Windows.MessageBox.Show($"Workflow file not found: {workflowPath}", "Error", System.Windows.MessageBoxButton.OK, System.Windows.MessageBoxImage.Error);
-                    return;
-                }
-
-                AddLog($"Loading workflow: {workflowPath}");
-                var workflowJson = await File.ReadAllTextAsync(workflowPath, _cancellationTokenSource.Token);
-                var workflow = JsonSerializer.Deserialize<JsonElement>(workflowJson);
-
-                _cancellationTokenSource.Token.ThrowIfCancellationRequested();
-
-                // Upload image to ComfyUI
-                ProcessingStatus = "Uploading image...";
+                ProcessingStatus = "Loading models...";
                 ProcessingProgress = 10;
-                AddLog("Uploading image to ComfyUI...");
 
-                var imageFileName = await _comfyUIService.HttpClient.UploadImageAsync(SelectedImagePath);
-                AddLog($"Image uploaded as: {imageFileName}");
+                // Get the selected model or try to find a qwen-vl model
+                var models = await _lmStudioService.GetAvailableModelsAsync(_cancellationTokenSource.Token);
+                string selectedModel = _settingsService.Settings?.LMStudioSettings?.SelectedModel ?? string.Empty;
 
-                // Update workflow with parameters
-                ProcessingStatus = "Updating workflow parameters...";
-                ProcessingProgress = 20;
-
-                var updatedWorkflow = UpdatePromptWorkflowParameters(workflow, imageFileName, CustomPrompt);
-
-                // Execute workflow
-                ProcessingStatus = "Generating prompts...";
-                ProcessingProgress = 40;
-                AddLog("Executing workflow in ComfyUI...");
-
-                var progress = new Progress<FlipPix.ComfyUI.Models.ProgressMessage>(progressMsg =>
+                if (string.IsNullOrEmpty(selectedModel))
                 {
-                    if (progressMsg.Data?.Value != null && progressMsg.Data?.Max != null)
+                    // Try to find qwen-vl model
+                    var qwenModel = models.FirstOrDefault(m =>
+                        m.Name.ToLower().Contains("qwen") && m.Name.ToLower().Contains("vl"));
+
+                    if (qwenModel != null)
                     {
-                        var percent = (double)progressMsg.Data.Value / progressMsg.Data.Max * 100;
-                        System.Windows.Application.Current.Dispatcher.Invoke(() =>
-                        {
-                            ProcessingProgress = 40 + (percent * 0.5);
-                            ProcessingStatus = $"Generating prompts: {progressMsg.Data.Value}/{progressMsg.Data.Max}";
-                        });
+                        selectedModel = qwenModel.Name;
+                        AddLog($"Auto-selected Qwen VL model: {selectedModel}");
                     }
-                });
-
-                var promptId = await _comfyUIService.ExecuteWorkflowAsync(updatedWorkflow, progress, _cancellationTokenSource.Token);
-
-                System.Windows.Application.Current.Dispatcher.Invoke(() =>
+                    else if (models.Any())
+                    {
+                        selectedModel = models.First().Name;
+                        AddLog($"Using first available model: {selectedModel}");
+                    }
+                    else
+                    {
+                        throw new Exception("No models available in LM Studio. Please load a vision model like Qwen-VL.");
+                    }
+                }
+                else
                 {
-                    ProcessingProgress = 90;
-                    ProcessingStatus = "Workflow completed, retrieving output...";
-                });
+                    AddLog($"Using configured model: {selectedModel}");
+                }
 
-                AddLog($"Workflow execution completed with prompt ID: {promptId}");
+                _cancellationTokenSource.Token.ThrowIfCancellationRequested();
 
-                // Get the generated text
-                ProcessingStatus = "Retrieving generated prompts...";
-                ProcessingProgress = 95;
+                ProcessingStatus = "Analyzing image and generating prompts...";
+                ProcessingProgress = 20;
+                AddLog("Sending image to LM Studio for prompt generation...");
 
-                // Wait a moment for the result to be available
-                await Task.Delay(2000, _cancellationTokenSource.Token);
+                // Use LM Studio for prompt generation with higher token limit
+                var generatedText = await _lmStudioService.AnalyzeImageAsync(
+                    selectedModel,
+                    SelectedImagePath,
+                    CustomPrompt,
+                    maxTokens: 2000,  // Increased token limit for 10 prompts
+                    _cancellationTokenSource.Token);
 
-                var generatedText = await GetGeneratedTextFromHistory(promptId);
+                ProcessingProgress = 90;
+                AddLog($"Generated text received ({generatedText.Length} characters)");
+
                 if (!string.IsNullOrEmpty(generatedText))
                 {
-                    AddLog($"Generated text received ({generatedText.Length} characters)");
-
                     // Parse the generated text to extract 10 prompts
                     var prompts = ExtractPromptsFromText(generatedText);
 
@@ -474,13 +611,13 @@ namespace FlipPix.UI.ViewModels
                     else
                     {
                         AddLog($"WARNING: Only extracted {prompts.Count} prompts, expected 10");
-                        System.Windows.MessageBox.Show($"Only {prompts.Count} prompts were extracted. Please try again or adjust your custom prompt.", "Warning", System.Windows.MessageBoxButton.OK, System.Windows.MessageBoxImage.Warning);
+                        System.Windows.MessageBox.Show($"Only {prompts.Count} prompts were extracted. The model returned:\n\n{generatedText}\n\nPlease try again or adjust your custom prompt.", "Warning", System.Windows.MessageBoxButton.OK, System.Windows.MessageBoxImage.Warning);
                     }
                 }
                 else
                 {
-                    AddLog("WARNING: No generated text received");
-                    System.Windows.MessageBox.Show("No text was generated. Please check the ComfyUI console for errors.", "Warning", System.Windows.MessageBoxButton.OK, System.Windows.MessageBoxImage.Warning);
+                    AddLog("WARNING: No generated text received from LM Studio");
+                    System.Windows.MessageBox.Show("No text was generated. Please check LM Studio for errors.", "Warning", System.Windows.MessageBoxButton.OK, System.Windows.MessageBoxImage.Warning);
                 }
             }
             catch (OperationCanceledException)
@@ -503,7 +640,7 @@ namespace FlipPix.UI.ViewModels
                 ProcessingProgress = 0;
 
                 System.Windows.MessageBox.Show(
-                    $"Error generating prompts:\n\n{ex.Message}\n\nCheck the log for more details.",
+                    $"Error generating prompts:\n\n{ex.Message}\n\nPlease ensure LM Studio is running and a Qwen-VL model is loaded.\n\nCheck the log for more details.",
                     "Error",
                     System.Windows.MessageBoxButton.OK,
                     System.Windows.MessageBoxImage.Error);
@@ -528,6 +665,27 @@ namespace FlipPix.UI.ViewModels
                 IsProcessing = true;
                 ProcessingProgress = 0;
                 ProcessingStatus = "Preparing video workflow...";
+
+                // Check if ComfyUI has crashed and restart if needed
+                ProcessingStatus = "Checking ComfyUI status...";
+                AddLog("Checking if ComfyUI is running...");
+
+                var comfyUIOk = await _comfyUIService.DetectAndRestartIfCrashedAsync(
+                    status => AddLog($"[Auto-Restart] {status}"),
+                    _cancellationTokenSource.Token);
+
+                if (!comfyUIOk)
+                {
+                    AddLog("ERROR: ComfyUI is not running and auto-restart failed or is disabled");
+                    System.Windows.MessageBox.Show(
+                        "ComfyUI is not running. Please start ComfyUI manually or configure auto-restart in settings.",
+                        "ComfyUI Not Running",
+                        System.Windows.MessageBoxButton.OK,
+                        System.Windows.MessageBoxImage.Warning);
+                    return;
+                }
+
+                AddLog("ComfyUI is running and responsive");
 
                 // Ensure ComfyUI is connected
                 if (!_comfyUIService.IsConnected)
@@ -872,30 +1030,70 @@ namespace FlipPix.UI.ViewModels
                 var preview = generatedText.Substring(0, Math.Min(800, generatedText.Length));
                 AddLog($"Text preview: {preview}...");
 
-                // Strategy 1: Look for "Video Clip #N:" followed by description in parentheses
-                var videoClipPattern = "Video Clip #(\\d+):\\s*\"([^\"]+)\"\\s*\\([^)]+\\)\\s*(.*?)(?=Video Clip #\\d+:|$)";
-                var matches = Regex.Matches(generatedText, videoClipPattern, RegexOptions.Singleline | RegexOptions.IgnoreCase);
+                // Strategy 1: Split by "Prompt #N:" markers and extract content between them
+                var promptSections = Regex.Split(generatedText, @"Prompt\s*#?\d+:\s*", RegexOptions.IgnoreCase)
+                    .Skip(1) // Skip empty first element
+                    .Where(s => !string.IsNullOrWhiteSpace(s))
+                    .ToList();
 
-                if (matches.Count >= 5)
+                if (promptSections.Count >= 5)
                 {
-                    AddLog($"Strategy 1: Found {matches.Count} 'Video Clip' sections");
+                    AddLog($"Strategy 1: Found {promptSections.Count} 'Prompt #N:' sections");
 
-                    foreach (Match match in matches.Take(10))
+                    foreach (var section in promptSections.Take(10))
                     {
-                        var title = CleanPrompt(match.Groups[2].Value.Trim());
-                        var description = CleanPrompt(match.Groups[3].Value.Trim());
+                        // Extract quoted text if present
+                        var quotedMatch = Regex.Match(section, "^\"([^\"]*(?:\"[^\"]*)*)\"");
+                        string promptText;
 
-                        var fullPrompt = string.IsNullOrWhiteSpace(description) ? title : $"{title}. {description}";
-
-                        if (!string.IsNullOrWhiteSpace(fullPrompt) && fullPrompt.Length > 20)
+                        if (quotedMatch.Success)
                         {
-                            prompts.Add(fullPrompt);
-                            AddLog($"  → Extracted prompt {prompts.Count}: {fullPrompt.Substring(0, Math.Min(60, fullPrompt.Length))}...");
+                            promptText = quotedMatch.Groups[1].Value;
+                        }
+                        else
+                        {
+                            // Take everything until the next newline or end, but clean it
+                            var lines = section.Split(new[] { '\n', '\r' }, StringSplitOptions.RemoveEmptyEntries);
+                            promptText = lines.FirstOrDefault()?.Trim() ?? section.Trim();
+                        }
+
+                        var cleaned = CleanPrompt(promptText);
+
+                        if (!string.IsNullOrWhiteSpace(cleaned) && cleaned.Length > 20)
+                        {
+                            prompts.Add(cleaned);
+                            AddLog($"  → Extracted prompt {prompts.Count}: {cleaned.Substring(0, Math.Min(60, cleaned.Length))}...");
                         }
                     }
                 }
 
-                // Strategy 2: Look for lines starting with "Video Clip #" without quotes
+                // Strategy 2: Look for "Video Clip #N:" followed by description in parentheses
+                if (prompts.Count < 10)
+                {
+                    var videoClipPattern = "Video Clip #(\\d+):\\s*\"([^\"]+)\"\\s*\\([^)]+\\)\\s*(.*?)(?=Video Clip #\\d+:|$)";
+                    var matches = Regex.Matches(generatedText, videoClipPattern, RegexOptions.Singleline | RegexOptions.IgnoreCase);
+
+                    if (matches.Count >= 5)
+                    {
+                        AddLog($"Strategy 2: Found {matches.Count} 'Video Clip' sections");
+
+                        foreach (Match match in matches.Take(10 - prompts.Count))
+                        {
+                            var title = CleanPrompt(match.Groups[2].Value.Trim());
+                            var description = CleanPrompt(match.Groups[3].Value.Trim());
+
+                            var fullPrompt = string.IsNullOrWhiteSpace(description) ? title : $"{title}. {description}";
+
+                            if (!string.IsNullOrWhiteSpace(fullPrompt) && fullPrompt.Length > 20)
+                            {
+                                prompts.Add(fullPrompt);
+                                AddLog($"  → Extracted prompt {prompts.Count}: {fullPrompt.Substring(0, Math.Min(60, fullPrompt.Length))}...");
+                            }
+                        }
+                    }
+                }
+
+                // Strategy 3: Look for lines starting with "Video Clip #" without quotes
                 if (prompts.Count < 10)
                 {
                     var lines = generatedText.Split(new[] { '\n', '\r' }, StringSplitOptions.RemoveEmptyEntries)
@@ -905,7 +1103,7 @@ namespace FlipPix.UI.ViewModels
 
                     if (lines.Count > 0)
                     {
-                        AddLog($"Strategy 2: Found {lines.Count} Video Clip lines");
+                        AddLog($"Strategy 3: Found {lines.Count} Video Clip lines");
                         foreach (var line in lines.Take(10 - prompts.Count))
                         {
                             // Extract the content after "Video Clip #N: " and before any time indication
@@ -922,15 +1120,15 @@ namespace FlipPix.UI.ViewModels
                     }
                 }
 
-                // Strategy 3: Extract numbered items with descriptions
+                // Strategy 4: Extract numbered items with descriptions
                 if (prompts.Count < 10)
                 {
                     var numberedPattern = "^\\s*\\d+\\.\\s*(.*?)(?=^\\s*\\d+\\.|$)";
-                    matches = Regex.Matches(generatedText, numberedPattern, RegexOptions.Multiline | RegexOptions.Singleline);
+                    var matches = Regex.Matches(generatedText, numberedPattern, RegexOptions.Multiline | RegexOptions.Singleline);
 
                     if (matches.Count > 0)
                     {
-                        AddLog($"Strategy 3: Found {matches.Count} numbered items");
+                        AddLog($"Strategy 4: Found {matches.Count} numbered items");
                         foreach (Match match in matches.Take(10 - prompts.Count))
                         {
                             var content = CleanPrompt(match.Groups[1].Value.Trim());
@@ -943,10 +1141,10 @@ namespace FlipPix.UI.ViewModels
                     }
                 }
 
-                // Strategy 4: Extract descriptive sentences
+                // Strategy 5: Extract descriptive sentences
                 if (prompts.Count < 10)
                 {
-                    AddLog($"Strategy 4: Extracting sentences (need {10 - prompts.Count} more)");
+                    AddLog($"Strategy 5: Extracting sentences (need {10 - prompts.Count} more)");
 
                     var sentences = Regex.Split(generatedText, @"(?<=[.!?])\s+(?=[A-Z])")
                         .Where(s => !string.IsNullOrWhiteSpace(s) && s.Length > 50)
@@ -968,10 +1166,10 @@ namespace FlipPix.UI.ViewModels
                     }
                 }
 
-                // Strategy 5: Fill remaining slots with variations
+                // Strategy 6: Fill remaining slots with variations
                 if (prompts.Count > 0 && prompts.Count < 10)
                 {
-                    AddLog($"Strategy 5: Filling {10 - prompts.Count} missing slots");
+                    AddLog($"Strategy 6: Filling {10 - prompts.Count} missing slots");
                     var basePrompts = prompts.ToList();
 
                     for (int i = prompts.Count; i < 10; i++)
@@ -1015,10 +1213,11 @@ namespace FlipPix.UI.ViewModels
             // Clean up dashes
             prompt = prompt.Replace("—", " - ").Replace("–", " - ");
 
-            // Remove common prefixes
-            prompt = Regex.Replace(prompt, @"^Video Clip #\d+:\s*", "", RegexOptions.IgnoreCase);
-            prompt = Regex.Replace(prompt, @"^\d+\.\s*", "");
-            prompt = Regex.Replace(prompt, @"^[🎬📖]\s*", "");
+            // Remove common prefixes - Add "Prompt #N:" pattern
+            prompt = Regex.Replace(prompt, @"^Prompt\s*#?\d+:\s*", "", RegexOptions.IgnoreCase | RegexOptions.Multiline);
+            prompt = Regex.Replace(prompt, @"^Video Clip #\d+:\s*", "", RegexOptions.IgnoreCase | RegexOptions.Multiline);
+            prompt = Regex.Replace(prompt, @"^\d+\.\s*", "", RegexOptions.Multiline);
+            prompt = Regex.Replace(prompt, @"^[🎬📖]\s*", "", RegexOptions.Multiline);
 
             // Remove quotes
             prompt = prompt.Replace("\"", "").Replace("'", "");
@@ -1027,6 +1226,11 @@ namespace FlipPix.UI.ViewModels
             prompt = Regex.Replace(prompt, @"SFX:[^.\n]*\.?", "");
             prompt = Regex.Replace(prompt, @"\*[^*]*Sound[^*]*\*", "");
             prompt = Regex.Replace(prompt, @"\*[^*]*Camera[^*]*\*", "");
+
+            // Remove meta-commentary
+            prompt = Regex.Replace(prompt, @"Absolutely - here are[^:]*:\s*", "", RegexOptions.IgnoreCase);
+            prompt = Regex.Replace(prompt, @"Here are[^:]*:\s*", "", RegexOptions.IgnoreCase);
+            prompt = Regex.Replace(prompt, @"Of course[^:]*:\s*", "", RegexOptions.IgnoreCase);
 
             // Clean up whitespace
             prompt = Regex.Replace(prompt, @"\s+", " ");

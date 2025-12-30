@@ -1,5 +1,6 @@
 using System.ComponentModel;
 using System.IO;
+using System.Text.Json;
 
 namespace FlipPix.UI.Models
 {
@@ -10,7 +11,7 @@ namespace FlipPix.UI.Models
         private string _videoPath = string.Empty;
         private string _imagePath = string.Empty;
 
-        public string Id { get; } = Guid.NewGuid().ToString();
+        public string Id { get; set; } = Guid.NewGuid().ToString();
 
         public string Prompt
         {

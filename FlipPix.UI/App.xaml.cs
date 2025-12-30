@@ -165,6 +165,7 @@ namespace FlipPix.UI
             services.AddSingleton<WorkflowExecutionService>();
             services.AddSingleton<ChunkCreatorService>();
             services.AddHttpClient<OllamaService>();
+            services.AddHttpClient<LMStudioService>();
 
             // Prompt service
             services.AddSingleton<IPromptService, PromptService>();
@@ -222,9 +223,10 @@ namespace FlipPix.UI
             services.AddTransient<VideoGeneratorViewModel>(provider =>
             {
                 var comfyUIService = provider.GetRequiredService<FlipPix.ComfyUI.Services.ComfyUIService>();
+                var lmStudioService = provider.GetRequiredService<LMStudioService>();
                 var logger = provider.GetRequiredService<IAppLogger>();
                 var settingsService = provider.GetRequiredService<SettingsService>();
-                return new VideoGeneratorViewModel(comfyUIService, logger, settingsService, provider);
+                return new VideoGeneratorViewModel(comfyUIService, lmStudioService, logger, settingsService, provider);
             });
             services.AddTransient<ImageGeneratorViewModel>(provider =>
             {
@@ -237,16 +239,18 @@ namespace FlipPix.UI
             services.AddTransient<ImageAnalyzerViewModel>(provider =>
             {
                 var comfyUIService = provider.GetRequiredService<FlipPix.ComfyUI.Services.ComfyUIService>();
+                var lmStudioService = provider.GetRequiredService<LMStudioService>();
                 var logger = provider.GetRequiredService<IAppLogger>();
                 var settingsService = provider.GetRequiredService<SettingsService>();
-                return new ImageAnalyzerViewModel(comfyUIService, logger, settingsService);
+                return new ImageAnalyzerViewModel(comfyUIService, lmStudioService, logger, settingsService);
             });
             services.AddTransient<StoryVideoViewModel>(provider =>
             {
                 var comfyUIService = provider.GetRequiredService<FlipPix.ComfyUI.Services.ComfyUIService>();
+                var lmStudioService = provider.GetRequiredService<LMStudioService>();
                 var logger = provider.GetRequiredService<IAppLogger>();
                 var settingsService = provider.GetRequiredService<SettingsService>();
-                return new StoryVideoViewModel(comfyUIService, logger, settingsService);
+                return new StoryVideoViewModel(comfyUIService, lmStudioService, logger, settingsService);
             });
             services.AddTransient<OllamaViewModel>(provider =>
             {

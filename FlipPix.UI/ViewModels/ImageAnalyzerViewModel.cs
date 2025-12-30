@@ -11,13 +11,17 @@ using System.Windows.Input;
 using System.Windows.Media.Imaging;
 using FlipPix.ComfyUI.Services;
 using FlipPix.Core.Interfaces;
+using FlipPix.UI.Services;
+using FlipPix.UI.Models;
 using Microsoft.Win32;
+using ComfyUIService = FlipPix.ComfyUI.Services.ComfyUIService;
 
 namespace FlipPix.UI.ViewModels
 {
     public class ImageAnalyzerViewModel : INotifyPropertyChanged
     {
         private readonly ComfyUIService _comfyUIService;
+        private readonly LMStudioService _lmStudioService;
         private readonly IAppLogger _logger;
         private readonly FlipPix.Core.Services.SettingsService _settingsService;
 
@@ -35,6 +39,7 @@ namespace FlipPix.UI.ViewModels
         private long _seed = 0;
         private string _comfyUIServer = "127.0.0.1";
         private string _comfyUIPort = "8188";
+        private List<LMStudioModel> _availableModels = new List<LMStudioModel>();
         private string _statusBarMessage = "Ready to analyze images";
         private bool _hasResultImage = false;
         private string _resultImagePath = string.Empty;
@@ -44,9 +49,10 @@ namespace FlipPix.UI.ViewModels
 
         public event PropertyChangedEventHandler? PropertyChanged;
 
-        public ImageAnalyzerViewModel(ComfyUIService comfyUIService, IAppLogger logger, FlipPix.Core.Services.SettingsService settingsService)
+        public ImageAnalyzerViewModel(ComfyUIService comfyUIService, LMStudioService lmStudioService, IAppLogger logger, FlipPix.Core.Services.SettingsService settingsService)
         {
             _comfyUIService = comfyUIService ?? throw new ArgumentNullException(nameof(comfyUIService));
+            _lmStudioService = lmStudioService ?? throw new ArgumentNullException(nameof(lmStudioService));
             _logger = logger ?? throw new ArgumentNullException(nameof(logger));
             _settingsService = settingsService ?? throw new ArgumentNullException(nameof(settingsService));
 
@@ -55,6 +61,8 @@ namespace FlipPix.UI.ViewModels
             AnalyzeImageCommand = new RelayCommand(async () => await AnalyzeImageAsync(), () => HasSourceImage && !IsAnalyzing && !IsGenerating);
             GenerateImageCommand = new RelayCommand(async () => await GenerateImageAsync(), () => CanGenerate);
             OpenResultFolderCommand = new RelayCommand(OpenResultFolder, () => HasResultImage);
+            TestLMStudioConnectionCommand = new RelayCommand(async () => await TestLMStudioConnectionAsync(), () => !IsAnalyzing && !IsGenerating);
+            RefreshModelsCommand = new RelayCommand(async () => await RefreshModelsAsync(), () => !IsAnalyzing && !IsGenerating);
 
             // Load ComfyUI settings
             if (_settingsService.Settings != null)
@@ -63,6 +71,9 @@ namespace FlipPix.UI.ViewModels
                 ComfyUIServer = uri.Host;
                 ComfyUIPort = uri.Port.ToString();
             }
+
+            // Initialize LM Studio
+            InitializeLMStudio();
 
             _logger.LogInfo("Image Analyzer initialized");
         }
@@ -217,6 +228,109 @@ namespace FlipPix.UI.ViewModels
             }
         }
 
+        public string LMStudioServer
+        {
+            get
+            {
+                var uri = new Uri(_settingsService.Settings?.LMStudioSettings?.BaseUrl ?? "http://localhost:1234");
+                return uri.Host;
+            }
+            set
+            {
+                if (_settingsService.Settings?.LMStudioSettings != null && !string.IsNullOrEmpty(value))
+                {
+                    var currentUri = new Uri(_settingsService.Settings.LMStudioSettings.BaseUrl);
+                    var newUri = new UriBuilder(currentUri) { Host = value }.Uri;
+                    _settingsService.Settings.LMStudioSettings.BaseUrl = newUri.ToString();
+                    OnPropertyChanged();
+
+                    // Save settings when server changes
+                    _ = Task.Run(() =>
+                    {
+                        try
+                        {
+                            _settingsService.SaveSettings(_settingsService.Settings);
+                            _logger.LogInfo($"Saved LM Studio server: {value}");
+                        }
+                        catch (Exception ex)
+                        {
+                            _logger.LogError($"Error saving LM Studio settings: {ex.Message}");
+                        }
+                    });
+                }
+            }
+        }
+
+        public string LMStudioPort
+        {
+            get
+            {
+                var uri = new Uri(_settingsService.Settings?.LMStudioSettings?.BaseUrl ?? "http://localhost:1234");
+                return uri.Port.ToString();
+            }
+            set
+            {
+                if (_settingsService.Settings?.LMStudioSettings != null && !string.IsNullOrEmpty(value) && int.TryParse(value, out var port))
+                {
+                    var currentUri = new Uri(_settingsService.Settings.LMStudioSettings.BaseUrl);
+                    var newUri = new UriBuilder(currentUri) { Port = port }.Uri;
+                    _settingsService.Settings.LMStudioSettings.BaseUrl = newUri.ToString();
+                    OnPropertyChanged();
+
+                    // Save settings when port changes
+                    _ = Task.Run(() =>
+                    {
+                        try
+                        {
+                            _settingsService.SaveSettings(_settingsService.Settings);
+                            _logger.LogInfo($"Saved LM Studio port: {value}");
+                        }
+                        catch (Exception ex)
+                        {
+                            _logger.LogError($"Error saving LM Studio settings: {ex.Message}");
+                        }
+                    });
+                }
+            }
+        }
+
+        public string SelectedModel
+        {
+            get => _settingsService.Settings?.LMStudioSettings?.SelectedModel ?? string.Empty;
+            set
+            {
+                if (_settingsService.Settings?.LMStudioSettings != null)
+                {
+                    _settingsService.Settings.LMStudioSettings.SelectedModel = value;
+                    OnPropertyChanged();
+
+                    // Save settings when model changes
+                    _ = Task.Run(() =>
+                    {
+                        try
+                        {
+                            _settingsService.SaveSettings(_settingsService.Settings);
+                            _logger.LogInfo($"Saved LM Studio model selection: {value}");
+                        }
+                        catch (Exception ex)
+                        {
+                            _logger.LogError($"Error saving LM Studio settings: {ex.Message}");
+                        }
+                    });
+                }
+            }
+        }
+
+        public List<LMStudioModel> AvailableModels
+        {
+            get => _availableModels;
+            set
+            {
+                _availableModels = value;
+                OnPropertyChanged();
+            }
+        }
+
         public string StatusBarMessage
         {
             get => _statusBarMessage;
@@ -275,8 +389,72 @@ namespace FlipPix.UI.ViewModels
         public ICommand AnalyzeImageCommand { get; }
         public ICommand GenerateImageCommand { get; }
         public ICommand OpenResultFolderCommand { get; }
+        public ICommand TestLMStudioConnectionCommand { get; }
+        public ICommand RefreshModelsCommand { get; }
 
         // Methods
+        private async void InitializeLMStudio()
+        {
+            try
+            {
+                var baseUrl = _settingsService.Settings?.LMStudioSettings?.BaseUrl ?? "http://localhost:1234";
+                await _lmStudioService.SetBaseUrlAsync(baseUrl);
+
+                _logger.LogInfo($"LM Studio configured for {baseUrl}");
+
+                // Try to load available models
+                try
+                {
+                    var models = await _lmStudioService.GetAvailableModelsAsync();
+                    AvailableModels = models;
+
+                    // Select previously saved model or find a good default
+                    var savedModel = _settingsService.Settings?.LMStudioSettings?.SelectedModel;
+
+                    if (!string.IsNullOrEmpty(savedModel))
+                    {
+                        // Try to find the saved model
+                        var savedModelObj = models.FirstOrDefault(m =>
+                            m.Name == savedModel || m.Id == savedModel);
+                        if (savedModelObj != null)
+                        {
+                            SelectedModel = savedModelObj.Name;
+                            _logger.LogInfo($"Using saved model: {savedModelObj.Name}");
+                            return;
+                        }
+                    }
+
+                    // Try to find qwen-vl model as default
+                    var qwenModel = models.FirstOrDefault(m =>
+                        m.Name.ToLower().Contains("qwen") && m.Name.ToLower().Contains("vl"));
+
+                    if (qwenModel != null)
+                    {
+                        SelectedModel = qwenModel.Name;
+                        _logger.LogInfo($"Found and selected Qwen VL model: {qwenModel.Name}");
+                    }
+                    else if (models.Any())
+                    {
+                        // Use first available model
+                        SelectedModel = models.First().Name;
+                        _logger.LogInfo($"Using first available model: {models.First().Name}");
+                    }
+                    else
+                    {
+                        _logger.LogWarning("No models available in LM Studio");
+                    }
+                }
+                catch (Exception ex)
+                {
+                    _logger.LogWarning($"Could not load LM Studio models: {ex.Message}");
+                }
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError($"Error initializing LM Studio: {ex.Message}");
+            }
+        }
+
         private void BrowseImage()
         {
             var openFileDialog = new Microsoft.Win32.OpenFileDialog
@@ -325,82 +503,30 @@ namespace FlipPix.UI.ViewModels
 
             try
             {
-                _logger.LogInfo("=== Starting image analysis with QwenVL ===");
+                _logger.LogInfo("=== Starting image analysis with LM Studio QwenVL ===");
                 IsAnalyzing = true;
                 StatusBarMessage = "Analyzing image...";
-                AnalysisText = "Analyzing image with QwenVL AI...";
+                AnalysisText = "Analyzing image with LM Studio QwenVL AI...";
 
-                // Ensure ComfyUI is connected
-                if (!_comfyUIService.IsConnected)
-                {
-                    _logger.LogInfo("Connecting to ComfyUI WebSocket...");
-                    await _comfyUIService.ConnectAsync(_cancellationTokenSource.Token);
-                    _logger.LogInfo("Connected to ComfyUI");
-                }
+                // Use LM Studio for image analysis
+                var analysisPrompt = "Describe this image in detail, including colors, objects, composition, and mood.";
 
-                // Load workflow
-                var workflowPath = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "workflow", "qwen-zimageAPI.json");
-                if (!File.Exists(workflowPath))
-                {
-                    _logger.LogError($"Workflow file not found: {workflowPath}");
-                    System.Windows.MessageBox.Show($"Workflow file not found:\n{workflowPath}", "Error", System.Windows.MessageBoxButton.OK, System.Windows.MessageBoxImage.Error);
-                    return;
-                }
-
-                _logger.LogInfo($"Loading workflow: {workflowPath}");
-                var workflowJson = await File.ReadAllTextAsync(workflowPath, _cancellationTokenSource.Token);
-                var workflow = JsonSerializer.Deserialize<Dictionary<string, JsonElement>>(workflowJson);
-
-                if (workflow == null)
-                {
-                    _logger.LogError("Failed to parse workflow JSON");
-                    return;
-                }
-
-                // Upload the source image
-                _logger.LogInfo($"Uploading source image: {SourceImagePath}");
-                var uploadedFileName = await _comfyUIService.HttpClient.UploadImageAsync(SourceImagePath);
-                _logger.LogInfo($"Image uploaded as: {uploadedFileName}");
-
-                // Update workflow node 58 (LoadImage) with uploaded filename
-                if (workflow.ContainsKey("58"))
-                {
-                    var node58 = JsonSerializer.Deserialize<Dictionary<string, object>>(workflow["58"].GetRawText());
-                    if (node58 != null && node58.ContainsKey("inputs"))
-                    {
-                        var inputs = JsonSerializer.Deserialize<Dictionary<string, object>>(
-                            JsonSerializer.Serialize(node58["inputs"]));
-                        if (inputs != null)
-                        {
-                            inputs["image"] = uploadedFileName;
-                            node58["inputs"] = inputs;
-                            workflow["58"] = JsonSerializer.SerializeToElement(node58);
-                        }
-                    }
-                }
-
-                // Execute workflow for analysis only
-                _logger.LogInfo("Executing QwenVL analysis workflow...");
-
-                var promptId = await _comfyUIService.ExecuteWorkflowAsync(workflow, null, _cancellationTokenSource.Token);
-                _logger.LogInfo($"Analysis workflow executed with prompt ID: {promptId}");
-
-                // Wait for the workflow to complete and retrieve the text output
-                await Task.Delay(2000, _cancellationTokenSource.Token); // Give it time to process
-
-                // Try to get the text output from the workflow
-                // This is a simplified version - in production, you'd parse the actual output from ComfyUI
-                var analysisResult = await TryGetAnalysisOutputAsync(promptId);
+                var analysisResult = await _lmStudioService.AnalyzeImageAsync(
+                    SelectedModel,
+                    SourceImagePath,
+                    analysisPrompt,
+                    maxTokens: 500,
+                    _cancellationTokenSource.Token);
 
                 if (!string.IsNullOrEmpty(analysisResult))
                 {
                     AnalysisText = analysisResult;
                     StatusBarMessage = "Analysis complete - ready to generate";
-                    _logger.LogInfo("Analysis completed successfully");
+                    _logger.LogInfo("Analysis completed successfully with LM Studio");
                 }
                 else
                 {
-                    AnalysisText = "Analysis completed, but no text was returned. Please check ComfyUI logs.";
+                    AnalysisText = "Analysis completed, but no text was returned from LM Studio.";
                     StatusBarMessage = "Analysis complete (no output detected)";
                     _logger.LogWarning("Analysis completed but no text output was detected");
                 }
@@ -416,7 +542,7 @@ namespace FlipPix.UI.ViewModels
                 _logger.LogError($"Error analyzing image: {ex.Message}");
                 AnalysisText = $"Error analyzing image:\n{ex.Message}";
                 StatusBarMessage = "Analysis failed";
-                System.Windows.MessageBox.Show($"Error analyzing image:\n\n{ex.Message}", "Error", System.Windows.MessageBoxButton.OK, System.Windows.MessageBoxImage.Error);
+                System.Windows.MessageBox.Show($"Error analyzing image:\n\n{ex.Message}\n\nPlease ensure LM Studio is running on {LMStudioServer}:{LMStudioPort} and the QwenVL model is loaded.", "Error", System.Windows.MessageBoxButton.OK, System.Windows.MessageBoxImage.Error);
             }
             finally
             {
@@ -1152,6 +1278,69 @@ namespace FlipPix.UI.ViewModels
             }
 
             return !string.IsNullOrEmpty(serverAddress);
+        }
+
+        private async Task TestLMStudioConnectionAsync()
+        {
+            try
+            {
+                StatusBarMessage = "Testing LM Studio connection...";
+                _logger.LogInfo("Testing LM Studio connection...");
+
+                var baseUrl = _settingsService.Settings?.LMStudioSettings?.BaseUrl ?? "http://localhost:1234";
+                await _lmStudioService.SetBaseUrlAsync(baseUrl);
+
+                var isRunning = await _lmStudioService.IsRunningAsync();
+                if (isRunning)
+                {
+                    StatusBarMessage = "LM Studio connection successful";
+                    _logger.LogInfo("LM Studio connection test successful");
+                    System.Windows.MessageBox.Show("Successfully connected to LM Studio!", "Connection Test",
+                        System.Windows.MessageBoxButton.OK, System.Windows.MessageBoxImage.Information);
+                }
+                else
+                {
+                    StatusBarMessage = "LM Studio connection failed";
+                    _logger.LogError("LM Studio connection test failed - service not responding");
+                    System.Windows.MessageBox.Show("Failed to connect to LM Studio. Please ensure LM Studio is running and accessible.", "Connection Test Failed",
+                        System.Windows.MessageBoxButton.OK, System.Windows.MessageBoxImage.Warning);
+                }
+            }
+            catch (Exception ex)
+            {
+                StatusBarMessage = "LM Studio connection error";
+                _logger.LogError($"Error testing LM Studio connection: {ex.Message}");
+                System.Windows.MessageBox.Show($"Error connecting to LM Studio: {ex.Message}", "Connection Error",
+                    System.Windows.MessageBoxButton.OK, System.Windows.MessageBoxImage.Error);
+            }
+        }
+
+        private async Task RefreshModelsAsync()
+        {
+            try
+            {
+                StatusBarMessage = "Refreshing LM Studio models...";
+                _logger.LogInfo("Refreshing LM Studio models...");
+
+                var models = await _lmStudioService.GetAvailableModelsAsync();
+                AvailableModels = models;
+
+                StatusBarMessage = $"Found {models.Count} models";
+                _logger.LogInfo($"Model refresh completed: {models.Count} models found");
+
+                if (!models.Any())
+                {
+                    System.Windows.MessageBox.Show("No models found in LM Studio. Please load a model in LM Studio.", "No Models Found",
+                        System.Windows.MessageBoxButton.OK, System.Windows.MessageBoxImage.Warning);
+                }
+            }
+            catch (Exception ex)
+            {
+                StatusBarMessage = "Error refreshing models";
+                _logger.LogError($"Error refreshing models: {ex.Message}");
+                System.Windows.MessageBox.Show($"Error refreshing models: {ex.Message}", "Refresh Error",
+                    System.Windows.MessageBoxButton.OK, System.Windows.MessageBoxImage.Error);
+            }
         }
 
         protected void OnPropertyChanged([CallerMemberName] string? propertyName = null)

@@ -15,6 +15,7 @@ using FlipPix.ComfyUI.Services;
 using FlipPix.Core.Interfaces;
 using FlipPix.UI.Models;
 using FlipPix.UI.Services;
+using Microsoft.Extensions.DependencyInjection;
 using YamlDotNet.Serialization;
 
 namespace FlipPix.UI.ViewModels
@@ -50,6 +51,7 @@ namespace FlipPix.UI.ViewModels
         // Nested ViewModels for tabs
         private ImageAnalyzerViewModel _analyzer;
         private FlipPixViewModel _cameraEdit;
+        private StoryImageGeneratorViewModel _storyGenerator;
 
         
         public ImageGeneratorViewModel(FlipPix.ComfyUI.Services.ComfyUIService comfyUIService, IAppLogger logger, FlipPix.Core.Services.SettingsService settingsService, IServiceProvider? serviceProvider = null, IPromptService? promptService = null)
@@ -60,8 +62,10 @@ namespace FlipPix.UI.ViewModels
             _serviceProvider = serviceProvider;
 
             // Initialize nested ViewModels
-            _analyzer = new ImageAnalyzerViewModel(comfyUIService, logger, settingsService);
+            var lmStudioService = serviceProvider?.GetRequiredService<LMStudioService>();
+            _analyzer = new ImageAnalyzerViewModel(comfyUIService, lmStudioService ?? throw new InvalidOperationException("LMStudioService is required"), logger, settingsService);
             _cameraEdit = new FlipPixViewModel(comfyUIService, logger, settingsService, serviceProvider);
+            _storyGenerator = new StoryImageGeneratorViewModel(comfyUIService, logger, settingsService);
 
             // Initialize commands
             GenerateImageCommand = new RelayCommand(async () => await GenerateImageAsync(), () => CanGenerate);
@@ -142,6 +146,7 @@ namespace FlipPix.UI.ViewModels
         // Nested ViewModel properties
         public ImageAnalyzerViewModel Analyzer => _analyzer;
         public FlipPixViewModel CameraEdit => _cameraEdit;
+        public StoryImageGeneratorViewModel StoryGenerator => _storyGenerator;
 
         public string ProcessingStatus
         {
@@ -1153,27 +1158,24 @@ namespace FlipPix.UI.ViewModels
 
         private void SendToCameraEdit()
         {
-            if (!HasResultImage || _serviceProvider == null) return;
+            if (!HasResultImage) return;
 
             try
             {
-                var cameraEditWindow = _serviceProvider.GetService(typeof(FlipPixWindow)) as FlipPixWindow;
-                if (cameraEditWindow != null)
-                {
-                    cameraEditWindow.Show();
+                // Set the image path on the embedded CameraEdit tab
+                _cameraEdit.SetImagePath(ResultImagePath);
 
-                    if (cameraEditWindow.DataContext is FlipPixViewModel viewModel)
-                    {
-                        viewModel.SetImagePath(ResultImagePath);
-                    }
+                // Navigate to the Camera Edit tab
+                SelectedTabIndex = 2;
 
-                    AddLog($"Sent image to Camera Edit: {Path.GetFileName(ResultImagePath)}");
-                }
+                AddLog($"Sent image to Camera Edit tab: {Path.GetFileName(ResultImagePath)}");
+                StatusBarMessage = $"Image sent to Camera Edit tab: {Path.GetFileName(ResultImagePath)}";
             }
             catch (Exception ex)
             {
                 AddLog($"ERROR sending to Camera Edit: {ex.Message}");
-                System.Windows.MessageBox.Show($"Error opening Camera Edit window:\n\n{ex.Message}", "Error", System.Windows.MessageBoxButton.OK, System.Windows.MessageBoxImage.Error);
+                _logger.LogError($"Error sending to Camera Edit: {ex}");
+                System.Windows.MessageBox.Show($"Error sending image to Camera Edit tab:\n\n{ex.Message}", "Error", System.Windows.MessageBoxButton.OK, System.Windows.MessageBoxImage.Error);
             }
         }
 

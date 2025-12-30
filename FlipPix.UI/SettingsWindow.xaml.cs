@@ -42,7 +42,11 @@ namespace FlipPix.UI
                 ComfyUIFolderPath = original.ComfyUIFolderPath,
                 OutputFolderPath = original.OutputFolderPath,
                 RemoteOutputFolderPath = original.RemoteOutputFolderPath,
-                SavedCameraPrompts = original.SavedCameraPrompts
+                SavedCameraPrompts = original.SavedCameraPrompts,
+                AutoRestartComfyUI = original.AutoRestartComfyUI,
+                ComfyUIRestartScriptPath = original.ComfyUIRestartScriptPath,
+                ComfyUIRestartDelaySeconds = original.ComfyUIRestartDelaySeconds,
+                ComfyUIStartupTimeoutSeconds = original.ComfyUIStartupTimeoutSeconds
             };
         }
 
@@ -82,6 +86,28 @@ namespace FlipPix.UI
             if (dialog.ShowDialog() == System.Windows.Forms.DialogResult.OK)
             {
                 OutputPathTextBox.Text = dialog.SelectedPath;
+                UpdateStatus();
+            }
+        }
+
+        private void BrowseRestartScript_Click(object sender, RoutedEventArgs e)
+        {
+            var dialog = new Microsoft.Win32.OpenFileDialog
+            {
+                Title = "Select ComfyUI Restart Script",
+                Filter = "Batch Files (*.bat)|*.bat|All Files (*.*)|*.*",
+                FileName = "run_nvidia_gpu.bat"
+            };
+
+            if (!string.IsNullOrEmpty(ComfyUIRestartScriptTextBox.Text))
+            {
+                dialog.InitialDirectory = Path.GetDirectoryName(ComfyUIRestartScriptTextBox.Text);
+                dialog.FileName = Path.GetFileName(ComfyUIRestartScriptTextBox.Text);
+            }
+
+            if (dialog.ShowDialog() == true)
+            {
+                ComfyUIRestartScriptTextBox.Text = dialog.FileName;
                 UpdateStatus();
             }
         }
@@ -179,6 +205,155 @@ namespace FlipPix.UI
             }
         }
 
+        private async void TestLMStudioConnection_Click(object sender, RoutedEventArgs e)
+        {
+            try
+            {
+                var server = LMStudioServerTextBox.Text.Trim();
+                var port = LMStudioPortTextBox.Text.Trim();
+
+                if (string.IsNullOrWhiteSpace(server) || string.IsNullOrWhiteSpace(port))
+                {
+                    MessageBox.Show("Please enter both server and port.", "Validation Error", MessageBoxButton.OK, MessageBoxImage.Warning);
+                    return;
+                }
+
+                var baseUrl = $"http://{server}:{port}";
+                var results = new System.Text.StringBuilder();
+                results.AppendLine($"Testing connection to: {baseUrl}");
+                results.AppendLine();
+
+                // Test 1: Basic TCP connectivity
+                results.AppendLine("1. Testing TCP connectivity...");
+                try
+                {
+                    using var tcpClient = new System.Net.Sockets.TcpClient();
+                    await tcpClient.ConnectAsync(server, int.Parse(port));
+                    results.AppendLine("   ✓ TCP connection successful");
+                }
+                catch (Exception ex)
+                {
+                    results.AppendLine($"   ✗ TCP connection failed: {ex.Message}");
+                }
+
+                results.AppendLine();
+
+                // Test 2: HTTP connectivity
+                results.AppendLine("2. Testing HTTP connectivity...");
+                try
+                {
+                    using var httpClient = new System.Net.Http.HttpClient { Timeout = TimeSpan.FromSeconds(10) };
+
+                    // Try root endpoint first
+                    try
+                    {
+                        var rootResponse = await httpClient.GetAsync($"{baseUrl}/");
+                        results.AppendLine($"   ✓ Root endpoint: {rootResponse.StatusCode}");
+                    }
+                    catch (Exception ex)
+                    {
+                        results.AppendLine($"   ✗ Root endpoint failed: {ex.Message}");
+                    }
+
+                    // Try models endpoint
+                    try
+                    {
+                        var modelsResponse = await httpClient.GetAsync($"{baseUrl}/v1/models");
+                        if (modelsResponse.IsSuccessStatusCode)
+                        {
+                            results.AppendLine($"   ✓ Models endpoint: {modelsResponse.StatusCode}");
+                            var content = await modelsResponse.Content.ReadAsStringAsync();
+                            results.AppendLine($"   ✓ Response received ({content.Length} chars)");
+                        }
+                        else
+                        {
+                            results.AppendLine($"   ✗ Models endpoint failed: {modelsResponse.StatusCode}");
+                            var errorContent = await modelsResponse.Content.ReadAsStringAsync();
+                            results.AppendLine($"   ✗ Error: {errorContent}");
+                        }
+                    }
+                    catch (Exception ex)
+                    {
+                        results.AppendLine($"   ✗ Models endpoint failed: {ex.Message}");
+                    }
+                }
+                catch (Exception ex)
+                {
+                    results.AppendLine($"   ✗ HTTP connectivity failed: {ex.Message}");
+                }
+
+                results.AppendLine();
+                // Test 3: DNS Resolution
+                results.AppendLine();
+                results.AppendLine("3. Testing DNS resolution...");
+                try
+                {
+                    var addresses = System.Net.Dns.GetHostAddresses(server);
+                    if (addresses.Length > 0)
+                    {
+                        results.AppendLine($"   ✓ DNS resolution successful");
+                        foreach (var addr in addresses)
+                        {
+                            results.AppendLine($"   ✓ {addr}");
+                        }
+                    }
+                }
+                catch (Exception ex)
+                {
+                    results.AppendLine($"   ✗ DNS resolution failed: {ex.Message}");
+                    results.AppendLine("   ✗ Try using the IP address instead of hostname");
+                }
+
+                results.AppendLine();
+                results.AppendLine("4. Troubleshooting suggestions:");
+                results.AppendLine("   • If DNS fails, try using the IP address directly");
+                results.AppendLine("   • Ensure LM Studio is running on the remote machine");
+                results.AppendLine("   • Verify port 1234 is open in firewall");
+                results.AppendLine("   • Make sure LM Studio accepts remote connections");
+                results.AppendLine("   • Try IP address like: 192.168.1.100 or similar");
+
+                MessageBox.Show(results.ToString(), "LM Studio Connection Test Results",
+                    MessageBoxButton.OK, MessageBoxImage.Information);
+            }
+            catch (Exception ex)
+            {
+                MessageBox.Show($"Error running connection test: {ex.Message}", "Connection Error", MessageBoxButton.OK, MessageBoxImage.Error);
+            }
+        }
+
+        private async void RefreshLMStudioModels_Click(object sender, RoutedEventArgs e)
+        {
+            try
+            {
+                var server = LMStudioServerTextBox.Text.Trim();
+                var port = LMStudioPortTextBox.Text.Trim();
+
+                if (string.IsNullOrWhiteSpace(server) || string.IsNullOrWhiteSpace(port))
+                {
+                    MessageBox.Show("Please enter both server and port.", "Validation Error", MessageBoxButton.OK, MessageBoxImage.Warning);
+                    return;
+                }
+
+                var baseUrl = $"http://{server}:{port}";
+                using var httpClient = new System.Net.Http.HttpClient { Timeout = TimeSpan.FromSeconds(10) };
+
+                var response = await httpClient.GetAsync($"{baseUrl}/v1/models");
+                if (response.IsSuccessStatusCode)
+                {
+                    var json = await response.Content.ReadAsStringAsync();
+                    MessageBox.Show("Successfully connected to LM Studio! Models available.", "Models Refreshed", MessageBoxButton.OK, MessageBoxImage.Information);
+                }
+                else
+                {
+                    MessageBox.Show($"Failed to get models. Status: {response.StatusCode}", "Refresh Failed", MessageBoxButton.OK, MessageBoxImage.Warning);
+                }
+            }
+            catch (Exception ex)
+            {
+                MessageBox.Show($"Error refreshing models: {ex.Message}", "Refresh Error", MessageBoxButton.OK, MessageBoxImage.Error);
+            }
+        }
+
         private void Cancel_Click(object sender, RoutedEventArgs e)
         {
             DialogResult = false;
@@ -225,7 +400,11 @@ namespace FlipPix.UI
                     ComfyUIFolderPath = ComfyUIPathTextBox.Text?.Trim() ?? "",
                     OutputFolderPath = OutputPathTextBox.Text?.Trim() ?? "",
                     RemoteOutputFolderPath = _originalSettings.RemoteOutputFolderPath,
-                    SavedCameraPrompts = _originalSettings.SavedCameraPrompts
+                    SavedCameraPrompts = _originalSettings.SavedCameraPrompts,
+                    AutoRestartComfyUI = AutoRestartCheckBox.IsChecked ?? true,
+                    ComfyUIRestartScriptPath = ComfyUIRestartScriptTextBox.Text?.Trim() ?? "",
+                    ComfyUIRestartDelaySeconds = int.TryParse(RestartDelayTextBox.Text, out var restartDelay) ? restartDelay : 10,
+                    ComfyUIStartupTimeoutSeconds = int.TryParse(StartupTimeoutTextBox.Text, out var startupTimeout) ? startupTimeout : 120
                 };
 
                 _settingsService.SaveSettings(newSettings);

@@ -44,7 +44,7 @@ bld/
 publish/
 publish*/
 *.pdb
-
+prompts/
 # Release packages (generated files)
 *-Release.zip
 *-Setup.exe

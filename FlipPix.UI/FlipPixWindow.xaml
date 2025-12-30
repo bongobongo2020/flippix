@@ -4,7 +4,7 @@
         xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
         xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
         mc:Ignorable="d"
-        Title="FlipPix - Transform Camera Angles" Height="700" Width="950"
+        Title="FlipPix - Transform Camera Angles" Height="900" Width="950"
         WindowStartupLocation="CenterScreen"
         WindowState="Normal"
         WindowStyle="SingleBorderWindow"
@@ -377,6 +377,231 @@
                             </Border>
                         </StackPanel>
                     </Grid>
+                </Border>
+
+                <!-- Queue Management Section -->
+                <Border Style="{StaticResource SectionPanelStyle}">
+                    <StackPanel>
+                        <TextBlock Text="📋 Queue Management" Style="{StaticResource HeaderTextStyle}" Foreground="#FF6B35"/>
+
+                        <!-- Queue Controls -->
+                        <Grid Margin="0,0,0,15">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="*"/>
+                                <ColumnDefinition Width="*"/>
+                                <ColumnDefinition Width="*"/>
+                            </Grid.ColumnDefinitions>
+
+                            <Button Grid.Column="0"
+                                   Content="➕ Add to Queue"
+                                   Style="{StaticResource SecondaryButtonStyle}"
+                                   Command="{Binding AddToQueueCommand}"
+                                   Margin="0,0,5,0"/>
+
+                            <Button Grid.Column="1"
+                                   Content="🚀 Process Queue"
+                                   Style="{StaticResource PrimaryButtonStyle}"
+                                   Command="{Binding ProcessQueueCommand}"
+                                   Margin="5,0,5,0"/>
+
+                            <Button Grid.Column="2"
+                                   Content="🗑️ Clear Queue"
+                                   Command="{Binding ClearQueueCommand}"
+                                   Margin="5,0,0,0">
+                                <Button.Style>
+                                    <Style TargetType="Button" BasedOn="{StaticResource SecondaryButtonStyle}">
+                                        <Setter Property="Background" Value="#DC3545"/>
+                                        <Style.Triggers>
+                                            <Trigger Property="IsMouseOver" Value="True">
+                                                <Setter Property="Background" Value="#E55563"/>
+                                            </Trigger>
+                                            <Trigger Property="IsEnabled" Value="False">
+                                                <Setter Property="Background" Value="#CCC"/>
+                                            </Trigger>
+                                        </Style.Triggers>
+                                    </Style>
+                                </Button.Style>
+                            </Button>
+                        </Grid>
+
+                        <!-- Queue Status -->
+                        <Border Background="#F8F9FA"
+                                BorderBrush="#DEE2E6"
+                                BorderThickness="1"
+                                CornerRadius="5"
+                                Padding="12"
+                                Margin="0,0,0,15">
+                            <Grid>
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*"/>
+                                    <ColumnDefinition Width="Auto"/>
+                                    <ColumnDefinition Width="Auto"/>
+                                    <ColumnDefinition Width="Auto"/>
+                                </Grid.ColumnDefinitions>
+
+                                <TextBlock Grid.Column="0"
+                                          Text="Queue Status"
+                                          FontWeight="SemiBold"
+                                          VerticalAlignment="Center"/>
+
+                                <TextBlock Grid.Column="1"
+                                          Text="{Binding QueuedCount, StringFormat={}Queued: {0}}"
+                                          Margin="10,0"
+                                          VerticalAlignment="Center"
+                                          FontSize="11"/>
+
+                                <TextBlock Grid.Column="2"
+                                          Text="{Binding CompletedCount, StringFormat={}Completed: {0}}"
+                                          Margin="10,0"
+                                          VerticalAlignment="Center"
+                                          FontSize="11"
+                                          Foreground="#28A745"/>
+
+                                <TextBlock Grid.Column="3"
+                                          Text="{Binding FailedCount, StringFormat={}Failed: {0}}"
+                                          Margin="10,0"
+                                          VerticalAlignment="Center"
+                                          FontSize="11"
+                                          Foreground="#DC3545"/>
+                            </Grid>
+                        </Border>
+
+                        <!-- Queue Progress -->
+                        <Border Background="#FFF9F0"
+                                BorderBrush="#FFE0B0"
+                                BorderThickness="1"
+                                CornerRadius="5"
+                                Padding="12"
+                                Margin="0,0,0,15"
+                                Visibility="{Binding IsProcessingQueue, Converter={StaticResource BooleanToVisibilityConverter}}">
+                            <StackPanel>
+                                <TextBlock Text="{Binding QueueProgressText, StringFormat={}Processing Queue: {0}}"
+                                          FontWeight="SemiBold"
+                                          FontSize="11"
+                                          Margin="0,0,0,5"
+                                          TextAlignment="Center"/>
+                                <ProgressBar Value="{Binding QueueProgress, Mode=OneWay}"
+                                            Maximum="{Binding QueueTotal, Mode=OneWay}"
+                                            Height="16"
+                                            Foreground="#FF6B35"
+                                            Margin="0,0,0,5"/>
+                                <TextBlock Text="{Binding CurrentQueueItem.CameraControl, StringFormat={}Current: {0}}"
+                                          HorizontalAlignment="Center"
+                                          FontSize="11"
+                                          FontWeight="Bold"
+                                          Foreground="#FF6B35"/>
+                            </StackPanel>
+                        </Border>
+
+                        <!-- Queue Items List -->
+                        <Border Background="White"
+                                BorderBrush="#DEE2E6"
+                                BorderThickness="1"
+                                CornerRadius="5"
+                                MaxHeight="200">
+                            <ScrollViewer VerticalScrollBarVisibility="Auto">
+                                <ItemsControl ItemsSource="{Binding QueueItems}">
+                                    <ItemsControl.ItemTemplate>
+                                        <DataTemplate>
+                                            <Border BorderBrush="#E9ECEF"
+                                                   BorderThickness="0,0,0,1"
+                                                   Padding="10">
+                                                <Grid>
+                                                    <Grid.ColumnDefinitions>
+                                                        <ColumnDefinition Width="*"/>
+                                                        <ColumnDefinition Width="Auto"/>
+                                                        <ColumnDefinition Width="Auto"/>
+                                                    </Grid.ColumnDefinitions>
+
+                                                    <!-- Item Info -->
+                                                    <StackPanel Grid.Column="0">
+                                                        <TextBlock Text="{Binding CameraControl}"
+                                                                  FontWeight="SemiBold"
+                                                                  FontSize="12"/>
+                                                        <TextBlock Text="{Binding Prompt}"
+                                                                  FontSize="10"
+                                                                  Foreground="#666"
+                                                                  TextTrimming="CharacterEllipsis"
+                                                                  MaxWidth="300"/>
+                                                    </StackPanel>
+
+                                                    <!-- Status -->
+                                                    <StackPanel Grid.Column="1"
+                                                               Orientation="Horizontal"
+                                                               VerticalAlignment="Center"
+                                                               Margin="10,0">
+                                                        <TextBlock Text="{Binding Status}"
+                                                                  FontSize="11"
+                                                                  FontWeight="Bold">
+                                                            <TextBlock.Style>
+                                                                <Style TargetType="TextBlock">
+                                                                    <Setter Property="Foreground" Value="#6C757D"/>
+                                                                    <Style.Triggers>
+                                                                        <DataTrigger Binding="{Binding Status}" Value="Queued">
+                                                                            <Setter Property="Foreground" Value="#007BFF"/>
+                                                                        </DataTrigger>
+                                                                        <DataTrigger Binding="{Binding Status}" Value="Processing">
+                                                                            <Setter Property="Foreground" Value="#FF6B35"/>
+                                                                        </DataTrigger>
+                                                                        <DataTrigger Binding="{Binding Status}" Value="Completed">
+                                                                            <Setter Property="Foreground" Value="#28A745"/>
+                                                                        </DataTrigger>
+                                                                        <DataTrigger Binding="{Binding Status}" Value="Failed">
+                                                                            <Setter Property="Foreground" Value="#DC3545"/>
+                                                                        </DataTrigger>
+                                                                    </Style.Triggers>
+                                                                </Style>
+                                                            </TextBlock.Style>
+                                                        </TextBlock>
+
+                                                        <!-- Progress bar for processing items -->
+                                                        <ProgressBar Value="{Binding Progress}"
+                                                                   Width="50"
+                                                                   Height="12"
+                                                                   Margin="5,0">
+                                                            <ProgressBar.Style>
+                                                                <Style TargetType="ProgressBar">
+                                                                    <Setter Property="Visibility" Value="Collapsed"/>
+                                                                    <Style.Triggers>
+                                                                        <DataTrigger Binding="{Binding Status}" Value="Processing">
+                                                                            <Setter Property="Visibility" Value="Visible"/>
+                                                                        </DataTrigger>
+                                                                    </Style.Triggers>
+                                                                </Style>
+                                                            </ProgressBar.Style>
+                                                        </ProgressBar>
+                                                    </StackPanel>
+
+                                                    <!-- Remove Button -->
+                                                    <Button Grid.Column="2"
+                                                           Content="❌"
+                                                           Command="{Binding DataContext.RemoveFromQueueCommand, RelativeSource={RelativeSource AncestorType=Window}}"
+                                                           CommandParameter="{Binding}"
+                                                           Background="Transparent"
+                                                           BorderThickness="0"
+                                                           Padding="5"
+                                                           ToolTip="Remove from queue"
+                                                           FontSize="12"
+                                                           Cursor="Hand">
+                                                        <Button.Style>
+                                                            <Style TargetType="Button">
+                                                                <Setter Property="Visibility" Value="Visible"/>
+                                                                <Style.Triggers>
+                                                                    <DataTrigger Binding="{Binding Status}" Value="Processing">
+                                                                        <Setter Property="Visibility" Value="Collapsed"/>
+                                                                    </DataTrigger>
+                                                                </Style.Triggers>
+                                                            </Style>
+                                                        </Button.Style>
+                                                    </Button>
+                                                </Grid>
+                                            </Border>
+                                        </DataTemplate>
+                                    </ItemsControl.ItemTemplate>
+                                </ItemsControl>
+                            </ScrollViewer>
+                        </Border>
+                    </StackPanel>
                 </Border>
 
                 <!-- Advanced Settings (Collapsible) -->
