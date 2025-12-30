@@ -12,6 +12,13 @@ public class ComfyUISettings
     public string OutputFolderPath { get; set; } = string.Empty;
     public string RemoteOutputFolderPath { get; set; } = string.Empty; // Network path to remote ComfyUI output folder
     public List<SavedCameraPrompt> SavedCameraPrompts { get; set; } = new();
+    public LMStudioSettings LMStudioSettings { get; set; } = new LMStudioSettings();
+
+    // ComfyUI crash detection and restart settings
+    public bool AutoRestartComfyUI { get; set; } = true;
+    public string ComfyUIRestartScriptPath { get; set; } = string.Empty;
+    public int ComfyUIRestartDelaySeconds { get; set; } = 10; // Wait time before attempting restart
+    public int ComfyUIStartupTimeoutSeconds { get; set; } = 120; // Max wait time for ComfyUI to start
 }
 
 public class SavedCameraPrompt

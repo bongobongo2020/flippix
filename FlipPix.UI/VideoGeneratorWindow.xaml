@@ -149,11 +149,16 @@
         <!-- Main Content -->
         <ScrollViewer Grid.Row="2" VerticalScrollBarVisibility="Auto">
             <StackPanel Margin="20,15,20,15">
+                <TabControl>
 
-                <!-- Image Input Section -->
-                <Border Style="{StaticResource SectionPanelStyle}">
-                    <StackPanel>
-                        <TextBlock Text="📤 Input Image" Style="{StaticResource HeaderTextStyle}" Foreground="#FF6B35"/>
+                    <!-- Tab 1: Single Video Generator -->
+                    <TabItem Header="🎬 Single Video Generator">
+                        <ScrollViewer VerticalScrollBarVisibility="Auto">
+                            <StackPanel Margin="10">
+                                <!-- Image Input Section -->
+                                <Border Style="{StaticResource SectionPanelStyle}">
+                                    <StackPanel>
+                                        <TextBlock Text="📤 Input Image" Style="{StaticResource HeaderTextStyle}" Foreground="#FF6B35"/>
 
                         <Grid>
                             <Grid.ColumnDefinitions>
@@ -301,6 +306,7 @@
                                 <ColumnDefinition Width="*"/>
                                 <ColumnDefinition Width="Auto"/>
                                 <ColumnDefinition Width="Auto"/>
+                                <ColumnDefinition Width="Auto"/>
                             </Grid.ColumnDefinitions>
 
                             <TextBox Grid.Column="0"
@@ -326,7 +332,30 @@
                                    Command="{Binding ProcessQueueCommand}"
                                    IsEnabled="{Binding CanProcessQueue}"
                                    Height="35"
-                                   Width="140"/>
+                                   Width="120"
+                                   Margin="0,0,5,0"/>
+
+                            <Button Grid.Column="3"
+                                   Content="🔄 Reprocess Failed"
+                                   Command="{Binding ReprocessAllFailedCommand}"
+                                   IsEnabled="{Binding HasFailedItems}"
+                                   Height="35"
+                                   Width="140">
+                                <Button.Style>
+                                    <Style TargetType="Button" BasedOn="{StaticResource SecondaryButtonStyle}">
+                                        <Setter Property="Background" Value="#FFA500"/>
+                                        <Style.Triggers>
+                                            <Trigger Property="IsMouseOver" Value="True">
+                                                <Setter Property="Background" Value="#FF8C00"/>
+                                            </Trigger>
+                                            <Trigger Property="IsEnabled" Value="False">
+                                                <Setter Property="Background" Value="#CCC"/>
+                                                <Setter Property="Cursor" Value="Arrow"/>
+                                            </Trigger>
+                                        </Style.Triggers>
+                                    </Style>
+                                </Button.Style>
+                            </Button>
                         </Grid>
 
                         <TextBlock Text="Queue Items:" FontWeight="SemiBold" FontSize="12" Margin="0,0,0,5"/>
@@ -342,6 +371,7 @@
                                                         <ColumnDefinition Width="*"/>
                                                         <ColumnDefinition Width="Auto"/>
                                                         <ColumnDefinition Width="Auto"/>
+                                                        <ColumnDefinition Width="Auto"/>
                                                     </Grid.ColumnDefinitions>
 
                                                     <TextBlock Grid.Column="0"
@@ -351,21 +381,56 @@
                                                              VerticalAlignment="Center"/>
 
                                                     <TextBlock Grid.Column="1"
-                                                             Text="{Binding Status}"
+                                                             Text="{Binding StatusDisplay}"
                                                              FontSize="10"
                                                              FontWeight="SemiBold"
                                                              Foreground="{Binding StatusColor}"
                                                              VerticalAlignment="Center"
                                                              Margin="10,0,10,0"/>
 
+                                                    <!-- Reprocess button - only visible for failed items -->
                                                     <Button Grid.Column="2"
+                                                           Content="🔄"
+                                                           Command="{Binding DataContext.ReprocessItemCommand, RelativeSource={RelativeSource AncestorType=Window}}"
+                                                           CommandParameter="{Binding}"
+                                                           Padding="5,2"
+                                                           FontSize="11"
+                                                           ToolTip="Reprocess this item"
+                                                           Margin="0,0,5,0"
+                                                           Width="30">
+                                                        <Button.Style>
+                                                            <Style TargetType="Button" BasedOn="{StaticResource NavButtonStyle}">
+                                                                <Setter Property="Background" Value="#FFA500"/>
+                                                                <Style.Triggers>
+                                                                    <DataTrigger Binding="{Binding Status}" Value="Failed">
+                                                                        <Setter Property="Visibility" Value="Visible"/>
+                                                                    </DataTrigger>
+                                                                    <DataTrigger Binding="{Binding Status}" Value="Pending">
+                                                                        <Setter Property="Visibility" Value="Collapsed"/>
+                                                                    </DataTrigger>
+                                                                    <DataTrigger Binding="{Binding Status}" Value="Processing">
+                                                                        <Setter Property="Visibility" Value="Collapsed"/>
+                                                                    </DataTrigger>
+                                                                    <DataTrigger Binding="{Binding Status}" Value="Completed">
+                                                                        <Setter Property="Visibility" Value="Collapsed"/>
+                                                                    </DataTrigger>
+                                                                    <Trigger Property="IsMouseOver" Value="True">
+                                                                        <Setter Property="Background" Value="#FF8C00"/>
+                                                                    </Trigger>
+                                                                </Style.Triggers>
+                                                            </Style>
+                                                        </Button.Style>
+                                                    </Button>
+
+                                                    <Button Grid.Column="3"
                                                            Content="❌"
                                                            Style="{StaticResource NavButtonStyle}"
                                                            Command="{Binding DataContext.RemoveFromQueueCommand, RelativeSource={RelativeSource AncestorType=Window}}"
                                                            CommandParameter="{Binding}"
                                                            Padding="5,2"
                                                            FontSize="10"
-                                                           ToolTip="Remove from queue"/>
+                                                           ToolTip="Remove from queue"
+                                                           Width="30"/>
                                                 </Grid>
                                             </Border>
                                         </DataTemplate>
@@ -676,6 +741,323 @@
                     </Border>
                 </Expander>
 
+                            </StackPanel>
+                        </ScrollViewer>
+                    </TabItem>
+
+                    <!-- Tab 2: Story Video Generator -->
+                    <TabItem Header="📖 Story Video Generator">
+                        <ScrollViewer VerticalScrollBarVisibility="Auto">
+                            <StackPanel Margin="10">
+
+                                <!-- Story Setup Section -->
+                                <Border Style="{StaticResource SectionPanelStyle}">
+                                    <StackPanel>
+                                        <TextBlock Text="📁 Story Setup" Style="{StaticResource HeaderTextStyle}" Foreground="#FF6B35"/>
+
+                                        <!-- Prompt JSON File Selection -->
+                                        <Grid Margin="0,0,0,15">
+                                            <Grid.ColumnDefinitions>
+                                                <ColumnDefinition Width="*"/>
+                                                <ColumnDefinition Width="Auto"/>
+                                            </Grid.ColumnDefinitions>
+
+                                            <TextBlock Grid.Column="0"
+                                                      Text="1. Select the prompts JSON file (from Story Image Generator)"
+                                                      FontWeight="SemiBold"
+                                                      FontSize="12"
+                                                      VerticalAlignment="Center"
+                                                      Margin="0,0,10,0"/>
+
+                                            <Button Grid.Column="1"
+                                                   Content="📄 Select JSON File"
+                                                   Style="{StaticResource SecondaryButtonStyle}"
+                                                   Command="{Binding SelectStoryPromptJsonCommand}"
+                                                   Height="35"
+                                                   Width="150"/>
+                                        </Grid>
+
+                                        <TextBox Text="{Binding StoryPromptJsonPath, Mode=TwoWay}"
+                                                IsReadOnly="True"
+                                                Padding="10"
+                                                Background="White"
+                                                BorderBrush="#CED4DA"
+                                                FontSize="11"
+                                                Margin="0,0,0,15"
+                                                VerticalAlignment="Center"/>
+
+                                        <!-- Images Folder Selection -->
+                                        <Grid Margin="0,0,0,15">
+                                            <Grid.ColumnDefinitions>
+                                                <ColumnDefinition Width="*"/>
+                                                <ColumnDefinition Width="Auto"/>
+                                            </Grid.ColumnDefinitions>
+
+                                            <TextBlock Grid.Column="0"
+                                                      Text="2. Select the folder containing the 10 generated story images"
+                                                      FontWeight="SemiBold"
+                                                      FontSize="12"
+                                                      VerticalAlignment="Center"
+                                                      Margin="0,0,10,0"/>
+
+                                            <Button Grid.Column="1"
+                                                   Content="📂 Select Images Folder"
+                                                   Style="{StaticResource SecondaryButtonStyle}"
+                                                   Command="{Binding SelectStoryImagesFolderCommand}"
+                                                   Height="35"
+                                                   Width="170"/>
+                                        </Grid>
+
+                                        <TextBox Text="{Binding StoryImagesFolderPath, Mode=TwoWay}"
+                                                IsReadOnly="True"
+                                                Padding="10"
+                                                Background="White"
+                                                BorderBrush="#CED4DA"
+                                                FontSize="11"
+                                                Margin="0,0,0,10"
+                                                VerticalAlignment="Center"/>
+
+                                        <!-- Load Queue Button -->
+                                        <Grid>
+                                            <Grid.ColumnDefinitions>
+                                                <ColumnDefinition Width="*"/>
+                                                <ColumnDefinition Width="Auto"/>
+                                            </Grid.ColumnDefinitions>
+
+                                            <TextBlock Grid.Column="0"
+                                                      Text="3. Load the queue with images and prompts"
+                                                      FontWeight="SemiBold"
+                                                      FontSize="12"
+                                                      VerticalAlignment="Center"
+                                                      Margin="0,0,10,0"/>
+
+                                            <Button Grid.Column="1"
+                                                   Content="📥 Load Queue"
+                                                   Style="{StaticResource PrimaryButtonStyle}"
+                                                   Command="{Binding LoadStoryQueueCommand}"
+                                                   IsEnabled="{Binding CanLoadStoryQueue}"
+                                                   Height="35"
+                                                   Width="140"/>
+                                        </Grid>
+                                    </StackPanel>
+                                </Border>
+
+                                <!-- Story Queue Section -->
+                                <Border Style="{StaticResource SectionPanelStyle}">
+                                    <StackPanel>
+                                        <TextBlock Text="🎞️ Story Video Queue" Style="{StaticResource HeaderTextStyle}" Foreground="#FF6B35"/>
+
+                                        <!-- Queue Controls -->
+                                        <Grid Margin="0,0,0,10">
+                                            <Grid.ColumnDefinitions>
+                                                <ColumnDefinition Width="*"/>
+                                                <ColumnDefinition Width="Auto"/>
+                                                <ColumnDefinition Width="Auto"/>
+                                            </Grid.ColumnDefinitions>
+
+                                            <TextBlock Grid.Column="0"
+                                                      Text="{Binding StoryQueueStatus}"
+                                                      FontWeight="SemiBold"
+                                                      FontSize="12"
+                                                      VerticalAlignment="Center"
+                                                      Foreground="#666"/>
+
+                                            <Button Grid.Column="1"
+                                                   Content="▶️ Process Queue"
+                                                   Style="{StaticResource PrimaryButtonStyle}"
+                                                   Command="{Binding ProcessStoryQueueCommand}"
+                                                   IsEnabled="{Binding CanProcessStoryQueue}"
+                                                   Height="35"
+                                                   Width="140"
+                                                   Margin="0,0,10,0"/>
+
+                                            <Button Grid.Column="2"
+                                                   Content="🗑️ Clear Queue"
+                                                   Command="{Binding ClearStoryQueueCommand}"
+                                                   Height="35"
+                                                   Width="120">
+                                                <Button.Style>
+                                                    <Style TargetType="Button" BasedOn="{StaticResource NavButtonStyle}">
+                                                        <Setter Property="Background" Value="#DC3545"/>
+                                                        <Style.Triggers>
+                                                            <Trigger Property="IsMouseOver" Value="True">
+                                                                <Setter Property="Background" Value="#C82333"/>
+                                                            </Trigger>
+                                                        </Style.Triggers>
+                                                    </Style>
+                                                </Button.Style>
+                                            </Button>
+                                        </Grid>
+
+                                        <!-- Progress Display -->
+                                        <Border Background="#FFF9F0"
+                                                BorderBrush="#FFE0B0"
+                                                BorderThickness="1"
+                                                CornerRadius="5"
+                                                Padding="12"
+                                                Visibility="{Binding IsProcessingStoryQueue, Converter={StaticResource BooleanToVisibilityConverter}}"
+                                                Margin="0,0,0,10">
+                                            <StackPanel>
+                                                <Grid>
+                                                    <Grid.ColumnDefinitions>
+                                                        <ColumnDefinition Width="*"/>
+                                                        <ColumnDefinition Width="Auto"/>
+                                                    </Grid.ColumnDefinitions>
+
+                                                    <TextBlock Grid.Column="0"
+                                                              Text="{Binding StoryQueueStatus}"
+                                                              FontWeight="SemiBold"
+                                                              FontSize="11"
+                                                              Margin="0,0,0,5"
+                                                              VerticalAlignment="Center"/>
+
+                                                    <TextBlock Grid.Column="1"
+                                                              Text="{Binding StoryQueueProgressText}"
+                                                              FontWeight="Bold"
+                                                              FontSize="12"
+                                                              Foreground="#FF6B35"
+                                                              VerticalAlignment="Center"/>
+                                                </Grid>
+
+                                                <!-- Current Item Info -->
+                                                <TextBlock Text="Current:"
+                                                          FontSize="10"
+                                                          FontWeight="SemiBold"
+                                                          Margin="0,5,0,3"/>
+
+                                                <TextBlock Text="{Binding CurrentStoryQueueItem.Index, StringFormat='Prompt #{0}'}"
+                                                          FontSize="11"
+                                                          Margin="10,0,0,0"/>
+
+                                                <ProgressBar Value="{Binding CurrentStoryQueueItem.Progress}"
+                                                            Height="16"
+                                                            Foreground="#FF6B35"
+                                                            Margin="0,5,0,0"/>
+                                            </StackPanel>
+                                        </Border>
+
+                                        <!-- Queue Items List -->
+                                        <TextBlock Text="Queue Items:"
+                                                  FontWeight="SemiBold"
+                                                  FontSize="12"
+                                                  Margin="0,0,0,5"/>
+
+                                        <Border BorderBrush="#DEE2E6"
+                                                BorderThickness="1"
+                                                Background="White"
+                                                CornerRadius="5"
+                                                MaxHeight="250">
+                                            <ScrollViewer VerticalScrollBarVisibility="Auto" Padding="5">
+                                                <ItemsControl ItemsSource="{Binding StoryVideoQueue}">
+                                                    <ItemsControl.ItemTemplate>
+                                                        <DataTemplate>
+                                                            <Border BorderBrush="#E9ECEF"
+                                                                    BorderThickness="1"
+                                                                    CornerRadius="3"
+                                                                    Padding="10"
+                                                                    Margin="0,0,0,5">
+                                                                <Grid>
+                                                                    <Grid.ColumnDefinitions>
+                                                                        <ColumnDefinition Width="Auto"/>
+                                                                        <ColumnDefinition Width="*"/>
+                                                                        <ColumnDefinition Width="Auto"/>
+                                                                        <ColumnDefinition Width="Auto"/>
+                                                                    </Grid.ColumnDefinitions>
+
+                                                                    <!-- Index -->
+                                                                    <Border Grid.Column="0"
+                                                                            Background="#FF6B35"
+                                                                            CornerRadius="3"
+                                                                            Padding="8,4"
+                                                                            Margin="0,0,10,0"
+                                                                            VerticalAlignment="Center">
+                                                                        <TextBlock Text="{Binding Index}"
+                                                                                  Foreground="White"
+                                                                                  FontWeight="Bold"
+                                                                                  FontSize="12"
+                                                                                  MinWidth="30"
+                                                                                  TextAlignment="Center"/>
+                                                                    </Border>
+
+                                                                    <!-- Prompt Text -->
+                                                                    <StackPanel Grid.Column="1" VerticalAlignment="Center">
+                                                                        <TextBlock Text="{Binding Prompt}"
+                                                                                  TextWrapping="Wrap"
+                                                                                  FontSize="11"
+                                                                                  MaxWidth="500"
+                                                                                  ToolTip="{Binding Prompt}"/>
+                                                                        <TextBlock Text="{Binding InputImagePath}"
+                                                                                  FontSize="9"
+                                                                                  Foreground="#999"
+                                                                                  FontStyle="Italic"
+                                                                                  Margin="0,3,0,0"/>
+                                                                    </StackPanel>
+
+                                                                    <!-- Status -->
+                                                                    <TextBlock Grid.Column="2"
+                                                                              Text="{Binding StatusDisplay}"
+                                                                              FontSize="10"
+                                                                              FontWeight="SemiBold"
+                                                                              Foreground="{Binding StatusColor}"
+                                                                              VerticalAlignment="Center"
+                                                                              Margin="10,0"/>
+
+                                                                    <!-- Progress Bar (for processing items) -->
+                                                                    <Grid Grid.Column="3"
+                                                                          Width="100"
+                                          VerticalAlignment="Center"
+                                          Margin="10,0,0,0">
+                                                                        <Grid.Style>
+                                                                            <Style TargetType="Grid">
+                                                                                <Setter Property="Visibility" Value="Collapsed"/>
+                                                                                <Style.Triggers>
+                                                                                    <DataTrigger Binding="{Binding Status}" Value="Processing">
+                                                                                        <Setter Property="Visibility" Value="Visible"/>
+                                                                                    </DataTrigger>
+                                                                                </Style.Triggers>
+                                                                            </Style>
+                                                                        </Grid.Style>
+                                                                        <ProgressBar Value="{Binding Progress}"
+                                                                                    Height="10"
+                                                                                    Foreground="#FFA500"/>
+                                                                    </Grid>
+                                                                </Grid>
+                                                            </Border>
+                                                        </DataTemplate>
+                                                    </ItemsControl.ItemTemplate>
+                                                </ItemsControl>
+                                            </ScrollViewer>
+                                        </Border>
+                                    </StackPanel>
+                                </Border>
+
+                                <!-- Story Log (Collapsible) -->
+                                <Expander Header="📝 Processing Log"
+                                         IsExpanded="True"
+                                         Margin="0,0,0,0">
+                                    <Border Background="White"
+                                            BorderBrush="#DEE2E6"
+                                            BorderThickness="1"
+                                            Margin="0,8,0,0">
+                                        <ScrollViewer MaxHeight="150"
+                                                     VerticalScrollBarVisibility="Auto">
+                                            <TextBox Text="{Binding LogOutput}"
+                                                    TextWrapping="Wrap"
+                                                    IsReadOnly="True"
+                                                    FontFamily="Consolas"
+                                                    FontSize="10"
+                                                    Background="Transparent"
+                                                    BorderThickness="0"
+                                                    Padding="10"/>
+                                        </ScrollViewer>
+                                    </Border>
+                                </Expander>
+
+                            </StackPanel>
+                        </ScrollViewer>
+                    </TabItem>
+
+                </TabControl>
             </StackPanel>
         </ScrollViewer>
 

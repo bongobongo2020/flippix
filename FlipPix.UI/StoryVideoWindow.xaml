@@ -179,6 +179,53 @@
                     </Grid>
                 </Border>
 
+                <!-- Step 1.5: Image Analysis with LM Studio -->
+                <Border Style="{StaticResource SectionPanelStyle}">
+                    <StackPanel>
+                        <TextBlock Text="🔍 Image Analysis with Qwen-VL" Style="{StaticResource HeaderTextStyle}" Foreground="#9C27B0"/>
+
+                        <Button Content="🧠 Analyze with Qwen-VL"
+                               Style="{StaticResource SecondaryButtonStyle}"
+                               Command="{Binding AnalyzeImageCommand}"
+                               IsEnabled="{Binding HasSelectedImage}"
+                               Width="250"
+                               HorizontalAlignment="Left"
+                               Margin="0,0,0,10"/>
+
+                        <TextBox Text="{Binding ImageAnalysis, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                                TextWrapping="Wrap"
+                                AcceptsReturn="True"
+                                Height="100"
+                                Padding="12"
+                                VerticalScrollBarVisibility="Auto"
+                                Background="White"
+                                BorderBrush="#CED4DA"
+                                FontSize="12"
+                                Margin="0,0,0,10"
+                                IsReadOnly="{Binding IsAnalyzing}"/>
+
+                        <!-- Processing Status for Analysis -->
+                        <Border Background="#FFF9F0"
+                                BorderBrush="#FFE0B0"
+                                BorderThickness="1"
+                                CornerRadius="5"
+                                Padding="12"
+                                Visibility="{Binding IsAnalyzing, Converter={StaticResource BooleanToVisibilityConverter}}"
+                                Margin="0,0,0,10">
+                            <StackPanel>
+                                <TextBlock Text="{Binding AnalysisStatus}"
+                                          FontWeight="SemiBold"
+                                          FontSize="11"
+                                          Margin="0,0,0,5"
+                                          TextAlignment="Center"/>
+                                <ProgressBar Value="{Binding AnalysisProgress}"
+                                            Height="16"
+                                            Foreground="#9C27B0"/>
+                            </StackPanel>
+                        </Border>
+                    </StackPanel>
+                </Border>
+
                 <!-- Step 2: Generate Prompts -->
                 <Border Style="{StaticResource SectionPanelStyle}">
                     <StackPanel>

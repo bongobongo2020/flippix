@@ -227,6 +227,84 @@
                         </StackPanel>
                     </Border>
 
+                    <!-- LM Studio Settings Section -->
+                    <Border Style="{StaticResource SectionPanelStyle}">
+                        <StackPanel>
+                            <TextBlock Text="LM Studio Settings" Style="{StaticResource HeaderTextStyle}" Foreground="#10B981"/>
+
+                            <Grid Margin="0,0,0,12">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*"/>
+                                    <ColumnDefinition Width="*"/>
+                                    <ColumnDefinition Width="Auto"/>
+                                </Grid.ColumnDefinitions>
+
+                                <!-- Server -->
+                                <StackPanel Grid.Column="0" Margin="0,0,10,0">
+                                    <TextBlock Text="Server" FontWeight="SemiBold" FontSize="12" Margin="0,0,0,5"/>
+                                    <TextBox Text="{Binding LMStudioServer, UpdateSourceTrigger=PropertyChanged}"
+                                             Padding="10"
+                                             Background="White"
+                                             BorderBrush="#CED4DA"
+                                             FontSize="12"/>
+                                </StackPanel>
+
+                                <!-- Port -->
+                                <StackPanel Grid.Column="1" Margin="0,0,10,0">
+                                    <TextBlock Text="Port" FontWeight="SemiBold" FontSize="12" Margin="0,0,0,5"/>
+                                    <TextBox Text="{Binding LMStudioPort, UpdateSourceTrigger=PropertyChanged}"
+                                             Padding="10"
+                                             Background="White"
+                                             BorderBrush="#CED4DA"
+                                             FontSize="12"/>
+                                </StackPanel>
+
+                                <!-- Test Connection Button -->
+                                <StackPanel Grid.Column="2">
+                                    <TextBlock Text="" Height="17" Margin="0,0,0,5"/>
+                                    <Button Content="Test" Command="{Binding TestLMStudioConnectionCommand}"
+                                            Style="{StaticResource SecondaryButtonStyle}"
+                                            Width="50"/>
+                                </StackPanel>
+                            </Grid>
+
+                            <!-- Model Selection -->
+                            <Grid Margin="0,0,0,12">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*"/>
+                                    <ColumnDefinition Width="Auto"/>
+                                </Grid.ColumnDefinitions>
+
+                                <!-- Model Dropdown -->
+                                <StackPanel Grid.Column="0" Margin="0,0,10,0">
+                                    <TextBlock Text="AI Model" FontWeight="SemiBold" FontSize="12" Margin="0,0,0,5"/>
+                                    <ComboBox ItemsSource="{Binding AvailableModels}"
+                                              SelectedValue="{Binding SelectedModel}"
+                                              SelectedValuePath="Name"
+                                              DisplayMemberPath="Name"
+                                              Padding="10"
+                                              Background="White"
+                                              BorderBrush="#CED4DA"
+                                              FontSize="12">
+                                        <ComboBox.ItemTemplate>
+                                            <DataTemplate>
+                                                <TextBlock Text="{Binding Name}" TextTrimming="CharacterEllipsis"/>
+                                            </DataTemplate>
+                                        </ComboBox.ItemTemplate>
+                                    </ComboBox>
+                                </StackPanel>
+
+                                <!-- Refresh Models Button -->
+                                <StackPanel Grid.Column="1">
+                                    <TextBlock Text="" Height="17" Margin="0,0,0,5"/>
+                                    <Button Content="Refresh" Command="{Binding RefreshModelsCommand}"
+                                            Style="{StaticResource SecondaryButtonStyle}"
+                                            Width="70"/>
+                                </StackPanel>
+                            </Grid>
+                        </StackPanel>
+                    </Border>
+
                     <!-- Image Settings Section -->
                     <Border Style="{StaticResource SectionPanelStyle}">
                         <StackPanel>
@@ -451,6 +529,14 @@
                     <TextBlock Text="{Binding ComfyUIServer}" FontSize="11" FontWeight="Bold"/>
                     <TextBlock Text=":" FontSize="11"/>
                     <TextBlock Text="{Binding ComfyUIPort}" FontSize="11" FontWeight="Bold"/>
+                    <TextBlock Text=" | " FontSize="11"/>
+                    <TextBlock Text="LM Studio: " FontSize="11" Foreground="#10B981"/>
+                    <TextBlock Text="{Binding LMStudioServer}" FontSize="11" FontWeight="Bold"/>
+                    <TextBlock Text=":" FontSize="11"/>
+                    <TextBlock Text="{Binding LMStudioPort}" FontSize="11" FontWeight="Bold"/>
+                    <TextBlock Text=" (" FontSize="11"/>
+                    <TextBlock Text="{Binding SelectedModel}" FontSize="11" FontWeight="Bold" Foreground="#10B981"/>
+                    <TextBlock Text=")" FontSize="11"/>
                 </StackPanel>
             </StatusBarItem>
         </StatusBar>

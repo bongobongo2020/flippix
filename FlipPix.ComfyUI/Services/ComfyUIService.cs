@@ -14,6 +14,7 @@ public class ComfyUIService : IDisposable
     private readonly IAppLogger _logger;
     private readonly ComfyUISettings _settings;
     private readonly string _clientId;
+    private readonly ComfyUIProcessManager _processManager;
     private bool _disposed = false;
 
     public event EventHandler<ProgressMessage>? ProgressUpdated;
@@ -24,7 +25,7 @@ public class ComfyUIService : IDisposable
 
     public ComfyUIHttpClient HttpClient => _httpClient;
 
-    public ComfyUIService(ComfyUIHttpClient httpClient, ComfyUIWebSocketClient webSocketClient, 
+    public ComfyUIService(ComfyUIHttpClient httpClient, ComfyUIWebSocketClient webSocketClient,
         IAppLogger logger, ComfyUISettings settings)
     {
         _httpClient = httpClient;
@@ -32,6 +33,7 @@ public class ComfyUIService : IDisposable
         _logger = logger;
         _settings = settings;
         _clientId = Guid.NewGuid().ToString();
+        _processManager = new ComfyUIProcessManager(logger, settings);
 
         // Subscribe to WebSocket events
         _webSocketClient.MessageReceived += OnWebSocketMessageReceived;
@@ -84,6 +86,23 @@ public class ComfyUIService : IDisposable
         {
             _logger.LogError(ex, "Error during ComfyUI service disconnect");
         }
+    }
+
+    /// <summary>
+    /// Checks if ComfyUI is running and responsive
+    /// </summary>
+    public async Task<bool> IsComfyUIRunningAsync(CancellationToken cancellationToken = default)
+    {
+        return await _processManager.IsComfyUIRunningAsync(cancellationToken);
+    }
+
+    /// <summary>
+    /// Detects if ComfyUI has crashed and attempts to restart it
+    /// Returns true if ComfyUI is running (either was already running or was successfully restarted)
+    /// </summary>
+    public async Task<bool> DetectAndRestartIfCrashedAsync(Action<string>? statusCallback = null, CancellationToken cancellationToken = default)
+    {
+        return await _processManager.DetectAndRestartComfyUIAsync(statusCallback, cancellationToken);
     }
 
     public async Task<string> UploadImageAsync(
@@ -453,6 +472,7 @@ public class ComfyUIService : IDisposable
         {
             _httpClient?.Dispose();
             _webSocketClient?.Dispose();
+            _processManager?.Dispose();
             _disposed = true;
         }
     }

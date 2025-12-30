@@ -22,6 +22,7 @@ namespace FlipPix.UI.ViewModels
     public class VideoGeneratorViewModel : INotifyPropertyChanged
     {
         private readonly ComfyUIService _comfyUIService;
+        private readonly FlipPix.UI.Services.LMStudioService _lmStudioService;
         private readonly IAppLogger _logger;
         private readonly FlipPix.Core.Services.SettingsService _settingsService;
         private readonly IServiceProvider? _serviceProvider;
@@ -43,11 +44,13 @@ namespace FlipPix.UI.ViewModels
         private string _videoInfo = string.Empty;
 
         // Video settings
-        private int _videoLength = 81;
+        private int _videoLength = 121;
         private int _fps = 16;
         private int _steps = 4;
         private double _cfg = 1.0;
         private long _seed = 0;
+        private int _width = 832;
+        private int _height = 480;
 
         // Image analysis properties
         private bool _isAnalyzing = false;
@@ -62,12 +65,23 @@ namespace FlipPix.UI.ViewModels
         private string _queueStatus = "Queue is empty";
         private readonly ObservableCollection<QueueItem> _promptQueue = new();
 
+        // Story Video Generator properties
+        private string _storyPromptJsonPath = string.Empty;
+        private string _storyImagesFolderPath = string.Empty;
+        private bool _isProcessingStoryQueue = false;
+        private StoryVideoQueueItem? _currentStoryQueueItem;
+        private int _storyQueueProgress = 0;
+        private int _storyQueueTotal = 0;
+        private string _storyQueueStatus = "No images loaded";
+        private readonly ObservableCollection<StoryVideoQueueItem> _storyVideoQueue = new();
+
         public event PropertyChangedEventHandler? PropertyChanged;
         public event EventHandler? PlayRequested;
 
-        public VideoGeneratorViewModel(ComfyUIService comfyUIService, IAppLogger logger, FlipPix.Core.Services.SettingsService settingsService, IServiceProvider? serviceProvider = null)
+        public VideoGeneratorViewModel(ComfyUIService comfyUIService, FlipPix.UI.Services.LMStudioService lmStudioService, IAppLogger logger, FlipPix.Core.Services.SettingsService settingsService, IServiceProvider? serviceProvider = null)
         {
             _comfyUIService = comfyUIService ?? throw new ArgumentNullException(nameof(comfyUIService));
+            _lmStudioService = lmStudioService ?? throw new ArgumentNullException(nameof(lmStudioService));
             _logger = logger ?? throw new ArgumentNullException(nameof(logger));
             _settingsService = settingsService ?? throw new ArgumentNullException(nameof(settingsService));
             _serviceProvider = serviceProvider;
@@ -87,6 +101,22 @@ namespace FlipPix.UI.ViewModels
             AddToQueueCommand = new RelayCommand(AddToQueue, () => CanAddToQueue);
             RemoveFromQueueCommand = new RelayCommand<QueueItem>(RemoveFromQueue);
             ProcessQueueCommand = new RelayCommand(async () => await ProcessQueueAsync(), () => CanProcessQueue);
+            ReprocessItemCommand = new RelayCommand<QueueItem>(async (item) => await ReprocessItemAsync(item));
+            ReprocessAllFailedCommand = new RelayCommand(async () => await ReprocessAllFailedAsync(), () => HasFailedItems);
+
+            // Story Video Generator commands
+            SelectStoryPromptJsonCommand = new RelayCommand(SelectStoryPromptJson);
+            SelectStoryImagesFolderCommand = new RelayCommand(SelectStoryImagesFolder);
+            LoadStoryQueueCommand = new RelayCommand(async () => await LoadStoryQueueAsync(), () => CanLoadStoryQueue);
+            ProcessStoryQueueCommand = new RelayCommand(async () => await ProcessStoryQueueAsync(), () => CanProcessStoryQueue);
+            ClearStoryQueueCommand = new RelayCommand(ClearStoryQueue, () => StoryVideoQueue.Any());
+
+            // Subscribe to story video queue collection changes
+            _storyVideoQueue.CollectionChanged += (s, e) =>
+            {
+                OnPropertyChanged(nameof(CanProcessStoryQueue));
+                CommandManager.InvalidateRequerySuggested();
+            };
 
             AddLog("Video Generator initialized");
 
@@ -98,6 +128,10 @@ namespace FlipPix.UI.ViewModels
                 ComfyUIServer = uri.Host;
                 ComfyUIPort = uri.Port.ToString();
             }
+
+            // Load saved queues from file (for crash recovery)
+            LoadQueueFromFile();
+            LoadStoryQueueFromFile();
         }
 
         // Properties
@@ -323,6 +357,26 @@ namespace FlipPix.UI.ViewModels
             }
         }
 
+        public int Width
+        {
+            get => _width;
+            set
+            {
+                _width = value;
+                OnPropertyChanged();
+            }
+        }
+
+        public int Height
+        {
+            get => _height;
+            set
+            {
+                _height = value;
+                OnPropertyChanged();
+            }
+        }
+
         public bool CanGenerateVideo => !string.IsNullOrEmpty(ImageFilePath) &&
                                         File.Exists(ImageFilePath) &&
                                         !string.IsNullOrWhiteSpace(VideoPrompt) &&
@@ -427,6 +481,8 @@ namespace FlipPix.UI.ViewModels
 
         public bool CanAddToQueue => !string.IsNullOrWhiteSpace(NewQueuePrompt) && HasImage;
 
+        public bool HasFailedItems => PromptQueue.Any(x => x.Status == QueueItemStatus.Failed);
+
         public string QueueStatus
         {
             get => _queueStatus;
@@ -435,6 +491,119 @@ namespace FlipPix.UI.ViewModels
                 if (_queueStatus != value)
                 {
                     _queueStatus = value;
+                    OnPropertyChanged();
+                }
+            }
+        }
+
+        // Story Video Generator Properties
+        public string StoryPromptJsonPath
+        {
+            get => _storyPromptJsonPath;
+            set
+            {
+                if (_storyPromptJsonPath != value)
+                {
+                    _storyPromptJsonPath = value;
+                    OnPropertyChanged();
+                    OnPropertyChanged(nameof(CanLoadStoryQueue));
+                    CommandManager.InvalidateRequerySuggested();
+                }
+            }
+        }
+
+        public string StoryImagesFolderPath
+        {
+            get => _storyImagesFolderPath;
+            set
+            {
+                if (_storyImagesFolderPath != value)
+                {
+                    _storyImagesFolderPath = value;
+                    OnPropertyChanged();
+                    OnPropertyChanged(nameof(CanLoadStoryQueue));
+                    CommandManager.InvalidateRequerySuggested();
+                }
+            }
+        }
+
+        public ObservableCollection<StoryVideoQueueItem> StoryVideoQueue => _storyVideoQueue;
+
+        public bool IsProcessingStoryQueue
+        {
+            get => _isProcessingStoryQueue;
+            set
+            {
+                if (_isProcessingStoryQueue != value)
+                {
+                    _isProcessingStoryQueue = value;
+                    OnPropertyChanged();
+                    OnPropertyChanged(nameof(CanProcessStoryQueue));
+                    CommandManager.InvalidateRequerySuggested();
+                }
+            }
+        }
+
+        public StoryVideoQueueItem? CurrentStoryQueueItem
+        {
+            get => _currentStoryQueueItem;
+            set
+            {
+                if (_currentStoryQueueItem != value)
+                {
+                    _currentStoryQueueItem = value;
+                    OnPropertyChanged();
+                }
+            }
+        }
+
+        public int StoryQueueProgress
+        {
+            get => _storyQueueProgress;
+            set
+            {
+                if (_storyQueueProgress != value)
+                {
+                    _storyQueueProgress = value;
+                    OnPropertyChanged();
+                    OnPropertyChanged(nameof(StoryQueueProgressText));
+                }
+            }
+        }
+
+        public int StoryQueueTotal
+        {
+            get => _storyQueueTotal;
+            set
+            {
+                if (_storyQueueTotal != value)
+                {
+                    _storyQueueTotal = value;
+                    OnPropertyChanged();
+                    OnPropertyChanged(nameof(StoryQueueProgressText));
+                }
+            }
+        }
+
+        public string StoryQueueProgressText => StoryQueueTotal > 0 ? $"{StoryQueueProgress}/{StoryQueueTotal}" : "0/0";
+
+        public bool CanLoadStoryQueue => !string.IsNullOrEmpty(StoryPromptJsonPath) &&
+                                        File.Exists(StoryPromptJsonPath) &&
+                                        !string.IsNullOrEmpty(StoryImagesFolderPath) &&
+                                        Directory.Exists(StoryImagesFolderPath) &&
+                                        !IsProcessingStoryQueue;
+
+        public bool CanProcessStoryQueue => StoryVideoQueue.Any(item => item.Status == "Pending") &&
+                                          !IsProcessingStoryQueue;
+
+        public string StoryQueueStatus
+        {
+            get => _storyQueueStatus;
+            set
+            {
+                if (_storyQueueStatus != value)
+                {
+                    _storyQueueStatus = value;
                     OnPropertyChanged();
                 }
             }
@@ -455,6 +624,15 @@ namespace FlipPix.UI.ViewModels
         public ICommand AddToQueueCommand { get; }
         public ICommand RemoveFromQueueCommand { get; }
         public ICommand ProcessQueueCommand { get; }
+        public ICommand ReprocessItemCommand { get; }
+        public ICommand ReprocessAllFailedCommand { get; }
+
+        // Story Video Generator commands
+        public ICommand SelectStoryPromptJsonCommand { get; }
+        public ICommand SelectStoryImagesFolderCommand { get; }
+        public ICommand LoadStoryQueueCommand { get; }
+        public ICommand ProcessStoryQueueCommand { get; }
+        public ICommand ClearStoryQueueCommand { get; }
 
         // Methods
         private void SelectImage()
@@ -504,6 +682,22 @@ namespace FlipPix.UI.ViewModels
 
                 var fileInfo = new FileInfo(ImageFilePath);
                 ImageInfo = $"{bitmap.PixelWidth}x{bitmap.PixelHeight} • {fileInfo.Length / 1024}KB";
+
+                // Set aspect ratio based on image orientation
+                if (bitmap.PixelWidth > bitmap.PixelHeight)
+                {
+                    // Landscape: 832 width x 480 height
+                    Width = 832;
+                    Height = 480;
+                    AddLog($"Landscape image detected: Output size set to {Width}x{Height}");
+                }
+                else
+                {
+                    // Portrait: 480 width x 832 height
+                    Width = 480;
+                    Height = 832;
+                    AddLog($"Portrait image detected: Output size set to {Width}x{Height}");
+                }
             }
             catch (Exception ex)
             {
@@ -536,6 +730,26 @@ namespace FlipPix.UI.ViewModels
                 AddLog($"Input image: {Path.GetFileName(ImageFilePath)}");
                 AddLog($"Prompt: {VideoPrompt}");
                 AddLog($"Video settings: {VideoLength} frames @ {Fps} FPS");
+
+                // Check if ComfyUI has crashed and restart if needed
+                ProcessingStatus = "Checking ComfyUI status...";
+                AddLog("Checking if ComfyUI is running...");
+
+                var comfyUIOk = await _comfyUIService.DetectAndRestartIfCrashedAsync(
+                    status => AddLog($"[Auto-Restart] {status}"));
+
+                if (!comfyUIOk)
+                {
+                    AddLog("ERROR: ComfyUI is not running and auto-restart failed or is disabled");
+                    System.Windows.MessageBox.Show(
+                        "ComfyUI is not running. Please start ComfyUI manually or configure auto-restart in settings.",
+                        "ComfyUI Not Running",
+                        System.Windows.MessageBoxButton.OK,
+                        System.Windows.MessageBoxImage.Warning);
+                    return;
+                }
+
+                AddLog("ComfyUI is running and responsive");
 
                 // Ensure ComfyUI is connected
                 if (!_comfyUIService.IsConnected)
@@ -719,6 +933,8 @@ namespace FlipPix.UI.ViewModels
                     if (inputs != null)
                     {
                         inputs["length"] = VideoLength;
+                        inputs["width"] = Width;
+                        inputs["height"] = Height;
                         node98["inputs"] = inputs;
                         workflowDict["98"] = JsonSerializer.SerializeToElement(node98);
                     }
@@ -1308,81 +1524,62 @@ namespace FlipPix.UI.ViewModels
             try
             {
                 IsAnalyzing = true;
-                AnalysisStatus = "Analyzing image with Qwen-VL...";
+                AnalysisStatus = "Analyzing image with LM Studio Qwen-VL...";
                 AnalysisProgress = 0;
-                ImageAnalysis = "Analyzing image...";
+                ImageAnalysis = "Analyzing image with LM Studio Qwen-VL AI...";
 
-                AddLog("=== Starting image analysis with Qwen-VL ===");
+                AddLog("=== Starting image analysis with LM Studio Qwen-VL ===");
 
-                // Ensure ComfyUI is connected
-                if (!_comfyUIService.IsConnected)
+                // Get the selected model from settings
+                var baseUrl = _settingsService.Settings?.LMStudioSettings?.BaseUrl ?? "http://localhost:1234";
+                await _lmStudioService.SetBaseUrlAsync(baseUrl);
+                AddLog($"Using LM Studio at: {baseUrl}");
+
+                // Get the selected model or try to find a qwen-vl model
+                var models = await _lmStudioService.GetAvailableModelsAsync(_analysisCancellationTokenSource.Token);
+                string selectedModel = _settingsService.Settings?.LMStudioSettings?.SelectedModel ?? string.Empty;
+
+                if (string.IsNullOrEmpty(selectedModel))
                 {
-                    AnalysisStatus = "Connecting to ComfyUI...";
-                    AddLog("Connecting to ComfyUI WebSocket...");
-                    await _comfyUIService.ConnectAsync(_analysisCancellationTokenSource.Token);
-                    AddLog("Connected to ComfyUI");
-                }
+                    // Try to find qwen-vl model
+                    var qwenModel = models.FirstOrDefault(m =>
+                        m.Name.ToLower().Contains("qwen") && m.Name.ToLower().Contains("vl"));
 
-                // Load workflow
-                var workflowPath = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "workflow", "qwen-zimageAPI.json");
-                if (!File.Exists(workflowPath))
-                {
-                    AddLog($"ERROR: Workflow file not found: {workflowPath}");
-                    System.Windows.MessageBox.Show($"Workflow file not found: {workflowPath}", "Error", System.Windows.MessageBoxButton.OK, System.Windows.MessageBoxImage.Error);
-                    return;
-                }
-
-                AddLog($"Loading workflow: {workflowPath}");
-                var workflowJson = await File.ReadAllTextAsync(workflowPath, _analysisCancellationTokenSource.Token);
-                var workflow = JsonSerializer.Deserialize<JsonElement>(workflowJson);
-
-                AnalysisStatus = "Uploading image...";
-                AnalysisProgress = 20;
-
-                // Upload the source image
-                AddLog($"Uploading image for analysis: {ImageFilePath}");
-                var uploadedFileName = await _comfyUIService.UploadImageAsync(ImageFilePath);
-                AddLog($"Image uploaded as: {uploadedFileName}");
-
-                AnalysisStatus = "Analyzing with Qwen-VL...";
-                AnalysisProgress = 40;
-
-                // Update workflow parameters
-                var workflowDict = JsonSerializer.Deserialize<Dictionary<string, JsonElement>>(workflow.GetRawText());
-                if (workflowDict != null)
-                {
-                    // Update node 58 (LoadImage) with uploaded filename
-                    if (workflowDict.ContainsKey("58"))
+                    if (qwenModel != null)
                     {
-                        var node58 = JsonSerializer.Deserialize<Dictionary<string, object>>(workflowDict["58"].GetRawText());
-                        if (node58 != null && node58.ContainsKey("inputs"))
-                        {
-                            var inputs = JsonSerializer.Deserialize<Dictionary<string, object>>(
-                                JsonSerializer.Serialize(node58["inputs"]));
-                            if (inputs != null)
-                            {
-                                inputs["image"] = uploadedFileName;
-                                node58["inputs"] = inputs;
-                                workflowDict["58"] = JsonSerializer.SerializeToElement(node58);
-                            }
-                        }
+                        selectedModel = qwenModel.Name;
+                        AddLog($"Auto-selected Qwen VL model: {selectedModel}");
+                    }
+                    else if (models.Any())
+                    {
+                        selectedModel = models.First().Name;
+                        AddLog($"Using first available model: {selectedModel}");
+                    }
+                    else
+                    {
+                        throw new Exception("No models available in LM Studio. Please load a vision model like Qwen-VL.");
                     }
                 }
+                else
+                {
+                    AddLog($"Using configured model: {selectedModel}");
+                }
 
-                AnalysisStatus = "Processing analysis...";
-                AnalysisProgress = 60;
+                AnalysisStatus = "Analyzing with LM Studio Qwen-VL...";
+                AnalysisProgress = 30;
 
-                // Execute workflow for analysis
-                var updatedWorkflow = JsonSerializer.SerializeToElement(workflowDict);
-                var promptId = await _comfyUIService.ExecuteWorkflowAsync(updatedWorkflow, null, _analysisCancellationTokenSource.Token);
-                AddLog($"Analysis workflow executed with prompt ID: {promptId}");
+                // Use LM Studio for image analysis
+                var analysisPrompt = "Describe this image in detail, focusing on the subject, their actions, the setting, mood, and any camera or motion elements. This description will be used to generate a video from the image.";
 
-                AnalysisStatus = "Retrieving results...";
-                AnalysisProgress = 80;
+                var analysisResult = await _lmStudioService.AnalyzeImageAsync(
+                    selectedModel,
+                    ImageFilePath,
+                    analysisPrompt,
+                    maxTokens: 500,
+                    _analysisCancellationTokenSource.Token);
 
-                // Wait for processing and get the analysis result
-                await Task.Delay(3000, _analysisCancellationTokenSource.Token);
-                var analysisResult = await GetAnalysisOutputAsync(promptId);
+                AnalysisProgress = 90;
+                AddLog("Analysis received from LM Studio");
 
                 if (!string.IsNullOrEmpty(analysisResult))
                 {
@@ -1394,7 +1591,7 @@ namespace FlipPix.UI.ViewModels
                 }
                 else
                 {
-                    ImageAnalysis = "Analysis completed but no text was returned. Please check ComfyUI logs.";
+                    ImageAnalysis = "Analysis completed but no text was returned from LM Studio.";
                     AnalysisStatus = "Analysis complete (no output)";
                     AddLog("Analysis completed but no text output was detected");
                 }
@@ -1411,7 +1608,7 @@ namespace FlipPix.UI.ViewModels
                 AnalysisStatus = "Error";
                 ImageAnalysis = $"Error analyzing image: {ex.Message}";
                 AddLog($"ERROR analyzing image: {ex.Message}");
-                System.Windows.MessageBox.Show($"Error analyzing image:\n\n{ex.Message}", "Error", System.Windows.MessageBoxButton.OK, System.Windows.MessageBoxImage.Error);
+                System.Windows.MessageBox.Show($"Error analyzing image:\n\n{ex.Message}\n\nPlease ensure LM Studio is running and the Qwen-VL model is loaded.", "Error", System.Windows.MessageBoxButton.OK, System.Windows.MessageBoxImage.Error);
             }
             finally
             {
@@ -1486,6 +1683,7 @@ namespace FlipPix.UI.ViewModels
 
                 PromptQueue.Add(queueItem);
                 UpdateQueueStatus();
+                SaveQueueToFile();
                 AddLog($"Analysis sent to queue: {queueItem.DisplayText.Substring(0, Math.Min(80, queueItem.DisplayText.Length))}...");
                 StatusBarMessage = "Analysis added to queue";
             }
@@ -1506,6 +1704,7 @@ namespace FlipPix.UI.ViewModels
             PromptQueue.Add(queueItem);
             NewQueuePrompt = string.Empty;
             UpdateQueueStatus();
+            SaveQueueToFile();
             AddLog($"Added to queue: {queueItem.DisplayText.Substring(0, Math.Min(80, queueItem.DisplayText.Length))}...");
         }
 
@@ -1515,6 +1714,7 @@ namespace FlipPix.UI.ViewModels
             {
                 PromptQueue.Remove(item);
                 UpdateQueueStatus();
+                SaveQueueToFile();
                 AddLog($"Removed from queue: {item.DisplayText.Substring(0, Math.Min(80, item.DisplayText.Length))}...");
             }
         }
@@ -1537,12 +1737,16 @@ namespace FlipPix.UI.ViewModels
                     try
                     {
                         item.Status = QueueItemStatus.Processing;
+                        UpdateQueueStatus();
+                        SaveQueueToFile();
                         AddLog($"Processing queue item: {item.DisplayText.Substring(0, Math.Min(80, item.DisplayText.Length))}...");
 
                         // Check if the image still exists
                         if (!File.Exists(item.ImagePath))
                         {
                             item.Status = QueueItemStatus.Failed;
+                            UpdateQueueStatus();
+                            SaveQueueToFile();
                             AddLog($"❌ Queue item failed - image not found: {item.ImagePath}");
                             continue;
                         }
@@ -1579,17 +1783,24 @@ namespace FlipPix.UI.ViewModels
                         ImageFilePath = originalImagePath;
                         ImagePreviewSource = originalImageSource;
 
+                        // Save queue after each item completion
+                        UpdateQueueStatus();
+                        SaveQueueToFile();
+
                         // Small delay between items
                         await Task.Delay(1000);
                     }
                     catch (Exception ex)
                     {
                         item.Status = QueueItemStatus.Failed;
+                        UpdateQueueStatus();
+                        SaveQueueToFile();
                         AddLog($"Error processing queue item: {ex.Message}");
                     }
                 }
 
                 UpdateQueueStatus();
+                SaveQueueToFile();
                 AddLog("=== Queue processing completed ===");
             }
             catch (Exception ex)
@@ -1622,11 +1833,558 @@ namespace FlipPix.UI.ViewModels
             {
                 QueueStatus = $"Queue: {totalCount} items ({pendingCount} pending, {completedCount} completed, {failedCount} failed)";
             }
+
+            // Update HasFailedItems notification
+            OnPropertyChanged(nameof(HasFailedItems));
+            CommandManager.InvalidateRequerySuggested();
+        }
+
+        // Reprocess methods for crash recovery
+        private async Task ReprocessItemAsync(QueueItem? item)
+        {
+            if (item == null) return;
+
+            try
+            {
+                AddLog($"=== Reprocessing failed item: {item.DisplayText.Substring(0, Math.Min(80, item.DisplayText.Length))} ===");
+
+                // Check if the image still exists
+                if (!File.Exists(item.ImagePath))
+                {
+                    AddLog($"❌ Cannot reprocess - image not found: {item.ImagePath}");
+                    System.Windows.MessageBox.Show(
+                        $"The image file for this queue item is no longer available:\n\n{item.ImagePath}",
+                        "Image Not Found",
+                        System.Windows.MessageBoxButton.OK,
+                        System.Windows.MessageBoxImage.Error);
+                    return;
+                }
+
+                // Store current values
+                var originalPrompt = VideoPrompt;
+                var originalImagePath = ImageFilePath;
+                var originalImageSource = ImagePreviewSource;
+
+                // Set the image and prompt from queue item
+                ImageFilePath = item.ImagePath;
+                VideoPrompt = item.Prompt;
+
+                // Load the image preview
+                LoadImagePreview();
+
+                // Reset item status to processing
+                item.Status = QueueItemStatus.Processing;
+                UpdateQueueStatus();
+                SaveQueueToFile();
+
+                // Generate video for this prompt
+                await GenerateVideoAsyncInternal();
+
+                if (HasResultVideo)
+                {
+                    item.Status = QueueItemStatus.Completed;
+                    item.VideoPath = ResultVideoPath;
+                    AddLog($"✅ Item reprocessed successfully: {item.DisplayText.Substring(0, Math.Min(50, item.DisplayText.Length))}...");
+                    StatusBarMessage = "Item reprocessed successfully";
+                }
+                else
+                {
+                    item.Status = QueueItemStatus.Failed;
+                    AddLog($"❌ Item reprocessing failed: {item.DisplayText.Substring(0, Math.Min(50, item.DisplayText.Length))}...");
+                    StatusBarMessage = "Item reprocessing failed - check ComfyUI connection";
+                }
+
+                // Restore original values
+                VideoPrompt = originalPrompt;
+                ImageFilePath = originalImagePath;
+                ImagePreviewSource = originalImageSource;
+
+                UpdateQueueStatus();
+                SaveQueueToFile();
+            }
+            catch (Exception ex)
+            {
+                item.Status = QueueItemStatus.Failed;
+                AddLog($"Error reprocessing item: {ex.Message}");
+                UpdateQueueStatus();
+                SaveQueueToFile();
+                System.Windows.MessageBox.Show(
+                    $"Error reprocessing item:\n\n{ex.Message}",
+                    "Reprocess Error",
+                    System.Windows.MessageBoxButton.OK,
+                    System.Windows.MessageBoxImage.Error);
+            }
+        }
+
+        private async Task ReprocessAllFailedAsync()
+        {
+            var failedItems = PromptQueue.Where(x => x.Status == QueueItemStatus.Failed).ToList();
+
+            if (!failedItems.Any())
+            {
+                AddLog("No failed items to reprocess");
+                return;
+            }
+
+            var result = System.Windows.MessageBox.Show(
+                $"Reprocess {failedItems.Count} failed item(s)?\n\nThis will retry generating videos for all failed items.",
+                "Confirm Reprocess All",
+                System.Windows.MessageBoxButton.OKCancel,
+                System.Windows.MessageBoxImage.Question);
+
+            if (result != System.Windows.MessageBoxResult.OK)
+            {
+                AddLog("Reprocess all cancelled by user");
+                return;
+            }
+
+            AddLog($"=== Starting to reprocess {failedItems.Count} failed items ===");
+
+            foreach (var item in failedItems)
+            {
+                if (item.Status == QueueItemStatus.Failed)
+                {
+                    await ReprocessItemAsync(item);
+                    // Small delay between items
+                    await Task.Delay(1000);
+                }
+            }
+
+            AddLog("=== Reprocess all failed items completed ===");
+        }
+
+        // Queue persistence methods for crash recovery
+        private string QueueFilePath => Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "queue", "video_queue.json");
+        private string StoryQueueFilePath => Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "queue", "story_video_queue.json");
+
+        private void SaveQueueToFile()
+        {
+            try
+            {
+                var queueDir = Path.GetDirectoryName(QueueFilePath);
+                if (!string.IsNullOrEmpty(queueDir) && !Directory.Exists(queueDir))
+                {
+                    Directory.CreateDirectory(queueDir);
+                }
+
+                var options = new JsonSerializerOptions { WriteIndented = true };
+                var json = JsonSerializer.Serialize(PromptQueue.ToList(), options);
+                File.WriteAllText(QueueFilePath, json);
+                AddLog($"Queue saved to file: {PromptQueue.Count} items");
+            }
+            catch (Exception ex)
+            {
+                AddLog($"Error saving queue to file: {ex.Message}");
+            }
+        }
+
+        private void LoadQueueFromFile()
+        {
+            try
+            {
+                if (!File.Exists(QueueFilePath))
+                {
+                    AddLog("No saved queue file found");
+                    return;
+                }
+
+                var json = File.ReadAllText(QueueFilePath);
+                var savedItems = JsonSerializer.Deserialize<List<QueueItem>>(json);
+
+                if (savedItems != null && savedItems.Any())
+                {
+                    _promptQueue.Clear();
+                    foreach (var item in savedItems)
+                    {
+                        // Reset processing items to failed (since app crashed during processing)
+                        if (item.Status == QueueItemStatus.Processing)
+                        {
+                            item.Status = QueueItemStatus.Failed;
+                        }
+                        _promptQueue.Add(item);
+                    }
+                    UpdateQueueStatus();
+                    AddLog($"Queue loaded from file: {_promptQueue.Count} items");
+                    StatusBarMessage = $"Queue restored: {_promptQueue.Count} items";
+                }
+            }
+            catch (Exception ex)
+            {
+                AddLog($"Error loading queue from file: {ex.Message}");
+            }
+        }
+
+        /// <summary>
+        /// Saves the story video queue to a file for crash recovery
+        /// </summary>
+        private void SaveStoryQueueToFile()
+        {
+            try
+            {
+                var queueDir = Path.GetDirectoryName(StoryQueueFilePath);
+                if (!string.IsNullOrEmpty(queueDir) && !Directory.Exists(queueDir))
+                {
+                    Directory.CreateDirectory(queueDir);
+                }
+
+                var options = new JsonSerializerOptions { WriteIndented = true };
+                var json = JsonSerializer.Serialize(StoryVideoQueue.ToList(), options);
+                File.WriteAllText(StoryQueueFilePath, json);
+                AddLog($"Story queue saved to file: {StoryVideoQueue.Count} items");
+            }
+            catch (Exception ex)
+            {
+                AddLog($"Error saving story queue to file: {ex.Message}");
+            }
+        }
+
+        /// <summary>
+        /// Loads the story video queue from a file after a crash
+        /// </summary>
+        private void LoadStoryQueueFromFile()
+        {
+            try
+            {
+                if (!File.Exists(StoryQueueFilePath))
+                {
+                    AddLog("No saved story queue file found");
+                    return;
+                }
+
+                var json = File.ReadAllText(StoryQueueFilePath);
+                var savedItems = JsonSerializer.Deserialize<List<StoryVideoQueueItem>>(json);
+
+                if (savedItems != null && savedItems.Any())
+                {
+                    var completedCount = savedItems.Count(i => i.Status == "Completed");
+                    var failedCount = savedItems.Count(i => i.Status == "Failed");
+                    var pendingCount = savedItems.Count(i => i.Status == "Pending");
+
+                    _storyVideoQueue.Clear();
+                    foreach (var item in savedItems)
+                    {
+                        // Reset processing items to failed (since app crashed during processing)
+                        if (item.Status == "Processing")
+                        {
+                            item.Status = "Failed";
+                            item.ErrorMessage = "Interrupted by crash or app restart";
+                        }
+                        _storyVideoQueue.Add(item);
+                    }
+                    UpdateStoryQueueStatus();
+                    AddLog($"Story queue loaded from file: {_storyVideoQueue.Count} items ({completedCount} completed, {failedCount} failed, {pendingCount} pending)");
+                    StatusBarMessage = $"Story queue restored: {_storyVideoQueue.Count} items";
+                }
+            }
+            catch (Exception ex)
+            {
+                AddLog($"Error loading story queue from file: {ex.Message}");
+            }
         }
 
         protected void OnPropertyChanged([CallerMemberName] string? propertyName = null)
         {
             PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(propertyName));
+        }
+
+        // Story Video Generator Methods
+        private void SelectStoryPromptJson()
+        {
+            var dialog = new Microsoft.Win32.OpenFileDialog
+            {
+                Title = "Select Story Prompts JSON File",
+                Filter = "JSON Files (*.json)|*.json|All Files (*.*)|*.*",
+                InitialDirectory = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "prompts")
+            };
+
+            if (dialog.ShowDialog() == true)
+            {
+                StoryPromptJsonPath = dialog.FileName;
+                AddLog($"Selected story prompts file: {Path.GetFileName(StoryPromptJsonPath)}");
+            }
+        }
+
+        private void SelectStoryImagesFolder()
+        {
+            using (var dialog = new System.Windows.Forms.FolderBrowserDialog())
+            {
+                dialog.Description = "Select the folder containing the 10 story images";
+                dialog.ShowNewFolderButton = false;
+
+                // Try to use previously selected path as starting point
+                if (!string.IsNullOrEmpty(StoryImagesFolderPath) && Directory.Exists(StoryImagesFolderPath))
+                {
+                    dialog.SelectedPath = StoryImagesFolderPath;
+                }
+
+                if (dialog.ShowDialog() == System.Windows.Forms.DialogResult.OK)
+                {
+                    StoryImagesFolderPath = dialog.SelectedPath;
+                    AddLog($"Selected story images folder: {StoryImagesFolderPath}");
+                }
+            }
+        }
+
+        private async Task LoadStoryQueueAsync()
+        {
+            if (!CanLoadStoryQueue) return;
+
+            try
+            {
+                AddLog("Loading story prompts from JSON file...");
+                var jsonContent = await File.ReadAllTextAsync(StoryPromptJsonPath);
+                var storyData = JsonSerializer.Deserialize<StoryPromptData>(jsonContent);
+
+                if (storyData?.Prompts == null || !storyData.Prompts.Any())
+                {
+                    AddLog("ERROR: No prompts found in JSON file");
+                    System.Windows.MessageBox.Show("No prompts found in the JSON file.", "Error",
+                        MessageBoxButton.OK, MessageBoxImage.Error);
+                    return;
+                }
+
+                // Get all image files from the folder
+                var imageFiles = Directory.GetFiles(StoryImagesFolderPath, "*.png")
+                    .Concat(Directory.GetFiles(StoryImagesFolderPath, "*.jpg"))
+                    .Concat(Directory.GetFiles(StoryImagesFolderPath, "*.jpeg"))
+                    .OrderBy(f => f)
+                    .ToList();
+
+                if (imageFiles.Count < 10)
+                {
+                    AddLog($"WARNING: Found {imageFiles.Count} images, expected 10");
+                    var result = System.Windows.MessageBox.Show(
+                        $"Found {imageFiles.Count} images in the folder, but expected 10.\n\nDo you want to continue?",
+                        "Warning",
+                        MessageBoxButton.YesNo,
+                        MessageBoxImage.Warning);
+
+                    if (result == MessageBoxResult.No)
+                    {
+                        return;
+                    }
+                }
+
+                // Clear existing queue
+                StoryVideoQueue.Clear();
+
+                // Create queue items for each prompt
+                int count = Math.Min(storyData.Prompts.Count, imageFiles.Count);
+                for (int i = 0; i < count; i++)
+                {
+                    var queueItem = new StoryVideoQueueItem
+                    {
+                        Index = i + 1,
+                        Prompt = storyData.Prompts[i],
+                        InputImagePath = imageFiles[i],
+                        Status = "Pending"
+                    };
+
+                    // Subscribe to item property changes
+                    queueItem.PropertyChanged += (s, e) =>
+                    {
+                        if (e.PropertyName == nameof(StoryVideoQueueItem.Status))
+                        {
+                            OnPropertyChanged(nameof(CanProcessStoryQueue));
+                            CommandManager.InvalidateRequerySuggested();
+                        }
+                    };
+
+                    StoryVideoQueue.Add(queueItem);
+                }
+
+                UpdateStoryQueueStatus();
+                AddLog($"Loaded {StoryVideoQueue.Count} story video items into queue");
+                StatusBarMessage = $"Loaded {StoryVideoQueue.Count} items into story queue";
+
+                // Save queue for crash recovery
+                SaveStoryQueueToFile();
+            }
+            catch (Exception ex)
+            {
+                AddLog($"ERROR loading story queue: {ex.Message}");
+                _logger.LogError($"Error loading story queue: {ex}");
+                System.Windows.MessageBox.Show($"Error loading story queue:\n\n{ex.Message}", "Error",
+                    MessageBoxButton.OK, MessageBoxImage.Error);
+            }
+        }
+
+        private async Task ProcessStoryQueueAsync()
+        {
+            if (!CanProcessStoryQueue) return;
+
+            try
+            {
+                IsProcessingStoryQueue = true;
+                var pendingItems = StoryVideoQueue.Where(item => item.Status == "Pending").ToList();
+                StoryQueueTotal = pendingItems.Count;
+                StoryQueueProgress = 0;
+
+                AddLog($"=== Starting story video queue processing ({StoryQueueTotal} videos) ===");
+
+                foreach (var item in pendingItems)
+                {
+                    CurrentStoryQueueItem = item;
+                    item.Status = "Processing";
+                    item.StartedAt = DateTime.Now;
+                    UpdateStoryQueueStatus();
+
+                    AddLog($"Processing story video {StoryQueueProgress + 1}/{StoryQueueTotal}: Prompt #{item.Index}");
+
+                    try
+                    {
+                        // Check if the image still exists
+                        if (!File.Exists(item.InputImagePath))
+                        {
+                            item.Status = "Failed";
+                            item.ErrorMessage = "Image not found";
+                            AddLog($"❌ Story video item failed - image not found: {item.InputImagePath}");
+                            UpdateStoryQueueStatus();
+                            continue;
+                        }
+
+                        // Store current values
+                        var originalPrompt = VideoPrompt;
+                        var originalImagePath = ImageFilePath;
+                        var originalImageSource = ImagePreviewSource;
+
+                        // Set the image and prompt from queue item
+                        ImageFilePath = item.InputImagePath;
+                        VideoPrompt = item.Prompt;
+
+                        // Load the image preview
+                        LoadImagePreview();
+
+                        // Generate video for this prompt
+                        await GenerateVideoAsyncInternal();
+
+                        if (HasResultVideo)
+                        {
+                            item.Status = "Completed";
+                            item.OutputVideoPath = ResultVideoPath;
+                            item.CompletedAt = DateTime.Now;
+                            item.Progress = 100;
+                            AddLog($"✅ Story video #{item.Index} completed: {Path.GetFileName(ResultVideoPath)}");
+                            // Save queue progress after each completion
+                            SaveStoryQueueToFile();
+                        }
+                        else
+                        {
+                            item.Status = "Failed";
+                            item.ErrorMessage = "Video generation failed";
+                            AddLog($"❌ Story video #{item.Index} failed: Video generation returned no result");
+                            // Save queue progress after each failure
+                            SaveStoryQueueToFile();
+                        }
+
+                        // Restore original values
+                        VideoPrompt = originalPrompt;
+                        ImageFilePath = originalImagePath;
+                        ImagePreviewSource = originalImageSource;
+
+                        // Small delay between items
+                        await Task.Delay(1000);
+                    }
+                    catch (Exception ex)
+                    {
+                        item.Status = "Failed";
+                        item.ErrorMessage = ex.Message;
+                        AddLog($"❌ Story video #{item.Index} failed: {ex.Message}");
+                        _logger.LogError($"Error processing story video item {item.Id}: {ex}");
+                        // Save queue progress after exception
+                        SaveStoryQueueToFile();
+                    }
+                    finally
+                    {
+                        StoryQueueProgress++;
+                        UpdateStoryQueueStatus();
+                    }
+                }
+
+                var completedCount = StoryVideoQueue.Count(x => x.Status == "Completed");
+                var failedCount = StoryVideoQueue.Count(x => x.Status == "Failed");
+
+                AddLog($"=== Story video queue processing completed ({completedCount} successful, {failedCount} failed) ===");
+                // Save final queue state
+                SaveStoryQueueToFile();
+                StatusBarMessage = $"Story queue completed: {completedCount} successful, {failedCount} failed";
+
+                System.Windows.MessageBox.Show($"Story video generation completed!\n\nSuccessful: {completedCount}\nFailed: {failedCount}",
+                    "Processing Complete", MessageBoxButton.OK, MessageBoxImage.Information);
+            }
+            catch (Exception ex)
+            {
+                AddLog($"ERROR: Story queue processing failed: {ex.Message}");
+                _logger.LogError($"Error processing story queue: {ex}");
+                System.Windows.MessageBox.Show($"Story queue processing failed:\n\n{ex.Message}", "Error",
+                    MessageBoxButton.OK, MessageBoxImage.Error);
+            }
+            finally
+            {
+                IsProcessingStoryQueue = false;
+                CurrentStoryQueueItem = null;
+                StoryQueueProgress = 0;
+                StoryQueueTotal = 0;
+                UpdateStoryQueueStatus();
+                CommandManager.InvalidateRequerySuggested();
+            }
+        }
+
+        private void ClearStoryQueue()
+        {
+            if (!StoryVideoQueue.Any()) return;
+
+            var result = System.Windows.MessageBox.Show(
+                $"Are you sure you want to clear all {StoryVideoQueue.Count} items from the story queue?",
+                "Clear Story Queue",
+                MessageBoxButton.YesNo,
+                MessageBoxImage.Question);
+
+            if (result == MessageBoxResult.Yes)
+            {
+                StoryVideoQueue.Clear();
+                UpdateStoryQueueStatus();
+                AddLog("Story queue cleared");
+
+                // Delete saved queue file
+                try
+                {
+                    if (File.Exists(StoryQueueFilePath))
+                    {
+                        File.Delete(StoryQueueFilePath);
+                        AddLog("Story queue file deleted");
+                    }
+                }
+                catch (Exception ex)
+                {
+                    AddLog($"Warning: Could not delete story queue file: {ex.Message}");
+                }
+
+                CommandManager.InvalidateRequerySuggested();
+            }
+        }
+
+        private void UpdateStoryQueueStatus()
+        {
+            var totalCount = StoryVideoQueue.Count;
+            var pendingCount = StoryVideoQueue.Count(x => x.Status == "Pending");
+            var completedCount = StoryVideoQueue.Count(x => x.Status == "Completed");
+            var failedCount = StoryVideoQueue.Count(x => x.Status == "Failed");
+
+            if (totalCount == 0)
+            {
+                StoryQueueStatus = "No images loaded";
+            }
+            else if (IsProcessingStoryQueue)
+            {
+                StoryQueueStatus = $"Processing queue... ({StoryQueueProgress}/{StoryQueueTotal}) - {pendingCount} pending, {completedCount} completed, {failedCount} failed";
+            }
+            else
+            {
+                StoryQueueStatus = $"Queue: {totalCount} items ({pendingCount} pending, {completedCount} completed, {failedCount} failed)";
+            }
+
+            CommandManager.InvalidateRequerySuggested();
         }
     }
 }

@@ -68,6 +68,39 @@
                             <Button Grid.Column="1" Content="Browse..." Click="BrowseComfyUIPath_Click" Padding="15,5"/>
                         </Grid>
 
+                        <!-- Crash Detection & Auto-Restart Settings -->
+                        <Separator Margin="0,0,0,15"/>
+                        <TextBlock Text="Crash Detection &amp; Auto-Restart" FontWeight="SemiBold" FontSize="14" Margin="0,0,0,10" Foreground="#495057"/>
+                        <CheckBox x:Name="AutoRestartCheckBox" Content="Enable automatic ComfyUI restart on crash" IsChecked="{Binding AutoRestartComfyUI}" Margin="0,0,0,10"/>
+
+                        <TextBlock Text="ComfyUI Restart Script (.bat):" FontWeight="SemiBold" FontSize="13" Margin="0,0,0,5" Foreground="#6C757D"/>
+                        <TextBlock Text="Script to restart ComfyUI (e.g., run_nvidia_gpu.bat)" FontSize="11" Foreground="#868E96" Margin="0,0,0,5"/>
+                        <Grid Margin="0,0,0,10">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="*"/>
+                                <ColumnDefinition Width="Auto"/>
+                            </Grid.ColumnDefinitions>
+                            <TextBox Grid.Column="0" x:Name="ComfyUIRestartScriptTextBox" Text="{Binding ComfyUIRestartScriptPath}" Margin="0,0,10,0"/>
+                            <Button Grid.Column="1" Content="Browse..." Click="BrowseRestartScript_Click" Padding="15,5"/>
+                        </Grid>
+
+                        <Grid Margin="0,0,0,0">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="*"/>
+                                <ColumnDefinition Width="*"/>
+                            </Grid.ColumnDefinitions>
+                            <StackPanel Grid.Column="0" Margin="0,0,10,0">
+                                <TextBlock Text="Restart Delay (sec):" FontSize="12" Foreground="#6C757D" Margin="0,0,0,5"/>
+                                <TextBox x:Name="RestartDelayTextBox" Text="{Binding ComfyUIRestartDelaySeconds}" />
+                            </StackPanel>
+                            <StackPanel Grid.Column="1">
+                                <TextBlock Text="Startup Timeout (sec):" FontSize="12" Foreground="#6C757D" Margin="0,0,0,5"/>
+                                <TextBox x:Name="StartupTimeoutTextBox" Text="{Binding ComfyUIStartupTimeoutSeconds}" />
+                            </StackPanel>
+                        </Grid>
+
+                        <Separator Margin="0,15,0,15"/>
+
                         <TextBlock Text="ComfyUI Output Folder" FontWeight="SemiBold" FontSize="14" Margin="0,0,0,10" Foreground="#495057"/>
                         <TextBlock Text="This is where ComfyUI saves generated images" FontSize="12" Foreground="#6C757D" Margin="0,0,0,5"/>
                         <Grid>
@@ -78,6 +111,49 @@
                             <TextBox Grid.Column="0" x:Name="OutputPathTextBox" Text="{Binding OutputFolderPath}" Margin="0,0,10,0"/>
                             <Button Grid.Column="1" Content="Browse..." Click="BrowseOutputPath_Click" Padding="15,5"/>
                         </Grid>
+                    </StackPanel>
+                </Border>
+
+                <!-- LM Studio Settings -->
+                <Border Background="#F8F9FA" BorderBrush="#10B981" BorderThickness="1" CornerRadius="8" Padding="20" Margin="0,0,0,15">
+                    <StackPanel>
+                        <TextBlock Text="LM Studio Configuration" FontWeight="Bold" FontSize="16" Margin="0,0,0,15" Foreground="#10B981"/>
+
+                        <!-- LM Studio Server Settings -->
+                        <Grid Margin="0,0,0,15">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="120"/>
+                                <ColumnDefinition Width="*"/>
+                                <ColumnDefinition Width="Auto"/>
+                            </Grid.ColumnDefinitions>
+                            <Grid.RowDefinitions>
+                                <RowDefinition Height="Auto"/>
+                                <RowDefinition Height="Auto"/>
+                                <RowDefinition Height="Auto"/>
+                                <RowDefinition Height="Auto"/>
+                            </Grid.RowDefinitions>
+
+                            <TextBlock Grid.Row="0" Grid.Column="0" Text="Server:" VerticalAlignment="Center" Margin="0,0,10,10"/>
+                            <TextBox Grid.Row="0" Grid.Column="1" x:Name="LMStudioServerTextBox" Text="{Binding LMStudioServer}" Margin="0,0,10,10"/>
+                            <Button Grid.Row="0" Grid.Column="2" Content="Test" Click="TestLMStudioConnection_Click" Padding="15,5" Margin="0,0,0,10"/>
+
+                            <TextBlock Grid.Row="1" Grid.Column="0" Text="Port:" VerticalAlignment="Center" Margin="0,0,10,10"/>
+                            <TextBox Grid.Row="1" Grid.Column="1" x:Name="LMStudioPortTextBox" Text="{Binding LMStudioPort}" Margin="0,0,0,10"/>
+
+                            <TextBlock Grid.Row="2" Grid.Column="0" Text="AI Model:" VerticalAlignment="Center" Margin="0,0,10,10"/>
+                            <Grid Grid.Row="2" Grid.Column="1" Grid.ColumnSpan="2" Margin="0,0,0,10">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*"/>
+                                    <ColumnDefinition Width="Auto"/>
+                                </Grid.ColumnDefinitions>
+                                <ComboBox Grid.Column="0" x:Name="LMStudioModelComboBox" ItemsSource="{Binding AvailableModels}"
+                                          SelectedValue="{Binding SelectedModel}" SelectedValuePath="Name" DisplayMemberPath="Name" Margin="0,0,10,0"/>
+                                <Button Grid.Column="1" Content="Refresh" Click="RefreshLMStudioModels_Click" Padding="15,5"/>
+                            </Grid>
+                        </Grid>
+
+                        <TextBlock Text="LM Studio is used for AI image analysis. Make sure it's running on your local machine or remote server."
+                                  FontSize="12" Foreground="#6C757D" TextWrapping="Wrap"/>
                     </StackPanel>
                 </Border>
 

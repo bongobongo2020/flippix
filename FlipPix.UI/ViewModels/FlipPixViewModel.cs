@@ -46,6 +46,13 @@ namespace FlipPix.UI.ViewModels
         private string _resultImagePath = string.Empty;
         private System.Threading.CancellationTokenSource? _cancellationTokenSource;
 
+        // Queue settings
+        private ObservableCollection<CameraQueueItem> _queueItems = new();
+        private bool _isProcessingQueue = false;
+        private CameraQueueItem? _currentQueueItem;
+        private int _queueProgress = 0;
+        private int _queueTotal = 0;
+
         // Sampler settings
         private string _samplerName = "euler";
         private string _scheduler = "beta57";
@@ -79,6 +86,10 @@ namespace FlipPix.UI.ViewModels
             NavigateToImageGeneratorCommand = new RelayCommand(NavigateToImageGenerator);
             NavigateToVideoGeneratorCommand = new RelayCommand(NavigateToVideoGenerator);
             NavigateToStoryVideoCommand = new RelayCommand(NavigateToStoryVideo);
+            AddToQueueCommand = new RelayCommand(AddToQueue, () => CanAddToQueue);
+            ProcessQueueCommand = new RelayCommand(async () => await ProcessQueueAsync(), () => CanProcessQueue);
+            ClearQueueCommand = new RelayCommand(ClearQueue, () => QueueItems.Any());
+            RemoveFromQueueCommand = new RelayCommand<CameraQueueItem>(RemoveFromQueue);
 
             // Initialize camera control options
             InitializeCameraControlOptions();
@@ -282,6 +293,74 @@ namespace FlipPix.UI.ViewModels
             }
         }
 
+        // Queue Properties
+        public ObservableCollection<CameraQueueItem> QueueItems
+        {
+            get => _queueItems;
+            set
+            {
+                _queueItems = value;
+                OnPropertyChanged();
+            }
+        }
+
+        public bool IsProcessingQueue
+        {
+            get => _isProcessingQueue;
+            set
+            {
+                _isProcessingQueue = value;
+                OnPropertyChanged();
+                OnPropertyChanged(nameof(CanProcessQueue));
+                OnPropertyChanged(nameof(CanAddToQueue));
+                CommandManager.InvalidateRequerySuggested();
+            }
+        }
+
+        public CameraQueueItem? CurrentQueueItem
+        {
+            get => _currentQueueItem;
+            set
+            {
+                _currentQueueItem = value;
+                OnPropertyChanged();
+            }
+        }
+
+        public int QueueProgress
+        {
+            get => _queueProgress;
+            set
+            {
+                _queueProgress = value;
+                OnPropertyChanged();
+                OnPropertyChanged(nameof(QueueProgressText));
+            }
+        }
+
+        public int QueueTotal
+        {
+            get => _queueTotal;
+            set
+            {
+                _queueTotal = value;
+                OnPropertyChanged();
+                OnPropertyChanged(nameof(QueueProgressText));
+            }
+        }
+
+        public string QueueProgressText => QueueTotal > 0 ? $"{QueueProgress}/{QueueTotal}" : "0/0";
+
+        public bool CanProcessQueue => QueueItems.Any(item => item.Status == "Queued") && !IsProcessingQueue && !string.IsNullOrEmpty(ImageFilePath);
+
+        public bool CanAddToQueue => !string.IsNullOrEmpty(ImageFilePath) && File.Exists(ImageFilePath) && !string.IsNullOrEmpty(CustomPrompt);
+
+        public int QueuedCount => QueueItems.Count(item => item.Status == "Queued");
+
+        public int CompletedCount => QueueItems.Count(item => item.Status == "Completed");
+
+        public int FailedCount => QueueItems.Count(item => item.Status == "Failed");
+
         // Sampler Settings
 
         public string SamplerName
@@ -341,6 +420,10 @@ namespace FlipPix.UI.ViewModels
         public ICommand NavigateToImageGeneratorCommand { get; }
         public ICommand NavigateToVideoGeneratorCommand { get; }
         public ICommand NavigateToStoryVideoCommand { get; }
+        public ICommand AddToQueueCommand { get; }
+        public ICommand ProcessQueueCommand { get; }
+        public ICommand ClearQueueCommand { get; }
+        public ICommand RemoveFromQueueCommand { get; }
 
         // Methods
         private void InitializeCameraControlOptions()
@@ -530,6 +613,11 @@ namespace FlipPix.UI.ViewModels
             {
                 ImageFilePath = imagePath;
                 AddLog($"Image loaded from image generator: {Path.GetFileName(ImageFilePath)}");
+
+                // Force refresh UI
+                OnPropertyChanged(nameof(ImagePreviewSource));
+                OnPropertyChanged(nameof(ImageFilePath));
+                OnPropertyChanged(nameof(ImageInfo));
             }
             else
             {
@@ -577,8 +665,13 @@ namespace FlipPix.UI.ViewModels
                     bitmap.EndInit();
                     bitmap.Freeze();
 
-                    ImagePreviewSource = bitmap;
-                    ImageInfo = $"{bitmap.PixelWidth} × {bitmap.PixelHeight} pixels";
+                    // Ensure we're on the UI thread when setting the image source
+                    System.Windows.Application.Current.Dispatcher.Invoke(() =>
+                    {
+                        ImagePreviewSource = bitmap;
+                        ImageInfo = $"{bitmap.PixelWidth} × {bitmap.PixelHeight} pixels";
+                        OnPropertyChanged(nameof(ImagePreviewSource));
+                    });
 
                     AddLog($"Image loaded successfully: {bitmap.PixelWidth}x{bitmap.PixelHeight}, ImagePreviewSource is null: {ImagePreviewSource == null}");
                 }
@@ -890,7 +983,12 @@ namespace FlipPix.UI.ViewModels
                     bitmap.EndInit();
                     bitmap.Freeze();
 
-                    ResultPreviewSource = bitmap;
+                    // Ensure we're on the UI thread when setting the image source
+                    System.Windows.Application.Current.Dispatcher.Invoke(() =>
+                    {
+                        ResultPreviewSource = bitmap;
+                        OnPropertyChanged(nameof(ResultPreviewSource));
+                    });
 
                     AddLog($"Result image loaded successfully: {bitmap.PixelWidth}x{bitmap.PixelHeight}, ResultPreviewSource is null: {ResultPreviewSource == null}");
                 }
@@ -1542,6 +1640,247 @@ namespace FlipPix.UI.ViewModels
 
             if (data.TryGetValue("SelectedCameraControl", out var control) && control is string ctrl)
                 SelectedCameraControl = ctrl;
+        }
+
+        // Queue Methods
+        private void AddToQueue()
+        {
+            if (!CanAddToQueue) return;
+
+            var queueItem = new CameraQueueItem
+            {
+                ImageFilePath = ImageFilePath,
+                CameraControl = SelectedCameraControl,
+                Prompt = CustomPrompt,
+                NegativePrompt = NegativePrompt,
+                Steps = Steps,
+                Cfg = Cfg,
+                Denoise = Denoise,
+                SamplerName = SamplerName,
+                Scheduler = Scheduler,
+                Status = "Queued"
+            };
+
+            QueueItems.Add(queueItem);
+            AddLog($"Added to queue: {SelectedCameraControl} - {Path.GetFileName(ImageFilePath)}");
+            StatusBarMessage = $"Item added to queue ({QueuedCount} queued)";
+            CommandManager.InvalidateRequerySuggested();
+        }
+
+        private async Task ProcessQueueAsync()
+        {
+            if (!CanProcessQueue) return;
+
+            _cancellationTokenSource?.Dispose();
+            _cancellationTokenSource = new System.Threading.CancellationTokenSource();
+
+            try
+            {
+                IsProcessingQueue = true;
+                var queuedItems = QueueItems.Where(item => item.Status == "Queued").ToList();
+                QueueTotal = queuedItems.Count;
+                QueueProgress = 0;
+
+                AddLog($"=== Starting queue processing ({QueueTotal} items) ===");
+
+                foreach (var item in queuedItems)
+                {
+                    if (_cancellationTokenSource.Token.IsCancellationRequested)
+                    {
+                        AddLog("Queue processing cancelled");
+                        break;
+                    }
+
+                    CurrentQueueItem = item;
+                    item.Status = "Processing";
+                    item.StartedAt = DateTime.Now;
+                    AddLog($"Processing queue item {QueueProgress + 1}/{QueueTotal}: {item.CameraControl}");
+
+                    try
+                    {
+                        // Process the current queue item
+                        await ProcessQueueItemAsync(item, _cancellationTokenSource.Token);
+                        item.Status = "Completed";
+                        item.CompletedAt = DateTime.Now;
+                        item.Progress = 100;
+                        AddLog($"Completed queue item: {item.CameraControl}");
+                    }
+                    catch (OperationCanceledException)
+                    {
+                        item.Status = "Cancelled";
+                        item.ErrorMessage = "Cancelled by user";
+                        AddLog($"Queue item cancelled: {item.CameraControl}");
+                        break;
+                    }
+                    catch (Exception ex)
+                    {
+                        item.Status = "Failed";
+                        item.ErrorMessage = ex.Message;
+                        item.Progress = 0;
+                        AddLog($"Queue item failed: {item.CameraControl} - {ex.Message}");
+                        _logger.LogError($"Error processing queue item {item.Id}: {ex}");
+                    }
+                    finally
+                    {
+                        QueueProgress++;
+                    }
+                }
+
+                AddLog($"=== Queue processing completed ({CompletedCount} successful, {FailedCount} failed) ===");
+                StatusBarMessage = $"Queue processing completed - {CompletedCount} successful, {FailedCount} failed";
+            }
+            catch (Exception ex)
+            {
+                AddLog($"ERROR: Queue processing failed: {ex.Message}");
+                _logger.LogError($"Error processing queue: {ex}");
+                StatusBarMessage = "Queue processing failed";
+            }
+            finally
+            {
+                IsProcessingQueue = false;
+                CurrentQueueItem = null;
+                QueueProgress = 0;
+                QueueTotal = 0;
+                CommandManager.InvalidateRequerySuggested();
+            }
+        }
+
+        private async Task ProcessQueueItemAsync(CameraQueueItem item, System.Threading.CancellationToken cancellationToken)
+        {
+            // Ensure ComfyUI is connected
+            if (!_comfyUIService.IsConnected)
+            {
+                await _comfyUIService.ConnectAsync(cancellationToken);
+            }
+
+            cancellationToken.ThrowIfCancellationRequested();
+
+            // Load workflow
+            var workflowPath = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "workflow", "qwen-edit-camera-API.json");
+            if (!File.Exists(workflowPath))
+            {
+                throw new FileNotFoundException($"Workflow file not found: {workflowPath}");
+            }
+
+            var workflowJson = await File.ReadAllTextAsync(workflowPath, cancellationToken);
+            var workflow = JsonSerializer.Deserialize<JsonElement>(workflowJson);
+
+            cancellationToken.ThrowIfCancellationRequested();
+
+            // Upload input image
+            var uploadedImageName = await _comfyUIService.UploadImageAsync(item.ImageFilePath);
+
+            // Update workflow parameters for this queue item
+            var originalPrompt = CustomPrompt;
+            var originalNegativePrompt = NegativePrompt;
+            var originalSteps = Steps;
+            var originalCfg = Cfg;
+            var originalDenoise = Denoise;
+            var originalSamplerName = SamplerName;
+            var originalScheduler = Scheduler;
+
+            // Temporarily set the ViewModel properties to match the queue item
+            CustomPrompt = item.Prompt;
+            NegativePrompt = item.NegativePrompt;
+            Steps = item.Steps;
+            Cfg = item.Cfg;
+            Denoise = item.Denoise;
+            SamplerName = item.SamplerName;
+            Scheduler = item.Scheduler;
+
+            try
+            {
+                var updatedWorkflow = UpdateWorkflowParameters(workflow, uploadedImageName, item.Prompt);
+
+                // Execute workflow with progress reporting
+                var progress = new Progress<FlipPix.ComfyUI.Models.ProgressMessage>(progressMsg =>
+                {
+                    if (progressMsg.Data?.Value != null && progressMsg.Data?.Max != null)
+                    {
+                        var percent = (double)progressMsg.Data.Value / progressMsg.Data.Max * 100;
+                        System.Windows.Application.Current.Dispatcher.Invoke(() =>
+                        {
+                            item.Progress = percent;
+                        });
+                    }
+                });
+
+                var promptId = await _comfyUIService.ExecuteWorkflowAsync(updatedWorkflow, progress, cancellationToken);
+
+                // Get output images
+                var outputImages = await GetOutputImagesFromComfyUI(promptId);
+                if (outputImages.Any())
+                {
+                    var outputImage = outputImages.First();
+                    var outputDir = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "output", "camera-control");
+                    Directory.CreateDirectory(outputDir);
+
+                    var timestamp = DateTime.Now.ToString("yyyyMMdd_HHmmss");
+                    var outputPath = Path.Combine(outputDir, $"camera_queue_{item.Id}_{timestamp}.png");
+
+                    await File.WriteAllBytesAsync(outputPath, outputImage);
+                    item.ResultImagePath = outputPath;
+
+                    // If this is the current item, also update the main result
+                    if (CurrentQueueItem?.Id == item.Id)
+                    {
+                        ResultImagePath = outputPath;
+                        LoadResultPreview(outputPath);
+                        HasResultImage = true;
+                    }
+                }
+                else
+                {
+                    throw new InvalidOperationException("No output images were generated");
+                }
+            }
+            finally
+            {
+                // Restore original ViewModel properties
+                CustomPrompt = originalPrompt;
+                NegativePrompt = originalNegativePrompt;
+                Steps = originalSteps;
+                Cfg = originalCfg;
+                Denoise = originalDenoise;
+                SamplerName = originalSamplerName;
+                Scheduler = originalScheduler;
+            }
+        }
+
+        private void ClearQueue()
+        {
+            if (!QueueItems.Any()) return;
+
+            var result = System.Windows.MessageBox.Show(
+                $"Are you sure you want to clear all {QueueItems.Count} items from the queue?",
+                "Clear Queue",
+                System.Windows.MessageBoxButton.YesNo,
+                System.Windows.MessageBoxImage.Question);
+
+            if (result == System.Windows.MessageBoxResult.Yes)
+            {
+                QueueItems.Clear();
+                AddLog("Queue cleared");
+                StatusBarMessage = "Queue cleared";
+                CommandManager.InvalidateRequerySuggested();
+            }
+        }
+
+        private void RemoveFromQueue(CameraQueueItem? item)
+        {
+            if (item == null) return;
+
+            if (item.Status == "Processing")
+            {
+                System.Windows.MessageBox.Show("Cannot remove an item that is currently being processed.", "Cannot Remove",
+                    System.Windows.MessageBoxButton.OK, System.Windows.MessageBoxImage.Information);
+                return;
+            }
+
+            QueueItems.Remove(item);
+            AddLog($"Removed from queue: {item.CameraControl}");
+            StatusBarMessage = $"Item removed from queue ({QueuedCount} queued)";
+            CommandManager.InvalidateRequerySuggested();
         }
     }
 
