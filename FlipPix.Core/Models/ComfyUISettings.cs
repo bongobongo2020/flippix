@@ -18,7 +18,7 @@ public class ComfyUISettings
     public bool AutoRestartComfyUI { get; set; } = true;
     public string ComfyUIRestartScriptPath { get; set; } = string.Empty;
     public int ComfyUIRestartDelaySeconds { get; set; } = 10; // Wait time before attempting restart
-    public int ComfyUIStartupTimeoutSeconds { get; set; } = 120; // Max wait time for ComfyUI to start
+    public int ComfyUIStartupTimeoutSeconds { get; set; } = 300; // Max wait time for ComfyUI to start (5 minutes for large model loading)
 }
 
 public class SavedCameraPrompt

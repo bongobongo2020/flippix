@@ -46,6 +46,48 @@ public class ComfyUIService : IDisposable
         {
             _logger.LogInfo("Connecting to ComfyUI service");
 
+            // Check if ComfyUI is running, and start it if not
+            var isRunning = await _processManager.IsComfyUIRunningAsync(cancellationToken);
+            if (!isRunning)
+            {
+                _logger.LogWarning("ComfyUI is not running. Attempting to start it automatically...");
+                var started = await _processManager.StartComfyUIAsync(
+                    status => _logger.LogInfo(status),
+                    cancellationToken);
+
+                if (!started)
+                {
+                    throw new ComfyUIConnectionException("Failed to start ComfyUI automatically. Please start ComfyUI manually.");
+                }
+
+                _logger.LogInfo("ComfyUI started successfully");
+            }
+            else
+            {
+                // Even if ComfyUI is "running", verify it's actually ready (not crashed/hung)
+                _logger.LogInfo("ComfyUI is running, verifying it's ready...");
+                var isReady = await _processManager.IsComfyUIReadyAsync(cancellationToken);
+
+                if (!isReady)
+                {
+                    _logger.LogWarning("ComfyUI is running but not ready - may have crashed. Attempting restart...");
+                    var started = await _processManager.StartComfyUIAsync(
+                        status => _logger.LogInfo(status),
+                        cancellationToken);
+
+                    if (!started)
+                    {
+                        throw new ComfyUIConnectionException("ComfyUI is running but not ready. Failed to restart. Please restart ComfyUI manually.");
+                    }
+
+                    _logger.LogInfo("ComfyUI restarted successfully");
+                }
+                else
+                {
+                    _logger.LogInfo("ComfyUI verified to be ready");
+                }
+            }
+
             // Test HTTP connection first
             var httpConnected = await RetryAsync(
                 () => _httpClient.TestConnectionAsync(cancellationToken),
@@ -266,11 +308,11 @@ public class ComfyUIService : IDisposable
             using var timeoutCts = new CancellationTokenSource(timeout);
             using var combinedCts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken, timeoutCts.Token);
 
-            // Start a fallback completion detection task - extended to 180 seconds for longer workflows
+            // Start a fallback completion detection task - extended to 600 seconds (10 minutes) for video generation
             var fallbackTask = Task.Run(async () =>
             {
-                await Task.Delay(TimeSpan.FromSeconds(180), cancellationToken); // Wait 180 seconds (3 minutes)
-                _logger.LogWarning("Fallback completion triggered after 180 seconds for prompt: {PromptId}", promptId);
+                await Task.Delay(TimeSpan.FromSeconds(600), cancellationToken); // Wait 600 seconds (10 minutes)
+                _logger.LogWarning("Fallback completion triggered after 600 seconds for prompt: {PromptId}", promptId);
                 lock (lockObj)
                 {
                     if (!isCompleted)

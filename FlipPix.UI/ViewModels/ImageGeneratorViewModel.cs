@@ -48,10 +48,18 @@ namespace FlipPix.UI.ViewModels
         private string _selectedLora = string.Empty;
         private bool _loraEnabled = false;
 
+        // Queue fields
+        private ObservableCollection<ImagePromptQueueItem> _promptQueue = new();
+        private ImagePromptQueueItem? _selectedQueueItem;
+        private bool _isProcessingQueue = false;
+
         // Nested ViewModels for tabs
         private ImageAnalyzerViewModel _analyzer;
         private FlipPixViewModel _cameraEdit;
         private StoryImageGeneratorViewModel _storyGenerator;
+        private StoryImageGeneratorQViewModel _storyGeneratorQ;
+        private StoryImageGeneratorAmateurViewModel _storyGeneratorAmateur;
+        private AmateurGeneratorViewModel _amateurGenerator;
 
         
         public ImageGeneratorViewModel(FlipPix.ComfyUI.Services.ComfyUIService comfyUIService, IAppLogger logger, FlipPix.Core.Services.SettingsService settingsService, IServiceProvider? serviceProvider = null, IPromptService? promptService = null)
@@ -66,6 +74,9 @@ namespace FlipPix.UI.ViewModels
             _analyzer = new ImageAnalyzerViewModel(comfyUIService, lmStudioService ?? throw new InvalidOperationException("LMStudioService is required"), logger, settingsService);
             _cameraEdit = new FlipPixViewModel(comfyUIService, logger, settingsService, serviceProvider);
             _storyGenerator = new StoryImageGeneratorViewModel(comfyUIService, logger, settingsService);
+            _storyGeneratorQ = new StoryImageGeneratorQViewModel(comfyUIService, logger, settingsService);
+            _storyGeneratorAmateur = new StoryImageGeneratorAmateurViewModel(comfyUIService, logger, settingsService);
+            _amateurGenerator = new AmateurGeneratorViewModel(comfyUIService, logger, settingsService, promptService);
 
             // Initialize commands
             GenerateImageCommand = new RelayCommand(async () => await GenerateImageAsync(), () => CanGenerate);
@@ -78,6 +89,12 @@ namespace FlipPix.UI.ViewModels
             NavigateToVideoGeneratorCommand = new RelayCommand(NavigateToVideoGenerator);
                 NavigateToStoryVideoCommand = new RelayCommand(NavigateToStoryVideo);
             RefreshLorasCommand = new RelayCommand(RefreshLoras);
+
+            // Queue commands
+            AddToQueueCommand = new RelayCommand(AddToQueue, () => CanAddToQueue);
+            RemoveFromQueueCommand = new RelayCommand<ImagePromptQueueItem>(RemoveFromQueue, (item) => item != null);
+            ClearQueueCommand = new RelayCommand(ClearQueue, () => CanClearQueue);
+            ProcessQueueCommand = new RelayCommand(async () => await ProcessQueueAsync(), () => CanProcessQueue);
 
             // Load available Loras
             LoadAvailableLoras();
@@ -147,6 +164,9 @@ namespace FlipPix.UI.ViewModels
         public ImageAnalyzerViewModel Analyzer => _analyzer;
         public FlipPixViewModel CameraEdit => _cameraEdit;
         public StoryImageGeneratorViewModel StoryGenerator => _storyGenerator;
+        public StoryImageGeneratorQViewModel StoryGeneratorQ => _storyGeneratorQ;
+        public StoryImageGeneratorAmateurViewModel StoryGeneratorAmateur => _storyGeneratorAmateur;
+        public AmateurGeneratorViewModel AmateurGenerator => _amateurGenerator;
 
         public string ProcessingStatus
         {
@@ -252,7 +272,7 @@ namespace FlipPix.UI.ViewModels
             }
         }
 
-        public bool CanGenerate => !string.IsNullOrEmpty(ImagePrompt) && !IsProcessing;
+        public bool CanGenerate => !string.IsNullOrEmpty(ImagePrompt) && !IsProcessing && !IsProcessingQueue;
 
         // Lora Properties
         public ObservableCollection<string> AvailableLoras
@@ -296,6 +316,57 @@ namespace FlipPix.UI.ViewModels
         public ICommand NavigateToVideoGeneratorCommand { get; }
               public ICommand NavigateToStoryVideoCommand { get; }
         public ICommand RefreshLorasCommand { get; }
+
+        // Queue commands
+        public ICommand AddToQueueCommand { get; }
+        public ICommand RemoveFromQueueCommand { get; }
+        public ICommand ClearQueueCommand { get; }
+        public ICommand ProcessQueueCommand { get; }
+
+        // Queue properties
+        public ObservableCollection<ImagePromptQueueItem> PromptQueue
+        {
+            get => _promptQueue;
+            set
+            {
+                _promptQueue = value;
+                OnPropertyChanged();
+                OnPropertyChanged(nameof(HasQueueItems));
+                OnPropertyChanged(nameof(QueueCount));
+            }
+        }
+
+        public ImagePromptQueueItem? SelectedQueueItem
+        {
+            get => _selectedQueueItem;
+            set
+            {
+                _selectedQueueItem = value;
+                OnPropertyChanged();
+                CommandManager.InvalidateRequerySuggested();
+            }
+        }
+
+        public bool IsProcessingQueue
+        {
+            get => _isProcessingQueue;
+            set
+            {
+                _isProcessingQueue = value;
+                OnPropertyChanged();
+                CommandManager.InvalidateRequerySuggested();
+            }
+        }
+
+        public bool HasQueueItems => _promptQueue.Any();
+        public int QueueCount => _promptQueue.Count;
+        public int PendingQueueCount => _promptQueue.Count(q => q.Status == "Pending");
+        public int CompletedQueueCount => _promptQueue.Count(q => q.Status == "Completed");
+
+        public bool CanAddToQueue => !string.IsNullOrEmpty(ImagePrompt);
+        public bool CanRemoveFromQueue => SelectedQueueItem != null;
+        public bool CanClearQueue => _promptQueue.Any();
+        public bool CanProcessQueue => _promptQueue.Any(q => q.Status == "Pending") && !IsProcessingQueue;
 
         // Navigation properties
         private int _selectedTabIndex = 0; // Default to Text Generation tab
@@ -1436,6 +1507,276 @@ namespace FlipPix.UI.ViewModels
                 { "SelectedLora", SelectedLora }
             };
             return additionalData;
+        }
+
+        // Queue Management Methods
+
+        private void AddToQueue()
+        {
+            if (!CanAddToQueue) return;
+
+            var queueItem = new ImagePromptQueueItem
+            {
+                Prompt = ImagePrompt,
+                AspectRatioIndex = AspectRatioIndex,
+                Steps = Steps,
+                Cfg = Cfg,
+                Seed = Seed,
+                Denoise = Denoise,
+                LoraEnabled = LoraEnabled,
+                SelectedLora = SelectedLora
+            };
+
+            PromptQueue.Add(queueItem);
+            AddLog($"Added prompt to queue: {queueItem.DisplayPrompt}");
+            StatusBarMessage = $"Added to queue ({PromptQueue.Count} items)";
+
+            OnPropertyChanged(nameof(HasQueueItems));
+            OnPropertyChanged(nameof(QueueCount));
+            OnPropertyChanged(nameof(PendingQueueCount));
+            CommandManager.InvalidateRequerySuggested();
+        }
+
+        private void RemoveFromQueue(ImagePromptQueueItem? item)
+        {
+            if (item == null) return;
+
+            PromptQueue.Remove(item);
+            AddLog($"Removed prompt from queue: {item.DisplayPrompt}");
+            StatusBarMessage = $"Removed from queue ({PromptQueue.Count} items)";
+
+            OnPropertyChanged(nameof(HasQueueItems));
+            OnPropertyChanged(nameof(QueueCount));
+            OnPropertyChanged(nameof(PendingQueueCount));
+            CommandManager.InvalidateRequerySuggested();
+        }
+
+        private void ClearQueue()
+        {
+            if (!PromptQueue.Any()) return;
+
+            var count = PromptQueue.Count;
+            PromptQueue.Clear();
+            AddLog($"Cleared {count} items from queue");
+            StatusBarMessage = "Queue cleared";
+
+            OnPropertyChanged(nameof(HasQueueItems));
+            OnPropertyChanged(nameof(QueueCount));
+            OnPropertyChanged(nameof(PendingQueueCount));
+            CommandManager.InvalidateRequerySuggested();
+        }
+
+        private async Task ProcessQueueAsync()
+        {
+            if (!CanProcessQueue) return;
+
+            IsProcessingQueue = true;
+            AddLog("=== Starting queue processing ===");
+
+            try
+            {
+                var pendingItems = PromptQueue.Where(q => q.Status == "Pending").ToList();
+
+                foreach (var queueItem in pendingItems)
+                {
+                    if (queueItem.Status == "Failed") continue; // Skip failed items
+
+                    try
+                    {
+                        queueItem.Status = "Processing";
+                        queueItem.StartedAt = DateTime.Now;
+                        queueItem.Progress = 0;
+                        OnPropertyChanged(nameof(PendingQueueCount));
+
+                        AddLog($"Processing queue item: {queueItem.DisplayPrompt}");
+
+                        // Set current prompt settings from queue item
+                        ImagePrompt = queueItem.Prompt;
+                        AspectRatioIndex = queueItem.AspectRatioIndex;
+                        Steps = queueItem.Steps;
+                        Cfg = queueItem.Cfg;
+                        Seed = queueItem.Seed;
+                        Denoise = queueItem.Denoise;
+                        LoraEnabled = queueItem.LoraEnabled;
+                        SelectedLora = queueItem.SelectedLora;
+
+                        // Process the image generation
+                        await ProcessQueueItemAsync(queueItem);
+
+                        queueItem.Status = "Completed";
+                        queueItem.CompletedAt = DateTime.Now;
+                        queueItem.Progress = 100;
+                        AddLog($"Completed queue item: {queueItem.DisplayPrompt}");
+                    }
+                    catch (OperationCanceledException)
+                    {
+                        queueItem.Status = "Failed";
+                        queueItem.ErrorMessage = "Cancelled";
+                        AddLog($"Queue item cancelled: {queueItem.DisplayPrompt}");
+                        break; // Stop processing on cancellation
+                    }
+                    catch (Exception ex)
+                    {
+                        queueItem.Status = "Failed";
+                        queueItem.ErrorMessage = ex.Message;
+                        AddLog($"ERROR processing queue item: {ex.Message}");
+                    }
+                    finally
+                    {
+                        OnPropertyChanged(nameof(CompletedQueueCount));
+                    }
+                }
+
+                StatusBarMessage = $"Queue processing complete. {CompletedQueueCount}/{QueueCount} items completed.";
+                AddLog("=== Queue processing ended ===");
+            }
+            finally
+            {
+                IsProcessingQueue = false;
+            }
+        }
+
+        private async Task ProcessQueueItemAsync(ImagePromptQueueItem queueItem)
+        {
+            _cancellationTokenSource?.Dispose();
+            _cancellationTokenSource = new System.Threading.CancellationTokenSource();
+
+            try
+            {
+                IsProcessing = true;
+
+                // Clear previous result
+                HasResultImage = false;
+                ResultImageSource = null;
+                GC.Collect();
+                GC.WaitForPendingFinalizers();
+
+                ProcessingProgress = 0;
+                ProcessingStatus = "Preparing workflow...";
+                AddLog($"Prompt: {queueItem.Prompt}");
+
+                // Ensure ComfyUI is connected
+                if (!_comfyUIService.IsConnected)
+                {
+                    ProcessingStatus = "Connecting to ComfyUI...";
+                    AddLog("Connecting to ComfyUI WebSocket...");
+                    await _comfyUIService.ConnectAsync(_cancellationTokenSource.Token);
+                    AddLog("Connected to ComfyUI");
+                }
+                else
+                {
+                    AddLog("ComfyUI already connected");
+                }
+
+                _cancellationTokenSource.Token.ThrowIfCancellationRequested();
+
+                // Load workflow
+                var workflowPath = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "workflow", "image_z_image-TEXTAPI.json");
+                if (!File.Exists(workflowPath))
+                {
+                    AddLog($"ERROR: Workflow file not found: {workflowPath}");
+                    throw new FileNotFoundException($"Workflow file not found: {workflowPath}");
+                }
+
+                AddLog($"Loading workflow: {workflowPath}");
+                var workflowJson = await File.ReadAllTextAsync(workflowPath, _cancellationTokenSource.Token);
+                var workflow = JsonSerializer.Deserialize<JsonElement>(workflowJson);
+
+                _cancellationTokenSource.Token.ThrowIfCancellationRequested();
+
+                // Update workflow with parameters
+                ProcessingStatus = "Updating workflow parameters...";
+                ProcessingProgress = 10;
+                queueItem.Progress = 10;
+
+                var updatedWorkflow = UpdateWorkflowParameters(workflow);
+
+                // Execute workflow
+                ProcessingStatus = "Generating image...";
+                ProcessingProgress = 30;
+                queueItem.Progress = 30;
+                AddLog("Executing workflow in ComfyUI...");
+
+                var progress = new Progress<FlipPix.ComfyUI.Models.ProgressMessage>(progressMsg =>
+                {
+                    if (progressMsg.Data?.Value != null && progressMsg.Data?.Max != null)
+                    {
+                        var percent = (double)progressMsg.Data.Value / progressMsg.Data.Max * 100;
+                        System.Windows.Application.Current.Dispatcher.Invoke(() =>
+                        {
+                            ProcessingProgress = 30 + (percent * 0.6);
+                            queueItem.Progress = 30 + (percent * 0.6);
+                            ProcessingStatus = $"Generating: {progressMsg.Data.Value}/{progressMsg.Data.Max}";
+                        });
+                    }
+                });
+
+                var promptId = await _comfyUIService.ExecuteWorkflowAsync(updatedWorkflow, progress, _cancellationTokenSource.Token);
+
+                // Force progress update after workflow completes
+                System.Windows.Application.Current.Dispatcher.Invoke(() =>
+                {
+                    ProcessingProgress = 90;
+                    queueItem.Progress = 90;
+                    ProcessingStatus = "Workflow completed, retrieving output...";
+                });
+
+                AddLog($"Workflow execution completed with prompt ID: {promptId}");
+
+                // Get output images from ComfyUI output folder
+                ProcessingStatus = "Retrieving output image...";
+                ProcessingProgress = 95;
+                AddLog("Looking for generated image...");
+
+                List<byte[]> outputImages = new();
+                int retryCount = 0;
+                int maxRetries = 20;
+
+                while (retryCount < maxRetries && !outputImages.Any())
+                {
+                    if (retryCount > 0)
+                    {
+                        AddLog($"Retry {retryCount}/{maxRetries} - waiting 5 seconds before checking again...");
+                        await Task.Delay(5000, _cancellationTokenSource.Token);
+                    }
+
+                    _cancellationTokenSource.Token.ThrowIfCancellationRequested();
+                    outputImages = await GetOutputImagesFromComfyUI(promptId);
+                    retryCount++;
+                }
+
+                if (outputImages.Any())
+                {
+                    var outputImage = outputImages.First();
+                    var outputDir = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "output", "image-generator");
+                    Directory.CreateDirectory(outputDir);
+
+                    var timestamp = DateTime.Now.ToString("yyyyMMdd_HHmmss");
+                    var outputPath = Path.Combine(outputDir, $"z-image_{timestamp}.png");
+
+                    await File.WriteAllBytesAsync(outputPath, outputImage);
+                    AddLog($"Output saved: {outputPath}");
+
+                    queueItem.OutputImagePath = outputPath;
+                    ResultImagePath = outputPath;
+                    LoadResultPreview(outputPath);
+                    HasResultImage = true;
+
+                    ProcessingProgress = 100;
+                    queueItem.Progress = 100;
+                    ProcessingStatus = "Complete!";
+                    StatusBarMessage = $"Image generation complete - {Path.GetFileName(outputPath)}";
+                }
+                else
+                {
+                    AddLog("WARNING: No output images received after all retries");
+                    throw new Exception("No output images were generated. Please check the ComfyUI console for errors.");
+                }
+            }
+            finally
+            {
+                IsProcessing = false;
+            }
         }
     }
 }

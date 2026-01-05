@@ -1,0 +1,1397 @@
+{
+  "11": {
+    "inputs": {
+      "image": "ComfyUI_temp_baacp_00004_.png"
+    },
+    "class_type": "LoadImage",
+    "_meta": {
+      "title": "Load Image"
+    }
+  },
+  "79": {
+    "inputs": {
+      "value": 7
+    },
+    "class_type": "INTConstant",
+    "_meta": {
+      "title": "TOTAL STEPS"
+    }
+  },
+  "80": {
+    "inputs": {
+      "value": 1
+    },
+    "class_type": "INTConstant",
+    "_meta": {
+      "title": "NO-LORA-END-STEP"
+    }
+  },
+  "81": {
+    "inputs": {
+      "value": 4
+    },
+    "class_type": "INTConstant",
+    "_meta": {
+      "title": "HIGH-END-STEP"
+    }
+  },
+  "75:74": {
+    "inputs": {
+      "vae_name": "Wan2_1_VAE_fp32.safetensors"
+    },
+    "class_type": "VAELoader",
+    "_meta": {
+      "title": "Load VAE"
+    }
+  },
+  "75:77": {
+    "inputs": {
+      "PowerLoraLoaderHeaderWidget": {
+        "type": "PowerLoraLoaderHeaderWidget"
+      },
+      "➕ Add Lora": "",
+      "model": [
+        "75:62",
+        0
+      ]
+    },
+    "class_type": "Power Lora Loader (rgthree)",
+    "_meta": {
+      "title": "HIGH COMMON LORA"
+    }
+  },
+  "75:78": {
+    "inputs": {
+      "PowerLoraLoaderHeaderWidget": {
+        "type": "PowerLoraLoaderHeaderWidget"
+      },
+      "➕ Add Lora": "",
+      "model": [
+        "75:69",
+        0
+      ]
+    },
+    "class_type": "Power Lora Loader (rgthree)",
+    "_meta": {
+      "title": "LOW COMMON LORA"
+    }
+  },
+  "75:65": {
+    "inputs": {
+      "shift": 8,
+      "model": [
+        "75:70",
+        0
+      ]
+    },
+    "class_type": "ModelSamplingSD3",
+    "_meta": {
+      "title": "ModelSamplingSD3"
+    }
+  },
+  "75:66": {
+    "inputs": {
+      "shift": 8,
+      "model": [
+        "75:61",
+        0
+      ]
+    },
+    "class_type": "ModelSamplingSD3",
+    "_meta": {
+      "title": "ModelSamplingSD3"
+    }
+  },
+  "75:61": {
+    "inputs": {
+      "unet_name": "wan\\wan2.2_i2v_high_noise_14B_Q8_0.gguf"
+    },
+    "class_type": "UnetLoaderGGUF",
+    "_meta": {
+      "title": "HIGH GGUF"
+    }
+  },
+  "75:70": {
+    "inputs": {
+      "unet_name": "wan\\wan2.2_i2v_low_noise_14B_Q8_0.gguf"
+    },
+    "class_type": "UnetLoaderGGUF",
+    "_meta": {
+      "title": "LOW GGUF"
+    }
+  },
+  "75:62": {
+    "inputs": {
+      "lora_name": "WAN\\SVI_v2_PRO_Wan2.2-I2V-A14B_HIGH_lora_rank_128_fp16.safetensors",
+      "strength_model": 1.0000000000000002,
+      "model": [
+        "75:66",
+        0
+      ]
+    },
+    "class_type": "LoraLoaderModelOnly",
+    "_meta": {
+      "title": "HIGH SVI"
+    }
+  },
+  "75:69": {
+    "inputs": {
+      "lora_name": "WAN\\SVI_v2_PRO_Wan2.2-I2V-A14B_LOW_lora_rank_128_fp16.safetensors",
+      "strength_model": 1.0000000000000002,
+      "model": [
+        "75:65",
+        0
+      ]
+    },
+    "class_type": "LoraLoaderModelOnly",
+    "_meta": {
+      "title": "LOW SVI"
+    }
+  },
+  "75:71": {
+    "inputs": {
+      "lora_name": "WAN\\Wan_2_2_I2V_A14B_HIGH_lightx2v_MoE_distill_lora_rank_64_bf16.safetensors",
+      "strength_model": 1.0000000000000002,
+      "model": [
+        "75:77",
+        0
+      ]
+    },
+    "class_type": "LoraLoaderModelOnly",
+    "_meta": {
+      "title": "HIGH LIGHTX2V"
+    }
+  },
+  "75:72": {
+    "inputs": {
+      "lora_name": "WAN\\Wan2.2-Lightning_I2V-A14B-4steps-lora_LOW_fp16.safetensors",
+      "strength_model": 1.0000000000000002,
+      "model": [
+        "75:78",
+        0
+      ]
+    },
+    "class_type": "LoraLoaderModelOnly",
+    "_meta": {
+      "title": "LOW LIGHTX2V"
+    }
+  },
+  "75:73": {
+    "inputs": {
+      "clip_name": "umt5-xxl-encoder-Q8_0.gguf",
+      "type": "wan"
+    },
+    "class_type": "CLIPLoaderGGUF",
+    "_meta": {
+      "title": "CLIP GGUF"
+    }
+  },
+  "109:107": {
+    "inputs": {
+      "width": 832,
+      "height": 480,
+      "upscale_method": "nearest-exact",
+      "keep_proportion": "stretch",
+      "pad_color": "0, 0, 0",
+      "crop_position": "center",
+      "divisible_by": 2,
+      "device": "cpu",
+      "image": [
+        "11",
+        0
+      ]
+    },
+    "class_type": "ImageResizeKJv2",
+    "_meta": {
+      "title": "Resize Image v2"
+    }
+  },
+  "109:108": {
+    "inputs": {
+      "pixels": [
+        "109:107",
+        0
+      ],
+      "vae": [
+        "75:74",
+        0
+      ]
+    },
+    "class_type": "VAEEncode",
+    "_meta": {
+      "title": "VAE Encode"
+    }
+  },
+  "53:13": {
+    "inputs": {
+      "text": "woman fighting a man with a swords,  cinematic action shot",
+      "clip": [
+        "75:73",
+        0
+      ]
+    },
+    "class_type": "CLIPTextEncode",
+    "_meta": {
+      "title": "CLIP Text Encode (Positive Prompt)"
+    }
+  },
+  "53:12": {
+    "inputs": {
+      "text": "色调艳丽，过曝，静态，细节模糊不清，字幕，风格，作品，画作，画面，静止，整体发灰，最差质量，低质量，JPEG压缩残留，丑陋的，残缺的，多余的手指，画得不好的手部，画得不好的脸部，畸形的，毁容的，形态畸形的肢体，手指融合，静止不动的画面，杂乱的背景，三条腿，背景人很多，倒着走",
+      "clip": [
+        "75:73",
+        0
+      ]
+    },
+    "class_type": "CLIPTextEncode",
+    "_meta": {
+      "title": "CLIP Text Encode (Negative Prompt)"
+    }
+  },
+  "53:45": {
+    "inputs": {
+      "PowerLoraLoaderHeaderWidget": {
+        "type": "PowerLoraLoaderHeaderWidget"
+      },
+      "➕ Add Lora": "",
+      "model": [
+        "75:71",
+        0
+      ]
+    },
+    "class_type": "Power Lora Loader (rgthree)",
+    "_meta": {
+      "title": "HIGH"
+    }
+  },
+  "53:46": {
+    "inputs": {
+      "PowerLoraLoaderHeaderWidget": {
+        "type": "PowerLoraLoaderHeaderWidget"
+      },
+      "➕ Add Lora": "",
+      "model": [
+        "75:72",
+        0
+      ]
+    },
+    "class_type": "Power Lora Loader (rgthree)",
+    "_meta": {
+      "title": "LOW"
+    }
+  },
+  "53:44": {
+    "inputs": {
+      "PowerLoraLoaderHeaderWidget": {
+        "type": "PowerLoraLoaderHeaderWidget"
+      },
+      "➕ Add Lora": "",
+      "model": [
+        "75:77",
+        0
+      ]
+    },
+    "class_type": "Power Lora Loader (rgthree)",
+    "_meta": {
+      "title": "HIGH-NO-LORA"
+    }
+  },
+  "53:9": {
+    "inputs": {
+      "samples": [
+        "53:8",
+        0
+      ],
+      "vae": [
+        "75:74",
+        0
+      ]
+    },
+    "class_type": "VAEDecode",
+    "_meta": {
+      "title": "VAE Decode"
+    }
+  },
+  "53:47:51": {
+    "inputs": {
+      "options": "Intermediate and Utility",
+      "filenames": [
+        "53:47:52",
+        0
+      ]
+    },
+    "class_type": "VHS_PruneOutputs",
+    "_meta": {
+      "title": "Prune Outputs 🎥🅥🅗🅢"
+    }
+  },
+  "53:47:52": {
+    "inputs": {
+      "frame_rate": 16,
+      "loop_count": 0,
+      "filename_prefix": "Wan2.2-I2V-sub-svi/part",
+      "format": "video/h264-mp4",
+      "pix_fmt": "yuv420p",
+      "crf": 19,
+      "save_metadata": false,
+      "trim_to_audio": false,
+      "pingpong": false,
+      "save_output": false,
+      "images": [
+        "53:9",
+        0
+      ]
+    },
+    "class_type": "VHS_VideoCombine",
+    "_meta": {
+      "title": "Video Combine 🎥🅥🅗🅢"
+    }
+  },
+  "53:43": {
+    "inputs": {
+      "add_noise": "enable",
+      "noise_seed": 459924061503860,
+      "steps": [
+        "79",
+        0
+      ],
+      "cfg": 4,
+      "sampler_name": "euler",
+      "scheduler": "simple",
+      "start_at_step": 0,
+      "end_at_step": [
+        "80",
+        0
+      ],
+      "return_with_leftover_noise": "enable",
+      "model": [
+        "53:44",
+        0
+      ],
+      "positive": [
+        "53:41",
+        0
+      ],
+      "negative": [
+        "53:41",
+        1
+      ],
+      "latent_image": [
+        "53:41",
+        2
+      ]
+    },
+    "class_type": "KSamplerAdvanced",
+    "_meta": {
+      "title": "KSampler (Advanced)"
+    }
+  },
+  "53:41": {
+    "inputs": {
+      "length": 81,
+      "motion_latent_count": 0,
+      "positive": [
+        "53:13",
+        0
+      ],
+      "negative": [
+        "53:12",
+        0
+      ],
+      "anchor_samples": [
+        "109:108",
+        0
+      ]
+    },
+    "class_type": "WanImageToVideoSVIPro",
+    "_meta": {
+      "title": "WanImageToVideoSVIPro"
+    }
+  },
+  "53:7": {
+    "inputs": {
+      "add_noise": "disable",
+      "noise_seed": 752969345105492,
+      "steps": [
+        "79",
+        0
+      ],
+      "cfg": 1,
+      "sampler_name": "euler",
+      "scheduler": "simple",
+      "start_at_step": [
+        "80",
+        0
+      ],
+      "end_at_step": [
+        "81",
+        0
+      ],
+      "return_with_leftover_noise": "enable",
+      "model": [
+        "53:45",
+        0
+      ],
+      "positive": [
+        "53:41",
+        0
+      ],
+      "negative": [
+        "53:41",
+        1
+      ],
+      "latent_image": [
+        "53:43",
+        0
+      ]
+    },
+    "class_type": "KSamplerAdvanced",
+    "_meta": {
+      "title": "KSampler (Advanced)"
+    }
+  },
+  "53:8": {
+    "inputs": {
+      "add_noise": "disable",
+      "noise_seed": 0,
+      "steps": [
+        "79",
+        0
+      ],
+      "cfg": 1,
+      "sampler_name": "euler",
+      "scheduler": "simple",
+      "start_at_step": [
+        "81",
+        0
+      ],
+      "end_at_step": 999,
+      "return_with_leftover_noise": "disable",
+      "model": [
+        "53:46",
+        0
+      ],
+      "positive": [
+        "53:41",
+        0
+      ],
+      "negative": [
+        "53:41",
+        1
+      ],
+      "latent_image": [
+        "53:7",
+        0
+      ]
+    },
+    "class_type": "KSamplerAdvanced",
+    "_meta": {
+      "title": "KSampler (Advanced)"
+    }
+  },
+  "82:8": {
+    "inputs": {
+      "add_noise": "disable",
+      "noise_seed": 0,
+      "steps": [
+        "79",
+        0
+      ],
+      "cfg": 1,
+      "sampler_name": "euler",
+      "scheduler": "simple",
+      "start_at_step": [
+        "81",
+        0
+      ],
+      "end_at_step": 999,
+      "return_with_leftover_noise": "disable",
+      "model": [
+        "82:46",
+        0
+      ],
+      "positive": [
+        "82:41",
+        0
+      ],
+      "negative": [
+        "82:41",
+        1
+      ],
+      "latent_image": [
+        "82:7",
+        0
+      ]
+    },
+    "class_type": "KSamplerAdvanced",
+    "_meta": {
+      "title": "KSampler (Advanced)"
+    }
+  },
+  "82:7": {
+    "inputs": {
+      "add_noise": "disable",
+      "noise_seed": 615888053557378,
+      "steps": [
+        "79",
+        0
+      ],
+      "cfg": 1,
+      "sampler_name": "euler",
+      "scheduler": "simple",
+      "start_at_step": [
+        "80",
+        0
+      ],
+      "end_at_step": [
+        "81",
+        0
+      ],
+      "return_with_leftover_noise": "enable",
+      "model": [
+        "82:45",
+        0
+      ],
+      "positive": [
+        "82:41",
+        0
+      ],
+      "negative": [
+        "82:41",
+        1
+      ],
+      "latent_image": [
+        "82:43",
+        0
+      ]
+    },
+    "class_type": "KSamplerAdvanced",
+    "_meta": {
+      "title": "KSampler (Advanced)"
+    }
+  },
+  "82:12": {
+    "inputs": {
+      "text": "色调艳丽，过曝，静态，细节模糊不清，字幕，风格，作品，画作，画面，静止，整体发灰，最差质量，低质量，JPEG压缩残留，丑陋的，残缺的，多余的手指，画得不好的手部，画得不好的脸部，畸形的，毁容的，形态畸形的肢体，手指融合，静止不动的画面，杂乱的背景，三条腿，背景人很多，倒着走",
+      "clip": [
+        "75:73",
+        0
+      ]
+    },
+    "class_type": "CLIPTextEncode",
+    "_meta": {
+      "title": "CLIP Text Encode (Negative Prompt)"
+    }
+  },
+  "82:45": {
+    "inputs": {
+      "PowerLoraLoaderHeaderWidget": {
+        "type": "PowerLoraLoaderHeaderWidget"
+      },
+      "➕ Add Lora": "",
+      "model": [
+        "75:71",
+        0
+      ]
+    },
+    "class_type": "Power Lora Loader (rgthree)",
+    "_meta": {
+      "title": "HIGH"
+    }
+  },
+  "82:46": {
+    "inputs": {
+      "PowerLoraLoaderHeaderWidget": {
+        "type": "PowerLoraLoaderHeaderWidget"
+      },
+      "➕ Add Lora": "",
+      "model": [
+        "75:72",
+        0
+      ]
+    },
+    "class_type": "Power Lora Loader (rgthree)",
+    "_meta": {
+      "title": "LOW"
+    }
+  },
+  "82:44": {
+    "inputs": {
+      "PowerLoraLoaderHeaderWidget": {
+        "type": "PowerLoraLoaderHeaderWidget"
+      },
+      "➕ Add Lora": "",
+      "model": [
+        "75:77",
+        0
+      ]
+    },
+    "class_type": "Power Lora Loader (rgthree)",
+    "_meta": {
+      "title": "HIGH-NO-LORA"
+    }
+  },
+  "82:13": {
+    "inputs": {
+      "text": "woman fighting a man with a swords,  cinematic action shot",
+      "clip": [
+        "75:73",
+        0
+      ]
+    },
+    "class_type": "CLIPTextEncode",
+    "_meta": {
+      "title": "CLIP Text Encode (Positive Prompt)"
+    }
+  },
+  "82:47": {
+    "inputs": {
+      "overlap": 5,
+      "overlap_side": "source",
+      "overlap_mode": "linear_blend",
+      "source_images": [
+        "53:9",
+        0
+      ],
+      "new_images": [
+        "82:9",
+        0
+      ]
+    },
+    "class_type": "ImageBatchExtendWithOverlap",
+    "_meta": {
+      "title": "Image Batch Extend With Overlap"
+    }
+  },
+  "82:9": {
+    "inputs": {
+      "samples": [
+        "82:8",
+        0
+      ],
+      "vae": [
+        "75:74",
+        0
+      ]
+    },
+    "class_type": "VAEDecode",
+    "_meta": {
+      "title": "VAE Decode"
+    }
+  },
+  "82:48:51": {
+    "inputs": {
+      "options": "Intermediate and Utility",
+      "filenames": [
+        "82:48:52",
+        0
+      ]
+    },
+    "class_type": "VHS_PruneOutputs",
+    "_meta": {
+      "title": "Prune Outputs 🎥🅥🅗🅢"
+    }
+  },
+  "82:48:52": {
+    "inputs": {
+      "frame_rate": 16,
+      "loop_count": 0,
+      "filename_prefix": "Wan2.2-I2V-sub-svi/part",
+      "format": "video/h264-mp4",
+      "pix_fmt": "yuv420p",
+      "crf": 19,
+      "save_metadata": false,
+      "trim_to_audio": false,
+      "pingpong": false,
+      "save_output": false,
+      "images": [
+        "82:9",
+        0
+      ]
+    },
+    "class_type": "VHS_VideoCombine",
+    "_meta": {
+      "title": "Video Combine 🎥🅥🅗🅢"
+    }
+  },
+  "82:43": {
+    "inputs": {
+      "add_noise": "enable",
+      "noise_seed": 187621358786729,
+      "steps": [
+        "79",
+        0
+      ],
+      "cfg": 4,
+      "sampler_name": "euler",
+      "scheduler": "simple",
+      "start_at_step": 0,
+      "end_at_step": [
+        "80",
+        0
+      ],
+      "return_with_leftover_noise": "enable",
+      "model": [
+        "82:44",
+        0
+      ],
+      "positive": [
+        "82:41",
+        0
+      ],
+      "negative": [
+        "82:41",
+        1
+      ],
+      "latent_image": [
+        "82:41",
+        2
+      ]
+    },
+    "class_type": "KSamplerAdvanced",
+    "_meta": {
+      "title": "KSampler (Advanced)"
+    }
+  },
+  "82:41": {
+    "inputs": {
+      "length": 81,
+      "motion_latent_count": 1,
+      "positive": [
+        "82:13",
+        0
+      ],
+      "negative": [
+        "82:12",
+        0
+      ],
+      "anchor_samples": [
+        "109:108",
+        0
+      ],
+      "prev_samples": [
+        "53:8",
+        0
+      ]
+    },
+    "class_type": "WanImageToVideoSVIPro",
+    "_meta": {
+      "title": "WanImageToVideoSVIPro"
+    }
+  },
+  "90:8": {
+    "inputs": {
+      "add_noise": "disable",
+      "noise_seed": 0,
+      "steps": [
+        "79",
+        0
+      ],
+      "cfg": 1,
+      "sampler_name": "euler",
+      "scheduler": "simple",
+      "start_at_step": [
+        "81",
+        0
+      ],
+      "end_at_step": 999,
+      "return_with_leftover_noise": "disable",
+      "model": [
+        "90:46",
+        0
+      ],
+      "positive": [
+        "90:41",
+        0
+      ],
+      "negative": [
+        "90:41",
+        1
+      ],
+      "latent_image": [
+        "90:7",
+        0
+      ]
+    },
+    "class_type": "KSamplerAdvanced",
+    "_meta": {
+      "title": "KSampler (Advanced)"
+    }
+  },
+  "90:7": {
+    "inputs": {
+      "add_noise": "disable",
+      "noise_seed": 954844402419246,
+      "steps": [
+        "79",
+        0
+      ],
+      "cfg": 1,
+      "sampler_name": "euler",
+      "scheduler": "simple",
+      "start_at_step": [
+        "80",
+        0
+      ],
+      "end_at_step": [
+        "81",
+        0
+      ],
+      "return_with_leftover_noise": "enable",
+      "model": [
+        "90:45",
+        0
+      ],
+      "positive": [
+        "90:41",
+        0
+      ],
+      "negative": [
+        "90:41",
+        1
+      ],
+      "latent_image": [
+        "90:43",
+        0
+      ]
+    },
+    "class_type": "KSamplerAdvanced",
+    "_meta": {
+      "title": "KSampler (Advanced)"
+    }
+  },
+  "90:12": {
+    "inputs": {
+      "text": "色调艳丽，过曝，静态，细节模糊不清，字幕，风格，作品，画作，画面，静止，整体发灰，最差质量，低质量，JPEG压缩残留，丑陋的，残缺的，多余的手指，画得不好的手部，画得不好的脸部，畸形的，毁容的，形态畸形的肢体，手指融合，静止不动的画面，杂乱的背景，三条腿，背景人很多，倒着走",
+      "clip": [
+        "75:73",
+        0
+      ]
+    },
+    "class_type": "CLIPTextEncode",
+    "_meta": {
+      "title": "CLIP Text Encode (Negative Prompt)"
+    }
+  },
+  "90:45": {
+    "inputs": {
+      "PowerLoraLoaderHeaderWidget": {
+        "type": "PowerLoraLoaderHeaderWidget"
+      },
+      "➕ Add Lora": "",
+      "model": [
+        "75:71",
+        0
+      ]
+    },
+    "class_type": "Power Lora Loader (rgthree)",
+    "_meta": {
+      "title": "HIGH"
+    }
+  },
+  "90:46": {
+    "inputs": {
+      "PowerLoraLoaderHeaderWidget": {
+        "type": "PowerLoraLoaderHeaderWidget"
+      },
+      "➕ Add Lora": "",
+      "model": [
+        "75:72",
+        0
+      ]
+    },
+    "class_type": "Power Lora Loader (rgthree)",
+    "_meta": {
+      "title": "LOW"
+    }
+  },
+  "90:44": {
+    "inputs": {
+      "PowerLoraLoaderHeaderWidget": {
+        "type": "PowerLoraLoaderHeaderWidget"
+      },
+      "➕ Add Lora": "",
+      "model": [
+        "75:77",
+        0
+      ]
+    },
+    "class_type": "Power Lora Loader (rgthree)",
+    "_meta": {
+      "title": "HIGH-NO-LORA"
+    }
+  },
+  "90:13": {
+    "inputs": {
+      "text": "woman fighting a man with a swords,  cinematic action shot",
+      "clip": [
+        "75:73",
+        0
+      ]
+    },
+    "class_type": "CLIPTextEncode",
+    "_meta": {
+      "title": "CLIP Text Encode (Positive Prompt)"
+    }
+  },
+  "90:47": {
+    "inputs": {
+      "overlap": 5,
+      "overlap_side": "source",
+      "overlap_mode": "linear_blend",
+      "source_images": [
+        "82:47",
+        2
+      ],
+      "new_images": [
+        "90:9",
+        0
+      ]
+    },
+    "class_type": "ImageBatchExtendWithOverlap",
+    "_meta": {
+      "title": "Image Batch Extend With Overlap"
+    }
+  },
+  "90:9": {
+    "inputs": {
+      "samples": [
+        "90:8",
+        0
+      ],
+      "vae": [
+        "75:74",
+        0
+      ]
+    },
+    "class_type": "VAEDecode",
+    "_meta": {
+      "title": "VAE Decode"
+    }
+  },
+  "90:48:51": {
+    "inputs": {
+      "options": "Intermediate and Utility",
+      "filenames": [
+        "90:48:52",
+        0
+      ]
+    },
+    "class_type": "VHS_PruneOutputs",
+    "_meta": {
+      "title": "Prune Outputs 🎥🅥🅗🅢"
+    }
+  },
+  "90:48:52": {
+    "inputs": {
+      "frame_rate": 16,
+      "loop_count": 0,
+      "filename_prefix": "Wan2.2-I2V-sub-svi/part",
+      "format": "video/h264-mp4",
+      "pix_fmt": "yuv420p",
+      "crf": 19,
+      "save_metadata": false,
+      "trim_to_audio": false,
+      "pingpong": false,
+      "save_output": false,
+      "images": [
+        "90:9",
+        0
+      ]
+    },
+    "class_type": "VHS_VideoCombine",
+    "_meta": {
+      "title": "Video Combine 🎥🅥🅗🅢"
+    }
+  },
+  "90:43": {
+    "inputs": {
+      "add_noise": "enable",
+      "noise_seed": 1119350107661389,
+      "steps": [
+        "79",
+        0
+      ],
+      "cfg": 4,
+      "sampler_name": "euler",
+      "scheduler": "simple",
+      "start_at_step": 0,
+      "end_at_step": [
+        "80",
+        0
+      ],
+      "return_with_leftover_noise": "enable",
+      "model": [
+        "90:44",
+        0
+      ],
+      "positive": [
+        "90:41",
+        0
+      ],
+      "negative": [
+        "90:41",
+        1
+      ],
+      "latent_image": [
+        "90:41",
+        2
+      ]
+    },
+    "class_type": "KSamplerAdvanced",
+    "_meta": {
+      "title": "KSampler (Advanced)"
+    }
+  },
+  "90:41": {
+    "inputs": {
+      "length": 81,
+      "motion_latent_count": 1,
+      "positive": [
+        "90:13",
+        0
+      ],
+      "negative": [
+        "90:12",
+        0
+      ],
+      "anchor_samples": [
+        "109:108",
+        0
+      ],
+      "prev_samples": [
+        "82:8",
+        0
+      ]
+    },
+    "class_type": "WanImageToVideoSVIPro",
+    "_meta": {
+      "title": "WanImageToVideoSVIPro"
+    }
+  },
+  "92:8": {
+    "inputs": {
+      "add_noise": "disable",
+      "noise_seed": 0,
+      "steps": [
+        "79",
+        0
+      ],
+      "cfg": 1,
+      "sampler_name": "euler",
+      "scheduler": "simple",
+      "start_at_step": [
+        "81",
+        0
+      ],
+      "end_at_step": 999,
+      "return_with_leftover_noise": "disable",
+      "model": [
+        "92:46",
+        0
+      ],
+      "positive": [
+        "92:41",
+        0
+      ],
+      "negative": [
+        "92:41",
+        1
+      ],
+      "latent_image": [
+        "92:7",
+        0
+      ]
+    },
+    "class_type": "KSamplerAdvanced",
+    "_meta": {
+      "title": "KSampler (Advanced)"
+    }
+  },
+  "92:7": {
+    "inputs": {
+      "add_noise": "disable",
+      "noise_seed": 1081959586863629,
+      "steps": [
+        "79",
+        0
+      ],
+      "cfg": 1,
+      "sampler_name": "euler",
+      "scheduler": "simple",
+      "start_at_step": [
+        "80",
+        0
+      ],
+      "end_at_step": [
+        "81",
+        0
+      ],
+      "return_with_leftover_noise": "enable",
+      "model": [
+        "92:45",
+        0
+      ],
+      "positive": [
+        "92:41",
+        0
+      ],
+      "negative": [
+        "92:41",
+        1
+      ],
+      "latent_image": [
+        "92:43",
+        0
+      ]
+    },
+    "class_type": "KSamplerAdvanced",
+    "_meta": {
+      "title": "KSampler (Advanced)"
+    }
+  },
+  "92:12": {
+    "inputs": {
+      "text": "色调艳丽，过曝，静态，细节模糊不清，字幕，风格，作品，画作，画面，静止，整体发灰，最差质量，低质量，JPEG压缩残留，丑陋的，残缺的，多余的手指，画得不好的手部，画得不好的脸部，畸形的，毁容的，形态畸形的肢体，手指融合，静止不动的画面，杂乱的背景，三条腿，背景人很多，倒着走",
+      "clip": [
+        "75:73",
+        0
+      ]
+    },
+    "class_type": "CLIPTextEncode",
+    "_meta": {
+      "title": "CLIP Text Encode (Negative Prompt)"
+    }
+  },
+  "92:45": {
+    "inputs": {
+      "PowerLoraLoaderHeaderWidget": {
+        "type": "PowerLoraLoaderHeaderWidget"
+      },
+      "➕ Add Lora": "",
+      "model": [
+        "75:71",
+        0
+      ]
+    },
+    "class_type": "Power Lora Loader (rgthree)",
+    "_meta": {
+      "title": "HIGH"
+    }
+  },
+  "92:46": {
+    "inputs": {
+      "PowerLoraLoaderHeaderWidget": {
+        "type": "PowerLoraLoaderHeaderWidget"
+      },
+      "➕ Add Lora": "",
+      "model": [
+        "75:72",
+        0
+      ]
+    },
+    "class_type": "Power Lora Loader (rgthree)",
+    "_meta": {
+      "title": "LOW"
+    }
+  },
+  "92:44": {
+    "inputs": {
+      "PowerLoraLoaderHeaderWidget": {
+        "type": "PowerLoraLoaderHeaderWidget"
+      },
+      "➕ Add Lora": "",
+      "model": [
+        "75:77",
+        0
+      ]
+    },
+    "class_type": "Power Lora Loader (rgthree)",
+    "_meta": {
+      "title": "HIGH-NO-LORA"
+    }
+  },
+  "92:13": {
+    "inputs": {
+      "text": "woman fighting a man with a swords,  cinematic action shot",
+      "clip": [
+        "75:73",
+        0
+      ]
+    },
+    "class_type": "CLIPTextEncode",
+    "_meta": {
+      "title": "CLIP Text Encode (Positive Prompt)"
+    }
+  },
+  "92:47": {
+    "inputs": {
+      "overlap": 5,
+      "overlap_side": "source",
+      "overlap_mode": "linear_blend",
+      "source_images": [
+        "90:47",
+        2
+      ],
+      "new_images": [
+        "92:9",
+        0
+      ]
+    },
+    "class_type": "ImageBatchExtendWithOverlap",
+    "_meta": {
+      "title": "Image Batch Extend With Overlap"
+    }
+  },
+  "92:9": {
+    "inputs": {
+      "samples": [
+        "92:8",
+        0
+      ],
+      "vae": [
+        "75:74",
+        0
+      ]
+    },
+    "class_type": "VAEDecode",
+    "_meta": {
+      "title": "VAE Decode"
+    }
+  },
+  "92:48:51": {
+    "inputs": {
+      "options": "Intermediate and Utility",
+      "filenames": [
+        "92:48:52",
+        0
+      ]
+    },
+    "class_type": "VHS_PruneOutputs",
+    "_meta": {
+      "title": "Prune Outputs 🎥🅥🅗🅢"
+    }
+  },
+  "92:48:52": {
+    "inputs": {
+      "frame_rate": 16,
+      "loop_count": 0,
+      "filename_prefix": "Wan2.2-I2V-sub-svi/part",
+      "format": "video/h264-mp4",
+      "pix_fmt": "yuv420p",
+      "crf": 19,
+      "save_metadata": false,
+      "trim_to_audio": false,
+      "pingpong": false,
+      "save_output": false,
+      "images": [
+        "92:9",
+        0
+      ]
+    },
+    "class_type": "VHS_VideoCombine",
+    "_meta": {
+      "title": "Video Combine 🎥🅥🅗🅢"
+    }
+  },
+  "92:43": {
+    "inputs": {
+      "add_noise": "enable",
+      "noise_seed": 937940577528505,
+      "steps": [
+        "79",
+        0
+      ],
+      "cfg": 4,
+      "sampler_name": "euler",
+      "scheduler": "simple",
+      "start_at_step": 0,
+      "end_at_step": [
+        "80",
+        0
+      ],
+      "return_with_leftover_noise": "enable",
+      "model": [
+        "92:44",
+        0
+      ],
+      "positive": [
+        "92:41",
+        0
+      ],
+      "negative": [
+        "92:41",
+        1
+      ],
+      "latent_image": [
+        "92:41",
+        2
+      ]
+    },
+    "class_type": "KSamplerAdvanced",
+    "_meta": {
+      "title": "KSampler (Advanced)"
+    }
+  },
+  "92:41": {
+    "inputs": {
+      "length": 81,
+      "motion_latent_count": 1,
+      "positive": [
+        "92:13",
+        0
+      ],
+      "negative": [
+        "92:12",
+        0
+      ],
+      "anchor_samples": [
+        "109:108",
+        0
+      ],
+      "prev_samples": [
+        "90:8",
+        0
+      ]
+    },
+    "class_type": "WanImageToVideoSVIPro",
+    "_meta": {
+      "title": "WanImageToVideoSVIPro"
+    }
+  },
+  "86:51": {
+    "inputs": {
+      "options": "Intermediate and Utility",
+      "filenames": [
+        "86:52",
+        0
+      ]
+    },
+    "class_type": "VHS_PruneOutputs",
+    "_meta": {
+      "title": "Prune Outputs 🎥🅥🅗🅢"
+    }
+  },
+  "86:52": {
+    "inputs": {
+      "frame_rate": 16,
+      "loop_count": 0,
+      "filename_prefix": "Wan2.2-I2V-sub-svi/final",
+      "format": "video/h264-mp4",
+      "pix_fmt": "yuv420p",
+      "crf": 19,
+      "save_metadata": false,
+      "trim_to_audio": false,
+      "pingpong": false,
+      "save_output": true,
+      "images": [
+        "92:47",
+        2
+      ]
+    },
+    "class_type": "VHS_VideoCombine",
+    "_meta": {
+      "title": "Video Combine 🎥🅥🅗🅢"
+    }
+  }
+}

@@ -710,7 +710,16 @@ namespace FlipPix.UI.ViewModels
         {
             if (!CanGenerateVideo) return;
 
-            await GenerateVideoAsyncInternal();
+            try
+            {
+                await GenerateVideoAsyncInternal();
+            }
+            catch (Exception ex)
+            {
+                // Exception already logged in GenerateVideoAsyncInternal
+                // Show MessageBox for single video generation only
+                System.Windows.MessageBox.Show($"An error occurred during video generation:\n{ex.Message}", "Error", System.Windows.MessageBoxButton.OK, System.Windows.MessageBoxImage.Error);
+            }
         }
 
         private async Task GenerateVideoAsyncInternal()
@@ -765,7 +774,7 @@ namespace FlipPix.UI.ViewModels
                 }
 
                 // Load workflow
-                var workflowPath = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "workflow", "video_wan2_2_14B_i2vAPI.json");
+                var workflowPath = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "workflow", "WAN_2.2_i2v + upscaleAPI.json");
                 if (!File.Exists(workflowPath))
                 {
                     AddLog($"ERROR: Workflow file not found: {workflowPath}");
@@ -783,12 +792,34 @@ namespace FlipPix.UI.ViewModels
                 AddLog("Uploading input image to ComfyUI...");
 
                 var uploadedImageName = await _comfyUIService.UploadImageAsync(ImageFilePath);
+
+                // Validate that upload succeeded
+                if (string.IsNullOrEmpty(uploadedImageName))
+                {
+                    AddLog("ERROR: Image upload failed - no filename returned from ComfyUI");
+                    System.Windows.MessageBox.Show(
+                        "Failed to upload image to ComfyUI. Please check the ComfyUI console for errors.",
+                        "Upload Failed",
+                        System.Windows.MessageBoxButton.OK,
+                        System.Windows.MessageBoxImage.Error);
+                    return;
+                }
+
                 AddLog($"Image uploaded: {uploadedImageName}");
 
                 // Update workflow parameters
                 ProcessingStatus = "Updating workflow parameters...";
                 ProcessingProgress = 20;
                 var updatedWorkflow = UpdateWorkflowParameters(workflow, uploadedImageName);
+
+                // Debug: Log the updated workflow image node
+                AddLog("=== DEBUG: Verifying workflow before execution ===");
+                var workflowDict = JsonSerializer.Deserialize<Dictionary<string, JsonElement>>(updatedWorkflow.GetRawText());
+                if (workflowDict != null && workflowDict.ContainsKey("143"))
+                {
+                    var node143 = workflowDict["143"];
+                    AddLog($"Node 143 (LoadImage): {node143.GetRawText()}");
+                }
 
                 // Execute workflow
                 ProcessingStatus = "Generating video...";
@@ -824,8 +855,8 @@ namespace FlipPix.UI.ViewModels
                 ProcessingProgress = 95;
                 AddLog("Looking for generated video...");
 
-                // Wait for the video to be saved
-                await Task.Delay(3000);
+                // Wait for the video to be saved (extended to 10 seconds for large video files)
+                await Task.Delay(10000);
 
                 // Get the video from ComfyUI output folder
                 var outputVideo = await GetOutputVideoFromComfyUI(promptId);
@@ -846,9 +877,10 @@ namespace FlipPix.UI.ViewModels
                 }
                 else
                 {
-                    AddLog("WARNING: No output video found");
+                    AddLog("WARNING: No output video found - continuing queue processing");
                     ProcessingStatus = "No output generated";
-                    System.Windows.MessageBox.Show("No output video was generated. Please check the ComfyUI console for errors.", "Warning", System.Windows.MessageBoxButton.OK, System.Windows.MessageBoxImage.Warning);
+                    // Removed blocking MessageBox to allow queue processing to continue automatically
+                    // User can check logs for failed items
                 }
             }
             catch (Exception ex)
@@ -857,7 +889,7 @@ namespace FlipPix.UI.ViewModels
                 AddLog($"Stack trace: {ex.StackTrace}");
                 ProcessingStatus = "Error occurred";
                 StatusBarMessage = "Error during video generation";
-                System.Windows.MessageBox.Show($"An error occurred during video generation:\n{ex.Message}", "Error", System.Windows.MessageBoxButton.OK, System.Windows.MessageBoxImage.Error);
+                throw; // Re-throw to allow queue processing to handle ComfyUI restart
             }
             finally
             {
@@ -871,36 +903,54 @@ namespace FlipPix.UI.ViewModels
 
             if (workflowDict == null) return workflow;
 
-            // Update image input (node 97)
-            if (workflowDict.ContainsKey("97"))
+            // Update image input (node 97 for regular workflow, node 143 for story video workflow)
+            string[] imageNodes = { "97", "143" };
+            bool imageNodeFound = false;
+
+            foreach (var nodeId in imageNodes)
             {
-                var node97 = JsonSerializer.Deserialize<Dictionary<string, object>>(workflowDict["97"].GetRawText());
-                if (node97 != null && node97.ContainsKey("inputs"))
+                if (workflowDict.ContainsKey(nodeId))
                 {
-                    var inputs = JsonSerializer.Deserialize<Dictionary<string, object>>(
-                        JsonSerializer.Serialize(node97["inputs"]));
-                    if (inputs != null)
+                    var node = JsonSerializer.Deserialize<Dictionary<string, object>>(workflowDict[nodeId].GetRawText());
+                    if (node != null && node.ContainsKey("inputs"))
                     {
-                        inputs["image"] = inputImageName;
-                        node97["inputs"] = inputs;
-                        workflowDict["97"] = JsonSerializer.SerializeToElement(node97);
+                        var inputs = JsonSerializer.Deserialize<Dictionary<string, object>>(
+                            JsonSerializer.Serialize(node["inputs"]));
+                        if (inputs != null)
+                        {
+                            inputs["image"] = inputImageName;
+                            node["inputs"] = inputs;
+                            workflowDict[nodeId] = JsonSerializer.SerializeToElement(node);
+                            AddLog($"✓ Node {nodeId} (LoadImage) - Image updated to: {inputImageName}");
+                            imageNodeFound = true;
+                        }
                     }
                 }
             }
 
-            // Update positive prompt (node 93)
-            if (workflowDict.ContainsKey("93"))
+            if (!imageNodeFound)
             {
-                var node93 = JsonSerializer.Deserialize<Dictionary<string, object>>(workflowDict["93"].GetRawText());
-                if (node93 != null && node93.ContainsKey("inputs"))
+                AddLog($"WARNING: No image input nodes (97 or 143) found in workflow!");
+            }
+
+            // Update positive prompt (node 93 for regular workflow, node 62 for story video workflow)
+            string[] promptNodes = { "93", "62" };
+            foreach (var nodeId in promptNodes)
+            {
+                if (workflowDict.ContainsKey(nodeId))
                 {
-                    var inputs = JsonSerializer.Deserialize<Dictionary<string, object>>(
-                        JsonSerializer.Serialize(node93["inputs"]));
-                    if (inputs != null)
+                    var node = JsonSerializer.Deserialize<Dictionary<string, object>>(workflowDict[nodeId].GetRawText());
+                    if (node != null && node.ContainsKey("inputs"))
                     {
-                        inputs["text"] = VideoPrompt;
-                        node93["inputs"] = inputs;
-                        workflowDict["93"] = JsonSerializer.SerializeToElement(node93);
+                        var inputs = JsonSerializer.Deserialize<Dictionary<string, object>>(
+                            JsonSerializer.Serialize(node["inputs"]));
+                        if (inputs != null)
+                        {
+                            inputs["text"] = VideoPrompt;
+                            node["inputs"] = inputs;
+                            workflowDict[nodeId] = JsonSerializer.SerializeToElement(node);
+                            AddLog($"✓ Node {nodeId} (Text) - Prompt updated");
+                        }
                     }
                 }
             }
@@ -1741,6 +1791,40 @@ namespace FlipPix.UI.ViewModels
                         SaveQueueToFile();
                         AddLog($"Processing queue item: {item.DisplayText.Substring(0, Math.Min(80, item.DisplayText.Length))}...");
 
+                        // Check if ComfyUI is running before processing each item
+                        AddLog("Checking ComfyUI status before processing...");
+                        var comfyUIOk = await _comfyUIService.DetectAndRestartIfCrashedAsync(
+                            status => AddLog($"[Crash Detection] {status}"),
+                            default);
+
+                        if (!comfyUIOk)
+                        {
+                            AddLog("ERROR: ComfyUI is not available");
+                            item.Status = QueueItemStatus.Failed;
+                            UpdateQueueStatus();
+                            SaveQueueToFile();
+                            continue; // Try next item
+                        }
+
+                        // Ensure ComfyUI is connected
+                        if (!_comfyUIService.IsConnected)
+                        {
+                            AddLog("Reconnecting to ComfyUI WebSocket...");
+                            try
+                            {
+                                await _comfyUIService.ConnectAsync();
+                                AddLog("Reconnected to ComfyUI");
+                            }
+                            catch (Exception ex)
+                            {
+                                AddLog($"ERROR: Failed to reconnect to ComfyUI: {ex.Message}");
+                                item.Status = QueueItemStatus.Failed;
+                                UpdateQueueStatus();
+                                SaveQueueToFile();
+                                continue;
+                            }
+                        }
+
                         // Check if the image still exists
                         if (!File.Exists(item.ImagePath))
                         {
@@ -1782,6 +1866,7 @@ namespace FlipPix.UI.ViewModels
                         VideoPrompt = originalPrompt;
                         ImageFilePath = originalImagePath;
                         ImagePreviewSource = originalImageSource;
+                        HasResultVideo = false; // Reset for next item
 
                         // Save queue after each item completion
                         UpdateQueueStatus();
@@ -1796,6 +1881,34 @@ namespace FlipPix.UI.ViewModels
                         UpdateQueueStatus();
                         SaveQueueToFile();
                         AddLog($"Error processing queue item: {ex.Message}");
+
+                        // Attempt to detect and restart ComfyUI after error
+                        AddLog("Attempting to detect and restart ComfyUI after error...");
+                        var restarted = await _comfyUIService.DetectAndRestartIfCrashedAsync(
+                            status => AddLog($"[Post-Error Restart] {status}"),
+                            default);
+
+                        if (restarted)
+                        {
+                            AddLog("✅ ComfyUI restarted successfully, continuing with remaining items");
+                            // Reconnect to WebSocket
+                            if (!_comfyUIService.IsConnected)
+                            {
+                                try
+                                {
+                                    await _comfyUIService.ConnectAsync();
+                                    AddLog("Reconnected to ComfyUI WebSocket");
+                                }
+                                catch (Exception reconnectEx)
+                                {
+                                    AddLog($"Warning: Failed to reconnect to WebSocket: {reconnectEx.Message}");
+                                }
+                            }
+                        }
+                        else
+                        {
+                            AddLog("⚠️ ComfyUI restart failed or is disabled. Remaining items may also fail.");
+                        }
                     }
                 }
 
@@ -1898,6 +2011,7 @@ namespace FlipPix.UI.ViewModels
                 VideoPrompt = originalPrompt;
                 ImageFilePath = originalImagePath;
                 ImagePreviewSource = originalImageSource;
+                HasResultVideo = false; // Reset for next operation
 
                 UpdateQueueStatus();
                 SaveQueueToFile();
@@ -2108,7 +2222,7 @@ namespace FlipPix.UI.ViewModels
         {
             using (var dialog = new System.Windows.Forms.FolderBrowserDialog())
             {
-                dialog.Description = "Select the folder containing the 10 story images";
+                dialog.Description = "Select the folder containing the story images";
                 dialog.ShowNewFolderButton = false;
 
                 // Try to use previously selected path as starting point
@@ -2143,27 +2257,28 @@ namespace FlipPix.UI.ViewModels
                     return;
                 }
 
-                // Get all image files from the folder
+                // Get all image files from the folder and sort by the numeric index in the filename
                 var imageFiles = Directory.GetFiles(StoryImagesFolderPath, "*.png")
                     .Concat(Directory.GetFiles(StoryImagesFolderPath, "*.jpg"))
                     .Concat(Directory.GetFiles(StoryImagesFolderPath, "*.jpeg"))
-                    .OrderBy(f => f)
-                    .ToList();
-
-                if (imageFiles.Count < 10)
-                {
-                    AddLog($"WARNING: Found {imageFiles.Count} images, expected 10");
-                    var result = System.Windows.MessageBox.Show(
-                        $"Found {imageFiles.Count} images in the folder, but expected 10.\n\nDo you want to continue?",
-                        "Warning",
-                        MessageBoxButton.YesNo,
-                        MessageBoxImage.Warning);
-
-                    if (result == MessageBoxResult.No)
+                    .Select(f => new
                     {
-                        return;
-                    }
-                }
+                        Path = f,
+                        FileName = Path.GetFileName(f)
+                    })
+                    .OrderBy(x =>
+                    {
+                        // Extract the numeric index from filename pattern: ...-{number}_00001_.png
+                        // For example: vintage-uni-closeup_0103_1045-10_00001_.png -> index 10
+                        var match = System.Text.RegularExpressions.Regex.Match(x.FileName, @"-(\d+)_00001_");
+                        if (match.Success && int.TryParse(match.Groups[1].Value, out int index))
+                        {
+                            return index;
+                        }
+                        return int.MaxValue; // Put non-matching files at the end
+                    })
+                    .Select(x => x.Path)
+                    .ToList();
 
                 // Clear existing queue
                 StoryVideoQueue.Clear();
@@ -2281,6 +2396,7 @@ namespace FlipPix.UI.ViewModels
                         VideoPrompt = originalPrompt;
                         ImageFilePath = originalImagePath;
                         ImagePreviewSource = originalImageSource;
+                        HasResultVideo = false; // Reset for next item
 
                         // Small delay between items
                         await Task.Delay(1000);
@@ -2291,6 +2407,35 @@ namespace FlipPix.UI.ViewModels
                         item.ErrorMessage = ex.Message;
                         AddLog($"❌ Story video #{item.Index} failed: {ex.Message}");
                         _logger.LogError($"Error processing story video item {item.Id}: {ex}");
+
+                        // Attempt to restart ComfyUI after error
+                        AddLog("Attempting to detect and restart ComfyUI after error...");
+                        var restarted = await _comfyUIService.DetectAndRestartIfCrashedAsync(
+                            status => AddLog($"[Post-Error Restart] {status}"),
+                            default);
+
+                        if (restarted)
+                        {
+                            AddLog("✅ ComfyUI restarted successfully, continuing with remaining items");
+                            // Reconnect to WebSocket
+                            if (!_comfyUIService.IsConnected)
+                            {
+                                try
+                                {
+                                    await _comfyUIService.ConnectAsync();
+                                    AddLog("Reconnected to ComfyUI WebSocket");
+                                }
+                                catch (Exception reconnectEx)
+                                {
+                                    AddLog($"Warning: Failed to reconnect to WebSocket: {reconnectEx.Message}");
+                                }
+                            }
+                        }
+                        else
+                        {
+                            AddLog("⚠️ ComfyUI restart failed or is disabled. Remaining items may also fail.");
+                        }
+
                         // Save queue progress after exception
                         SaveStoryQueueToFile();
                     }

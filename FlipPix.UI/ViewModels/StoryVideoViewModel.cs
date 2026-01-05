@@ -699,7 +699,7 @@ namespace FlipPix.UI.ViewModels
                 _cancellationTokenSource.Token.ThrowIfCancellationRequested();
 
                 // Load workflow
-                var workflowPath = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "workflow", "SVI-Wan22-1207API.json");
+                var workflowPath = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "workflow", "Wan2.2+ZIT-sub-svi-API-10prompts.json");
                 if (!File.Exists(workflowPath))
                 {
                     AddLog($"ERROR: Workflow file not found: {workflowPath}");
@@ -719,6 +719,19 @@ namespace FlipPix.UI.ViewModels
                 AddLog("Uploading image to ComfyUI...");
 
                 var imageFileName = await _comfyUIService.HttpClient.UploadImageAsync(SelectedImagePath);
+
+                // Validate that upload succeeded
+                if (string.IsNullOrEmpty(imageFileName))
+                {
+                    AddLog("ERROR: Image upload failed - no filename returned from ComfyUI");
+                    System.Windows.MessageBox.Show(
+                        "Failed to upload image to ComfyUI. Please check the ComfyUI console for errors.",
+                        "Upload Failed",
+                        System.Windows.MessageBoxButton.OK,
+                        System.Windows.MessageBoxImage.Error);
+                    return;
+                }
+
                 AddLog($"Image uploaded as: {imageFileName}");
 
                 // Update workflow with parameters
@@ -729,7 +742,7 @@ namespace FlipPix.UI.ViewModels
                     GeneratedPrompt1, GeneratedPrompt2, GeneratedPrompt3, GeneratedPrompt4, GeneratedPrompt5,
                     GeneratedPrompt6, GeneratedPrompt7, GeneratedPrompt8, GeneratedPrompt9, GeneratedPrompt10);
 
-                // Execute workflow
+                // Execute workflow with crash detection and retry
                 ProcessingStatus = "Generating video (this may take several minutes)...";
                 ProcessingProgress = 20;
                 AddLog("Executing video workflow in ComfyUI...");
@@ -748,7 +761,36 @@ namespace FlipPix.UI.ViewModels
                     }
                 });
 
-                var promptId = await _comfyUIService.ExecuteWorkflowAsync(updatedWorkflow, progress, _cancellationTokenSource.Token);
+                string? promptId = null;
+                try
+                {
+                    promptId = await _comfyUIService.ExecuteWorkflowAsync(updatedWorkflow, progress, _cancellationTokenSource.Token);
+                }
+                catch (Exception ex)
+                {
+                    AddLog($"ERROR during workflow execution: {ex.Message}");
+                    AddLog("Checking if ComfyUI crashed during execution...");
+
+                    // Detect and potentially restart ComfyUI after crash
+                    var recovered = await _comfyUIService.DetectAndRestartIfCrashedAsync(
+                        status => AddLog($"[Crash Recovery] {status}"),
+                        _cancellationTokenSource.Token);
+
+                    if (recovered)
+                    {
+                        AddLog("ComfyUI was restarted, but the current video generation was interrupted.");
+                        System.Windows.MessageBox.Show(
+                            "ComfyUI crashed during video generation but has been restarted.\n\nThe current video generation was interrupted and needs to be retried.",
+                            "ComfyUI Crash Detected",
+                            System.Windows.MessageBoxButton.OK,
+                            System.Windows.MessageBoxImage.Warning);
+                    }
+                    else
+                    {
+                        AddLog("ComfyUI may not be running properly");
+                    }
+                    throw; // Re-throw to trigger the outer catch block
+                }
 
                 System.Windows.Application.Current.Dispatcher.Invoke(() =>
                 {
@@ -863,73 +905,69 @@ namespace FlipPix.UI.ViewModels
             var workflowDict = JsonSerializer.Deserialize<Dictionary<string, JsonElement>>(workflow.GetRawText());
             if (workflowDict == null) return workflow;
 
-            var negativePrompt = "色调艳丽，过曝，静态，细节模糊不清，字幕，风格，作品，画作，画面，静止，整体发灰，最差质量，低质量，JPEG压缩残留，丑陋的，残缺的，多余的手指，画得不好的手部，画得不好的脸部，畸形的，毁容的，形态畸形的肢体，手指融合，静止不动的画面，杂乱的背景，三条腿，背景人很多，倒着走";
-
             // Debug: Log the prompts we're about to use
             AddLog("\n*** VIDEO GENERATION: PROMPT UPDATE START ***");
-            AddLog($"Total prompts received: {new[] { prompt1, prompt2, prompt3, prompt4, prompt5, prompt6, prompt7, prompt8, prompt9, prompt10 }.Count(p => !string.IsNullOrEmpty(p))}");
-            AddLog($"Prompt 1: {prompt1.Substring(0, Math.Min(80, prompt1.Length))}...");
-            AddLog($"Prompt 2: {prompt2.Substring(0, Math.Min(80, prompt2.Length))}...");
-            AddLog($"Prompt 3: {prompt3.Substring(0, Math.Min(80, prompt3.Length))}...");
-            AddLog($"Prompt 4: {prompt4.Substring(0, Math.Min(80, prompt4.Length))}...");
-            AddLog($"Prompt 5: {prompt5.Substring(0, Math.Min(80, prompt5.Length))}...");
-            AddLog($"Prompt 6: {prompt6.Substring(0, Math.Min(80, prompt6.Length))}...");
-            AddLog($"Prompt 7: {prompt7.Substring(0, Math.Min(80, prompt7.Length))}...");
-            AddLog($"Prompt 8: {prompt8.Substring(0, Math.Min(80, prompt8.Length))}...");
-            AddLog($"Prompt 9: {prompt9.Substring(0, Math.Min(80, prompt9.Length))}...");
-            AddLog($"Prompt 10: {prompt10.Substring(0, Math.Min(80, prompt10.Length))}...");
+            AddLog($"Updating 10 prompts for sequential processing...");
 
-            // Update LoadImage node (node 67)
-            if (workflowDict.ContainsKey("67"))
+            // Update LoadImage node (node 11 in Wan2.2+ZIT workflow)
+            if (workflowDict.ContainsKey("11"))
             {
-                var node67 = JsonSerializer.Deserialize<Dictionary<string, object>>(workflowDict["67"].GetRawText());
-                if (node67 != null && node67.ContainsKey("inputs"))
+                var node11 = JsonSerializer.Deserialize<Dictionary<string, object>>(workflowDict["11"].GetRawText());
+                if (node11 != null && node11.ContainsKey("inputs"))
                 {
                     var inputs = JsonSerializer.Deserialize<Dictionary<string, object>>(
-                        JsonSerializer.Serialize(node67["inputs"]));
+                        JsonSerializer.Serialize(node11["inputs"]));
                     if (inputs != null)
                     {
                         inputs["image"] = imageFileName;
-                        node67["inputs"] = inputs;
-                        workflowDict["67"] = JsonSerializer.SerializeToElement(node67);
+                        node11["inputs"] = inputs;
+                        workflowDict["11"] = JsonSerializer.SerializeToElement(node11);
+                        AddLog("✓ Node 11 (LoadImage) - Image updated");
                     }
                 }
             }
 
-            AddLog("\n*** UPDATING WORKFLOW NODES ***");
+            // Update all 10 CLIPTextEncode nodes with their respective prompts
+            var promptNodes = new Dictionary<string, string>
+            {
+                { "53:13", prompt1 },   // First prompt section
+                { "82:13", prompt2 },   // Second prompt section
+                { "90:13", prompt3 },   // Third prompt section
+                { "92:13", prompt4 },   // Fourth prompt section
+                { "102:13", prompt5 },  // Fifth prompt section
+                { "112:13", prompt6 },  // Sixth prompt section
+                { "122:13", prompt7 },  // Seventh prompt section
+                { "132:13", prompt8 },  // Eighth prompt section
+                { "142:13", prompt9 },  // Ninth prompt section
+                { "152:13", prompt10 }  // Tenth prompt section
+            };
 
-            // Update the 10 WanVideoTextEncode nodes with our generated prompts
-            AddLog("→ Updating Node 16 (Prompt 1)...");
-            UpdateTextEncodeNode(workflowDict, "16", prompt1, negativePrompt);    // Node 16 - First prompt
+            foreach (var kvp in promptNodes)
+            {
+                var nodeId = kvp.Key;
+                var prompt = kvp.Value;
 
-            AddLog("→ Updating Node 140 (Prompt 2)...");
-            UpdateTextEncodeNode(workflowDict, "140", prompt2, negativePrompt);   // Node 140 - Second prompt
+                if (workflowDict.ContainsKey(nodeId))
+                {
+                    var node = JsonSerializer.Deserialize<Dictionary<string, object>>(workflowDict[nodeId].GetRawText());
+                    if (node != null && node.ContainsKey("inputs"))
+                    {
+                        var inputs = JsonSerializer.Deserialize<Dictionary<string, object>>(
+                            JsonSerializer.Serialize(node["inputs"]));
+                        if (inputs != null && inputs.ContainsKey("text"))
+                        {
+                            inputs["text"] = prompt;
+                            node["inputs"] = inputs;
+                            workflowDict[nodeId] = JsonSerializer.SerializeToElement(node);
 
-            AddLog("→ Updating Node 184 (Prompt 3)...");
-            UpdateTextEncodeNode(workflowDict, "184", prompt3, negativePrompt);   // Node 184 - Third prompt
+                            var promptPreview = prompt.Length > 50 ? prompt.Substring(0, 50) + "..." : prompt;
+                            AddLog($"✓ Node {nodeId} - Prompt updated: {promptPreview}");
+                        }
+                    }
+                }
+            }
 
-            AddLog("→ Updating Node 211 (Prompt 4)...");
-            UpdateTextEncodeNode(workflowDict, "211", prompt4, negativePrompt);   // Node 211 - Fourth prompt
-
-            AddLog("→ Updating Node 231 (Prompt 5)...");
-            UpdateTextEncodeNode(workflowDict, "231", prompt5, negativePrompt);   // Node 231 - Fifth prompt
-
-            AddLog("→ Updating Node 257 (Prompt 6)...");
-            UpdateTextEncodeNode(workflowDict, "257", prompt6, negativePrompt);   // Node 257 - Sixth prompt
-
-            AddLog("→ Updating Node 281 (Prompt 7)...");
-            UpdateTextEncodeNode(workflowDict, "281", prompt7, negativePrompt);   // Node 281 - Seventh prompt
-
-            AddLog("→ Updating Node 303 (Prompt 8)...");
-            UpdateTextEncodeNode(workflowDict, "303", prompt8, negativePrompt);   // Node 303 - Eighth prompt
-
-            AddLog("→ Updating Node 329 (Prompt 9)...");
-            UpdateTextEncodeNode(workflowDict, "329", prompt9, negativePrompt);   // Node 329 - Ninth prompt
-
-            AddLog("→ Updating Node 353 (Prompt 10)...");
-            UpdateTextEncodeNode(workflowDict, "353", prompt10, negativePrompt);  // Node 353 - Tenth prompt
-
-            AddLog("*** ALL 10 NODES UPDATED SUCCESSFULLY ***\n");
+            AddLog("*** WORKFLOW UPDATED SUCCESSFULLY - 10 PROMPTS READY ***\n");
 
             return JsonSerializer.SerializeToElement(workflowDict);
         }
@@ -1260,8 +1298,8 @@ namespace FlipPix.UI.ViewModels
                     return string.Empty;
                 }
 
-                // Look for WanVideo output files
-                var videoFiles = Directory.GetFiles(comfyUIOutputDir, "WanVideo2_2_I2V_*.mp4")
+                // Look for Wan2.2-I2V output files (Wan2.2+ZIT workflow uses "Wan2.2-I2V-sub-svi" prefix)
+                var videoFiles = Directory.GetFiles(comfyUIOutputDir, "Wan2.2-I2V-sub-svi*.mp4")
                     .OrderByDescending(f => File.GetLastWriteTime(f))
                     .ToList();
 
