@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using System.Collections.ObjectModel;
 using System.ComponentModel;
 using System.Diagnostics;
@@ -10,241 +11,117 @@ using System.Threading.Tasks;
 using System.Windows;
 using System.Windows.Input;
 using System.Windows.Media.Imaging;
-using WinForms = System.Windows.Forms;
 using FlipPix.ComfyUI.Services;
 using FlipPix.Core.Interfaces;
 using FlipPix.UI.Models;
+using FlipPix.UI.Services;
 using YamlDotNet.Serialization;
 
 namespace FlipPix.UI.ViewModels
 {
-    public class StoryImageGeneratorViewModel : INotifyPropertyChanged
+    public class AmateurGeneratorViewModel : BasePromptViewModel
     {
         private readonly FlipPix.ComfyUI.Services.ComfyUIService _comfyUIService;
-        private readonly IAppLogger _logger;
         private readonly FlipPix.Core.Services.SettingsService _settingsService;
 
-        private string _promptJsonFilePath = string.Empty;
-        private string _inputImagePath = string.Empty;
-        private BitmapImage? _inputImagePreview;
-        private ObservableCollection<StoryPromptItem> _queueItems = new();
-        private bool _isProcessingQueue = false;
-        private StoryPromptItem? _currentQueueItem;
-        private int _queueProgress = 0;
-        private int _queueTotal = 0;
-        private string _logOutput = string.Empty;
+        private string _additionalPrompt = string.Empty;
+        private int _orientationIndex = 0; // 0 = Landscape, 1 = Portrait
+        private int _styleIndex = 0;
+        private int _steps = 9;
+        private double _cfg = 1.0;
+        private long _seed = 0;
         private bool _isProcessing = false;
         private string _processingStatus = string.Empty;
         private double _processingProgress = 0;
+        private string _logOutput = string.Empty;
+        private bool _hasResultImage = false;
+        private string _resultImagePath = string.Empty;
+        private BitmapImage? _resultImageSource;
+        private string _imageInfo = string.Empty;
         private System.Threading.CancellationTokenSource? _cancellationTokenSource;
 
-        // Generation settings
-        private int _steps = 8;
-        private double _cfg = 1.0;
-        private double _denoise = 0.98;
-        private double _denoise2 = 0.85;
-        private string _negativePrompt = "";
+        // Amateur LoRA is always enabled
+        private const string AmateurLoraName = "amateur_photography_zimage_v1.safetensors";
+        private const double AmateurLoraStrength1 = 0.4; // Node 105
+        private const double AmateurLoraStrength2 = 0.9; // Node 752
 
-        // LoRA settings
+        // Additional LoRA settings (optional)
         private ObservableCollection<string> _availableLoras = new();
         private string _selectedLora = string.Empty;
         private bool _loraEnabled = false;
-        private double _loraStrengthModel = 1.0;
-        private double _loraStrengthClip = 1.0;
+        private double _loraStrength = 0.8;
 
-        // Photo Style settings
-        private ObservableCollection<string> _availableStyles = new();
-        private string _selectedStyle = "Phone Photo";
-        private bool _spicyContentEnabled = false;
-        private string _customStyleTemplate = "";
+        // Orientation and Style options
+        private ObservableCollection<string> _orientations = new(new[] { "Landscape", "Portrait" });
+        private ObservableCollection<string> _styles = new(new[] { "Natural", "Cinematic", "Dramatic", "Vintage", "Modern" });
 
-        // Upscale settings
-        private bool _upscaleEnabled = true;
-        private string _upscaleMethod = "Photo"; // Photo or Illustration
-        private double _upscaleAmount = 50.0; // percentage of original (50 = downscale to 50%, then upscale x4)
-
-        public StoryImageGeneratorViewModel(
+        public AmateurGeneratorViewModel(
             FlipPix.ComfyUI.Services.ComfyUIService comfyUIService,
             IAppLogger logger,
-            FlipPix.Core.Services.SettingsService settingsService)
+            FlipPix.Core.Services.SettingsService settingsService,
+            IPromptService? promptService = null)
+            : base(promptService ?? new PromptService(logger), logger, "AmateurGenerator")
         {
             _comfyUIService = comfyUIService ?? throw new ArgumentNullException(nameof(comfyUIService));
-            _logger = logger ?? throw new ArgumentNullException(nameof(logger));
             _settingsService = settingsService ?? throw new ArgumentNullException(nameof(settingsService));
 
             // Initialize commands
-            SelectPromptJsonCommand = new RelayCommand(SelectPromptJson);
-            SelectInputImageCommand = new RelayCommand(SelectInputImage);
-            LoadPromptsCommand = new RelayCommand(async () => await LoadPromptsAsync(), () => CanLoadPrompts);
-            ProcessQueueCommand = new RelayCommand(async () => await ProcessQueueAsync(), () => CanProcessQueue);
-            ClearQueueCommand = new RelayCommand(ClearQueue, () => QueueItems.Any());
-            OpenOutputFolderCommand = new RelayCommand(OpenOutputFolder);
-            CancelProcessingCommand = new RelayCommand(CancelProcessing, () => IsProcessing);
+            GenerateImageCommand = new RelayCommand(async () => await GenerateImageAsync(), () => CanGenerate);
+            CancelGenerationCommand = new RelayCommand(CancelGeneration, () => IsProcessing);
+            OpenResultFolderCommand = new RelayCommand(OpenResultFolder, () => HasResultImage);
             RefreshLorasCommand = new RelayCommand(RefreshLoras);
+            PasteFromClipboardCommand = new RelayCommand(PasteFromClipboard);
 
             // Load available Loras
             LoadAvailableLoras();
 
-            // Initialize available styles
-            InitializeAvailableStyles();
-
-            AddLog("Story Image Generator initialized");
-        }
-
-        private void InitializeAvailableStyles()
-        {
-            AvailableStyles.Clear();
-            AvailableStyles.Add("Phone Photo");
-            AvailableStyles.Add("Cinematic");
-            AvailableStyles.Add("Natural Light");
-            AvailableStyles.Add("Portrait");
-            AvailableStyles.Add("Documentary");
-            AvailableStyles.Add("Custom");
+            AddLog("Amateur Generator initialized");
         }
 
         // Properties
-        public string PromptJsonFilePath
+        public string AdditionalPrompt
         {
-            get => _promptJsonFilePath;
+            get => _additionalPrompt;
             set
             {
-                if (_promptJsonFilePath != value)
+                if (_additionalPrompt != value)
                 {
-                    _promptJsonFilePath = value;
+                    _additionalPrompt = value;
                     OnPropertyChanged();
-                    OnPropertyChanged(nameof(CanLoadPrompts));
+                    OnPropertyChanged(nameof(CanGenerate));
                     CommandManager.InvalidateRequerySuggested();
                 }
             }
         }
 
-        public string InputImagePath
+        public int OrientationIndex
         {
-            get => _inputImagePath;
+            get => _orientationIndex;
             set
             {
-                if (_inputImagePath != value)
+                if (_orientationIndex != value)
                 {
-                    _inputImagePath = value;
-                    OnPropertyChanged();
-                    OnPropertyChanged(nameof(CanLoadPrompts));
-                    LoadInputImagePreview();
-                    CommandManager.InvalidateRequerySuggested();
-                }
-            }
-        }
-
-        public BitmapImage? InputImagePreview
-        {
-            get => _inputImagePreview;
-            set
-            {
-                if (_inputImagePreview != value)
-                {
-                    _inputImagePreview = value;
+                    _orientationIndex = value;
                     OnPropertyChanged();
                 }
             }
         }
 
-        public ObservableCollection<StoryPromptItem> QueueItems
+        public int StyleIndex
         {
-            get => _queueItems;
+            get => _styleIndex;
             set
             {
-                if (_queueItems != value)
+                if (_styleIndex != value)
                 {
-                    _queueItems = value;
+                    _styleIndex = value;
                     OnPropertyChanged();
                 }
             }
         }
 
-        public bool IsProcessingQueue
-        {
-            get => _isProcessingQueue;
-            set
-            {
-                if (_isProcessingQueue != value)
-                {
-                    _isProcessingQueue = value;
-                    OnPropertyChanged();
-                    OnPropertyChanged(nameof(CanProcessQueue));
-                    CommandManager.InvalidateRequerySuggested();
-                }
-            }
-        }
-
-        public StoryPromptItem? CurrentQueueItem
-        {
-            get => _currentQueueItem;
-            set
-            {
-                if (_currentQueueItem != value)
-                {
-                    _currentQueueItem = value;
-                    OnPropertyChanged();
-                }
-            }
-        }
-
-        public int QueueProgress
-        {
-            get => _queueProgress;
-            set
-            {
-                if (_queueProgress != value)
-                {
-                    _queueProgress = value;
-                    OnPropertyChanged();
-                    OnPropertyChanged(nameof(QueueProgressText));
-                }
-            }
-        }
-
-        public int QueueTotal
-        {
-            get => _queueTotal;
-            set
-            {
-                if (_queueTotal != value)
-                {
-                    _queueTotal = value;
-                    OnPropertyChanged();
-                    OnPropertyChanged(nameof(QueueProgressText));
-                }
-            }
-        }
-
-        public string QueueProgressText => QueueTotal > 0 ? $"{QueueProgress}/{QueueTotal}" : "0/0";
-
-        public bool CanLoadPrompts => !string.IsNullOrEmpty(PromptJsonFilePath) &&
-                                      File.Exists(PromptJsonFilePath) &&
-                                      !string.IsNullOrEmpty(InputImagePath) &&
-                                      File.Exists(InputImagePath) &&
-                                      !IsProcessingQueue;
-
-        public bool CanProcessQueue => QueueItems.Any(item => item.Status == "Queued") &&
-                                       !IsProcessingQueue;
-
-        public int QueuedCount => QueueItems.Count(item => item.Status == "Queued");
-
-        public int CompletedCount => QueueItems.Count(item => item.Status == "Completed");
-
-        public int FailedCount => QueueItems.Count(item => item.Status == "Failed");
-
-        public string LogOutput
-        {
-            get => _logOutput;
-            set
-            {
-                if (_logOutput != value)
-                {
-                    _logOutput = value;
-                    OnPropertyChanged();
-                }
-            }
-        }
+        public ObservableCollection<string> Orientations => _orientations;
+        public ObservableCollection<string> Styles => _styles;
 
         public bool IsProcessing
         {
@@ -255,9 +132,15 @@ namespace FlipPix.UI.ViewModels
                 {
                     _isProcessing = value;
                     OnPropertyChanged();
+                    OnPropertyChanged(nameof(CanGenerate));
+                    OnPropertyChanged(nameof(CanCancel));
+                    CommandManager.InvalidateRequerySuggested();
                 }
             }
         }
+
+        public bool CanCancel => IsProcessing;
+        public bool CanGenerate => !IsProcessing;
 
         public string ProcessingStatus
         {
@@ -288,60 +171,73 @@ namespace FlipPix.UI.ViewModels
 
         public string ProgressPercentage => $"{ProcessingProgress:F0}%";
 
-        // Settings Properties
-        public int Steps
+        public string LogOutput
         {
-            get => _steps;
+            get => _logOutput;
             set
             {
-                if (_steps != value)
+                if (_logOutput != value)
                 {
-                    _steps = value;
+                    _logOutput = value;
                     OnPropertyChanged();
                 }
             }
         }
 
-        public double Cfg
+        public bool HasResultImage
         {
-            get => _cfg;
+            get => _hasResultImage;
             set
             {
-                if (_cfg != value)
+                if (_hasResultImage != value)
                 {
-                    _cfg = value;
+                    _hasResultImage = value;
+                    OnPropertyChanged();
+                    CommandManager.InvalidateRequerySuggested();
+                }
+            }
+        }
+
+        public string ResultImagePath
+        {
+            get => _resultImagePath;
+            set
+            {
+                if (_resultImagePath != value)
+                {
+                    _resultImagePath = value;
                     OnPropertyChanged();
                 }
             }
         }
 
-        public double Denoise
+        public BitmapImage? ResultImageSource
         {
-            get => _denoise;
+            get => _resultImageSource;
             set
             {
-                if (_denoise != value)
+                if (_resultImageSource != value)
                 {
-                    _denoise = value;
+                    _resultImageSource = value;
                     OnPropertyChanged();
                 }
             }
         }
 
-        public string NegativePrompt
+        public string ImageInfo
         {
-            get => _negativePrompt;
+            get => _imageInfo;
             set
             {
-                if (_negativePrompt != value)
+                if (_imageInfo != value)
                 {
-                    _negativePrompt = value;
+                    _imageInfo = value;
                     OnPropertyChanged();
                 }
             }
         }
 
-        // LoRA Properties
+        // Additional LoRA Properties
         public ObservableCollection<string> AvailableLoras
         {
             get => _availableLoras;
@@ -381,444 +277,332 @@ namespace FlipPix.UI.ViewModels
             }
         }
 
-        public double LoraStrengthModel
+        public double LoraStrength
         {
-            get => _loraStrengthModel;
+            get => _loraStrength;
             set
             {
-                if (_loraStrengthModel != value)
+                if (_loraStrength != value)
                 {
-                    _loraStrengthModel = value;
+                    _loraStrength = value;
                     OnPropertyChanged();
                 }
             }
         }
 
-        public double LoraStrengthClip
+        // Implementation of abstract BasePromptViewModel properties
+        public override string CurrentPromptText => AdditionalPrompt;
+
+        public override int AspectRatioIndex
         {
-            get => _loraStrengthClip;
+            get => OrientationIndex;
+            set => OrientationIndex = value;
+        }
+
+        public override int Steps
+        {
+            get => _steps;
             set
             {
-                if (_loraStrengthClip != value)
+                if (_steps != value)
                 {
-                    _loraStrengthClip = value;
+                    _steps = value;
                     OnPropertyChanged();
                 }
             }
         }
 
-        // Style Properties
-        public ObservableCollection<string> AvailableStyles
+        public override double Cfg
         {
-            get => _availableStyles;
+            get => _cfg;
             set
             {
-                if (_availableStyles != value)
+                if (_cfg != value)
                 {
-                    _availableStyles = value;
+                    _cfg = value;
                     OnPropertyChanged();
                 }
             }
         }
 
-        public string SelectedStyle
+        public override long Seed
         {
-            get => _selectedStyle;
+            get => _seed;
             set
             {
-                if (_selectedStyle != value)
+                if (_seed != value)
                 {
-                    _selectedStyle = value;
+                    _seed = value;
                     OnPropertyChanged();
                 }
             }
         }
 
-        public bool SpicyContentEnabled
+        private double _denoise = 1.0;
+        public override double Denoise
         {
-            get => _spicyContentEnabled;
+            get => _denoise;
             set
             {
-                if (_spicyContentEnabled != value)
+                if (_denoise != value)
                 {
-                    _spicyContentEnabled = value;
+                    _denoise = value;
                     OnPropertyChanged();
                 }
             }
         }
 
-        public string CustomStyleTemplate
+        // Override base class methods
+        protected override void OnPromptSaved(string promptName)
         {
-            get => _customStyleTemplate;
-            set
-            {
-                if (_customStyleTemplate != value)
-                {
-                    _customStyleTemplate = value;
-                    OnPropertyChanged();
-                }
-            }
+            AddLog($"Prompt saved: {promptName}");
         }
 
-        // Upscale Properties
-        public bool UpscaleEnabled
+        protected override void OnPromptDeleted(string promptName)
         {
-            get => _upscaleEnabled;
-            set
-            {
-                if (_upscaleEnabled != value)
-                {
-                    _upscaleEnabled = value;
-                    OnPropertyChanged();
-                }
-            }
+            AddLog($"Prompt deleted: {promptName}");
         }
 
-        public string UpscaleMethod
+        protected override void OnPromptLoaded(SavedPrompt savedPrompt)
         {
-            get => _upscaleMethod;
-            set
+            AdditionalPrompt = savedPrompt.Prompt;
+            OrientationIndex = savedPrompt.AspectRatioIndex;
+            Steps = savedPrompt.Steps;
+            Cfg = savedPrompt.Cfg;
+            Seed = savedPrompt.Seed;
+            Denoise = savedPrompt.Denoise;
+
+            // Load additional data if available
+            if (savedPrompt.AdditionalData != null && savedPrompt.AdditionalData is Dictionary<string, object> additionalData)
             {
-                if (_upscaleMethod != value)
+                if (additionalData.TryGetValue("StyleIndex", out var styleIndexObj) && styleIndexObj is int styleIndex)
                 {
-                    _upscaleMethod = value;
-                    OnPropertyChanged();
+                    StyleIndex = styleIndex;
+                }
+
+                if (additionalData.TryGetValue("LoraEnabled", out var loraEnabledObj) && loraEnabledObj is bool loraEnabled)
+                {
+                    LoraEnabled = loraEnabled;
+                }
+
+                if (additionalData.TryGetValue("SelectedLora", out var selectedLoraObj) && selectedLoraObj is string selectedLora)
+                {
+                    SelectedLora = selectedLora;
+                }
+
+                if (additionalData.TryGetValue("LoraStrength", out var loraStrengthObj) && loraStrengthObj is double loraStrength)
+                {
+                    LoraStrength = loraStrength;
                 }
             }
+
+            AddLog($"Prompt loaded: {savedPrompt.Name}");
         }
 
-        public double UpscaleAmount
+        protected override void OnPromptError(string error)
         {
-            get => _upscaleAmount;
-            set
-            {
-                if (_upscaleAmount != value)
-                {
-                    _upscaleAmount = value;
-                    OnPropertyChanged();
-                }
-            }
+            AddLog($"ERROR: {error}");
         }
 
-        public double Denoise2
+        public override Dictionary<string, object> GetAdditionalPromptData()
         {
-            get => _denoise2;
-            set
+            return new Dictionary<string, object>
             {
-                if (_denoise2 != value)
-                {
-                    _denoise2 = value;
-                    OnPropertyChanged();
-                }
-            }
+                { "StyleIndex", StyleIndex },
+                { "LoraEnabled", LoraEnabled },
+                { "SelectedLora", SelectedLora },
+                { "LoraStrength", LoraStrength }
+            };
         }
 
         // Commands
-        public ICommand SelectPromptJsonCommand { get; }
-        public ICommand SelectInputImageCommand { get; }
-        public ICommand LoadPromptsCommand { get; }
-        public ICommand ProcessQueueCommand { get; }
-        public ICommand ClearQueueCommand { get; }
-        public ICommand OpenOutputFolderCommand { get; }
-        public ICommand CancelProcessingCommand { get; }
+        public ICommand GenerateImageCommand { get; }
+        public ICommand CancelGenerationCommand { get; }
+        public ICommand OpenResultFolderCommand { get; }
         public ICommand RefreshLorasCommand { get; }
+        public ICommand PasteFromClipboardCommand { get; }
 
         // Methods
-        private void SelectPromptJson()
+        private async Task GenerateImageAsync()
         {
-            var dialog = new Microsoft.Win32.OpenFileDialog
-            {
-                Filter = "JSON Files (*.json)|*.json|All Files (*.*)|*.*",
-                Title = "Select Story Prompts JSON File",
-                InitialDirectory = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "prompts")
-            };
-
-            if (dialog.ShowDialog() == true)
-            {
-                PromptJsonFilePath = dialog.FileName;
-                AddLog($"Selected prompt file: {Path.GetFileName(PromptJsonFilePath)}");
-            }
-        }
-
-        private void SelectInputImage()
-        {
-            var dialog = new Microsoft.Win32.OpenFileDialog
-            {
-                Filter = "Image Files (*.jpg;*.jpeg;*.png;*.bmp)|*.jpg;*.jpeg;*.png;*.bmp|All Files (*.*)|*.*",
-                Title = "Select Input Image"
-            };
-
-            if (dialog.ShowDialog() == true)
-            {
-                InputImagePath = dialog.FileName;
-                AddLog($"Selected input image: {Path.GetFileName(InputImagePath)}");
-            }
-        }
-
-        private void LoadInputImagePreview()
-        {
-            if (!string.IsNullOrEmpty(InputImagePath) && File.Exists(InputImagePath))
-            {
-                try
-                {
-                    var bitmap = new BitmapImage();
-                    bitmap.BeginInit();
-                    bitmap.UriSource = new Uri(InputImagePath, UriKind.Absolute);
-                    bitmap.CacheOption = BitmapCacheOption.OnLoad;
-                    bitmap.EndInit();
-                    bitmap.Freeze();
-
-                    InputImagePreview = bitmap;
-                }
-                catch (Exception ex)
-                {
-                    AddLog($"Error loading image preview: {ex.Message}");
-                    InputImagePreview = null;
-                }
-            }
-            else
-            {
-                InputImagePreview = null;
-            }
-        }
-
-        private async Task LoadPromptsAsync()
-        {
-            if (!CanLoadPrompts) return;
-
-            try
-            {
-                AddLog("Loading prompts from JSON file...");
-                var jsonContent = await File.ReadAllTextAsync(PromptJsonFilePath);
-                var storyData = JsonSerializer.Deserialize<StoryPromptData>(jsonContent);
-
-                if (storyData?.Prompts == null || !storyData.Prompts.Any())
-                {
-                    AddLog("ERROR: No prompts found in JSON file");
-                    System.Windows.MessageBox.Show("No prompts found in the JSON file.", "Error",
-                        MessageBoxButton.OK, MessageBoxImage.Error);
-                    return;
-                }
-
-                // Clear existing queue
-                QueueItems.Clear();
-
-                // Create queue items for each prompt
-                for (int i = 0; i < storyData.Prompts.Count; i++)
-                {
-                    QueueItems.Add(new StoryPromptItem
-                    {
-                        Index = i + 1,
-                        Prompt = storyData.Prompts[i],
-                        InputImagePath = InputImagePath, // All items use the same input image
-                        Status = "Queued"
-                    });
-                }
-
-                AddLog($"Loaded {QueueItems.Count} prompts into queue");
-                System.Windows.MessageBox.Show($"Successfully loaded {QueueItems.Count} prompts into the queue.", "Success",
-                    MessageBoxButton.OK, MessageBoxImage.Information);
-            }
-            catch (Exception ex)
-            {
-                AddLog($"ERROR loading prompts: {ex.Message}");
-                _logger.LogError($"Error loading prompts: {ex}");
-                System.Windows.MessageBox.Show($"Error loading prompts:\n\n{ex.Message}", "Error",
-                    MessageBoxButton.OK, MessageBoxImage.Error);
-            }
-        }
-
-        private async Task ProcessQueueAsync()
-        {
-            if (!CanProcessQueue) return;
+            if (!CanGenerate) return;
 
             _cancellationTokenSource?.Dispose();
             _cancellationTokenSource = new System.Threading.CancellationTokenSource();
 
             try
             {
-                IsProcessingQueue = true;
-                var queuedItems = QueueItems.Where(item => item.Status == "Queued").ToList();
-                QueueTotal = queuedItems.Count;
-                QueueProgress = 0;
+                AddLog("=== Starting Amateur image generation ===");
+                IsProcessing = true;
 
-                AddLog($"=== Starting story queue processing ({QueueTotal} images) ===");
+                // Clear previous result
+                HasResultImage = false;
+                ResultImageSource = null;
+                GC.Collect();
+                GC.WaitForPendingFinalizers();
 
-                foreach (var item in queuedItems)
+                ProcessingProgress = 0;
+                ProcessingStatus = "Preparing workflow...";
+                AddLog($"Additional Prompt: {AdditionalPrompt}");
+
+                // Ensure ComfyUI is connected
+                if (!_comfyUIService.IsConnected)
                 {
-                    if (_cancellationTokenSource.Token.IsCancellationRequested)
-                    {
-                        AddLog("Queue processing cancelled");
-                        break;
-                    }
-
-                    // Check ComfyUI status before processing each item
-                    AddLog("Checking ComfyUI status before processing...");
-                    var comfyUIOk = await _comfyUIService.DetectAndRestartIfCrashedAsync(
-                        status => AddLog($"[Crash Detection] {status}"),
-                        _cancellationTokenSource.Token);
-
-                    if (!comfyUIOk)
-                    {
-                        AddLog("ERROR: ComfyUI is not running and auto-restart failed");
-                        item.Status = "Failed";
-                        item.ErrorMessage = "ComfyUI is not available";
-                        QueueProgress++;
-                        continue; // Try next item instead of breaking
-                    }
-
-                    // Ensure ComfyUI is connected
-                    if (!_comfyUIService.IsConnected)
-                    {
-                        AddLog("Reconnecting to ComfyUI WebSocket...");
-                        try
-                        {
-                            await _comfyUIService.ConnectAsync(_cancellationTokenSource.Token);
-                            AddLog("Reconnected to ComfyUI");
-                        }
-                        catch (Exception ex)
-                        {
-                            AddLog($"ERROR: Failed to reconnect to ComfyUI: {ex.Message}");
-                            item.Status = "Failed";
-                            item.ErrorMessage = $"Failed to reconnect: {ex.Message}";
-                            QueueProgress++;
-                            continue;
-                        }
-                    }
-
-                    CurrentQueueItem = item;
-                    item.Status = "Processing";
-                    item.StartedAt = DateTime.Now;
-                    item.InputImagePath = InputImagePath; // Always use the original input image
-
-                    AddLog($"Processing story image {QueueProgress + 1}/{QueueTotal}");
-
-                    try
-                    {
-                        // Process the current queue item using the original input image
-                        var outputPath = await ProcessQueueItemAsync(item, InputImagePath, _cancellationTokenSource.Token);
-                        item.OutputImagePath = outputPath;
-                        item.Status = "Completed";
-                        item.CompletedAt = DateTime.Now;
-                        item.Progress = 100;
-
-                        AddLog($"Completed story image {QueueProgress + 1}/{QueueTotal}: {Path.GetFileName(outputPath)}");
-                    }
-                    catch (OperationCanceledException)
-                    {
-                        item.Status = "Cancelled";
-                        item.ErrorMessage = "Cancelled by user";
-                        AddLog($"Queue item cancelled: Prompt #{item.Index}");
-                        break;
-                    }
-                    catch (Exception ex)
-                    {
-                        item.Status = "Failed";
-                        item.ErrorMessage = ex.Message;
-                        item.Progress = 0;
-                        AddLog($"Queue item failed: Prompt #{item.Index} - {ex.Message}");
-                        _logger.LogError($"Error processing queue item {item.Id}: {ex}");
-
-                        // Check if this might be a ComfyUI crash and try to detect it
-                        AddLog("Checking if ComfyUI crashed after error...");
-                        await _comfyUIService.DetectAndRestartIfCrashedAsync(
-                            status => AddLog($"[Post-Error Check] {status}"),
-                            _cancellationTokenSource.Token);
-                    }
-                    finally
-                    {
-                        QueueProgress++;
-                    }
+                    ProcessingStatus = "Connecting to ComfyUI...";
+                    AddLog("Connecting to ComfyUI WebSocket...");
+                    await _comfyUIService.ConnectAsync(_cancellationTokenSource.Token);
+                    AddLog("Connected to ComfyUI");
+                }
+                else
+                {
+                    AddLog("ComfyUI already connected");
                 }
 
-                AddLog($"=== Story queue processing completed ({CompletedCount} successful, {FailedCount} failed) ===");
-                System.Windows.MessageBox.Show($"Story generation completed!\n\nSuccessful: {CompletedCount}\nFailed: {FailedCount}",
-                    "Processing Complete", MessageBoxButton.OK, MessageBoxImage.Information);
+                _cancellationTokenSource.Token.ThrowIfCancellationRequested();
+
+                // Load workflow
+                var workflowPath = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "workflow", "amateurZimageAPI.json");
+                if (!File.Exists(workflowPath))
+                {
+                    AddLog($"ERROR: Workflow file not found: {workflowPath}");
+                    System.Windows.MessageBox.Show($"Workflow file not found: {workflowPath}", "Error", System.Windows.MessageBoxButton.OK, System.Windows.MessageBoxImage.Error);
+                    return;
+                }
+
+                AddLog($"Loading workflow: {workflowPath}");
+                var workflowJson = await File.ReadAllTextAsync(workflowPath, _cancellationTokenSource.Token);
+                var workflow = JsonSerializer.Deserialize<JsonElement>(workflowJson);
+
+                _cancellationTokenSource.Token.ThrowIfCancellationRequested();
+
+                // Update workflow with parameters
+                ProcessingStatus = "Updating workflow parameters...";
+                ProcessingProgress = 10;
+
+                var updatedWorkflow = UpdateWorkflowParameters(workflow);
+
+                // Execute workflow
+                ProcessingStatus = "Generating image...";
+                ProcessingProgress = 30;
+                AddLog("Executing workflow in ComfyUI...");
+
+                var progress = new Progress<FlipPix.ComfyUI.Models.ProgressMessage>(progressMsg =>
+                {
+                    if (progressMsg.Data?.Value != null && progressMsg.Data?.Max != null)
+                    {
+                        var percent = (double)progressMsg.Data.Value / progressMsg.Data.Max * 100;
+                        System.Windows.Application.Current.Dispatcher.Invoke(() =>
+                        {
+                            ProcessingProgress = 30 + (percent * 0.6); // Scale to 30-90%
+                            ProcessingStatus = $"Generating: {progressMsg.Data.Value}/{progressMsg.Data.Max}";
+                        });
+                    }
+                });
+
+                var promptId = await _comfyUIService.ExecuteWorkflowAsync(updatedWorkflow, progress, _cancellationTokenSource.Token);
+
+                // Force progress update after workflow completes
+                System.Windows.Application.Current.Dispatcher.Invoke(() =>
+                {
+                    ProcessingProgress = 90;
+                    ProcessingStatus = "Workflow completed, retrieving output...";
+                });
+
+                AddLog($"Workflow execution completed with prompt ID: {promptId}");
+
+                // Get output images from ComfyUI output folder
+                ProcessingStatus = "Retrieving output image...";
+                ProcessingProgress = 95;
+                AddLog("Looking for generated image...");
+
+                // Retry image retrieval with delays
+                List<byte[]> outputImages = new();
+                int retryCount = 0;
+                int maxRetries = 20; // Wait up to 100 seconds
+
+                while (retryCount < maxRetries && !outputImages.Any())
+                {
+                    if (retryCount > 0)
+                    {
+                        AddLog($"Retry {retryCount}/{maxRetries} - waiting 5 seconds before checking again...");
+                        await Task.Delay(5000, _cancellationTokenSource.Token);
+                    }
+
+                    _cancellationTokenSource.Token.ThrowIfCancellationRequested();
+                    outputImages = await GetOutputImagesFromComfyUI(promptId);
+                    retryCount++;
+                }
+
+                if (outputImages.Any())
+                {
+                    var outputImage = outputImages.First();
+                    var outputDir = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "output", "amateur-generator");
+                    Directory.CreateDirectory(outputDir);
+
+                    var timestamp = DateTime.Now.ToString("yyyyMMdd_HHmmss");
+                    var outputPath = Path.Combine(outputDir, $"amateur_{timestamp}.png");
+
+                    await File.WriteAllBytesAsync(outputPath, outputImage);
+                    AddLog($"Output saved: {outputPath}");
+
+                    ResultImagePath = outputPath;
+                    LoadResultPreview(outputPath);
+                    HasResultImage = true;
+
+                    ProcessingProgress = 100;
+                    ProcessingStatus = "Complete!";
+                    AddLog("Image generation complete!");
+                }
+                else
+                {
+                    AddLog("WARNING: No output images received after all retries");
+                    ProcessingStatus = "No output generated";
+                    System.Windows.MessageBox.Show("No output images were generated. Please check the ComfyUI console for errors.", "Warning", System.Windows.MessageBoxButton.OK, System.Windows.MessageBoxImage.Warning);
+                }
+            }
+            catch (OperationCanceledException)
+            {
+                AddLog("Image generation cancelled by user");
+                ProcessingStatus = "Cancelled";
+                ProcessingProgress = 0;
             }
             catch (Exception ex)
             {
-                AddLog($"ERROR: Queue processing failed: {ex.Message}");
-                _logger.LogError($"Error processing queue: {ex}");
-                System.Windows.MessageBox.Show($"Queue processing failed:\n\n{ex.Message}", "Error",
-                    MessageBoxButton.OK, MessageBoxImage.Error);
+                AddLog($"ERROR: {ex.GetType().Name}: {ex.Message}");
+                if (ex.InnerException != null)
+                {
+                    AddLog($"Inner Exception: {ex.InnerException.Message}");
+                }
+                AddLog($"Stack Trace: {ex.StackTrace}");
+
+                _logger.LogError($"Error generating image: {ex}");
+
+                ProcessingStatus = "Error occurred";
+                ProcessingProgress = 0;
+
+                System.Windows.MessageBox.Show(
+                    $"Error generating image:\n\n{ex.Message}\n\nCheck the log for more details.",
+                    "Error",
+                    System.Windows.MessageBoxButton.OK,
+                    System.Windows.MessageBoxImage.Error);
             }
             finally
             {
-                IsProcessingQueue = false;
-                CurrentQueueItem = null;
-                QueueProgress = 0;
-                QueueTotal = 0;
-                CommandManager.InvalidateRequerySuggested();
+                IsProcessing = false;
+                AddLog("=== Amateur image generation ended ===");
             }
         }
 
-        private async Task<string> ProcessQueueItemAsync(StoryPromptItem item, string inputImagePath, System.Threading.CancellationToken cancellationToken)
-        {
-            // Ensure ComfyUI is connected
-            if (!_comfyUIService.IsConnected)
-            {
-                await _comfyUIService.ConnectAsync(cancellationToken);
-            }
-
-            cancellationToken.ThrowIfCancellationRequested();
-
-            // Load workflow (amateurZimageAPI.json - ZImage workflow with style and LoRA support)
-            var workflowPath = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "workflow", "amateurZimageAPI.json");
-            if (!File.Exists(workflowPath))
-            {
-                throw new FileNotFoundException($"Workflow file not found: {workflowPath}");
-            }
-
-            var workflowJson = await File.ReadAllTextAsync(workflowPath, cancellationToken);
-            var workflow = JsonSerializer.Deserialize<JsonElement>(workflowJson);
-
-            cancellationToken.ThrowIfCancellationRequested();
-
-            // Upload input image
-            var uploadedImageName = await _comfyUIService.UploadImageAsync(inputImagePath);
-
-            // Update workflow parameters
-            var updatedWorkflow = UpdateWorkflowParameters(workflow, uploadedImageName, item.Prompt);
-
-            // Execute workflow with progress reporting
-            var progress = new Progress<FlipPix.ComfyUI.Models.ProgressMessage>(progressMsg =>
-            {
-                if (progressMsg.Data?.Value != null && progressMsg.Data?.Max != null)
-                {
-                    var percent = (double)progressMsg.Data.Value / progressMsg.Data.Max * 100;
-                    System.Windows.Application.Current.Dispatcher.Invoke(() =>
-                    {
-                        item.Progress = percent;
-                    });
-                }
-            });
-
-            var promptId = await _comfyUIService.ExecuteWorkflowAsync(updatedWorkflow, progress, cancellationToken);
-
-            // Get output images
-            var outputImages = await GetOutputImagesFromComfyUI(promptId);
-            if (!outputImages.Any())
-            {
-                throw new InvalidOperationException("No output images were generated");
-            }
-
-            var outputImage = outputImages.First();
-            var outputDir = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "output", "story-generator");
-            Directory.CreateDirectory(outputDir);
-
-            var timestamp = DateTime.Now.ToString("yyyyMMdd_HHmmss");
-            var outputPath = Path.Combine(outputDir, $"story_{item.Index:D2}_{timestamp}.png");
-
-            await File.WriteAllBytesAsync(outputPath, outputImage);
-            AddLog($"Story image #{item.Index} saved: {outputPath} ({outputImage.Length} bytes)");
-            return outputPath;
-        }
-
-        private JsonElement UpdateWorkflowParameters(JsonElement workflow, string inputImageName, string promptText)
+        private JsonElement UpdateWorkflowParameters(JsonElement workflow)
         {
             var workflowDict = JsonSerializer.Deserialize<Dictionary<string, JsonElement>>(workflow.GetRawText());
 
             if (workflowDict == null) return workflow;
+
+            // Build the full prompt with photographer prefix (duplicated as requested)
+            const string photographerPrefix = "A photo taken by the photographer Deedeemegadoodo, raw, unedited, ";
+            string styleSuffix = GetStyleSuffix();
+            string fullPrompt = photographerPrefix + photographerPrefix + AdditionalPrompt + styleSuffix;
 
             // 1. Update positive prompt (node 6)
             if (workflowDict.ContainsKey("6"))
@@ -830,8 +614,6 @@ namespace FlipPix.UI.ViewModels
                         JsonSerializer.Serialize(node6["inputs"]));
                     if (inputs != null)
                     {
-                        // Build the full prompt with style template
-                        var fullPrompt = BuildFullPrompt(promptText);
                         inputs["text"] = fullPrompt;
                         node6["inputs"] = inputs;
                         workflowDict["6"] = JsonSerializer.SerializeToElement(node6);
@@ -849,7 +631,7 @@ namespace FlipPix.UI.ViewModels
                         JsonSerializer.Serialize(node7["inputs"]));
                     if (inputs != null)
                     {
-                        inputs["text"] = NegativePrompt;
+                        inputs["text"] = "";
                         node7["inputs"] = inputs;
                         workflowDict["7"] = JsonSerializer.SerializeToElement(node7);
                     }
@@ -866,14 +648,9 @@ namespace FlipPix.UI.ViewModels
                         JsonSerializer.Serialize(node28["inputs"]));
                     if (inputs != null)
                     {
-                        // Max seed value for rgthree seed node is 2^50
                         long maxSeed = 1125899906842624;
-                        var random = new Random();
-                        // Generate random seed within valid range
-                        byte[] bytes = new byte[8];
-                        random.NextBytes(bytes);
-                        long seed = Math.Abs(BitConverter.ToInt64(bytes, 0) % maxSeed);
-                        inputs["seed"] = seed;
+                        var actualSeed = Seed == 0 ? new Random().NextInt64(0, maxSeed) : Seed;
+                        inputs["seed"] = actualSeed;
                         node28["inputs"] = inputs;
                         workflowDict["28"] = JsonSerializer.SerializeToElement(node28);
                     }
@@ -890,7 +667,7 @@ namespace FlipPix.UI.ViewModels
                         JsonSerializer.Serialize(node582["inputs"]));
                     if (inputs != null)
                     {
-                        inputs["denoise"] = Denoise;
+                        inputs["denoise"] = 0.5;
                         inputs["steps"] = Steps;
                         inputs["cfg"] = Cfg;
                         node582["inputs"] = inputs;
@@ -909,7 +686,7 @@ namespace FlipPix.UI.ViewModels
                         JsonSerializer.Serialize(node620["inputs"]));
                     if (inputs != null)
                     {
-                        inputs["denoise"] = Denoise2;
+                        inputs["denoise"] = 0.3;
                         inputs["steps"] = Steps;
                         inputs["cfg"] = Cfg;
                         node620["inputs"] = inputs;
@@ -956,35 +733,52 @@ namespace FlipPix.UI.ViewModels
                 }
             }
 
-            // 8. Update LoRA strengths
-            // Node 105 - amateur photography LoRA
-            UpdateLoraStrength(workflowDict, "105", 0.4);
-            // Node 752 - amateur photography LoRA (second instance)
-            UpdateLoraStrength(workflowDict, "752", 0.9);
-            // Node 760 - gilliananderson LoRA
-            UpdateLoraStrength(workflowDict, "760", 0.8);
+            // 8. Update Amateur LoRA strengths (always applied)
+            UpdateLoraStrength(workflowDict, "105", AmateurLoraStrength1);
+            UpdateLoraStrength(workflowDict, "752", AmateurLoraStrength2);
 
-            // 9. Update latent image dimensions if needed
-            // Node 46: 576x416
-            UpdateLatentDimensions(workflowDict, "46", 576, 416);
-            // Node 693: 208x288
-            UpdateLatentDimensions(workflowDict, "693", 208, 288);
-            // Node 758: 416x576
-            UpdateLatentDimensions(workflowDict, "758", 416, 576);
-            // Node 772: 1248x1728
-            UpdateLatentDimensions(workflowDict, "772", 1248, 1728);
+            // 9. Update character LoRA if enabled (node 760)
+            if (LoraEnabled && !string.IsNullOrEmpty(SelectedLora) && SelectedLora != "No LoRAs available")
+            {
+                UpdateCharacterLora(workflowDict, "760", SelectedLora, LoraStrength);
+            }
+
+            // 10. Update latent image dimensions based on orientation
+            bool isPortrait = OrientationIndex == 1;
+            if (isPortrait)
+            {
+                // Portrait mode
+                UpdateLatentDimensions(workflowDict, "46", 416, 576);
+                UpdateLatentDimensions(workflowDict, "693", 208, 288);
+                UpdateLatentDimensions(workflowDict, "758", 288, 208);
+                UpdateLatentDimensions(workflowDict, "772", 1248, 1728);
+            }
+            else
+            {
+                // Landscape mode
+                UpdateLatentDimensions(workflowDict, "46", 576, 416);
+                UpdateLatentDimensions(workflowDict, "693", 208, 288);
+                UpdateLatentDimensions(workflowDict, "758", 416, 576);
+                UpdateLatentDimensions(workflowDict, "772", 1728, 1248);
+            }
 
             return JsonSerializer.SerializeToElement(workflowDict);
         }
 
-        private string BuildFullPrompt(string userPrompt)
+        private string GetStyleSuffix()
         {
-            var styleTemplate = GetStyleTemplate();
-            // Replace the placeholder with the user prompt
-            return styleTemplate.Replace("{$@}", userPrompt);
+            return StyleIndex switch
+            {
+                0 => "", // Natural
+                1 => ", cinematic lighting, dramatic shadows, professional photography",
+                2 => ", dramatic lighting, high contrast, moody atmosphere",
+                3 => ", vintage film look, grain, faded colors, nostalgic",
+                4 => ", modern aesthetic, clean lines, vibrant colors",
+                _ => ""
+            };
         }
 
-        private void UpdateLoraStrength(Dictionary<string, JsonElement> workflowDict, string nodeId, double defaultStrength)
+        private void UpdateLoraStrength(Dictionary<string, JsonElement> workflowDict, string nodeId, double strength)
         {
             if (workflowDict.ContainsKey(nodeId))
             {
@@ -995,8 +789,26 @@ namespace FlipPix.UI.ViewModels
                         JsonSerializer.Serialize(node["inputs"]));
                     if (inputs != null && inputs.ContainsKey("strength_model"))
                     {
-                        // Use the user's LoRA strength setting if enabled
-                        double strength = LoraEnabled ? LoraStrengthModel : defaultStrength;
+                        inputs["strength_model"] = strength;
+                        node["inputs"] = inputs;
+                        workflowDict[nodeId] = JsonSerializer.SerializeToElement(node);
+                    }
+                }
+            }
+        }
+
+        private void UpdateCharacterLora(Dictionary<string, JsonElement> workflowDict, string nodeId, string loraName, double strength)
+        {
+            if (workflowDict.ContainsKey(nodeId))
+            {
+                var node = JsonSerializer.Deserialize<Dictionary<string, object>>(workflowDict[nodeId].GetRawText());
+                if (node != null && node.ContainsKey("inputs"))
+                {
+                    var inputs = JsonSerializer.Deserialize<Dictionary<string, object>>(
+                        JsonSerializer.Serialize(node["inputs"]));
+                    if (inputs != null)
+                    {
+                        inputs["lora_name"] = $"zimage\\{loraName}.safetensors";
                         inputs["strength_model"] = strength;
                         node["inputs"] = inputs;
                         workflowDict[nodeId] = JsonSerializer.SerializeToElement(node);
@@ -1025,24 +837,6 @@ namespace FlipPix.UI.ViewModels
             }
         }
 
-        private string GetStyleTemplate()
-        {
-            if (SelectedStyle == "Custom" && !string.IsNullOrEmpty(CustomStyleTemplate))
-            {
-                return CustomStyleTemplate;
-            }
-
-            return SelectedStyle switch
-            {
-                "Phone Photo" => "YOUR CONTEXT:\nYour photographs has android phone cam-quality.\nYour photographs exhibit {$spicy-content-with} surprising compositions, sharp complex backgrounds, natural lighting, and candid moments that feel immediate and authentic.\nYour photographs are actual gritty candid photographic background.\n---\nYOUR PHOTO:\n{$@}",
-                "Cinematic" => "YOUR CONTEXT:\nYour photographs has cinematic film-quality with dramatic lighting.\nYour photographs exhibit {$spicy-content-with} movie-like compositions, rich colors, depth of field, and professional cinematography.\nYour photographs are actual cinematic film stills with atmospheric mood.\n---\nYOUR PHOTO:\n{$@}",
-                "Natural Light" => "YOUR CONTEXT:\nYour photographs has natural light photography quality.\nYour photographs exhibit {$spicy-content-with} soft natural lighting, organic compositions, authentic moments, and gentle color grading.\nYour photographs are actual natural light photos with warm, inviting tones.\n---\nYOUR PHOTO:\n{$@}",
-                "Portrait" => "YOUR CONTEXT:\nYour photographs has professional portrait photography quality.\nYour photographs exhibit {$spicy-content-with} compelling portraiture, beautiful lighting, emotional depth, and artistic composition.\nYour photographs are actual professional portrait photos with stunning detail.\n---\nYOUR PHOTO:\n{$@}",
-                "Documentary" => "YOUR CONTEXT:\nYour photographs has documentary photography quality.\nYour photographs exhibit {$spicy-content-with} authentic documentary style, real moments, storytelling composition, and journalistic integrity.\nYour photographs are actual documentary photos with powerful narratives.\n---\nYOUR PHOTO:\n{$@}",
-                _ => "YOUR CONTEXT:\nYour photographs has android phone cam-quality.\nYour photographs exhibit surprising compositions, sharp complex backgrounds, natural lighting, and candid moments that feel immediate and authentic.\n---\nYOUR PHOTO:\n{$@}"
-            };
-        }
-
         private async Task<List<byte[]>> GetOutputImagesFromComfyUI(string promptId)
         {
             var images = new List<byte[]>();
@@ -1058,9 +852,8 @@ namespace FlipPix.UI.ViewModels
                 AddLog($"ComfyUI server: {actualServer}");
                 AddLog($"Is remote ComfyUI: {isRemoteComfyUI}");
 
-                // Retry image retrieval with delays to give ComfyUI time to write the file
                 int retryCount = 0;
-                int maxRetries = 20; // Wait up to 100 seconds (20 retries × 5s)
+                int maxRetries = 20;
 
                 while (retryCount < maxRetries && !images.Any())
                 {
@@ -1077,7 +870,6 @@ namespace FlipPix.UI.ViewModels
                         var outputFiles = await _comfyUIService.HttpClient.GetOutputFilesAsync();
                         AddLog($"Found {outputFiles.Count} potential output files");
 
-                        // Look for recent PNG files (story images)
                         var imageFiles = outputFiles.Where(f =>
                             f.EndsWith(".png") &&
                             !f.StartsWith("z-image_") &&
@@ -1121,24 +913,17 @@ namespace FlipPix.UI.ViewModels
                             return images;
                         }
 
-                        // Search in multiple locations:
-                        // 1. Root output directory
-                        // 2. ZImage subfolder (where the workflow saves)
-                        // 3. ZImage/Date subfolders
-
                         var searchDirs = new List<string> { comfyUIOutputDir };
 
-                        // Add ZImage subdirectories
                         var zimageDir = Path.Combine(comfyUIOutputDir, "ZImage");
                         if (Directory.Exists(zimageDir))
                         {
                             searchDirs.Add(zimageDir);
-                            // Add date-named subfolders in ZImage
                             try
                             {
                                 var dateDirs = Directory.GetDirectories(zimageDir)
                                     .OrderByDescending(d => Directory.GetLastWriteTime(d))
-                                    .Take(3); // Check last 3 date folders
+                                    .Take(3);
                                 foreach (var dateDir in dateDirs)
                                 {
                                     searchDirs.Add(dateDir);
@@ -1151,7 +936,6 @@ namespace FlipPix.UI.ViewModels
 
                         foreach (var searchDir in searchDirs)
                         {
-                            // Look for recently created images (within last 2 minutes)
                             var recentFiles = Directory.GetFiles(searchDir, "*.png")
                                 .Select(f => new FileInfo(f))
                                 .Where(f => (DateTime.Now - f.LastWriteTime).TotalMinutes < 2)
@@ -1164,7 +948,7 @@ namespace FlipPix.UI.ViewModels
                                 var latestFile = recentFiles.First();
                                 AddLog($"Using latest file: {latestFile.Name} (modified: {latestFile.LastWriteTime})");
                                 images.Add(await File.ReadAllBytesAsync(latestFile.FullName));
-                                break; // Found images, stop searching
+                                break;
                             }
                         }
 
@@ -1172,8 +956,7 @@ namespace FlipPix.UI.ViewModels
                         {
                             AddLog($"No recent images found in retry {retryCount + 1}");
 
-                            // Fallback: look for ANY PNG file modified in the last 10 minutes in all search dirs
-                            if (retryCount >= 5) // After 5 retries, look for older files too
+                            if (retryCount >= 5)
                             {
                                 foreach (var searchDir in searchDirs)
                                 {
@@ -1248,6 +1031,30 @@ namespace FlipPix.UI.ViewModels
             AddLog("Refreshed LoRA list");
         }
 
+        private void PasteFromClipboard()
+        {
+            try
+            {
+                if (System.Windows.Clipboard.ContainsText())
+                {
+                    var clipboardText = System.Windows.Clipboard.GetText();
+                    if (!string.IsNullOrEmpty(clipboardText))
+                    {
+                        AdditionalPrompt = clipboardText;
+                        AddLog("Pasted content from clipboard");
+                    }
+                }
+                else
+                {
+                    AddLog("Clipboard is empty or does not contain text");
+                }
+            }
+            catch (Exception ex)
+            {
+                AddLog($"ERROR pasting from clipboard: {ex.Message}");
+            }
+        }
+
         private string? GetLoraModelPath()
         {
             try
@@ -1259,7 +1066,6 @@ namespace FlipPix.UI.ViewModels
                     return null;
                 }
 
-                // First try to get path from extra_model_paths.yaml
                 var extraModelPathsFile = Path.Combine(comfyUIPath, "extra_model_paths.yaml");
                 AddLog($"Looking for extra_model_paths.yaml at: {extraModelPathsFile}");
 
@@ -1279,7 +1085,6 @@ namespace FlipPix.UI.ViewModels
                             string basePath = string.Empty;
                             string lorasRelativePath = string.Empty;
 
-                            // Check for "comfyui" section (most common format)
                             if (yamlData.ContainsKey("comfyui"))
                             {
                                 AddLog("Found 'comfyui' section in YAML");
@@ -1288,7 +1093,6 @@ namespace FlipPix.UI.ViewModels
 
                                 if (comfyuiSection != null)
                                 {
-                                    // Convert to Dictionary<string, object> for easier use
                                     var comfyuiStringDict = new Dictionary<string, object>();
                                     foreach (var kvp in comfyuiSection)
                                     {
@@ -1300,14 +1104,12 @@ namespace FlipPix.UI.ViewModels
 
                                     AddLog($"ComfyUI section keys: {string.Join(", ", comfyuiStringDict.Keys)}");
 
-                                    // Get base_path if it exists
                                     if (comfyuiStringDict.ContainsKey("base_path"))
                                     {
                                         basePath = comfyuiStringDict["base_path"]?.ToString() ?? string.Empty;
                                         AddLog($"Found base_path: {basePath}");
                                     }
 
-                                    // Get loras path if it exists
                                     if (comfyuiStringDict.ContainsKey("loras"))
                                     {
                                         lorasRelativePath = comfyuiStringDict["loras"]?.ToString() ?? string.Empty;
@@ -1323,7 +1125,6 @@ namespace FlipPix.UI.ViewModels
                             {
                                 AddLog("No 'comfyui' section found in YAML");
 
-                                // Fallback to direct "loras" key
                                 if (yamlData.ContainsKey("loras"))
                                 {
                                     lorasRelativePath = yamlData["loras"]?.ToString() ?? string.Empty;
@@ -1331,24 +1132,20 @@ namespace FlipPix.UI.ViewModels
                                 }
                             }
 
-                            // Construct full path
                             if (!string.IsNullOrEmpty(lorasRelativePath))
                             {
                                 string fullLoraPath;
                                 if (!string.IsNullOrEmpty(basePath))
                                 {
-                                    // Combine base_path with loras relative path
                                     fullLoraPath = Path.Combine(basePath, lorasRelativePath);
                                     AddLog($"Combined base_path and loras: {basePath} + {lorasRelativePath} = {fullLoraPath}");
                                 }
                                 else
                                 {
-                                    // Use just the loras path (might be absolute)
                                     fullLoraPath = lorasRelativePath;
                                     AddLog($"Using loras path directly: {fullLoraPath}");
                                 }
 
-                                // Normalize path separators
                                 fullLoraPath = fullLoraPath.Replace('/', Path.DirectorySeparatorChar);
 
                                 AddLog($"Final LoRA path: {fullLoraPath}");
@@ -1379,7 +1176,6 @@ namespace FlipPix.UI.ViewModels
                     AddLog($"ERROR: extra_model_paths.yaml not found in ComfyUI directory: {extraModelPathsFile}");
                 }
 
-                // Fallback to default ComfyUI models directory
                 var defaultLoraPath = Path.Combine(comfyUIPath, "models", "loras");
                 if (Directory.Exists(defaultLoraPath))
                 {
@@ -1401,11 +1197,9 @@ namespace FlipPix.UI.ViewModels
         {
             try
             {
-                // Priority 1: Get LoRA path from ComfyUI extra_model_paths.yaml or default location
                 var loraBasePath = GetLoraModelPath();
                 if (!string.IsNullOrEmpty(loraBasePath))
                 {
-                    // Look for zimage subfolder
                     var zimageLoraPath = Path.Combine(loraBasePath, "zimage");
                     if (Directory.Exists(zimageLoraPath))
                     {
@@ -1414,13 +1208,11 @@ namespace FlipPix.UI.ViewModels
                     }
                     else
                     {
-                        // If zimage subfolder doesn't exist, use the base LoRA directory
                         LoadLorasFromDirectory(loraBasePath, "ComfyUI LoRA directory");
                         return;
                     }
                 }
 
-                // Priority 2: Fallback to local directory
                 var localLoraPath = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "loras", "zimage");
                 LoadLorasFromDirectory(localLoraPath, "local directory");
             }
@@ -1444,9 +1236,11 @@ namespace FlipPix.UI.ViewModels
                 return;
             }
 
+            // Filter out amateur photography LoRA since it's always applied
             var loraFiles = Directory.GetFiles(loraPath, "*.safetensors")
                 .Select(Path.GetFileNameWithoutExtension)
-                .Where(name => !string.IsNullOrEmpty(name))
+                .Where(name => !string.IsNullOrEmpty(name) &&
+                               !name.Equals("amateur_photography_zimage_v1", StringComparison.OrdinalIgnoreCase))
                 .OrderBy(name => name)
                 .ToList();
 
@@ -1474,50 +1268,7 @@ namespace FlipPix.UI.ViewModels
             }
         }
 
-        private void ClearQueue()
-        {
-            if (!QueueItems.Any()) return;
-
-            var result = System.Windows.MessageBox.Show(
-                $"Are you sure you want to clear all {QueueItems.Count} items from the queue?",
-                "Clear Queue",
-                MessageBoxButton.YesNo,
-                MessageBoxImage.Question);
-
-            if (result == MessageBoxResult.Yes)
-            {
-                QueueItems.Clear();
-                AddLog("Queue cleared");
-                CommandManager.InvalidateRequerySuggested();
-            }
-        }
-
-        private void OpenOutputFolder()
-        {
-            try
-            {
-                var outputDir = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "output", "story-generator");
-                if (Directory.Exists(outputDir))
-                {
-                    Process.Start(new ProcessStartInfo
-                    {
-                        FileName = outputDir,
-                        UseShellExecute = true
-                    });
-                }
-                else
-                {
-                    System.Windows.MessageBox.Show("Output folder does not exist yet. Generate some images first.", "Info",
-                        MessageBoxButton.OK, MessageBoxImage.Information);
-                }
-            }
-            catch (Exception ex)
-            {
-                AddLog($"ERROR opening output folder: {ex.Message}");
-            }
-        }
-
-        private void CancelProcessing()
+        private void CancelGeneration()
         {
             if (_cancellationTokenSource != null && !_cancellationTokenSource.IsCancellationRequested)
             {
@@ -1527,18 +1278,55 @@ namespace FlipPix.UI.ViewModels
             }
         }
 
+        private void OpenResultFolder()
+        {
+            try
+            {
+                var folder = Path.GetDirectoryName(ResultImagePath);
+                if (!string.IsNullOrEmpty(folder) && Directory.Exists(folder))
+                {
+                    Process.Start(new ProcessStartInfo
+                    {
+                        FileName = folder,
+                        UseShellExecute = true
+                    });
+                }
+            }
+            catch (Exception ex)
+            {
+                AddLog($"ERROR opening result folder: {ex.Message}");
+            }
+        }
+
+        private void LoadResultPreview(string imagePath)
+        {
+            try
+            {
+                var bitmap = new BitmapImage();
+                bitmap.BeginInit();
+                bitmap.CacheOption = BitmapCacheOption.OnLoad;
+                bitmap.UriSource = new Uri(imagePath, UriKind.Absolute);
+                bitmap.EndInit();
+                bitmap.Freeze();
+
+                ResultImageSource = bitmap;
+
+                var fileInfo = new FileInfo(imagePath);
+                ImageInfo = $"Size: {fileInfo.Length / 1024}KB | {bitmap.PixelWidth}x{bitmap.PixelHeight}";
+
+                AddLog("Result image preview loaded");
+            }
+            catch (Exception ex)
+            {
+                AddLog($"ERROR loading result preview: {ex.Message}");
+            }
+        }
+
         private void AddLog(string message)
         {
             var timestamp = DateTime.Now.ToString("HH:mm:ss");
             LogOutput += $"[{timestamp}] {message}\n";
             _logger.LogInfo(message);
-        }
-
-        public event PropertyChangedEventHandler? PropertyChanged;
-
-        protected void OnPropertyChanged([CallerMemberName] string? propertyName = null)
-        {
-            PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(propertyName));
         }
 
         // RelayCommand class

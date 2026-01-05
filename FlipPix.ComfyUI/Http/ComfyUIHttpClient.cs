@@ -1,6 +1,7 @@
 using System.Net.Http.Json;
 using System.Text.Json;
 using System.Linq;
+using System.Collections.Generic;
 using Microsoft.Extensions.Logging;
 using FlipPix.Core.Interfaces;
 using FlipPix.Core.Models;
@@ -31,10 +32,10 @@ public class ComfyUIHttpClient : IDisposable
         {
             var stopwatch = System.Diagnostics.Stopwatch.StartNew();
             _logger.LogInfo("Testing connection to ComfyUI at {BaseUrl}", _settings.BaseUrl);
-            
+
             var response = await _httpClient.GetAsync("/system_stats", cancellationToken);
             stopwatch.Stop();
-            
+
             if (response.IsSuccessStatusCode)
             {
                 _logger.LogInfo("Connection successful in {ElapsedMs}ms", stopwatch.ElapsedMilliseconds);
@@ -49,6 +50,39 @@ public class ComfyUIHttpClient : IDisposable
         catch (Exception ex)
         {
             _logger.LogError(ex, "Connection test failed");
+            return false;
+        }
+    }
+
+    /// <summary>
+    /// Tests if ComfyUI is fully ready to process workflows by checking if object_info is available
+    /// This is a better readiness check than just HTTP connectivity
+    /// </summary>
+    public async Task<bool> IsComfyUIReadyAsync(CancellationToken cancellationToken = default)
+    {
+        try
+        {
+            _logger.LogDebug("Checking if ComfyUI is fully ready...");
+
+            // The /object_info endpoint requires all nodes to be loaded
+            // This ensures ComfyUI is not just HTTP-responsive, but actually ready to process workflows
+            var response = await _httpClient.GetAsync("/object_info", cancellationToken);
+
+            if (response.IsSuccessStatusCode)
+            {
+                _logger.LogDebug("ComfyUI is ready (object_info accessible)");
+                return true;
+            }
+            else
+            {
+                _logger.LogDebug("ComfyUI not ready yet (HTTP {StatusCode})", response.StatusCode);
+                return false;
+            }
+        }
+        catch (Exception ex) when (ex is HttpRequestException or TaskCanceledException)
+        {
+            // Expected during startup - ComfyUI not ready yet
+            _logger.LogDebug("ComfyUI not ready yet: {Message}", ex.Message);
             return false;
         }
     }
@@ -181,11 +215,25 @@ public class ComfyUIHttpClient : IDisposable
         {
             _logger.LogInfo("Submitting workflow for client: {ClientId}", clientId);
 
+            // Create extra_pnginfo with proper format (array format for ComfyUI)
+            var extraPnginfo = new List<Dictionary<string, object>>
+            {
+                new Dictionary<string, object>
+                {
+                    ["workflow"] = workflow
+                }
+            };
+
             var request = new PromptRequest
             {
                 Prompt = workflow,
-                ClientId = clientId
+                ClientId = clientId,
+                ExtraPnginfo = extraPnginfo
             };
+
+            // Log the request JSON for debugging
+            var requestJson = JsonSerializer.Serialize(request, new JsonSerializerOptions { WriteIndented = false });
+            _logger.LogInfo("Sending prompt request: {RequestJson}", requestJson.Substring(0, Math.Min(500, requestJson.Length)));
 
             var response = await _httpClient.PostAsJsonAsync("/prompt", request, cancellationToken);
 

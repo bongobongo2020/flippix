@@ -1,0 +1,708 @@
+{
+  "6": {
+    "inputs": {
+      "text": [
+        "166",
+        0
+      ],
+      "clip": [
+        "163",
+        0
+      ]
+    },
+    "class_type": "CLIPTextEncode",
+    "_meta": {
+      "title": "CLIP Text Encode (Positive Prompt)"
+    }
+  },
+  "7": {
+    "inputs": {
+      "text": "",
+      "clip": [
+        "163",
+        0
+      ]
+    },
+    "class_type": "CLIPTextEncode",
+    "_meta": {
+      "title": "CLIP Text Encode (Negative Prompt)"
+    }
+  },
+  "8": {
+    "inputs": {
+      "samples": [
+        "67",
+        0
+      ],
+      "vae": [
+        "162",
+        0
+      ]
+    },
+    "class_type": "VAEDecode",
+    "_meta": {
+      "title": "VAE Decode"
+    }
+  },
+  "9": {
+    "inputs": {
+      "filename_prefix": "ZImage/2025_12_30/ZI",
+      "images": [
+        "207",
+        0
+      ]
+    },
+    "class_type": "SaveImage",
+    "_meta": {
+      "title": "Save Image"
+    }
+  },
+  "31": {
+    "inputs": {
+      "string": [
+        "87",
+        0
+      ],
+      "find": "{$@}",
+      "replace": [
+        "110",
+        0
+      ]
+    },
+    "class_type": "StringReplace",
+    "_meta": {
+      "title": "STYLE INTEGRATOR"
+    }
+  },
+  "50": {
+    "inputs": {
+      "add_noise": "enable",
+      "noise_seed": 1,
+      "steps": 8,
+      "cfg": 1,
+      "sampler_name": "euler",
+      "scheduler": "simple",
+      "start_at_step": 0,
+      "end_at_step": 10000,
+      "return_with_leftover_noise": "disable",
+      "positive": [
+        "54",
+        0
+      ],
+      "negative": [
+        "60",
+        0
+      ],
+      "latent_image": [
+        "56",
+        0
+      ]
+    },
+    "class_type": "KSamplerAdvanced",
+    "_meta": {
+      "title": "KSampler (Advanced)"
+    }
+  },
+  "54": {
+    "inputs": {
+      "text": "In a steampunk workshop, a red-haired inventor, wearing overalls with a white top underneath, works on a mechanical spider. She has a black tattoo on her left arm."
+    },
+    "class_type": "CLIPTextEncode",
+    "_meta": {
+      "title": "CLIP Text Encode (Positive Prompt)"
+    }
+  },
+  "56": {
+    "inputs": {
+      "width": 944,
+      "height": 1408,
+      "batch_size": 1
+    },
+    "class_type": "EmptyLatentImage",
+    "_meta": {
+      "title": "Empty Latent Image"
+    }
+  },
+  "60": {
+    "inputs": {
+      "text": ""
+    },
+    "class_type": "CLIPTextEncode",
+    "_meta": {
+      "title": "CLIP Text Encode (Prompt)"
+    }
+  },
+  "67": {
+    "inputs": {
+      "add_noise": true,
+      "noise_seed": 1,
+      "cfg": 1,
+      "model": [
+        "161",
+        0
+      ],
+      "positive": [
+        "6",
+        0
+      ],
+      "negative": [
+        "7",
+        0
+      ],
+      "sampler": [
+        "96",
+        0
+      ],
+      "sigmas": [
+        "70",
+        0
+      ],
+      "latent_image": [
+        "250",
+        0
+      ]
+    },
+    "class_type": "SamplerCustom",
+    "_meta": {
+      "title": "SamplerCustom"
+    }
+  },
+  "68": {
+    "inputs": {
+      "sampler_name": "euler"
+    },
+    "class_type": "KSamplerSelect",
+    "_meta": {
+      "title": "Default Euler Sampler"
+    }
+  },
+  "70": {
+    "inputs": {
+      "steps": 8,
+      "sigma_max": 0.98,
+      "sigma_min": 0.01,
+      "rho": 0.3
+    },
+    "class_type": "KarrasScheduler",
+    "_meta": {
+      "title": "Karras Scheduler (sigmas)"
+    }
+  },
+  "87": {
+    "inputs": {
+      "any_02": [
+        "125",
+        0
+      ]
+    },
+    "class_type": "Any Switch (rgthree)",
+    "_meta": {
+      "title": "Any Switch (rgthree)"
+    }
+  },
+  "96": {
+    "inputs": {
+      "any_02": [
+        "68",
+        0
+      ]
+    },
+    "class_type": "Any Switch (rgthree)",
+    "_meta": {
+      "title": "Any Switch (sampler)"
+    }
+  },
+  "110": {
+    "inputs": {
+      "value": "In a steampunk workshop, a red-haired inventor, wearing overalls with a white top underneath, works on a mechanical spider. She has a black tattoo on her left arm."
+    },
+    "class_type": "PrimitiveStringMultiline",
+    "_meta": {
+      "title": "This node is used for reroute"
+    }
+  },
+  "125": {
+    "inputs": {
+      "value": "YOUR CONTEXT:\nYour photographs has android phone cam-quality.\nYour photographs exhibit {$spicy-content-with} surprising compositions, sharp complex backgrounds, natural lighting, and candid moments that feel immediate and authentic.\nYour photographs are actual gritty candid photographic background.\n---\nYOUR PHOTO:\n{$@}"
+    },
+    "class_type": "PrimitiveStringMultiline",
+    "_meta": {
+      "title": "STYLE: Phone Photo"
+    }
+  },
+  "146": {
+    "inputs": {
+      "string": [
+        "31",
+        0
+      ],
+      "find": "{$spicy-content-with}",
+      "replace": ""
+    },
+    "class_type": "StringReplace",
+    "_meta": {
+      "title": "DEFAULT: No Spicy Inpact"
+    }
+  },
+  "151": {
+    "inputs": {
+      "any_02": [
+        "146",
+        0
+      ]
+    },
+    "class_type": "Any Switch (rgthree)",
+    "_meta": {
+      "title": "Any Switch (rgthree)"
+    }
+  },
+  "161": {
+    "inputs": {
+      "unet_name": "z_image_turbo-Q8_0.gguf"
+    },
+    "class_type": "UnetLoaderGGUF",
+    "_meta": {
+      "title": "Unet Loader (GGUF)"
+    }
+  },
+  "162": {
+    "inputs": {
+      "vae_name": "ae.safetensors"
+    },
+    "class_type": "VAELoader",
+    "_meta": {
+      "title": "Load VAE"
+    }
+  },
+  "163": {
+    "inputs": {
+      "clip_name": "Qwen3-4B.i1-Q5_K_S.gguf",
+      "type": "lumina2"
+    },
+    "class_type": "CLIPLoaderGGUF",
+    "_meta": {
+      "title": "CLIPLoader (GGUF)"
+    }
+  },
+  "165": {
+    "inputs": {
+      "output": "",
+      "source": [
+        "166",
+        0
+      ]
+    },
+    "class_type": "Display Any (rgthree)",
+    "_meta": {
+      "title": "FINAL TEXT VIEWER"
+    }
+  },
+  "166": {
+    "inputs": {
+      "string": [
+        "151",
+        0
+      ],
+      "find": "  ",
+      "replace": " "
+    },
+    "class_type": "StringReplace",
+    "_meta": {
+      "title": "Fix Double Spaces"
+    }
+  },
+  "172": {
+    "inputs": {
+      "upscale_model": [
+        "175",
+        0
+      ],
+      "image": [
+        "177",
+        0
+      ]
+    },
+    "class_type": "ImageUpscaleWithModel",
+    "_meta": {
+      "title": "Upscale Image x4"
+    }
+  },
+  "175": {
+    "inputs": {
+      "model_name": "4x_Nickelback_70000G.safetensors"
+    },
+    "class_type": "UpscaleModelLoader",
+    "_meta": {
+      "title": "Load Upscale Model"
+    }
+  },
+  "177": {
+    "inputs": {
+      "measurement": "percentage",
+      "width": 50,
+      "height": 0,
+      "fit": "contain",
+      "method": "area",
+      "image": [
+        "8",
+        0
+      ]
+    },
+    "class_type": "Image Resize (rgthree)",
+    "_meta": {
+      "title": "Image Resize 1/2"
+    }
+  },
+  "180": {
+    "inputs": {
+      "pixels": [
+        "193",
+        0
+      ],
+      "vae": [
+        "162",
+        0
+      ]
+    },
+    "class_type": "VAEEncode",
+    "_meta": {
+      "title": "VAE Encode"
+    }
+  },
+  "181": {
+    "inputs": {
+      "add_noise": true,
+      "noise_seed": 1,
+      "cfg": 1,
+      "model": [
+        "161",
+        0
+      ],
+      "positive": [
+        "6",
+        0
+      ],
+      "negative": [
+        "7",
+        0
+      ],
+      "sampler": [
+        "96",
+        0
+      ],
+      "sigmas": [
+        "189",
+        1
+      ],
+      "latent_image": [
+        "180",
+        0
+      ]
+    },
+    "class_type": "SamplerCustom",
+    "_meta": {
+      "title": "SamplerCustom"
+    }
+  },
+  "189": {
+    "inputs": {
+      "step": 6,
+      "sigmas": [
+        "195",
+        0
+      ]
+    },
+    "class_type": "SplitSigmas",
+    "_meta": {
+      "title": "SplitSigmas"
+    }
+  },
+  "193": {
+    "inputs": {
+      "measurement": "percentage",
+      "width": 50,
+      "height": 0,
+      "fit": "contain",
+      "method": "area",
+      "image": [
+        "285",
+        0
+      ]
+    },
+    "class_type": "Image Resize (rgthree)",
+    "_meta": {
+      "title": "Image Resize 1/2"
+    }
+  },
+  "195": {
+    "inputs": {
+      "steps": 8,
+      "sigma_max": 0.85,
+      "sigma_min": 0.1,
+      "rho": 0.2
+    },
+    "class_type": "KarrasScheduler",
+    "_meta": {
+      "title": "Karras Scheduler (sigmas)"
+    }
+  },
+  "207": {
+    "inputs": {
+      "any_01": [
+        "284",
+        0
+      ]
+    },
+    "class_type": "Any Switch (rgthree)",
+    "_meta": {
+      "title": "Any Switch (rgthree)"
+    }
+  },
+  "211": {
+    "inputs": {
+      "model_name": "4x_foolhardy_Remacri.safetensors"
+    },
+    "class_type": "UpscaleModelLoader",
+    "_meta": {
+      "title": "Load Illustration Upscale Model"
+    }
+  },
+  "213": {
+    "inputs": {
+      "measurement": "percentage",
+      "width": 50,
+      "height": 0,
+      "fit": "contain",
+      "method": "nearest-exact",
+      "image": [
+        "8",
+        0
+      ]
+    },
+    "class_type": "Image Resize (rgthree)",
+    "_meta": {
+      "title": "Image Resize 1/2"
+    }
+  },
+  "214": {
+    "inputs": {
+      "upscale_model": [
+        "211",
+        0
+      ],
+      "image": [
+        "213",
+        0
+      ]
+    },
+    "class_type": "ImageUpscaleWithModel",
+    "_meta": {
+      "title": "Upscale Image x4"
+    }
+  },
+  "243": {
+    "inputs": {
+      "value": 1088
+    },
+    "class_type": "PrimitiveInt",
+    "_meta": {
+      "title": "Default Width"
+    }
+  },
+  "244": {
+    "inputs": {
+      "width": [
+        "246",
+        0
+      ],
+      "height": [
+        "249",
+        0
+      ],
+      "batch_size": 1
+    },
+    "class_type": "EmptySD3LatentImage",
+    "_meta": {
+      "title": "Default Portrait Orientation"
+    }
+  },
+  "246": {
+    "inputs": {
+      "any_02": [
+        "243",
+        0
+      ]
+    },
+    "class_type": "Any Switch (rgthree)",
+    "_meta": {
+      "title": "Any Width"
+    }
+  },
+  "248": {
+    "inputs": {
+      "value": 1600
+    },
+    "class_type": "PrimitiveInt",
+    "_meta": {
+      "title": "Default Height"
+    }
+  },
+  "249": {
+    "inputs": {
+      "any_02": [
+        "248",
+        0
+      ]
+    },
+    "class_type": "Any Switch (rgthree)",
+    "_meta": {
+      "title": "Any Height"
+    }
+  },
+  "250": {
+    "inputs": {
+      "any_02": [
+        "244",
+        0
+      ]
+    },
+    "class_type": "Any Switch (rgthree)",
+    "_meta": {
+      "title": "Any Empty Latent"
+    }
+  },
+  "268": {
+    "inputs": {
+      "measurement": "percentage",
+      "width": 50,
+      "height": 0,
+      "fit": "contain",
+      "method": "bilinear",
+      "image": [
+        "214",
+        0
+      ]
+    },
+    "class_type": "Image Resize (rgthree)",
+    "_meta": {
+      "title": "Image Resize 1/2"
+    }
+  },
+  "269": {
+    "inputs": {
+      "pixels": [
+        "268",
+        0
+      ],
+      "vae": [
+        "162",
+        0
+      ]
+    },
+    "class_type": "VAEEncode",
+    "_meta": {
+      "title": "VAE Encode"
+    }
+  },
+  "270": {
+    "inputs": {
+      "add_noise": true,
+      "noise_seed": 1,
+      "cfg": 1,
+      "model": [
+        "161",
+        0
+      ],
+      "positive": [
+        "6",
+        0
+      ],
+      "negative": [
+        "7",
+        0
+      ],
+      "sampler": [
+        "96",
+        0
+      ],
+      "sigmas": [
+        "189",
+        1
+      ],
+      "latent_image": [
+        "269",
+        0
+      ]
+    },
+    "class_type": "SamplerCustom",
+    "_meta": {
+      "title": "SamplerCustom"
+    }
+  },
+  "279": {
+    "inputs": {
+      "add_noise": true,
+      "noise_seed": 1,
+      "cfg": 1,
+      "model": [
+        "161",
+        0
+      ],
+      "positive": [
+        "6",
+        0
+      ],
+      "negative": [
+        "7",
+        0
+      ],
+      "sampler": [
+        "96",
+        0
+      ],
+      "sigmas": [
+        "189",
+        1
+      ],
+      "latent_image": [
+        "67",
+        0
+      ]
+    },
+    "class_type": "SamplerCustom",
+    "_meta": {
+      "title": "SamplerCustom"
+    }
+  },
+  "284": {
+    "inputs": {
+      "measurement": "percentage",
+      "width": 100,
+      "height": 100,
+      "fit": "contain",
+      "method": "nearest-exact",
+      "image": [
+        "8",
+        0
+      ]
+    },
+    "class_type": "Image Resize (rgthree)",
+    "_meta": {
+      "title": "none"
+    }
+  },
+  "285": {
+    "inputs": {
+      "blur_radius": 2,
+      "sigma": 0.5,
+      "image": [
+        "172",
+        0
+      ]
+    },
+    "class_type": "ImageBlur",
+    "_meta": {
+      "title": "ImageBlur"
+    }
+  }
+}

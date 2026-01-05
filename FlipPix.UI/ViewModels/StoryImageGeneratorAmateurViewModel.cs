@@ -10,7 +10,6 @@ using System.Threading.Tasks;
 using System.Windows;
 using System.Windows.Input;
 using System.Windows.Media.Imaging;
-using WinForms = System.Windows.Forms;
 using FlipPix.ComfyUI.Services;
 using FlipPix.Core.Interfaces;
 using FlipPix.UI.Models;
@@ -18,7 +17,7 @@ using YamlDotNet.Serialization;
 
 namespace FlipPix.UI.ViewModels
 {
-    public class StoryImageGeneratorViewModel : INotifyPropertyChanged
+    public class StoryImageGeneratorAmateurViewModel : INotifyPropertyChanged
     {
         private readonly FlipPix.ComfyUI.Services.ComfyUIService _comfyUIService;
         private readonly IAppLogger _logger;
@@ -39,31 +38,24 @@ namespace FlipPix.UI.ViewModels
         private System.Threading.CancellationTokenSource? _cancellationTokenSource;
 
         // Generation settings
-        private int _steps = 8;
+        private int _steps = 9;
         private double _cfg = 1.0;
-        private double _denoise = 0.98;
-        private double _denoise2 = 0.85;
+        private double _denoise = 0.5;
+        private double _denoise2 = 0.3;
         private string _negativePrompt = "";
 
-        // LoRA settings
-        private ObservableCollection<string> _availableLoras = new();
-        private string _selectedLora = string.Empty;
-        private bool _loraEnabled = false;
-        private double _loraStrengthModel = 1.0;
-        private double _loraStrengthClip = 1.0;
+        // Character LoRA settings (optional)
+        private ObservableCollection<string> _availableCharacterLoras = new();
+        private string _selectedCharacterLora = string.Empty;
+        private bool _characterLoraEnabled = false;
+        private double _characterLoraStrength = 0.8;
 
-        // Photo Style settings
-        private ObservableCollection<string> _availableStyles = new();
-        private string _selectedStyle = "Phone Photo";
-        private bool _spicyContentEnabled = false;
-        private string _customStyleTemplate = "";
+        // Amateur LoRA is always enabled
+        private const string AmateurLoraName = "amateur_photography_zimage_v1.safetensors";
+        private const double AmateurLoraStrength1 = 0.4; // Node 105
+        private const double AmateurLoraStrength2 = 0.9; // Node 752
 
-        // Upscale settings
-        private bool _upscaleEnabled = true;
-        private string _upscaleMethod = "Photo"; // Photo or Illustration
-        private double _upscaleAmount = 50.0; // percentage of original (50 = downscale to 50%, then upscale x4)
-
-        public StoryImageGeneratorViewModel(
+        public StoryImageGeneratorAmateurViewModel(
             FlipPix.ComfyUI.Services.ComfyUIService comfyUIService,
             IAppLogger logger,
             FlipPix.Core.Services.SettingsService settingsService)
@@ -82,24 +74,10 @@ namespace FlipPix.UI.ViewModels
             CancelProcessingCommand = new RelayCommand(CancelProcessing, () => IsProcessing);
             RefreshLorasCommand = new RelayCommand(RefreshLoras);
 
-            // Load available Loras
-            LoadAvailableLoras();
+            // Load available character Loras
+            LoadAvailableCharacterLoras();
 
-            // Initialize available styles
-            InitializeAvailableStyles();
-
-            AddLog("Story Image Generator initialized");
-        }
-
-        private void InitializeAvailableStyles()
-        {
-            AvailableStyles.Clear();
-            AvailableStyles.Add("Phone Photo");
-            AvailableStyles.Add("Cinematic");
-            AvailableStyles.Add("Natural Light");
-            AvailableStyles.Add("Portrait");
-            AvailableStyles.Add("Documentary");
-            AvailableStyles.Add("Custom");
+            AddLog("Story Image Generator Amateur initialized");
         }
 
         // Properties
@@ -328,6 +306,19 @@ namespace FlipPix.UI.ViewModels
             }
         }
 
+        public double Denoise2
+        {
+            get => _denoise2;
+            set
+            {
+                if (_denoise2 != value)
+                {
+                    _denoise2 = value;
+                    OnPropertyChanged();
+                }
+            }
+        }
+
         public string NegativePrompt
         {
             get => _negativePrompt;
@@ -341,173 +332,54 @@ namespace FlipPix.UI.ViewModels
             }
         }
 
-        // LoRA Properties
-        public ObservableCollection<string> AvailableLoras
+        // Character LoRA Properties
+        public ObservableCollection<string> AvailableCharacterLoras
         {
-            get => _availableLoras;
+            get => _availableCharacterLoras;
             set
             {
-                if (_availableLoras != value)
+                if (_availableCharacterLoras != value)
                 {
-                    _availableLoras = value;
+                    _availableCharacterLoras = value;
                     OnPropertyChanged();
                 }
             }
         }
 
-        public string SelectedLora
+        public string SelectedCharacterLora
         {
-            get => _selectedLora;
+            get => _selectedCharacterLora;
             set
             {
-                if (_selectedLora != value)
+                if (_selectedCharacterLora != value)
                 {
-                    _selectedLora = value;
+                    _selectedCharacterLora = value;
                     OnPropertyChanged();
                 }
             }
         }
 
-        public bool LoraEnabled
+        public bool CharacterLoraEnabled
         {
-            get => _loraEnabled;
+            get => _characterLoraEnabled;
             set
             {
-                if (_loraEnabled != value)
+                if (_characterLoraEnabled != value)
                 {
-                    _loraEnabled = value;
+                    _characterLoraEnabled = value;
                     OnPropertyChanged();
                 }
             }
         }
 
-        public double LoraStrengthModel
+        public double CharacterLoraStrength
         {
-            get => _loraStrengthModel;
+            get => _characterLoraStrength;
             set
             {
-                if (_loraStrengthModel != value)
+                if (_characterLoraStrength != value)
                 {
-                    _loraStrengthModel = value;
-                    OnPropertyChanged();
-                }
-            }
-        }
-
-        public double LoraStrengthClip
-        {
-            get => _loraStrengthClip;
-            set
-            {
-                if (_loraStrengthClip != value)
-                {
-                    _loraStrengthClip = value;
-                    OnPropertyChanged();
-                }
-            }
-        }
-
-        // Style Properties
-        public ObservableCollection<string> AvailableStyles
-        {
-            get => _availableStyles;
-            set
-            {
-                if (_availableStyles != value)
-                {
-                    _availableStyles = value;
-                    OnPropertyChanged();
-                }
-            }
-        }
-
-        public string SelectedStyle
-        {
-            get => _selectedStyle;
-            set
-            {
-                if (_selectedStyle != value)
-                {
-                    _selectedStyle = value;
-                    OnPropertyChanged();
-                }
-            }
-        }
-
-        public bool SpicyContentEnabled
-        {
-            get => _spicyContentEnabled;
-            set
-            {
-                if (_spicyContentEnabled != value)
-                {
-                    _spicyContentEnabled = value;
-                    OnPropertyChanged();
-                }
-            }
-        }
-
-        public string CustomStyleTemplate
-        {
-            get => _customStyleTemplate;
-            set
-            {
-                if (_customStyleTemplate != value)
-                {
-                    _customStyleTemplate = value;
-                    OnPropertyChanged();
-                }
-            }
-        }
-
-        // Upscale Properties
-        public bool UpscaleEnabled
-        {
-            get => _upscaleEnabled;
-            set
-            {
-                if (_upscaleEnabled != value)
-                {
-                    _upscaleEnabled = value;
-                    OnPropertyChanged();
-                }
-            }
-        }
-
-        public string UpscaleMethod
-        {
-            get => _upscaleMethod;
-            set
-            {
-                if (_upscaleMethod != value)
-                {
-                    _upscaleMethod = value;
-                    OnPropertyChanged();
-                }
-            }
-        }
-
-        public double UpscaleAmount
-        {
-            get => _upscaleAmount;
-            set
-            {
-                if (_upscaleAmount != value)
-                {
-                    _upscaleAmount = value;
-                    OnPropertyChanged();
-                }
-            }
-        }
-
-        public double Denoise2
-        {
-            get => _denoise2;
-            set
-            {
-                if (_denoise2 != value)
-                {
-                    _denoise2 = value;
+                    _characterLoraStrength = value;
                     OnPropertyChanged();
                 }
             }
@@ -610,7 +482,7 @@ namespace FlipPix.UI.ViewModels
                     {
                         Index = i + 1,
                         Prompt = storyData.Prompts[i],
-                        InputImagePath = InputImagePath, // All items use the same input image
+                        InputImagePath = InputImagePath,
                         Status = "Queued"
                     });
                 }
@@ -652,50 +524,15 @@ namespace FlipPix.UI.ViewModels
                         break;
                     }
 
-                    // Check ComfyUI status before processing each item
-                    AddLog("Checking ComfyUI status before processing...");
-                    var comfyUIOk = await _comfyUIService.DetectAndRestartIfCrashedAsync(
-                        status => AddLog($"[Crash Detection] {status}"),
-                        _cancellationTokenSource.Token);
-
-                    if (!comfyUIOk)
-                    {
-                        AddLog("ERROR: ComfyUI is not running and auto-restart failed");
-                        item.Status = "Failed";
-                        item.ErrorMessage = "ComfyUI is not available";
-                        QueueProgress++;
-                        continue; // Try next item instead of breaking
-                    }
-
-                    // Ensure ComfyUI is connected
-                    if (!_comfyUIService.IsConnected)
-                    {
-                        AddLog("Reconnecting to ComfyUI WebSocket...");
-                        try
-                        {
-                            await _comfyUIService.ConnectAsync(_cancellationTokenSource.Token);
-                            AddLog("Reconnected to ComfyUI");
-                        }
-                        catch (Exception ex)
-                        {
-                            AddLog($"ERROR: Failed to reconnect to ComfyUI: {ex.Message}");
-                            item.Status = "Failed";
-                            item.ErrorMessage = $"Failed to reconnect: {ex.Message}";
-                            QueueProgress++;
-                            continue;
-                        }
-                    }
-
                     CurrentQueueItem = item;
                     item.Status = "Processing";
                     item.StartedAt = DateTime.Now;
-                    item.InputImagePath = InputImagePath; // Always use the original input image
+                    item.InputImagePath = InputImagePath;
 
                     AddLog($"Processing story image {QueueProgress + 1}/{QueueTotal}");
 
                     try
                     {
-                        // Process the current queue item using the original input image
                         var outputPath = await ProcessQueueItemAsync(item, InputImagePath, _cancellationTokenSource.Token);
                         item.OutputImagePath = outputPath;
                         item.Status = "Completed";
@@ -718,12 +555,6 @@ namespace FlipPix.UI.ViewModels
                         item.Progress = 0;
                         AddLog($"Queue item failed: Prompt #{item.Index} - {ex.Message}");
                         _logger.LogError($"Error processing queue item {item.Id}: {ex}");
-
-                        // Check if this might be a ComfyUI crash and try to detect it
-                        AddLog("Checking if ComfyUI crashed after error...");
-                        await _comfyUIService.DetectAndRestartIfCrashedAsync(
-                            status => AddLog($"[Post-Error Check] {status}"),
-                            _cancellationTokenSource.Token);
                     }
                     finally
                     {
@@ -762,7 +593,7 @@ namespace FlipPix.UI.ViewModels
 
             cancellationToken.ThrowIfCancellationRequested();
 
-            // Load workflow (amateurZimageAPI.json - ZImage workflow with style and LoRA support)
+            // Load workflow (amateurZimageAPI.json)
             var workflowPath = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "workflow", "amateurZimageAPI.json");
             if (!File.Exists(workflowPath))
             {
@@ -774,11 +605,8 @@ namespace FlipPix.UI.ViewModels
 
             cancellationToken.ThrowIfCancellationRequested();
 
-            // Upload input image
-            var uploadedImageName = await _comfyUIService.UploadImageAsync(inputImagePath);
-
             // Update workflow parameters
-            var updatedWorkflow = UpdateWorkflowParameters(workflow, uploadedImageName, item.Prompt);
+            var updatedWorkflow = UpdateWorkflowParameters(workflow, item.Prompt);
 
             // Execute workflow with progress reporting
             var progress = new Progress<FlipPix.ComfyUI.Models.ProgressMessage>(progressMsg =>
@@ -803,22 +631,26 @@ namespace FlipPix.UI.ViewModels
             }
 
             var outputImage = outputImages.First();
-            var outputDir = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "output", "story-generator");
+            var outputDir = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "output", "story-generator-amateur");
             Directory.CreateDirectory(outputDir);
 
             var timestamp = DateTime.Now.ToString("yyyyMMdd_HHmmss");
-            var outputPath = Path.Combine(outputDir, $"story_{item.Index:D2}_{timestamp}.png");
+            var outputPath = Path.Combine(outputDir, $"story_amateur_{item.Index:D2}_{timestamp}.png");
 
             await File.WriteAllBytesAsync(outputPath, outputImage);
             AddLog($"Story image #{item.Index} saved: {outputPath} ({outputImage.Length} bytes)");
             return outputPath;
         }
 
-        private JsonElement UpdateWorkflowParameters(JsonElement workflow, string inputImageName, string promptText)
+        private JsonElement UpdateWorkflowParameters(JsonElement workflow, string promptText)
         {
             var workflowDict = JsonSerializer.Deserialize<Dictionary<string, JsonElement>>(workflow.GetRawText());
 
             if (workflowDict == null) return workflow;
+
+            // Add the photographer prefix to all prompts
+            const string promptPrefix = "A photo taken by the photographer Deedeemegadoodo, raw, unedited, ";
+            string fullPrompt = promptPrefix + promptText;
 
             // 1. Update positive prompt (node 6)
             if (workflowDict.ContainsKey("6"))
@@ -830,8 +662,6 @@ namespace FlipPix.UI.ViewModels
                         JsonSerializer.Serialize(node6["inputs"]));
                     if (inputs != null)
                     {
-                        // Build the full prompt with style template
-                        var fullPrompt = BuildFullPrompt(promptText);
                         inputs["text"] = fullPrompt;
                         node6["inputs"] = inputs;
                         workflowDict["6"] = JsonSerializer.SerializeToElement(node6);
@@ -866,10 +696,8 @@ namespace FlipPix.UI.ViewModels
                         JsonSerializer.Serialize(node28["inputs"]));
                     if (inputs != null)
                     {
-                        // Max seed value for rgthree seed node is 2^50
                         long maxSeed = 1125899906842624;
                         var random = new Random();
-                        // Generate random seed within valid range
                         byte[] bytes = new byte[8];
                         random.NextBytes(bytes);
                         long seed = Math.Abs(BitConverter.ToInt64(bytes, 0) % maxSeed);
@@ -957,34 +785,27 @@ namespace FlipPix.UI.ViewModels
             }
 
             // 8. Update LoRA strengths
-            // Node 105 - amateur photography LoRA
-            UpdateLoraStrength(workflowDict, "105", 0.4);
-            // Node 752 - amateur photography LoRA (second instance)
-            UpdateLoraStrength(workflowDict, "752", 0.9);
-            // Node 760 - gilliananderson LoRA
-            UpdateLoraStrength(workflowDict, "760", 0.8);
+            // Node 105 - amateur photography LoRA (always applied)
+            UpdateLoraStrength(workflowDict, "105", AmateurLoraStrength1);
+            // Node 752 - amateur photography LoRA second instance (always applied)
+            UpdateLoraStrength(workflowDict, "752", AmateurLoraStrength2);
 
-            // 9. Update latent image dimensions if needed
-            // Node 46: 576x416
+            // 9. Update character LoRA if enabled (node 760 - currently gilliananderson)
+            if (CharacterLoraEnabled && !string.IsNullOrEmpty(SelectedCharacterLora) && SelectedCharacterLora != "No LoRAs available")
+            {
+                UpdateCharacterLora(workflowDict, "760", SelectedCharacterLora, CharacterLoraStrength);
+            }
+
+            // 10. Update latent image dimensions
             UpdateLatentDimensions(workflowDict, "46", 576, 416);
-            // Node 693: 208x288
             UpdateLatentDimensions(workflowDict, "693", 208, 288);
-            // Node 758: 416x576
             UpdateLatentDimensions(workflowDict, "758", 416, 576);
-            // Node 772: 1248x1728
             UpdateLatentDimensions(workflowDict, "772", 1248, 1728);
 
             return JsonSerializer.SerializeToElement(workflowDict);
         }
 
-        private string BuildFullPrompt(string userPrompt)
-        {
-            var styleTemplate = GetStyleTemplate();
-            // Replace the placeholder with the user prompt
-            return styleTemplate.Replace("{$@}", userPrompt);
-        }
-
-        private void UpdateLoraStrength(Dictionary<string, JsonElement> workflowDict, string nodeId, double defaultStrength)
+        private void UpdateLoraStrength(Dictionary<string, JsonElement> workflowDict, string nodeId, double strength)
         {
             if (workflowDict.ContainsKey(nodeId))
             {
@@ -995,8 +816,27 @@ namespace FlipPix.UI.ViewModels
                         JsonSerializer.Serialize(node["inputs"]));
                     if (inputs != null && inputs.ContainsKey("strength_model"))
                     {
-                        // Use the user's LoRA strength setting if enabled
-                        double strength = LoraEnabled ? LoraStrengthModel : defaultStrength;
+                        inputs["strength_model"] = strength;
+                        node["inputs"] = inputs;
+                        workflowDict[nodeId] = JsonSerializer.SerializeToElement(node);
+                    }
+                }
+            }
+        }
+
+        private void UpdateCharacterLora(Dictionary<string, JsonElement> workflowDict, string nodeId, string loraName, double strength)
+        {
+            if (workflowDict.ContainsKey(nodeId))
+            {
+                var node = JsonSerializer.Deserialize<Dictionary<string, object>>(workflowDict[nodeId].GetRawText());
+                if (node != null && node.ContainsKey("inputs"))
+                {
+                    var inputs = JsonSerializer.Deserialize<Dictionary<string, object>>(
+                        JsonSerializer.Serialize(node["inputs"]));
+                    if (inputs != null)
+                    {
+                        // Update both lora_name and strength_model
+                        inputs["lora_name"] = $"zimage\\{loraName}.safetensors";
                         inputs["strength_model"] = strength;
                         node["inputs"] = inputs;
                         workflowDict[nodeId] = JsonSerializer.SerializeToElement(node);
@@ -1025,24 +865,6 @@ namespace FlipPix.UI.ViewModels
             }
         }
 
-        private string GetStyleTemplate()
-        {
-            if (SelectedStyle == "Custom" && !string.IsNullOrEmpty(CustomStyleTemplate))
-            {
-                return CustomStyleTemplate;
-            }
-
-            return SelectedStyle switch
-            {
-                "Phone Photo" => "YOUR CONTEXT:\nYour photographs has android phone cam-quality.\nYour photographs exhibit {$spicy-content-with} surprising compositions, sharp complex backgrounds, natural lighting, and candid moments that feel immediate and authentic.\nYour photographs are actual gritty candid photographic background.\n---\nYOUR PHOTO:\n{$@}",
-                "Cinematic" => "YOUR CONTEXT:\nYour photographs has cinematic film-quality with dramatic lighting.\nYour photographs exhibit {$spicy-content-with} movie-like compositions, rich colors, depth of field, and professional cinematography.\nYour photographs are actual cinematic film stills with atmospheric mood.\n---\nYOUR PHOTO:\n{$@}",
-                "Natural Light" => "YOUR CONTEXT:\nYour photographs has natural light photography quality.\nYour photographs exhibit {$spicy-content-with} soft natural lighting, organic compositions, authentic moments, and gentle color grading.\nYour photographs are actual natural light photos with warm, inviting tones.\n---\nYOUR PHOTO:\n{$@}",
-                "Portrait" => "YOUR CONTEXT:\nYour photographs has professional portrait photography quality.\nYour photographs exhibit {$spicy-content-with} compelling portraiture, beautiful lighting, emotional depth, and artistic composition.\nYour photographs are actual professional portrait photos with stunning detail.\n---\nYOUR PHOTO:\n{$@}",
-                "Documentary" => "YOUR CONTEXT:\nYour photographs has documentary photography quality.\nYour photographs exhibit {$spicy-content-with} authentic documentary style, real moments, storytelling composition, and journalistic integrity.\nYour photographs are actual documentary photos with powerful narratives.\n---\nYOUR PHOTO:\n{$@}",
-                _ => "YOUR CONTEXT:\nYour photographs has android phone cam-quality.\nYour photographs exhibit surprising compositions, sharp complex backgrounds, natural lighting, and candid moments that feel immediate and authentic.\n---\nYOUR PHOTO:\n{$@}"
-            };
-        }
-
         private async Task<List<byte[]>> GetOutputImagesFromComfyUI(string promptId)
         {
             var images = new List<byte[]>();
@@ -1058,9 +880,8 @@ namespace FlipPix.UI.ViewModels
                 AddLog($"ComfyUI server: {actualServer}");
                 AddLog($"Is remote ComfyUI: {isRemoteComfyUI}");
 
-                // Retry image retrieval with delays to give ComfyUI time to write the file
                 int retryCount = 0;
-                int maxRetries = 20; // Wait up to 100 seconds (20 retries × 5s)
+                int maxRetries = 20;
 
                 while (retryCount < maxRetries && !images.Any())
                 {
@@ -1077,7 +898,6 @@ namespace FlipPix.UI.ViewModels
                         var outputFiles = await _comfyUIService.HttpClient.GetOutputFilesAsync();
                         AddLog($"Found {outputFiles.Count} potential output files");
 
-                        // Look for recent PNG files (story images)
                         var imageFiles = outputFiles.Where(f =>
                             f.EndsWith(".png") &&
                             !f.StartsWith("z-image_") &&
@@ -1121,24 +941,17 @@ namespace FlipPix.UI.ViewModels
                             return images;
                         }
 
-                        // Search in multiple locations:
-                        // 1. Root output directory
-                        // 2. ZImage subfolder (where the workflow saves)
-                        // 3. ZImage/Date subfolders
-
                         var searchDirs = new List<string> { comfyUIOutputDir };
 
-                        // Add ZImage subdirectories
                         var zimageDir = Path.Combine(comfyUIOutputDir, "ZImage");
                         if (Directory.Exists(zimageDir))
                         {
                             searchDirs.Add(zimageDir);
-                            // Add date-named subfolders in ZImage
                             try
                             {
                                 var dateDirs = Directory.GetDirectories(zimageDir)
                                     .OrderByDescending(d => Directory.GetLastWriteTime(d))
-                                    .Take(3); // Check last 3 date folders
+                                    .Take(3);
                                 foreach (var dateDir in dateDirs)
                                 {
                                     searchDirs.Add(dateDir);
@@ -1151,7 +964,6 @@ namespace FlipPix.UI.ViewModels
 
                         foreach (var searchDir in searchDirs)
                         {
-                            // Look for recently created images (within last 2 minutes)
                             var recentFiles = Directory.GetFiles(searchDir, "*.png")
                                 .Select(f => new FileInfo(f))
                                 .Where(f => (DateTime.Now - f.LastWriteTime).TotalMinutes < 2)
@@ -1164,7 +976,7 @@ namespace FlipPix.UI.ViewModels
                                 var latestFile = recentFiles.First();
                                 AddLog($"Using latest file: {latestFile.Name} (modified: {latestFile.LastWriteTime})");
                                 images.Add(await File.ReadAllBytesAsync(latestFile.FullName));
-                                break; // Found images, stop searching
+                                break;
                             }
                         }
 
@@ -1172,8 +984,7 @@ namespace FlipPix.UI.ViewModels
                         {
                             AddLog($"No recent images found in retry {retryCount + 1}");
 
-                            // Fallback: look for ANY PNG file modified in the last 10 minutes in all search dirs
-                            if (retryCount >= 5) // After 5 retries, look for older files too
+                            if (retryCount >= 5)
                             {
                                 foreach (var searchDir in searchDirs)
                                 {
@@ -1244,8 +1055,8 @@ namespace FlipPix.UI.ViewModels
 
         private void RefreshLoras()
         {
-            LoadAvailableLoras();
-            AddLog("Refreshed LoRA list");
+            LoadAvailableCharacterLoras();
+            AddLog("Refreshed character LoRA list");
         }
 
         private string? GetLoraModelPath()
@@ -1259,7 +1070,6 @@ namespace FlipPix.UI.ViewModels
                     return null;
                 }
 
-                // First try to get path from extra_model_paths.yaml
                 var extraModelPathsFile = Path.Combine(comfyUIPath, "extra_model_paths.yaml");
                 AddLog($"Looking for extra_model_paths.yaml at: {extraModelPathsFile}");
 
@@ -1279,7 +1089,6 @@ namespace FlipPix.UI.ViewModels
                             string basePath = string.Empty;
                             string lorasRelativePath = string.Empty;
 
-                            // Check for "comfyui" section (most common format)
                             if (yamlData.ContainsKey("comfyui"))
                             {
                                 AddLog("Found 'comfyui' section in YAML");
@@ -1288,7 +1097,6 @@ namespace FlipPix.UI.ViewModels
 
                                 if (comfyuiSection != null)
                                 {
-                                    // Convert to Dictionary<string, object> for easier use
                                     var comfyuiStringDict = new Dictionary<string, object>();
                                     foreach (var kvp in comfyuiSection)
                                     {
@@ -1300,14 +1108,12 @@ namespace FlipPix.UI.ViewModels
 
                                     AddLog($"ComfyUI section keys: {string.Join(", ", comfyuiStringDict.Keys)}");
 
-                                    // Get base_path if it exists
                                     if (comfyuiStringDict.ContainsKey("base_path"))
                                     {
                                         basePath = comfyuiStringDict["base_path"]?.ToString() ?? string.Empty;
                                         AddLog($"Found base_path: {basePath}");
                                     }
 
-                                    // Get loras path if it exists
                                     if (comfyuiStringDict.ContainsKey("loras"))
                                     {
                                         lorasRelativePath = comfyuiStringDict["loras"]?.ToString() ?? string.Empty;
@@ -1323,7 +1129,6 @@ namespace FlipPix.UI.ViewModels
                             {
                                 AddLog("No 'comfyui' section found in YAML");
 
-                                // Fallback to direct "loras" key
                                 if (yamlData.ContainsKey("loras"))
                                 {
                                     lorasRelativePath = yamlData["loras"]?.ToString() ?? string.Empty;
@@ -1331,24 +1136,20 @@ namespace FlipPix.UI.ViewModels
                                 }
                             }
 
-                            // Construct full path
                             if (!string.IsNullOrEmpty(lorasRelativePath))
                             {
                                 string fullLoraPath;
                                 if (!string.IsNullOrEmpty(basePath))
                                 {
-                                    // Combine base_path with loras relative path
                                     fullLoraPath = Path.Combine(basePath, lorasRelativePath);
                                     AddLog($"Combined base_path and loras: {basePath} + {lorasRelativePath} = {fullLoraPath}");
                                 }
                                 else
                                 {
-                                    // Use just the loras path (might be absolute)
                                     fullLoraPath = lorasRelativePath;
                                     AddLog($"Using loras path directly: {fullLoraPath}");
                                 }
 
-                                // Normalize path separators
                                 fullLoraPath = fullLoraPath.Replace('/', Path.DirectorySeparatorChar);
 
                                 AddLog($"Final LoRA path: {fullLoraPath}");
@@ -1379,7 +1180,6 @@ namespace FlipPix.UI.ViewModels
                     AddLog($"ERROR: extra_model_paths.yaml not found in ComfyUI directory: {extraModelPathsFile}");
                 }
 
-                // Fallback to default ComfyUI models directory
                 var defaultLoraPath = Path.Combine(comfyUIPath, "models", "loras");
                 if (Directory.Exists(defaultLoraPath))
                 {
@@ -1397,80 +1197,78 @@ namespace FlipPix.UI.ViewModels
             }
         }
 
-        private void LoadAvailableLoras()
+        private void LoadAvailableCharacterLoras()
         {
             try
             {
-                // Priority 1: Get LoRA path from ComfyUI extra_model_paths.yaml or default location
                 var loraBasePath = GetLoraModelPath();
                 if (!string.IsNullOrEmpty(loraBasePath))
                 {
-                    // Look for zimage subfolder
                     var zimageLoraPath = Path.Combine(loraBasePath, "zimage");
                     if (Directory.Exists(zimageLoraPath))
                     {
-                        LoadLorasFromDirectory(zimageLoraPath, "ComfyUI LoRA directory");
+                        LoadCharacterLorasFromDirectory(zimageLoraPath, "ComfyUI LoRA directory");
                         return;
                     }
                     else
                     {
-                        // If zimage subfolder doesn't exist, use the base LoRA directory
-                        LoadLorasFromDirectory(loraBasePath, "ComfyUI LoRA directory");
+                        LoadCharacterLorasFromDirectory(loraBasePath, "ComfyUI LoRA directory");
                         return;
                     }
                 }
 
-                // Priority 2: Fallback to local directory
                 var localLoraPath = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "loras", "zimage");
-                LoadLorasFromDirectory(localLoraPath, "local directory");
+                LoadCharacterLorasFromDirectory(localLoraPath, "local directory");
             }
             catch (Exception ex)
             {
-                AddLog($"Error loading LoRAs: {ex.Message}");
-                AvailableLoras.Clear();
-                AvailableLoras.Add("Error loading LoRAs");
+                AddLog($"Error loading character LoRAs: {ex.Message}");
+                AvailableCharacterLoras.Clear();
+                AvailableCharacterLoras.Add("Error loading LoRAs");
             }
         }
 
-        private void LoadLorasFromDirectory(string loraPath, string pathDescription)
+        private void LoadCharacterLorasFromDirectory(string loraPath, string pathDescription)
         {
-            AddLog($"Looking for LoRAs in {pathDescription}: {loraPath}");
+            AddLog($"Looking for character LoRAs in {pathDescription}: {loraPath}");
 
             if (!Directory.Exists(loraPath))
             {
                 AddLog($"LoRA directory not found: {loraPath}");
-                AvailableLoras.Clear();
-                AvailableLoras.Add("No LoRAs available");
+                AvailableCharacterLoras.Clear();
+                AvailableCharacterLoras.Add("No LoRAs available");
                 return;
             }
 
+            // Filter out amateur photography LoRA since it's always applied
             var loraFiles = Directory.GetFiles(loraPath, "*.safetensors")
                 .Select(Path.GetFileNameWithoutExtension)
-                .Where(name => !string.IsNullOrEmpty(name))
+                .Where(name => !string.IsNullOrEmpty(name) &&
+                               !name.Equals("amateur_photography_zimage_v1", StringComparison.OrdinalIgnoreCase))
                 .OrderBy(name => name)
                 .ToList();
 
-            AvailableLoras.Clear();
+            AvailableCharacterLoras.Clear();
 
             if (loraFiles.Any())
             {
                 foreach (var lora in loraFiles)
                 {
                     if (!string.IsNullOrEmpty(lora))
-                        AvailableLoras.Add(lora);
+                        AvailableCharacterLoras.Add(lora);
                 }
 
-                if (string.IsNullOrEmpty(SelectedLora) && AvailableLoras.Any())
+                if (string.IsNullOrEmpty(SelectedCharacterLora) && AvailableCharacterLoras.Any())
                 {
-                    SelectedLora = AvailableLoras.First();
+                    SelectedCharacterLora = AvailableCharacterLoras.First();
                 }
 
-                AddLog($"Loaded {AvailableLoras.Count} LoRAs from {loraPath}");
+                AddLog($"Loaded {AvailableCharacterLoras.Count} character LoRAs from {loraPath}");
             }
             else
             {
-                AvailableLoras.Add("No LoRAs available");
-                AddLog($"No LoRA files found in {pathDescription}");
+                AvailableCharacterLoras.Add("No LoRAs available");
+                AddLog($"No character LoRA files found in {pathDescription}");
             }
         }
 
@@ -1496,7 +1294,7 @@ namespace FlipPix.UI.ViewModels
         {
             try
             {
-                var outputDir = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "output", "story-generator");
+                var outputDir = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "output", "story-generator-amateur");
                 if (Directory.Exists(outputDir))
                 {
                     Process.Start(new ProcessStartInfo

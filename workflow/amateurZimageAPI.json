@@ -1,0 +1,839 @@
+{
+  "6": {
+    "inputs": {
+      "text": "A photo taken by the photographer Deedeemegadoodo, raw, unedited, A dynamic close-up shot of a female fighter, clad in a black lace bra, thrusting a katana with lethal precision into a muscular male opponent\\u2019s temple, capturing the moment blood explodes outward as rain slashes down, with the camera tilting sharply to emphasize the brutal impact and her ferocious, screaming expression .",
+      "clip": [
+        "164",
+        0
+      ]
+    },
+    "class_type": "CLIPTextEncode",
+    "_meta": {
+      "title": "CLIP Text Encode (Positive Prompt)"
+    }
+  },
+  "7": {
+    "inputs": {
+      "text": "",
+      "clip": [
+        "164",
+        0
+      ]
+    },
+    "class_type": "CLIPTextEncode",
+    "_meta": {
+      "title": "CLIP Text Encode (Negative Prompt)"
+    }
+  },
+  "16": {
+    "inputs": {
+      "unet_name": "z_image_turbo_bf16.safetensors",
+      "weight_dtype": "default"
+    },
+    "class_type": "UNETLoader",
+    "_meta": {
+      "title": "Load Diffusion Model"
+    }
+  },
+  "28": {
+    "inputs": {
+      "seed": 538041311646775
+    },
+    "class_type": "Seed (rgthree)",
+    "_meta": {
+      "title": "Seed (rgthree)"
+    }
+  },
+  "46": {
+    "inputs": {
+      "width": 576,
+      "height": 416,
+      "batch_size": 1
+    },
+    "class_type": "EmptySD3LatentImage",
+    "_meta": {
+      "title": "Empty Latent Landscape"
+    }
+  },
+  "105": {
+    "inputs": {
+      "lora_name": "zimage\\amateur_photography_zimage_v1.safetensors",
+      "strength_model": 0.4,
+      "model": [
+        "760",
+        0
+      ]
+    },
+    "class_type": "LoraLoaderModelOnly",
+    "_meta": {
+      "title": "LoraLoaderModelOnly"
+    }
+  },
+  "107": {
+    "inputs": {
+      "image": "z-image_00110_.png",
+      "emoji_in_readable_text": true
+    },
+    "class_type": "SimpleReadableMetadataSG",
+    "_meta": {
+      "title": "Simple Readable Metadata-SG"
+    }
+  },
+  "109": {
+    "inputs": {
+      "textDisplay": "=== ComfyUI Generation Parameters ===\n\n[Node Reference: 57]x[Node Reference: 57] | 0.00MP | Ratio: N/A | 0.94MB\n\n🧠 MODEL: z_image_turbo_bf16.safetensors (UNET)\n\n🎯 SAMPLING SETTINGS:\n  Seed: 768995963258494\n  Steps: 9\n  CFG Scale: 1.5\n  Sampler: uni_pc\n  Scheduler: simple\n  Denoise: 1.0\n\n📝 PROMPTS:\n  Positive: This is a promotional photograph, likely for a website, with a clear focus on the subject’s feet. The image is shot from a low angle, looking up at the woman, which creates a sense of prominence and intimacy.\n\n**Subject and Composition:**\nThe central figure is a young woman with dark hair , posing with one leg raised. Her pose is confident and playful: she stands with one hand on her hip, while her other leg is bent and lifted, with her foot prominently displayed in the foreground. The composition uses the low angle to emphasize the size of her foot, which dominates the lower half of the frame. Her body is angled slightly, drawing the viewer’s eye from her face down to her foot.\n\n**Color Palette:**\nThe image features a warm, sunlit color scheme. The woman’s red bikini is the most striking color, creating a bold contrast against the more neutral background. Her skin tone is a natural, light beige, and the green foliage provides a fresh, natural contrast. The background wall is a muted beige or light tan, and the sky is a very bright, washed-out white, suggesting a bright, possibly overcast day.\n\n**Objects and Details:**\n- **Woman:** She is wearing a red bikini top and matching briefs. She has dark, short tomboy hair . A thin, delicate necklace is visible around her neck. Her expression is a subtle, confident smile.\n- **Foot:** The raised foot is the focal point. It is shown in a close-up, with the sole facing the camera. The skin is smooth, sweaty and oily, and the foot has a natural, slightly tanned appearance. The toes are slightly curled, and the sole has visible lines and creases.\n- **Background:** The background is a simple, beige brick wall. To the left and bottom, there is lush green foliage, including a plant with spiky, broad leaves (possibly a type of palm) and some flowering shrubs with reddish-pink blooms. The top of the image shows a white, possibly concrete, ledge or border.\n\n**Mood and Tone:**\nThe mood is playful, sensual, and confident. The low-angle shot and the focus on the foot create an intimate, almost voyeuristic feel. The bright, sunlit setting and the woman’s confident pose suggest a carefree, summery atmosphere. The overall tone is suggestive, with the emphasis on the foot serving as a focal point.\n\n🎨 LORA MODELS:\n  zimage_gilliananderson_v1.safetensors (Strength: 1)\n  zimage_tinafey_v1.safetensors (Strength: 1.0)\n\n🧠 MODELS & COMPONENTS:\n  UNET: z_image_turbo_bf16.safetensors\n  CLIP: qwen_3_4b.safetensors\n  VAE: ae.safetensors\n",
+      "text": [
+        "107",
+        0
+      ]
+    },
+    "class_type": "Simple Readable Metadata Text Viewer-SG",
+    "_meta": {
+      "title": "Simple Readable Metadata 🧾 Text Viewer-SG"
+    }
+  },
+  "164": {
+    "inputs": {
+      "clip_name": "qwen-4b-zimage-heretic-q8.gguf",
+      "type": "lumina2"
+    },
+    "class_type": "CLIPLoaderGGUF",
+    "_meta": {
+      "title": "CLIPLoader (GGUF)"
+    }
+  },
+  "176": {
+    "inputs": {
+      "vae_name": "ultraflux-vael.safetensors"
+    },
+    "class_type": "VAELoader",
+    "_meta": {
+      "title": "Load UltraFlux VAE"
+    }
+  },
+  "257": {
+    "inputs": {
+      "vae_name": "ae.safetensors"
+    },
+    "class_type": "VAELoader",
+    "_meta": {
+      "title": "Load VAE"
+    }
+  },
+  "506": {
+    "inputs": {
+      "sage_attention": "sageattn_qk_int8_pv_fp16_triton",
+      "allow_compile": true,
+      "model": [
+        "16",
+        0
+      ]
+    },
+    "class_type": "PathchSageAttentionKJ",
+    "_meta": {
+      "title": "Patch Sage Attention KJ"
+    }
+  },
+  "507": {
+    "inputs": {
+      "enable_fp16_accumulation": true,
+      "model": [
+        "506",
+        0
+      ]
+    },
+    "class_type": "ModelPatchTorchSettings",
+    "_meta": {
+      "title": "Model Patch Torch Settings"
+    }
+  },
+  "508": {
+    "inputs": {
+      "model_name": "4xNomos8kSCHAT-L.safetensors"
+    },
+    "class_type": "UpscaleModelLoader",
+    "_meta": {
+      "title": "Load Upscale Model"
+    }
+  },
+  "575": {
+    "inputs": {
+      "shift": 7,
+      "model": [
+        "105",
+        0
+      ]
+    },
+    "class_type": "ModelSamplingAuraFlow",
+    "_meta": {
+      "title": "ModelSamplingAuraFlow"
+    }
+  },
+  "578": {
+    "inputs": {
+      "noise_type_init": "perlin",
+      "s_noise_init": 1,
+      "denoise_alt": 1,
+      "channelwise_cfg": false
+    },
+    "class_type": "SharkOptions_Beta",
+    "_meta": {
+      "title": "SharkOptions"
+    }
+  },
+  "579": {
+    "inputs": {
+      "weight": 1.2,
+      "method": "model",
+      "mode": "hard",
+      "eta": 0.5,
+      "start_step": 1,
+      "end_step": 6
+    },
+    "class_type": "ClownOptions_DetailBoost_Beta",
+    "_meta": {
+      "title": "ClownOptions Detail Boost"
+    }
+  },
+  "581": {
+    "inputs": {
+      "samples": [
+        "582",
+        0
+      ],
+      "vae": [
+        "257",
+        0
+      ]
+    },
+    "class_type": "VAEDecode",
+    "_meta": {
+      "title": "VAE Decode"
+    }
+  },
+  "582": {
+    "inputs": {
+      "eta": 0.52,
+      "sampler_name": "linear/euler",
+      "scheduler": "ddim_uniform",
+      "steps": 14,
+      "steps_to_run": 14,
+      "denoise": 0.5,
+      "cfg": 1,
+      "seed": [
+        "28",
+        0
+      ],
+      "sampler_mode": "standard",
+      "bongmath": true,
+      "model": [
+        "575",
+        0
+      ],
+      "positive": [
+        "6",
+        0
+      ],
+      "negative": [
+        "7",
+        0
+      ],
+      "latent_image": [
+        "665",
+        0
+      ],
+      "options 2": [
+        "578",
+        0
+      ],
+      "options 3": [
+        "579",
+        0
+      ]
+    },
+    "class_type": "ClownsharKSampler_Beta",
+    "_meta": {
+      "title": "ClownsharKSampler"
+    }
+  },
+  "583": {
+    "inputs": {
+      "images": [
+        "581",
+        0
+      ]
+    },
+    "class_type": "PreviewImage",
+    "_meta": {
+      "title": "Preview Image"
+    }
+  },
+  "613": {
+    "inputs": {
+      "weight": 1.2,
+      "method": "model",
+      "mode": "hard",
+      "eta": 0.5,
+      "start_step": 1,
+      "end_step": 6
+    },
+    "class_type": "ClownOptions_DetailBoost_Beta",
+    "_meta": {
+      "title": "ClownOptions Detail Boost"
+    }
+  },
+  "614": {
+    "inputs": {
+      "noise_type_init": "perlin",
+      "s_noise_init": 1,
+      "denoise_alt": 1,
+      "channelwise_cfg": false
+    },
+    "class_type": "SharkOptions_Beta",
+    "_meta": {
+      "title": "SharkOptions"
+    }
+  },
+  "615": {
+    "inputs": {
+      "upscale_model": [
+        "508",
+        0
+      ],
+      "image": [
+        "581",
+        0
+      ]
+    },
+    "class_type": "ImageUpscaleWithModel",
+    "_meta": {
+      "title": "Upscale Image (using Model)"
+    }
+  },
+  "617": {
+    "inputs": {
+      "shift": 7,
+      "model": [
+        "507",
+        0
+      ]
+    },
+    "class_type": "ModelSamplingAuraFlow",
+    "_meta": {
+      "title": "ModelSamplingAuraFlow"
+    }
+  },
+  "618": {
+    "inputs": {
+      "upscale_method": "nearest-exact",
+      "width": 1728,
+      "height": 1248,
+      "crop": "disabled",
+      "image": [
+        "615",
+        0
+      ]
+    },
+    "class_type": "ImageScale",
+    "_meta": {
+      "title": "Upscale Image"
+    }
+  },
+  "619": {
+    "inputs": {
+      "pixels": [
+        "618",
+        0
+      ],
+      "vae": [
+        "176",
+        0
+      ]
+    },
+    "class_type": "VAEEncode",
+    "_meta": {
+      "title": "VAE Encode"
+    }
+  },
+  "620": {
+    "inputs": {
+      "eta": 0.52,
+      "sampler_name": "linear/euler",
+      "scheduler": "beta57",
+      "steps": 9,
+      "steps_to_run": 9,
+      "denoise": 0.3,
+      "cfg": 1,
+      "seed": [
+        "28",
+        0
+      ],
+      "sampler_mode": "standard",
+      "bongmath": true,
+      "model": [
+        "617",
+        0
+      ],
+      "positive": [
+        "6",
+        0
+      ],
+      "negative": [
+        "7",
+        0
+      ],
+      "latent_image": [
+        "619",
+        0
+      ],
+      "options 2": [
+        "614",
+        0
+      ],
+      "options 3": [
+        "613",
+        0
+      ]
+    },
+    "class_type": "ClownsharKSampler_Beta",
+    "_meta": {
+      "title": "ClownsharKSampler"
+    }
+  },
+  "628": {
+    "inputs": {
+      "shift": 3,
+      "model": [
+        "752",
+        0
+      ]
+    },
+    "class_type": "ModelSamplingAuraFlow",
+    "_meta": {
+      "title": "ModelSamplingAuraFlow"
+    }
+  },
+  "629": {
+    "inputs": {
+      "scale_method": "nearest-exact",
+      "seed": [
+        "28",
+        0
+      ],
+      "steps": 9,
+      "cfg": 1,
+      "sampler_name": "euler",
+      "scheduler": "ddim_uniform",
+      "denoise": 0.6,
+      "use_tiled_vae": false,
+      "tile_size": 512,
+      "model": [
+        "628",
+        0
+      ],
+      "vae": [
+        "257",
+        0
+      ],
+      "positive": [
+        "6",
+        0
+      ],
+      "negative": [
+        "7",
+        0
+      ]
+    },
+    "class_type": "PixelKSampleUpscalerProvider",
+    "_meta": {
+      "title": "PixelKSampleUpscalerProvider"
+    }
+  },
+  "630": {
+    "inputs": {
+      "upscale_factor": 2,
+      "steps": 4,
+      "temp_prefix": "",
+      "step_mode": "simple",
+      "vae_compression": 8,
+      "samples": [
+        "754",
+        0
+      ],
+      "upscaler": [
+        "629",
+        0
+      ]
+    },
+    "class_type": "IterativeLatentUpscale",
+    "_meta": {
+      "title": "Iterative Upscale (Latent/on Pixel Space)"
+    }
+  },
+  "633": {
+    "inputs": {
+      "samples": [
+        "630",
+        0
+      ],
+      "vae": [
+        "257",
+        0
+      ]
+    },
+    "class_type": "VAEDecode",
+    "_meta": {
+      "title": "VAE Decode"
+    }
+  },
+  "634": {
+    "inputs": {
+      "images": [
+        "633",
+        0
+      ]
+    },
+    "class_type": "PreviewImage",
+    "_meta": {
+      "title": "Preview Image"
+    }
+  },
+  "650": {
+    "inputs": {
+      "samples": [
+        "620",
+        0
+      ],
+      "vae": [
+        "257",
+        0
+      ]
+    },
+    "class_type": "VAEDecode",
+    "_meta": {
+      "title": "VAE Decode"
+    }
+  },
+  "651": {
+    "inputs": {
+      "filename_prefix": "2025-12-31/ComfyUI_Image",
+      "images": [
+        "650",
+        0
+      ]
+    },
+    "class_type": "SaveImage",
+    "_meta": {
+      "title": "Save Image"
+    }
+  },
+  "665": {
+    "inputs": {
+      "upscale_method": "nearest-exact",
+      "scale_by": 2,
+      "samples": [
+        "630",
+        0
+      ]
+    },
+    "class_type": "LatentUpscaleBy",
+    "_meta": {
+      "title": "Upscale Latent By"
+    }
+  },
+  "693": {
+    "inputs": {
+      "width": 208,
+      "height": 288,
+      "batch_size": 1
+    },
+    "class_type": "EmptySD3LatentImage",
+    "_meta": {
+      "title": "Empty Latent Landscape"
+    }
+  },
+  "745": {
+    "inputs": {
+      "texts": "Base"
+    },
+    "class_type": "TextToLowercase",
+    "_meta": {
+      "title": "Text to Lowercase"
+    }
+  },
+  "746": {
+    "inputs": {
+      "texts": "my wf + amateur lora"
+    },
+    "class_type": "TextToLowercase",
+    "_meta": {
+      "title": "Text to Lowercase"
+    }
+  },
+  "747": {
+    "inputs": {
+      "text_x": 500,
+      "text_y": 1,
+      "height": 200,
+      "font_size": 60,
+      "font_color": "red",
+      "label_color": "white",
+      "font": "TTNorms-Black.otf",
+      "text": "Text",
+      "direction": "up",
+      "image": [
+        "650",
+        0
+      ],
+      "caption": [
+        "746",
+        0
+      ]
+    },
+    "class_type": "AddLabel",
+    "_meta": {
+      "title": "Add Label"
+    }
+  },
+  "748": {
+    "inputs": {
+      "text_x": 500,
+      "text_y": 1,
+      "height": 200,
+      "font_size": 60,
+      "font_color": "red",
+      "label_color": "white",
+      "font": "TTNorms-Black.otf",
+      "text": "Text",
+      "direction": "up",
+      "image": [
+        "769",
+        0
+      ],
+      "caption": [
+        "745",
+        0
+      ]
+    },
+    "class_type": "AddLabel",
+    "_meta": {
+      "title": "Add Label"
+    }
+  },
+  "749": {
+    "inputs": {
+      "direction": "right",
+      "match_image_size": true,
+      "image1": [
+        "748",
+        0
+      ],
+      "image2": [
+        "747",
+        0
+      ]
+    },
+    "class_type": "ImageConcanate",
+    "_meta": {
+      "title": "Image Concatenate"
+    }
+  },
+  "751": {
+    "inputs": {
+      "filename_prefix": "ComfyUI",
+      "images": [
+        "749",
+        0
+      ]
+    },
+    "class_type": "SaveImage",
+    "_meta": {
+      "title": "Save Image"
+    }
+  },
+  "752": {
+    "inputs": {
+      "lora_name": "zimage\\amateur_photography_zimage_v1.safetensors",
+      "strength_model": 0.9,
+      "model": [
+        "507",
+        0
+      ]
+    },
+    "class_type": "LoraLoaderModelOnly",
+    "_meta": {
+      "title": "LoraLoaderModelOnly"
+    }
+  },
+  "754": {
+    "inputs": {
+      "seed": [
+        "28",
+        0
+      ],
+      "steps": 9,
+      "cfg": 1,
+      "sampler_name": "res_multistep",
+      "scheduler": "ddim_uniform",
+      "denoise": 0.9,
+      "model": [
+        "759",
+        0
+      ],
+      "positive": [
+        "6",
+        0
+      ],
+      "negative": [
+        "7",
+        0
+      ],
+      "latent_image": [
+        "46",
+        0
+      ]
+    },
+    "class_type": "KSampler",
+    "_meta": {
+      "title": "KSampler"
+    }
+  },
+  "755": {
+    "inputs": {
+      "samples": [
+        "754",
+        0
+      ],
+      "vae": [
+        "257",
+        0
+      ]
+    },
+    "class_type": "VAEDecode",
+    "_meta": {
+      "title": "VAE Decode"
+    }
+  },
+  "756": {
+    "inputs": {
+      "images": [
+        "755",
+        0
+      ]
+    },
+    "class_type": "PreviewImage",
+    "_meta": {
+      "title": "Preview Image"
+    }
+  },
+  "758": {
+    "inputs": {
+      "width": 416,
+      "height": 576,
+      "batch_size": 1
+    },
+    "class_type": "EmptySD3LatentImage",
+    "_meta": {
+      "title": "Empty Latent Landscape"
+    }
+  },
+  "759": {
+    "inputs": {
+      "shift": 90,
+      "model": [
+        "752",
+        0
+      ]
+    },
+    "class_type": "ModelSamplingAuraFlow",
+    "_meta": {
+      "title": "ModelSamplingAuraFlow"
+    }
+  },
+  "760": {
+    "inputs": {
+      "lora_name": "WAN\\wan_gilliananderson_v1.safetensors",
+      "strength_model": 0.8,
+      "model": [
+        "507",
+        0
+      ]
+    },
+    "class_type": "LoraLoaderModelOnly",
+    "_meta": {
+      "title": "LoraLoaderModelOnly"
+    }
+  },
+  "768": {
+    "inputs": {
+      "seed": [
+        "28",
+        0
+      ],
+      "steps": 9,
+      "cfg": 1,
+      "sampler_name": "euler",
+      "scheduler": "simple",
+      "denoise": 1,
+      "model": [
+        "507",
+        0
+      ],
+      "positive": [
+        "6",
+        0
+      ],
+      "negative": [
+        "7",
+        0
+      ],
+      "latent_image": [
+        "772",
+        0
+      ]
+    },
+    "class_type": "KSampler",
+    "_meta": {
+      "title": "KSampler"
+    }
+  },
+  "769": {
+    "inputs": {
+      "samples": [
+        "768",
+        0
+      ],
+      "vae": [
+        "257",
+        0
+      ]
+    },
+    "class_type": "VAEDecode",
+    "_meta": {
+      "title": "VAE Decode"
+    }
+  },
+  "770": {
+    "inputs": {
+      "images": [
+        "769",
+        0
+      ]
+    },
+    "class_type": "PreviewImage",
+    "_meta": {
+      "title": "Preview Image"
+    }
+  },
+  "772": {
+    "inputs": {
+      "width": 1248,
+      "height": 1728,
+      "batch_size": 1
+    },
+    "class_type": "EmptySD3LatentImage",
+    "_meta": {
+      "title": "Empty Latent Landscape"
+    }
+  }
+}

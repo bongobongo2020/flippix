@@ -34,20 +34,146 @@ public class ComfyUIProcessManager
 
             _logger.LogInfo($"Checking if ComfyUI is running at {baseUrl}");
 
-            // Use a shorter timeout for quick checks
-            using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(3));
+            // Use a shorter timeout for quick checks - ComfyUI should respond quickly if healthy
+            using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(5));
             using var linkedCts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken, cts.Token);
 
-            var response = await _httpClient.GetAsync(testUrl, linkedCts.Token);
-            var isRunning = response.IsSuccessStatusCode;
+            try
+            {
+                var response = await _httpClient.GetAsync(testUrl, linkedCts.Token);
+                var isRunning = response.IsSuccessStatusCode;
 
-            _logger.LogInfo($"ComfyUI running status: {isRunning}");
-            return isRunning;
+                _logger.LogInfo($"ComfyUI running status: {isRunning} (HTTP {response.StatusCode})");
+                return isRunning;
+            }
+            catch (HttpRequestException ex)
+            {
+                // Connection refused, reset, etc. - ComfyUI process has likely crashed
+                _logger.LogWarning($"ComfyUI HTTP request failed: {ex.Message}");
+                return false;
+            }
+            catch (TaskCanceledException) when (!cancellationToken.IsCancellationRequested)
+            {
+                // Timeout - ComfyUI is not responding
+                _logger.LogWarning($"ComfyUI HTTP request timed out - server may be hung or crashed");
+                return false;
+            }
         }
         catch (Exception ex)
         {
             _logger.LogInfo($"ComfyUI is not running: {ex.Message}");
             return false;
+        }
+    }
+
+    /// <summary>
+    /// Checks if ComfyUI is fully ready to process workflows (not just HTTP-responsive)
+    /// This checks if ComfyUI has finished loading all models and nodes
+    /// </summary>
+    public async Task<bool> IsComfyUIReadyAsync(CancellationToken cancellationToken = default)
+    {
+        try
+        {
+            var baseUrl = _settings.BaseUrl;
+            var objectInfoUrl = $"{baseUrl}/object_info";
+
+            _logger.LogDebug($"Checking if ComfyUI is fully ready at {baseUrl}");
+
+            // Use a shorter timeout for readiness checks
+            using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(5));
+            using var linkedCts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken, cts.Token);
+
+            try
+            {
+                // The /object_info endpoint only responds successfully when ComfyUI has loaded all nodes
+                var response = await _httpClient.GetAsync(objectInfoUrl, linkedCts.Token);
+                var isReady = response.IsSuccessStatusCode;
+
+                if (isReady)
+                {
+                    _logger.LogInfo("ComfyUI is fully ready (all nodes loaded)");
+                }
+                else
+                {
+                    _logger.LogDebug($"ComfyUI not ready yet (HTTP {response.StatusCode})");
+                }
+
+                return isReady;
+            }
+            catch (HttpRequestException ex)
+            {
+                // Expected during startup - ComfyUI not ready yet
+                _logger.LogDebug($"ComfyUI not ready yet: {ex.Message}");
+                return false;
+            }
+            catch (TaskCanceledException) when (!cancellationToken.IsCancellationRequested)
+            {
+                // Timeout - ComfyUI still loading
+                _logger.LogDebug("ComfyUI not ready yet (request timed out)");
+                return false;
+            }
+        }
+        catch (Exception ex)
+        {
+            _logger.LogDebug($"ComfyUI readiness check failed: {ex.Message}");
+            return false;
+        }
+    }
+
+    /// <summary>
+    /// Checks if ComfyUI process has crashed or is hung (including waiting for user input)
+    /// </summary>
+    public bool HasComfyUICrashedOrHung()
+    {
+        try
+        {
+            // First check if HTTP is responding
+            var isRunning = IsComfyUIRunningAsync(CancellationToken.None).GetAwaiter().GetResult();
+
+            if (!isRunning)
+            {
+                _logger.LogWarning("ComfyUI HTTP not responding - likely crashed or exited");
+                return true;
+            }
+
+            // Even if HTTP is responding, check if the process appears hung
+            var processes = Process.GetProcessesByName("python");
+            var cmdProcesses = Process.GetProcessesByName("cmd");
+
+            // Check if there are cmd/python processes that might be waiting for input
+            // This happens when ComfyUI crashes and the batch script waits for "Press any key to continue..."
+            foreach (var cmdProcess in cmdProcesses)
+            {
+                try
+                {
+                    var startTime = DateTime.Now - cmdProcess.StartTime;
+
+                    // If we have a CMD process that's been running less than 10 minutes,
+                    // and HTTP is responding to /system_stats but not /object_info,
+                    // ComfyUI might have crashed and the script is waiting
+                    if (startTime.TotalMinutes < 10 && !cmdProcess.HasExited)
+                    {
+                        // Check if ComfyUI is actually ready (not just HTTP responsive)
+                        var isReady = IsComfyUIReadyAsync(CancellationToken.None).GetAwaiter().GetResult();
+                        if (!isReady)
+                        {
+                            _logger.LogWarning($"Detected potential hung CMD process (PID: {cmdProcess.Id}) - ComfyUI may have crashed");
+                            return true;
+                        }
+                    }
+                }
+                catch (Exception ex)
+                {
+                    _logger.LogDebug($"Error checking CMD process: {ex.Message}");
+                }
+            }
+
+            return false;
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning($"Error checking for ComfyUI crash/hang: {ex.Message}");
+            return true; // Assume crashed if we can't check
         }
     }
 
@@ -156,39 +282,41 @@ public class ComfyUIProcessManager
     }
 
     /// <summary>
-    /// Waits for ComfyUI to become responsive after starting
+    /// Waits for ComfyUI to become fully ready after starting
+    /// This waits for ComfyUI to load all models and nodes, not just HTTP responsiveness
     /// </summary>
     private async Task<bool> WaitForComfyUIStartupAsync(CancellationToken cancellationToken = default)
     {
         var maxWaitTime = TimeSpan.FromSeconds(_settings.ComfyUIStartupTimeoutSeconds);
         var startTime = DateTime.Now;
-        var checkInterval = TimeSpan.FromSeconds(2);
+        var checkInterval = TimeSpan.FromSeconds(3);
 
-        _logger.LogInfo($"Waiting for ComfyUI to start (timeout: {maxWaitTime.TotalSeconds}s)");
+        _logger.LogInfo($"Waiting for ComfyUI to fully start (timeout: {maxWaitTime.TotalSeconds}s)");
 
         while (DateTime.Now - startTime < maxWaitTime)
         {
             cancellationToken.ThrowIfCancellationRequested();
 
-            var isRunning = await IsComfyUIRunningAsync(cancellationToken);
-            if (isRunning)
+            // Check if ComfyUI is fully ready (all models loaded)
+            var isReady = await IsComfyUIReadyAsync(cancellationToken);
+            if (isReady)
             {
-                _logger.LogInfo("ComfyUI is now responding");
+                _logger.LogInfo("ComfyUI is now fully ready");
                 return true;
             }
 
             var elapsed = (int)(DateTime.Now - startTime).TotalSeconds;
-            _logger.LogDebug($"ComfyUI not yet responding... ({elapsed}s elapsed)");
+            _logger.LogDebug($"ComfyUI not yet ready... ({elapsed}s elapsed)");
 
             await Task.Delay(checkInterval, cancellationToken);
         }
 
-        _logger.LogError($"Timeout waiting for ComfyUI to start (waited {maxWaitTime.TotalSeconds}s)");
+        _logger.LogError($"Timeout waiting for ComfyUI to be ready (waited {maxWaitTime.TotalSeconds}s)");
         return false;
     }
 
     /// <summary>
-    /// Attempts to restart ComfyUI if it has crashed
+    /// Attempts to restart ComfyUI if it has crashed or is hung
     /// </summary>
     public async Task<bool> DetectAndRestartComfyUIAsync(Action<string>? statusCallback = null, CancellationToken cancellationToken = default)
     {
@@ -198,7 +326,8 @@ public class ComfyUIProcessManager
 
         var isRunning = await IsComfyUIRunningAsync(cancellationToken);
 
-        if (!isRunning || HasComfyUICrashed())
+        // Use improved crash detection that also checks for hung processes
+        if (!isRunning || HasComfyUICrashedOrHung())
         {
             _logger.LogWarning("ComfyUI crash detected or not running!");
             statusCallback?.Invoke("ComfyUI crash detected!");
@@ -264,10 +393,11 @@ public class ComfyUIProcessManager
         try
         {
             _logger.LogInfo("Attempting to terminate existing ComfyUI processes...");
+            var totalKilled = 0;
 
             // Kill python.exe processes that might be ComfyUI
             var pythonProcesses = Process.GetProcessesByName("python");
-            var killed = 0;
+            var killedPython = 0;
 
             foreach (var process in pythonProcesses)
             {
@@ -279,8 +409,8 @@ public class ComfyUIProcessManager
                     // Only kill recent python processes (less than 1 hour old) to avoid killing other Python apps
                     if (startTime.TotalMinutes < 60)
                     {
-                        process.Kill();
-                        killed++;
+                        process.Kill(entireProcessTree: true);
+                        killedPython++;
                         _logger.LogInfo($"Terminated Python process (PID: {process.Id})");
                     }
                 }
@@ -290,9 +420,71 @@ public class ComfyUIProcessManager
                 }
             }
 
-            if (killed > 0)
+            if (killedPython > 0)
             {
-                _logger.LogInfo($"Terminated {killed} Python process(es)");
+                _logger.LogInfo($"Terminated {killedPython} Python process(es)");
+                totalKilled += killedPython;
+            }
+
+            // Kill the specific process we started if it's still running
+            if (_comfyUIProcess != null)
+            {
+                try
+                {
+                    if (!_comfyUIProcess.HasExited)
+                    {
+                        _comfyUIProcess.Kill(entireProcessTree: true);
+                        totalKilled++;
+                        _logger.LogInfo($"Terminated tracked ComfyUI process (PID: {_comfyUIProcess.Id})");
+                    }
+                }
+                catch (Exception ex)
+                {
+                    _logger.LogDebug($"Could not terminate tracked process: {ex.Message}");
+                }
+            }
+
+            // Also attempt to kill any remaining cmd.exe processes hosting crashed scripts
+            // This is a fallback for cases where we couldn't track the parent process
+            try
+            {
+                var cmdProcesses = Process.GetProcessesByName("cmd");
+                var killedCmd = 0;
+
+                foreach (var cmdProcess in cmdProcesses)
+                {
+                    try
+                    {
+                        var startTime = DateTime.Now - cmdProcess.StartTime;
+
+                        // Only kill very recent cmd processes (less than 5 minutes old) that are likely crash windows
+                        if (startTime.TotalMinutes < 5)
+                        {
+                            cmdProcess.Kill(entireProcessTree: true);
+                            killedCmd++;
+                            _logger.LogInfo($"Terminated recent CMD process (PID: {cmdProcess.Id})");
+                        }
+                    }
+                    catch (Exception ex)
+                    {
+                        _logger.LogDebug($"Could not terminate CMD process {cmdProcess.Id}: {ex.Message}");
+                    }
+                }
+
+                if (killedCmd > 0)
+                {
+                    _logger.LogInfo($"Terminated {killedCmd} recent CMD process(es)");
+                    totalKilled += killedCmd;
+                }
+            }
+            catch (Exception ex)
+            {
+                _logger.LogDebug($"Error killing CMD processes: {ex.Message}");
+            }
+
+            if (totalKilled > 0)
+            {
+                _logger.LogInfo($"Total terminated: {totalKilled} process(es)");
                 await Task.Delay(2000); // Give processes time to terminate
             }
             else
