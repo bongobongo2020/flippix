@@ -171,6 +171,30 @@ public class ComfyUIService : IDisposable
         }
     }
 
+    public async Task<string> UploadVideoAsync(
+        string videoPath,
+        CancellationToken cancellationToken = default)
+    {
+        try
+        {
+            _logger.LogInfo("Uploading video to ComfyUI: {VideoPath}", videoPath);
+
+            var uploadedFileName = await RetryAsync(
+                () => _httpClient.UploadVideoAsync(videoPath, "input", cancellationToken),
+                _settings.MaxRetries,
+                TimeSpan.FromMilliseconds(_settings.RetryDelayMilliseconds),
+                cancellationToken);
+
+            _logger.LogInfo("Video uploaded successfully: {FileName}", uploadedFileName);
+            return uploadedFileName;
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Failed to upload video");
+            throw;
+        }
+    }
+
     public async Task<string> QueuePromptAsync(
         object workflow,
         CancellationToken cancellationToken = default)

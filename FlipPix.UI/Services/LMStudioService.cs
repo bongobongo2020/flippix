@@ -20,23 +20,26 @@ namespace FlipPix.UI.Services
         private readonly IAppLogger _logger;
         private readonly SemaphoreSlim _semaphore;
         private bool _disposed = false;
-        private string _baseUrl;
+        private readonly Func<string> _getBaseUrl;
 
-        public LMStudioService(HttpClient httpClient, IAppLogger logger, string baseUrl = "http://localhost:1234")
+        public LMStudioService(HttpClient httpClient, IAppLogger logger, Func<string> getBaseUrl = null)
         {
             _httpClient = httpClient;
             _logger = logger;
-            _baseUrl = baseUrl;
-            _httpClient.BaseAddress = new Uri(_baseUrl);
+            _getBaseUrl = getBaseUrl ?? (() => "http://localhost:1234");
+            // Don't set BaseAddress - we'll use full URLs instead to allow changing the URL
             _httpClient.Timeout = TimeSpan.FromMinutes(5); // 5 minute timeout
             _semaphore = new SemaphoreSlim(1, 1); // Limit concurrent requests
         }
+
+        private string _baseUrl => _getBaseUrl();
 
         public async Task<bool> IsRunningAsync(CancellationToken cancellationToken = default)
         {
             try
             {
-                using var response = await _httpClient.GetAsync("/v1/models", cancellationToken);
+                var fullUrl = $"{_baseUrl.TrimEnd('/')}/v1/models";
+                using var response = await _httpClient.GetAsync(fullUrl, cancellationToken);
                 return response.IsSuccessStatusCode;
             }
             catch
@@ -52,7 +55,8 @@ namespace FlipPix.UI.Services
             {
                 CheckMemoryUsage();
 
-                using var response = await _httpClient.GetAsync("/v1/models", HttpCompletionOption.ResponseHeadersRead, cancellationToken);
+                var fullUrl = $"{_baseUrl.TrimEnd('/')}/v1/models";
+                using var response = await _httpClient.GetAsync(fullUrl, HttpCompletionOption.ResponseHeadersRead, cancellationToken);
                 response.EnsureSuccessStatusCode();
 
                 await using var stream = await response.Content.ReadAsStreamAsync(cancellationToken);
@@ -165,8 +169,9 @@ namespace FlipPix.UI.Services
                 _logger.LogInfo($"Sending image analysis request to LM Studio for model: {modelName}");
                 _logger.LogInfo($"Image: {Path.GetFileName(imagePath)}, Size: {imageBytes.Length} bytes");
 
+                var fullUrl = $"{_baseUrl.TrimEnd('/')}/v1/chat/completions";
                 using var content = new StringContent(json, Encoding.UTF8, "application/json");
-                using var response = await _httpClient.PostAsync("/v1/chat/completions", content, cancellationToken);
+                using var response = await _httpClient.PostAsync(fullUrl, content, cancellationToken);
 
                 if (!response.IsSuccessStatusCode)
                 {
@@ -261,8 +266,9 @@ namespace FlipPix.UI.Services
 
                 _logger.LogInfo($"Sending enhancement request to LM Studio for model: {modelName}");
 
+                var fullUrl = $"{_baseUrl.TrimEnd('/')}/v1/chat/completions";
                 using var content = new StringContent(json, Encoding.UTF8, "application/json");
-                using var response = await _httpClient.PostAsync("/v1/chat/completions", content, cancellationToken);
+                using var response = await _httpClient.PostAsync(fullUrl, content, cancellationToken);
 
                 if (!response.IsSuccessStatusCode)
                 {
@@ -316,22 +322,15 @@ namespace FlipPix.UI.Services
 
         public async Task SetBaseUrlAsync(string baseUrl)
         {
-            if (!string.IsNullOrEmpty(baseUrl) && Uri.TryCreate(baseUrl, UriKind.Absolute, out var uri))
-            {
-                _baseUrl = baseUrl;
-                _httpClient.BaseAddress = uri;
-                _logger.LogInfo($"LM Studio base URL updated to: {baseUrl}");
+            // No longer needed - URL is now retrieved dynamically from settings
+            // This method is kept for backward compatibility
+            _logger.LogInfo($"SetBaseUrlAsync called but URL is now dynamically retrieved from settings. Current URL: {_baseUrl}");
 
-                // Test the connection
-                var isRunning = await IsRunningAsync();
-                if (!isRunning)
-                {
-                    _logger.LogWarning($"LM Studio not responding at {baseUrl}");
-                }
-            }
-            else
+            // Test the connection with the current URL from settings
+            var isRunning = await IsRunningAsync();
+            if (!isRunning)
             {
-                throw new ArgumentException("Invalid URL format for LM Studio base address");
+                _logger.LogWarning($"LM Studio not responding at {_baseUrl}");
             }
         }
 

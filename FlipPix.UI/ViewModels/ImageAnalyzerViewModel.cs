@@ -47,6 +47,32 @@ namespace FlipPix.UI.ViewModels
         private string _imageInfo = string.Empty;
         private System.Threading.CancellationTokenSource? _cancellationTokenSource;
 
+        // Workflow parameters for amazing-z-image-a_GGUFAPI.json
+        private string _negativePrompt = "";
+        private int _width = 944;
+        private int _height = 1408;
+        private double _denoise = 1.0;
+        private string _samplerName = "euler";
+        private string _scheduler = "simple";
+        private string _modelName = "z_image_turbo-Q8_0.gguf";
+        private int _selectedPresetSizeIndex = 0;
+        private int _selectedStyleIndex = 0;
+
+        // Style presets for Z-Image workflow
+        private Dictionary<string, string> _stylePresets = new Dictionary<string, string>
+        {
+            ["None"] = "{$@}",
+            ["Phone Photo"] = "YOUR CONTEXT:\nYour photographs has android phone cam-quality.\nYour photographs exhibit {$spicy-content-with} surprising compositions, sharp complex backgrounds, natural lighting, and candid moments that feel immediate and authentic.\nYour photographs are actual gritty candid photographic background.\nYOUR PHOTO:\n{$@}",
+            ["Cinematic"] = "Cinematic shot, professional photography, dramatic lighting, shallow depth of field, film grain, color grading, anamorphic lens flare, professional composition: {$@}",
+            ["Anime"] = "Anime style, manga art, cel shading, vibrant colors, clean lines, studio Ghibli inspired, detailed illustration: {$@}",
+            ["Oil Painting"] = "Oil painting style, classical art, brush strokes visible, rich textures, Renaissance inspired, museum quality: {$@}",
+            ["3D Render"] = "3D render, Octane render, ray tracing, volumetric lighting, photorealistic CGI, unreal engine 5: {$@}",
+            ["Watercolor"] = "Watercolor painting, soft edges, pastel colors, artistic flow, paper texture, traditional art medium: {$@}",
+            ["Digital Art"] = "Digital art, concept art, trending on ArtStation, highly detailed, sharp focus, vibrant colors: {$@}",
+            ["Vintage Photo"] = "Vintage photograph, film photography, kodachrome, grainy texture, aged paper, nostalgic atmosphere, 1970s style: {@}",
+            ["Cyberpunk"] = "Cyberpunk aesthetic, neon lights, futuristic, sci-fi, high contrast, blade runner style, dystopian atmosphere: {$@}"
+        };
+
         public event PropertyChangedEventHandler? PropertyChanged;
 
         public ImageAnalyzerViewModel(ComfyUIService comfyUIService, LMStudioService lmStudioService, IAppLogger logger, FlipPix.Core.Services.SettingsService settingsService)
@@ -384,6 +410,18 @@ namespace FlipPix.UI.ViewModels
 
         public bool CanGenerate => HasSourceImage && !string.IsNullOrWhiteSpace(AnalysisText) && !IsGenerating && !IsAnalyzing;
 
+        public int SelectedStyleIndex
+        {
+            get => _selectedStyleIndex;
+            set
+            {
+                _selectedStyleIndex = value;
+                OnPropertyChanged();
+            }
+        }
+
+        public string[] StyleNames => _stylePresets.Keys.ToArray();
+
         // Commands
         public ICommand BrowseImageCommand { get; }
         public ICommand AnalyzeImageCommand { get; }
@@ -662,7 +700,7 @@ namespace FlipPix.UI.ViewModels
                 }
 
                 // Load workflow
-                var workflowPath = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "workflow", "qwen-zimageAPI.json");
+                var workflowPath = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "workflow", "amazing-z-image-a_GGUFAPI.json");
                 var workflowJson = await File.ReadAllTextAsync(workflowPath, _cancellationTokenSource.Token);
                 var workflow = JsonSerializer.Deserialize<Dictionary<string, JsonElement>>(workflowJson);
 
@@ -791,74 +829,78 @@ namespace FlipPix.UI.ViewModels
         private Dictionary<string, object> UpdateWorkflowForGeneration(Dictionary<string, JsonElement> workflow)
         {
             var workflowDict = new Dictionary<string, object>();
+            var selectedStyleName = StyleNames[Math.Min(SelectedStyleIndex, StyleNames.Length - 1)];
+            var styleTemplate = _stylePresets[selectedStyleName];
+
+            // Apply style template to the analysis text
+            var styledPrompt = styleTemplate.Replace("{$@}", AnalysisText).Replace("{$spicy-content-with}", "");
+            // Fix double spaces
+            styledPrompt = System.Text.RegularExpressions.Regex.Replace(styledPrompt, @" +", " ");
+
+            _logger.LogInfo($"Using style: {selectedStyleName}");
+            _logger.LogInfo($"Styled prompt: {styledPrompt.Substring(0, Math.Min(200, styledPrompt.Length))}...");
 
             foreach (var kvp in workflow)
             {
                 var nodeDict = JsonSerializer.Deserialize<Dictionary<string, object>>(kvp.Value.GetRawText());
                 if (nodeDict != null)
                 {
-                    // Update node 60 (ShowText input - feeds into CLIP Text Encode)
-                    if (kvp.Key == "60" && nodeDict.ContainsKey("inputs"))
+                    // Update node 6 (CLIPTextEncode) - directly set the styled prompt text
+                    // This overrides the connection from node 166
+                    if (kvp.Key == "6" && nodeDict.ContainsKey("inputs"))
                     {
                         var inputs = JsonSerializer.Deserialize<Dictionary<string, object>>(
                             JsonSerializer.Serialize(nodeDict["inputs"]));
                         if (inputs != null)
                         {
-                            // Node 60 gets text from node 59, but we'll override at node 45 level
+                            // Replace the connection with the actual text
+                            inputs["text"] = styledPrompt;
                             nodeDict["inputs"] = inputs;
+                            _logger.LogInfo($"Updated node 6 (CLIPTextEncode) with styled prompt");
                         }
                     }
 
-                    // Update node 45 (CLIPTextEncode) with our edited text
-                    if (kvp.Key == "45" && nodeDict.ContainsKey("inputs"))
-                    {
-                        var inputs = JsonSerializer.Deserialize<Dictionary<string, object>>(
-                            JsonSerializer.Serialize(nodeDict["inputs"]));
-                        if (inputs != null)
-                        {
-                            // Override the text input directly
-                            inputs["text"] = AnalysisText;
-                            nodeDict["inputs"] = inputs;
-                            _logger.LogInfo($"Updated CLIP text encode with: {AnalysisText.Substring(0, Math.Min(100, AnalysisText.Length))}...");
-                        }
-                    }
-
-                    // Update node 44 (KSampler) settings
-                    if (kvp.Key == "44" && nodeDict.ContainsKey("inputs"))
+                    // Update node 307 (SEED)
+                    if (kvp.Key == "307" && nodeDict.ContainsKey("inputs"))
                     {
                         var inputs = JsonSerializer.Deserialize<Dictionary<string, object>>(
                             JsonSerializer.Serialize(nodeDict["inputs"]));
                         if (inputs != null)
                         {
                             var actualSeed = Seed == 0 ? new Random().NextInt64(0, 999999999999999) : Seed;
-                            inputs["seed"] = actualSeed;
-                            inputs["steps"] = Steps;
-                            inputs["cfg"] = Cfg;
-                            inputs["denoise"] = 1.0;
+                            inputs["value"] = actualSeed;
                             nodeDict["inputs"] = inputs;
+                            _logger.LogInfo($"Updated seed: {actualSeed}");
                         }
                     }
 
-                    // Update node 57 (CR Aspect Ratio)
-                    if (kvp.Key == "57" && nodeDict.ContainsKey("inputs"))
+                    // Update node 244 (EmptySD3LatentImage) - width/height based on aspect ratio
+                    if (kvp.Key == "244" && nodeDict.ContainsKey("inputs"))
                     {
-                        var aspectRatios = new[]
-                        {
-                            "SDXL - 1:1 square 1024x1024",
-                            "SDXL - 3:4 portrait 896x1152",
-                            "SDXL - 9:16 portrait 768x1344",
-                            "SDXL - 4:3 landscape 1152x896",
-                            "SDXL - 16:9 landscape 1344x768"
-                        };
-
-                        var selectedRatio = aspectRatios[Math.Min(AspectRatioIndex, aspectRatios.Length - 1)];
-
                         var inputs = JsonSerializer.Deserialize<Dictionary<string, object>>(
                             JsonSerializer.Serialize(nodeDict["inputs"]));
                         if (inputs != null)
                         {
-                            inputs["aspect_ratio"] = selectedRatio;
+                            // Calculate dimensions based on aspect ratio
+                            var dimensions = GetDimensionsForAspectRatio(AspectRatioIndex);
+                            inputs["width"] = dimensions.Item1;
+                            inputs["height"] = dimensions.Item2;
                             nodeDict["inputs"] = inputs;
+                            _logger.LogInfo($"Updated dimensions: {dimensions.Item1}x{dimensions.Item2}");
+                        }
+                    }
+
+                    // Update node 9 (SaveImage) filename_prefix with timestamp
+                    if (kvp.Key == "9" && nodeDict.ContainsKey("inputs"))
+                    {
+                        var inputs = JsonSerializer.Deserialize<Dictionary<string, object>>(
+                            JsonSerializer.Serialize(nodeDict["inputs"]));
+                        if (inputs != null)
+                        {
+                            var timestamp = DateTime.Now.ToString("yyyy_MM_dd");
+                            inputs["filename_prefix"] = $"ZImage/{timestamp}/ZI";
+                            nodeDict["inputs"] = inputs;
+                            _logger.LogInfo($"Updated output filename prefix");
                         }
                     }
 
@@ -867,6 +909,21 @@ namespace FlipPix.UI.ViewModels
             }
 
             return workflowDict;
+        }
+
+        private (int, int) GetDimensionsForAspectRatio(int aspectRatioIndex)
+        {
+            // Z-Image recommended dimensions based on aspect ratios
+            var dimensions = new[]
+            {
+                (1024, 1024),  // 0: 1:1 square
+                (896, 1152),   // 1: 3:4 portrait
+                (768, 1344),   // 2: 9:16 portrait
+                (1152, 896),   // 3: 4:3 landscape
+                (1344, 768)    // 4: 16:9 landscape
+            };
+
+            return dimensions[Math.Min(aspectRatioIndex, dimensions.Length - 1)];
         }
 
         private async Task<List<byte[]>> GetMostRecentImageFromOutput()
@@ -888,14 +945,14 @@ namespace FlipPix.UI.ViewModels
                     var outputFiles = await _comfyUIService.HttpClient.GetOutputFilesAsync();
                     _logger.LogInfo($"Found {outputFiles.Count} total output files");
 
-                    // Get z-image files only
-                    var zImageFiles = outputFiles.Where(f => f.Contains("z-image") && f.EndsWith(".png")).ToList();
+                    // Get ZI files (new format) or z-image files (old format)
+                    var ziFiles = outputFiles.Where(f => (f.Contains("ZI") || f.Contains("z-image")) && f.EndsWith(".png")).ToList();
 
-                    if (zImageFiles.Any())
+                    if (ziFiles.Any())
                     {
                         // Get the last one (they're typically already sorted by name which includes number)
-                        var newestFile = zImageFiles.Last();
-                        _logger.LogInfo($"✓ Selected newest z-image file: {newestFile}");
+                        var newestFile = ziFiles.Last();
+                        _logger.LogInfo($"✓ Selected newest ZI file: {newestFile}");
 
                         var imageData = await _comfyUIService.HttpClient.DownloadOutputImageAsync(newestFile);
                         if (imageData != null)
@@ -906,7 +963,7 @@ namespace FlipPix.UI.ViewModels
                     }
                     else
                     {
-                        _logger.LogWarning("No z-image files found in remote output");
+                        _logger.LogWarning("No ZI files found in remote output");
                     }
                 }
                 else
@@ -921,15 +978,19 @@ namespace FlipPix.UI.ViewModels
                         return images;
                     }
 
-                    // Get all z-image files sorted by LAST WRITE time (newest first)
-                    var allFiles = Directory.GetFiles(comfyUIOutputDir, "z-image*.png");
-                    _logger.LogInfo($"Found {allFiles.Length} total z-image*.png files");
+                    // Get all ZI*.png files recursively (new format with ZImage subfolder)
+                    var allZiFiles = Directory.GetFiles(comfyUIOutputDir, "ZI*.png", SearchOption.AllDirectories);
+                    // Also get old z-image*.png files for backward compatibility
+                    var oldZiFiles = Directory.GetFiles(comfyUIOutputDir, "z-image*.png", SearchOption.TopDirectoryOnly);
+                    var allFiles = allZiFiles.Concat(oldZiFiles).ToArray();
+
+                    _logger.LogInfo($"Found {allFiles.Length} total ZI/z-image files");
 
                     if (allFiles.Length == 0)
                     {
                         // Try without the pattern to see what's in the folder
-                        var anyPng = Directory.GetFiles(comfyUIOutputDir, "*.png");
-                        _logger.LogWarning($"No z-image files found, but found {anyPng.Length} total PNG files");
+                        var anyPng = Directory.GetFiles(comfyUIOutputDir, "*.png", SearchOption.AllDirectories);
+                        _logger.LogWarning($"No ZI files found, but found {anyPng.Length} total PNG files");
                         if (anyPng.Length > 0)
                         {
                             _logger.LogInfo($"Sample files: {string.Join(", ", anyPng.Take(5).Select(Path.GetFileName))}");
@@ -946,8 +1007,9 @@ namespace FlipPix.UI.ViewModels
                         var newestFile = imageFiles.First();
                         var fileAge = DateTime.Now - newestFile.LastWriteTime;
 
-                        _logger.LogInfo($"✓ Newest z-image file found:");
+                        _logger.LogInfo($"✓ Newest ZI file found:");
                         _logger.LogInfo($"  Name: {newestFile.Name}");
+                        _logger.LogInfo($"  Full Path: {newestFile.FullName}");
                         _logger.LogInfo($"  Last Modified: {newestFile.LastWriteTime:yyyy-MM-dd HH:mm:ss}");
                         _logger.LogInfo($"  Age: {fileAge.TotalSeconds:F1} seconds");
                         _logger.LogInfo($"  Size: {newestFile.Length} bytes");
@@ -960,7 +1022,7 @@ namespace FlipPix.UI.ViewModels
                     }
                     else
                     {
-                        _logger.LogError($"ERROR: No z-image files found in {comfyUIOutputDir}");
+                        _logger.LogError($"ERROR: No ZI files found in {comfyUIOutputDir}");
                     }
                 }
             }

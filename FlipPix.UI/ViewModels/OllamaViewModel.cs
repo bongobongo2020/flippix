@@ -408,10 +408,7 @@ namespace FlipPix.UI.ViewModels
             try
             {
                 var videoWindow = _serviceProvider.GetService(typeof(StoryVideoWindow)) as StoryVideoWindow;
-                if (videoWindow?.DataContext is StoryVideoViewModel videoViewModel)
-                {
-                    videoViewModel.CustomPrompt = EnhancedPrompt;
-                }
+                // Note: Custom prompt transfer removed as StoryVideoViewModel no longer supports prompt generation
 
                 // Position and show window
                 var screenWidth = SystemParameters.PrimaryScreenWidth;

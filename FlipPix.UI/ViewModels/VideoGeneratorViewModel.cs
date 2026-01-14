@@ -44,8 +44,8 @@ namespace FlipPix.UI.ViewModels
         private string _videoInfo = string.Empty;
 
         // Video settings
-        private int _videoLength = 121;
-        private int _fps = 16;
+        private int _videoLength = 240;
+        private int _fps = 24;
         private int _steps = 4;
         private double _cfg = 1.0;
         private long _seed = 0;
@@ -75,6 +75,22 @@ namespace FlipPix.UI.ViewModels
         private string _storyQueueStatus = "No images loaded";
         private readonly ObservableCollection<StoryVideoQueueItem> _storyVideoQueue = new();
 
+        // Workflow selection
+        private string _selectedWorkflow = "ltx2_i2v";
+        private bool _useLTXWorkflow = true;
+
+        // VACE properties
+        private string _vacePrompt = string.Empty;
+        private string _vaceBackgroundImagePath = string.Empty;
+        private BitmapImage? _vaceBackgroundImagePreview;
+        private string _vaceForegroundImagePath = string.Empty;
+        private BitmapImage? _vaceForegroundImagePreview;
+        private string _vaceVideoPath = string.Empty;
+        private bool _isProcessingVACE = false;
+        private string _vaceBackgroundImageInfo = string.Empty;
+        private string _vaceForegroundImageInfo = string.Empty;
+        private string _vaceVideoInfo = string.Empty;
+
         public event PropertyChangedEventHandler? PropertyChanged;
         public event EventHandler? PlayRequested;
 
@@ -98,6 +114,7 @@ namespace FlipPix.UI.ViewModels
             // New commands for image analysis and queue
             AnalyzeImageCommand = new RelayCommand(async () => await AnalyzeImageAsync());
             SendAnalysisToQueueCommand = new RelayCommand(SendAnalysisToQueue, () => HasAnalysis);
+            OpenLMStudioSettingsCommand = new RelayCommand(OpenLMStudioSettings);
             AddToQueueCommand = new RelayCommand(AddToQueue, () => CanAddToQueue);
             RemoveFromQueueCommand = new RelayCommand<QueueItem>(RemoveFromQueue);
             ProcessQueueCommand = new RelayCommand(async () => await ProcessQueueAsync(), () => CanProcessQueue);
@@ -110,6 +127,15 @@ namespace FlipPix.UI.ViewModels
             LoadStoryQueueCommand = new RelayCommand(async () => await LoadStoryQueueAsync(), () => CanLoadStoryQueue);
             ProcessStoryQueueCommand = new RelayCommand(async () => await ProcessStoryQueueAsync(), () => CanProcessStoryQueue);
             ClearStoryQueueCommand = new RelayCommand(ClearStoryQueue, () => StoryVideoQueue.Any());
+
+            // VACE commands
+            SelectVACEBackgroundImageCommand = new RelayCommand(SelectVACEBackgroundImage);
+            SelectVACEForegroundImageCommand = new RelayCommand(SelectVACEForegroundImage);
+            SelectVACEVideoCommand = new RelayCommand(SelectVACEVideo);
+            GenerateVACEVideoCommand = new RelayCommand(async () => await GenerateVACEVideoAsync(), () => CanGenerateVACEVideo);
+
+            // Workflow toggle command
+            ToggleWorkflowCommand = new RelayCommand(ToggleWorkflow);
 
             // Subscribe to story video queue collection changes
             _storyVideoQueue.CollectionChanged += (s, e) =>
@@ -127,7 +153,18 @@ namespace FlipPix.UI.ViewModels
                 var uri = new Uri(settings.BaseUrl);
                 ComfyUIServer = uri.Host;
                 ComfyUIPort = uri.Port.ToString();
+
+                // Load saved workflow selection
+                var savedWorkflow = settings.SelectedVideoWorkflow ?? "ltx2_i2v";
+                SelectedWorkflow = savedWorkflow;
+                AddLog($"Loaded workflow selection from settings: {savedWorkflow}");
             }
+            else
+            {
+                AddLog("No settings found, using default LTXV workflow");
+            }
+
+            AddLog($"Current workflow: {WorkflowDisplay} (UseLTXWorkflow={UseLTXWorkflow})");
 
             // Load saved queues from file (for crash recovery)
             LoadQueueFromFile();
@@ -609,6 +646,489 @@ namespace FlipPix.UI.ViewModels
             }
         }
 
+        // VACE Properties
+        public string VacePrompt
+        {
+            get => _vacePrompt;
+            set
+            {
+                if (_vacePrompt != value)
+                {
+                    _vacePrompt = value;
+                    OnPropertyChanged();
+                    OnPropertyChanged(nameof(CanGenerateVACEVideo));
+                    CommandManager.InvalidateRequerySuggested();
+                }
+            }
+        }
+
+        public string VaceBackgroundImagePath
+        {
+            get => _vaceBackgroundImagePath;
+            set
+            {
+                if (_vaceBackgroundImagePath != value)
+                {
+                    _vaceBackgroundImagePath = value;
+                    OnPropertyChanged();
+                    OnPropertyChanged(nameof(HasVACEBackgroundImage));
+                    OnPropertyChanged(nameof(CanGenerateVACEVideo));
+                    LoadVACEBackgroundImagePreview();
+                    CommandManager.InvalidateRequerySuggested();
+                }
+            }
+        }
+
+        public BitmapImage? VaceBackgroundImagePreview
+        {
+            get => _vaceBackgroundImagePreview;
+            set
+            {
+                _vaceBackgroundImagePreview = value;
+                OnPropertyChanged();
+            }
+        }
+
+        public string VaceForegroundImagePath
+        {
+            get => _vaceForegroundImagePath;
+            set
+            {
+                if (_vaceForegroundImagePath != value)
+                {
+                    _vaceForegroundImagePath = value;
+                    OnPropertyChanged();
+                    OnPropertyChanged(nameof(HasVACEForegroundImage));
+                    OnPropertyChanged(nameof(CanGenerateVACEVideo));
+                    LoadVACEForegroundImagePreview();
+                    CommandManager.InvalidateRequerySuggested();
+                }
+            }
+        }
+
+        public BitmapImage? VaceForegroundImagePreview
+        {
+            get => _vaceForegroundImagePreview;
+            set
+            {
+                _vaceForegroundImagePreview = value;
+                OnPropertyChanged();
+            }
+        }
+
+        public string VaceVideoPath
+        {
+            get => _vaceVideoPath;
+            set
+            {
+                if (_vaceVideoPath != value)
+                {
+                    _vaceVideoPath = value;
+                    OnPropertyChanged();
+                    OnPropertyChanged(nameof(HasVACEVideo));
+                    OnPropertyChanged(nameof(CanGenerateVACEVideo));
+                    LoadVACEVideoInfo();
+                    CommandManager.InvalidateRequerySuggested();
+                }
+            }
+        }
+
+        public bool IsProcessingVACE
+        {
+            get => _isProcessingVACE;
+            set
+            {
+                if (_isProcessingVACE != value)
+                {
+                    _isProcessingVACE = value;
+                    OnPropertyChanged();
+                    OnPropertyChanged(nameof(CanGenerateVACEVideo));
+                    CommandManager.InvalidateRequerySuggested();
+                }
+            }
+        }
+
+        public string VaceBackgroundImageInfo
+        {
+            get => _vaceBackgroundImageInfo;
+            set
+            {
+                if (_vaceBackgroundImageInfo != value)
+                {
+                    _vaceBackgroundImageInfo = value;
+                    OnPropertyChanged();
+                }
+            }
+        }
+
+        public string VaceForegroundImageInfo
+        {
+            get => _vaceForegroundImageInfo;
+            set
+            {
+                if (_vaceForegroundImageInfo != value)
+                {
+                    _vaceForegroundImageInfo = value;
+                    OnPropertyChanged();
+                }
+            }
+        }
+
+        public string VaceVideoInfo
+        {
+            get => _vaceVideoInfo;
+            set
+            {
+                if (_vaceVideoInfo != value)
+                {
+                    _vaceVideoInfo = value;
+                    OnPropertyChanged();
+                }
+            }
+        }
+
+        public bool HasVACEBackgroundImage => !string.IsNullOrEmpty(VaceBackgroundImagePath) && File.Exists(VaceBackgroundImagePath);
+        public bool HasVACEForegroundImage => !string.IsNullOrEmpty(VaceForegroundImagePath) && File.Exists(VaceForegroundImagePath);
+        public bool HasVACEVideo => !string.IsNullOrEmpty(VaceVideoPath) && File.Exists(VaceVideoPath);
+
+        public bool CanGenerateVACEVideo => HasVACEBackgroundImage && HasVACEForegroundImage && HasVACEVideo &&
+                                         !string.IsNullOrWhiteSpace(VacePrompt) && !IsProcessingVACE && !IsProcessing;
+
+        // Workflow Selection Properties
+        public string SelectedWorkflow
+        {
+            get => _selectedWorkflow;
+            set
+            {
+                if (_selectedWorkflow != value)
+                {
+                    _selectedWorkflow = value;
+                    UseLTXWorkflow = value == "ltx2_i2v";
+                    OnPropertyChanged();
+                    OnPropertyChanged(nameof(WorkflowDisplay));
+                    OnPropertyChanged(nameof(WorkflowIndicator));
+                    CommandManager.InvalidateRequerySuggested();
+
+                    // Save to settings
+                    var settings = _settingsService.Settings;
+                    if (settings != null)
+                    {
+                        settings.SelectedVideoWorkflow = value;
+                        _settingsService.SaveSettings(settings);
+                    }
+
+                    AddLog($"Workflow changed to: {WorkflowDisplay}");
+                }
+            }
+        }
+
+        public bool UseLTXWorkflow
+        {
+            get => _useLTXWorkflow;
+            set
+            {
+                if (_useLTXWorkflow != value)
+                {
+                    _useLTXWorkflow = value;
+                    // Update the internal field directly to avoid circular dependency
+                    _selectedWorkflow = value ? "ltx2_i2v" : "painter";
+                    OnPropertyChanged();
+                    OnPropertyChanged(nameof(WorkflowDisplay));
+                    OnPropertyChanged(nameof(WorkflowIndicator));
+                    CommandManager.InvalidateRequerySuggested();
+
+                    // Save to settings
+                    var settings = _settingsService.Settings;
+                    if (settings != null)
+                    {
+                        settings.SelectedVideoWorkflow = _selectedWorkflow;
+                        _settingsService.SaveSettings(settings);
+                    }
+
+                    AddLog($"Workflow changed to: {WorkflowDisplay}");
+                }
+            }
+        }
+
+        public string WorkflowDisplay => UseLTXWorkflow ? "LTXV (LTX-2_image2video_distilledAPI.json)" : "Painter (painteri2vAPI.json)";
+        public string WorkflowIndicator => UseLTXWorkflow ? "🟢 LTXV" : "🔵 Painter";
+
+        private void ToggleWorkflow()
+        {
+            UseLTXWorkflow = !UseLTXWorkflow;
+        }
+
+        private void OpenLMStudioSettings()
+        {
+            try
+            {
+                // Use fully qualified names to avoid WinForms/WPF conflicts
+                var settingsWindow = new System.Windows.Window
+                {
+                    Title = "LM Studio Settings",
+                    Width = 550,
+                    Height = 500,
+                    WindowStartupLocation = System.Windows.WindowStartupLocation.CenterOwner,
+                    Owner = System.Windows.Application.Current.MainWindow,
+                    ResizeMode = System.Windows.ResizeMode.NoResize
+                };
+
+                var mainPanel = new System.Windows.Controls.StackPanel { Margin = new System.Windows.Thickness(20) };
+
+                // Title
+                var title = new System.Windows.Controls.TextBlock
+                {
+                    Text = "LM Studio Configuration",
+                    FontSize = 16,
+                    FontWeight = System.Windows.FontWeights.Bold,
+                    Margin = new System.Windows.Thickness(0, 0, 0, 20)
+                };
+                mainPanel.Children.Add(title);
+
+                // LM Studio URL
+                var urlLabel = new System.Windows.Controls.TextBlock
+                {
+                    Text = "LM Studio URL:",
+                    FontWeight = System.Windows.FontWeights.SemiBold,
+                    Margin = new System.Windows.Thickness(0, 0, 0, 5)
+                };
+                mainPanel.Children.Add(urlLabel);
+
+                var currentUrl = _settingsService.Settings?.LMStudioSettings?.BaseUrl ?? "http://localhost:1234";
+                var urlTextBox = new System.Windows.Controls.TextBox
+                {
+                    Text = currentUrl,
+                    Margin = new System.Windows.Thickness(0, 0, 0, 10),
+                    Padding = new System.Windows.Thickness(8)
+                };
+                mainPanel.Children.Add(urlTextBox);
+
+                // Test Connection and Fetch Models button
+                var testButton = new System.Windows.Controls.Button
+                {
+                    Content = "🔍 Test Connection & Fetch Models",
+                    Height = 35,
+                    Margin = new System.Windows.Thickness(0, 0, 0, 10),
+                    Background = new System.Windows.Media.SolidColorBrush(System.Windows.Media.Color.FromRgb(0, 123, 255)),
+                    Foreground = System.Windows.Media.Brushes.White,
+                    FontWeight = System.Windows.FontWeights.SemiBold,
+                    Cursor = System.Windows.Input.Cursors.Hand,
+                    HorizontalAlignment = System.Windows.HorizontalAlignment.Left
+                };
+                mainPanel.Children.Add(testButton);
+
+                // Status text for connection test
+                var statusText = new System.Windows.Controls.TextBlock
+                {
+                    Text = "",
+                    FontSize = 11,
+                    Margin = new System.Windows.Thickness(0, 0, 0, 15),
+                    Foreground = System.Windows.Media.Brushes.Gray
+                };
+                mainPanel.Children.Add(statusText);
+
+                // Model Selection
+                var modelLabel = new System.Windows.Controls.TextBlock
+                {
+                    Text = "Select Model:",
+                    FontWeight = System.Windows.FontWeights.SemiBold,
+                    Margin = new System.Windows.Thickness(0, 0, 0, 5)
+                };
+                mainPanel.Children.Add(modelLabel);
+
+                var currentModel = _settingsService.Settings?.LMStudioSettings?.SelectedModel ?? "";
+                var modelComboBox = new System.Windows.Controls.ComboBox
+                {
+                    Margin = new System.Windows.Thickness(0, 0, 0, 15),
+                    Padding = new System.Windows.Thickness(8),
+                    Height = 35,
+                    IsEditable = false
+                };
+                mainPanel.Children.Add(modelComboBox);
+
+                // Info text
+                var infoText = new System.Windows.Controls.TextBlock
+                {
+                    Text = "Click 'Test Connection & Fetch Models' to load available models from LM Studio.",
+                    FontSize = 11,
+                    Foreground = System.Windows.Media.Brushes.Gray,
+                    FontStyle = System.Windows.FontStyles.Italic,
+                    Margin = new System.Windows.Thickness(0, 0, 0, 15)
+                };
+                mainPanel.Children.Add(infoText);
+
+                // Buttons
+                var buttonPanel = new System.Windows.Controls.StackPanel
+                {
+                    Orientation = System.Windows.Controls.Orientation.Horizontal,
+                    HorizontalAlignment = System.Windows.HorizontalAlignment.Right
+                };
+
+                var saveButton = new System.Windows.Controls.Button
+                {
+                    Content = "Save",
+                    Width = 80,
+                    Height = 30,
+                    Margin = new System.Windows.Thickness(0, 0, 10, 0),
+                    Background = System.Windows.Media.Brushes.Green,
+                    Foreground = System.Windows.Media.Brushes.White,
+                    FontWeight = System.Windows.FontWeights.SemiBold,
+                    Cursor = System.Windows.Input.Cursors.Hand
+                };
+                var cancelButton = new System.Windows.Controls.Button
+                {
+                    Content = "Cancel",
+                    Width = 80,
+                    Height = 30,
+                    Background = System.Windows.Media.Brushes.Gray,
+                    Foreground = System.Windows.Media.Brushes.White,
+                    FontWeight = System.Windows.FontWeights.SemiBold,
+                    Cursor = System.Windows.Input.Cursors.Hand
+                };
+
+                buttonPanel.Children.Add(saveButton);
+                buttonPanel.Children.Add(cancelButton);
+                mainPanel.Children.Add(buttonPanel);
+
+                settingsWindow.Content = mainPanel;
+
+                // Test Connection button click handler
+                testButton.Click += async (s, e) =>
+                {
+                    var url = urlTextBox.Text.Trim();
+                    if (string.IsNullOrWhiteSpace(url))
+                    {
+                        statusText.Text = "❌ Please enter a URL first.";
+                        statusText.Foreground = System.Windows.Media.Brushes.Red;
+                        return;
+                    }
+
+                    testButton.IsEnabled = false;
+                    statusText.Text = "🔄 Testing connection and fetching models...";
+                    statusText.Foreground = System.Windows.Media.Brushes.Blue;
+
+                    try
+                    {
+                        // Update the service's base URL temporarily
+                        await _lmStudioService.SetBaseUrlAsync(url);
+
+                        // Fetch available models
+                        var models = await _lmStudioService.GetAvailableModelsAsync(System.Threading.CancellationToken.None);
+
+                        if (models != null && models.Any())
+                        {
+                            modelComboBox.Items.Clear();
+                            foreach (var model in models)
+                            {
+                                modelComboBox.Items.Add(model.Name);
+                            }
+
+                            // Try to select the currently saved model
+                            if (!string.IsNullOrEmpty(currentModel))
+                            {
+                                var selectedIndex = -1;
+                                for (int i = 0; i < models.Count; i++)
+                                {
+                                    if (models[i].Name.Equals(currentModel, StringComparison.OrdinalIgnoreCase))
+                                    {
+                                        selectedIndex = i;
+                                        break;
+                                    }
+                                }
+                                if (selectedIndex >= 0)
+                                {
+                                    modelComboBox.SelectedIndex = selectedIndex;
+                                }
+                                else if (modelComboBox.Items.Count > 0)
+                                {
+                                    modelComboBox.SelectedIndex = 0;
+                                }
+                            }
+                            else if (modelComboBox.Items.Count > 0)
+                            {
+                                modelComboBox.SelectedIndex = 0;
+                            }
+
+                            statusText.Text = $"✅ Found {models.Count} model(s)";
+                            statusText.Foreground = System.Windows.Media.Brushes.Green;
+                            infoText.Text = $"Available models: {string.Join(", ", models.Take(3).Select(m => System.IO.Path.GetFileNameWithoutExtension(m.Name)))}{(models.Count > 3 ? "..." : "")}";
+                        }
+                        else
+                        {
+                            statusText.Text = "⚠️ No models found. Make sure a model is loaded in LM Studio.";
+                            statusText.Foreground = System.Windows.Media.Brushes.Orange;
+                            modelComboBox.Items.Clear();
+                        }
+                    }
+                    catch (Exception ex)
+                    {
+                        statusText.Text = $"❌ Connection failed: {ex.Message}";
+                        statusText.Foreground = System.Windows.Media.Brushes.Red;
+                        modelComboBox.Items.Clear();
+                    }
+                    finally
+                    {
+                        testButton.IsEnabled = true;
+                    }
+                };
+
+                // Save button click handler
+                saveButton.Click += (s, e) =>
+                {
+                    var newUrl = urlTextBox.Text.Trim();
+                    var newModel = modelComboBox.SelectedItem?.ToString()?.Trim() ?? "";
+
+                    if (string.IsNullOrWhiteSpace(newUrl))
+                    {
+                        System.Windows.MessageBox.Show("Please enter a valid URL.", "Invalid URL",
+                            System.Windows.MessageBoxButton.OK, System.Windows.MessageBoxImage.Warning);
+                        return;
+                    }
+
+                    // Update settings
+                    var settings = _settingsService.Settings;
+                    if (settings != null)
+                    {
+                        if (settings.LMStudioSettings == null)
+                        {
+                            settings.LMStudioSettings = new Core.Models.LMStudioSettings();
+                        }
+
+                        settings.LMStudioSettings.BaseUrl = newUrl;
+                        settings.LMStudioSettings.SelectedModel = newModel;
+                        _settingsService.SaveSettings(settings);
+                    }
+
+                    AddLog($"LM Studio settings updated: URL={newUrl}, Model={newModel ?? "(auto-detect)"}");
+                    System.Windows.MessageBox.Show("Settings saved successfully!", "Success",
+                        System.Windows.MessageBoxButton.OK, System.Windows.MessageBoxImage.Information);
+                    settingsWindow.Close();
+                };
+
+                // Cancel button click handler
+                cancelButton.Click += (s, e) => settingsWindow.Close();
+
+                // Auto-fetch models on open
+                settingsWindow.Loaded += async (s, e) =>
+                {
+                    // Dispatch to avoid blocking the UI
+                    await System.Windows.Application.Current.Dispatcher.InvokeAsync(async () =>
+                    {
+                        await Task.Delay(100); // Small delay to let the window fully load
+                        testButton.RaiseEvent(new System.Windows.RoutedEventArgs(System.Windows.Controls.Button.ClickEvent));
+                    });
+                };
+
+                settingsWindow.ShowDialog();
+            }
+            catch (Exception ex)
+            {
+                AddLog($"Error opening LM Studio settings: {ex.Message}");
+                System.Windows.MessageBox.Show($"Error opening settings:\n{ex.Message}", "Error",
+                    System.Windows.MessageBoxButton.OK, System.Windows.MessageBoxImage.Error);
+            }
+        }
+
         // Commands
         public ICommand SelectImageCommand { get; }
         public ICommand GenerateVideoCommand { get; }
@@ -621,6 +1141,7 @@ namespace FlipPix.UI.ViewModels
         // New commands
         public ICommand AnalyzeImageCommand { get; }
         public ICommand SendAnalysisToQueueCommand { get; }
+        public ICommand OpenLMStudioSettingsCommand { get; }
         public ICommand AddToQueueCommand { get; }
         public ICommand RemoveFromQueueCommand { get; }
         public ICommand ProcessQueueCommand { get; }
@@ -634,19 +1155,45 @@ namespace FlipPix.UI.ViewModels
         public ICommand ProcessStoryQueueCommand { get; }
         public ICommand ClearStoryQueueCommand { get; }
 
+        // VACE commands
+        public ICommand SelectVACEBackgroundImageCommand { get; }
+        public ICommand SelectVACEForegroundImageCommand { get; }
+        public ICommand SelectVACEVideoCommand { get; }
+        public ICommand GenerateVACEVideoCommand { get; }
+
+        // Workflow toggle command
+        public ICommand ToggleWorkflowCommand { get; }
+
         // Methods
         private void SelectImage()
         {
+            var initialDirectory = _settingsService.Settings?.VideoGeneratorImageFolder;
+
+            if (string.IsNullOrEmpty(initialDirectory) || !Directory.Exists(initialDirectory))
+            {
+                initialDirectory = Environment.GetFolderPath(Environment.SpecialFolder.MyPictures);
+            }
+
             var openFileDialog = new Microsoft.Win32.OpenFileDialog
             {
                 Title = "Select Input Image",
                 Filter = "Image Files|*.jpg;*.jpeg;*.png;*.bmp|All Files|*.*",
-                CheckFileExists = true
+                CheckFileExists = true,
+                InitialDirectory = initialDirectory
             };
 
             if (openFileDialog.ShowDialog() == true)
             {
                 ImageFilePath = openFileDialog.FileName;
+
+                // Save the folder location for next time
+                var folderPath = Path.GetDirectoryName(openFileDialog.FileName);
+                if (!string.IsNullOrEmpty(folderPath) && _settingsService.Settings != null)
+                {
+                    _settingsService.Settings.VideoGeneratorImageFolder = folderPath;
+                    _settingsService.SaveSettings(_settingsService.Settings);
+                }
+
                 AddLog($"Selected image: {Path.GetFileName(ImageFilePath)}");
             }
         }
@@ -774,7 +1321,15 @@ namespace FlipPix.UI.ViewModels
                 }
 
                 // Load workflow
-                var workflowPath = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "workflow", "WAN_2.2_i2v + upscaleAPI.json");
+                var workflowFileName = UseLTXWorkflow ? "LTX-2_image2video_distilledAPI.json" : "painteri2vAPI.json";
+                var workflowPath = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "workflow", workflowFileName);
+
+                AddLog($"=== WORKFLOW DEBUG INFO ===");
+                AddLog($"UseLTXWorkflow: {UseLTXWorkflow}");
+                AddLog($"SelectedWorkflow: {SelectedWorkflow}");
+                AddLog($"Workflow file: {workflowFileName}");
+                AddLog($"Full path: {workflowPath}");
+
                 if (!File.Exists(workflowPath))
                 {
                     AddLog($"ERROR: Workflow file not found: {workflowPath}");
@@ -782,9 +1337,44 @@ namespace FlipPix.UI.ViewModels
                     return;
                 }
 
-                AddLog($"Loading workflow: {workflowPath}");
+                AddLog($"Loading workflow: {workflowFileName} ({WorkflowDisplay})");
                 var workflowJson = await File.ReadAllTextAsync(workflowPath);
                 var workflow = JsonSerializer.Deserialize<JsonElement>(workflowJson);
+
+                // Debug: Check if workflow contains expected nodes
+                var workflowDictDebug = JsonSerializer.Deserialize<Dictionary<string, JsonElement>>(workflowJson);
+                if (workflowDictDebug != null)
+                {
+                    var hasNode131 = workflowDictDebug.ContainsKey("131");
+                    var hasNode167 = workflowDictDebug.ContainsKey("167");
+                    var hasNode98 = workflowDictDebug.ContainsKey("98");
+                    var hasNode121 = workflowDictDebug.ContainsKey("121");
+                    var hasNode92_3 = workflowDictDebug.ContainsKey("92:3");
+
+                    // Check node types for accurate detection
+                    string node131Type = "N/A";
+                    string node167Type = "N/A";
+                    string node98Type = "N/A";
+
+                    if (hasNode131 && workflowDictDebug["131"].TryGetProperty("class_type", out var type131))
+                        node131Type = type131.GetString() ?? "N/A";
+                    if (hasNode167 && workflowDictDebug["167"].TryGetProperty("class_type", out var type167))
+                        node167Type = type167.GetString() ?? "N/A";
+                    if (hasNode98 && workflowDictDebug["98"].TryGetProperty("class_type", out var type98))
+                        node98Type = type98.GetString() ?? "N/A";
+
+                    AddLog($"Workflow contains node 131 ({node131Type}): {hasNode131}");
+                    AddLog($"Workflow contains node 167 ({node167Type}): {hasNode167}");
+                    AddLog($"Workflow contains node 98 ({node98Type}): {hasNode98}");
+                    AddLog($"Workflow contains node 121 (CLIPTextEncode): {hasNode121}");
+                    AddLog($"Workflow contains node 92:3 (CLIPTextEncode): {hasNode92_3}");
+
+                    if (UseLTXWorkflow && node131Type == "PainterI2V")
+                    {
+                        AddLog($"WARNING: LTXV workflow selected but node 131 is PainterI2V!");
+                    }
+                }
+                AddLog($"=== END WORKFLOW DEBUG INFO ===");
 
                 // Upload input image
                 ProcessingStatus = "Uploading input image...";
@@ -855,11 +1445,8 @@ namespace FlipPix.UI.ViewModels
                 ProcessingProgress = 95;
                 AddLog("Looking for generated video...");
 
-                // Wait for the video to be saved (extended to 10 seconds for large video files)
-                await Task.Delay(10000);
-
-                // Get the video from ComfyUI output folder
-                var outputVideo = await GetOutputVideoFromComfyUI(promptId);
+                // Wait for the video to be saved - use direct folder checking since WebSocket may disconnect
+                var outputVideo = await WaitForVideoInOutputFolderAsync(promptId);
 
                 if (outputVideo != null && File.Exists(outputVideo))
                 {
@@ -873,14 +1460,14 @@ namespace FlipPix.UI.ViewModels
                     ProcessingStatus = "Complete!";
                     StatusBarMessage = $"Video generation complete - {Path.GetFileName(outputVideo)}";
 
-                    AddLog("=== Video generation completed successfully ===");
+                    AddLog($"=== Video generation completed successfully ===");
+                    AddLog($"Video saved to: {outputVideo}");
                 }
                 else
                 {
-                    AddLog("WARNING: No output video found - continuing queue processing");
+                    AddLog("WARNING: No output video found after waiting - continuing queue processing");
                     ProcessingStatus = "No output generated";
                     // Removed blocking MessageBox to allow queue processing to continue automatically
-                    // User can check logs for failed items
                 }
             }
             catch (Exception ex)
@@ -903,8 +1490,9 @@ namespace FlipPix.UI.ViewModels
 
             if (workflowDict == null) return workflow;
 
-            // Update image input (node 97 for regular workflow, node 143 for story video workflow)
-            string[] imageNodes = { "97", "143" };
+            // Update image input - check multiple possible nodes
+            // LTXV distilled uses node "167", LTXV original uses "98", Painter uses "97", "143", "119"
+            string[] imageNodes = UseLTXWorkflow ? new[] { "167", "98" } : new[] { "97", "143", "119" };
             bool imageNodeFound = false;
 
             foreach (var nodeId in imageNodes)
@@ -930,12 +1518,13 @@ namespace FlipPix.UI.ViewModels
 
             if (!imageNodeFound)
             {
-                AddLog($"WARNING: No image input nodes (97 or 143) found in workflow!");
+                AddLog($"WARNING: No image input nodes found in workflow!");
             }
 
-            // Update positive prompt (node 93 for regular workflow, node 62 for story video workflow)
-            string[] promptNodes = { "93", "62" };
-            foreach (var nodeId in promptNodes)
+            // Update positive prompt - check multiple possible nodes
+            // LTXV distilled uses "121", LTXV original uses "92:3", Painter uses "93", "62", "6"
+            string[] positivePromptNodes = UseLTXWorkflow ? new[] { "121", "92:3" } : new[] { "93", "62", "6" };
+            foreach (var nodeId in positivePromptNodes)
             {
                 if (workflowDict.ContainsKey(nodeId))
                 {
@@ -949,31 +1538,36 @@ namespace FlipPix.UI.ViewModels
                             inputs["text"] = VideoPrompt;
                             node["inputs"] = inputs;
                             workflowDict[nodeId] = JsonSerializer.SerializeToElement(node);
-                            AddLog($"✓ Node {nodeId} (Text) - Prompt updated");
+                            AddLog($"✓ Node {nodeId} (Positive Prompt) - Prompt updated");
                         }
                     }
                 }
             }
 
-            // Update negative prompt (node 89)
-            if (workflowDict.ContainsKey("89"))
+            // Update negative prompt - check multiple possible nodes
+            string[] negativePromptNodes = { "89", "7" };
+            foreach (var nodeId in negativePromptNodes)
             {
-                var node89 = JsonSerializer.Deserialize<Dictionary<string, object>>(workflowDict["89"].GetRawText());
-                if (node89 != null && node89.ContainsKey("inputs"))
+                if (workflowDict.ContainsKey(nodeId))
                 {
-                    var inputs = JsonSerializer.Deserialize<Dictionary<string, object>>(
-                        JsonSerializer.Serialize(node89["inputs"]));
-                    if (inputs != null)
+                    var node = JsonSerializer.Deserialize<Dictionary<string, object>>(workflowDict[nodeId].GetRawText());
+                    if (node != null && node.ContainsKey("inputs"))
                     {
-                        inputs["text"] = NegativePrompt;
-                        node89["inputs"] = inputs;
-                        workflowDict["89"] = JsonSerializer.SerializeToElement(node89);
+                        var inputs = JsonSerializer.Deserialize<Dictionary<string, object>>(
+                            JsonSerializer.Serialize(node["inputs"]));
+                        if (inputs != null)
+                        {
+                            inputs["text"] = NegativePrompt;
+                            node["inputs"] = inputs;
+                            workflowDict[nodeId] = JsonSerializer.SerializeToElement(node);
+                            AddLog($"✓ Node {nodeId} (Negative Prompt) - Prompt updated");
+                        }
                     }
                 }
             }
 
-            // Update WanImageToVideo parameters (node 98)
-            if (workflowDict.ContainsKey("98"))
+            // Update WanImageToVideo parameters (node 98) - CRITICAL for painter workflow
+            if (!UseLTXWorkflow && workflowDict.ContainsKey("98"))
             {
                 var node98 = JsonSerializer.Deserialize<Dictionary<string, object>>(workflowDict["98"].GetRawText());
                 if (node98 != null && node98.ContainsKey("inputs"))
@@ -987,29 +1581,172 @@ namespace FlipPix.UI.ViewModels
                         inputs["height"] = Height;
                         node98["inputs"] = inputs;
                         workflowDict["98"] = JsonSerializer.SerializeToElement(node98);
+                        AddLog($"✓ Node 98 (WanImageToVideo) - Length: {VideoLength}, Width: {Width}, Height: {Height}");
                     }
                 }
             }
 
-            // Update FPS (node 94)
-            if (workflowDict.ContainsKey("94"))
+            // Update LTXV video parameters (nodes 92:62, 92:22, 75, 92:97 for original; 112, 131 for distilled) - for LTXV workflow
+            if (UseLTXWorkflow)
             {
-                var node94 = JsonSerializer.Deserialize<Dictionary<string, object>>(workflowDict["94"].GetRawText());
-                if (node94 != null && node94.ContainsKey("inputs"))
+                // LTXV distilled workflow uses node 112 for video length
+                if (workflowDict.ContainsKey("112"))
+                {
+                    var node112 = JsonSerializer.Deserialize<Dictionary<string, object>>(workflowDict["112"].GetRawText());
+                    if (node112 != null && node112.ContainsKey("inputs"))
+                    {
+                        var inputs = JsonSerializer.Deserialize<Dictionary<string, object>>(
+                            JsonSerializer.Serialize(node112["inputs"]));
+                        if (inputs != null && inputs.ContainsKey("value"))
+                        {
+                            inputs["value"] = VideoLength;
+                            node112["inputs"] = inputs;
+                            workflowDict["112"] = JsonSerializer.SerializeToElement(node112);
+                            AddLog($"✓ Node 112 (PrimitiveInt) - Video Length: {VideoLength}");
+                        }
+                    }
+                }
+
+                // LTXV distilled workflow uses node 131 for frame rate
+                if (workflowDict.ContainsKey("131"))
+                {
+                    var node131 = JsonSerializer.Deserialize<Dictionary<string, object>>(workflowDict["131"].GetRawText());
+                    if (node131 != null && node131.ContainsKey("inputs"))
+                    {
+                        var inputs = JsonSerializer.Deserialize<Dictionary<string, object>>(
+                            JsonSerializer.Serialize(node131["inputs"]));
+                        if (inputs != null && inputs.ContainsKey("value"))
+                        {
+                            inputs["value"] = Fps;
+                            node131["inputs"] = inputs;
+                            workflowDict["131"] = JsonSerializer.SerializeToElement(node131);
+                            AddLog($"✓ Node 131 (PrimitiveInt) - Frame Rate: {Fps}");
+                        }
+                    }
+                }
+
+                // Original LTXV workflow: Update frame length (node 92:62)
+                if (workflowDict.ContainsKey("92:62"))
+                {
+                    var node92_62 = JsonSerializer.Deserialize<Dictionary<string, object>>(workflowDict["92:62"].GetRawText());
+                    if (node92_62 != null && node92_62.ContainsKey("inputs"))
+                    {
+                        var inputs = JsonSerializer.Deserialize<Dictionary<string, object>>(
+                            JsonSerializer.Serialize(node92_62["inputs"]));
+                        if (inputs != null && inputs.ContainsKey("value"))
+                        {
+                            inputs["value"] = VideoLength;
+                            node92_62["inputs"] = inputs;
+                            workflowDict["92:62"] = JsonSerializer.SerializeToElement(node92_62);
+                            AddLog($"✓ Node 92:62 (PrimitiveInt) - Video Length: {VideoLength}");
+                        }
+                    }
+                }
+
+                // Original LTXV workflow: Update frame rate in LTXVConditioning (node 92:22)
+                if (workflowDict.ContainsKey("92:22"))
+                {
+                    var node92_22 = JsonSerializer.Deserialize<Dictionary<string, object>>(workflowDict["92:22"].GetRawText());
+                    if (node92_22 != null && node92_22.ContainsKey("inputs"))
+                    {
+                        var inputs = JsonSerializer.Deserialize<Dictionary<string, object>>(
+                            JsonSerializer.Serialize(node92_22["inputs"]));
+                        if (inputs != null && inputs.ContainsKey("frame_rate"))
+                        {
+                            inputs["frame_rate"] = Fps;
+                            node92_22["inputs"] = inputs;
+                            workflowDict["92:22"] = JsonSerializer.SerializeToElement(node92_22);
+                            AddLog($"✓ Node 92:22 (LTXVConditioning) - FPS: {Fps}");
+                        }
+                    }
+                }
+
+                // Original LTXV workflow: Update FPS in SaveVideo (node 75)
+                if (workflowDict.ContainsKey("75"))
+                {
+                    var node75 = JsonSerializer.Deserialize<Dictionary<string, object>>(workflowDict["75"].GetRawText());
+                    if (node75 != null && node75.ContainsKey("inputs"))
+                    {
+                        var inputs = JsonSerializer.Deserialize<Dictionary<string, object>>(
+                            JsonSerializer.Serialize(node75["inputs"]));
+                        if (inputs != null && inputs.ContainsKey("video"))
+                        {
+                            // Node 75's video input connects to node 92:97, we need to update 92:97's fps
+                        }
+                    }
+                }
+
+                // Original LTXV workflow: Update FPS in CreateVideo (node 92:97)
+                if (workflowDict.ContainsKey("92:97"))
+                {
+                    var node92_97 = JsonSerializer.Deserialize<Dictionary<string, object>>(workflowDict["92:97"].GetRawText());
+                    if (node92_97 != null && node92_97.ContainsKey("inputs"))
+                    {
+                        var inputs = JsonSerializer.Deserialize<Dictionary<string, object>>(
+                            JsonSerializer.Serialize(node92_97["inputs"]));
+                        if (inputs != null && inputs.ContainsKey("fps"))
+                        {
+                            inputs["fps"] = Fps;
+                            node92_97["inputs"] = inputs;
+                            workflowDict["92:97"] = JsonSerializer.SerializeToElement(node92_97);
+                            AddLog($"✓ Node 92:97 (CreateVideo) - FPS: {Fps}");
+                        }
+                    }
+                }
+            }
+
+            // Update PainterI2V parameters (node 131) - CRITICAL: Must match WanImageToVideo length!
+            // Only for Painter workflow
+            if (!UseLTXWorkflow && workflowDict.ContainsKey("131"))
+            {
+                var node131 = JsonSerializer.Deserialize<Dictionary<string, object>>(workflowDict["131"].GetRawText());
+                if (node131 != null && node131.ContainsKey("inputs"))
                 {
                     var inputs = JsonSerializer.Deserialize<Dictionary<string, object>>(
-                        JsonSerializer.Serialize(node94["inputs"]));
+                        JsonSerializer.Serialize(node131["inputs"]));
                     if (inputs != null)
                     {
-                        inputs["fps"] = Fps;
-                        node94["inputs"] = inputs;
-                        workflowDict["94"] = JsonSerializer.SerializeToElement(node94);
+                        inputs["length"] = VideoLength;  // Must match node 98!
+                        inputs["width"] = Width;
+                        inputs["height"] = Height;
+                        node131["inputs"] = inputs;
+                        workflowDict["131"] = JsonSerializer.SerializeToElement(node131);
+                        AddLog($"✓ Node 131 (PainterI2V) - Length: {VideoLength}, Width: {Width}, Height: {Height}");
                     }
                 }
             }
 
-            // Update steps and CFG for both KSampler nodes (85 and 86)
-            foreach (var nodeId in new[] { "85", "86" })
+            // Update FPS (node 94 or 135) - Only for Painter workflow
+            if (!UseLTXWorkflow)
+            {
+                string[] fpsNodes = { "94", "135" };
+            foreach (var nodeId in fpsNodes)
+            {
+                if (workflowDict.ContainsKey(nodeId))
+                {
+                    var node = JsonSerializer.Deserialize<Dictionary<string, object>>(workflowDict[nodeId].GetRawText());
+                    if (node != null && node.ContainsKey("inputs"))
+                    {
+                        var inputs = JsonSerializer.Deserialize<Dictionary<string, object>>(
+                            JsonSerializer.Serialize(node["inputs"]));
+                        if (inputs != null && inputs.ContainsKey("frame_rate"))
+                        {
+                            inputs["frame_rate"] = Fps;
+                            node["inputs"] = inputs;
+                            workflowDict[nodeId] = JsonSerializer.SerializeToElement(node);
+                            AddLog($"✓ Node {nodeId} (VideoCombine) - FPS: {Fps}");
+                        }
+                    }
+                }
+            }
+            }
+
+            // Update steps and CFG for KSamplerAdvanced nodes (132 and 133 for painter workflow)
+            // Note: LTXV workflow uses fixed sigmas and doesn't expose these parameters in the same way
+            if (!UseLTXWorkflow)
+            {
+                string[] ksamplerNodes = { "85", "86", "132", "133" };
+            foreach (var nodeId in ksamplerNodes)
             {
                 if (workflowDict.ContainsKey(nodeId))
                 {
@@ -1028,9 +1765,11 @@ namespace FlipPix.UI.ViewModels
                             }
                             node["inputs"] = inputs;
                             workflowDict[nodeId] = JsonSerializer.SerializeToElement(node);
+                            AddLog($"✓ Node {nodeId} (KSampler) - Steps: {Steps}, CFG: {Cfg}");
                         }
                     }
                 }
+            }
             }
 
             var updatedWorkflow = JsonSerializer.SerializeToElement(workflowDict);
@@ -1168,6 +1907,132 @@ namespace FlipPix.UI.ViewModels
                 AddLog($"ERROR getting output video: {ex.Message}");
                 return null;
             }
+        }
+
+        /// <summary>
+        /// Waits for the video to appear in the output folder and verifies it's complete.
+        /// This approach doesn't rely on ComfyUI API calls since WebSocket may disconnect.
+        /// </summary>
+        private async Task<string?> WaitForVideoInOutputFolderAsync(string promptId)
+        {
+            var settings = _settingsService.Settings;
+            if (settings == null || string.IsNullOrEmpty(settings.OutputFolderPath))
+            {
+                AddLog("ERROR: ComfyUI output path not configured");
+                return null;
+            }
+
+            var outputFolder = Path.Combine(settings.OutputFolderPath, "video");
+            if (!Directory.Exists(outputFolder))
+            {
+                AddLog($"ERROR: Output folder not found: {outputFolder}");
+                return null;
+            }
+
+            AddLog($"Monitoring output folder: {outputFolder}");
+
+            // Record the starting time and existing files
+            var startTime = DateTime.Now;
+            var existingFiles = new HashSet<string>(
+                Directory.GetFiles(outputFolder, "*.mp4"),
+                StringComparer.OrdinalIgnoreCase);
+
+            AddLog($"Found {existingFiles.Count} existing video files at start");
+
+            // Wait up to 60 seconds for new video to appear
+            var maxWaitTime = TimeSpan.FromSeconds(60);
+            var checkInterval = TimeSpan.FromSeconds(2);
+
+            while (DateTime.Now - startTime < maxWaitTime)
+            {
+                await Task.Delay(checkInterval);
+
+                // Check for new files
+                var currentFiles = Directory.GetFiles(outputFolder, "*.mp4");
+                var newFiles = currentFiles.Where(f => !existingFiles.Contains(f)).ToList();
+
+                if (newFiles.Any())
+                {
+                    AddLog($"Found {newFiles.Count} new video file(s)");
+
+                    // Get the most recently modified new file
+                    var newestFile = newFiles
+                        .OrderByDescending(f => File.GetLastWriteTime(f))
+                        .First();
+
+                    // Wait a bit more to ensure file is fully written
+                    await Task.Delay(TimeSpan.FromSeconds(3));
+
+                    // Verify file exists and has content
+                    if (File.Exists(newestFile))
+                    {
+                        var fileInfo = new FileInfo(newestFile);
+
+                        // Check if file is being written (try to open with exclusive access)
+                        bool isFileComplete = false;
+                        try
+                        {
+                            using (var stream = File.Open(newestFile, FileMode.Open, FileAccess.Read, FileShare.None))
+                            {
+                                // If we get here, file is not locked
+                                isFileComplete = true;
+                            }
+                        }
+                        catch (IOException)
+                        {
+                            AddLog($"File still being written, waiting...");
+                            await Task.Delay(TimeSpan.FromSeconds(5));
+
+                            // Try one more time
+                            try
+                            {
+                                using (var stream = File.Open(newestFile, FileMode.Open, FileAccess.Read, FileShare.None))
+                                {
+                                    isFileComplete = true;
+                                }
+                            }
+                            catch (IOException)
+                            {
+                                AddLog($"WARNING: File may still be locked, returning anyway");
+                                isFileComplete = true; // Return it anyway, queue processing will continue
+                            }
+                        }
+
+                        if (isFileComplete)
+                        {
+                            fileInfo = new FileInfo(newestFile); // Refresh file info
+                            var sizeMB = fileInfo.Length / (1024.0 * 1024.0);
+                            AddLog($"✓ Video file ready: {Path.GetFileName(newestFile)} ({sizeMB:F2} MB)");
+                            AddLog($"  Created: {fileInfo.CreationTime}, Modified: {fileInfo.LastWriteTime}");
+                            return newestFile;
+                        }
+                    }
+                }
+                else
+                {
+                    var elapsed = (int)(DateTime.Now - startTime).TotalSeconds;
+                    AddLog($"No new videos yet... ({elapsed}s elapsed, will wait up to 60s)");
+                }
+            }
+
+            // If we didn't find a new file, check if any file was modified recently
+            AddLog("No new file found, checking for recently modified files...");
+            var recentThreshold = DateTime.Now.AddSeconds(-30);
+            var recentFiles = Directory.GetFiles(outputFolder, "*.mp4")
+                .Where(f => File.GetLastWriteTime(f) > recentThreshold)
+                .OrderByDescending(f => File.GetLastWriteTime(f))
+                .ToList();
+
+            if (recentFiles.Any())
+            {
+                var recentFile = recentFiles.First();
+                AddLog($"✓ Found recently modified video: {Path.GetFileName(recentFile)}");
+                return recentFile;
+            }
+
+            AddLog("Failed to find any output video in the expected time frame");
+            AddLog($"Output folder contains: {Directory.GetFiles(outputFolder, "*.mp4").Length} .mp4 files");
+            return null;
         }
 
         private void PlayVideo()
@@ -1579,6 +2444,7 @@ namespace FlipPix.UI.ViewModels
                 ImageAnalysis = "Analyzing image with LM Studio Qwen-VL AI...";
 
                 AddLog("=== Starting image analysis with LM Studio Qwen-VL ===");
+                AddLog($"UseLTXWorkflow: {UseLTXWorkflow} (LTX2 selected: {_selectedWorkflow == "ltx2_i2v"})");
 
                 // Get the selected model from settings
                 var baseUrl = _settingsService.Settings?.LMStudioSettings?.BaseUrl ?? "http://localhost:1234";
@@ -1618,14 +2484,35 @@ namespace FlipPix.UI.ViewModels
                 AnalysisStatus = "Analyzing with LM Studio Qwen-VL...";
                 AnalysisProgress = 30;
 
-                // Use LM Studio for image analysis
-                var analysisPrompt = "Describe this image in detail, focusing on the subject, their actions, the setting, mood, and any camera or motion elements. This description will be used to generate a video from the image.";
+                // Determine which prompt to use based on workflow selection
+                string analysisPrompt;
+                if (UseLTXWorkflow)
+                {
+                    // Load LTX action video system prompt
+                    var ltxPromptPath = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "prompts", "prompt2json", "ltx_action_video_system_prompt.md");
+                    if (File.Exists(ltxPromptPath))
+                    {
+                        analysisPrompt = await File.ReadAllTextAsync(ltxPromptPath, _analysisCancellationTokenSource.Token);
+                        AddLog("Using LTX-2 Action Video system prompt");
+                    }
+                    else
+                    {
+                        AddLog($"WARNING: LTX action video prompt not found at {ltxPromptPath}, using default");
+                        analysisPrompt = "Describe this image in detail, focusing on the subject, their actions, the setting, mood, and any camera or motion elements. This description will be used to generate a video from the image.";
+                    }
+                }
+                else
+                {
+                    // Use default prompt for Painter workflow
+                    analysisPrompt = "Describe this image in detail, focusing on the subject, their actions, the setting, mood, and any camera or motion elements. This description will be used to generate a video from the image.";
+                    AddLog("Using default image analysis prompt");
+                }
 
                 var analysisResult = await _lmStudioService.AnalyzeImageAsync(
                     selectedModel,
                     ImageFilePath,
                     analysisPrompt,
-                    maxTokens: 500,
+                    maxTokens: 2000,
                     _analysisCancellationTokenSource.Token);
 
                 AnalysisProgress = 90;
@@ -1638,6 +2525,9 @@ namespace FlipPix.UI.ViewModels
                     AnalysisProgress = 100;
                     AddLog("Image analysis completed successfully");
                     StatusBarMessage = "Image analysis complete - you can use this for prompts";
+
+                    // Automatically save the prompt to JSON (like prompt2json does)
+                    await SaveAnalysisToJsonAsync(analysisResult, analysisPrompt);
                 }
                 else
                 {
@@ -1665,6 +2555,168 @@ namespace FlipPix.UI.ViewModels
                 IsAnalyzing = false;
                 CommandManager.InvalidateRequerySuggested();
             }
+        }
+
+        /// <summary>
+        /// Saves the image analysis result to a JSON file (matching prompt2json_app.py functionality)
+        /// </summary>
+        private async Task SaveAnalysisToJsonAsync(string content, string customPrompt)
+        {
+            try
+            {
+                // Determine save directory - use configured directory or prompt user
+                var saveDirectory = _settingsService.Settings?.Prompt2JsonSaveDirectory;
+
+                if (string.IsNullOrEmpty(saveDirectory) || !Directory.Exists(saveDirectory))
+                {
+                    // Prompt user to choose save directory
+                    AddLog("Prompt save directory not configured, asking user...");
+
+                    await System.Windows.Application.Current.Dispatcher.InvokeAsync(() =>
+                    {
+                        using (var folderDialog = new System.Windows.Forms.FolderBrowserDialog())
+                        {
+                            folderDialog.Description = "Choose where to save prompt files";
+                            folderDialog.ShowNewFolderButton = true;
+
+                            if (folderDialog.ShowDialog() == System.Windows.Forms.DialogResult.OK)
+                            {
+                                saveDirectory = folderDialog.SelectedPath;
+                                var settings = _settingsService.Settings;
+                                if (settings != null)
+                                {
+                                    settings.Prompt2JsonSaveDirectory = saveDirectory;
+                                    _settingsService.SaveSettings(settings);
+                                }
+                            }
+                        }
+                    });
+
+                    if (string.IsNullOrEmpty(saveDirectory))
+                    {
+                        AddLog("Save cancelled by user - no directory selected");
+                        return;
+                    }
+                }
+
+                // Generate intelligent filename based on content
+                var filename = GenerateIntelligentFilename(content);
+                var outputPath = Path.Combine(saveDirectory, filename);
+
+                // Structure the data in the same format as prompt2json
+                var data = new
+                {
+                    CustomPrompt = customPrompt,
+                    Prompts = new[] { content }, // Single prompt for analyze mode
+                    SavedAt = DateTime.Now.ToString("o"),
+                    Version = "1.0",
+                    Workflow = UseLTXWorkflow ? "LTX2" : "Painter"
+                };
+
+                // Save to JSON file
+                var jsonOptions = new JsonSerializerOptions { WriteIndented = true };
+                var json = JsonSerializer.Serialize(data, jsonOptions);
+                await File.WriteAllTextAsync(outputPath, json);
+
+                AddLog($"Analysis saved to: {outputPath}");
+                StatusBarMessage = $"Analysis saved: {filename}";
+            }
+            catch (Exception ex)
+            {
+                AddLog($"ERROR saving analysis to JSON: {ex.Message}");
+            }
+        }
+
+        /// <summary>
+        /// Generates an intelligent filename based on the AI response content (matching prompt2json_app.py)
+        /// </summary>
+        private string GenerateIntelligentFilename(string content)
+        {
+            var keywords = ExtractContentKeywords(content);
+            var timestamp = DateTime.Now.ToString("MMdd_HHmm");
+
+            if (keywords.Any())
+            {
+                var keywordString = string.Join("-", keywords);
+                // Clean up the keyword string
+                keywordString = System.Text.RegularExpressions.Regex.Replace(keywordString, @"[^\w\s-]", "");
+                keywordString = System.Text.RegularExpressions.Regex.Replace(keywordString, @"[\s]+", "-");
+                return $"{keywordString}_{timestamp}.json";
+            }
+            else
+            {
+                // Fallback to simple timestamp-based name
+                return $"analysis_{timestamp}.json";
+            }
+        }
+
+        /// <summary>
+        /// Extracts key descriptive terms from the AI response content (matching prompt2json_app.py)
+        /// </summary>
+        private List<string> ExtractContentKeywords(string content)
+        {
+            var contentLower = content.ToLower();
+            var keywords = new List<string>();
+
+            // Extract subject matter from the prompts
+            var subjects = new Dictionary<string, string[]>
+            {
+                { "samurai", new[] { "samurai", "katana", "kimono" } },
+                { "sword", new[] { "sword", "blade", "swordsman" } },
+                { "fighter", new[] { "fighter", "combatant", "warrior" } },
+                { "ninja", new[] { "ninja", "assassin" } },
+                { "rain", new[] { "rain", "rainy", "downpour" } },
+                { "desert", new[] { "desert", "sand", "dune" } },
+                { "urban", new[] { "urban", "city", "street" } },
+                { "forest", new[] { "forest", "woods", "trees" } },
+                { "martial-arts", new[] { "martial arts", "kung fu", "karate", "judo" } },
+            };
+
+            // Camera/shot types
+            var shots = new Dictionary<string, string[]>
+            {
+                { "closeup", new[] { "close-up", "closeup" } },
+                { "slowmo", new[] { "slow-motion", "slow motion", "slo-mo" } },
+                { "aerial", new[] { "aerial", "overhead", "birds eye" } },
+                { "tracking", new[] { "tracking shot", "follow" } },
+            };
+
+            // Check for subject matter first (most important)
+            foreach (var kvp in subjects)
+            {
+                if (keywords.Count >= 2) break; // Limit to 2 keywords max
+                if (kvp.Value.Any(pattern => contentLower.Contains(pattern)))
+                {
+                    keywords.Add(kvp.Key);
+                }
+            }
+
+            // If we only have 1 keyword, try to add a shot type
+            if (keywords.Count < 2)
+            {
+                foreach (var kvp in shots)
+                {
+                    if (kvp.Value.Any(pattern => contentLower.Contains(pattern)))
+                    {
+                        keywords.Add(kvp.Key);
+                        break;
+                    }
+                }
+            }
+
+            // Fallback: extract the first few significant nouns
+            if (keywords.Count == 0)
+            {
+                var words = System.Text.RegularExpressions.Regex.Matches(contentLower.Substring(0, Math.Min(200, contentLower.Length)), @"\b[a-z]{4,}\b")
+                    .Cast<System.Text.RegularExpressions.Match>()
+                    .Select(m => m.Value)
+                    .Where(w => !new[] { "this", "that", "with", "from", "have", "been", "were", "their" }.Contains(w))
+                    .Take(2)
+                    .ToList();
+                keywords.AddRange(words);
+            }
+
+            return keywords.Take(2).ToList();
         }
 
         private async Task<string> GetAnalysisOutputAsync(string promptId)
@@ -2204,16 +3256,32 @@ namespace FlipPix.UI.ViewModels
         // Story Video Generator Methods
         private void SelectStoryPromptJson()
         {
+            var initialDirectory = _settingsService.Settings?.VideoGeneratorStoryPromptJsonFolder;
+
+            if (string.IsNullOrEmpty(initialDirectory) || !Directory.Exists(initialDirectory))
+            {
+                initialDirectory = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "prompts");
+            }
+
             var dialog = new Microsoft.Win32.OpenFileDialog
             {
                 Title = "Select Story Prompts JSON File",
                 Filter = "JSON Files (*.json)|*.json|All Files (*.*)|*.*",
-                InitialDirectory = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "prompts")
+                InitialDirectory = initialDirectory
             };
 
             if (dialog.ShowDialog() == true)
             {
                 StoryPromptJsonPath = dialog.FileName;
+
+                // Save the folder location for next time
+                var folderPath = Path.GetDirectoryName(dialog.FileName);
+                if (!string.IsNullOrEmpty(folderPath) && _settingsService.Settings != null)
+                {
+                    _settingsService.Settings.VideoGeneratorStoryPromptJsonFolder = folderPath;
+                    _settingsService.SaveSettings(_settingsService.Settings);
+                }
+
                 AddLog($"Selected story prompts file: {Path.GetFileName(StoryPromptJsonPath)}");
             }
         }
@@ -2225,8 +3293,14 @@ namespace FlipPix.UI.ViewModels
                 dialog.Description = "Select the folder containing the story images";
                 dialog.ShowNewFolderButton = false;
 
-                // Try to use previously selected path as starting point
-                if (!string.IsNullOrEmpty(StoryImagesFolderPath) && Directory.Exists(StoryImagesFolderPath))
+                // Try to use persisted path from settings first
+                var initialPath = _settingsService.Settings?.VideoGeneratorStoryImagesFolder;
+                if (!string.IsNullOrEmpty(initialPath) && Directory.Exists(initialPath))
+                {
+                    dialog.SelectedPath = initialPath;
+                }
+                // Fallback to in-memory property
+                else if (!string.IsNullOrEmpty(StoryImagesFolderPath) && Directory.Exists(StoryImagesFolderPath))
                 {
                     dialog.SelectedPath = StoryImagesFolderPath;
                 }
@@ -2234,6 +3308,14 @@ namespace FlipPix.UI.ViewModels
                 if (dialog.ShowDialog() == System.Windows.Forms.DialogResult.OK)
                 {
                     StoryImagesFolderPath = dialog.SelectedPath;
+
+                    // Save the folder location for next time
+                    if (_settingsService.Settings != null)
+                    {
+                        _settingsService.Settings.VideoGeneratorStoryImagesFolder = dialog.SelectedPath;
+                        _settingsService.SaveSettings(_settingsService.Settings);
+                    }
+
                     AddLog($"Selected story images folder: {StoryImagesFolderPath}");
                 }
             }
@@ -2530,6 +3612,437 @@ namespace FlipPix.UI.ViewModels
             }
 
             CommandManager.InvalidateRequerySuggested();
+        }
+
+        // VACE Methods
+        private void SelectVACEBackgroundImage()
+        {
+            var initialDirectory = _settingsService.Settings?.VideoGeneratorImageFolder;
+
+            if (string.IsNullOrEmpty(initialDirectory) || !Directory.Exists(initialDirectory))
+            {
+                initialDirectory = Environment.GetFolderPath(Environment.SpecialFolder.MyPictures);
+            }
+
+            var openFileDialog = new Microsoft.Win32.OpenFileDialog
+            {
+                Title = "Select Background Image",
+                Filter = "Image Files|*.jpg;*.jpeg;*.png;*.bmp|All Files|*.*",
+                CheckFileExists = true,
+                InitialDirectory = initialDirectory
+            };
+
+            if (openFileDialog.ShowDialog() == true)
+            {
+                VaceBackgroundImagePath = openFileDialog.FileName;
+                AddLog($"VACE: Selected background image: {Path.GetFileName(VaceBackgroundImagePath)}");
+            }
+        }
+
+        private void SelectVACEForegroundImage()
+        {
+            var initialDirectory = _settingsService.Settings?.VideoGeneratorImageFolder;
+
+            if (string.IsNullOrEmpty(initialDirectory) || !Directory.Exists(initialDirectory))
+            {
+                initialDirectory = Environment.GetFolderPath(Environment.SpecialFolder.MyPictures);
+            }
+
+            var openFileDialog = new Microsoft.Win32.OpenFileDialog
+            {
+                Title = "Select Foreground Image",
+                Filter = "Image Files|*.jpg;*.jpeg;*.png;*.bmp|All Files|*.*",
+                CheckFileExists = true,
+                InitialDirectory = initialDirectory
+            };
+
+            if (openFileDialog.ShowDialog() == true)
+            {
+                VaceForegroundImagePath = openFileDialog.FileName;
+                AddLog($"VACE: Selected foreground image: {Path.GetFileName(VaceForegroundImagePath)}");
+            }
+        }
+
+        private void SelectVACEVideo()
+        {
+            var initialDirectory = _settingsService.Settings?.VideoGeneratorImageFolder;
+
+            if (string.IsNullOrEmpty(initialDirectory) || !Directory.Exists(initialDirectory))
+            {
+                initialDirectory = Environment.GetFolderPath(Environment.SpecialFolder.MyVideos);
+            }
+
+            var openFileDialog = new Microsoft.Win32.OpenFileDialog
+            {
+                Title = "Select Input Video",
+                Filter = "Video Files|*.mp4;*.avi;*.mov;*.mkv|All Files|*.*",
+                CheckFileExists = true,
+                InitialDirectory = initialDirectory
+            };
+
+            if (openFileDialog.ShowDialog() == true)
+            {
+                VaceVideoPath = openFileDialog.FileName;
+                AddLog($"VACE: Selected video: {Path.GetFileName(VaceVideoPath)}");
+            }
+        }
+
+        private void LoadVACEBackgroundImagePreview()
+        {
+            if (string.IsNullOrEmpty(VaceBackgroundImagePath) || !File.Exists(VaceBackgroundImagePath))
+            {
+                VaceBackgroundImagePreview = null;
+                VaceBackgroundImageInfo = string.Empty;
+                return;
+            }
+
+            try
+            {
+                var bitmap = new BitmapImage();
+                bitmap.BeginInit();
+                bitmap.CacheOption = BitmapCacheOption.OnLoad;
+                bitmap.UriSource = new Uri(VaceBackgroundImagePath, UriKind.Absolute);
+                bitmap.EndInit();
+                bitmap.Freeze();
+
+                VaceBackgroundImagePreview = bitmap;
+
+                var fileInfo = new FileInfo(VaceBackgroundImagePath);
+                VaceBackgroundImageInfo = $"{bitmap.PixelWidth}x{bitmap.PixelHeight} • {fileInfo.Length / 1024}KB";
+            }
+            catch (Exception ex)
+            {
+                AddLog($"Error loading background image preview: {ex.Message}");
+                VaceBackgroundImageInfo = "Error loading image";
+            }
+        }
+
+        private void LoadVACEForegroundImagePreview()
+        {
+            if (string.IsNullOrEmpty(VaceForegroundImagePath) || !File.Exists(VaceForegroundImagePath))
+            {
+                VaceForegroundImagePreview = null;
+                VaceForegroundImageInfo = string.Empty;
+                return;
+            }
+
+            try
+            {
+                var bitmap = new BitmapImage();
+                bitmap.BeginInit();
+                bitmap.CacheOption = BitmapCacheOption.OnLoad;
+                bitmap.UriSource = new Uri(VaceForegroundImagePath, UriKind.Absolute);
+                bitmap.EndInit();
+                bitmap.Freeze();
+
+                VaceForegroundImagePreview = bitmap;
+
+                var fileInfo = new FileInfo(VaceForegroundImagePath);
+                VaceForegroundImageInfo = $"{bitmap.PixelWidth}x{bitmap.PixelHeight} • {fileInfo.Length / 1024}KB";
+            }
+            catch (Exception ex)
+            {
+                AddLog($"Error loading foreground image preview: {ex.Message}");
+                VaceForegroundImageInfo = "Error loading image";
+            }
+        }
+
+        private void LoadVACEVideoInfo()
+        {
+            if (string.IsNullOrEmpty(VaceVideoPath) || !File.Exists(VaceVideoPath))
+            {
+                VaceVideoInfo = string.Empty;
+                return;
+            }
+
+            try
+            {
+                var fileInfo = new FileInfo(VaceVideoPath);
+                VaceVideoInfo = $"{fileInfo.Name} • {fileInfo.Length / 1024 / 1024:F1}MB";
+            }
+            catch (Exception ex)
+            {
+                AddLog($"Error loading video info: {ex.Message}");
+                VaceVideoInfo = "Error loading video info";
+            }
+        }
+
+        private async Task GenerateVACEVideoAsync()
+        {
+            if (!CanGenerateVACEVideo) return;
+
+            try
+            {
+                await GenerateVACEVideoAsyncInternal();
+            }
+            catch (Exception ex)
+            {
+                AddLog($"ERROR: {ex.Message}");
+                System.Windows.MessageBox.Show($"An error occurred during VACE video generation:\n{ex.Message}", "Error", System.Windows.MessageBoxButton.OK, System.Windows.MessageBoxImage.Error);
+            }
+        }
+
+        private async Task GenerateVACEVideoAsyncInternal()
+        {
+            try
+            {
+                AddLog("=== Starting VACE video generation ===");
+                IsProcessingVACE = true;
+
+                // Clear previous result
+                HasResultVideo = false;
+                ResultVideoPath = string.Empty;
+                VideoInfo = string.Empty;
+
+                ProcessingProgress = 0;
+                ProcessingStatus = "Preparing VACE workflow...";
+                AddLog($"Background image: {Path.GetFileName(VaceBackgroundImagePath)}");
+                AddLog($"Foreground image: {Path.GetFileName(VaceForegroundImagePath)}");
+                AddLog($"Input video: {Path.GetFileName(VaceVideoPath)}");
+                AddLog($"Prompt: {VacePrompt}");
+
+                // Check if ComfyUI has crashed and restart if needed
+                ProcessingStatus = "Checking ComfyUI status...";
+                AddLog("Checking if ComfyUI is running...");
+
+                var comfyUIOk = await _comfyUIService.DetectAndRestartIfCrashedAsync(
+                    status => AddLog($"[Auto-Restart] {status}"));
+
+                if (!comfyUIOk)
+                {
+                    AddLog("ERROR: ComfyUI is not running and auto-restart failed or is disabled");
+                    System.Windows.MessageBox.Show(
+                        "ComfyUI is not running. Please start ComfyUI manually or configure auto-restart in settings.",
+                        "ComfyUI Not Running",
+                        System.Windows.MessageBoxButton.OK,
+                        System.Windows.MessageBoxImage.Warning);
+                    return;
+                }
+
+                AddLog("ComfyUI is running and responsive");
+
+                // Ensure ComfyUI is connected
+                if (!_comfyUIService.IsConnected)
+                {
+                    ProcessingStatus = "Connecting to ComfyUI...";
+                    AddLog("Connecting to ComfyUI WebSocket...");
+                    await _comfyUIService.ConnectAsync();
+                    AddLog("Connected to ComfyUI");
+                }
+                else
+                {
+                    AddLog("ComfyUI already connected");
+                }
+
+                // Load VACE workflow
+                var workflowPath = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "workflow", "benji_Wan_Vace-Native-V2V-CN_With_3_ExtendLongVideoAPI.json");
+
+                AddLog($"Loading VACE workflow: benji_Wan_Vace-Native-V2V-CN_With_3_ExtendLongVideoAPI.json");
+
+                if (!File.Exists(workflowPath))
+                {
+                    AddLog($"ERROR: Workflow file not found: {workflowPath}");
+                    System.Windows.MessageBox.Show($"VACE workflow file not found:\n{workflowPath}", "Error", System.Windows.MessageBoxButton.OK, System.Windows.MessageBoxImage.Error);
+                    return;
+                }
+
+                var workflowJson = await File.ReadAllTextAsync(workflowPath);
+                var workflow = JsonSerializer.Deserialize<JsonElement>(workflowJson);
+
+                // Upload images and video
+                ProcessingStatus = "Uploading assets to ComfyUI...";
+                ProcessingProgress = 10;
+                AddLog("Uploading background image to ComfyUI...");
+                var uploadedBgImageName = await _comfyUIService.UploadImageAsync(VaceBackgroundImagePath);
+                if (string.IsNullOrEmpty(uploadedBgImageName))
+                {
+                    AddLog("ERROR: Background image upload failed");
+                    System.Windows.MessageBox.Show("Failed to upload background image to ComfyUI.", "Upload Failed", System.Windows.MessageBoxButton.OK, System.Windows.MessageBoxImage.Error);
+                    return;
+                }
+                AddLog($"Background image uploaded: {uploadedBgImageName}");
+
+                AddLog("Uploading foreground image to ComfyUI...");
+                var uploadedFgImageName = await _comfyUIService.UploadImageAsync(VaceForegroundImagePath);
+                if (string.IsNullOrEmpty(uploadedFgImageName))
+                {
+                    AddLog("ERROR: Foreground image upload failed");
+                    System.Windows.MessageBox.Show("Failed to upload foreground image to ComfyUI.", "Upload Failed", System.Windows.MessageBoxButton.OK, System.Windows.MessageBoxImage.Error);
+                    return;
+                }
+                AddLog($"Foreground image uploaded: {uploadedFgImageName}");
+
+                AddLog("Uploading video to ComfyUI...");
+                var uploadedVideoName = await _comfyUIService.UploadVideoAsync(VaceVideoPath);
+                if (string.IsNullOrEmpty(uploadedVideoName))
+                {
+                    AddLog("ERROR: Video upload failed");
+                    System.Windows.MessageBox.Show("Failed to upload video to ComfyUI.", "Upload Failed", System.Windows.MessageBoxButton.OK, System.Windows.MessageBoxImage.Error);
+                    return;
+                }
+                AddLog($"Video uploaded: {uploadedVideoName}");
+
+                // Update workflow parameters
+                ProcessingStatus = "Updating workflow parameters...";
+                ProcessingProgress = 20;
+                var updatedWorkflow = UpdateVACEWorkflowParameters(workflow, uploadedBgImageName, uploadedFgImageName, uploadedVideoName);
+
+                // Execute workflow
+                ProcessingStatus = "Generating VACE video...";
+                ProcessingProgress = 30;
+                AddLog("Executing VACE video generation workflow...");
+
+                var progress = new Progress<FlipPix.ComfyUI.Models.ProgressMessage>(progressMsg =>
+                {
+                    if (progressMsg.Data?.Value != null && progressMsg.Data?.Max != null)
+                    {
+                        var percent = (double)progressMsg.Data.Value / progressMsg.Data.Max * 100;
+                        System.Windows.Application.Current.Dispatcher.Invoke(() =>
+                        {
+                            ProcessingProgress = 30 + (percent * 0.6);
+                            ProcessingStatus = $"Generating VACE video: {progressMsg.Data.Value}/{progressMsg.Data.Max}";
+                        });
+                    }
+                });
+
+                var promptId = await _comfyUIService.ExecuteWorkflowAsync(updatedWorkflow, progress);
+
+                System.Windows.Application.Current.Dispatcher.Invoke(() =>
+                {
+                    ProcessingProgress = 90;
+                    ProcessingStatus = "VACE workflow completed, retrieving video...";
+                });
+
+                AddLog($"VACE workflow execution completed with prompt ID: {promptId}");
+
+                // Wait and retrieve the output video
+                ProcessingStatus = "Retrieving output video...";
+                ProcessingProgress = 95;
+                AddLog("Looking for generated VACE video...");
+
+                var outputVideo = await WaitForVideoInOutputFolderAsync(promptId);
+
+                if (outputVideo != null && File.Exists(outputVideo))
+                {
+                    ResultVideoPath = outputVideo;
+                    HasResultVideo = true;
+
+                    var fileInfo = new FileInfo(outputVideo);
+                    VideoInfo = $"VACE Video • {fileInfo.Length / 1024}KB";
+
+                    ProcessingProgress = 100;
+                    ProcessingStatus = "VACE Complete!";
+                    StatusBarMessage = $"VACE video generation complete - {Path.GetFileName(outputVideo)}";
+
+                    AddLog($"=== VACE video generation completed successfully ===");
+                    AddLog($"Video saved to: {outputVideo}");
+                }
+                else
+                {
+                    AddLog("WARNING: No output video found after VACE generation");
+                    ProcessingStatus = "No output generated";
+                }
+            }
+            catch (Exception ex)
+            {
+                AddLog($"ERROR: {ex.Message}");
+                AddLog($"Stack trace: {ex.StackTrace}");
+                ProcessingStatus = "Error occurred";
+                StatusBarMessage = "Error during VACE video generation";
+                throw;
+            }
+            finally
+            {
+                IsProcessingVACE = false;
+            }
+        }
+
+        private JsonElement UpdateVACEWorkflowParameters(JsonElement workflow, string backgroundImageName, string foregroundImageName, string videoName)
+        {
+            var workflowDict = JsonSerializer.Deserialize<Dictionary<string, JsonElement>>(workflow.GetRawText());
+
+            if (workflowDict == null) return workflow;
+
+            AddLog("=== Updating VACE workflow parameters ===");
+
+            // Update background image (node 383)
+            if (workflowDict.ContainsKey("383"))
+            {
+                var node = JsonSerializer.Deserialize<Dictionary<string, object>>(workflowDict["383"].GetRawText());
+                if (node != null && node.ContainsKey("inputs"))
+                {
+                    var inputs = JsonSerializer.Deserialize<Dictionary<string, object>>(
+                        JsonSerializer.Serialize(node["inputs"]));
+                    if (inputs != null)
+                    {
+                        inputs["image"] = backgroundImageName;
+                        node["inputs"] = inputs;
+                        workflowDict["383"] = JsonSerializer.SerializeToElement(node);
+                        AddLog($"✓ Node 383 (LoadImage) - Background image: {backgroundImageName}");
+                    }
+                }
+            }
+
+            // Update foreground image (node 390)
+            if (workflowDict.ContainsKey("390"))
+            {
+                var node = JsonSerializer.Deserialize<Dictionary<string, object>>(workflowDict["390"].GetRawText());
+                if (node != null && node.ContainsKey("inputs"))
+                {
+                    var inputs = JsonSerializer.Deserialize<Dictionary<string, object>>(
+                        JsonSerializer.Serialize(node["inputs"]));
+                    if (inputs != null)
+                    {
+                        inputs["image"] = foregroundImageName;
+                        node["inputs"] = inputs;
+                        workflowDict["390"] = JsonSerializer.SerializeToElement(node);
+                        AddLog($"✓ Node 390 (LoadImage) - Foreground image: {foregroundImageName}");
+                    }
+                }
+            }
+
+            // Update video input (node 96)
+            if (workflowDict.ContainsKey("96"))
+            {
+                var node = JsonSerializer.Deserialize<Dictionary<string, object>>(workflowDict["96"].GetRawText());
+                if (node != null && node.ContainsKey("inputs"))
+                {
+                    var inputs = JsonSerializer.Deserialize<Dictionary<string, object>>(
+                        JsonSerializer.Serialize(node["inputs"]));
+                    if (inputs != null)
+                    {
+                        // VHS_LoadVideoPath requires a full path to the video file in ComfyUI's input directory
+                        var comfyUIInputPath = Path.Combine(_settingsService.Settings?.ComfyUIFolderPath ?? "", "input", videoName);
+                        inputs["video"] = comfyUIInputPath;
+                        node["inputs"] = inputs;
+                        workflowDict["96"] = JsonSerializer.SerializeToElement(node);
+                        AddLog($"✓ Node 96 (LoadVideo) - Video: {comfyUIInputPath}");
+                    }
+                }
+            }
+
+            // Update positive prompt (node 15)
+            if (workflowDict.ContainsKey("15"))
+            {
+                var node = JsonSerializer.Deserialize<Dictionary<string, object>>(workflowDict["15"].GetRawText());
+                if (node != null && node.ContainsKey("inputs"))
+                {
+                    var inputs = JsonSerializer.Deserialize<Dictionary<string, object>>(
+                        JsonSerializer.Serialize(node["inputs"]));
+                    if (inputs != null)
+                    {
+                        inputs["text"] = VacePrompt;
+                        node["inputs"] = inputs;
+                        workflowDict["15"] = JsonSerializer.SerializeToElement(node);
+                        AddLog($"✓ Node 15 (CLIPTextEncode) - Prompt updated");
+                    }
+                }
+            }
+
+            AddLog("=== VACE workflow parameters updated successfully ===");
+
+            var updatedWorkflow = JsonSerializer.SerializeToElement(workflowDict);
+            return updatedWorkflow;
         }
     }
 }

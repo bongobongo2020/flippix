@@ -162,10 +162,19 @@ namespace FlipPix.UI
             services.AddSingleton<IAppLogger, FileLogger>();
             services.AddSingleton<VideoAnalysisService>();
             services.AddSingleton<ImageAnalysisService>();
-            services.AddSingleton<WorkflowExecutionService>();
-            services.AddSingleton<ChunkCreatorService>();
             services.AddHttpClient<OllamaService>();
-            services.AddHttpClient<LMStudioService>();
+
+            // LMStudioService with dynamic URL from SettingsService
+            services.AddSingleton<LMStudioService>(provider =>
+            {
+                var httpClientFactory = provider.GetRequiredService<IHttpClientFactory>();
+                var httpClient = httpClientFactory.CreateClient();
+                var logger = provider.GetRequiredService<IAppLogger>();
+                var settingsService = provider.GetRequiredService<SettingsService>();
+
+                // Pass a function that dynamically retrieves the URL from settings
+                return new LMStudioService(httpClient, logger, () => settingsService.Settings.LMStudioSettings?.BaseUrl ?? "http://localhost:1234");
+            });
 
             // Prompt service
             services.AddSingleton<IPromptService, PromptService>();
@@ -195,23 +204,6 @@ namespace FlipPix.UI
             services.AddSingleton<FlipPix.ComfyUI.Services.ComfyUIService>();
 
             // ViewModels
-            services.AddTransient<MainViewModel>();
-            services.AddTransient<ChunkCreatorViewModel>(provider =>
-            {
-                var comfyUIService = provider.GetRequiredService<FlipPix.ComfyUI.Services.ComfyUIService>();
-                var logger = provider.GetRequiredService<IAppLogger>();
-                var chunkCreatorService = provider.GetRequiredService<ChunkCreatorService>();
-                var videoAnalysisService = provider.GetRequiredService<VideoAnalysisService>();
-                var workflowExecutionService = provider.GetRequiredService<WorkflowExecutionService>();
-                return new ChunkCreatorViewModel(comfyUIService, logger, chunkCreatorService, videoAnalysisService, workflowExecutionService);
-            });
-            services.AddTransient<LongCatViewModel>(provider =>
-            {
-                var comfyUIService = provider.GetRequiredService<FlipPix.ComfyUI.Services.ComfyUIService>();
-                var logger = provider.GetRequiredService<IAppLogger>();
-                var imageAnalysisService = provider.GetRequiredService<ImageAnalysisService>();
-                return new LongCatViewModel(comfyUIService, logger, imageAnalysisService);
-            });
             services.AddTransient<FlipPixViewModel>(provider =>
             {
                 var comfyUIService = provider.GetRequiredService<FlipPix.ComfyUI.Services.ComfyUIService>();
@@ -247,10 +239,9 @@ namespace FlipPix.UI
             services.AddTransient<StoryVideoViewModel>(provider =>
             {
                 var comfyUIService = provider.GetRequiredService<FlipPix.ComfyUI.Services.ComfyUIService>();
-                var lmStudioService = provider.GetRequiredService<LMStudioService>();
                 var logger = provider.GetRequiredService<IAppLogger>();
                 var settingsService = provider.GetRequiredService<SettingsService>();
-                return new StoryVideoViewModel(comfyUIService, lmStudioService, logger, settingsService);
+                return new StoryVideoViewModel(comfyUIService, logger, settingsService);
             });
             services.AddTransient<OllamaViewModel>(provider =>
             {
@@ -261,9 +252,6 @@ namespace FlipPix.UI
             services.AddTransient<ComfyUIFolderSetupViewModel>();
 
             // Views
-            services.AddTransient<MainWindow>();
-            services.AddTransient<ChunkCreatorWindow>();
-            services.AddTransient<LongCatWindow>();
             services.AddTransient<FlipPixWindow>();
             services.AddTransient<VideoGeneratorWindow>();
             services.AddTransient<ImageGeneratorWindow>();
