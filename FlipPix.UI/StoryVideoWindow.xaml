@@ -108,7 +108,7 @@
                 <TextBlock Text="Story Video Generator"
                           FontSize="28" FontWeight="Bold"
                           Foreground="White"/>
-                <TextBlock Text="Generate 4 video prompts from an image, then create a story video"
+                <TextBlock Text="Load prompts and generate a story video with multiple clips"
                           FontSize="13" Foreground="#FFFAF0"
                           Margin="0,5,0,0"/>
             </StackPanel>
@@ -118,153 +118,32 @@
         <ScrollViewer Grid.Row="1" VerticalScrollBarVisibility="Auto">
             <StackPanel Margin="20,15,20,15">
 
-                <!-- Step 1: Select Image -->
+                <!-- Step 1: Load Prompts -->
                 <Border Style="{StaticResource SectionPanelStyle}">
-                    <Grid>
-                        <Grid.ColumnDefinitions>
-                            <ColumnDefinition Width="*"/>
-                            <ColumnDefinition Width="300"/>
-                        </Grid.ColumnDefinitions>
-
-                        <StackPanel Grid.Column="0" Margin="0,0,20,0">
-                            <TextBlock Text="Step 1: Select Image" Style="{StaticResource HeaderTextStyle}" Foreground="#9C27B0"/>
-                            <TextBlock Text="Choose an image to generate story prompts from"
-                                       FontSize="12"
-                                       Foreground="#666"
-                                       Margin="0,0,0,15"/>
-
-                            <Button Content="Select Image"
-                                   Style="{StaticResource PrimaryButtonStyle}"
-                                   Command="{Binding SelectImageCommand}"
-                                   Width="200"
-                                   HorizontalAlignment="Left"
+                    <StackPanel>
+                        <TextBlock Text="Step 1: Load Story Prompts" Style="{StaticResource HeaderTextStyle}" Foreground="#9C27B0"/>
+                        <TextBlock Text="Load a JSON file containing your story prompts or manually edit them below"
+                                   FontSize="12"
+                                   Foreground="#666"
                                    Margin="0,0,0,15"/>
-
-                            <TextBlock Text="{Binding SelectedImagePath}"
-                                      FontSize="11"
-                                      Foreground="#666"
-                                      TextWrapping="Wrap"
-                                      Visibility="{Binding HasSelectedImage, Converter={StaticResource BooleanToVisibilityConverter}}"/>
-                        </StackPanel>
-
-                        <Border Grid.Column="1"
-                                BorderBrush="#DEE2E6"
-                                BorderThickness="2"
-                                Background="White"
-                                CornerRadius="5"
-                                Height="200">
-                            <Grid>
-                                <TextBlock Text="No image selected"
-                                          HorizontalAlignment="Center"
-                                          VerticalAlignment="Center"
-                                          Foreground="#999"
-                                          FontStyle="Italic">
-                                    <TextBlock.Style>
-                                        <Style TargetType="TextBlock">
-                                            <Setter Property="Visibility" Value="Collapsed"/>
-                                            <Style.Triggers>
-                                                <DataTrigger Binding="{Binding HasSelectedImage}" Value="False">
-                                                    <Setter Property="Visibility" Value="Visible"/>
-                                                </DataTrigger>
-                                            </Style.Triggers>
-                                        </Style>
-                                    </TextBlock.Style>
-                                </TextBlock>
-
-                                <Image Source="{Binding SelectedImageSource}"
-                                       Stretch="Uniform"
-                                       Visibility="{Binding HasSelectedImage, Converter={StaticResource BooleanToVisibilityConverter}}"/>
-                            </Grid>
-                        </Border>
-                    </Grid>
-                </Border>
-
-                <!-- Step 1.5: Image Analysis with LM Studio -->
-                <Border Style="{StaticResource SectionPanelStyle}">
-                    <StackPanel>
-                        <TextBlock Text="🔍 Image Analysis with Qwen-VL" Style="{StaticResource HeaderTextStyle}" Foreground="#9C27B0"/>
-
-                        <Button Content="🧠 Analyze with Qwen-VL"
-                               Style="{StaticResource SecondaryButtonStyle}"
-                               Command="{Binding AnalyzeImageCommand}"
-                               IsEnabled="{Binding HasSelectedImage}"
-                               Width="250"
-                               HorizontalAlignment="Left"
-                               Margin="0,0,0,10"/>
-
-                        <TextBox Text="{Binding ImageAnalysis, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
-                                TextWrapping="Wrap"
-                                AcceptsReturn="True"
-                                Height="100"
-                                Padding="12"
-                                VerticalScrollBarVisibility="Auto"
-                                Background="White"
-                                BorderBrush="#CED4DA"
-                                FontSize="12"
-                                Margin="0,0,0,10"
-                                IsReadOnly="{Binding IsAnalyzing}"/>
-
-                        <!-- Processing Status for Analysis -->
-                        <Border Background="#FFF9F0"
-                                BorderBrush="#FFE0B0"
-                                BorderThickness="1"
-                                CornerRadius="5"
-                                Padding="12"
-                                Visibility="{Binding IsAnalyzing, Converter={StaticResource BooleanToVisibilityConverter}}"
-                                Margin="0,0,0,10">
-                            <StackPanel>
-                                <TextBlock Text="{Binding AnalysisStatus}"
-                                          FontWeight="SemiBold"
-                                          FontSize="11"
-                                          Margin="0,0,0,5"
-                                          TextAlignment="Center"/>
-                                <ProgressBar Value="{Binding AnalysisProgress}"
-                                            Height="16"
-                                            Foreground="#9C27B0"/>
-                            </StackPanel>
-                        </Border>
-                    </StackPanel>
-                </Border>
-
-                <!-- Step 2: Generate Prompts -->
-                <Border Style="{StaticResource SectionPanelStyle}">
-                    <StackPanel>
-                        <TextBlock Text="Step 2: Generate Story Prompts" Style="{StaticResource HeaderTextStyle}" Foreground="#9C27B0"/>
-
-                        <TextBlock Text="Custom Prompt for AI" FontWeight="SemiBold" FontSize="12" Margin="0,0,0,5"/>
-                        <TextBox Text="{Binding CustomPrompt, Mode=TwoWay}"
-                                TextWrapping="Wrap"
-                                Height="60"
-                                Padding="10"
-                                Background="White"
-                                BorderBrush="#CED4DA"
-                                FontSize="12"
-                                Margin="0,0,0,15"/>
-
-                        <Button Content="Generate 10 Prompts from Image"
-                               Style="{StaticResource PrimaryButtonStyle}"
-                               Command="{Binding GeneratePromptsCommand}"
-                               Width="280"
-                               HorizontalAlignment="Left"
-                               Margin="0,0,0,15"/>
 
                         <!-- Save/Load Buttons -->
                         <StackPanel Orientation="Horizontal" Margin="0,0,0,15">
+                            <Button Content="Load Prompts"
+                                   Style="{StaticResource PrimaryButtonStyle}"
+                                   Command="{Binding LoadPromptsCommand}"
+                                   Width="120"
+                                   Height="35"
+                                   Margin="0,0,10,0"/>
                             <Button Content="Save Prompts"
                                    Style="{StaticResource SecondaryButtonStyle}"
                                    Command="{Binding SavePromptsCommand}"
                                    Width="120"
-                                   Height="35"
-                                   Margin="0,0,10,0"/>
-                            <Button Content="Load Prompts"
-                                   Style="{StaticResource SecondaryButtonStyle}"
-                                   Command="{Binding LoadPromptsCommand}"
-                                   Width="120"
                                    Height="35"/>
                         </StackPanel>
 
-                        <!-- Generated Prompts Display -->
-                        <Grid Visibility="{Binding HasGeneratedPrompts, Converter={StaticResource BooleanToVisibilityConverter}}">
+                        <!-- Prompts Display -->
+                        <Grid>
                             <Grid.ColumnDefinitions>
                                 <ColumnDefinition Width="*"/>
                                 <ColumnDefinition Width="*"/>
@@ -279,7 +158,7 @@
 
                             <StackPanel Grid.Row="0" Grid.Column="0" Margin="0,0,8,8">
                                 <TextBlock Text="Prompt 1:" FontWeight="SemiBold" FontSize="11" Margin="0,0,0,3"/>
-                                <TextBox Text="{Binding GeneratedPrompt1, Mode=TwoWay}"
+                                <TextBox Text="{Binding GeneratedPrompt1, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
                                         TextWrapping="Wrap"
                                         Height="70"
                                         Padding="8"
@@ -292,7 +171,7 @@
 
                             <StackPanel Grid.Row="0" Grid.Column="1" Margin="8,0,0,8">
                                 <TextBlock Text="Prompt 2:" FontWeight="SemiBold" FontSize="11" Margin="0,0,0,3"/>
-                                <TextBox Text="{Binding GeneratedPrompt2, Mode=TwoWay}"
+                                <TextBox Text="{Binding GeneratedPrompt2, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
                                         TextWrapping="Wrap"
                                         Height="70"
                                         Padding="8"
@@ -305,7 +184,7 @@
 
                             <StackPanel Grid.Row="1" Grid.Column="0" Margin="0,0,8,8">
                                 <TextBlock Text="Prompt 3:" FontWeight="SemiBold" FontSize="11" Margin="0,0,0,3"/>
-                                <TextBox Text="{Binding GeneratedPrompt3, Mode=TwoWay}"
+                                <TextBox Text="{Binding GeneratedPrompt3, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
                                         TextWrapping="Wrap"
                                         Height="70"
                                         Padding="8"
@@ -318,7 +197,7 @@
 
                             <StackPanel Grid.Row="1" Grid.Column="1" Margin="8,0,0,8">
                                 <TextBlock Text="Prompt 4:" FontWeight="SemiBold" FontSize="11" Margin="0,0,0,3"/>
-                                <TextBox Text="{Binding GeneratedPrompt4, Mode=TwoWay}"
+                                <TextBox Text="{Binding GeneratedPrompt4, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
                                         TextWrapping="Wrap"
                                         Height="70"
                                         Padding="8"
@@ -331,7 +210,7 @@
 
                             <StackPanel Grid.Row="2" Grid.Column="0" Margin="0,0,8,8">
                                 <TextBlock Text="Prompt 5:" FontWeight="SemiBold" FontSize="11" Margin="0,0,0,3"/>
-                                <TextBox Text="{Binding GeneratedPrompt5, Mode=TwoWay}"
+                                <TextBox Text="{Binding GeneratedPrompt5, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
                                         TextWrapping="Wrap"
                                         Height="70"
                                         Padding="8"
@@ -344,7 +223,7 @@
 
                             <StackPanel Grid.Row="2" Grid.Column="1" Margin="8,0,0,8">
                                 <TextBlock Text="Prompt 6:" FontWeight="SemiBold" FontSize="11" Margin="0,0,0,3"/>
-                                <TextBox Text="{Binding GeneratedPrompt6, Mode=TwoWay}"
+                                <TextBox Text="{Binding GeneratedPrompt6, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
                                         TextWrapping="Wrap"
                                         Height="70"
                                         Padding="8"
@@ -357,7 +236,7 @@
 
                             <StackPanel Grid.Row="3" Grid.Column="0" Margin="0,0,8,8">
                                 <TextBlock Text="Prompt 7:" FontWeight="SemiBold" FontSize="11" Margin="0,0,0,3"/>
-                                <TextBox Text="{Binding GeneratedPrompt7, Mode=TwoWay}"
+                                <TextBox Text="{Binding GeneratedPrompt7, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
                                         TextWrapping="Wrap"
                                         Height="70"
                                         Padding="8"
@@ -370,7 +249,7 @@
 
                             <StackPanel Grid.Row="3" Grid.Column="1" Margin="8,0,0,8">
                                 <TextBlock Text="Prompt 8:" FontWeight="SemiBold" FontSize="11" Margin="0,0,0,3"/>
-                                <TextBox Text="{Binding GeneratedPrompt8, Mode=TwoWay}"
+                                <TextBox Text="{Binding GeneratedPrompt8, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
                                         TextWrapping="Wrap"
                                         Height="70"
                                         Padding="8"
@@ -383,7 +262,7 @@
 
                             <StackPanel Grid.Row="4" Grid.Column="0" Margin="0,0,8,0">
                                 <TextBlock Text="Prompt 9:" FontWeight="SemiBold" FontSize="11" Margin="0,0,0,3"/>
-                                <TextBox Text="{Binding GeneratedPrompt9, Mode=TwoWay}"
+                                <TextBox Text="{Binding GeneratedPrompt9, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
                                         TextWrapping="Wrap"
                                         Height="70"
                                         Padding="8"
@@ -396,7 +275,7 @@
 
                             <StackPanel Grid.Row="4" Grid.Column="1" Margin="8,0,0,0">
                                 <TextBlock Text="Prompt 10:" FontWeight="SemiBold" FontSize="11" Margin="0,0,0,3"/>
-                                <TextBox Text="{Binding GeneratedPrompt10, Mode=TwoWay}"
+                                <TextBox Text="{Binding GeneratedPrompt10, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
                                         TextWrapping="Wrap"
                                         Height="70"
                                         Padding="8"
@@ -410,17 +289,17 @@
                     </StackPanel>
                 </Border>
 
-                <!-- Step 3: Generate Video -->
+                <!-- Step 2: Generate Video -->
                 <Border Style="{StaticResource SectionPanelStyle}">
                     <StackPanel>
-                        <TextBlock Text="Step 3: Generate Story Video" Style="{StaticResource HeaderTextStyle}" Foreground="#9C27B0"/>
+                        <TextBlock Text="Step 2: Generate Story Video" Style="{StaticResource HeaderTextStyle}" Foreground="#9C27B0"/>
 
-                        <TextBlock Text="This will use the 4 prompts to create a multi-scene story video"
+                        <TextBlock Text="This will generate video clips for each prompt using the WCFMAPI workflow (LTX-2 model)"
                                    FontSize="12"
                                    Foreground="#666"
                                    Margin="0,0,0,10"/>
 
-                        <TextBlock Text="⚠ Note: Video generation can take 10-30 minutes depending on your hardware"
+                        <TextBlock Text="⚠ Note: Video generation can take 2-10 minutes per clip depending on your hardware"
                                    FontSize="11"
                                    Foreground="#E91E63"
                                    FontWeight="SemiBold"
@@ -461,7 +340,7 @@
 
                         <!-- Result Video -->
                         <StackPanel Visibility="{Binding HasResultVideo, Converter={StaticResource BooleanToVisibilityConverter}}">
-                            <TextBlock Text="✓ Video Generated Successfully!"
+                            <TextBlock Text="✓ Videos Generated Successfully!"
                                       FontWeight="Bold"
                                       FontSize="14"
                                       Foreground="#4CAF50"

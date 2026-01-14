@@ -340,31 +340,64 @@ namespace FlipPix.UI.ViewModels
         // Methods
         private void SelectPromptJson()
         {
+            var initialDirectory = _settingsService.Settings?.StoryGeneratorPromptJsonFolder;
+
+            if (string.IsNullOrEmpty(initialDirectory) || !Directory.Exists(initialDirectory))
+            {
+                initialDirectory = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "prompts");
+            }
+
             var dialog = new Microsoft.Win32.OpenFileDialog
             {
                 Filter = "JSON Files (*.json)|*.json|All Files (*.*)|*.*",
                 Title = "Select Story Prompts JSON File",
-                InitialDirectory = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "prompts")
+                InitialDirectory = initialDirectory
             };
 
             if (dialog.ShowDialog() == true)
             {
                 PromptJsonFilePath = dialog.FileName;
+
+                // Save the folder location for next time
+                var folderPath = Path.GetDirectoryName(dialog.FileName);
+                if (!string.IsNullOrEmpty(folderPath) && _settingsService.Settings != null)
+                {
+                    _settingsService.Settings.StoryGeneratorPromptJsonFolder = folderPath;
+                    _settingsService.SaveSettings(_settingsService.Settings);
+                }
+
                 AddLog($"Selected prompt file: {Path.GetFileName(PromptJsonFilePath)}");
             }
         }
 
         private void SelectInputImage()
         {
+            var initialDirectory = _settingsService.Settings?.StoryGeneratorInputImageFolder;
+
+            if (string.IsNullOrEmpty(initialDirectory) || !Directory.Exists(initialDirectory))
+            {
+                initialDirectory = Environment.GetFolderPath(Environment.SpecialFolder.MyPictures);
+            }
+
             var dialog = new Microsoft.Win32.OpenFileDialog
             {
                 Filter = "Image Files (*.jpg;*.jpeg;*.png;*.bmp)|*.jpg;*.jpeg;*.png;*.bmp|All Files (*.*)|*.*",
-                Title = "Select Input Image"
+                Title = "Select Input Image",
+                InitialDirectory = initialDirectory
             };
 
             if (dialog.ShowDialog() == true)
             {
                 InputImagePath = dialog.FileName;
+
+                // Save the folder location for next time
+                var folderPath = Path.GetDirectoryName(dialog.FileName);
+                if (!string.IsNullOrEmpty(folderPath) && _settingsService.Settings != null)
+                {
+                    _settingsService.Settings.StoryGeneratorInputImageFolder = folderPath;
+                    _settingsService.SaveSettings(_settingsService.Settings);
+                }
+
                 AddLog($"Selected input image: {Path.GetFileName(InputImagePath)}");
             }
         }

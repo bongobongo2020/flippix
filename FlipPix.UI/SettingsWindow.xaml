@@ -134,11 +134,11 @@
                             </Grid.RowDefinitions>
 
                             <TextBlock Grid.Row="0" Grid.Column="0" Text="Server:" VerticalAlignment="Center" Margin="0,0,10,10"/>
-                            <TextBox Grid.Row="0" Grid.Column="1" x:Name="LMStudioServerTextBox" Text="{Binding LMStudioServer}" Margin="0,0,10,10"/>
+                            <TextBox Grid.Row="0" Grid.Column="1" x:Name="LMStudioServerTextBox" Text="{Binding LMStudioServer, UpdateSourceTrigger=PropertyChanged}" Margin="0,0,10,10"/>
                             <Button Grid.Row="0" Grid.Column="2" Content="Test" Click="TestLMStudioConnection_Click" Padding="15,5" Margin="0,0,0,10"/>
 
                             <TextBlock Grid.Row="1" Grid.Column="0" Text="Port:" VerticalAlignment="Center" Margin="0,0,10,10"/>
-                            <TextBox Grid.Row="1" Grid.Column="1" x:Name="LMStudioPortTextBox" Text="{Binding LMStudioPort}" Margin="0,0,0,10"/>
+                            <TextBox Grid.Row="1" Grid.Column="1" x:Name="LMStudioPortTextBox" Text="{Binding LMStudioPort, UpdateSourceTrigger=PropertyChanged}" Margin="0,0,0,10"/>
 
                             <TextBlock Grid.Row="2" Grid.Column="0" Text="AI Model:" VerticalAlignment="Center" Margin="0,0,10,10"/>
                             <Grid Grid.Row="2" Grid.Column="1" Grid.ColumnSpan="2" Margin="0,0,0,10">
@@ -146,7 +146,7 @@
                                     <ColumnDefinition Width="*"/>
                                     <ColumnDefinition Width="Auto"/>
                                 </Grid.ColumnDefinitions>
-                                <ComboBox Grid.Column="0" x:Name="LMStudioModelComboBox" ItemsSource="{Binding AvailableModels}"
+                                <ComboBox Grid.Column="0" x:Name="LMStudioModelComboBox"
                                           SelectedValue="{Binding SelectedModel}" SelectedValuePath="Name" DisplayMemberPath="Name" Margin="0,0,10,0"/>
                                 <Button Grid.Column="1" Content="Refresh" Click="RefreshLMStudioModels_Click" Padding="15,5"/>
                             </Grid>

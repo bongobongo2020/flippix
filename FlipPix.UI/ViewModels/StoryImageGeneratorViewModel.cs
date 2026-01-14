@@ -58,10 +58,14 @@ namespace FlipPix.UI.ViewModels
         private bool _spicyContentEnabled = false;
         private string _customStyleTemplate = "";
 
+        // Resolution/Orientation settings
+        private ObservableCollection<string> _availableOrientations = new();
+        private string _selectedOrientation = "Portrait (944x1408)";
+
         // Upscale settings
         private bool _upscaleEnabled = true;
-        private string _upscaleMethod = "Photo"; // Photo or Illustration
-        private double _upscaleAmount = 50.0; // percentage of original (50 = downscale to 50%, then upscale x4)
+        private ObservableCollection<string> _upscaleMethods = new();
+        private string _upscaleMethod = "Photo";
 
         public StoryImageGeneratorViewModel(
             FlipPix.ComfyUI.Services.ComfyUIService comfyUIService,
@@ -88,6 +92,12 @@ namespace FlipPix.UI.ViewModels
             // Initialize available styles
             InitializeAvailableStyles();
 
+            // Initialize orientations
+            InitializeOrientations();
+
+            // Initialize upscale methods
+            InitializeUpscaleMethods();
+
             AddLog("Story Image Generator initialized");
         }
 
@@ -95,11 +105,29 @@ namespace FlipPix.UI.ViewModels
         {
             AvailableStyles.Clear();
             AvailableStyles.Add("Phone Photo");
+            AvailableStyles.Add("Oil Painting");
+            AvailableStyles.Add("Watercolor");
+            AvailableStyles.Add("Vintage Film");
             AvailableStyles.Add("Cinematic");
-            AvailableStyles.Add("Natural Light");
-            AvailableStyles.Add("Portrait");
-            AvailableStyles.Add("Documentary");
-            AvailableStyles.Add("Custom");
+            AvailableStyles.Add("Pencil Sketch");
+            AvailableStyles.Add("Anime");
+            AvailableStyles.Add("3D Render");
+            AvailableStyles.Add("Digital Art");
+            AvailableStyles.Add("Pop Art");
+        }
+
+        private void InitializeOrientations()
+        {
+            AvailableOrientations.Clear();
+            AvailableOrientations.Add("Portrait (944x1408)");
+            AvailableOrientations.Add("Landscape (1408x944)");
+            AvailableOrientations.Add("Square (1088x1088)");
+        }
+
+        private void InitializeUpscaleMethods()
+        {
+            UpscaleMethods.Clear();
+            UpscaleMethods.Add("Photo");
         }
 
         // Properties
@@ -220,8 +248,6 @@ namespace FlipPix.UI.ViewModels
 
         public bool CanLoadPrompts => !string.IsNullOrEmpty(PromptJsonFilePath) &&
                                       File.Exists(PromptJsonFilePath) &&
-                                      !string.IsNullOrEmpty(InputImagePath) &&
-                                      File.Exists(InputImagePath) &&
                                       !IsProcessingQueue;
 
         public bool CanProcessQueue => QueueItems.Any(item => item.Status == "Queued") &&
@@ -460,6 +486,33 @@ namespace FlipPix.UI.ViewModels
             }
         }
 
+        // Resolution/Orientation Properties
+        public ObservableCollection<string> AvailableOrientations
+        {
+            get => _availableOrientations;
+            set
+            {
+                if (_availableOrientations != value)
+                {
+                    _availableOrientations = value;
+                    OnPropertyChanged();
+                }
+            }
+        }
+
+        public string SelectedOrientation
+        {
+            get => _selectedOrientation;
+            set
+            {
+                if (_selectedOrientation != value)
+                {
+                    _selectedOrientation = value;
+                    OnPropertyChanged();
+                }
+            }
+        }
+
         // Upscale Properties
         public bool UpscaleEnabled
         {
@@ -487,14 +540,14 @@ namespace FlipPix.UI.ViewModels
             }
         }
 
-        public double UpscaleAmount
+        public ObservableCollection<string> UpscaleMethods
         {
-            get => _upscaleAmount;
+            get => _upscaleMethods;
             set
             {
-                if (_upscaleAmount != value)
+                if (_upscaleMethods != value)
                 {
-                    _upscaleAmount = value;
+                    _upscaleMethods = value;
                     OnPropertyChanged();
                 }
             }
@@ -529,13 +582,32 @@ namespace FlipPix.UI.ViewModels
             var dialog = new Microsoft.Win32.OpenFileDialog
             {
                 Filter = "JSON Files (*.json)|*.json|All Files (*.*)|*.*",
-                Title = "Select Story Prompts JSON File",
-                InitialDirectory = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "prompts")
+                Title = "Select Story Prompts JSON File"
             };
+
+            // Use the last used folder if available
+            var lastFolder = _settingsService.Settings?.StoryImageGeneratorPromptJsonFolder;
+            if (!string.IsNullOrEmpty(lastFolder) && Directory.Exists(lastFolder))
+            {
+                dialog.InitialDirectory = lastFolder;
+            }
+            else
+            {
+                dialog.InitialDirectory = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "prompts");
+            }
 
             if (dialog.ShowDialog() == true)
             {
                 PromptJsonFilePath = dialog.FileName;
+
+                // Save the folder for next time
+                var folder = Path.GetDirectoryName(dialog.FileName);
+                if (!string.IsNullOrEmpty(folder) && _settingsService.Settings != null)
+                {
+                    _settingsService.Settings.StoryImageGeneratorPromptJsonFolder = folder;
+                    _settingsService.SaveSettings(_settingsService.Settings);
+                }
+
                 AddLog($"Selected prompt file: {Path.GetFileName(PromptJsonFilePath)}");
             }
         }
@@ -762,8 +834,8 @@ namespace FlipPix.UI.ViewModels
 
             cancellationToken.ThrowIfCancellationRequested();
 
-            // Load workflow (amateurZimageAPI.json - ZImage workflow with style and LoRA support)
-            var workflowPath = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "workflow", "amateurZimageAPI.json");
+            // Load workflow (amazing-z-image-a_GGUFAPI.json - ZImage text-to-image workflow with style support)
+            var workflowPath = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "workflow", "amazing-z-image-a_GGUFAPI.json");
             if (!File.Exists(workflowPath))
             {
                 throw new FileNotFoundException($"Workflow file not found: {workflowPath}");
@@ -774,11 +846,8 @@ namespace FlipPix.UI.ViewModels
 
             cancellationToken.ThrowIfCancellationRequested();
 
-            // Upload input image
-            var uploadedImageName = await _comfyUIService.UploadImageAsync(inputImagePath);
-
-            // Update workflow parameters
-            var updatedWorkflow = UpdateWorkflowParameters(workflow, uploadedImageName, item.Prompt);
+            // Update workflow parameters (text-to-image, no input image needed)
+            var updatedWorkflow = UpdateWorkflowParameters(workflow, item.Prompt);
 
             // Execute workflow with progress reporting
             var progress = new Progress<FlipPix.ComfyUI.Models.ProgressMessage>(progressMsg =>
@@ -814,233 +883,258 @@ namespace FlipPix.UI.ViewModels
             return outputPath;
         }
 
-        private JsonElement UpdateWorkflowParameters(JsonElement workflow, string inputImageName, string promptText)
+        private JsonElement UpdateWorkflowParameters(JsonElement workflow, string promptText)
         {
             var workflowDict = JsonSerializer.Deserialize<Dictionary<string, JsonElement>>(workflow.GetRawText());
 
             if (workflowDict == null) return workflow;
 
-            // 1. Update positive prompt (node 6)
-            if (workflowDict.ContainsKey("6"))
+            // 1. Update user prompt (node 385 - StringTrim)
+            if (workflowDict.ContainsKey("385"))
             {
-                var node6 = JsonSerializer.Deserialize<Dictionary<string, object>>(workflowDict["6"].GetRawText());
-                if (node6 != null && node6.ContainsKey("inputs"))
+                var node385 = JsonSerializer.Deserialize<Dictionary<string, object>>(workflowDict["385"].GetRawText());
+                if (node385 != null && node385.ContainsKey("inputs"))
                 {
                     var inputs = JsonSerializer.Deserialize<Dictionary<string, object>>(
-                        JsonSerializer.Serialize(node6["inputs"]));
+                        JsonSerializer.Serialize(node385["inputs"]));
                     if (inputs != null)
                     {
-                        // Build the full prompt with style template
-                        var fullPrompt = BuildFullPrompt(promptText);
-                        inputs["text"] = fullPrompt;
-                        node6["inputs"] = inputs;
-                        workflowDict["6"] = JsonSerializer.SerializeToElement(node6);
+                        inputs["string"] = promptText;
+                        node385["inputs"] = inputs;
+                        workflowDict["385"] = JsonSerializer.SerializeToElement(node385);
                     }
                 }
             }
 
-            // 2. Update negative prompt (node 7)
-            if (workflowDict.ContainsKey("7"))
+            // 2. Update negative prompt (node 60)
+            if (workflowDict.ContainsKey("60"))
             {
-                var node7 = JsonSerializer.Deserialize<Dictionary<string, object>>(workflowDict["7"].GetRawText());
-                if (node7 != null && node7.ContainsKey("inputs"))
+                var node60 = JsonSerializer.Deserialize<Dictionary<string, object>>(workflowDict["60"].GetRawText());
+                if (node60 != null && node60.ContainsKey("inputs"))
                 {
                     var inputs = JsonSerializer.Deserialize<Dictionary<string, object>>(
-                        JsonSerializer.Serialize(node7["inputs"]));
+                        JsonSerializer.Serialize(node60["inputs"]));
                     if (inputs != null)
                     {
                         inputs["text"] = NegativePrompt;
-                        node7["inputs"] = inputs;
-                        workflowDict["7"] = JsonSerializer.SerializeToElement(node7);
+                        node60["inputs"] = inputs;
+                        workflowDict["60"] = JsonSerializer.SerializeToElement(node60);
                     }
                 }
             }
 
-            // 3. Update seed (node 28) - max value is 2^50 (1125899906842624)
-            if (workflowDict.ContainsKey("28"))
+            // 3. Update seed (node 307)
+            if (workflowDict.ContainsKey("307"))
             {
-                var node28 = JsonSerializer.Deserialize<Dictionary<string, object>>(workflowDict["28"].GetRawText());
-                if (node28 != null && node28.ContainsKey("inputs"))
+                var node307 = JsonSerializer.Deserialize<Dictionary<string, object>>(workflowDict["307"].GetRawText());
+                if (node307 != null && node307.ContainsKey("inputs"))
                 {
                     var inputs = JsonSerializer.Deserialize<Dictionary<string, object>>(
-                        JsonSerializer.Serialize(node28["inputs"]));
+                        JsonSerializer.Serialize(node307["inputs"]));
                     if (inputs != null)
                     {
-                        // Max seed value for rgthree seed node is 2^50
-                        long maxSeed = 1125899906842624;
+                        // Generate random seed
                         var random = new Random();
-                        // Generate random seed within valid range
-                        byte[] bytes = new byte[8];
-                        random.NextBytes(bytes);
-                        long seed = Math.Abs(BitConverter.ToInt64(bytes, 0) % maxSeed);
-                        inputs["seed"] = seed;
-                        node28["inputs"] = inputs;
-                        workflowDict["28"] = JsonSerializer.SerializeToElement(node28);
+                        int seed = random.Next(1, int.MaxValue);
+                        inputs["value"] = seed;
+                        node307["inputs"] = inputs;
+                        workflowDict["307"] = JsonSerializer.SerializeToElement(node307);
                     }
                 }
             }
 
-            // 4. Update ClownsharKSampler settings (node 582)
-            if (workflowDict.ContainsKey("582"))
+            // 4. Update style template (node 125)
+            if (workflowDict.ContainsKey("125"))
             {
-                var node582 = JsonSerializer.Deserialize<Dictionary<string, object>>(workflowDict["582"].GetRawText());
-                if (node582 != null && node582.ContainsKey("inputs"))
+                var node125 = JsonSerializer.Deserialize<Dictionary<string, object>>(workflowDict["125"].GetRawText());
+                if (node125 != null && node125.ContainsKey("inputs"))
                 {
                     var inputs = JsonSerializer.Deserialize<Dictionary<string, object>>(
-                        JsonSerializer.Serialize(node582["inputs"]));
+                        JsonSerializer.Serialize(node125["inputs"]));
                     if (inputs != null)
                     {
-                        inputs["denoise"] = Denoise;
-                        inputs["steps"] = Steps;
-                        inputs["cfg"] = Cfg;
-                        node582["inputs"] = inputs;
-                        workflowDict["582"] = JsonSerializer.SerializeToElement(node582);
+                        // Build the style template
+                        var styleTemplate = GetStyleTemplateForWorkflow();
+                        inputs["value"] = styleTemplate;
+                        node125["inputs"] = inputs;
+                        workflowDict["125"] = JsonSerializer.SerializeToElement(node125);
                     }
                 }
             }
 
-            // 5. Update second ClownsharKSampler settings (node 620)
-            if (workflowDict.ContainsKey("620"))
+            // 5. Update output filename prefix with timestamp (node 9)
+            if (workflowDict.ContainsKey("9"))
             {
-                var node620 = JsonSerializer.Deserialize<Dictionary<string, object>>(workflowDict["620"].GetRawText());
-                if (node620 != null && node620.ContainsKey("inputs"))
+                var node9 = JsonSerializer.Deserialize<Dictionary<string, object>>(workflowDict["9"].GetRawText());
+                if (node9 != null && node9.ContainsKey("inputs"))
                 {
                     var inputs = JsonSerializer.Deserialize<Dictionary<string, object>>(
-                        JsonSerializer.Serialize(node620["inputs"]));
+                        JsonSerializer.Serialize(node9["inputs"]));
                     if (inputs != null)
                     {
-                        inputs["denoise"] = Denoise2;
-                        inputs["steps"] = Steps;
-                        inputs["cfg"] = Cfg;
-                        node620["inputs"] = inputs;
-                        workflowDict["620"] = JsonSerializer.SerializeToElement(node620);
+                        var timestamp = DateTime.Now.ToString("yyyy_MM_dd");
+                        inputs["filename_prefix"] = $"ZImage/{timestamp}/ZI";
+                        node9["inputs"] = inputs;
+                        workflowDict["9"] = JsonSerializer.SerializeToElement(node9);
                     }
                 }
             }
 
-            // 6. Update KSampler settings (node 754)
-            if (workflowDict.ContainsKey("754"))
-            {
-                var node754 = JsonSerializer.Deserialize<Dictionary<string, object>>(workflowDict["754"].GetRawText());
-                if (node754 != null && node754.ContainsKey("inputs"))
-                {
-                    var inputs = JsonSerializer.Deserialize<Dictionary<string, object>>(
-                        JsonSerializer.Serialize(node754["inputs"]));
-                    if (inputs != null)
-                    {
-                        inputs["denoise"] = 0.9;
-                        inputs["steps"] = Steps;
-                        inputs["cfg"] = Cfg;
-                        node754["inputs"] = inputs;
-                        workflowDict["754"] = JsonSerializer.SerializeToElement(node754);
-                    }
-                }
-            }
-
-            // 7. Update KSampler settings (node 768)
-            if (workflowDict.ContainsKey("768"))
-            {
-                var node768 = JsonSerializer.Deserialize<Dictionary<string, object>>(workflowDict["768"].GetRawText());
-                if (node768 != null && node768.ContainsKey("inputs"))
-                {
-                    var inputs = JsonSerializer.Deserialize<Dictionary<string, object>>(
-                        JsonSerializer.Serialize(node768["inputs"]));
-                    if (inputs != null)
-                    {
-                        inputs["denoise"] = 1.0;
-                        inputs["steps"] = Steps;
-                        inputs["cfg"] = Cfg;
-                        node768["inputs"] = inputs;
-                        workflowDict["768"] = JsonSerializer.SerializeToElement(node768);
-                    }
-                }
-            }
-
-            // 8. Update LoRA strengths
-            // Node 105 - amateur photography LoRA
-            UpdateLoraStrength(workflowDict, "105", 0.4);
-            // Node 752 - amateur photography LoRA (second instance)
-            UpdateLoraStrength(workflowDict, "752", 0.9);
-            // Node 760 - gilliananderson LoRA
-            UpdateLoraStrength(workflowDict, "760", 0.8);
-
-            // 9. Update latent image dimensions if needed
-            // Node 46: 576x416
-            UpdateLatentDimensions(workflowDict, "46", 576, 416);
-            // Node 693: 208x288
-            UpdateLatentDimensions(workflowDict, "693", 208, 288);
-            // Node 758: 416x576
-            UpdateLatentDimensions(workflowDict, "758", 416, 576);
-            // Node 772: 1248x1728
-            UpdateLatentDimensions(workflowDict, "772", 1248, 1728);
+            // 6. Update resolution/orientation (nodes 56, 243, 248)
+            UpdateResolution(workflowDict);
 
             return JsonSerializer.SerializeToElement(workflowDict);
         }
 
-        private string BuildFullPrompt(string userPrompt)
+        private void UpdateResolution(Dictionary<string, JsonElement> workflowDict)
         {
-            var styleTemplate = GetStyleTemplate();
-            // Replace the placeholder with the user prompt
-            return styleTemplate.Replace("{$@}", userPrompt);
-        }
+            // Parse orientation and set dimensions
+            int width = 944;
+            int height = 1408;
 
-        private void UpdateLoraStrength(Dictionary<string, JsonElement> workflowDict, string nodeId, double defaultStrength)
-        {
-            if (workflowDict.ContainsKey(nodeId))
+            switch (SelectedOrientation)
             {
-                var node = JsonSerializer.Deserialize<Dictionary<string, object>>(workflowDict[nodeId].GetRawText());
-                if (node != null && node.ContainsKey("inputs"))
-                {
-                    var inputs = JsonSerializer.Deserialize<Dictionary<string, object>>(
-                        JsonSerializer.Serialize(node["inputs"]));
-                    if (inputs != null && inputs.ContainsKey("strength_model"))
-                    {
-                        // Use the user's LoRA strength setting if enabled
-                        double strength = LoraEnabled ? LoraStrengthModel : defaultStrength;
-                        inputs["strength_model"] = strength;
-                        node["inputs"] = inputs;
-                        workflowDict[nodeId] = JsonSerializer.SerializeToElement(node);
-                    }
-                }
+                case "Portrait (944x1408)":
+                    width = 944;
+                    height = 1408;
+                    break;
+                case "Landscape (1408x944)":
+                    width = 1408;
+                    height = 944;
+                    break;
+                case "Square (1088x1088)":
+                    width = 1088;
+                    height = 1088;
+                    break;
             }
-        }
 
-        private void UpdateLatentDimensions(Dictionary<string, JsonElement> workflowDict, string nodeId, int width, int height)
-        {
-            if (workflowDict.ContainsKey(nodeId))
+            // Update EmptyLatentImage (node 56) - This is used by the KSamplerAdvanced
+            if (workflowDict.ContainsKey("56"))
             {
-                var node = JsonSerializer.Deserialize<Dictionary<string, object>>(workflowDict[nodeId].GetRawText());
-                if (node != null && node.ContainsKey("inputs"))
+                var node56 = JsonSerializer.Deserialize<Dictionary<string, object>>(workflowDict["56"].GetRawText());
+                if (node56 != null && node56.ContainsKey("inputs"))
                 {
                     var inputs = JsonSerializer.Deserialize<Dictionary<string, object>>(
-                        JsonSerializer.Serialize(node["inputs"]));
+                        JsonSerializer.Serialize(node56["inputs"]));
                     if (inputs != null)
                     {
                         inputs["width"] = width;
                         inputs["height"] = height;
-                        node["inputs"] = inputs;
-                        workflowDict[nodeId] = JsonSerializer.SerializeToElement(node);
+                        node56["inputs"] = inputs;
+                        workflowDict["56"] = JsonSerializer.SerializeToElement(node56);
                     }
                 }
             }
+
+            // Update EmptySD3LatentImage (node 244) - This is used for the main generation
+            // It gets width/height from switches, so we need to update the source values
+            // Node 244 gets width from node 536, which gets from node 534, which gets from node 243 (short side)
+            // Node 244 gets height from node 537, which gets from node 249, which gets from node 248 (long side)
+
+            // For portrait: width should be short (1088), height should be long (1600)
+            // For landscape: width should be long (1600), height should be short (1088)
+            // For square: both should be 1088
+
+            int shortSide = 1088;
+            int longSide = 1600;
+            int widthSD3 = width;
+            int heightSD3 = height;
+
+            // For SD3, we need to map the actual width/height to short/long sides
+            if (SelectedOrientation == "Portrait (944x1408)")
+            {
+                widthSD3 = shortSide;  // 1088
+                heightSD3 = longSide;  // 1600
+            }
+            else if (SelectedOrientation == "Landscape (1408x944)")
+            {
+                widthSD3 = longSide;   // 1600
+                heightSD3 = shortSide;  // 1088
+            }
+            else // Square
+            {
+                widthSD3 = 1088;
+                heightSD3 = 1088;
+            }
+
+            // Update Short Side (node 243) - This feeds into width for SD3
+            if (workflowDict.ContainsKey("243"))
+            {
+                var node243 = JsonSerializer.Deserialize<Dictionary<string, object>>(workflowDict["243"].GetRawText());
+                if (node243 != null && node243.ContainsKey("inputs"))
+                {
+                    var inputs = JsonSerializer.Deserialize<Dictionary<string, object>>(
+                        JsonSerializer.Serialize(node243["inputs"]));
+                    if (inputs != null)
+                    {
+                        inputs["value"] = widthSD3;
+                        node243["inputs"] = inputs;
+                        workflowDict["243"] = JsonSerializer.SerializeToElement(node243);
+                    }
+                }
+            }
+
+            // Update Long Side (node 248) - This feeds into height for SD3
+            if (workflowDict.ContainsKey("248"))
+            {
+                var node248 = JsonSerializer.Deserialize<Dictionary<string, object>>(workflowDict["248"].GetRawText());
+                if (node248 != null && node248.ContainsKey("inputs"))
+                {
+                    var inputs = JsonSerializer.Deserialize<Dictionary<string, object>>(
+                        JsonSerializer.Serialize(node248["inputs"]));
+                    if (inputs != null)
+                    {
+                        inputs["value"] = heightSD3;
+                        node248["inputs"] = inputs;
+                        workflowDict["248"] = JsonSerializer.SerializeToElement(node248);
+                    }
+                }
+            }
+
+            AddLog($"Orientation: {SelectedOrientation} -> Node56: {width}x{height}, SD3: {widthSD3}x{heightSD3}");
         }
 
         private string GetStyleTemplate()
         {
-            if (SelectedStyle == "Custom" && !string.IsNullOrEmpty(CustomStyleTemplate))
-            {
-                return CustomStyleTemplate;
-            }
-
             return SelectedStyle switch
             {
-                "Phone Photo" => "YOUR CONTEXT:\nYour photographs has android phone cam-quality.\nYour photographs exhibit {$spicy-content-with} surprising compositions, sharp complex backgrounds, natural lighting, and candid moments that feel immediate and authentic.\nYour photographs are actual gritty candid photographic background.\n---\nYOUR PHOTO:\n{$@}",
-                "Cinematic" => "YOUR CONTEXT:\nYour photographs has cinematic film-quality with dramatic lighting.\nYour photographs exhibit {$spicy-content-with} movie-like compositions, rich colors, depth of field, and professional cinematography.\nYour photographs are actual cinematic film stills with atmospheric mood.\n---\nYOUR PHOTO:\n{$@}",
-                "Natural Light" => "YOUR CONTEXT:\nYour photographs has natural light photography quality.\nYour photographs exhibit {$spicy-content-with} soft natural lighting, organic compositions, authentic moments, and gentle color grading.\nYour photographs are actual natural light photos with warm, inviting tones.\n---\nYOUR PHOTO:\n{$@}",
-                "Portrait" => "YOUR CONTEXT:\nYour photographs has professional portrait photography quality.\nYour photographs exhibit {$spicy-content-with} compelling portraiture, beautiful lighting, emotional depth, and artistic composition.\nYour photographs are actual professional portrait photos with stunning detail.\n---\nYOUR PHOTO:\n{$@}",
-                "Documentary" => "YOUR CONTEXT:\nYour photographs has documentary photography quality.\nYour photographs exhibit {$spicy-content-with} authentic documentary style, real moments, storytelling composition, and journalistic integrity.\nYour photographs are actual documentary photos with powerful narratives.\n---\nYOUR PHOTO:\n{$@}",
-                _ => "YOUR CONTEXT:\nYour photographs has android phone cam-quality.\nYour photographs exhibit surprising compositions, sharp complex backgrounds, natural lighting, and candid moments that feel immediate and authentic.\n---\nYOUR PHOTO:\n{$@}"
+                "Phone Photo" => "YOUR CONTEXT:\nYour photographs has android phone cam-quality.\nYour photographs exhibit {$spicy-content-with} surprising compositions, sharp complex backgrounds, natural lighting, and candid moments that feel immediate and authentic.\nYour photographs are actual gritty candid photographic background.\nYOUR PHOTO:\n{$@}",
+
+                "Oil Painting" => "YOUR CONTEXT:\nYour artwork is a masterful oil painting on canvas.\nYour artwork exhibits {$spicy-content-with} rich brushstrokes, vibrant colors, dramatic lighting, classical composition, and museum-quality technique.\nYour artwork has visible texture, depth, and the expressive quality of traditional oil paintings.\nYOUR ARTWORK:\n{$@}",
+
+                "Watercolor" => "YOUR CONTEXT:\nYour artwork is a delicate watercolor painting.\nYour artwork exhibits {$spicy-content-with} soft washes, transparent colors, fluid blends, paper texture showing through, and ethereal atmospheric effects.\nYour artwork has the spontaneous and expressive quality of traditional watercolor paintings.\nYOUR ARTWORK:\n{$@}",
+
+                "Vintage Film" => "YOUR CONTEXT:\nYour photographs have vintage film camera quality from the 1970s-80s.\nYour photographs exhibit {$spicy-content-with} film grain, warm color grading, soft contrast, light leaks, and authentic nostalgic atmosphere.\nYour photographs have the soulful and timeless quality of vintage film photography.\nYOUR PHOTO:\n{$@}",
+
+                "Cinematic" => "YOUR CONTEXT:\nYour photographs are cinematic film stills from a high-budget movie.\nYour photographs exhibit {$spicy-content-with} dramatic lighting, anamorphic lens bokeh, rich color grading, deep depth of field, and theatrical composition.\nYour photographs have the polished and atmospheric quality of professional cinematography.\nYOUR PHOTO:\n{$@}",
+
+                "Pencil Sketch" => "YOUR CONTEXT:\nYour artwork is a detailed pencil sketch on paper.\nYour artwork exhibits {$spicy-content-with} precise linework, shading through hatching and cross-hatching, subtle graphite texture, and classical drawing technique.\nYour artwork has the expressive and intimate quality of hand-drawn pencil sketches.\nYOUR ARTWORK:\n{$@}",
+
+                "Anime" => "YOUR CONTEXT:\nYour artwork is in the style of high-quality Japanese anime and manga art.\nYour artwork exhibits {$spicy-content-with} clean lines, vibrant cel-shaded colors, expressive eyes, dynamic poses, and polished anime aesthetic.\nYour artwork has the distinctive and appealing style of professional anime illustration.\nYOUR ARTWORK:\n{$@}",
+
+                "3D Render" => "YOUR CONTEXT:\nYour artwork is a photorealistic 3D render using modern rendering techniques.\nYour artwork exhibits {$spicy-content-with} perfect lighting, subsurface scattering, realistic materials, global illumination, and high-end 3D quality.\nYour artwork has the polished and hyper-realistic quality of professional 3D rendering.\nYOUR ARTWORK:\n{$@}",
+
+                "Digital Art" => "YOUR CONTEXT:\nYour artwork is high-quality digital art.\nYour artwork exhibits {$spicy-content-with} clean digital painting technique, vibrant colors, smooth gradients, perfect composition, and contemporary digital aesthetic.\nYour artwork has the polished and professional quality of modern digital illustration.\nYOUR ARTWORK:\n{$@}",
+
+                "Pop Art" => "YOUR CONTEXT:\nYour artwork is in the style of Pop Art, inspired by artists like Andy Warhol and Roy Lichtenstein.\nYour artwork exhibits {$spicy-content-with} bold colors, halftone dots, comic book style, high contrast, and vibrant graphic design elements.\nYour artwork has the eye-catching and iconic quality of Pop Art movement.\nYOUR ARTWORK:\n{$@}",
+
+                _ => "YOUR CONTEXT:\nYour photographs has android phone cam-quality.\nYour photographs exhibit {$spicy-content-with} surprising compositions, sharp complex backgrounds, natural lighting, and candid moments that feel immediate and authentic.\nYOUR PHOTO:\n{$@}"
             };
+        }
+
+        private string GetStyleTemplateForWorkflow()
+        {
+            var baseTemplate = GetStyleTemplate();
+
+            // Add spicy content modifier if enabled
+            if (SpicyContentEnabled)
+            {
+                return baseTemplate.Replace("{$spicy-content-with}", "erotic, sensual,");
+            }
+            else
+            {
+                return baseTemplate.Replace("{$spicy-content-with}", "");
+            }
         }
 
         private async Task<List<byte[]>> GetOutputImagesFromComfyUI(string promptId)

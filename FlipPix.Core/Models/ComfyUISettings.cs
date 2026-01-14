@@ -1,4 +1,5 @@
 using System.Collections.Generic;
+using System.Linq;
 
 namespace FlipPix.Core.Models;
 
@@ -19,6 +20,106 @@ public class ComfyUISettings
     public string ComfyUIRestartScriptPath { get; set; } = string.Empty;
     public int ComfyUIRestartDelaySeconds { get; set; } = 10; // Wait time before attempting restart
     public int ComfyUIStartupTimeoutSeconds { get; set; } = 300; // Max wait time for ComfyUI to start (5 minutes for large model loading)
+
+    // Story Generator Q last used folder locations
+    public string StoryGeneratorPromptJsonFolder { get; set; } = string.Empty;
+    public string StoryGeneratorInputImageFolder { get; set; } = string.Empty;
+
+    // Story Image Generator (Z) last used folder locations
+    public string StoryImageGeneratorPromptJsonFolder { get; set; } = string.Empty;
+
+    // Video Generator last used folder locations
+    public string VideoGeneratorImageFolder { get; set; } = string.Empty;
+    public string VideoGeneratorStoryPromptJsonFolder { get; set; } = string.Empty;
+    public string VideoGeneratorStoryImagesFolder { get; set; } = string.Empty;
+
+    // Story Video Generator last used folder locations
+    public string StoryVideoPromptsFolder { get; set; } = string.Empty;
+
+    // Video Generator workflow settings
+    public string SelectedVideoWorkflow { get; set; } = "ltx2_i2v"; // Default to LTXV
+
+    // Prompt2Json save directory for image analysis
+    public string Prompt2JsonSaveDirectory { get; set; } = string.Empty;
+
+    // LM Studio helper properties for UI binding (parsed from LMStudioSettings.BaseUrl)
+    public string LMStudioServer
+    {
+        get
+        {
+            try
+            {
+                var uri = new Uri(LMStudioSettings?.BaseUrl ?? "http://localhost:1234");
+                return uri.Host;
+            }
+            catch
+            {
+                return "localhost";
+            }
+        }
+        set
+        {
+            try
+            {
+                if (LMStudioSettings == null) LMStudioSettings = new LMStudioSettings();
+                var currentUri = new Uri(LMStudioSettings.BaseUrl);
+                var newUri = new System.UriBuilder(currentUri) { Host = value }.Uri;
+                LMStudioSettings.BaseUrl = newUri.ToString();
+            }
+            catch
+            {
+                // If parsing fails, construct a new URL
+                LMStudioSettings.BaseUrl = $"http://{value}:1234";
+            }
+        }
+    }
+
+    public string LMStudioPort
+    {
+        get
+        {
+            try
+            {
+                var uri = new Uri(LMStudioSettings?.BaseUrl ?? "http://localhost:1234");
+                return uri.Port.ToString();
+            }
+            catch
+            {
+                return "1234";
+            }
+        }
+        set
+        {
+            try
+            {
+                if (LMStudioSettings == null) LMStudioSettings = new LMStudioSettings();
+                if (int.TryParse(value, out var port))
+                {
+                    var currentUri = new Uri(LMStudioSettings.BaseUrl);
+                    var newUri = new System.UriBuilder(currentUri) { Port = port }.Uri;
+                    LMStudioSettings.BaseUrl = newUri.ToString();
+                }
+            }
+            catch
+            {
+                // If parsing fails, construct a new URL
+                LMStudioSettings.BaseUrl = $"http://localhost:1234";
+            }
+        }
+    }
+
+    // Selected model for binding to the ComboBox
+    public string SelectedModel
+    {
+        get => LMStudioSettings?.SelectedModel ?? string.Empty;
+        set
+        {
+            if (LMStudioSettings != null)
+            {
+                LMStudioSettings.SelectedModel = value;
+            }
+        }
+    }
 }
 
 public class SavedCameraPrompt

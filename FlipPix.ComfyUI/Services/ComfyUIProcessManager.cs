@@ -123,12 +123,12 @@ public class ComfyUIProcessManager
     /// <summary>
     /// Checks if ComfyUI process has crashed or is hung (including waiting for user input)
     /// </summary>
-    public bool HasComfyUICrashedOrHung()
+    public async Task<bool> HasComfyUICrashedOrHungAsync(CancellationToken cancellationToken = default)
     {
         try
         {
             // First check if HTTP is responding
-            var isRunning = IsComfyUIRunningAsync(CancellationToken.None).GetAwaiter().GetResult();
+            var isRunning = await IsComfyUIRunningAsync(cancellationToken);
 
             if (!isRunning)
             {
@@ -154,7 +154,7 @@ public class ComfyUIProcessManager
                     if (startTime.TotalMinutes < 10 && !cmdProcess.HasExited)
                     {
                         // Check if ComfyUI is actually ready (not just HTTP responsive)
-                        var isReady = IsComfyUIReadyAsync(CancellationToken.None).GetAwaiter().GetResult();
+                        var isReady = await IsComfyUIReadyAsync(cancellationToken);
                         if (!isReady)
                         {
                             _logger.LogWarning($"Detected potential hung CMD process (PID: {cmdProcess.Id}) - ComfyUI may have crashed");
@@ -327,7 +327,7 @@ public class ComfyUIProcessManager
         var isRunning = await IsComfyUIRunningAsync(cancellationToken);
 
         // Use improved crash detection that also checks for hung processes
-        if (!isRunning || HasComfyUICrashedOrHung())
+        if (!isRunning || await HasComfyUICrashedOrHungAsync(cancellationToken))
         {
             _logger.LogWarning("ComfyUI crash detected or not running!");
             statusCallback?.Invoke("ComfyUI crash detected!");

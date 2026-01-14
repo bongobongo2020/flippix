@@ -745,6 +745,27 @@
                                         </ComboBox>
                                     </StackPanel>
 
+                                    <!-- Style Preset -->
+                                    <StackPanel Margin="0,0,0,12">
+                                        <TextBlock Text="Style Preset" FontWeight="SemiBold" FontSize="12" Margin="0,0,0,5"/>
+                                        <ComboBox SelectedIndex="{Binding Analyzer.SelectedStyleIndex, Mode=TwoWay}"
+                                                 Padding="10"
+                                                 Background="White"
+                                                 BorderBrush="#CED4DA"
+                                                 FontSize="12">
+                                            <ComboBoxItem Content="None"/>
+                                            <ComboBoxItem Content="Phone Photo"/>
+                                            <ComboBoxItem Content="Cinematic"/>
+                                            <ComboBoxItem Content="Anime"/>
+                                            <ComboBoxItem Content="Oil Painting"/>
+                                            <ComboBoxItem Content="3D Render"/>
+                                            <ComboBoxItem Content="Watercolor"/>
+                                            <ComboBoxItem Content="Digital Art"/>
+                                            <ComboBoxItem Content="Vintage Photo"/>
+                                            <ComboBoxItem Content="Cyberpunk"/>
+                                        </ComboBox>
+                                    </StackPanel>
+
                                     <!-- Steps -->
                                     <StackPanel Margin="0,0,0,12">
                                         <TextBlock Text="Steps" FontWeight="SemiBold" FontSize="12" Margin="0,0,0,5"/>
@@ -947,13 +968,15 @@
                                                Margin="8,0,0,0"/>
                                     </Grid>
 
-                                    <!-- Input Image Selection -->
+                                    <!-- Input Image Section (Hidden - Text-to-Image Workflow) -->
+                                    <!-- Note: This section is hidden since amazing-z-image-a workflow is text-to-image only -->
                                     <TextBlock Text="Select input image"
                                                FontSize="12"
                                                Foreground="#666"
-                                               Margin="0,0,0,10"/>
+                                               Margin="0,0,0,10"
+                                               Visibility="Collapsed"/>
 
-                                    <Grid Margin="0,0,0,15">
+                                    <Grid Margin="0,0,0,15" Visibility="Collapsed">
                                         <Grid.ColumnDefinitions>
                                             <ColumnDefinition Width="*"/>
                                             <ColumnDefinition Width="Auto"/>
@@ -975,10 +998,11 @@
                                                Margin="8,0,0,0"/>
                                     </Grid>
 
-                                    <!-- Input Image Preview -->
+                                    <!-- Input Image Preview (Hidden) -->
                                     <Border BorderBrush="#DEE2E6" BorderThickness="2"
                                             Background="White" Height="200"
-                                            CornerRadius="5" Margin="0,0,0,10">
+                                            CornerRadius="5" Margin="0,0,0,10"
+                                            Visibility="Collapsed">
                                         <Grid>
                                             <TextBlock Text="No input image selected"
                                                       HorizontalAlignment="Center"
@@ -1085,17 +1109,102 @@
                                     </StackPanel>
 
                                     <!-- Negative Prompt -->
-                                    <StackPanel>
+                                    <StackPanel Margin="0,0,0,15">
                                         <TextBlock Text="Negative Prompt" FontWeight="SemiBold" FontSize="12" Margin="0,0,0,5"/>
                                         <TextBox Text="{Binding StoryGenerator.NegativePrompt, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
                                                 TextWrapping="Wrap"
                                                 AcceptsReturn="True"
-                                                Height="80"
+                                                Height="60"
                                                 Padding="10"
                                                 VerticalScrollBarVisibility="Auto"
                                                 Background="White"
                                                 BorderBrush="#CED4DA"
                                                 FontSize="11"/>
+                                    </StackPanel>
+
+                                    <!-- Orientation/Resolution -->
+                                    <StackPanel Margin="0,0,0,15">
+                                        <TextBlock Text="📐 Orientation &amp; Resolution" FontWeight="SemiBold" FontSize="12" Margin="0,0,0,5"/>
+                                        <ComboBox ItemsSource="{Binding StoryGenerator.AvailableOrientations}"
+                                                  SelectedItem="{Binding StoryGenerator.SelectedOrientation, Mode=TwoWay}"
+                                                  Padding="10"
+                                                  Background="White"
+                                                  BorderBrush="#CED4DA"
+                                                  FontSize="11"/>
+                                        <TextBlock Text="Select the image orientation and resolution"
+                                                  FontSize="10"
+                                                  Foreground="#999"
+                                                  Margin="0,5,0,0"/>
+                                    </StackPanel>
+
+                                    <!-- Spicy Content Toggle -->
+                                    <StackPanel Margin="0,0,0,15">
+                                        <Grid>
+                                            <Grid.ColumnDefinitions>
+                                                <ColumnDefinition Width="*"/>
+                                                <ColumnDefinition Width="Auto"/>
+                                            </Grid.ColumnDefinitions>
+
+                                            <TextBlock Grid.Column="0"
+                                                      Text="🌶️ Spicy Content Mode"
+                                                      FontWeight="SemiBold"
+                                                      FontSize="12"
+                                                      VerticalAlignment="Center"/>
+
+                                            <CheckBox Grid.Column="1"
+                                                    IsChecked="{Binding StoryGenerator.SpicyContentEnabled, Mode=TwoWay}"
+                                                    VerticalAlignment="Center"/>
+                                        </Grid>
+                                        <TextBlock Text="Enable for more mature/sensual content"
+                                                  FontSize="10"
+                                                  Foreground="#999"
+                                                  Margin="0,3,0,0"/>
+                                    </StackPanel>
+
+                                    <!-- Art Style Selection -->
+                                    <StackPanel Margin="0,0,0,15">
+                                        <TextBlock Text="🎨 Art Style" FontWeight="SemiBold" FontSize="12" Margin="0,0,0,5"/>
+                                        <ComboBox ItemsSource="{Binding StoryGenerator.AvailableStyles}"
+                                                  SelectedItem="{Binding StoryGenerator.SelectedStyle, Mode=TwoWay}"
+                                                  Padding="10"
+                                                  Background="White"
+                                                  BorderBrush="#CED4DA"
+                                                  FontSize="11"/>
+                                        <TextBlock Text="Select the artistic style for image generation"
+                                                  FontSize="10"
+                                                  Foreground="#999"
+                                                  Margin="0,5,0,0"/>
+                                    </StackPanel>
+
+                                    <!-- Upscale Settings -->
+                                    <StackPanel Margin="0,0,0,15">
+                                        <TextBlock Text="🔍 Upscale Settings" FontWeight="SemiBold" FontSize="12" Margin="0,0,0,5"/>
+
+                                        <!-- Upscale Enabled -->
+                                        <Grid Margin="0,0,0,8">
+                                            <Grid.ColumnDefinitions>
+                                                <ColumnDefinition Width="*"/>
+                                                <ColumnDefinition Width="Auto"/>
+                                            </Grid.ColumnDefinitions>
+
+                                            <TextBlock Grid.Column="0"
+                                                      Text="Enable Upscaling"
+                                                      FontSize="11"
+                                                      VerticalAlignment="Center"/>
+
+                                            <CheckBox Grid.Column="1"
+                                                    IsChecked="{Binding StoryGenerator.UpscaleEnabled, Mode=TwoWay}"
+                                                    VerticalAlignment="Center"/>
+                                        </Grid>
+
+                                        <!-- Upscale Method -->
+                                        <TextBlock Text="Upscale Method" FontSize="11" Margin="0,0,0,3"/>
+                                        <ComboBox ItemsSource="{Binding StoryGenerator.UpscaleMethods}"
+                                                  SelectedItem="{Binding StoryGenerator.UpscaleMethod, Mode=TwoWay}"
+                                                  Padding="8"
+                                                  Background="White"
+                                                  BorderBrush="#CED4DA"
+                                                  FontSize="10"/>
                                     </StackPanel>
                                 </StackPanel>
                             </Grid>

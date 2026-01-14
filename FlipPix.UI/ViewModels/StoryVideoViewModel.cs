@@ -19,14 +19,9 @@ namespace FlipPix.UI.ViewModels
     public class StoryVideoViewModel : INotifyPropertyChanged
     {
         private readonly ComfyUIService _comfyUIService;
-        private readonly FlipPix.UI.Services.LMStudioService _lmStudioService;
         private readonly IAppLogger _logger;
         private readonly FlipPix.Core.Services.SettingsService _settingsService;
 
-        private string _selectedImagePath = string.Empty;
-        private BitmapImage? _selectedImageSource;
-        private bool _hasSelectedImage = false;
-        private string _customPrompt = "Act as a world-class fight director and choreographer. Analyze the uploaded image and create ten distinct, highly detailed prompts for 5-second action videos inspired by the scene. Each prompt must be descriptive, focusing on dynamic combat mechanics, cinematography, lighting, and atmosphere. Format: Return each prompt on a new line starting with 'Prompt #N:' followed by the full detailed prompt text in quotes. Example: Prompt #1: \"A dynamic close-up shot of...\" Prompt #2: \"Slow-motion capture of...\"";
         private string _generatedPrompt1 = string.Empty;
         private string _generatedPrompt2 = string.Empty;
         private string _generatedPrompt3 = string.Empty;
@@ -41,25 +36,25 @@ namespace FlipPix.UI.ViewModels
         private string _processingStatus = string.Empty;
         private double _processingProgress = 0;
         private string _logOutput = string.Empty;
-        private string _statusBarMessage = "Ready";
+        private string _statusBarMessage = "Ready - Load prompts to get started";
         private bool _hasGeneratedPrompts = false;
         private bool _hasResultVideo = false;
         private string _resultVideoPath = string.Empty;
         private System.Threading.CancellationTokenSource? _cancellationTokenSource;
+        private string _promptsFolderPath = string.Empty;
 
         public event PropertyChangedEventHandler? PropertyChanged;
 
-        public StoryVideoViewModel(ComfyUIService comfyUIService, FlipPix.UI.Services.LMStudioService lmStudioService, IAppLogger logger, FlipPix.Core.Services.SettingsService settingsService)
+        public StoryVideoViewModel(ComfyUIService comfyUIService, IAppLogger logger, FlipPix.Core.Services.SettingsService settingsService)
         {
             _comfyUIService = comfyUIService ?? throw new ArgumentNullException(nameof(comfyUIService));
-            _lmStudioService = lmStudioService ?? throw new ArgumentNullException(nameof(lmStudioService));
             _logger = logger ?? throw new ArgumentNullException(nameof(logger));
             _settingsService = settingsService ?? throw new ArgumentNullException(nameof(settingsService));
 
+            // Load persisted prompts folder path
+            LoadPromptsFolderFromSettings();
+
             // Initialize commands
-            SelectImageCommand = new RelayCommand(SelectImage);
-            AnalyzeImageCommand = new RelayCommand(async () => await AnalyzeImageAsync(), () => HasSelectedImage && !IsProcessing);
-            GeneratePromptsCommand = new RelayCommand(async () => await GeneratePromptsAsync(), () => CanGeneratePrompts);
             GenerateVideoCommand = new RelayCommand(async () => await GenerateVideoAsync(), () => CanGenerateVideo);
             CancelGenerationCommand = new RelayCommand(CancelGeneration, () => IsProcessing);
             OpenResultFolderCommand = new RelayCommand(OpenResultFolder, () => HasResultVideo);
@@ -67,48 +62,58 @@ namespace FlipPix.UI.ViewModels
             LoadPromptsCommand = new RelayCommand(LoadPrompts);
 
             AddLog("Story Video Generator initialized");
+            AddLog("Load prompts from file to begin video generation");
         }
 
         // Properties
-        public string SelectedImagePath
+        public string PromptsFolderPath
         {
-            get => _selectedImagePath;
+            get => _promptsFolderPath;
             set
             {
-                _selectedImagePath = value;
+                _promptsFolderPath = value;
                 OnPropertyChanged();
+                SavePromptsFolderToSettings();
             }
         }
 
-        public BitmapImage? SelectedImageSource
+        private void SavePromptsFolderToSettings()
         {
-            get => _selectedImageSource;
-            set
+            try
             {
-                _selectedImageSource = value;
-                OnPropertyChanged();
+                if (_settingsService.Settings != null)
+                {
+                    _settingsService.Settings.StoryVideoPromptsFolder = PromptsFolderPath;
+                    _settingsService.SaveSettings(_settingsService.Settings);
+                }
+            }
+            catch (Exception ex)
+            {
+                AddLog($"ERROR saving prompts folder to settings: {ex.Message}");
             }
         }
 
-        public bool HasSelectedImage
+        private void LoadPromptsFolderFromSettings()
         {
-            get => _hasSelectedImage;
-            set
+            try
             {
-                _hasSelectedImage = value;
-                OnPropertyChanged();
-                OnPropertyChanged(nameof(CanGeneratePrompts));
-                System.Windows.Input.CommandManager.InvalidateRequerySuggested();
+                if (!string.IsNullOrEmpty(_settingsService.Settings?.StoryVideoPromptsFolder) &&
+                    Directory.Exists(_settingsService.Settings.StoryVideoPromptsFolder))
+                {
+                    _promptsFolderPath = _settingsService.Settings.StoryVideoPromptsFolder;
+                    AddLog($"Loaded prompts folder from settings: {_promptsFolderPath}");
+                }
+                else
+                {
+                    // Default to documents folder
+                    _promptsFolderPath = Environment.GetFolderPath(Environment.SpecialFolder.MyDocuments);
+                    AddLog($"Using default prompts folder: {_promptsFolderPath}");
+                }
             }
-        }
-
-        public string CustomPrompt
-        {
-            get => _customPrompt;
-            set
+            catch (Exception ex)
             {
-                _customPrompt = value;
-                OnPropertyChanged();
+                AddLog($"ERROR loading prompts folder from settings: {ex.Message}");
+                _promptsFolderPath = Environment.GetFolderPath(Environment.SpecialFolder.MyDocuments);
             }
         }
 
@@ -219,7 +224,6 @@ namespace FlipPix.UI.ViewModels
             {
                 _isProcessing = value;
                 OnPropertyChanged();
-                OnPropertyChanged(nameof(CanGeneratePrompts));
                 OnPropertyChanged(nameof(CanGenerateVideo));
                 System.Windows.Input.CommandManager.InvalidateRequerySuggested();
             }
@@ -301,62 +305,9 @@ namespace FlipPix.UI.ViewModels
             }
         }
 
-        // Image analysis properties
-        private bool _isAnalyzing = false;
-        private string _analysisStatus = string.Empty;
-        private double _analysisProgress = 0;
-        private string _imageAnalysis = string.Empty;
-
-        public bool IsAnalyzing
-        {
-            get => _isAnalyzing;
-            set
-            {
-                _isAnalyzing = value;
-                OnPropertyChanged();
-                System.Windows.Input.CommandManager.InvalidateRequerySuggested();
-            }
-        }
-
-        public string AnalysisStatus
-        {
-            get => _analysisStatus;
-            set
-            {
-                _analysisStatus = value;
-                OnPropertyChanged();
-            }
-        }
-
-        public double AnalysisProgress
-        {
-            get => _analysisProgress;
-            set
-            {
-                _analysisProgress = value;
-                OnPropertyChanged();
-            }
-        }
-
-        public string ImageAnalysis
-        {
-            get => _imageAnalysis;
-            set
-            {
-                _imageAnalysis = value;
-                OnPropertyChanged();
-            }
-        }
-
-        public bool HasAnalysis => !string.IsNullOrWhiteSpace(ImageAnalysis);
-
-        public bool CanGeneratePrompts => HasSelectedImage && !IsProcessing;
         public bool CanGenerateVideo => HasGeneratedPrompts && !IsProcessing;
 
         // Commands
-        public ICommand SelectImageCommand { get; }
-        public ICommand AnalyzeImageCommand { get; }
-        public ICommand GeneratePromptsCommand { get; }
         public ICommand GenerateVideoCommand { get; }
         public ICommand CancelGenerationCommand { get; }
         public ICommand OpenResultFolderCommand { get; }
@@ -364,294 +315,6 @@ namespace FlipPix.UI.ViewModels
         public ICommand LoadPromptsCommand { get; }
 
         // Methods
-        private void SelectImage()
-        {
-            var openFileDialog = new Microsoft.Win32.OpenFileDialog
-            {
-                Filter = "Image Files|*.jpg;*.jpeg;*.png;*.bmp|All Files|*.*",
-                Title = "Select an image"
-            };
-
-            if (openFileDialog.ShowDialog() == true)
-            {
-                SelectedImagePath = openFileDialog.FileName;
-                LoadImagePreview(openFileDialog.FileName);
-                HasSelectedImage = true;
-                AddLog($"Selected image: {Path.GetFileName(openFileDialog.FileName)}");
-            }
-        }
-
-        private void LoadImagePreview(string imagePath)
-        {
-            try
-            {
-                var bitmap = new BitmapImage();
-                bitmap.BeginInit();
-                bitmap.CacheOption = BitmapCacheOption.OnLoad;
-                bitmap.UriSource = new Uri(imagePath, UriKind.Absolute);
-                bitmap.EndInit();
-                bitmap.Freeze();
-
-                SelectedImageSource = bitmap;
-                AddLog("Image preview loaded");
-            }
-            catch (Exception ex)
-            {
-                AddLog($"ERROR loading image preview: {ex.Message}");
-            }
-        }
-
-        private async Task AnalyzeImageAsync()
-        {
-            if (!HasSelectedImage)
-            {
-                AddLog("Cannot analyze: No image loaded");
-                return;
-            }
-
-            _cancellationTokenSource?.Dispose();
-            _cancellationTokenSource = new System.Threading.CancellationTokenSource();
-
-            try
-            {
-                IsAnalyzing = true;
-                AnalysisStatus = "Analyzing image with LM Studio Qwen-VL...";
-                AnalysisProgress = 0;
-                ImageAnalysis = "Analyzing image with LM Studio Qwen-VL AI...";
-
-                AddLog("=== Starting image analysis with LM Studio Qwen-VL ===");
-
-                // Get the selected model from settings
-                var baseUrl = _settingsService.Settings?.LMStudioSettings?.BaseUrl ?? "http://localhost:1234";
-                await _lmStudioService.SetBaseUrlAsync(baseUrl);
-                AddLog($"Using LM Studio at: {baseUrl}");
-
-                // Get the selected model or try to find a qwen-vl model
-                var models = await _lmStudioService.GetAvailableModelsAsync(_cancellationTokenSource.Token);
-                string selectedModel = _settingsService.Settings?.LMStudioSettings?.SelectedModel ?? string.Empty;
-
-                if (string.IsNullOrEmpty(selectedModel))
-                {
-                    // Try to find qwen-vl model
-                    var qwenModel = models.FirstOrDefault(m =>
-                        m.Name.ToLower().Contains("qwen") && m.Name.ToLower().Contains("vl"));
-
-                    if (qwenModel != null)
-                    {
-                        selectedModel = qwenModel.Name;
-                        AddLog($"Auto-selected Qwen VL model: {selectedModel}");
-                    }
-                    else if (models.Any())
-                    {
-                        selectedModel = models.First().Name;
-                        AddLog($"Using first available model: {selectedModel}");
-                    }
-                    else
-                    {
-                        throw new Exception("No models available in LM Studio. Please load a vision model like Qwen-VL.");
-                    }
-                }
-                else
-                {
-                    AddLog($"Using configured model: {selectedModel}");
-                }
-
-                AnalysisStatus = "Analyzing with LM Studio Qwen-VL...";
-                AnalysisProgress = 30;
-
-                // Use LM Studio for image analysis
-                var analysisPrompt = "Analyze this image in detail for story video generation. Describe the scene, characters, mood, atmosphere, and any key elements that would be useful for creating a compelling video story.";
-
-                var analysisResult = await _lmStudioService.AnalyzeImageAsync(
-                    selectedModel,
-                    SelectedImagePath,
-                    analysisPrompt,
-                    maxTokens: 500,
-                    _cancellationTokenSource.Token);
-
-                AnalysisProgress = 90;
-                AddLog("Analysis received from LM Studio");
-
-                if (!string.IsNullOrEmpty(analysisResult))
-                {
-                    ImageAnalysis = analysisResult;
-                    AnalysisStatus = "Analysis complete";
-                    AnalysisProgress = 100;
-                    AddLog("Image analysis completed successfully");
-                    StatusBarMessage = "Image analysis complete - you can use this for story prompts";
-                }
-                else
-                {
-                    ImageAnalysis = "Analysis completed but no text was returned from LM Studio.";
-                    AnalysisStatus = "Analysis complete (no output)";
-                    AddLog("Analysis completed but no text output was detected");
-                }
-            }
-            catch (OperationCanceledException)
-            {
-                IsAnalyzing = false;
-                AnalysisStatus = "Cancelled";
-                AddLog("Image analysis cancelled by user");
-            }
-            catch (Exception ex)
-            {
-                IsAnalyzing = false;
-                AnalysisStatus = "Error";
-                ImageAnalysis = $"Error analyzing image: {ex.Message}";
-                AddLog($"ERROR analyzing image: {ex.Message}");
-                System.Windows.MessageBox.Show($"Error analyzing image:\n\n{ex.Message}\n\nPlease ensure LM Studio is running and the Qwen-VL model is loaded.", "Error", System.Windows.MessageBoxButton.OK, System.Windows.MessageBoxImage.Error);
-            }
-            finally
-            {
-                IsAnalyzing = false;
-                System.Windows.Input.CommandManager.InvalidateRequerySuggested();
-            }
-        }
-
-        private async Task GeneratePromptsAsync()
-        {
-            if (!CanGeneratePrompts) return;
-
-            _cancellationTokenSource?.Dispose();
-            _cancellationTokenSource = new System.Threading.CancellationTokenSource();
-
-            try
-            {
-                AddLog("=== Starting prompt generation with LM Studio ===");
-                IsProcessing = true;
-                ProcessingProgress = 0;
-                ProcessingStatus = "Connecting to LM Studio...";
-
-                // Get the selected model from settings
-                var baseUrl = _settingsService.Settings?.LMStudioSettings?.BaseUrl ?? "http://localhost:1234";
-                await _lmStudioService.SetBaseUrlAsync(baseUrl);
-                AddLog($"Using LM Studio at: {baseUrl}");
-
-                ProcessingStatus = "Loading models...";
-                ProcessingProgress = 10;
-
-                // Get the selected model or try to find a qwen-vl model
-                var models = await _lmStudioService.GetAvailableModelsAsync(_cancellationTokenSource.Token);
-                string selectedModel = _settingsService.Settings?.LMStudioSettings?.SelectedModel ?? string.Empty;
-
-                if (string.IsNullOrEmpty(selectedModel))
-                {
-                    // Try to find qwen-vl model
-                    var qwenModel = models.FirstOrDefault(m =>
-                        m.Name.ToLower().Contains("qwen") && m.Name.ToLower().Contains("vl"));
-
-                    if (qwenModel != null)
-                    {
-                        selectedModel = qwenModel.Name;
-                        AddLog($"Auto-selected Qwen VL model: {selectedModel}");
-                    }
-                    else if (models.Any())
-                    {
-                        selectedModel = models.First().Name;
-                        AddLog($"Using first available model: {selectedModel}");
-                    }
-                    else
-                    {
-                        throw new Exception("No models available in LM Studio. Please load a vision model like Qwen-VL.");
-                    }
-                }
-                else
-                {
-                    AddLog($"Using configured model: {selectedModel}");
-                }
-
-                _cancellationTokenSource.Token.ThrowIfCancellationRequested();
-
-                ProcessingStatus = "Analyzing image and generating prompts...";
-                ProcessingProgress = 20;
-                AddLog("Sending image to LM Studio for prompt generation...");
-
-                // Use LM Studio for prompt generation with higher token limit
-                var generatedText = await _lmStudioService.AnalyzeImageAsync(
-                    selectedModel,
-                    SelectedImagePath,
-                    CustomPrompt,
-                    maxTokens: 2000,  // Increased token limit for 10 prompts
-                    _cancellationTokenSource.Token);
-
-                ProcessingProgress = 90;
-                AddLog($"Generated text received ({generatedText.Length} characters)");
-
-                if (!string.IsNullOrEmpty(generatedText))
-                {
-                    // Parse the generated text to extract 10 prompts
-                    var prompts = ExtractPromptsFromText(generatedText);
-
-                    if (prompts.Count >= 10)
-                    {
-                        GeneratedPrompt1 = prompts[0];
-                        GeneratedPrompt2 = prompts[1];
-                        GeneratedPrompt3 = prompts[2];
-                        GeneratedPrompt4 = prompts[3];
-                        GeneratedPrompt5 = prompts[4];
-                        GeneratedPrompt6 = prompts[5];
-                        GeneratedPrompt7 = prompts[6];
-                        GeneratedPrompt8 = prompts[7];
-                        GeneratedPrompt9 = prompts[8];
-                        GeneratedPrompt10 = prompts[9];
-
-                        HasGeneratedPrompts = true;
-                        ProcessingProgress = 100;
-                        ProcessingStatus = "Prompts generated successfully!";
-                        StatusBarMessage = "10 prompts generated successfully";
-
-                        AddLog("\n*** PROMPT GENERATION COMPLETE ***");
-                        AddLog($"Successfully extracted {prompts.Count} prompts:");
-                        for (int i = 0; i < prompts.Count; i++)
-                        {
-                            AddLog($"  {i + 1}. {prompts[i].Substring(0, Math.Min(60, prompts[i].Length))}...");
-                        }
-                        AddLog("*** Ready for video generation ***\n");
-                    }
-                    else
-                    {
-                        AddLog($"WARNING: Only extracted {prompts.Count} prompts, expected 10");
-                        System.Windows.MessageBox.Show($"Only {prompts.Count} prompts were extracted. The model returned:\n\n{generatedText}\n\nPlease try again or adjust your custom prompt.", "Warning", System.Windows.MessageBoxButton.OK, System.Windows.MessageBoxImage.Warning);
-                    }
-                }
-                else
-                {
-                    AddLog("WARNING: No generated text received from LM Studio");
-                    System.Windows.MessageBox.Show("No text was generated. Please check LM Studio for errors.", "Warning", System.Windows.MessageBoxButton.OK, System.Windows.MessageBoxImage.Warning);
-                }
-            }
-            catch (OperationCanceledException)
-            {
-                AddLog("Prompt generation cancelled by user");
-                ProcessingStatus = "Cancelled";
-                ProcessingProgress = 0;
-                StatusBarMessage = "Generation cancelled";
-            }
-            catch (Exception ex)
-            {
-                AddLog($"ERROR: {ex.GetType().Name}: {ex.Message}");
-                if (ex.InnerException != null)
-                {
-                    AddLog($"Inner Exception: {ex.InnerException.Message}");
-                }
-
-                _logger.LogError($"Error generating prompts: {ex}");
-                ProcessingStatus = "Error occurred";
-                ProcessingProgress = 0;
-
-                System.Windows.MessageBox.Show(
-                    $"Error generating prompts:\n\n{ex.Message}\n\nPlease ensure LM Studio is running and a Qwen-VL model is loaded.\n\nCheck the log for more details.",
-                    "Error",
-                    System.Windows.MessageBoxButton.OK,
-                    System.Windows.MessageBoxImage.Error);
-            }
-            finally
-            {
-                IsProcessing = false;
-                AddLog("=== Prompt generation ended ===");
-            }
-        }
-
         private async Task GenerateVideoAsync()
         {
             if (!CanGenerateVideo) return;
@@ -664,10 +327,9 @@ namespace FlipPix.UI.ViewModels
                 AddLog("=== Starting video generation ===");
                 IsProcessing = true;
                 ProcessingProgress = 0;
-                ProcessingStatus = "Preparing video workflow...";
+                ProcessingStatus = "Checking ComfyUI status...";
 
                 // Check if ComfyUI has crashed and restart if needed
-                ProcessingStatus = "Checking ComfyUI status...";
                 AddLog("Checking if ComfyUI is running...");
 
                 var comfyUIOk = await _comfyUIService.DetectAndRestartIfCrashedAsync(
@@ -699,7 +361,7 @@ namespace FlipPix.UI.ViewModels
                 _cancellationTokenSource.Token.ThrowIfCancellationRequested();
 
                 // Load workflow
-                var workflowPath = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "workflow", "Wan2.2+ZIT-sub-svi-API-10prompts.json");
+                var workflowPath = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "workflow", "WCFMAPI.json");
                 if (!File.Exists(workflowPath))
                 {
                     AddLog($"ERROR: Workflow file not found: {workflowPath}");
@@ -713,115 +375,214 @@ namespace FlipPix.UI.ViewModels
 
                 _cancellationTokenSource.Token.ThrowIfCancellationRequested();
 
-                // Upload image to ComfyUI
-                ProcessingStatus = "Uploading image...";
-                ProcessingProgress = 5;
-                AddLog("Uploading image to ComfyUI...");
+                AddLog("WCFMAPI workflow does not require an uploaded image - using EmptyImage node");
 
-                var imageFileName = await _comfyUIService.HttpClient.UploadImageAsync(SelectedImagePath);
-
-                // Validate that upload succeeded
-                if (string.IsNullOrEmpty(imageFileName))
+                // Get all prompts
+                var prompts = new List<string>
                 {
-                    AddLog("ERROR: Image upload failed - no filename returned from ComfyUI");
-                    System.Windows.MessageBox.Show(
-                        "Failed to upload image to ComfyUI. Please check the ComfyUI console for errors.",
-                        "Upload Failed",
-                        System.Windows.MessageBoxButton.OK,
-                        System.Windows.MessageBoxImage.Error);
+                    GeneratedPrompt1, GeneratedPrompt2, GeneratedPrompt3, GeneratedPrompt4, GeneratedPrompt5,
+                    GeneratedPrompt6, GeneratedPrompt7, GeneratedPrompt8, GeneratedPrompt9, GeneratedPrompt10
+                };
+
+                // Remove empty prompts
+                prompts = prompts.Where(p => !string.IsNullOrWhiteSpace(p)).ToList();
+
+                if (prompts.Count == 0)
+                {
+                    AddLog("ERROR: No valid prompts found");
+                    System.Windows.MessageBox.Show("No valid prompts found. Please generate prompts first.", "Error", System.Windows.MessageBoxButton.OK, System.Windows.MessageBoxImage.Error);
                     return;
                 }
 
-                AddLog($"Image uploaded as: {imageFileName}");
+                AddLog($"=== STARTING VIDEO GENERATION FOR {prompts.Count} PROMPTS ===");
+                AddLog($"This will generate {prompts.Count} video clips sequentially");
+                AddLog($"Expected total time: {prompts.Count * 2}-{prompts.Count * 10} minutes depending on your hardware");
+                AddLog("=== PROMPT PROCESSING START ===\n");
 
-                // Update workflow with parameters
-                ProcessingStatus = "Updating video workflow with prompts...";
-                ProcessingProgress = 10;
+                var generatedVideos = new List<string>();
+                int successfulClips = 0;
 
-                var updatedWorkflow = UpdateVideoWorkflowParameters(workflow, imageFileName,
-                    GeneratedPrompt1, GeneratedPrompt2, GeneratedPrompt3, GeneratedPrompt4, GeneratedPrompt5,
-                    GeneratedPrompt6, GeneratedPrompt7, GeneratedPrompt8, GeneratedPrompt9, GeneratedPrompt10);
-
-                // Execute workflow with crash detection and retry
-                ProcessingStatus = "Generating video (this may take several minutes)...";
-                ProcessingProgress = 20;
-                AddLog("Executing video workflow in ComfyUI...");
-                AddLog("NOTE: Video generation can take 10-30 minutes depending on your hardware");
-
-                var progress = new Progress<FlipPix.ComfyUI.Models.ProgressMessage>(progressMsg =>
+                // Process each prompt
+                for (int i = 0; i < prompts.Count; i++)
                 {
-                    if (progressMsg.Data?.Value != null && progressMsg.Data?.Max != null)
+                    var currentPrompt = prompts[i];
+                    var promptNumber = i + 1;
+
+                    AddLog($"\n*** PROCESSING PROMPT {promptNumber}/{prompts.Count} ***");
+                    var promptPreview = currentPrompt.Length > 80 ? currentPrompt.Substring(0, 80) + "..." : currentPrompt;
+                    AddLog($"Prompt: {promptPreview}");
+
+                    System.Windows.Application.Current.Dispatcher.Invoke(() =>
                     {
-                        var percent = (double)progressMsg.Data.Value / progressMsg.Data.Max * 100;
+                        ProcessingStatus = $"Processing prompt {promptNumber}/{prompts.Count}...";
+                        ProcessingProgress = (i / (double)prompts.Count) * 100;
+                    });
+
+                    _cancellationTokenSource.Token.ThrowIfCancellationRequested();
+
+                    // Update workflow with current prompt
+                    AddLog("Updating workflow with prompt...");
+                    var updatedWorkflow = UpdateVideoWorkflowParameters(workflow, currentPrompt);
+
+                    // Track node completion for this clip
+                    var nodeProgress = new Dictionary<string, double>();
+
+                    var progress = new Progress<FlipPix.ComfyUI.Models.ProgressMessage>(progressMsg =>
+                    {
+                        if (progressMsg.Data?.Value != null && progressMsg.Data?.Max != null)
+                        {
+                            var nodeId = progressMsg.Data.Node ?? "unknown";
+                            var nodePercent = (double)progressMsg.Data.Value / progressMsg.Data.Max;
+
+                            // Track this node's progress
+                            nodeProgress[nodeId] = nodePercent;
+
+                            // For WCFMAPI workflow, we track main processing nodes
+                            var videoNodeIds = new[] { "177:134", "177:125" };
+                            var isVideoNode = videoNodeIds.Any(id => nodeId.Contains(id));
+
+                            if (isVideoNode)
+                            {
+                                // Calculate overall progress: base progress for completed clips + current clip progress
+                                var baseProgress = (i / (double)prompts.Count) * 100;
+                                var clipProgress = (nodePercent / prompts.Count) * 100;
+                                var overallProgress = Math.Min(baseProgress + clipProgress, 95);
+
+                                System.Windows.Application.Current.Dispatcher.Invoke(() =>
+                                {
+                                    ProcessingProgress = overallProgress;
+                                    ProcessingStatus = $"Generating clip {promptNumber}/{prompts.Count}: {nodePercent * 100:F0}%";
+                                });
+
+                                AddLog($"[Progress] Clip {promptNumber} - Node {nodeId}: {nodePercent * 100:F0}%");
+                            }
+                        }
+                    });
+
+                    string? promptId = null;
+                    try
+                    {
+                        AddLog("Executing workflow in ComfyUI...");
+                        promptId = await _comfyUIService.ExecuteWorkflowAsync(updatedWorkflow, progress, _cancellationTokenSource.Token);
+                        AddLog($"✓ Clip {promptNumber} execution completed (Prompt ID: {promptId})");
+                    }
+                    catch (Exception ex)
+                    {
+                        AddLog($"✗ ERROR during clip {promptNumber} execution: {ex.Message}");
+                        AddLog("Checking if ComfyUI crashed during execution...");
+
+                        // Detect and potentially restart ComfyUI after crash
+                        var recovered = await _comfyUIService.DetectAndRestartIfCrashedAsync(
+                            status => AddLog($"[Crash Recovery] {status}"),
+                            _cancellationTokenSource.Token);
+
+                        if (recovered)
+                        {
+                            AddLog("ComfyUI was restarted, but the current video generation was interrupted.");
+                            var result = System.Windows.MessageBox.Show(
+                                $"ComfyUI crashed during video clip {promptNumber}/{prompts.Count} but has been restarted.\n\nDo you want to retry this clip or skip to the next one?",
+                                "ComfyUI Crash Detected",
+                                System.Windows.MessageBoxButton.YesNo,
+                                System.Windows.MessageBoxImage.Warning);
+
+                            if (result == System.Windows.MessageBoxResult.Yes)
+                            {
+                                AddLog("Retrying current clip...");
+                                i--; // Retry this clip
+                                continue;
+                            }
+                            else
+                            {
+                                AddLog($"Skipping clip {promptNumber} and continuing to next prompt...");
+                                continue; // Skip to next clip
+                            }
+                        }
+                        else
+                        {
+                            AddLog("ComfyUI may not be running properly");
+                            throw; // Re-throw to trigger the outer catch block
+                        }
+                    }
+
+                    // Wait for video to be written
+                    AddLog("Waiting for video file to be written...");
+                    await Task.Delay(5000, _cancellationTokenSource.Token);
+
+                    // Get output video for this clip
+                    var videoPath = GetOutputVideoFromComfyUI();
+                    if (!string.IsNullOrEmpty(videoPath))
+                    {
+                        generatedVideos.Add(videoPath);
+                        successfulClips++;
+                        AddLog($"✓ Clip {promptNumber} saved: {Path.GetFileName(videoPath)}");
+
                         System.Windows.Application.Current.Dispatcher.Invoke(() =>
                         {
-                            ProcessingProgress = 20 + (percent * 0.7);
-                            ProcessingStatus = $"Generating video: {progressMsg.Data.Value}/{progressMsg.Data.Max}";
+                            StatusBarMessage = $"Generated {successfulClips}/{prompts.Count} clips";
                         });
-                    }
-                });
-
-                string? promptId = null;
-                try
-                {
-                    promptId = await _comfyUIService.ExecuteWorkflowAsync(updatedWorkflow, progress, _cancellationTokenSource.Token);
-                }
-                catch (Exception ex)
-                {
-                    AddLog($"ERROR during workflow execution: {ex.Message}");
-                    AddLog("Checking if ComfyUI crashed during execution...");
-
-                    // Detect and potentially restart ComfyUI after crash
-                    var recovered = await _comfyUIService.DetectAndRestartIfCrashedAsync(
-                        status => AddLog($"[Crash Recovery] {status}"),
-                        _cancellationTokenSource.Token);
-
-                    if (recovered)
-                    {
-                        AddLog("ComfyUI was restarted, but the current video generation was interrupted.");
-                        System.Windows.MessageBox.Show(
-                            "ComfyUI crashed during video generation but has been restarted.\n\nThe current video generation was interrupted and needs to be retried.",
-                            "ComfyUI Crash Detected",
-                            System.Windows.MessageBoxButton.OK,
-                            System.Windows.MessageBoxImage.Warning);
                     }
                     else
                     {
-                        AddLog("ComfyUI may not be running properly");
+                        AddLog($"⚠ WARNING: No output video found for clip {promptNumber}");
+                        var result = System.Windows.MessageBox.Show(
+                            $"No output video was generated for clip {promptNumber}/{prompts.Count}.\n\nDo you want to continue with the remaining clips?",
+                            "Warning",
+                            System.Windows.MessageBoxButton.YesNo,
+                            System.Windows.MessageBoxImage.Warning);
+
+                        if (result == System.Windows.MessageBoxResult.No)
+                        {
+                            AddLog("User chose to stop generation");
+                            break;
+                        }
                     }
-                    throw; // Re-throw to trigger the outer catch block
                 }
 
-                System.Windows.Application.Current.Dispatcher.Invoke(() =>
+                AddLog("\n=== ALL PROMPTS PROCESSED ===");
+                AddLog($"Successfully generated: {successfulClips}/{prompts.Count} video clips");
+
+                if (generatedVideos.Any())
                 {
-                    ProcessingProgress = 90;
-                    ProcessingStatus = "Workflow completed, retrieving video...";
-                });
-
-                AddLog($"Workflow execution completed with prompt ID: {promptId}");
-
-                // Get output video
-                ProcessingStatus = "Retrieving output video...";
-                ProcessingProgress = 95;
-                AddLog("Looking for generated video...");
-
-                // Wait for video to be written
-                await Task.Delay(5000, _cancellationTokenSource.Token);
-
-                var videoPath = GetOutputVideoFromComfyUI();
-                if (!string.IsNullOrEmpty(videoPath))
-                {
-                    ResultVideoPath = videoPath;
+                    // Set the first video as the main result
+                    ResultVideoPath = generatedVideos.First();
                     HasResultVideo = true;
                     ProcessingProgress = 100;
                     ProcessingStatus = "Video generation complete!";
-                    StatusBarMessage = $"Video generated - {Path.GetFileName(videoPath)}";
-                    AddLog($"Output video saved: {videoPath}");
+                    StatusBarMessage = $"Generated {successfulClips} video clips";
+
+                    AddLog($"\nGenerated videos:");
+                    for (int i = 0; i < generatedVideos.Count; i++)
+                    {
+                        AddLog($"  {i + 1}. {generatedVideos[i]}");
+                    }
+
+                    // Copy all videos to output folder with proper naming
+                    var outputDir = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "output", "story-video");
+                    Directory.CreateDirectory(outputDir);
+
+                    var timestamp = DateTime.Now.ToString("yyyyMMdd_HHmmss");
+                    var copiedVideos = new List<string>();
+
+                    for (int i = 0; i < generatedVideos.Count; i++)
+                    {
+                        var destPath = Path.Combine(outputDir, $"story-video_clip{i + 1}_{timestamp}.mp4");
+                        File.Copy(generatedVideos[i], destPath, true);
+                        copiedVideos.Add(destPath);
+                        AddLog($"✓ Copied clip {i + 1} to: {destPath}");
+                    }
+
+                    AddLog($"\n✓ All {copiedVideos.Count} videos copied to: {outputDir}");
+
+                    System.Windows.MessageBox.Show(
+                        $"Successfully generated {successfulClips} video clips!\n\nVideos saved to:\n{outputDir}\n\nClip files:\n{string.Join("\n", copiedVideos.Select(Path.GetFileName))}",
+                        "Generation Complete",
+                        System.Windows.MessageBoxButton.OK,
+                        System.Windows.MessageBoxImage.Information);
                 }
                 else
                 {
-                    AddLog("WARNING: No output video found");
-                    System.Windows.MessageBox.Show("No output video was generated. Please check the ComfyUI console for errors.", "Warning", System.Windows.MessageBoxButton.OK, System.Windows.MessageBoxImage.Warning);
+                    AddLog("ERROR: No videos were generated");
+                    System.Windows.MessageBox.Show("No video clips were generated. Please check the ComfyUI console for errors.", "Error", System.Windows.MessageBoxButton.OK, System.Windows.MessageBoxImage.Error);
                 }
             }
             catch (OperationCanceledException)
@@ -898,76 +659,34 @@ namespace FlipPix.UI.ViewModels
             return JsonSerializer.SerializeToElement(workflowDict);
         }
 
-        private JsonElement UpdateVideoWorkflowParameters(JsonElement workflow, string imageFileName,
-            string prompt1, string prompt2, string prompt3, string prompt4, string prompt5,
-            string prompt6, string prompt7, string prompt8, string prompt9, string prompt10)
+        private JsonElement UpdateVideoWorkflowParameters(JsonElement workflow, string prompt)
         {
             var workflowDict = JsonSerializer.Deserialize<Dictionary<string, JsonElement>>(workflow.GetRawText());
             if (workflowDict == null) return workflow;
 
-            // Debug: Log the prompts we're about to use
-            AddLog("\n*** VIDEO GENERATION: PROMPT UPDATE START ***");
-            AddLog($"Updating 10 prompts for sequential processing...");
-
-            // Update LoadImage node (node 11 in Wan2.2+ZIT workflow)
-            if (workflowDict.ContainsKey("11"))
+            // WCFMAPI workflow uses node "177:109" (PrimitiveStringMultiline) with "value" field for the prompt
+            if (workflowDict.ContainsKey("177:109"))
             {
-                var node11 = JsonSerializer.Deserialize<Dictionary<string, object>>(workflowDict["11"].GetRawText());
-                if (node11 != null && node11.ContainsKey("inputs"))
+                var node = JsonSerializer.Deserialize<Dictionary<string, object>>(workflowDict["177:109"].GetRawText());
+                if (node != null && node.ContainsKey("inputs"))
                 {
                     var inputs = JsonSerializer.Deserialize<Dictionary<string, object>>(
-                        JsonSerializer.Serialize(node11["inputs"]));
-                    if (inputs != null)
+                        JsonSerializer.Serialize(node["inputs"]));
+                    if (inputs != null && inputs.ContainsKey("value"))
                     {
-                        inputs["image"] = imageFileName;
-                        node11["inputs"] = inputs;
-                        workflowDict["11"] = JsonSerializer.SerializeToElement(node11);
-                        AddLog("✓ Node 11 (LoadImage) - Image updated");
+                        inputs["value"] = prompt;
+                        node["inputs"] = inputs;
+                        workflowDict["177:109"] = JsonSerializer.SerializeToElement(node);
+
+                        var promptPreview = prompt.Length > 50 ? prompt.Substring(0, 50) + "..." : prompt;
+                        AddLog($"✓ Node 177:109 - Prompt updated: {promptPreview}");
                     }
                 }
             }
-
-            // Update all 10 CLIPTextEncode nodes with their respective prompts
-            var promptNodes = new Dictionary<string, string>
+            else
             {
-                { "53:13", prompt1 },   // First prompt section
-                { "82:13", prompt2 },   // Second prompt section
-                { "90:13", prompt3 },   // Third prompt section
-                { "92:13", prompt4 },   // Fourth prompt section
-                { "102:13", prompt5 },  // Fifth prompt section
-                { "112:13", prompt6 },  // Sixth prompt section
-                { "122:13", prompt7 },  // Seventh prompt section
-                { "132:13", prompt8 },  // Eighth prompt section
-                { "142:13", prompt9 },  // Ninth prompt section
-                { "152:13", prompt10 }  // Tenth prompt section
-            };
-
-            foreach (var kvp in promptNodes)
-            {
-                var nodeId = kvp.Key;
-                var prompt = kvp.Value;
-
-                if (workflowDict.ContainsKey(nodeId))
-                {
-                    var node = JsonSerializer.Deserialize<Dictionary<string, object>>(workflowDict[nodeId].GetRawText());
-                    if (node != null && node.ContainsKey("inputs"))
-                    {
-                        var inputs = JsonSerializer.Deserialize<Dictionary<string, object>>(
-                            JsonSerializer.Serialize(node["inputs"]));
-                        if (inputs != null && inputs.ContainsKey("text"))
-                        {
-                            inputs["text"] = prompt;
-                            node["inputs"] = inputs;
-                            workflowDict[nodeId] = JsonSerializer.SerializeToElement(node);
-
-                            var promptPreview = prompt.Length > 50 ? prompt.Substring(0, 50) + "..." : prompt;
-                            AddLog($"✓ Node {nodeId} - Prompt updated: {promptPreview}");
-                        }
-                    }
-                }
+                AddLog("⚠ Node 177:109 not found in workflow - prompt not updated");
             }
-
-            AddLog("*** WORKFLOW UPDATED SUCCESSFULLY - 10 PROMPTS READY ***\n");
 
             return JsonSerializer.SerializeToElement(workflowDict);
         }
@@ -1298,8 +1017,8 @@ namespace FlipPix.UI.ViewModels
                     return string.Empty;
                 }
 
-                // Look for Wan2.2-I2V output files (Wan2.2+ZIT workflow uses "Wan2.2-I2V-sub-svi" prefix)
-                var videoFiles = Directory.GetFiles(comfyUIOutputDir, "Wan2.2-I2V-sub-svi*.mp4")
+                // Look for WCFMAPI output files (WCFMAPI workflow uses "LTX-2" prefix)
+                var videoFiles = Directory.GetFiles(comfyUIOutputDir, "LTX-2*.mp4")
                     .OrderByDescending(f => File.GetLastWriteTime(f))
                     .ToList();
 
@@ -1332,7 +1051,7 @@ namespace FlipPix.UI.ViewModels
                 }
                 else
                 {
-                    AddLog("No WanVideo output files found");
+                    AddLog("No LTX-2 output files found");
                 }
             }
             catch (Exception ex)
@@ -1381,14 +1100,14 @@ namespace FlipPix.UI.ViewModels
                 {
                     Filter = "JSON Files|*.json|All Files|*.*",
                     Title = "Save Generated Prompts",
-                    FileName = $"story-prompts_{DateTime.Now:yyyyMMdd_HHmmss}.json"
+                    FileName = $"story-prompts_{DateTime.Now:yyyyMMdd_HHmmss}.json",
+                    InitialDirectory = PromptsFolderPath
                 };
 
                 if (saveFileDialog.ShowDialog() == true)
                 {
                     var promptsData = new
                     {
-                        CustomPrompt = CustomPrompt,
                         Prompts = new[]
                         {
                             GeneratedPrompt1, GeneratedPrompt2, GeneratedPrompt3, GeneratedPrompt4, GeneratedPrompt5,
@@ -1406,6 +1125,9 @@ namespace FlipPix.UI.ViewModels
                     File.WriteAllText(saveFileDialog.FileName, json);
                     AddLog($"Prompts saved to: {Path.GetFileName(saveFileDialog.FileName)}");
                     StatusBarMessage = "Prompts saved successfully";
+
+                    // Update the prompts folder to the saved location
+                    PromptsFolderPath = Path.GetDirectoryName(saveFileDialog.FileName) ?? PromptsFolderPath;
                 }
             }
             catch (Exception ex)
@@ -1426,7 +1148,8 @@ namespace FlipPix.UI.ViewModels
                 var openFileDialog = new Microsoft.Win32.OpenFileDialog
                 {
                     Filter = "JSON Files|*.json|All Files|*.*",
-                    Title = "Load Generated Prompts"
+                    Title = "Load Generated Prompts",
+                    InitialDirectory = PromptsFolderPath
                 };
 
                 if (openFileDialog.ShowDialog() == true)
@@ -1434,59 +1157,16 @@ namespace FlipPix.UI.ViewModels
                     var json = File.ReadAllText(openFileDialog.FileName);
                     var data = JsonSerializer.Deserialize<JsonElement>(json);
 
-                    // Load custom prompt if available
-                    if (data.TryGetProperty("CustomPrompt", out var customPromptProp))
+                    // Load the prompts (support both old and new formats)
+                    JsonElement promptsProp;
+                    if (data.TryGetProperty("Prompts", out var p) && p.ValueKind == JsonValueKind.Array)
                     {
-                        CustomPrompt = customPromptProp.GetString() ?? CustomPrompt;
+                        promptsProp = p;
                     }
-
-                    // Load the 10 prompts
-                    if (data.TryGetProperty("Prompts", out var promptsProp) && promptsProp.ValueKind == JsonValueKind.Array)
+                    else if (data.ValueKind == JsonValueKind.Array)
                     {
-                        var prompts = promptsProp.EnumerateArray().ToList();
-
-                        if (prompts.Count >= 10)
-                        {
-                            GeneratedPrompt1 = prompts[0].GetString() ?? string.Empty;
-                            GeneratedPrompt2 = prompts[1].GetString() ?? string.Empty;
-                            GeneratedPrompt3 = prompts[2].GetString() ?? string.Empty;
-                            GeneratedPrompt4 = prompts[3].GetString() ?? string.Empty;
-                            GeneratedPrompt5 = prompts[4].GetString() ?? string.Empty;
-                            GeneratedPrompt6 = prompts[5].GetString() ?? string.Empty;
-                            GeneratedPrompt7 = prompts[6].GetString() ?? string.Empty;
-                            GeneratedPrompt8 = prompts[7].GetString() ?? string.Empty;
-                            GeneratedPrompt9 = prompts[8].GetString() ?? string.Empty;
-                            GeneratedPrompt10 = prompts[9].GetString() ?? string.Empty;
-
-                            HasGeneratedPrompts = true;
-                            AddLog($"Loaded 10 prompts from: {Path.GetFileName(openFileDialog.FileName)}");
-                            StatusBarMessage = "10 prompts loaded successfully";
-
-                            // Log the loaded prompts for verification
-                            AddLog("\n*** LOADED PROMPTS VERIFICATION ***");
-                            for (int i = 0; i < 10; i++)
-                            {
-                                var prompt = prompts[i].GetString() ?? string.Empty;
-                                if (!string.IsNullOrWhiteSpace(prompt))
-                                {
-                                    AddLog($"  {i + 1}. {prompt.Substring(0, Math.Min(60, prompt.Length))}...");
-                                }
-                                else
-                                {
-                                    AddLog($"  {i + 1}. [EMPTY PROMPT]");
-                                }
-                            }
-                            AddLog("*** LOAD COMPLETE ***\n");
-                        }
-                        else
-                        {
-                            AddLog($"ERROR: Expected 10 prompts, but found {prompts.Count}");
-                            System.Windows.MessageBox.Show(
-                                $"Expected 10 prompts, but found {prompts.Count} in the file.",
-                                "Error",
-                                System.Windows.MessageBoxButton.OK,
-                                System.Windows.MessageBoxImage.Error);
-                        }
+                        // Direct array format
+                        promptsProp = data;
                     }
                     else
                     {
@@ -1496,7 +1176,56 @@ namespace FlipPix.UI.ViewModels
                             "Error",
                             System.Windows.MessageBoxButton.OK,
                             System.Windows.MessageBoxImage.Error);
+                        return;
                     }
+
+                    var prompts = promptsProp.EnumerateArray().ToList();
+
+                    // Support any number of prompts (1-10)
+                    var promptCount = Math.Min(prompts.Count, 10);
+                    var promptValues = prompts.Select(p => p.GetString() ?? string.Empty).ToList();
+
+                    // Fill in all prompt slots (pad with empty strings if needed)
+                    for (int i = 0; i < 10; i++)
+                    {
+                        var value = i < promptCount ? promptValues[i] : string.Empty;
+                        switch (i)
+                        {
+                            case 0: GeneratedPrompt1 = value; break;
+                            case 1: GeneratedPrompt2 = value; break;
+                            case 2: GeneratedPrompt3 = value; break;
+                            case 3: GeneratedPrompt4 = value; break;
+                            case 4: GeneratedPrompt5 = value; break;
+                            case 5: GeneratedPrompt6 = value; break;
+                            case 6: GeneratedPrompt7 = value; break;
+                            case 7: GeneratedPrompt8 = value; break;
+                            case 8: GeneratedPrompt9 = value; break;
+                            case 9: GeneratedPrompt10 = value; break;
+                        }
+                    }
+
+                    HasGeneratedPrompts = true;
+                    AddLog($"Loaded {promptCount} prompts from: {Path.GetFileName(openFileDialog.FileName)}");
+                    StatusBarMessage = $"{promptCount} prompts loaded successfully";
+
+                    // Log the loaded prompts for verification
+                    AddLog("\n*** LOADED PROMPTS VERIFICATION ***");
+                    for (int i = 0; i < promptCount; i++)
+                    {
+                        var prompt = promptValues[i];
+                        if (!string.IsNullOrWhiteSpace(prompt))
+                        {
+                            AddLog($"  {i + 1}. {prompt.Substring(0, Math.Min(60, prompt.Length))}...");
+                        }
+                        else
+                        {
+                            AddLog($"  {i + 1}. [EMPTY PROMPT]");
+                        }
+                    }
+                    AddLog("*** LOAD COMPLETE ***\n");
+
+                    // Update the prompts folder to the loaded location
+                    PromptsFolderPath = Path.GetDirectoryName(openFileDialog.FileName) ?? PromptsFolderPath;
                 }
             }
             catch (Exception ex)

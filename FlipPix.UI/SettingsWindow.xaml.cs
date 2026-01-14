@@ -6,6 +6,7 @@ using System.Windows.Controls;
 using Microsoft.Win32;
 using FlipPix.Core.Models;
 using FlipPix.Core.Services;
+using FlipPix.UI.Models;
 using Button = System.Windows.Controls.Button;
 using MessageBox = System.Windows.MessageBox;
 
@@ -15,6 +16,7 @@ namespace FlipPix.UI
     {
         private readonly ComfyUISettings _originalSettings;
         private readonly SettingsService _settingsService;
+        private List<LMStudioModel> _availableModels = new List<LMStudioModel>();
 
         public SettingsWindow(SettingsService settingsService)
         {
@@ -46,7 +48,18 @@ namespace FlipPix.UI
                 AutoRestartComfyUI = original.AutoRestartComfyUI,
                 ComfyUIRestartScriptPath = original.ComfyUIRestartScriptPath,
                 ComfyUIRestartDelaySeconds = original.ComfyUIRestartDelaySeconds,
-                ComfyUIStartupTimeoutSeconds = original.ComfyUIStartupTimeoutSeconds
+                ComfyUIStartupTimeoutSeconds = original.ComfyUIStartupTimeoutSeconds,
+                // Clone LM Studio settings
+                LMStudioSettings = new LMStudioSettings
+                {
+                    BaseUrl = original.LMStudioSettings?.BaseUrl ?? "http://localhost:1234",
+                    SelectedModel = original.LMStudioSettings?.SelectedModel ?? string.Empty,
+                    ConnectionTimeout = original.LMStudioSettings?.ConnectionTimeout ?? 30000,
+                    MaxRetries = original.LMStudioSettings?.MaxRetries ?? 3,
+                    RetryDelayMilliseconds = original.LMStudioSettings?.RetryDelayMilliseconds ?? 2000,
+                    MaxImageSize = original.LMStudioSettings?.MaxImageSize ?? 256,
+                    AutoConnect = original.LMStudioSettings?.AutoConnect ?? true
+                }
             };
         }
 
@@ -335,22 +348,63 @@ namespace FlipPix.UI
                 }
 
                 var baseUrl = $"http://{server}:{port}";
+                System.Diagnostics.Debug.WriteLine($"RefreshLMStudioModels: Connecting to {baseUrl}/v1/models");
+
                 using var httpClient = new System.Net.Http.HttpClient { Timeout = TimeSpan.FromSeconds(10) };
 
                 var response = await httpClient.GetAsync($"{baseUrl}/v1/models");
+                System.Diagnostics.Debug.WriteLine($"RefreshLMStudioModels: Response status: {response.StatusCode}");
+
                 if (response.IsSuccessStatusCode)
                 {
                     var json = await response.Content.ReadAsStringAsync();
-                    MessageBox.Show("Successfully connected to LM Studio! Models available.", "Models Refreshed", MessageBoxButton.OK, MessageBoxImage.Information);
+                    System.Diagnostics.Debug.WriteLine($"RefreshLMStudioModels: Response JSON ({json.Length} chars): {json.Substring(0, Math.Min(500, json.Length))}...");
+
+                    // Parse the models from the response
+                    var options = new System.Text.Json.JsonSerializerOptions { PropertyNameCaseInsensitive = true };
+                    var result = System.Text.Json.JsonSerializer.Deserialize<LMStudioModelsResponse>(json, options);
+
+                    System.Diagnostics.Debug.WriteLine($"RefreshLMStudioModels: Parsed result, Data is null: {result?.Data == null}");
+
+                    if (result?.Data != null)
+                    {
+                        _availableModels = result.Data.ToList();
+                        System.Diagnostics.Debug.WriteLine($"RefreshLMStudioModels: Found {_availableModels.Count} models");
+
+                        // Update the ComboBox items
+                        LMStudioModelComboBox.ItemsSource = _availableModels;
+                        LMStudioModelComboBox.DisplayMemberPath = "Name";
+                        LMStudioModelComboBox.SelectedValuePath = "Name";
+
+                        MessageBox.Show($"Successfully loaded {_availableModels.Count} models from LM Studio!", "Models Refreshed", MessageBoxButton.OK, MessageBoxImage.Information);
+                    }
+                    else
+                    {
+                        System.Diagnostics.Debug.WriteLine("RefreshLMStudioModels: result.Data is null");
+                        MessageBox.Show($"Connected but no models found in response.\n\nResponse preview:\n{json.Substring(0, Math.Min(300, json.Length))}...", "No Models", MessageBoxButton.OK, MessageBoxImage.Warning);
+                    }
                 }
                 else
                 {
-                    MessageBox.Show($"Failed to get models. Status: {response.StatusCode}", "Refresh Failed", MessageBoxButton.OK, MessageBoxImage.Warning);
+                    var errorContent = await response.Content.ReadAsStringAsync();
+                    System.Diagnostics.Debug.WriteLine($"RefreshLMStudioModels: Failed with status {response.StatusCode}, content: {errorContent}");
+                    MessageBox.Show($"Failed to get models.\n\nStatus: {response.StatusCode}\n\nError:\n{errorContent}", "Refresh Failed", MessageBoxButton.OK, MessageBoxImage.Warning);
                 }
+            }
+            catch (System.Net.Http.HttpRequestException ex)
+            {
+                System.Diagnostics.Debug.WriteLine($"RefreshLMStudioModels: HTTP request failed: {ex.Message}");
+                MessageBox.Show($"Connection error: {ex.Message}\n\nPlease check that LM Studio is running and accessible at the specified address.", "Connection Error", MessageBoxButton.OK, MessageBoxImage.Error);
+            }
+            catch (TaskCanceledException ex)
+            {
+                System.Diagnostics.Debug.WriteLine($"RefreshLMStudioModels: Request timed out: {ex.Message}");
+                MessageBox.Show("Request timed out. LM Studio may be busy or not responding.", "Timeout Error", MessageBoxButton.OK, MessageBoxImage.Error);
             }
             catch (Exception ex)
             {
-                MessageBox.Show($"Error refreshing models: {ex.Message}", "Refresh Error", MessageBoxButton.OK, MessageBoxImage.Error);
+                System.Diagnostics.Debug.WriteLine($"RefreshLMStudioModels: Unexpected error: {ex.Message}\n{ex.StackTrace}");
+                MessageBox.Show($"Error refreshing models: {ex.Message}\n\nStack trace:\n{ex.StackTrace}", "Refresh Error", MessageBoxButton.OK, MessageBoxImage.Error);
             }
         }
 
@@ -404,7 +458,9 @@ namespace FlipPix.UI
                     AutoRestartComfyUI = AutoRestartCheckBox.IsChecked ?? true,
                     ComfyUIRestartScriptPath = ComfyUIRestartScriptTextBox.Text?.Trim() ?? "",
                     ComfyUIRestartDelaySeconds = int.TryParse(RestartDelayTextBox.Text, out var restartDelay) ? restartDelay : 10,
-                    ComfyUIStartupTimeoutSeconds = int.TryParse(StartupTimeoutTextBox.Text, out var startupTimeout) ? startupTimeout : 120
+                    ComfyUIStartupTimeoutSeconds = int.TryParse(StartupTimeoutTextBox.Text, out var startupTimeout) ? startupTimeout : 120,
+                    // Preserve LM Studio settings
+                    LMStudioSettings = _originalSettings.LMStudioSettings
                 };
 
                 _settingsService.SaveSettings(newSettings);
