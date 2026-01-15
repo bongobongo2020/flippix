@@ -40,7 +40,7 @@ namespace FlipPix.UI.ViewModels
 
         // Generation settings
         private int _steps = 8;
-        private double _cfg = 1.0;
+        private double _cfg = 1.5;
         private double _denoise = 0.98;
         private double _denoise2 = 0.85;
         private string _negativePrompt = "";
