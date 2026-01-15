@@ -1190,16 +1190,80 @@
 
                                     <!-- Art Style Selection -->
                                     <StackPanel Margin="0,0,0,15">
-                                        <TextBlock Text="🎨 Art Style" FontWeight="SemiBold" FontSize="12" Margin="0,0,0,5"/>
-                                        <ComboBox ItemsSource="{Binding StoryGenerator.AvailableStyles}"
-                                                  SelectedItem="{Binding StoryGenerator.SelectedStyle, Mode=TwoWay}"
+                                        <TextBlock Text="🎨 Art Style (ZStyles Workflows)" FontWeight="SemiBold" FontSize="12" Margin="0,0,0,5"/>
+                                        <ComboBox ItemsSource="{Binding StoryGenerator.StyleNames}"
+                                                  SelectedIndex="{Binding StoryGenerator.SelectedStyleIndex, Mode=TwoWay}"
                                                   Padding="10"
                                                   Background="White"
                                                   BorderBrush="#CED4DA"
                                                   FontSize="11"/>
-                                        <TextBlock Text="Select the artistic style for image generation"
+                                        <TextBlock Text="Select the ZStyles workflow for image generation"
                                                   FontSize="10"
                                                   Foreground="#999"
+                                                  Margin="0,5,0,0"/>
+                                    </StackPanel>
+
+                                    <!-- LoRA Settings -->
+                                    <StackPanel Margin="0,0,0,15">
+                                        <TextBlock Text="🔧 LoRA Model" FontWeight="SemiBold" FontSize="12" Margin="0,0,0,5"/>
+
+                                        <!-- LoRA Enable Toggle -->
+                                        <CheckBox Content="Enable LoRA"
+                                                 IsChecked="{Binding StoryGenerator.LoraEnabled, Mode=TwoWay}"
+                                                 FontWeight="SemiBold"
+                                                 FontSize="12"
+                                                 Margin="0,0,0,8"/>
+
+                                        <!-- LoRA Selection (only visible when enabled) -->
+                                        <Grid Visibility="{Binding StoryGenerator.LoraEnabled, Converter={StaticResource BooleanToVisibilityConverter}}">
+                                            <Grid.ColumnDefinitions>
+                                                <ColumnDefinition Width="*"/>
+                                                <ColumnDefinition Width="Auto"/>
+                                            </Grid.ColumnDefinitions>
+
+                                            <ComboBox Grid.Column="0"
+                                                     ItemsSource="{Binding StoryGenerator.AvailableLoras}"
+                                                     SelectedItem="{Binding StoryGenerator.SelectedLora, Mode=TwoWay}"
+                                                     Padding="10"
+                                                     Background="White"
+                                                     BorderBrush="#CED4DA"
+                                                     FontSize="12"
+                                                     Height="35"
+                                                     Margin="0,0,8,0"/>
+
+                                            <Button Grid.Column="1"
+                                                   Content="↻"
+                                                   Command="{Binding StoryGenerator.RefreshLorasCommand}"
+                                                   Padding="10,5"
+                                                   Background="#6C757D"
+                                                   Foreground="White"
+                                                   BorderThickness="0"
+                                                   FontSize="14"
+                                                   FontWeight="Bold"
+                                                   Width="35"
+                                                   Height="35"
+                                                   Cursor="Hand"
+                                                   ToolTip="Refresh LoRA list">
+                                                <Button.Template>
+                                                    <ControlTemplate TargetType="Button">
+                                                        <Border Background="{TemplateBinding Background}"
+                                                               CornerRadius="5"
+                                                               Padding="{TemplateBinding Padding}">
+                                                            <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                                                        </Border>
+                                                        <ControlTemplate.Triggers>
+                                                            <Trigger Property="IsMouseOver" Value="True">
+                                                                <Setter Property="Background" Value="#5A6268"/>
+                                                            </Trigger>
+                                                        </ControlTemplate.Triggers>
+                                                    </ControlTemplate>
+                                                </Button.Template>
+                                            </Button>
+                                        </Grid>
+                                        <TextBlock Text="Configure ComfyUI installation path in Settings. LoRAs will be auto-detected from ComfyUI's model paths"
+                                                  FontSize="10"
+                                                  Foreground="#666"
+                                                  FontStyle="Italic"
                                                   Margin="0,5,0,0"/>
                                     </StackPanel>
 
