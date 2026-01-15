@@ -17,7 +17,7 @@
   },
   "9": {
     "inputs": {
-      "filename_prefix": "ZImage/2026_01_14/ZI",
+      "filename_prefix": "ZImage/2026_01_15/ZI",
       "images": [
         "532",
         0
@@ -43,6 +43,15 @@
     "class_type": "StringReplace",
     "_meta": {
       "title": "STYLE INTEGRATOR"
+    }
+  },
+  "47": {
+    "inputs": {
+      "value": "YOUR CONTEXT:\nYou are an editorial fashion photographer specializing in the Old Money aesthetic.\nYour photograph showcases {$spicy-content-with} a sophisticated, clean composition using natural, soft morning light. The color palette is muted and neutral, focusing on beige, cream, navy blue, and forest green. The scene feels expensive and timeless, set in a luxury location.\nYOUR PHOTOGRAPH:\n{$@}"
+    },
+    "class_type": "PrimitiveStringMultiline",
+    "_meta": {
+      "title": "STYLE: Quiet Luxury Photo"
     }
   },
   "50": {
@@ -79,7 +88,7 @@
   },
   "54": {
     "inputs": {
-      "text": "In a steampunk workshop, a red-haired inventor, wearing overalls with a white top underneath, works on a mechanical spider. She has a black tattoo on her left arm."
+      "text": " a woman in the middle of an athletic movement within a modern living room.\n\n**Objects:**\nThe main subject is a young woman with dark hair tied up in a bun. She is dressed in athletic attire: a simple white t-shirt and black shorts.\n*   Her right leg is extended high into a powerful, controlled kick, her foot pointing upwards towards the ceiling.\n*   Her left arm is bent, holding a tight fist near her chest.\n*   In the background to the right stands a large, black pedestal fan, its blades visible.\n*   A modern, minimalist gray sofa occupies the lower portion of the frame.\n\n\nThe overall effect is energetic, dramatic, and visually arresting, suggesting a blend of athleticism, creativity, and modern lifestyle."
     },
     "class_type": "CLIPTextEncode",
     "_meta": {
@@ -117,8 +126,8 @@
   },
   "87": {
     "inputs": {
-      "any_02": [
-        "125",
+      "any_06": [
+        "47",
         0
       ]
     },
@@ -139,13 +148,18 @@
       "title": "Sampler Chooser"
     }
   },
-  "125": {
+  "144": {
     "inputs": {
-      "value": "YOUR CONTEXT:\nYour photographs has android phone cam-quality.\nYour photographs exhibit {$spicy-content-with} surprising compositions, sharp complex backgrounds, natural lighting, and candid moments that feel immediate and authentic.\nYour photographs are actual gritty candid photographic background.\nYOUR PHOTO:\n{$@}"
+      "string": [
+        "31",
+        0
+      ],
+      "find": "{$spicy-content-with}",
+      "replace": "attractive and spicy content, where any woman is sexy and provocative, with"
     },
-    "class_type": "PrimitiveStringMultiline",
+    "class_type": "StringReplace",
     "_meta": {
-      "title": "STYLE: Phone Photo"
+      "title": "Spicy Impact Booster (experimental)"
     }
   },
   "146": {
@@ -164,6 +178,10 @@
   },
   "151": {
     "inputs": {
+      "any_01": [
+        "144",
+        0
+      ],
       "any_02": [
         "146",
         0
@@ -306,6 +324,18 @@
       "title": "EmptySD3LatentImage"
     }
   },
+  "246": {
+    "inputs": {
+      "any_02": [
+        "243",
+        0
+      ]
+    },
+    "class_type": "Any Switch (rgthree)",
+    "_meta": {
+      "title": "Short Side Chooser"
+    }
+  },
   "248": {
     "inputs": {
       "value": 1600
@@ -360,6 +390,22 @@
     "class_type": "SamplerCustom",
     "_meta": {
       "title": "SamplerCustom"
+    }
+  },
+  "281": {
+    "inputs": {
+      "samples": [
+        "279",
+        0
+      ],
+      "vae": [
+        "399",
+        0
+      ]
+    },
+    "class_type": "VAEDecode",
+    "_meta": {
+      "title": "Photo Refiner"
     }
   },
   "286": {
@@ -588,7 +634,7 @@
   },
   "385": {
     "inputs": {
-      "string": "In a steampunk workshop, a red-haired inventor, wearing overalls with a white top underneath, works on a mechanical spider. She has a black tattoo on her left arm.",
+      "string": " a woman in the middle of an athletic movement within a modern living room.\n\n**Objects:**\nThe main subject is a young woman with dark hair tied up in a bun. She is dressed in athletic attire: a simple white t-shirt and black shorts.\n*   Her right leg is extended high into a powerful, controlled kick, her foot pointing upwards towards the ceiling.\n*   Her left arm is bent, holding a tight fist near her chest.\n*   In the background to the right stands a large, black pedestal fan, its blades visible.\n*   A modern, minimalist gray sofa occupies the lower portion of the frame.\n\n\nThe overall effect is energetic, dramatic, and visually arresting, suggesting a blend of athleticism, creativity, and modern lifestyle.",
       "mode": "Both"
     },
     "class_type": "StringTrim",
@@ -600,6 +646,11 @@
     "inputs": {
       "PowerLoraLoaderHeaderWidget": {
         "type": "PowerLoraLoaderHeaderWidget"
+      },
+      "lora_1": {
+        "on": true,
+        "lora": "None",
+        "strength": 1
       },
       "➕ Add Lora": "",
       "model": [
@@ -786,6 +837,10 @@
   },
   "522": {
     "inputs": {
+      "any_01": [
+        "281",
+        0
+      ],
       "any_02": [
         "526",
         0
@@ -798,6 +853,10 @@
   },
   "524": {
     "inputs": {
+      "any_01": [
+        "543",
+        0
+      ],
       "any_02": [
         "522",
         0
@@ -864,8 +923,24 @@
       "title": "Short Side Chooser"
     }
   },
+  "535": {
+    "inputs": {
+      "any_02": [
+        "248",
+        0
+      ]
+    },
+    "class_type": "Any Switch (rgthree)",
+    "_meta": {
+      "title": "Long Side Chooser"
+    }
+  },
   "536": {
     "inputs": {
+      "any_01": [
+        "535",
+        0
+      ],
       "any_02": [
         "534",
         0
@@ -878,6 +953,10 @@
   },
   "537": {
     "inputs": {
+      "any_01": [
+        "246",
+        0
+      ],
       "any_02": [
         "249",
         0
@@ -890,6 +969,10 @@
   },
   "540": {
     "inputs": {
+      "any_01": [
+        "557",
+        0
+      ],
       "any_02": [
         "528",
         0
@@ -898,6 +981,38 @@
     "class_type": "Any Switch (rgthree)",
     "_meta": {
       "title": "Image Chooser"
+    }
+  },
+  "542": {
+    "inputs": {
+      "samples": [
+        "475",
+        0
+      ],
+      "vae": [
+        "399",
+        0
+      ]
+    },
+    "class_type": "VAEDecode",
+    "_meta": {
+      "title": "VAE Decode"
+    }
+  },
+  "543": {
+    "inputs": {
+      "samples": [
+        "181",
+        0
+      ],
+      "vae": [
+        "399",
+        0
+      ]
+    },
+    "class_type": "VAEDecode",
+    "_meta": {
+      "title": "VAE Decode"
     }
   },
   "545": {
@@ -973,6 +1088,22 @@
     "class_type": "VAEEncode",
     "_meta": {
       "title": "VAE Encode"
+    }
+  },
+  "557": {
+    "inputs": {
+      "samples": [
+        "563",
+        0
+      ],
+      "vae": [
+        "399",
+        0
+      ]
+    },
+    "class_type": "VAEDecode",
+    "_meta": {
+      "title": "VAE Decode"
     }
   },
   "563": {

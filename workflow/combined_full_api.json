@@ -1,0 +1,5990 @@
+{
+  "60": {
+    "class_type": "CLIPTextEncode",
+    "inputs": {
+      "text": ""
+    }
+  },
+  "56": {
+    "class_type": "EmptyLatentImage",
+    "inputs": {
+      "width": 944,
+      "height": 1408,
+      "batch_size": 1
+    }
+  },
+  "50": {
+    "class_type": "KSamplerAdvanced",
+    "inputs": {
+      "add_noise": "enable",
+      "noise_seed": [
+        "307",
+        0
+      ],
+      "control_after_generate": "fixed",
+      "steps": 8,
+      "cfg": 1,
+      "sampler_name": "euler",
+      "scheduler": "simple",
+      "start_at_step": 0,
+      "end_at_step": 10000,
+      "return_with_leftover_noise": "disable",
+      "positive": [
+        "54",
+        0
+      ],
+      "negative": [
+        "60",
+        0
+      ],
+      "latent_image": [
+        "56",
+        0
+      ]
+    }
+  },
+  "151": {
+    "class_type": "Any Switch (rgthree)",
+    "inputs": {
+      "any_01": [
+        "144",
+        0
+      ],
+      "any_02": [
+        "146",
+        0
+      ]
+    },
+    "_meta": {
+      "title": "Chooser"
+    }
+  },
+  "34": {
+    "class_type": "Reroute",
+    "inputs": {
+      "": [
+        "125",
+        0
+      ]
+    }
+  },
+  "35": {
+    "class_type": "Reroute",
+    "inputs": {
+      "": [
+        "101",
+        0
+      ]
+    }
+  },
+  "36": {
+    "class_type": "Reroute",
+    "inputs": {
+      "": [
+        "117",
+        0
+      ]
+    }
+  },
+  "42": {
+    "class_type": "Reroute",
+    "inputs": {
+      "": [
+        "63",
+        0
+      ]
+    }
+  },
+  "44": {
+    "class_type": "Reroute",
+    "inputs": {
+      "": [
+        "47",
+        0
+      ]
+    }
+  },
+  "46": {
+    "class_type": "Reroute",
+    "inputs": {
+      "": [
+        "38",
+        0
+      ]
+    }
+  },
+  "48": {
+    "class_type": "Reroute",
+    "inputs": {
+      "": [
+        "92",
+        0
+      ]
+    }
+  },
+  "64": {
+    "class_type": "Reroute",
+    "inputs": {
+      "": [
+        "37",
+        0
+      ]
+    }
+  },
+  "94": {
+    "class_type": "Reroute",
+    "inputs": {
+      "": [
+        "41",
+        0
+      ]
+    }
+  },
+  "102": {
+    "class_type": "Reroute",
+    "inputs": {
+      "": [
+        "122",
+        0
+      ]
+    }
+  },
+  "118": {
+    "class_type": "Reroute",
+    "inputs": {
+      "": [
+        "43",
+        0
+      ]
+    }
+  },
+  "121": {
+    "class_type": "Reroute",
+    "inputs": {
+      "": [
+        "93",
+        0
+      ]
+    }
+  },
+  "127": {
+    "class_type": "Reroute",
+    "inputs": {
+      "": [
+        "45",
+        0
+      ]
+    }
+  },
+  "131": {
+    "class_type": "Reroute",
+    "inputs": {
+      "": [
+        "124",
+        0
+      ]
+    }
+  },
+  "104": {
+    "class_type": "Node Collector (rgthree)",
+    "inputs": {
+      "none": [
+        "90",
+        0
+      ],
+      "STYLE: Phone Photo": [
+        "34",
+        0
+      ],
+      "STYLE: Casual Photo": [
+        "35",
+        0
+      ],
+      "STYLE: Flash 90s Photo": [
+        "36",
+        0
+      ],
+      "STYLE: Intense Spot Photo": [
+        "42",
+        0
+      ],
+      "STYLE: Production Photo": [
+        "44",
+        0
+      ],
+      "STYLE: Classic Film Photo": [
+        "46",
+        0
+      ],
+      "STYLE: Noir Photo": [
+        "48",
+        0
+      ],
+      "STYLE: Vintage Photo": [
+        "64",
+        0
+      ],
+      "STYLE: Lomography": [
+        "94",
+        0
+      ],
+      "STYLE: Drone Photo": [
+        "102",
+        0
+      ],
+      "STYLE: Minimalist Photo": [
+        "118",
+        0
+      ],
+      "STYLE: Pop Photo": [
+        "121",
+        0
+      ],
+      "STYLE: Light Painting Photo": [
+        "126",
+        0
+      ],
+      "STYLE: Neon City Photo": [
+        "127",
+        0
+      ],
+      "STYLE: Tilt Shift / Toy Photo": [
+        "131",
+        0
+      ],
+      "STYLE: Comic Book Cover": [
+        "462",
+        0
+      ],
+      "STYLE: empty 17": [
+        "463",
+        0
+      ],
+      "STYLE: empty 18": [
+        "464",
+        0
+      ]
+    },
+    "_meta": {
+      "title": "Style Collector (rgthree)"
+    }
+  },
+  "90": {
+    "class_type": "PrimitiveString",
+    "inputs": {
+      "value": "{$@}"
+    },
+    "_meta": {
+      "title": "none"
+    }
+  },
+  "75": {
+    "class_type": "Reroute",
+    "inputs": {
+      "": [
+        "455",
+        0
+      ]
+    }
+  },
+  "144": {
+    "class_type": "StringReplace",
+    "inputs": {
+      "string": [
+        "31",
+        0
+      ],
+      "find": "{$spicy-content-with}",
+      "replace": "attractive and spicy content, where any woman is sexy and provocative, with"
+    },
+    "_meta": {
+      "title": "Spicy Impact Booster (experimental)"
+    }
+  },
+  "202": {
+    "class_type": "Reroute",
+    "inputs": {
+      "": [
+        "185",
+        0
+      ]
+    }
+  },
+  "293": {
+    "class_type": "Reroute",
+    "inputs": {
+      "": [
+        "74",
+        0
+      ]
+    }
+  },
+  "294": {
+    "class_type": "Reroute",
+    "inputs": {
+      "": [
+        "75",
+        0
+      ]
+    }
+  },
+  "292": {
+    "class_type": "Reroute",
+    "inputs": {
+      "": [
+        "73",
+        0
+      ]
+    }
+  },
+  "323": {
+    "class_type": "SetFirstSigma",
+    "inputs": {
+      "sigma": 0.906,
+      "sigmas": [
+        "322",
+        1
+      ]
+    },
+    "_meta": {
+      "title": "Set First Sigma"
+    }
+  },
+  "324": {
+    "class_type": "ExtendIntermediateSigmas",
+    "inputs": {
+      "sigmas": [
+        "323",
+        0
+      ]
+    }
+  },
+  "321": {
+    "class_type": "KarrasScheduler",
+    "inputs": {
+      "steps": 8,
+      "sigma_max": 0.99,
+      "sigma_min": 0.08,
+      "rho": 0.3
+    },
+    "_meta": {
+      "title": "Karras Scheduler 8-Steps"
+    }
+  },
+  "325": {
+    "class_type": "Any Switch (rgthree)",
+    "inputs": {
+      "any_01": [
+        "335",
+        0
+      ],
+      "any_02": [
+        "334",
+        0
+      ]
+    },
+    "_meta": {
+      "title": "High Sigmas Switcher"
+    }
+  },
+  "322": {
+    "class_type": "SplitSigmas",
+    "inputs": {
+      "sigmas": [
+        "321",
+        0
+      ]
+    },
+    "_meta": {
+      "title": "Split Sigmas [2] + [6]"
+    }
+  },
+  "317": {
+    "class_type": "ExtendIntermediateSigmas",
+    "inputs": {
+      "sigmas": [
+        "318",
+        0
+      ]
+    }
+  },
+  "337": {
+    "class_type": "Reroute",
+    "inputs": {
+      "": [
+        "318",
+        0
+      ]
+    }
+  },
+  "336": {
+    "class_type": "Reroute",
+    "inputs": {
+      "": [
+        "317",
+        0
+      ]
+    }
+  },
+  "319": {
+    "class_type": "SplitSigmas",
+    "inputs": {
+      "sigmas": [
+        "320",
+        0
+      ]
+    },
+    "_meta": {
+      "title": "Split Sigmas [2] + [4]"
+    }
+  },
+  "338": {
+    "class_type": "Reroute",
+    "inputs": {
+      "": [
+        "319",
+        1
+      ]
+    }
+  },
+  "339": {
+    "class_type": "Reroute",
+    "inputs": {
+      "": [
+        "320",
+        0
+      ]
+    }
+  },
+  "335": {
+    "class_type": "Reroute",
+    "inputs": {
+      "": [
+        "319",
+        0
+      ]
+    }
+  },
+  "334": {
+    "class_type": "Reroute",
+    "inputs": {
+      "": [
+        "322",
+        0
+      ]
+    }
+  },
+  "315": {
+    "class_type": "Mute / Bypass Repeater (rgthree)",
+    "inputs": {
+      "ExtendIntermediateSigmas": [
+        "336",
+        0
+      ],
+      "Set First Sigma": [
+        "337",
+        0
+      ],
+      "Split Sigmas [2] + [4]": [
+        "338",
+        0
+      ],
+      "Karras Scheduler 6-Steps": [
+        "339",
+        0
+      ]
+    },
+    "_meta": {
+      "title": "Only 7 Steps"
+    }
+  },
+  "364": {
+    "class_type": "Reroute",
+    "inputs": {
+      "": [
+        "74",
+        0
+      ]
+    }
+  },
+  "370": {
+    "class_type": "Reroute",
+    "inputs": {
+      "": [
+        "364",
+        0
+      ]
+    }
+  },
+  "363": {
+    "class_type": "Reroute",
+    "inputs": {
+      "": [
+        "73",
+        0
+      ]
+    }
+  },
+  "369": {
+    "class_type": "Reroute",
+    "inputs": {
+      "": [
+        "363",
+        0
+      ]
+    }
+  },
+  "166": {
+    "class_type": "StringReplace",
+    "inputs": {
+      "string": [
+        "151",
+        0
+      ],
+      "find": "  ",
+      "replace": " "
+    },
+    "_meta": {
+      "title": "Fix Double Spaces"
+    }
+  },
+  "361": {
+    "class_type": "Reroute",
+    "inputs": {
+      "": [
+        "71",
+        0
+      ]
+    }
+  },
+  "146": {
+    "class_type": "StringReplace",
+    "inputs": {
+      "string": [
+        "31",
+        0
+      ],
+      "find": "{$spicy-content-with}",
+      "replace": ""
+    },
+    "_meta": {
+      "title": "DEFAULT: No Spicy Inpact"
+    }
+  },
+  "31": {
+    "class_type": "StringReplace",
+    "inputs": {
+      "string": [
+        "87",
+        0
+      ],
+      "find": "{$@}",
+      "replace": [
+        "386",
+        0
+      ]
+    },
+    "_meta": {
+      "title": "STYLE INTEGRATOR"
+    }
+  },
+  "413": {
+    "class_type": "Reroute",
+    "inputs": {
+      "": [
+        "392",
+        0
+      ]
+    }
+  },
+  "414": {
+    "class_type": "Reroute",
+    "inputs": {
+      "": [
+        "392",
+        1
+      ]
+    }
+  },
+  "54": {
+    "class_type": "CLIPTextEncode",
+    "inputs": {
+      "text": [
+        "57",
+        0
+      ]
+    },
+    "_meta": {
+      "title": "CLIP Text Encode (Positive Prompt)"
+    }
+  },
+  "156": {
+    "class_type": "Reroute",
+    "inputs": {
+      "": [
+        "144",
+        0
+      ]
+    }
+  },
+  "291": {
+    "class_type": "Reroute",
+    "inputs": {
+      "": [
+        "71",
+        0
+      ]
+    }
+  },
+  "68": {
+    "class_type": "KSamplerSelect",
+    "inputs": {},
+    "_meta": {
+      "title": "Default Euler Sampler"
+    }
+  },
+  "95": {
+    "class_type": "KSamplerSelect",
+    "inputs": {},
+    "_meta": {
+      "title": "Alternative Sampler"
+    }
+  },
+  "397": {
+    "class_type": "UnetLoaderGGUF",
+    "inputs": {}
+  },
+  "394": {
+    "class_type": "CLIPLoaderGGUF",
+    "inputs": {}
+  },
+  "399": {
+    "class_type": "VAELoader",
+    "inputs": {
+      "vae_name": "ae.safetensors"
+    }
+  },
+  "382": {
+    "class_type": "Reroute",
+    "inputs": {
+      "": [
+        "433",
+        0
+      ]
+    }
+  },
+  "185": {
+    "class_type": "Reroute",
+    "inputs": {
+      "": [
+        "73",
+        0
+      ]
+    }
+  },
+  "183": {
+    "class_type": "Reroute",
+    "inputs": {
+      "": [
+        "71",
+        0
+      ]
+    }
+  },
+  "408": {
+    "class_type": "Reroute (rgthree)",
+    "inputs": {
+      "": [
+        "414",
+        0
+      ]
+    }
+  },
+  "407": {
+    "class_type": "Reroute (rgthree)",
+    "inputs": {
+      "": [
+        "413",
+        0
+      ]
+    }
+  },
+  "274": {
+    "class_type": "Reroute (rgthree)",
+    "inputs": {
+      "": [
+        "286",
+        0
+      ]
+    }
+  },
+  "420": {
+    "class_type": "Reroute",
+    "inputs": {
+      "": [
+        "292",
+        0
+      ]
+    }
+  },
+  "419": {
+    "class_type": "Reroute",
+    "inputs": {
+      "": [
+        "293",
+        0
+      ]
+    }
+  },
+  "422": {
+    "class_type": "Reroute",
+    "inputs": {
+      "": [
+        "294",
+        0
+      ]
+    }
+  },
+  "448": {
+    "class_type": "Reroute",
+    "inputs": {
+      "": [
+        "420",
+        0
+      ]
+    }
+  },
+  "449": {
+    "class_type": "Reroute",
+    "inputs": {
+      "": [
+        "419",
+        0
+      ]
+    }
+  },
+  "450": {
+    "class_type": "Reroute",
+    "inputs": {
+      "": [
+        "422",
+        0
+      ]
+    }
+  },
+  "451": {
+    "class_type": "Reroute",
+    "inputs": {
+      "": [
+        "421",
+        0
+      ]
+    }
+  },
+  "418": {
+    "class_type": "Reroute",
+    "inputs": {
+      "": [
+        "291",
+        0
+      ]
+    }
+  },
+  "237": {
+    "class_type": "Reroute (rgthree)",
+    "inputs": {
+      "": [
+        "454",
+        0
+      ]
+    }
+  },
+  "96": {
+    "class_type": "Any Switch (rgthree)",
+    "inputs": {
+      "any_01": [
+        "95",
+        0
+      ],
+      "any_02": [
+        "68",
+        0
+      ]
+    },
+    "_meta": {
+      "title": "Sampler Chooser"
+    }
+  },
+  "455": {
+    "class_type": "Reroute",
+    "inputs": {
+      "": [
+        "96",
+        0
+      ]
+    }
+  },
+  "432": {
+    "class_type": "Reroute",
+    "inputs": {
+      "": [
+        "6",
+        0
+      ]
+    }
+  },
+  "433": {
+    "class_type": "Reroute",
+    "inputs": {
+      "": [
+        "95",
+        0
+      ]
+    }
+  },
+  "396": {
+    "class_type": "Reroute",
+    "inputs": {
+      "": [
+        "415",
+        0
+      ]
+    }
+  },
+  "395": {
+    "class_type": "Reroute",
+    "inputs": {
+      "": [
+        "416",
+        0
+      ]
+    }
+  },
+  "415": {
+    "class_type": "Reroute",
+    "inputs": {
+      "": [
+        "397",
+        0
+      ]
+    }
+  },
+  "416": {
+    "class_type": "Reroute",
+    "inputs": {
+      "": [
+        "394",
+        0
+      ]
+    }
+  },
+  "398": {
+    "class_type": "Reroute",
+    "inputs": {
+      "": [
+        "399",
+        0
+      ]
+    }
+  },
+  "400": {
+    "class_type": "Note",
+    "inputs": {
+      "text": "Amazing Z-Image WF v4.0\n\n## Workflow Prerequisites ##\n\nThis workflow requires the following custom nodes, which can be obtained via ComfyUI-Manager:\n\n  * rgthree-comfy: https://github.com/rgthree/rgthree-comfy\n  * ComfyUI-GGUF : https://github.com/city96/ComfyUI-GGUF\n\n Additionally, ensure you have the following 4 models downloaded and placed in their respective\n directories within your ComfyUI installation:\n\n  z_image_turbo-Q5_K_S.gguf\n    * Download: https://huggingface.co/jayn7/Z-Image-Turbo-GGUF/blob/main/z_image_turbo-Q5_K_S.gguf\n    * Local Directory: `ComfyUI/models/diffusion_models/`\n\n  Qwen3-4B.i1-Q5_K_S.gguf\n    * Download: https://huggingface.co/mradermacher/Qwen3-4B-i1-GGUF/blob/main/Qwen3-4B.i1-Q5_K_S.gguf\n    * Local Directory: `ComfyUI/models/text_encoders/`\n\n  ae.safetensors\n    * Download: https://huggingface.co/Comfy-Org/z_image_turbo/blob/main/split_files/vae/ae.safetensors\n    * Local Directory: `Comfyui/models/vae/`\n\n  4x_foolhardy_Remacri.safetensors (for illustration refining)\n    * Download: https://huggingface.co/martin-rizzo/ESRGAN-4x/blob/main/4x_foolhardy_Remacri.safetensors\n    * Local Directory: `ComfyUI/models/upscale_models/`\n\n## More Info ##\n\n- https://github.com/martin-rizzo/AmazingZImageWorkflow\n   - https://civitai.com/models/2181458/amazing-z-image-workflow\n   - https://civitai.com/models/2213075/amazing-z-comics-workflow\n   - https://civitai.com/models/2225379/amazing-z-photo-workflow\n\nCreated by Martin Rizzo\n  GitHub : https://github.com/martin-rizzo\n  CivitAI: https://civitai.com/user/Photographer\n  Reddit : https://www.reddit.com/user/FotografoVirtual\n"
+    },
+    "_meta": {
+      "title": "README"
+    }
+  },
+  "388": {
+    "class_type": "Reroute",
+    "inputs": {
+      "": [
+        "166",
+        0
+      ]
+    }
+  },
+  "165": {
+    "class_type": "Display Any (rgthree)",
+    "inputs": {
+      "source": [
+        "166",
+        0
+      ]
+    },
+    "_meta": {
+      "title": "FINAL TEXT VIEWER"
+    }
+  },
+  "6": {
+    "class_type": "CLIPTextEncode",
+    "inputs": {
+      "text": [
+        "389",
+        0
+      ],
+      "clip": [
+        "412",
+        0
+      ]
+    },
+    "_meta": {
+      "title": "CLIP Text Encoder"
+    }
+  },
+  "389": {
+    "class_type": "Reroute",
+    "inputs": {
+      "": [
+        "388",
+        0
+      ]
+    }
+  },
+  "421": {
+    "class_type": "Reroute",
+    "inputs": {
+      "": [
+        "325",
+        0
+      ]
+    }
+  },
+  "316": {
+    "class_type": "Any Switch (rgthree)",
+    "inputs": {
+      "any_01": [
+        "317",
+        0
+      ],
+      "any_02": [
+        "324",
+        0
+      ]
+    },
+    "_meta": {
+      "title": "Low Sigmas Switcher"
+    }
+  },
+  "423": {
+    "class_type": "Reroute",
+    "inputs": {
+      "": [
+        "77",
+        0
+      ]
+    }
+  },
+  "456": {
+    "class_type": "Reroute",
+    "inputs": {
+      "": [
+        "316",
+        0
+      ]
+    }
+  },
+  "458": {
+    "class_type": "Reroute",
+    "inputs": {
+      "": [
+        "456",
+        0
+      ]
+    }
+  },
+  "452": {
+    "class_type": "Reroute",
+    "inputs": {
+      "": [
+        "423",
+        0
+      ]
+    }
+  },
+  "453": {
+    "class_type": "Reroute",
+    "inputs": {
+      "": [
+        "289",
+        0
+      ]
+    }
+  },
+  "446": {
+    "class_type": "Reroute",
+    "inputs": {
+      "": [
+        "453",
+        0
+      ]
+    }
+  },
+  "447": {
+    "class_type": "Reroute",
+    "inputs": {
+      "": [
+        "418",
+        0
+      ]
+    }
+  },
+  "126": {
+    "class_type": "Reroute",
+    "inputs": {
+      "": [
+        "130",
+        0
+      ]
+    }
+  },
+  "462": {
+    "class_type": "Reroute",
+    "inputs": {
+      "": [
+        "459",
+        0
+      ]
+    }
+  },
+  "463": {
+    "class_type": "Reroute",
+    "inputs": {
+      "": [
+        "460",
+        0
+      ]
+    }
+  },
+  "464": {
+    "class_type": "Reroute",
+    "inputs": {
+      "": [
+        "461",
+        0
+      ]
+    }
+  },
+  "87": {
+    "class_type": "Any Switch (rgthree)",
+    "inputs": {
+      "any_01": [
+        "90",
+        0
+      ],
+      "any_02": [
+        "34",
+        0
+      ],
+      "any_03": [
+        "35",
+        0
+      ],
+      "any_04": [
+        "36",
+        0
+      ],
+      "any_05": [
+        "42",
+        0
+      ],
+      "any_06": [
+        "44",
+        0
+      ],
+      "any_07": [
+        "46",
+        0
+      ],
+      "any_08": [
+        "48",
+        0
+      ],
+      "any_09": [
+        "64",
+        0
+      ],
+      "any_10": [
+        "94",
+        0
+      ],
+      "any_11": [
+        "102",
+        0
+      ],
+      "any_12": [
+        "118",
+        0
+      ],
+      "any_13": [
+        "121",
+        0
+      ],
+      "any_14": [
+        "126",
+        0
+      ],
+      "any_15": [
+        "127",
+        0
+      ],
+      "any_16": [
+        "131",
+        0
+      ],
+      "any_17": [
+        "462",
+        0
+      ],
+      "any_18": [
+        "463",
+        0
+      ],
+      "any_19": [
+        "464",
+        0
+      ]
+    }
+  },
+  "386": {
+    "class_type": "Reroute (rgthree)",
+    "inputs": {
+      "": [
+        "385",
+        0
+      ]
+    }
+  },
+  "385": {
+    "class_type": "StringTrim",
+    "inputs": {
+      "string": [
+        "57",
+        0
+      ]
+    },
+    "_meta": {
+      "title": "(used for reroute)"
+    }
+  },
+  "307": {
+    "class_type": "PrimitiveInt",
+    "inputs": {
+      "value": 1,
+      "control_after_generate": "fixed"
+    },
+    "_meta": {
+      "title": "SEED"
+    }
+  },
+  "286": {
+    "class_type": "SamplerCustom",
+    "inputs": {
+      "model": [
+        "447",
+        0
+      ],
+      "positive": [
+        "448",
+        0
+      ],
+      "negative": [
+        "449",
+        0
+      ],
+      "sampler": [
+        "450",
+        0
+      ],
+      "sigmas": [
+        "458",
+        0
+      ],
+      "latent_image": [
+        "446",
+        0
+      ],
+      "noise_seed": [
+        "307",
+        0
+      ]
+    }
+  },
+  "289": {
+    "class_type": "SamplerCustom",
+    "inputs": {
+      "model": [
+        "447",
+        0
+      ],
+      "positive": [
+        "448",
+        0
+      ],
+      "negative": [
+        "449",
+        0
+      ],
+      "sampler": [
+        "450",
+        0
+      ],
+      "sigmas": [
+        "451",
+        0
+      ],
+      "latent_image": [
+        "452",
+        0
+      ],
+      "noise_seed": [
+        "307",
+        0
+      ]
+    }
+  },
+  "431": {
+    "class_type": "Reroute",
+    "inputs": {
+      "": [
+        "156",
+        0
+      ]
+    }
+  },
+  "320": {
+    "class_type": "KarrasScheduler",
+    "inputs": {
+      "steps": 6,
+      "sigma_max": 1,
+      "sigma_min": 0.08,
+      "rho": 0.32
+    },
+    "_meta": {
+      "title": "Karras Scheduler 6-Steps"
+    }
+  },
+  "318": {
+    "class_type": "SetFirstSigma",
+    "inputs": {
+      "sigma": 0.865,
+      "sigmas": [
+        "319",
+        1
+      ]
+    },
+    "_meta": {
+      "title": "Set First Sigma"
+    }
+  },
+  "465": {
+    "class_type": "Reroute",
+    "inputs": {
+      "": [
+        "74",
+        0
+      ]
+    }
+  },
+  "466": {
+    "class_type": "Reroute",
+    "inputs": {
+      "": [
+        "465",
+        0
+      ]
+    }
+  },
+  "467": {
+    "class_type": "Reroute",
+    "inputs": {
+      "": [
+        "73",
+        0
+      ]
+    }
+  },
+  "468": {
+    "class_type": "Reroute",
+    "inputs": {
+      "": [
+        "467",
+        0
+      ]
+    }
+  },
+  "470": {
+    "class_type": "Reroute",
+    "inputs": {
+      "": [
+        "471",
+        0
+      ]
+    }
+  },
+  "472": {
+    "class_type": "Reroute",
+    "inputs": {
+      "": [
+        "71",
+        0
+      ]
+    }
+  },
+  "481": {
+    "class_type": "Reroute",
+    "inputs": {
+      "": [
+        "568",
+        0
+      ]
+    }
+  },
+  "362": {
+    "class_type": "Reroute",
+    "inputs": {
+      "": [
+        "391",
+        0
+      ]
+    }
+  },
+  "278": {
+    "class_type": "Reroute (rgthree)",
+    "inputs": {
+      "": [
+        "276",
+        0
+      ]
+    }
+  },
+  "410": {
+    "class_type": "Reroute (rgthree)",
+    "inputs": {
+      "": [
+        "408",
+        0
+      ]
+    }
+  },
+  "434": {
+    "class_type": "Reroute",
+    "inputs": {
+      "": [
+        "382",
+        0
+      ]
+    }
+  },
+  "409": {
+    "class_type": "Reroute (rgthree)",
+    "inputs": {
+      "": [
+        "407",
+        0
+      ]
+    }
+  },
+  "280": {
+    "class_type": "Reroute",
+    "inputs": {
+      "": [
+        "374",
+        0
+      ]
+    }
+  },
+  "360": {
+    "class_type": "Reroute",
+    "inputs": {
+      "": [
+        "391",
+        0
+      ]
+    }
+  },
+  "523": {
+    "class_type": "Reroute",
+    "inputs": {
+      "": [
+        "526",
+        0
+      ]
+    }
+  },
+  "186": {
+    "class_type": "Reroute",
+    "inputs": {
+      "": [
+        "74",
+        0
+      ]
+    }
+  },
+  "526": {
+    "class_type": "VAEDecode",
+    "inputs": {
+      "samples": [
+        "280",
+        0
+      ],
+      "vae": [
+        "360",
+        0
+      ]
+    }
+  },
+  "510": {
+    "class_type": "Reroute",
+    "inputs": {
+      "": [
+        "374",
+        0
+      ]
+    }
+  },
+  "71": {
+    "class_type": "Reroute",
+    "inputs": {
+      "": [
+        "411",
+        0
+      ]
+    }
+  },
+  "73": {
+    "class_type": "Reroute",
+    "inputs": {
+      "": [
+        "432",
+        0
+      ]
+    }
+  },
+  "74": {
+    "class_type": "Reroute",
+    "inputs": {
+      "": [
+        "432",
+        0
+      ]
+    }
+  },
+  "532": {
+    "class_type": "Any Switch (rgthree)",
+    "inputs": {
+      "any_01": [
+        "524",
+        0
+      ],
+      "any_02": [
+        "531",
+        0
+      ]
+    }
+  },
+  "487": {
+    "class_type": "Image Resize (rgthree)",
+    "inputs": {
+      "image": [
+        "489",
+        0
+      ]
+    },
+    "_meta": {
+      "title": "Resize Image 1/2"
+    }
+  },
+  "482": {
+    "class_type": "ImageUpscaleWithModel",
+    "inputs": {
+      "upscale_model": [
+        "483",
+        0
+      ],
+      "image": [
+        "487",
+        0
+      ]
+    },
+    "_meta": {
+      "title": "Upscale Image *4"
+    }
+  },
+  "478": {
+    "class_type": "VAEEncode",
+    "inputs": {
+      "pixels": [
+        "486",
+        0
+      ],
+      "vae": [
+        "480",
+        0
+      ]
+    }
+  },
+  "486": {
+    "class_type": "Image Resize (rgthree)",
+    "inputs": {
+      "image": [
+        "482",
+        0
+      ]
+    },
+    "_meta": {
+      "title": "Resize Image 75*2 = 150%"
+    }
+  },
+  "480": {
+    "class_type": "Reroute",
+    "inputs": {
+      "": [
+        "481",
+        0
+      ]
+    }
+  },
+  "479": {
+    "class_type": "Reroute",
+    "inputs": {
+      "": [
+        "480",
+        0
+      ]
+    }
+  },
+  "485": {
+    "class_type": "Reroute",
+    "inputs": {
+      "": [
+        "542",
+        0
+      ]
+    }
+  },
+  "477": {
+    "class_type": "Reroute",
+    "inputs": {
+      "": [
+        "472",
+        0
+      ]
+    }
+  },
+  "469": {
+    "class_type": "Reroute",
+    "inputs": {
+      "": [
+        "470",
+        0
+      ]
+    }
+  },
+  "529": {
+    "class_type": "Reroute (rgthree)",
+    "inputs": {
+      "": [
+        "540",
+        0
+      ]
+    }
+  },
+  "380": {
+    "class_type": "Reroute (rgthree)",
+    "inputs": {
+      "": [
+        "441",
+        0
+      ]
+    }
+  },
+  "441": {
+    "class_type": "Reroute",
+    "inputs": {
+      "": [
+        "522",
+        0
+      ]
+    }
+  },
+  "442": {
+    "class_type": "Reroute",
+    "inputs": {
+      "": [
+        "281",
+        0
+      ]
+    }
+  },
+  "375": {
+    "class_type": "Reroute",
+    "inputs": {
+      "": [
+        "360",
+        0
+      ]
+    }
+  },
+  "281": {
+    "class_type": "VAEDecode",
+    "inputs": {
+      "samples": [
+        "279",
+        0
+      ],
+      "vae": [
+        "375",
+        0
+      ]
+    },
+    "_meta": {
+      "title": "Photo Refiner"
+    }
+  },
+  "279": {
+    "class_type": "SamplerCustom",
+    "inputs": {
+      "model": [
+        "203",
+        0
+      ],
+      "positive": [
+        "202",
+        0
+      ],
+      "negative": [
+        "201",
+        0
+      ],
+      "sampler": [
+        "377",
+        0
+      ],
+      "sigmas": [
+        "189",
+        1
+      ],
+      "latent_image": [
+        "378",
+        0
+      ]
+    }
+  },
+  "201": {
+    "class_type": "Reroute",
+    "inputs": {
+      "": [
+        "186",
+        0
+      ]
+    }
+  },
+  "203": {
+    "class_type": "Reroute",
+    "inputs": {
+      "": [
+        "183",
+        0
+      ]
+    }
+  },
+  "377": {
+    "class_type": "KSamplerSelect",
+    "inputs": {},
+    "_meta": {
+      "title": "Default Euler Sampler"
+    }
+  },
+  "189": {
+    "class_type": "SplitSigmas",
+    "inputs": {
+      "sigmas": [
+        "195",
+        0
+      ]
+    }
+  },
+  "378": {
+    "class_type": "Reroute",
+    "inputs": {
+      "": [
+        "280",
+        0
+      ]
+    }
+  },
+  "195": {
+    "class_type": "KarrasScheduler",
+    "inputs": {
+      "steps": 5,
+      "sigma_max": 1,
+      "sigma_min": 0.2,
+      "rho": 0.7
+    },
+    "_meta": {
+      "title": "Karras Scheduler (sigmas)"
+    }
+  },
+  "438": {
+    "class_type": "Reroute",
+    "inputs": {
+      "": [
+        "543",
+        0
+      ]
+    }
+  },
+  "181": {
+    "class_type": "SamplerCustom",
+    "inputs": {
+      "model": [
+        "367",
+        0
+      ],
+      "positive": [
+        "369",
+        0
+      ],
+      "negative": [
+        "370",
+        0
+      ],
+      "sampler": [
+        "372",
+        0
+      ],
+      "sigmas": [
+        "346",
+        0
+      ],
+      "latent_image": [
+        "180",
+        0
+      ]
+    }
+  },
+  "218": {
+    "class_type": "Reroute",
+    "inputs": {
+      "": [
+        "217",
+        0
+      ]
+    }
+  },
+  "372": {
+    "class_type": "Reroute",
+    "inputs": {
+      "": [
+        "373",
+        0
+      ]
+    }
+  },
+  "367": {
+    "class_type": "Reroute",
+    "inputs": {
+      "": [
+        "361",
+        0
+      ]
+    }
+  },
+  "371": {
+    "class_type": "KSamplerSelect",
+    "inputs": {},
+    "_meta": {
+      "title": "Default Euler Sampler"
+    }
+  },
+  "373": {
+    "class_type": "Reroute",
+    "inputs": {
+      "": [
+        "371",
+        0
+      ]
+    }
+  },
+  "346": {
+    "class_type": "KarrasScheduler",
+    "inputs": {
+      "steps": 3,
+      "sigma_max": 0.17,
+      "sigma_min": 0.06,
+      "rho": 0.6
+    },
+    "_meta": {
+      "title": "Karras Scheduler (sigmas)"
+    }
+  },
+  "180": {
+    "class_type": "VAEEncode",
+    "inputs": {
+      "pixels": [
+        "341",
+        0
+      ],
+      "vae": [
+        "217",
+        0
+      ]
+    }
+  },
+  "217": {
+    "class_type": "Reroute",
+    "inputs": {
+      "": [
+        "362",
+        0
+      ]
+    }
+  },
+  "341": {
+    "class_type": "ImageAddNoise",
+    "inputs": {
+      "image": [
+        "344",
+        0
+      ]
+    },
+    "_meta": {
+      "title": "Add Noise"
+    }
+  },
+  "344": {
+    "class_type": "Image Resize (rgthree)",
+    "inputs": {
+      "image": [
+        "436",
+        0
+      ]
+    },
+    "_meta": {
+      "title": "Resize Image +50%"
+    }
+  },
+  "374": {
+    "class_type": "Reroute",
+    "inputs": {
+      "": [
+        "278",
+        0
+      ]
+    }
+  },
+  "411": {
+    "class_type": "Reroute (rgthree)",
+    "inputs": {
+      "": [
+        "409",
+        0
+      ]
+    }
+  },
+  "412": {
+    "class_type": "Reroute (rgthree)",
+    "inputs": {
+      "": [
+        "410",
+        0
+      ]
+    }
+  },
+  "454": {
+    "class_type": "Reroute (rgthree)",
+    "inputs": {
+      "": [
+        "532",
+        0
+      ]
+    }
+  },
+  "501": {
+    "class_type": "Node Collector (rgthree)",
+    "inputs": {
+      "\"PHOTO\" Mode": [
+        "524",
+        0
+      ],
+      "\"ILLUSTRATION\" Artistic Mode": [
+        "531",
+        0
+      ]
+    }
+  },
+  "276": {
+    "class_type": "Reroute (rgthree)",
+    "inputs": {
+      "": [
+        "274",
+        0
+      ]
+    }
+  },
+  "77": {
+    "class_type": "Reroute",
+    "inputs": {
+      "": [
+        "244",
+        0
+      ]
+    }
+  },
+  "136": {
+    "class_type": "Node Collector (rgthree)",
+    "inputs": {
+      "Alternative Sampler": [
+        "434",
+        0
+      ],
+      "Landscape Orientation": [
+        "254",
+        0
+      ],
+      "Spicy Impact Booster (experimental)": [
+        "431",
+        0
+      ]
+    }
+  },
+  "331": {
+    "class_type": "Node Collector (rgthree)",
+    "inputs": {
+      "Only 7 Steps": [
+        "315",
+        0
+      ],
+      "Smaller Image Generation": [
+        "255",
+        0
+      ]
+    }
+  },
+  "355": {
+    "class_type": "Node Collector (rgthree)",
+    "inputs": {
+      "Refiner": [
+        "494",
+        0
+      ],
+      "Upscaler": [
+        "495",
+        0
+      ],
+      "Node Collector (rgthree)": [
+        "136",
+        0
+      ]
+    }
+  },
+  "255": {
+    "class_type": "Reroute",
+    "inputs": {
+      "": [
+        "252",
+        0
+      ]
+    }
+  },
+  "244": {
+    "class_type": "EmptySD3LatentImage",
+    "inputs": {
+      "width": [
+        "536",
+        0
+      ],
+      "height": [
+        "537",
+        0
+      ],
+      "batch_size": [
+        "443",
+        0
+      ]
+    }
+  },
+  "443": {
+    "class_type": "PrimitiveInt",
+    "inputs": {
+      "value": 1,
+      "control_after_generate": "fixed"
+    },
+    "_meta": {
+      "title": "Batch Size"
+    }
+  },
+  "536": {
+    "class_type": "Any Switch (rgthree)",
+    "inputs": {
+      "any_01": [
+        "535",
+        0
+      ],
+      "any_02": [
+        "534",
+        0
+      ]
+    },
+    "_meta": {
+      "title": "Width Long/Short Chooser"
+    }
+  },
+  "537": {
+    "class_type": "Any Switch (rgthree)",
+    "inputs": {
+      "any_01": [
+        "246",
+        0
+      ],
+      "any_02": [
+        "249",
+        0
+      ]
+    },
+    "_meta": {
+      "title": "Height Long/Short Chooser"
+    }
+  },
+  "538": {
+    "class_type": "Mute / Bypass Repeater (rgthree)",
+    "inputs": {
+      "Short Side Chooser": [
+        "246",
+        0
+      ],
+      "Long Side Chooser": [
+        "535",
+        0
+      ]
+    },
+    "_meta": {
+      "title": "Landscape Orientation"
+    }
+  },
+  "252": {
+    "class_type": "Mute / Bypass Repeater (rgthree)",
+    "inputs": {
+      "Small Image Short Side": [
+        "444",
+        0
+      ],
+      "Small Image Long Side": [
+        "445",
+        0
+      ]
+    },
+    "_meta": {
+      "title": "Smaller Image Generation"
+    }
+  },
+  "248": {
+    "class_type": "PrimitiveInt",
+    "inputs": {
+      "value": 1600,
+      "control_after_generate": "fixed"
+    },
+    "_meta": {
+      "title": "Default Long Side"
+    }
+  },
+  "242": {
+    "class_type": "PrimitiveInt",
+    "inputs": {
+      "value": 832,
+      "control_after_generate": "fixed"
+    },
+    "_meta": {
+      "title": "Small Image Short Side"
+    }
+  },
+  "444": {
+    "class_type": "Reroute",
+    "inputs": {
+      "": [
+        "242",
+        0
+      ]
+    }
+  },
+  "445": {
+    "class_type": "Reroute",
+    "inputs": {
+      "": [
+        "247",
+        0
+      ]
+    }
+  },
+  "243": {
+    "class_type": "PrimitiveInt",
+    "inputs": {
+      "value": 1088,
+      "control_after_generate": "fixed"
+    },
+    "_meta": {
+      "title": "Default Short Side"
+    }
+  },
+  "247": {
+    "class_type": "PrimitiveInt",
+    "inputs": {
+      "value": 1216,
+      "control_after_generate": "fixed"
+    },
+    "_meta": {
+      "title": "Small Image Long Side"
+    }
+  },
+  "254": {
+    "class_type": "Reroute",
+    "inputs": {
+      "": [
+        "538",
+        0
+      ]
+    }
+  },
+  "246": {
+    "class_type": "Any Switch (rgthree)",
+    "inputs": {
+      "any_01": [
+        "242",
+        0
+      ],
+      "any_02": [
+        "243",
+        0
+      ]
+    },
+    "_meta": {
+      "title": "Short Side Chooser"
+    }
+  },
+  "535": {
+    "class_type": "Any Switch (rgthree)",
+    "inputs": {
+      "any_01": [
+        "247",
+        0
+      ],
+      "any_02": [
+        "248",
+        0
+      ]
+    },
+    "_meta": {
+      "title": "Long Side Chooser"
+    }
+  },
+  "249": {
+    "class_type": "Any Switch (rgthree)",
+    "inputs": {
+      "any_01": [
+        "247",
+        0
+      ],
+      "any_02": [
+        "248",
+        0
+      ]
+    },
+    "_meta": {
+      "title": "Long Side Chooser"
+    }
+  },
+  "534": {
+    "class_type": "Any Switch (rgthree)",
+    "inputs": {
+      "any_01": [
+        "242",
+        0
+      ],
+      "any_02": [
+        "243",
+        0
+      ]
+    },
+    "_meta": {
+      "title": "Short Side Chooser"
+    }
+  },
+  "522": {
+    "class_type": "Any Switch (rgthree)",
+    "inputs": {
+      "any_01": [
+        "281",
+        0
+      ],
+      "any_02": [
+        "523",
+        0
+      ]
+    },
+    "_meta": {
+      "title": "Image Chooser"
+    }
+  },
+  "543": {
+    "class_type": "VAEDecode",
+    "inputs": {
+      "samples": [
+        "181",
+        0
+      ],
+      "vae": [
+        "218",
+        0
+      ]
+    }
+  },
+  "524": {
+    "class_type": "Any Switch (rgthree)",
+    "inputs": {
+      "any_01": [
+        "543",
+        0
+      ],
+      "any_02": [
+        "525",
+        0
+      ]
+    },
+    "_meta": {
+      "title": "\"PHOTO\" Mode"
+    }
+  },
+  "494": {
+    "class_type": "Mute / Bypass Repeater (rgthree)",
+    "inputs": {
+      "Photo Refiner": [
+        "442",
+        0
+      ],
+      "VAE Decode": [
+        "520",
+        0
+      ]
+    },
+    "_meta": {
+      "title": "Refiner"
+    }
+  },
+  "495": {
+    "class_type": "Mute / Bypass Repeater (rgthree)",
+    "inputs": {
+      "VAE Decode": [
+        "485",
+        0
+      ]
+    },
+    "_meta": {
+      "title": "Upscaler"
+    }
+  },
+  "531": {
+    "class_type": "Any Switch (rgthree)",
+    "inputs": {
+      "any_01": [
+        "542",
+        0
+      ],
+      "any_02": [
+        "533",
+        0
+      ]
+    },
+    "_meta": {
+      "title": "\"ILLUSTRATION\" Artistic Mode"
+    }
+  },
+  "392": {
+    "class_type": "Power Lora Loader (rgthree)",
+    "inputs": {
+      "model": [
+        "396",
+        0
+      ],
+      "clip": [
+        "395",
+        0
+      ]
+    }
+  },
+  "9": {
+    "class_type": "SaveImage",
+    "inputs": {
+      "filename_prefix": "ZImage/%date:yyyy_MM_dd%/ZI",
+      "images": [
+        "237",
+        0
+      ]
+    }
+  },
+  "332": {
+    "class_type": "Fast Muter (rgthree)",
+    "inputs": {
+      "Only 7 Steps": [
+        "490",
+        0
+      ]
+    },
+    "_meta": {
+      "title": "SPEED OPTIONS (default = all-no)"
+    }
+  },
+  "491": {
+    "class_type": "Reroute",
+    "inputs": {
+      "": [
+        "355",
+        0
+      ]
+    }
+  },
+  "490": {
+    "class_type": "Reroute",
+    "inputs": {
+      "": [
+        "331",
+        0
+      ]
+    }
+  },
+  "111": {
+    "class_type": "Note",
+    "inputs": {
+      "text": "> Select the yellow group and press '.' to automatically zoom in.\n> LoRAs can affect the style quality and the upscaler's output.\n> The refiner and the upscaler can be optimized for photography or illustration using the MODE SELECTOR."
+    },
+    "_meta": {
+      "title": "Notes"
+    }
+  },
+  "483": {
+    "class_type": "UpscaleModelLoader",
+    "inputs": {
+      "model_name": "4x_foolhardy_Remacri.safetensors"
+    }
+  },
+  "475": {
+    "class_type": "SamplerCustom",
+    "inputs": {
+      "model": [
+        "477",
+        0
+      ],
+      "positive": [
+        "468",
+        0
+      ],
+      "negative": [
+        "466",
+        0
+      ],
+      "sampler": [
+        "469",
+        0
+      ],
+      "sigmas": [
+        "488",
+        0
+      ],
+      "latent_image": [
+        "478",
+        0
+      ]
+    }
+  },
+  "555": {
+    "class_type": "Reroute",
+    "inputs": {
+      "": [
+        "514",
+        0
+      ]
+    }
+  },
+  "515": {
+    "class_type": "Reroute",
+    "inputs": {
+      "": [
+        "71",
+        0
+      ]
+    }
+  },
+  "514": {
+    "class_type": "Reroute",
+    "inputs": {
+      "": [
+        "73",
+        0
+      ]
+    }
+  },
+  "512": {
+    "class_type": "Reroute",
+    "inputs": {
+      "": [
+        "74",
+        0
+      ]
+    }
+  },
+  "542": {
+    "class_type": "VAEDecode",
+    "inputs": {
+      "samples": [
+        "475",
+        0
+      ],
+      "vae": [
+        "479",
+        0
+      ]
+    }
+  },
+  "471": {
+    "class_type": "KSamplerSelect",
+    "inputs": {},
+    "_meta": {
+      "title": "Default Euler Sampler"
+    }
+  },
+  "488": {
+    "class_type": "KarrasScheduler",
+    "inputs": {
+      "steps": 3,
+      "sigma_max": 0.22,
+      "sigma_min": 0.06,
+      "rho": 0.5
+    },
+    "_meta": {
+      "title": "Karras Scheduler (sigmas)"
+    }
+  },
+  "557": {
+    "class_type": "VAEDecode",
+    "inputs": {
+      "samples": [
+        "563",
+        0
+      ],
+      "vae": [
+        "561",
+        0
+      ]
+    }
+  },
+  "540": {
+    "class_type": "Any Switch (rgthree)",
+    "inputs": {
+      "any_01": [
+        "557",
+        0
+      ],
+      "any_02": [
+        "541",
+        0
+      ]
+    },
+    "_meta": {
+      "title": "Image Chooser"
+    }
+  },
+  "550": {
+    "class_type": "Reroute",
+    "inputs": {
+      "": [
+        "513",
+        0
+      ]
+    }
+  },
+  "552": {
+    "class_type": "VAEEncode",
+    "inputs": {
+      "pixels": [
+        "548",
+        0
+      ],
+      "vae": [
+        "550",
+        0
+      ]
+    }
+  },
+  "556": {
+    "class_type": "Reroute",
+    "inputs": {
+      "": [
+        "515",
+        0
+      ]
+    }
+  },
+  "554": {
+    "class_type": "Reroute",
+    "inputs": {
+      "": [
+        "512",
+        0
+      ]
+    }
+  },
+  "547": {
+    "class_type": "ImageUpscaleWithModel",
+    "inputs": {
+      "upscale_model": [
+        "545",
+        0
+      ],
+      "image": [
+        "546",
+        0
+      ]
+    },
+    "_meta": {
+      "title": "Upscale Image *4"
+    }
+  },
+  "545": {
+    "class_type": "UpscaleModelLoader",
+    "inputs": {
+      "model_name": "4x_foolhardy_Remacri.safetensors"
+    }
+  },
+  "513": {
+    "class_type": "Reroute",
+    "inputs": {
+      "": [
+        "391",
+        0
+      ]
+    }
+  },
+  "546": {
+    "class_type": "Image Resize (rgthree)",
+    "inputs": {
+      "image": [
+        "528",
+        0
+      ]
+    },
+    "_meta": {
+      "title": "Resize Image 1/2"
+    }
+  },
+  "548": {
+    "class_type": "Image Resize (rgthree)",
+    "inputs": {
+      "image": [
+        "547",
+        0
+      ]
+    },
+    "_meta": {
+      "title": "Resize Image 1/2"
+    }
+  },
+  "520": {
+    "class_type": "Reroute",
+    "inputs": {
+      "": [
+        "557",
+        0
+      ]
+    }
+  },
+  "563": {
+    "class_type": "KSamplerAdvanced",
+    "inputs": {
+      "add_noise": "enable",
+      "noise_seed": 696969,
+      "control_after_generate": "fixed",
+      "steps": 20,
+      "cfg": 1,
+      "sampler_name": "euler",
+      "scheduler": "simple",
+      "start_at_step": 18,
+      "end_at_step": 20,
+      "return_with_leftover_noise": "disable",
+      "model": [
+        "556",
+        0
+      ],
+      "positive": [
+        "555",
+        0
+      ],
+      "negative": [
+        "554",
+        0
+      ],
+      "latent_image": [
+        "552",
+        0
+      ]
+    }
+  },
+  "541": {
+    "class_type": "Reroute",
+    "inputs": {
+      "": [
+        "528",
+        0
+      ]
+    }
+  },
+  "561": {
+    "class_type": "Reroute",
+    "inputs": {
+      "": [
+        "550",
+        0
+      ]
+    }
+  },
+  "381": {
+    "class_type": "Reroute (rgthree)",
+    "inputs": {
+      "": [
+        "380",
+        0
+      ]
+    }
+  },
+  "564": {
+    "class_type": "Reroute",
+    "inputs": {
+      "": [
+        "381",
+        0
+      ]
+    }
+  },
+  "436": {
+    "class_type": "Reroute",
+    "inputs": {
+      "": [
+        "381",
+        0
+      ]
+    }
+  },
+  "525": {
+    "class_type": "Reroute",
+    "inputs": {
+      "": [
+        "564",
+        0
+      ]
+    }
+  },
+  "565": {
+    "class_type": "Reroute",
+    "inputs": {
+      "": [
+        "530",
+        0
+      ]
+    }
+  },
+  "489": {
+    "class_type": "Reroute",
+    "inputs": {
+      "": [
+        "566",
+        0
+      ]
+    }
+  },
+  "533": {
+    "class_type": "Reroute",
+    "inputs": {
+      "": [
+        "565",
+        0
+      ]
+    }
+  },
+  "57": {
+    "class_type": "PrimitiveNode",
+    "inputs": {
+      "value": "In a steampunk workshop, a red-haired inventor, wearing overalls with a white top underneath, works on a mechanical spider. She has a black tattoo on her left arm."
+    },
+    "_meta": {
+      "title": "PROMPT"
+    }
+  },
+  "500": {
+    "class_type": "Fast Muter (rgthree)",
+    "inputs": {
+      "\"PHOTO\" Mode": [
+        "501",
+        0
+      ]
+    },
+    "_meta": {
+      "title": "REFINER & UPSCALER MODE SELECTOR"
+    }
+  },
+  "88": {
+    "class_type": "Fast Muter (rgthree)",
+    "inputs": {
+      "none": [
+        "104",
+        0
+      ]
+    },
+    "_meta": {
+      "title": "STYLE SELECTOR"
+    }
+  },
+  "97": {
+    "class_type": "Fast Muter (rgthree)",
+    "inputs": {
+      "Refiner": [
+        "491",
+        0
+      ]
+    },
+    "_meta": {
+      "title": "EXTRA OPTIONS (default = all-no)"
+    }
+  },
+  "459": {
+    "class_type": "PrimitiveStringMultiline",
+    "inputs": {
+      "value": "YOUR CONTEXT:\nYou are an illustrator specializing in gentle, enchanting narratives for children's books.\nYour drawing is a whimsical watercolor image, featuring {$spicy-content-with} loose, fluid watercolor washes, delicate linework, and playful, anthropomorphic elements within a lush natural setting. The style is soft and inviting, with a vibrant yet gentle color palette that captures the magic of innocence.\nYOUR DRAWING:\n{$@}"
+    },
+    "_meta": {
+      "title": "STYLE: Whimsical Watercolor"
+    }
+  },
+  "124": {
+    "class_type": "PrimitiveStringMultiline",
+    "inputs": {
+      "value": "YOUR CONTEXT:\nYou are a sci-fi pulp magazine illustrator from the 1940s.\nYour drawing is a lush, painted-style comic cover including {$spicy-content-with} dramatic, heroic lighting and a vivid \"Technicolor\" palette of saturated oranges, deep teals, and bright yellows. It features soft airbrushed textures, muscular anatomy, and a grainy film-stock finish that evokes a sense of retro-futuristic adventure.\nYOUR DRAWING:\n{$@}"
+    },
+    "_meta": {
+      "title": "STYLE: Vintage Illustration"
+    }
+  },
+  "45": {
+    "class_type": "PrimitiveStringMultiline",
+    "inputs": {
+      "value": "YOUR CONTEXT:\nYou are a 1950s artist.\nYour illustration in a worn sheet of paper features {$spicy-content-with} a vintage 1950s comic book style made with hand-drawn lines and painted in solid white, red, blue, and black.\nYOUR ILLUSTRATION:\n{$@}"
+    },
+    "_meta": {
+      "title": "STYLE: Vintage Comics"
+    }
+  },
+  "130": {
+    "class_type": "PrimitiveStringMultiline",
+    "inputs": {
+      "value": "YOUR CONTEXT:\nYour illustration is made with brightly colored bold lines and touches of cracked paint, while having {$spicy-content-with} a 1980s graphic design aesthetic.\nYOUR ILLUSTRATION:\n{$@}"
+    },
+    "_meta": {
+      "title": "STYLE: Retro 80s Comics"
+    }
+  },
+  "93": {
+    "class_type": "PrimitiveStringMultiline",
+    "inputs": {
+      "value": "YOUR CONTEXT:\nYou are an American artist.\nYour illustration has a comic book cover style, with vibrant colors and outlined shapes, featuring {$spicy-content-with} realistic and epic details in the style of modern comics.\nYOUR ILLUSTRATION:\n{$@}"
+    },
+    "_meta": {
+      "title": "STYLE: Comics"
+    }
+  },
+  "43": {
+    "class_type": "PrimitiveStringMultiline",
+    "inputs": {
+      "value": "YOUR CONTEXT:\nYou are a Japanese anime artist.\nYour Japanese animation includes {$spicy-content-with} an ominous atmosphere, clean lines, and dramatic facial expressions. The artwork uses cool and dark tones along with dramatic lighting and shadows that emphasize the central figure and create a somber, intense mood.\nYOUR DRAWING:\n{$@}"
+    },
+    "_meta": {
+      "title": "STYLE: Anime"
+    }
+  },
+  "122": {
+    "class_type": "PrimitiveStringMultiline",
+    "inputs": {
+      "value": "YOUR CONTEXT:\nYou are a 3d artist.\nYour render is a high-gloss, illustration featuring {$spicy-content-with} ultra-reflective surfaces. The style is dark with dark backgrounds and iridescent highlights.\nYOUR RENDER:\n{$@}"
+    },
+    "_meta": {
+      "title": "STYLE: Simple 3D Render"
+    }
+  },
+  "41": {
+    "class_type": "PrimitiveStringMultiline",
+    "inputs": {
+      "value": "YOUR CONTEXT:\nYou are a pixel artist.\nYour illustration is a low-resolution pixel art featuring {$spicy-content-with} chunky pixels and vibrant intense colors, arcade game style.\nYOUR ILLUSTRATION:\n{$@}"
+    },
+    "_meta": {
+      "title": "STYLE: LowRes Pixel Art"
+    }
+  },
+  "37": {
+    "class_type": "PrimitiveStringMultiline",
+    "inputs": {
+      "value": "YOUR CONTEXT:\nYour peephole shows {$spicy-content-with} a shot from a high angle, inside a fisheye lens distortion glass circle, highly distorted with a wide angle.\nYOUR PEEPHOLE:\n{$@}"
+    },
+    "_meta": {
+      "title": "STYLE: Wide Angle / Peephole"
+    }
+  },
+  "92": {
+    "class_type": "PrimitiveStringMultiline",
+    "inputs": {
+      "value": "YOUR CONTEXT:\nYou are a cinematic photographer specializing in the Neon Noir aesthetic of a futuristic night city.\nYour photograph showcases {$spicy-content-with} high-contrast lighting with deep shadows and glowing neon accents. The color palette is dominated by electric cyan, hot magenta, and deep violet. The atmosphere is moody and atmospheric, featuring wet surfaces, rain reflections, and hazy mist.\nYOUR PHOTOGRAPH:\n{$@}"
+    },
+    "_meta": {
+      "title": "STYLE: Cyberpunk Rain Photo"
+    }
+  },
+  "38": {
+    "class_type": "PrimitiveStringMultiline",
+    "inputs": {
+      "value": "YOUR CONTEXT:\nYou are a professional cinematographer of iconic classic mid\u2011century cinema (1950s\u20111960s Hollywood golden age).\nYour photographs are on 35mm film with grain, displaying {$spicy-content-with} a warm color temperature, and an anamorphic lens that creates imperfections and blurry edges.\nYOUR PHOTO:\n{$@}"
+    },
+    "_meta": {
+      "title": "STYLE: Classic Film Photo"
+    }
+  },
+  "47": {
+    "class_type": "PrimitiveStringMultiline",
+    "inputs": {
+      "value": "YOUR CONTEXT:\nYou are an editorial fashion photographer specializing in the Old Money aesthetic.\nYour photograph showcases {$spicy-content-with} a sophisticated, clean composition using natural, soft morning light. The color palette is muted and neutral, focusing on beige, cream, navy blue, and forest green. The scene feels expensive and timeless, set in a luxury location.\nYOUR PHOTOGRAPH:\n{$@}"
+    },
+    "_meta": {
+      "title": "STYLE: Quiet Luxury Photo"
+    }
+  },
+  "63": {
+    "class_type": "PrimitiveStringMultiline",
+    "inputs": {
+      "value": "YOUR CONTEXT:\nYou are a lifestyle photographer capturing the \"Cottagecore\" aesthetic, celebrating a nostalgic, rural life.\nYour photograph showcases {$spicy-content-with} a soft-focus, romantic composition bathed in warm, hazy afternoon light. The color palette is soft and organic, featuring sage green, dried rose, lavender, and warm ochre. The atmosphere is cozy and rustic, filled with natural textures like linen, dried flowers, and weathered wood in a peaceful countryside setting.\nYOUR PHOTOGRAPHY:\n{$@}"
+    },
+    "_meta": {
+      "title": "STYLE: Cottagecore Pastoral Photo"
+    }
+  },
+  "117": {
+    "class_type": "PrimitiveStringMultiline",
+    "inputs": {
+      "value": "YOUR CONTEXT:\nYou are a street photographer capturing the raw, rebellious energy of the 1990s underground scene.\nYour photograph showcases {$spicy-content-with} a low-fidelity, grainy analog film aesthetic. The exposure features harsh camera flash, slight motion blur, and light leaks. The colors are slightly de-saturated with warm skin tones and heavy shadows, giving it a candid, \"snapshot\" feel.\nYOUR PHOTOGRAPHY:\n{$@}"
+    },
+    "_meta": {
+      "title": "STYLE: Nostalgic 90s Photo"
+    }
+  },
+  "101": {
+    "class_type": "PrimitiveStringMultiline",
+    "inputs": {
+      "value": "YOUR CONTEXT:\nYou are an amateur documentary photographer taking low quality photos.\nYour photographs exhibit {$spicy-content-with} sharp backgrounds, unpolished realism with natural lighting, and candid friendship\u2011level moments that feel immediate and authentic.\nYOUR PHOTO:\n{$@}"
+    },
+    "_meta": {
+      "title": "STYLE: Casual Photo"
+    }
+  },
+  "460": {
+    "class_type": "PrimitiveStringMultiline",
+    "inputs": {
+      "value": "YOUR CONTEXT:\nYour image showcases {$spicy-content-with} a loose and highly expressive brushstroke, characterized by a rich texture created through visible layers of paint and quick, broad strokes reminiscent of modern Impressionism. This technique employing a limited yet impactful color palette with strong contrasts of light and shadow and a focus on warm and cool tones to create a dynamic and energetic feel.\nYOUR IMAGE:\n{$@}"
+    },
+    "_meta": {
+      "title": "STYLE: Modern Impressionism"
+    }
+  },
+  "461": {
+    "class_type": "PrimitiveStringMultiline",
+    "inputs": {
+      "value": "YOUR CONTEXT:\nYou are a master digital painter of heroic sagas.\nYour illustration is a grand-scale digital oil painting that includes {$spicy-content-with} characterized by masterful, sweeping brushwork and thick impasto textures. It features dramatic, cinematic lighting with intense chiaroscuro, where light sources like embers or magical energy pierce through atmospheric haze, smoke, and swirling clouds. The composition is heroic and classically inspired, using a rich, moody palette of deep earth tones accented by vibrant, glowing highlights for a legendary and immersive feel.\nYOUR PAINTING:\n{$@}"
+    },
+    "_meta": {
+      "title": "STYLE: Epic Greg"
+    }
+  },
+  "528": {
+    "class_type": "VAEDecode",
+    "inputs": {
+      "samples": [
+        "510",
+        0
+      ],
+      "vae": [
+        "513",
+        0
+      ]
+    }
+  },
+  "567": {
+    "class_type": "Reroute",
+    "inputs": {
+      "": [
+        "530",
+        0
+      ]
+    }
+  },
+  "530": {
+    "class_type": "Reroute (rgthree)",
+    "inputs": {
+      "": [
+        "529",
+        0
+      ]
+    }
+  },
+  "391": {
+    "class_type": "Reroute",
+    "inputs": {
+      "": [
+        "398",
+        0
+      ]
+    }
+  },
+  "568": {
+    "class_type": "Reroute",
+    "inputs": {
+      "": [
+        "391",
+        0
+      ]
+    }
+  },
+  "566": {
+    "class_type": "Reroute",
+    "inputs": {
+      "": [
+        "528",
+        0
+      ]
+    }
+  },
+  "569": {
+    "class_type": "Note",
+    "inputs": {
+      "text": "This connection is intentionally set to \u201cBAD\u201d to prevent the REFINER and UPSCALER from being activated at the same time in Illustration mode, because the image quality drops dramatically when both are enabled."
+    },
+    "_meta": {
+      "title": "Note: GOOD / BAD Connection"
+    }
+  },
+  "125": {
+    "class_type": "PrimitiveStringMultiline",
+    "inputs": {
+      "value": "YOUR CONTEXT:\nYour photographs has android phone cam-quality.\nYour photographs exhibit {$spicy-content-with} surprising compositions, sharp complex backgrounds, natural lighting, and candid moments that feel immediate and authentic.\nYour photographs are actual gritty candid photographic background.\nYOUR PHOTO:\n{$@}"
+    },
+    "_meta": {
+      "title": "STYLE: Phone Photo"
+    }
+  },
+  "570": {
+    "class_type": "Note",
+    "inputs": {
+      "text": "To define a style, the only thing you need to remember is to always include the tag \"{$@}\". This tag will be replaced by the prompt you enter.\n\nOne observation (though not yet fully verified) is that the more naturally phrased and well\u2011structured the sentences are, the better the style tends to work. In such cases it interferes less with the objects and compositions you have set in the prompt.\n\nFinally, the tag \"{$spicy-content-with}\" is optional. It is used by the Spicy Impact Booster to sprinkle a dash of chili\u2011hot flavor into the prompt, although it is not yet completely effective and is still very experimental."
+    },
+    "_meta": {
+      "title": "Note: Defining custom styles"
+    }
+  },
+  "5060": {
+    "class_type": "CLIPTextEncode",
+    "inputs": {
+      "text": ""
+    }
+  },
+  "5056": {
+    "class_type": "EmptyLatentImage",
+    "inputs": {
+      "width": 944,
+      "height": 1408,
+      "batch_size": 1
+    }
+  },
+  "5050": {
+    "class_type": "KSamplerAdvanced",
+    "inputs": {
+      "add_noise": "enable",
+      "noise_seed": [
+        "5307",
+        0
+      ],
+      "control_after_generate": "fixed",
+      "steps": 8,
+      "cfg": 1,
+      "sampler_name": "euler",
+      "scheduler": "simple",
+      "start_at_step": 0,
+      "end_at_step": 10000,
+      "return_with_leftover_noise": "disable",
+      "positive": [
+        "5054",
+        0
+      ],
+      "negative": [
+        "5060",
+        0
+      ],
+      "latent_image": [
+        "5056",
+        0
+      ]
+    }
+  },
+  "5151": {
+    "class_type": "Any Switch (rgthree)",
+    "inputs": {
+      "any_01": [
+        "5144",
+        0
+      ],
+      "any_02": [
+        "5146",
+        0
+      ]
+    },
+    "_meta": {
+      "title": "Chooser"
+    }
+  },
+  "5034": {
+    "class_type": "Reroute",
+    "inputs": {
+      "": [
+        "5125",
+        0
+      ]
+    }
+  },
+  "5035": {
+    "class_type": "Reroute",
+    "inputs": {
+      "": [
+        "5101",
+        0
+      ]
+    }
+  },
+  "5036": {
+    "class_type": "Reroute",
+    "inputs": {
+      "": [
+        "5117",
+        0
+      ]
+    }
+  },
+  "5042": {
+    "class_type": "Reroute",
+    "inputs": {
+      "": [
+        "5063",
+        0
+      ]
+    }
+  },
+  "5044": {
+    "class_type": "Reroute",
+    "inputs": {
+      "": [
+        "5047",
+        0
+      ]
+    }
+  },
+  "5046": {
+    "class_type": "Reroute",
+    "inputs": {
+      "": [
+        "5038",
+        0
+      ]
+    }
+  },
+  "5048": {
+    "class_type": "Reroute",
+    "inputs": {
+      "": [
+        "5092",
+        0
+      ]
+    }
+  },
+  "5064": {
+    "class_type": "Reroute",
+    "inputs": {
+      "": [
+        "5037",
+        0
+      ]
+    }
+  },
+  "5094": {
+    "class_type": "Reroute",
+    "inputs": {
+      "": [
+        "5041",
+        0
+      ]
+    }
+  },
+  "5102": {
+    "class_type": "Reroute",
+    "inputs": {
+      "": [
+        "5122",
+        0
+      ]
+    }
+  },
+  "5118": {
+    "class_type": "Reroute",
+    "inputs": {
+      "": [
+        "5043",
+        0
+      ]
+    }
+  },
+  "5121": {
+    "class_type": "Reroute",
+    "inputs": {
+      "": [
+        "5093",
+        0
+      ]
+    }
+  },
+  "5127": {
+    "class_type": "Reroute",
+    "inputs": {
+      "": [
+        "5045",
+        0
+      ]
+    }
+  },
+  "5131": {
+    "class_type": "Reroute",
+    "inputs": {
+      "": [
+        "5124",
+        0
+      ]
+    }
+  },
+  "5104": {
+    "class_type": "Node Collector (rgthree)",
+    "inputs": {
+      "none": [
+        "5090",
+        0
+      ],
+      "STYLE: Phone Photo": [
+        "5034",
+        0
+      ],
+      "STYLE: Casual Photo": [
+        "5035",
+        0
+      ],
+      "STYLE: Flash 90s Photo": [
+        "5036",
+        0
+      ],
+      "STYLE: Intense Spot Photo": [
+        "5042",
+        0
+      ],
+      "STYLE: Production Photo": [
+        "5044",
+        0
+      ],
+      "STYLE: Classic Film Photo": [
+        "5046",
+        0
+      ],
+      "STYLE: Noir Photo": [
+        "5048",
+        0
+      ],
+      "STYLE: Vintage Photo": [
+        "5064",
+        0
+      ],
+      "STYLE: Lomography": [
+        "5094",
+        0
+      ],
+      "STYLE: Drone Photo": [
+        "5102",
+        0
+      ],
+      "STYLE: Minimalist Photo": [
+        "5118",
+        0
+      ],
+      "STYLE: Pop Photo": [
+        "5121",
+        0
+      ],
+      "STYLE: Light Painting Photo": [
+        "5126",
+        0
+      ],
+      "STYLE: Neon City Photo": [
+        "5127",
+        0
+      ],
+      "STYLE: Tilt Shift / Toy Photo": [
+        "5131",
+        0
+      ],
+      "STYLE: Comic Book Cover": [
+        "5462",
+        0
+      ],
+      "STYLE: empty 17": [
+        "5463",
+        0
+      ],
+      "STYLE: empty 18": [
+        "5464",
+        0
+      ]
+    },
+    "_meta": {
+      "title": "Style Collector (rgthree)"
+    }
+  },
+  "5090": {
+    "class_type": "PrimitiveString",
+    "inputs": {
+      "value": "{$@}"
+    },
+    "_meta": {
+      "title": "none"
+    }
+  },
+  "5075": {
+    "class_type": "Reroute",
+    "inputs": {
+      "": [
+        "5455",
+        0
+      ]
+    }
+  },
+  "5144": {
+    "class_type": "StringReplace",
+    "inputs": {
+      "string": [
+        "5031",
+        0
+      ],
+      "find": "{$spicy-content-with}",
+      "replace": "attractive and spicy content, where any woman is sexy and provocative, with"
+    },
+    "_meta": {
+      "title": "Spicy Impact Booster (experimental)"
+    }
+  },
+  "5202": {
+    "class_type": "Reroute",
+    "inputs": {
+      "": [
+        "5185",
+        0
+      ]
+    }
+  },
+  "5293": {
+    "class_type": "Reroute",
+    "inputs": {
+      "": [
+        "5074",
+        0
+      ]
+    }
+  },
+  "5294": {
+    "class_type": "Reroute",
+    "inputs": {
+      "": [
+        "5075",
+        0
+      ]
+    }
+  },
+  "5292": {
+    "class_type": "Reroute",
+    "inputs": {
+      "": [
+        "5073",
+        0
+      ]
+    }
+  },
+  "5323": {
+    "class_type": "SetFirstSigma",
+    "inputs": {
+      "sigma": 0.906,
+      "sigmas": [
+        "5322",
+        1
+      ]
+    },
+    "_meta": {
+      "title": "Set First Sigma"
+    }
+  },
+  "5324": {
+    "class_type": "ExtendIntermediateSigmas",
+    "inputs": {
+      "sigmas": [
+        "5323",
+        0
+      ]
+    }
+  },
+  "5321": {
+    "class_type": "KarrasScheduler",
+    "inputs": {
+      "steps": 8,
+      "sigma_max": 0.99,
+      "sigma_min": 0.08,
+      "rho": 0.3
+    },
+    "_meta": {
+      "title": "Karras Scheduler 8-Steps"
+    }
+  },
+  "5325": {
+    "class_type": "Any Switch (rgthree)",
+    "inputs": {
+      "any_01": [
+        "5335",
+        0
+      ],
+      "any_02": [
+        "5334",
+        0
+      ]
+    },
+    "_meta": {
+      "title": "High Sigmas Switcher"
+    }
+  },
+  "5322": {
+    "class_type": "SplitSigmas",
+    "inputs": {
+      "sigmas": [
+        "5321",
+        0
+      ]
+    },
+    "_meta": {
+      "title": "Split Sigmas [2] + [6]"
+    }
+  },
+  "5317": {
+    "class_type": "ExtendIntermediateSigmas",
+    "inputs": {
+      "sigmas": [
+        "5318",
+        0
+      ]
+    }
+  },
+  "5337": {
+    "class_type": "Reroute",
+    "inputs": {
+      "": [
+        "5318",
+        0
+      ]
+    }
+  },
+  "5336": {
+    "class_type": "Reroute",
+    "inputs": {
+      "": [
+        "5317",
+        0
+      ]
+    }
+  },
+  "5319": {
+    "class_type": "SplitSigmas",
+    "inputs": {
+      "sigmas": [
+        "5320",
+        0
+      ]
+    },
+    "_meta": {
+      "title": "Split Sigmas [2] + [4]"
+    }
+  },
+  "5338": {
+    "class_type": "Reroute",
+    "inputs": {
+      "": [
+        "5319",
+        1
+      ]
+    }
+  },
+  "5339": {
+    "class_type": "Reroute",
+    "inputs": {
+      "": [
+        "5320",
+        0
+      ]
+    }
+  },
+  "5335": {
+    "class_type": "Reroute",
+    "inputs": {
+      "": [
+        "5319",
+        0
+      ]
+    }
+  },
+  "5334": {
+    "class_type": "Reroute",
+    "inputs": {
+      "": [
+        "5322",
+        0
+      ]
+    }
+  },
+  "5315": {
+    "class_type": "Mute / Bypass Repeater (rgthree)",
+    "inputs": {
+      "ExtendIntermediateSigmas": [
+        "5336",
+        0
+      ],
+      "Set First Sigma": [
+        "5337",
+        0
+      ],
+      "Split Sigmas [2] + [4]": [
+        "5338",
+        0
+      ],
+      "Karras Scheduler 6-Steps": [
+        "5339",
+        0
+      ]
+    },
+    "_meta": {
+      "title": "Only 7 Steps"
+    }
+  },
+  "5364": {
+    "class_type": "Reroute",
+    "inputs": {
+      "": [
+        "5074",
+        0
+      ]
+    }
+  },
+  "5370": {
+    "class_type": "Reroute",
+    "inputs": {
+      "": [
+        "5364",
+        0
+      ]
+    }
+  },
+  "5363": {
+    "class_type": "Reroute",
+    "inputs": {
+      "": [
+        "5073",
+        0
+      ]
+    }
+  },
+  "5369": {
+    "class_type": "Reroute",
+    "inputs": {
+      "": [
+        "5363",
+        0
+      ]
+    }
+  },
+  "5166": {
+    "class_type": "StringReplace",
+    "inputs": {
+      "string": [
+        "5151",
+        0
+      ],
+      "find": "  ",
+      "replace": " "
+    },
+    "_meta": {
+      "title": "Fix Double Spaces"
+    }
+  },
+  "5361": {
+    "class_type": "Reroute",
+    "inputs": {
+      "": [
+        "5071",
+        0
+      ]
+    }
+  },
+  "5146": {
+    "class_type": "StringReplace",
+    "inputs": {
+      "string": [
+        "5031",
+        0
+      ],
+      "find": "{$spicy-content-with}",
+      "replace": ""
+    },
+    "_meta": {
+      "title": "DEFAULT: No Spicy Inpact"
+    }
+  },
+  "5031": {
+    "class_type": "StringReplace",
+    "inputs": {
+      "string": [
+        "5087",
+        0
+      ],
+      "find": "{$@}",
+      "replace": [
+        "5386",
+        0
+      ]
+    },
+    "_meta": {
+      "title": "STYLE INTEGRATOR"
+    }
+  },
+  "5413": {
+    "class_type": "Reroute",
+    "inputs": {
+      "": [
+        "5392",
+        0
+      ]
+    }
+  },
+  "5414": {
+    "class_type": "Reroute",
+    "inputs": {
+      "": [
+        "5392",
+        1
+      ]
+    }
+  },
+  "5054": {
+    "class_type": "CLIPTextEncode",
+    "inputs": {
+      "text": [
+        "5057",
+        0
+      ]
+    },
+    "_meta": {
+      "title": "CLIP Text Encode (Positive Prompt)"
+    }
+  },
+  "5156": {
+    "class_type": "Reroute",
+    "inputs": {
+      "": [
+        "5144",
+        0
+      ]
+    }
+  },
+  "5291": {
+    "class_type": "Reroute",
+    "inputs": {
+      "": [
+        "5071",
+        0
+      ]
+    }
+  },
+  "5068": {
+    "class_type": "KSamplerSelect",
+    "inputs": {},
+    "_meta": {
+      "title": "Default Euler Sampler"
+    }
+  },
+  "5095": {
+    "class_type": "KSamplerSelect",
+    "inputs": {},
+    "_meta": {
+      "title": "Alternative Sampler"
+    }
+  },
+  "5397": {
+    "class_type": "UnetLoaderGGUF",
+    "inputs": {}
+  },
+  "5394": {
+    "class_type": "CLIPLoaderGGUF",
+    "inputs": {}
+  },
+  "5399": {
+    "class_type": "VAELoader",
+    "inputs": {
+      "vae_name": "ae.safetensors"
+    }
+  },
+  "5382": {
+    "class_type": "Reroute",
+    "inputs": {
+      "": [
+        "5433",
+        0
+      ]
+    }
+  },
+  "5185": {
+    "class_type": "Reroute",
+    "inputs": {
+      "": [
+        "5073",
+        0
+      ]
+    }
+  },
+  "5183": {
+    "class_type": "Reroute",
+    "inputs": {
+      "": [
+        "5071",
+        0
+      ]
+    }
+  },
+  "5408": {
+    "class_type": "Reroute (rgthree)",
+    "inputs": {
+      "": [
+        "5414",
+        0
+      ]
+    }
+  },
+  "5407": {
+    "class_type": "Reroute (rgthree)",
+    "inputs": {
+      "": [
+        "5413",
+        0
+      ]
+    }
+  },
+  "5274": {
+    "class_type": "Reroute (rgthree)",
+    "inputs": {
+      "": [
+        "5286",
+        0
+      ]
+    }
+  },
+  "5420": {
+    "class_type": "Reroute",
+    "inputs": {
+      "": [
+        "5292",
+        0
+      ]
+    }
+  },
+  "5419": {
+    "class_type": "Reroute",
+    "inputs": {
+      "": [
+        "5293",
+        0
+      ]
+    }
+  },
+  "5422": {
+    "class_type": "Reroute",
+    "inputs": {
+      "": [
+        "5294",
+        0
+      ]
+    }
+  },
+  "5448": {
+    "class_type": "Reroute",
+    "inputs": {
+      "": [
+        "5420",
+        0
+      ]
+    }
+  },
+  "5449": {
+    "class_type": "Reroute",
+    "inputs": {
+      "": [
+        "5419",
+        0
+      ]
+    }
+  },
+  "5450": {
+    "class_type": "Reroute",
+    "inputs": {
+      "": [
+        "5422",
+        0
+      ]
+    }
+  },
+  "5451": {
+    "class_type": "Reroute",
+    "inputs": {
+      "": [
+        "5421",
+        0
+      ]
+    }
+  },
+  "5418": {
+    "class_type": "Reroute",
+    "inputs": {
+      "": [
+        "5291",
+        0
+      ]
+    }
+  },
+  "5237": {
+    "class_type": "Reroute (rgthree)",
+    "inputs": {
+      "": [
+        "5454",
+        0
+      ]
+    }
+  },
+  "5096": {
+    "class_type": "Any Switch (rgthree)",
+    "inputs": {
+      "any_01": [
+        "5095",
+        0
+      ],
+      "any_02": [
+        "5068",
+        0
+      ]
+    },
+    "_meta": {
+      "title": "Sampler Chooser"
+    }
+  },
+  "5455": {
+    "class_type": "Reroute",
+    "inputs": {
+      "": [
+        "5096",
+        0
+      ]
+    }
+  },
+  "5432": {
+    "class_type": "Reroute",
+    "inputs": {
+      "": [
+        "5006",
+        0
+      ]
+    }
+  },
+  "5433": {
+    "class_type": "Reroute",
+    "inputs": {
+      "": [
+        "5095",
+        0
+      ]
+    }
+  },
+  "5396": {
+    "class_type": "Reroute",
+    "inputs": {
+      "": [
+        "5415",
+        0
+      ]
+    }
+  },
+  "5395": {
+    "class_type": "Reroute",
+    "inputs": {
+      "": [
+        "5416",
+        0
+      ]
+    }
+  },
+  "5415": {
+    "class_type": "Reroute",
+    "inputs": {
+      "": [
+        "5397",
+        0
+      ]
+    }
+  },
+  "5416": {
+    "class_type": "Reroute",
+    "inputs": {
+      "": [
+        "5394",
+        0
+      ]
+    }
+  },
+  "5398": {
+    "class_type": "Reroute",
+    "inputs": {
+      "": [
+        "5399",
+        0
+      ]
+    }
+  },
+  "5400": {
+    "class_type": "Note",
+    "inputs": {
+      "text": "Amazing Z-Image(b) WF v4.0\n\n## Workflow Prerequisites ##\n\nThis workflow requires the following custom nodes, which can be obtained via ComfyUI-Manager:\n\n  * rgthree-comfy: https://github.com/rgthree/rgthree-comfy\n  * ComfyUI-GGUF : https://github.com/city96/ComfyUI-GGUF\n\n Additionally, ensure you have the following 4 models downloaded and placed in their respective\n directories within your ComfyUI installation:\n\n  z_image_turbo-Q5_K_S.gguf\n    * Download: https://huggingface.co/jayn7/Z-Image-Turbo-GGUF/blob/main/z_image_turbo-Q5_K_S.gguf\n    * Local Directory: `ComfyUI/models/diffusion_models/`\n\n  Qwen3-4B.i1-Q5_K_S.gguf\n    * Download: https://huggingface.co/mradermacher/Qwen3-4B-i1-GGUF/blob/main/Qwen3-4B.i1-Q5_K_S.gguf\n    * Local Directory: `ComfyUI/models/text_encoders/`\n\n  ae.safetensors\n    * Download: https://huggingface.co/Comfy-Org/z_image_turbo/blob/main/split_files/vae/ae.safetensors\n    * Local Directory: `Comfyui/models/vae/`\n\n  4x_foolhardy_Remacri.safetensors (for illustration refining)\n    * Download: https://huggingface.co/martin-rizzo/ESRGAN-4x/blob/main/4x_foolhardy_Remacri.safetensors\n    * Local Directory: `ComfyUI/models/upscale_models/`\n\n## More Info ##\n\n- https://github.com/martin-rizzo/AmazingZImageWorkflow\n   - https://civitai.com/models/2181458/amazing-z-image-workflow\n   - https://civitai.com/models/2213075/amazing-z-comics-workflow\n   - https://civitai.com/models/2225379/amazing-z-photo-workflow\n\nCreated by Martin Rizzo\n  GitHub : https://github.com/martin-rizzo\n  CivitAI: https://civitai.com/user/Photographer\n  Reddit : https://www.reddit.com/user/FotografoVirtual\n"
+    },
+    "_meta": {
+      "title": "README"
+    }
+  },
+  "5388": {
+    "class_type": "Reroute",
+    "inputs": {
+      "": [
+        "5166",
+        0
+      ]
+    }
+  },
+  "5165": {
+    "class_type": "Display Any (rgthree)",
+    "inputs": {
+      "source": [
+        "5166",
+        0
+      ]
+    },
+    "_meta": {
+      "title": "FINAL TEXT VIEWER"
+    }
+  },
+  "5006": {
+    "class_type": "CLIPTextEncode",
+    "inputs": {
+      "text": [
+        "5389",
+        0
+      ],
+      "clip": [
+        "5412",
+        0
+      ]
+    },
+    "_meta": {
+      "title": "CLIP Text Encoder"
+    }
+  },
+  "5389": {
+    "class_type": "Reroute",
+    "inputs": {
+      "": [
+        "5388",
+        0
+      ]
+    }
+  },
+  "5421": {
+    "class_type": "Reroute",
+    "inputs": {
+      "": [
+        "5325",
+        0
+      ]
+    }
+  },
+  "5316": {
+    "class_type": "Any Switch (rgthree)",
+    "inputs": {
+      "any_01": [
+        "5317",
+        0
+      ],
+      "any_02": [
+        "5324",
+        0
+      ]
+    },
+    "_meta": {
+      "title": "Low Sigmas Switcher"
+    }
+  },
+  "5423": {
+    "class_type": "Reroute",
+    "inputs": {
+      "": [
+        "5077",
+        0
+      ]
+    }
+  },
+  "5456": {
+    "class_type": "Reroute",
+    "inputs": {
+      "": [
+        "5316",
+        0
+      ]
+    }
+  },
+  "5458": {
+    "class_type": "Reroute",
+    "inputs": {
+      "": [
+        "5456",
+        0
+      ]
+    }
+  },
+  "5452": {
+    "class_type": "Reroute",
+    "inputs": {
+      "": [
+        "5423",
+        0
+      ]
+    }
+  },
+  "5453": {
+    "class_type": "Reroute",
+    "inputs": {
+      "": [
+        "5289",
+        0
+      ]
+    }
+  },
+  "5446": {
+    "class_type": "Reroute",
+    "inputs": {
+      "": [
+        "5453",
+        0
+      ]
+    }
+  },
+  "5447": {
+    "class_type": "Reroute",
+    "inputs": {
+      "": [
+        "5418",
+        0
+      ]
+    }
+  },
+  "5126": {
+    "class_type": "Reroute",
+    "inputs": {
+      "": [
+        "5130",
+        0
+      ]
+    }
+  },
+  "5462": {
+    "class_type": "Reroute",
+    "inputs": {
+      "": [
+        "5459",
+        0
+      ]
+    }
+  },
+  "5463": {
+    "class_type": "Reroute",
+    "inputs": {
+      "": [
+        "5460",
+        0
+      ]
+    }
+  },
+  "5464": {
+    "class_type": "Reroute",
+    "inputs": {
+      "": [
+        "5461",
+        0
+      ]
+    }
+  },
+  "5087": {
+    "class_type": "Any Switch (rgthree)",
+    "inputs": {
+      "any_01": [
+        "5090",
+        0
+      ],
+      "any_02": [
+        "5034",
+        0
+      ],
+      "any_03": [
+        "5035",
+        0
+      ],
+      "any_04": [
+        "5036",
+        0
+      ],
+      "any_05": [
+        "5042",
+        0
+      ],
+      "any_06": [
+        "5044",
+        0
+      ],
+      "any_07": [
+        "5046",
+        0
+      ],
+      "any_08": [
+        "5048",
+        0
+      ],
+      "any_09": [
+        "5064",
+        0
+      ],
+      "any_10": [
+        "5094",
+        0
+      ],
+      "any_11": [
+        "5102",
+        0
+      ],
+      "any_12": [
+        "5118",
+        0
+      ],
+      "any_13": [
+        "5121",
+        0
+      ],
+      "any_14": [
+        "5126",
+        0
+      ],
+      "any_15": [
+        "5127",
+        0
+      ],
+      "any_16": [
+        "5131",
+        0
+      ],
+      "any_17": [
+        "5462",
+        0
+      ],
+      "any_18": [
+        "5463",
+        0
+      ],
+      "any_19": [
+        "5464",
+        0
+      ]
+    }
+  },
+  "5386": {
+    "class_type": "Reroute (rgthree)",
+    "inputs": {
+      "": [
+        "5385",
+        0
+      ]
+    }
+  },
+  "5385": {
+    "class_type": "StringTrim",
+    "inputs": {
+      "string": [
+        "5057",
+        0
+      ]
+    },
+    "_meta": {
+      "title": "(used for reroute)"
+    }
+  },
+  "5307": {
+    "class_type": "PrimitiveInt",
+    "inputs": {
+      "value": 1,
+      "control_after_generate": "fixed"
+    },
+    "_meta": {
+      "title": "SEED"
+    }
+  },
+  "5286": {
+    "class_type": "SamplerCustom",
+    "inputs": {
+      "model": [
+        "5447",
+        0
+      ],
+      "positive": [
+        "5448",
+        0
+      ],
+      "negative": [
+        "5449",
+        0
+      ],
+      "sampler": [
+        "5450",
+        0
+      ],
+      "sigmas": [
+        "5458",
+        0
+      ],
+      "latent_image": [
+        "5446",
+        0
+      ],
+      "noise_seed": [
+        "5307",
+        0
+      ]
+    }
+  },
+  "5289": {
+    "class_type": "SamplerCustom",
+    "inputs": {
+      "model": [
+        "5447",
+        0
+      ],
+      "positive": [
+        "5448",
+        0
+      ],
+      "negative": [
+        "5449",
+        0
+      ],
+      "sampler": [
+        "5450",
+        0
+      ],
+      "sigmas": [
+        "5451",
+        0
+      ],
+      "latent_image": [
+        "5452",
+        0
+      ],
+      "noise_seed": [
+        "5307",
+        0
+      ]
+    }
+  },
+  "5431": {
+    "class_type": "Reroute",
+    "inputs": {
+      "": [
+        "5156",
+        0
+      ]
+    }
+  },
+  "5320": {
+    "class_type": "KarrasScheduler",
+    "inputs": {
+      "steps": 6,
+      "sigma_max": 1,
+      "sigma_min": 0.08,
+      "rho": 0.32
+    },
+    "_meta": {
+      "title": "Karras Scheduler 6-Steps"
+    }
+  },
+  "5318": {
+    "class_type": "SetFirstSigma",
+    "inputs": {
+      "sigma": 0.865,
+      "sigmas": [
+        "5319",
+        1
+      ]
+    },
+    "_meta": {
+      "title": "Set First Sigma"
+    }
+  },
+  "5465": {
+    "class_type": "Reroute",
+    "inputs": {
+      "": [
+        "5074",
+        0
+      ]
+    }
+  },
+  "5466": {
+    "class_type": "Reroute",
+    "inputs": {
+      "": [
+        "5465",
+        0
+      ]
+    }
+  },
+  "5467": {
+    "class_type": "Reroute",
+    "inputs": {
+      "": [
+        "5073",
+        0
+      ]
+    }
+  },
+  "5468": {
+    "class_type": "Reroute",
+    "inputs": {
+      "": [
+        "5467",
+        0
+      ]
+    }
+  },
+  "5470": {
+    "class_type": "Reroute",
+    "inputs": {
+      "": [
+        "5471",
+        0
+      ]
+    }
+  },
+  "5472": {
+    "class_type": "Reroute",
+    "inputs": {
+      "": [
+        "5071",
+        0
+      ]
+    }
+  },
+  "5481": {
+    "class_type": "Reroute",
+    "inputs": {
+      "": [
+        "5568",
+        0
+      ]
+    }
+  },
+  "5362": {
+    "class_type": "Reroute",
+    "inputs": {
+      "": [
+        "5391",
+        0
+      ]
+    }
+  },
+  "5278": {
+    "class_type": "Reroute (rgthree)",
+    "inputs": {
+      "": [
+        "5276",
+        0
+      ]
+    }
+  },
+  "5410": {
+    "class_type": "Reroute (rgthree)",
+    "inputs": {
+      "": [
+        "5408",
+        0
+      ]
+    }
+  },
+  "5434": {
+    "class_type": "Reroute",
+    "inputs": {
+      "": [
+        "5382",
+        0
+      ]
+    }
+  },
+  "5409": {
+    "class_type": "Reroute (rgthree)",
+    "inputs": {
+      "": [
+        "5407",
+        0
+      ]
+    }
+  },
+  "5280": {
+    "class_type": "Reroute",
+    "inputs": {
+      "": [
+        "5374",
+        0
+      ]
+    }
+  },
+  "5360": {
+    "class_type": "Reroute",
+    "inputs": {
+      "": [
+        "5391",
+        0
+      ]
+    }
+  },
+  "5523": {
+    "class_type": "Reroute",
+    "inputs": {
+      "": [
+        "5526",
+        0
+      ]
+    }
+  },
+  "5186": {
+    "class_type": "Reroute",
+    "inputs": {
+      "": [
+        "5074",
+        0
+      ]
+    }
+  },
+  "5526": {
+    "class_type": "VAEDecode",
+    "inputs": {
+      "samples": [
+        "5280",
+        0
+      ],
+      "vae": [
+        "5360",
+        0
+      ]
+    }
+  },
+  "5510": {
+    "class_type": "Reroute",
+    "inputs": {
+      "": [
+        "5374",
+        0
+      ]
+    }
+  },
+  "5071": {
+    "class_type": "Reroute",
+    "inputs": {
+      "": [
+        "5411",
+        0
+      ]
+    }
+  },
+  "5073": {
+    "class_type": "Reroute",
+    "inputs": {
+      "": [
+        "5432",
+        0
+      ]
+    }
+  },
+  "5074": {
+    "class_type": "Reroute",
+    "inputs": {
+      "": [
+        "5432",
+        0
+      ]
+    }
+  },
+  "5532": {
+    "class_type": "Any Switch (rgthree)",
+    "inputs": {
+      "any_01": [
+        "5524",
+        0
+      ],
+      "any_02": [
+        "5531",
+        0
+      ]
+    }
+  },
+  "5487": {
+    "class_type": "Image Resize (rgthree)",
+    "inputs": {
+      "image": [
+        "5489",
+        0
+      ]
+    },
+    "_meta": {
+      "title": "Resize Image 1/2"
+    }
+  },
+  "5482": {
+    "class_type": "ImageUpscaleWithModel",
+    "inputs": {
+      "upscale_model": [
+        "5483",
+        0
+      ],
+      "image": [
+        "5487",
+        0
+      ]
+    },
+    "_meta": {
+      "title": "Upscale Image *4"
+    }
+  },
+  "5478": {
+    "class_type": "VAEEncode",
+    "inputs": {
+      "pixels": [
+        "5486",
+        0
+      ],
+      "vae": [
+        "5480",
+        0
+      ]
+    }
+  },
+  "5486": {
+    "class_type": "Image Resize (rgthree)",
+    "inputs": {
+      "image": [
+        "5482",
+        0
+      ]
+    },
+    "_meta": {
+      "title": "Resize Image 75*2 = 150%"
+    }
+  },
+  "5480": {
+    "class_type": "Reroute",
+    "inputs": {
+      "": [
+        "5481",
+        0
+      ]
+    }
+  },
+  "5479": {
+    "class_type": "Reroute",
+    "inputs": {
+      "": [
+        "5480",
+        0
+      ]
+    }
+  },
+  "5485": {
+    "class_type": "Reroute",
+    "inputs": {
+      "": [
+        "5542",
+        0
+      ]
+    }
+  },
+  "5477": {
+    "class_type": "Reroute",
+    "inputs": {
+      "": [
+        "5472",
+        0
+      ]
+    }
+  },
+  "5469": {
+    "class_type": "Reroute",
+    "inputs": {
+      "": [
+        "5470",
+        0
+      ]
+    }
+  },
+  "5529": {
+    "class_type": "Reroute (rgthree)",
+    "inputs": {
+      "": [
+        "5540",
+        0
+      ]
+    }
+  },
+  "5380": {
+    "class_type": "Reroute (rgthree)",
+    "inputs": {
+      "": [
+        "5441",
+        0
+      ]
+    }
+  },
+  "5441": {
+    "class_type": "Reroute",
+    "inputs": {
+      "": [
+        "5522",
+        0
+      ]
+    }
+  },
+  "5442": {
+    "class_type": "Reroute",
+    "inputs": {
+      "": [
+        "5281",
+        0
+      ]
+    }
+  },
+  "5375": {
+    "class_type": "Reroute",
+    "inputs": {
+      "": [
+        "5360",
+        0
+      ]
+    }
+  },
+  "5281": {
+    "class_type": "VAEDecode",
+    "inputs": {
+      "samples": [
+        "5279",
+        0
+      ],
+      "vae": [
+        "5375",
+        0
+      ]
+    },
+    "_meta": {
+      "title": "Photo Refiner"
+    }
+  },
+  "5279": {
+    "class_type": "SamplerCustom",
+    "inputs": {
+      "model": [
+        "5203",
+        0
+      ],
+      "positive": [
+        "5202",
+        0
+      ],
+      "negative": [
+        "5201",
+        0
+      ],
+      "sampler": [
+        "5377",
+        0
+      ],
+      "sigmas": [
+        "5189",
+        1
+      ],
+      "latent_image": [
+        "5378",
+        0
+      ]
+    }
+  },
+  "5201": {
+    "class_type": "Reroute",
+    "inputs": {
+      "": [
+        "5186",
+        0
+      ]
+    }
+  },
+  "5203": {
+    "class_type": "Reroute",
+    "inputs": {
+      "": [
+        "5183",
+        0
+      ]
+    }
+  },
+  "5377": {
+    "class_type": "KSamplerSelect",
+    "inputs": {},
+    "_meta": {
+      "title": "Default Euler Sampler"
+    }
+  },
+  "5189": {
+    "class_type": "SplitSigmas",
+    "inputs": {
+      "sigmas": [
+        "5195",
+        0
+      ]
+    }
+  },
+  "5378": {
+    "class_type": "Reroute",
+    "inputs": {
+      "": [
+        "5280",
+        0
+      ]
+    }
+  },
+  "5195": {
+    "class_type": "KarrasScheduler",
+    "inputs": {
+      "steps": 5,
+      "sigma_max": 1,
+      "sigma_min": 0.2,
+      "rho": 0.7
+    },
+    "_meta": {
+      "title": "Karras Scheduler (sigmas)"
+    }
+  },
+  "5438": {
+    "class_type": "Reroute",
+    "inputs": {
+      "": [
+        "5543",
+        0
+      ]
+    }
+  },
+  "5181": {
+    "class_type": "SamplerCustom",
+    "inputs": {
+      "model": [
+        "5367",
+        0
+      ],
+      "positive": [
+        "5369",
+        0
+      ],
+      "negative": [
+        "5370",
+        0
+      ],
+      "sampler": [
+        "5372",
+        0
+      ],
+      "sigmas": [
+        "5346",
+        0
+      ],
+      "latent_image": [
+        "5180",
+        0
+      ]
+    }
+  },
+  "5218": {
+    "class_type": "Reroute",
+    "inputs": {
+      "": [
+        "5217",
+        0
+      ]
+    }
+  },
+  "5372": {
+    "class_type": "Reroute",
+    "inputs": {
+      "": [
+        "5373",
+        0
+      ]
+    }
+  },
+  "5367": {
+    "class_type": "Reroute",
+    "inputs": {
+      "": [
+        "5361",
+        0
+      ]
+    }
+  },
+  "5371": {
+    "class_type": "KSamplerSelect",
+    "inputs": {},
+    "_meta": {
+      "title": "Default Euler Sampler"
+    }
+  },
+  "5373": {
+    "class_type": "Reroute",
+    "inputs": {
+      "": [
+        "5371",
+        0
+      ]
+    }
+  },
+  "5346": {
+    "class_type": "KarrasScheduler",
+    "inputs": {
+      "steps": 3,
+      "sigma_max": 0.17,
+      "sigma_min": 0.06,
+      "rho": 0.6
+    },
+    "_meta": {
+      "title": "Karras Scheduler (sigmas)"
+    }
+  },
+  "5180": {
+    "class_type": "VAEEncode",
+    "inputs": {
+      "pixels": [
+        "5341",
+        0
+      ],
+      "vae": [
+        "5217",
+        0
+      ]
+    }
+  },
+  "5217": {
+    "class_type": "Reroute",
+    "inputs": {
+      "": [
+        "5362",
+        0
+      ]
+    }
+  },
+  "5341": {
+    "class_type": "ImageAddNoise",
+    "inputs": {
+      "image": [
+        "5344",
+        0
+      ]
+    },
+    "_meta": {
+      "title": "Add Noise"
+    }
+  },
+  "5344": {
+    "class_type": "Image Resize (rgthree)",
+    "inputs": {
+      "image": [
+        "5436",
+        0
+      ]
+    },
+    "_meta": {
+      "title": "Resize Image +50%"
+    }
+  },
+  "5374": {
+    "class_type": "Reroute",
+    "inputs": {
+      "": [
+        "5278",
+        0
+      ]
+    }
+  },
+  "5411": {
+    "class_type": "Reroute (rgthree)",
+    "inputs": {
+      "": [
+        "5409",
+        0
+      ]
+    }
+  },
+  "5412": {
+    "class_type": "Reroute (rgthree)",
+    "inputs": {
+      "": [
+        "5410",
+        0
+      ]
+    }
+  },
+  "5454": {
+    "class_type": "Reroute (rgthree)",
+    "inputs": {
+      "": [
+        "5532",
+        0
+      ]
+    }
+  },
+  "5501": {
+    "class_type": "Node Collector (rgthree)",
+    "inputs": {
+      "\"PHOTO\" Mode": [
+        "5524",
+        0
+      ],
+      "\"ILLUSTRATION\" Artistic Mode": [
+        "5531",
+        0
+      ]
+    }
+  },
+  "5276": {
+    "class_type": "Reroute (rgthree)",
+    "inputs": {
+      "": [
+        "5274",
+        0
+      ]
+    }
+  },
+  "5077": {
+    "class_type": "Reroute",
+    "inputs": {
+      "": [
+        "5244",
+        0
+      ]
+    }
+  },
+  "5136": {
+    "class_type": "Node Collector (rgthree)",
+    "inputs": {
+      "Alternative Sampler": [
+        "5434",
+        0
+      ],
+      "Landscape Orientation": [
+        "5254",
+        0
+      ],
+      "Spicy Impact Booster (experimental)": [
+        "5431",
+        0
+      ]
+    }
+  },
+  "5331": {
+    "class_type": "Node Collector (rgthree)",
+    "inputs": {
+      "Only 7 Steps": [
+        "5315",
+        0
+      ],
+      "Smaller Image Generation": [
+        "5255",
+        0
+      ]
+    }
+  },
+  "5355": {
+    "class_type": "Node Collector (rgthree)",
+    "inputs": {
+      "Refiner": [
+        "5494",
+        0
+      ],
+      "Upscaler": [
+        "5495",
+        0
+      ],
+      "Node Collector (rgthree)": [
+        "5136",
+        0
+      ]
+    }
+  },
+  "5255": {
+    "class_type": "Reroute",
+    "inputs": {
+      "": [
+        "5252",
+        0
+      ]
+    }
+  },
+  "5244": {
+    "class_type": "EmptySD3LatentImage",
+    "inputs": {
+      "width": [
+        "5536",
+        0
+      ],
+      "height": [
+        "5537",
+        0
+      ],
+      "batch_size": [
+        "5443",
+        0
+      ]
+    }
+  },
+  "5443": {
+    "class_type": "PrimitiveInt",
+    "inputs": {
+      "value": 1,
+      "control_after_generate": "fixed"
+    },
+    "_meta": {
+      "title": "Batch Size"
+    }
+  },
+  "5536": {
+    "class_type": "Any Switch (rgthree)",
+    "inputs": {
+      "any_01": [
+        "5535",
+        0
+      ],
+      "any_02": [
+        "5534",
+        0
+      ]
+    },
+    "_meta": {
+      "title": "Width Long/Short Chooser"
+    }
+  },
+  "5537": {
+    "class_type": "Any Switch (rgthree)",
+    "inputs": {
+      "any_01": [
+        "5246",
+        0
+      ],
+      "any_02": [
+        "5249",
+        0
+      ]
+    },
+    "_meta": {
+      "title": "Height Long/Short Chooser"
+    }
+  },
+  "5538": {
+    "class_type": "Mute / Bypass Repeater (rgthree)",
+    "inputs": {
+      "Short Side Chooser": [
+        "5246",
+        0
+      ],
+      "Long Side Chooser": [
+        "5535",
+        0
+      ]
+    },
+    "_meta": {
+      "title": "Landscape Orientation"
+    }
+  },
+  "5252": {
+    "class_type": "Mute / Bypass Repeater (rgthree)",
+    "inputs": {
+      "Small Image Short Side": [
+        "5444",
+        0
+      ],
+      "Small Image Long Side": [
+        "5445",
+        0
+      ]
+    },
+    "_meta": {
+      "title": "Smaller Image Generation"
+    }
+  },
+  "5248": {
+    "class_type": "PrimitiveInt",
+    "inputs": {
+      "value": 1600,
+      "control_after_generate": "fixed"
+    },
+    "_meta": {
+      "title": "Default Long Side"
+    }
+  },
+  "5242": {
+    "class_type": "PrimitiveInt",
+    "inputs": {
+      "value": 832,
+      "control_after_generate": "fixed"
+    },
+    "_meta": {
+      "title": "Small Image Short Side"
+    }
+  },
+  "5444": {
+    "class_type": "Reroute",
+    "inputs": {
+      "": [
+        "5242",
+        0
+      ]
+    }
+  },
+  "5445": {
+    "class_type": "Reroute",
+    "inputs": {
+      "": [
+        "5247",
+        0
+      ]
+    }
+  },
+  "5243": {
+    "class_type": "PrimitiveInt",
+    "inputs": {
+      "value": 1088,
+      "control_after_generate": "fixed"
+    },
+    "_meta": {
+      "title": "Default Short Side"
+    }
+  },
+  "5247": {
+    "class_type": "PrimitiveInt",
+    "inputs": {
+      "value": 1216,
+      "control_after_generate": "fixed"
+    },
+    "_meta": {
+      "title": "Small Image Long Side"
+    }
+  },
+  "5254": {
+    "class_type": "Reroute",
+    "inputs": {
+      "": [
+        "5538",
+        0
+      ]
+    }
+  },
+  "5246": {
+    "class_type": "Any Switch (rgthree)",
+    "inputs": {
+      "any_01": [
+        "5242",
+        0
+      ],
+      "any_02": [
+        "5243",
+        0
+      ]
+    },
+    "_meta": {
+      "title": "Short Side Chooser"
+    }
+  },
+  "5535": {
+    "class_type": "Any Switch (rgthree)",
+    "inputs": {
+      "any_01": [
+        "5247",
+        0
+      ],
+      "any_02": [
+        "5248",
+        0
+      ]
+    },
+    "_meta": {
+      "title": "Long Side Chooser"
+    }
+  },
+  "5249": {
+    "class_type": "Any Switch (rgthree)",
+    "inputs": {
+      "any_01": [
+        "5247",
+        0
+      ],
+      "any_02": [
+        "5248",
+        0
+      ]
+    },
+    "_meta": {
+      "title": "Long Side Chooser"
+    }
+  },
+  "5534": {
+    "class_type": "Any Switch (rgthree)",
+    "inputs": {
+      "any_01": [
+        "5242",
+        0
+      ],
+      "any_02": [
+        "5243",
+        0
+      ]
+    },
+    "_meta": {
+      "title": "Short Side Chooser"
+    }
+  },
+  "5522": {
+    "class_type": "Any Switch (rgthree)",
+    "inputs": {
+      "any_01": [
+        "5281",
+        0
+      ],
+      "any_02": [
+        "5523",
+        0
+      ]
+    },
+    "_meta": {
+      "title": "Image Chooser"
+    }
+  },
+  "5543": {
+    "class_type": "VAEDecode",
+    "inputs": {
+      "samples": [
+        "5181",
+        0
+      ],
+      "vae": [
+        "5218",
+        0
+      ]
+    }
+  },
+  "5524": {
+    "class_type": "Any Switch (rgthree)",
+    "inputs": {
+      "any_01": [
+        "5543",
+        0
+      ],
+      "any_02": [
+        "5525",
+        0
+      ]
+    },
+    "_meta": {
+      "title": "\"PHOTO\" Mode"
+    }
+  },
+  "5494": {
+    "class_type": "Mute / Bypass Repeater (rgthree)",
+    "inputs": {
+      "Photo Refiner": [
+        "5442",
+        0
+      ],
+      "VAE Decode": [
+        "5520",
+        0
+      ]
+    },
+    "_meta": {
+      "title": "Refiner"
+    }
+  },
+  "5495": {
+    "class_type": "Mute / Bypass Repeater (rgthree)",
+    "inputs": {
+      "VAE Decode": [
+        "5485",
+        0
+      ]
+    },
+    "_meta": {
+      "title": "Upscaler"
+    }
+  },
+  "5531": {
+    "class_type": "Any Switch (rgthree)",
+    "inputs": {
+      "any_01": [
+        "5542",
+        0
+      ],
+      "any_02": [
+        "5533",
+        0
+      ]
+    },
+    "_meta": {
+      "title": "\"ILLUSTRATION\" Artistic Mode"
+    }
+  },
+  "5392": {
+    "class_type": "Power Lora Loader (rgthree)",
+    "inputs": {
+      "model": [
+        "5396",
+        0
+      ],
+      "clip": [
+        "5395",
+        0
+      ]
+    }
+  },
+  "5009": {
+    "class_type": "SaveImage",
+    "inputs": {
+      "filename_prefix": "ZImage/%date:yyyy_MM_dd%/ZI",
+      "images": [
+        "5237",
+        0
+      ]
+    }
+  },
+  "5332": {
+    "class_type": "Fast Muter (rgthree)",
+    "inputs": {
+      "Only 7 Steps": [
+        "5490",
+        0
+      ]
+    },
+    "_meta": {
+      "title": "SPEED OPTIONS (default = all-no)"
+    }
+  },
+  "5491": {
+    "class_type": "Reroute",
+    "inputs": {
+      "": [
+        "5355",
+        0
+      ]
+    }
+  },
+  "5490": {
+    "class_type": "Reroute",
+    "inputs": {
+      "": [
+        "5331",
+        0
+      ]
+    }
+  },
+  "5111": {
+    "class_type": "Note",
+    "inputs": {
+      "text": "> Select the yellow group and press '.' to automatically zoom in.\n> LoRAs can affect the style quality and the upscaler's output.\n> The refiner and the upscaler can be optimized for photography or illustration using the MODE SELECTOR."
+    },
+    "_meta": {
+      "title": "Notes"
+    }
+  },
+  "5483": {
+    "class_type": "UpscaleModelLoader",
+    "inputs": {
+      "model_name": "4x_foolhardy_Remacri.safetensors"
+    }
+  },
+  "5475": {
+    "class_type": "SamplerCustom",
+    "inputs": {
+      "model": [
+        "5477",
+        0
+      ],
+      "positive": [
+        "5468",
+        0
+      ],
+      "negative": [
+        "5466",
+        0
+      ],
+      "sampler": [
+        "5469",
+        0
+      ],
+      "sigmas": [
+        "5488",
+        0
+      ],
+      "latent_image": [
+        "5478",
+        0
+      ]
+    }
+  },
+  "5555": {
+    "class_type": "Reroute",
+    "inputs": {
+      "": [
+        "5514",
+        0
+      ]
+    }
+  },
+  "5515": {
+    "class_type": "Reroute",
+    "inputs": {
+      "": [
+        "5071",
+        0
+      ]
+    }
+  },
+  "5514": {
+    "class_type": "Reroute",
+    "inputs": {
+      "": [
+        "5073",
+        0
+      ]
+    }
+  },
+  "5512": {
+    "class_type": "Reroute",
+    "inputs": {
+      "": [
+        "5074",
+        0
+      ]
+    }
+  },
+  "5542": {
+    "class_type": "VAEDecode",
+    "inputs": {
+      "samples": [
+        "5475",
+        0
+      ],
+      "vae": [
+        "5479",
+        0
+      ]
+    }
+  },
+  "5471": {
+    "class_type": "KSamplerSelect",
+    "inputs": {},
+    "_meta": {
+      "title": "Default Euler Sampler"
+    }
+  },
+  "5488": {
+    "class_type": "KarrasScheduler",
+    "inputs": {
+      "steps": 3,
+      "sigma_max": 0.22,
+      "sigma_min": 0.06,
+      "rho": 0.5
+    },
+    "_meta": {
+      "title": "Karras Scheduler (sigmas)"
+    }
+  },
+  "5557": {
+    "class_type": "VAEDecode",
+    "inputs": {
+      "samples": [
+        "5563",
+        0
+      ],
+      "vae": [
+        "5561",
+        0
+      ]
+    }
+  },
+  "5540": {
+    "class_type": "Any Switch (rgthree)",
+    "inputs": {
+      "any_01": [
+        "5557",
+        0
+      ],
+      "any_02": [
+        "5541",
+        0
+      ]
+    },
+    "_meta": {
+      "title": "Image Chooser"
+    }
+  },
+  "5550": {
+    "class_type": "Reroute",
+    "inputs": {
+      "": [
+        "5513",
+        0
+      ]
+    }
+  },
+  "5552": {
+    "class_type": "VAEEncode",
+    "inputs": {
+      "pixels": [
+        "5548",
+        0
+      ],
+      "vae": [
+        "5550",
+        0
+      ]
+    }
+  },
+  "5556": {
+    "class_type": "Reroute",
+    "inputs": {
+      "": [
+        "5515",
+        0
+      ]
+    }
+  },
+  "5554": {
+    "class_type": "Reroute",
+    "inputs": {
+      "": [
+        "5512",
+        0
+      ]
+    }
+  },
+  "5547": {
+    "class_type": "ImageUpscaleWithModel",
+    "inputs": {
+      "upscale_model": [
+        "5545",
+        0
+      ],
+      "image": [
+        "5546",
+        0
+      ]
+    },
+    "_meta": {
+      "title": "Upscale Image *4"
+    }
+  },
+  "5545": {
+    "class_type": "UpscaleModelLoader",
+    "inputs": {
+      "model_name": "4x_foolhardy_Remacri.safetensors"
+    }
+  },
+  "5513": {
+    "class_type": "Reroute",
+    "inputs": {
+      "": [
+        "5391",
+        0
+      ]
+    }
+  },
+  "5546": {
+    "class_type": "Image Resize (rgthree)",
+    "inputs": {
+      "image": [
+        "5528",
+        0
+      ]
+    },
+    "_meta": {
+      "title": "Resize Image 1/2"
+    }
+  },
+  "5548": {
+    "class_type": "Image Resize (rgthree)",
+    "inputs": {
+      "image": [
+        "5547",
+        0
+      ]
+    },
+    "_meta": {
+      "title": "Resize Image 1/2"
+    }
+  },
+  "5520": {
+    "class_type": "Reroute",
+    "inputs": {
+      "": [
+        "5557",
+        0
+      ]
+    }
+  },
+  "5563": {
+    "class_type": "KSamplerAdvanced",
+    "inputs": {
+      "add_noise": "enable",
+      "noise_seed": 696969,
+      "control_after_generate": "fixed",
+      "steps": 20,
+      "cfg": 1,
+      "sampler_name": "euler",
+      "scheduler": "simple",
+      "start_at_step": 18,
+      "end_at_step": 20,
+      "return_with_leftover_noise": "disable",
+      "model": [
+        "5556",
+        0
+      ],
+      "positive": [
+        "5555",
+        0
+      ],
+      "negative": [
+        "5554",
+        0
+      ],
+      "latent_image": [
+        "5552",
+        0
+      ]
+    }
+  },
+  "5541": {
+    "class_type": "Reroute",
+    "inputs": {
+      "": [
+        "5528",
+        0
+      ]
+    }
+  },
+  "5561": {
+    "class_type": "Reroute",
+    "inputs": {
+      "": [
+        "5550",
+        0
+      ]
+    }
+  },
+  "5381": {
+    "class_type": "Reroute (rgthree)",
+    "inputs": {
+      "": [
+        "5380",
+        0
+      ]
+    }
+  },
+  "5564": {
+    "class_type": "Reroute",
+    "inputs": {
+      "": [
+        "5381",
+        0
+      ]
+    }
+  },
+  "5436": {
+    "class_type": "Reroute",
+    "inputs": {
+      "": [
+        "5381",
+        0
+      ]
+    }
+  },
+  "5525": {
+    "class_type": "Reroute",
+    "inputs": {
+      "": [
+        "5564",
+        0
+      ]
+    }
+  },
+  "5565": {
+    "class_type": "Reroute",
+    "inputs": {
+      "": [
+        "5530",
+        0
+      ]
+    }
+  },
+  "5489": {
+    "class_type": "Reroute",
+    "inputs": {
+      "": [
+        "5566",
+        0
+      ]
+    }
+  },
+  "5533": {
+    "class_type": "Reroute",
+    "inputs": {
+      "": [
+        "5565",
+        0
+      ]
+    }
+  },
+  "5057": {
+    "class_type": "PrimitiveNode",
+    "inputs": {
+      "value": "In a steampunk workshop, a red-haired inventor, wearing overalls with a white top underneath, works on a mechanical spider. She has a black tattoo on her left arm."
+    },
+    "_meta": {
+      "title": "PROMPT"
+    }
+  },
+  "5500": {
+    "class_type": "Fast Muter (rgthree)",
+    "inputs": {
+      "\"PHOTO\" Mode": [
+        "5501",
+        0
+      ]
+    },
+    "_meta": {
+      "title": "REFINER & UPSCALER MODE SELECTOR"
+    }
+  },
+  "5088": {
+    "class_type": "Fast Muter (rgthree)",
+    "inputs": {
+      "none": [
+        "5104",
+        0
+      ]
+    },
+    "_meta": {
+      "title": "STYLE SELECTOR"
+    }
+  },
+  "5097": {
+    "class_type": "Fast Muter (rgthree)",
+    "inputs": {
+      "Refiner": [
+        "5491",
+        0
+      ]
+    },
+    "_meta": {
+      "title": "EXTRA OPTIONS (default = all-no)"
+    }
+  },
+  "5459": {
+    "class_type": "PrimitiveStringMultiline",
+    "inputs": {
+      "value": "YOUR CONTEXT:\nYou are a nostalgic photographer who embraces instant film\u2019s tactile charm.\nYour Polaroid photograph is using vintage\u2011style film. The photograph features the iconic square format including {$spicy-content-with} a soft focus, a subtle vignetting, and the characteristic pastel color shift of instant film. Showing candid moments or intimate still\u2011lifes. The photograph retains the authentic border, emulsion texture, and occasional \u201cfilm\u2011like\u201d imperfections (light leaks, scratches).\nYOUR PHOTOGRAPH:\n{$@}"
+    },
+    "_meta": {
+      "title": "STYLE: Vintage\u202fPolaroid Photo"
+    }
+  },
+  "5124": {
+    "class_type": "PrimitiveStringMultiline",
+    "inputs": {
+      "value": "YOUR CONTEXT:\nYou are a master of traditional Japanese woodblock printing adapted to a modern narrative.\nYour illustration features {$spicy-content-with} bold, flowing outlines and flat areas of color with subtle wood-grain textures. The composition uses dramatic perspective typical of \"Ukiyo-e\" art, with stylized waves, clouds, or smoke, and a color palette of deep indigo, vermillion, and ochre on an aged washi paper background.\nYOUR DRAWING:\n{$@}"
+    },
+    "_meta": {
+      "title": "STYLE: Modern Ukiyo-e Print"
+    }
+  },
+  "5045": {
+    "class_type": "PrimitiveStringMultiline",
+    "inputs": {
+      "value": "YOUR CONTEXT:\nYou are an underground indie press printer.\nYour illustration is a tactile Risograph-style print, featuring {$spicy-content-with} vibrant fluorescent ink and a heavy grainy texture. It uses a punchy palette of neon pink, intense yellow, and deep teal.\nYOUR MULTI SUBJECT PRINT:\n{$@}"
+    },
+    "_meta": {
+      "title": "STYLE: Risograph Print"
+    }
+  },
+  "5130": {
+    "class_type": "PrimitiveStringMultiline",
+    "inputs": {
+      "value": "YOUR CONTEXT:\nYou are a conceptual artist creating a tactile, handcrafted world.\nYour illustration is a digital \"paper-cut\" style including {$spicy-content-with} distinct layered shapes with subtle drop shadows to create depth. Each element looks like it was cut from different textures of colored construction paper. The style is geometric, clean, and vibrant, making the comic look like a 3D physical diorama.\nYOUR IMAGE:\n{$@}"
+    },
+    "_meta": {
+      "title": "STYLE: Paper-Cut Diorama"
+    }
+  },
+  "5093": {
+    "class_type": "PrimitiveStringMultiline",
+    "inputs": {
+      "value": "YOUR CONTEXT:\nYou are a traditional artisan celebrating the vibrant colors and symbolic imagery of folk art.\nYour artwork is a Folk Art Mosaic, composed of {$spicy-content-with} small, tessellated pieces of vibrant, solid colors, forming bold patterns and stylized representations of everyday life or mythical creatures. The aesthetic is naive and handcrafted, with a rich texture and a joyful, earthy color palette.\nYOUR ARTWORK:\n{$@}"
+    },
+    "_meta": {
+      "title": "STYLE: Folk-Art Mosaic"
+    }
+  },
+  "5043": {
+    "class_type": "PrimitiveStringMultiline",
+    "inputs": {
+      "value": "YOUR CONTEXT:\nYou are an artist inspired by the macabre aesthetics of 19th-century gothic literature and medieval manuscripts.\nYour illustration is a Neo-Gothic engraving, executed with intricate linework. It features {$spicy-content-with} dramatic chiaroscuro and a sense of brooding mystery. The color palette is muted, favoring deep indigos, charcoal grays, and touches of crimson, evoking a sense of antique dread.\nYOUR ILLUSTRATION:\n{$@}"
+    },
+    "_meta": {
+      "title": "STYLE: Gothic Engraving"
+    }
+  },
+  "5122": {
+    "class_type": "PrimitiveStringMultiline",
+    "inputs": {
+      "value": "YOUR CONTEXT:\nYou are a dark fantasy comic book artist.\nYour drawing is a high-contrast illustration characterized by {$spicy-content-with} massive areas of solid black ink and minimal white highlights. Inspired by \"Mignola-esque\" aesthetics, it uses chunky, angular silhouettes and geometric shadows to define form rather than internal lines. The atmosphere is ancient, heavy, and supernatural.\nYOUR DRAWING:\n{$@}"
+    },
+    "_meta": {
+      "title": "STYLE: Shadow Fantasy Illustration"
+    }
+  },
+  "5041": {
+    "class_type": "PrimitiveStringMultiline",
+    "inputs": {
+      "value": "YOUR CONTEXT:\nYou are an ink drawing artist.\nYour illustration is a realistic ink drawing featuring {$spicy-content-with} fine cross-hatching and stippling techniques. These methods create deep shadows and highlights using only black lines. The image includes large areas of white space and Imagine the colors as all shades of gray.\nThe colors mentioned are actually shades of gray.\nYOUR ILLUSTRATION:\n{$@}"
+    },
+    "_meta": {
+      "title": "STYLE: Ink Draw"
+    }
+  },
+  "5037": {
+    "class_type": "PrimitiveStringMultiline",
+    "inputs": {
+      "value": "YOUR CONTEXT:\nYour unity engine render shows {$spicy-content-with} a low-poly 3d platformer level made from low-poly meshes and low-quality textures.\nYOUR UNITY ENGINE RENDER:\n{$@}"
+    },
+    "_meta": {
+      "title": "STYLE: Low-Poly Render"
+    }
+  },
+  "5092": {
+    "class_type": "PrimitiveStringMultiline",
+    "inputs": {
+      "value": "YOUR CONTEXT:\nYou are a digital artist.\nYour image is a masterpiece featuring {$spicy-content-with} heavy chromatic aberration, and digital intense color. The aesthetic is ultra-modern and fragmented, using a high-contrast palette of neon purples and cyans, creating a sense of a digital reality.\nYOUR IMAGE:\n{$@}"
+    },
+    "_meta": {
+      "title": "STYLE: Post-Processed Artistry"
+    }
+  },
+  "5038": {
+    "class_type": "PrimitiveStringMultiline",
+    "inputs": {
+      "value": "YOUR CONTEXT:\nYou are a professional stage and theater photographer capturing dramatic performances.\nYour photographs exhibit {$spicy-content-with} a single, high-intensity overhead spotlight that creates a sharp circular pool of light, dramatic chiaroscuro contrast that isolates the subject against a pitch-black background, and visible volumetric light beams with subtle dust motes for an authentic theatrical atmosphere.\nYOUR PHOTO:\n{$@}"
+    },
+    "_meta": {
+      "title": "STYLE: Spotlight Stage Photo"
+    }
+  },
+  "5047": {
+    "class_type": "PrimitiveStringMultiline",
+    "inputs": {
+      "value": "YOUR CONTEXT:\nYou are a fashion photographer specializing in the bright, playful aesthetic of Kawaii Pop.\nYour photograph showcases {$spicy-content-with} a high-key composition flooded with vibrant, saturated colors. The exposure is bright and cheerful, with a focus on pastel pinks, electric blues, and sunny yellows. Scene is styled in over-the-top Kawaii fashion with playful poses. The background is simple and colorful, with elements like balloons, confetti, or cartoonish graphics.\nYOUR PHOTOGRAPHY:\n{$@}"
+    },
+    "_meta": {
+      "title": "STYLE: Kawaii Pop Photo"
+    }
+  },
+  "5063": {
+    "class_type": "PrimitiveStringMultiline",
+    "inputs": {
+      "value": "YOUR CONTEXT:\nYou are an experimental photographer who enjoys creating light painting images with long exposures and LED sources.\nYour photographs exhibit {$spicy-content-with} luminous trails, vibrant colors, and elements that are strikingly illuminated by the long exposure.\nYOUR PHOTO:\n{$@}"
+    },
+    "_meta": {
+      "title": "STYLE: Light Painting Photo"
+    }
+  },
+  "5117": {
+    "class_type": "PrimitiveStringMultiline",
+    "inputs": {
+      "value": "YOUR CONTEXT:\nYou are a photographer drawn to the mystical and earthy aesthetic of Witchcore.\nYour photograph showcases {$spicy-content-with} a moody, atmospheric scene steeped in natural elements. The image employs a natural color balance, with a focus on deep greens, browns, and blacks. Emphasis is placed on textures: moss, wood, crystals, and flowing fabrics. The photograph has a raw, organic feel, with mystical ambiance.\nYOUR PHOTOGRAPHY:\n{$@}"
+    },
+    "_meta": {
+      "title": "STYLE: Witchcore Photo"
+    }
+  },
+  "5101": {
+    "class_type": "PrimitiveStringMultiline",
+    "inputs": {
+      "value": "YOUR CONTEXT:\nYou are a photographer inspired by the retro-futuristic visuals of the 1980s.\nYour photograph showcases {$spicy-content-with} Synthwave aesthetic, characterized by neon colors and geometric shapes, it includes vibrant pinks, purples, and blues, with a glowing effect. Grids, scanlines, and a retro-futuristic atmosphere. The photograph feels like a scene from a classic 80s sci-fi film.\nReal people against a computer-generated background.\nYOUR PHOTOGRAPH:\n{$@}"
+    },
+    "_meta": {
+      "title": "STYLE: Synthwave Photo"
+    }
+  },
+  "5460": {
+    "class_type": "PrimitiveStringMultiline",
+    "inputs": {
+      "value": "YOUR CONTEXT:\nAn eye-level, realistic photo of a glass-encased advertising poster (mupi) located on a clean city sidewalk. There are subtle reflections of nearby buildings and trees on the glass surface. The lighting is natural overcast daylight.\nWHAT'S BEHIND THE REFLECTIVE GLASS:\nA faded and sun-faded, low quality printed advertisement, showing: {$@}"
+    },
+    "_meta": {
+      "title": "STYLE: Glass Encased Advertising"
+    }
+  },
+  "5461": {
+    "class_type": "PrimitiveStringMultiline",
+    "inputs": {
+      "value": "YOUR CONTEXT:\nYou have an old VGA CRT monitor sitting on a wooden desk, and a window is reflected on its screen. The monitor's casing has a raised black inscription in the upper left corner that reads \"VGA\". The screen has a slight curve and sweep lines typical of CRT displays.\nWHAT'S INSIDE YOUR MONITOR'S SCREEN:\nA low-resolution, 2D pixel art platform videogame form early 1990s, featuring: {$@}"
+    },
+    "_meta": {
+      "title": "STYLE: Vintage VGA Monitor"
+    }
+  },
+  "5528": {
+    "class_type": "VAEDecode",
+    "inputs": {
+      "samples": [
+        "5510",
+        0
+      ],
+      "vae": [
+        "5513",
+        0
+      ]
+    }
+  },
+  "5567": {
+    "class_type": "Reroute",
+    "inputs": {
+      "": [
+        "5530",
+        0
+      ]
+    }
+  },
+  "5530": {
+    "class_type": "Reroute (rgthree)",
+    "inputs": {
+      "": [
+        "5529",
+        0
+      ]
+    }
+  },
+  "5391": {
+    "class_type": "Reroute",
+    "inputs": {
+      "": [
+        "5398",
+        0
+      ]
+    }
+  },
+  "5568": {
+    "class_type": "Reroute",
+    "inputs": {
+      "": [
+        "5391",
+        0
+      ]
+    }
+  },
+  "5566": {
+    "class_type": "Reroute",
+    "inputs": {
+      "": [
+        "5528",
+        0
+      ]
+    }
+  },
+  "5569": {
+    "class_type": "Note",
+    "inputs": {
+      "text": "This connection is intentionally set to \u201cBAD\u201d to prevent the REFINER and UPSCALER from being activated at the same time in Illustration mode, because the image quality drops dramatically when both are enabled."
+    },
+    "_meta": {
+      "title": "Note: GOOD / BAD Connection"
+    }
+  },
+  "5125": {
+    "class_type": "PrimitiveStringMultiline",
+    "inputs": {
+      "value": "YOUR CONTEXT:\nYou are a photographer working on the set of a dark fantasy film reminiscent of the 1980s (think *Excalibur*, *Legend*, or *Conan the Barbarian*).\nYour photograph showcases {$spicy-content-with} a heavily stylized composition with practical effects, matte paintings, and the dramatic lighting of that era. The image is shot with soft focus. Lighting is theatrical with saturated colors: deep blues, fiery oranges, and sickly greens. Emphasis is placed on creating a sense of scale and grandeur through forced perspective and miniature work. Post-processing involves adding subtle film grain, bloom effects around light sources, and a slight color shift.\nYOUR PHOTOGRAPHY:\n{$@}"
+    },
+    "_meta": {
+      "title": "STYLE: 80s Dark Fantasy Photo"
+    }
+  },
+  "5570": {
+    "class_type": "Note",
+    "inputs": {
+      "text": "To define a style, the only thing you need to remember is to always include the tag \"{$@}\". This tag will be replaced by the prompt you enter.\n\nOne observation (though not yet fully verified) is that the more naturally phrased and well\u2011structured the sentences are, the better the style tends to work. In such cases it interferes less with the objects and compositions you have set in the prompt.\n\nFinally, the tag \"{$spicy-content-with}\" is optional. It is used by the Spicy Impact Booster to sprinkle a dash of chili\u2011hot flavor into the prompt, although it is not yet completely effective and is still very experimental."
+    },
+    "_meta": {
+      "title": "Note: Defining custom styles"
+    }
+  }
+}

@@ -749,21 +749,48 @@
                                     <StackPanel Margin="0,0,0,12">
                                         <TextBlock Text="Style Preset" FontWeight="SemiBold" FontSize="12" Margin="0,0,0,5"/>
                                         <ComboBox SelectedIndex="{Binding Analyzer.SelectedStyleIndex, Mode=TwoWay}"
+                                                 ItemsSource="{Binding Analyzer.StyleNames}"
                                                  Padding="10"
                                                  Background="White"
                                                  BorderBrush="#CED4DA"
-                                                 FontSize="12">
-                                            <ComboBoxItem Content="None"/>
-                                            <ComboBoxItem Content="Phone Photo"/>
-                                            <ComboBoxItem Content="Cinematic"/>
-                                            <ComboBoxItem Content="Anime"/>
-                                            <ComboBoxItem Content="Oil Painting"/>
-                                            <ComboBoxItem Content="3D Render"/>
-                                            <ComboBoxItem Content="Watercolor"/>
-                                            <ComboBoxItem Content="Digital Art"/>
-                                            <ComboBoxItem Content="Vintage Photo"/>
-                                            <ComboBoxItem Content="Cyberpunk"/>
-                                        </ComboBox>
+                                                 FontSize="12"/>
+                                    </StackPanel>
+
+                                    <!-- LORA (Optional) -->
+                                    <StackPanel Margin="0,0,0,12">
+                                        <TextBlock Text="LoRA Model" FontWeight="SemiBold" FontSize="12" Margin="0,0,0,5"/>
+
+                                        <!-- Lora Enable Toggle -->
+                                        <CheckBox Content="Enable LoRA"
+                                                 IsChecked="{Binding Analyzer.LoraEnabled, Mode=TwoWay}"
+                                                 FontWeight="SemiBold"
+                                                 FontSize="12"
+                                                 Margin="0,0,0,8"/>
+
+                                        <!-- Lora Selection (only visible when enabled) -->
+                                        <Grid Visibility="{Binding Analyzer.LoraEnabled, Converter={StaticResource BooleanToVisibilityConverter}}">
+                                            <Grid.ColumnDefinitions>
+                                                <ColumnDefinition Width="*"/>
+                                                <ColumnDefinition Width="Auto"/>
+                                            </Grid.ColumnDefinitions>
+
+                                            <ComboBox Grid.Column="0"
+                                                     ItemsSource="{Binding Analyzer.AvailableLoras}"
+                                                     SelectedItem="{Binding Analyzer.SelectedLora, Mode=TwoWay}"
+                                                     Padding="10"
+                                                     Background="White"
+                                                     BorderBrush="#CED4DA"
+                                                     FontSize="12"
+                                                     Height="35"
+                                                     Margin="0,0,8,0"/>
+
+                                            <Button Grid.Column="1"
+                                                   Content="Refresh"
+                                                   Command="{Binding Analyzer.RefreshLorasCommand}"
+                                                   Style="{StaticResource SecondaryButtonStyle}"
+                                                   Width="70"
+                                                   Height="35"/>
+                                        </Grid>
                                     </StackPanel>
 
                                     <!-- Steps -->
