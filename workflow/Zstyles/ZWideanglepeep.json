@@ -1,0 +1,1142 @@
+{
+  "6": {
+    "inputs": {
+      "text": [
+        "166",
+        0
+      ],
+      "clip": [
+        "392",
+        1
+      ]
+    },
+    "class_type": "CLIPTextEncode",
+    "_meta": {
+      "title": "CLIP Text Encoder"
+    }
+  },
+  "9": {
+    "inputs": {
+      "filename_prefix": "ZImage/2026_01_15/ZI",
+      "images": [
+        "532",
+        0
+      ]
+    },
+    "class_type": "SaveImage",
+    "_meta": {
+      "title": "Save Image"
+    }
+  },
+  "31": {
+    "inputs": {
+      "string": [
+        "87",
+        0
+      ],
+      "find": "{$@}",
+      "replace": [
+        "385",
+        0
+      ]
+    },
+    "class_type": "StringReplace",
+    "_meta": {
+      "title": "STYLE INTEGRATOR"
+    }
+  },
+  "37": {
+    "inputs": {
+      "value": "YOUR CONTEXT:\nYour peephole shows {$spicy-content-with} a shot from a high angle, inside a fisheye lens distortion glass circle, highly distorted with a wide angle.\nYOUR PEEPHOLE:\n{$@}"
+    },
+    "class_type": "PrimitiveStringMultiline",
+    "_meta": {
+      "title": "STYLE: Wide Angle / Peephole"
+    }
+  },
+  "50": {
+    "inputs": {
+      "add_noise": "enable",
+      "noise_seed": [
+        "307",
+        0
+      ],
+      "steps": 8,
+      "cfg": 1,
+      "sampler_name": "euler",
+      "scheduler": "simple",
+      "start_at_step": 0,
+      "end_at_step": 10000,
+      "return_with_leftover_noise": "disable",
+      "positive": [
+        "54",
+        0
+      ],
+      "negative": [
+        "60",
+        0
+      ],
+      "latent_image": [
+        "56",
+        0
+      ]
+    },
+    "class_type": "KSamplerAdvanced",
+    "_meta": {
+      "title": "KSampler (Advanced)"
+    }
+  },
+  "54": {
+    "inputs": {
+      "text": "This is a dynamic, stylized photograph capturing a woman in the middle of an athletic movement within a modern living room.\n\n**Color Palette:**\nThe scene is bathed in dramatic, cool-toned lighting that creates a high-contrast, almost cinematic atmosphere. The dominant colors are:\n*   **Cyan and Blue:** A strong, vibrant cyan light illuminates the subject from the side, casting an intense glow on her raised leg, foot, torso, and face.\n*   **Magenta and Purple:** Complementary magenta and purple hues wash over other areas of the image, particularly the couch, the wall behind it, and parts of her skin and clothing. This creates a striking color contrast.\n*   **Neutral Tones:** The background elements—a plain white wall, a light gray sofa with wooden legs, and the black fan—are rendered in neutral tones that are vividly colored by the lighting.\n\n**Objects:**\nThe main subject is a young woman with dark hair tied up in a bun. She is dressed in athletic attire: a simple white t-shirt and black shorts.\n*   Her right leg is extended high into a powerful, controlled kick, her foot pointing upwards towards the ceiling.\n*   Her left arm is bent, holding a tight fist near her chest.\n*   In the background to the right stands a large, black pedestal fan, its blades visible.\n*   A modern, minimalist gray sofa occupies the lower portion of the frame.\n\n**Composition:**\nThe composition is dynamic and centered on the woman's powerful pose. She is positioned slightly off-center, creating an energetic flow in the image as her leg sweeps upwards and outwards. The camera angle appears to be at eye level with her, capturing her intense expression and full-body movement. The background elements—the sofa and fan—act as simple anchors that ground the scene without distracting from the subject.\n\n**Mood:**\nThe mood is one of intense focus, power, and athleticism. Her facial expression—wide eyes, slightly open mouth—is one of concentration and exertion. The vibrant, contrasting lighting elevates this moment into something almost surreal or artistic, transforming a mundane living room setting into a stage for raw physical strength and discipline. It conveys a sense of personal empowerment and the fusion of domestic space with intense physical training.\n\nThe overall effect is energetic, dramatic, and visually arresting, suggesting a blend of athleticism, creativity, and modern lifestyle."
+    },
+    "class_type": "CLIPTextEncode",
+    "_meta": {
+      "title": "CLIP Text Encode (Positive Prompt)"
+    }
+  },
+  "56": {
+    "inputs": {
+      "width": 944,
+      "height": 1408,
+      "batch_size": 1
+    },
+    "class_type": "EmptyLatentImage",
+    "_meta": {
+      "title": "Empty Latent Image"
+    }
+  },
+  "60": {
+    "inputs": {
+      "text": ""
+    },
+    "class_type": "CLIPTextEncode",
+    "_meta": {
+      "title": "CLIP Text Encode (Prompt)"
+    }
+  },
+  "68": {
+    "inputs": {
+      "sampler_name": "euler"
+    },
+    "class_type": "KSamplerSelect",
+    "_meta": {
+      "title": "Default Euler Sampler"
+    }
+  },
+  "87": {
+    "inputs": {
+      "any_09": [
+        "37",
+        0
+      ]
+    },
+    "class_type": "Any Switch (rgthree)",
+    "_meta": {
+      "title": "Any Switch (rgthree)"
+    }
+  },
+  "96": {
+    "inputs": {
+      "any_02": [
+        "68",
+        0
+      ]
+    },
+    "class_type": "Any Switch (rgthree)",
+    "_meta": {
+      "title": "Sampler Chooser"
+    }
+  },
+  "144": {
+    "inputs": {
+      "string": [
+        "31",
+        0
+      ],
+      "find": "{$spicy-content-with}",
+      "replace": "attractive and spicy content, where any woman is sexy and provocative, with"
+    },
+    "class_type": "StringReplace",
+    "_meta": {
+      "title": "Spicy Impact Booster (experimental)"
+    }
+  },
+  "146": {
+    "inputs": {
+      "string": [
+        "31",
+        0
+      ],
+      "find": "{$spicy-content-with}",
+      "replace": ""
+    },
+    "class_type": "StringReplace",
+    "_meta": {
+      "title": "DEFAULT: No Spicy Inpact"
+    }
+  },
+  "151": {
+    "inputs": {
+      "any_01": [
+        "144",
+        0
+      ],
+      "any_02": [
+        "146",
+        0
+      ]
+    },
+    "class_type": "Any Switch (rgthree)",
+    "_meta": {
+      "title": "Chooser"
+    }
+  },
+  "165": {
+    "inputs": {
+      "output": "",
+      "source": [
+        "166",
+        0
+      ]
+    },
+    "class_type": "Display Any (rgthree)",
+    "_meta": {
+      "title": "FINAL TEXT VIEWER"
+    }
+  },
+  "166": {
+    "inputs": {
+      "string": [
+        "151",
+        0
+      ],
+      "find": "  ",
+      "replace": " "
+    },
+    "class_type": "StringReplace",
+    "_meta": {
+      "title": "Fix Double Spaces"
+    }
+  },
+  "180": {
+    "inputs": {
+      "pixels": [
+        "341",
+        0
+      ],
+      "vae": [
+        "399",
+        0
+      ]
+    },
+    "class_type": "VAEEncode",
+    "_meta": {
+      "title": "VAE Encode"
+    }
+  },
+  "181": {
+    "inputs": {
+      "add_noise": true,
+      "noise_seed": 969696,
+      "cfg": 1,
+      "model": [
+        "392",
+        0
+      ],
+      "positive": [
+        "6",
+        0
+      ],
+      "negative": [
+        "6",
+        0
+      ],
+      "sampler": [
+        "371",
+        0
+      ],
+      "sigmas": [
+        "346",
+        0
+      ],
+      "latent_image": [
+        "180",
+        0
+      ]
+    },
+    "class_type": "SamplerCustom",
+    "_meta": {
+      "title": "SamplerCustom"
+    }
+  },
+  "189": {
+    "inputs": {
+      "step": 2,
+      "sigmas": [
+        "195",
+        0
+      ]
+    },
+    "class_type": "SplitSigmas",
+    "_meta": {
+      "title": "SplitSigmas"
+    }
+  },
+  "195": {
+    "inputs": {
+      "steps": 5,
+      "sigma_max": 1,
+      "sigma_min": 0.2,
+      "rho": 0.7
+    },
+    "class_type": "KarrasScheduler",
+    "_meta": {
+      "title": "Karras Scheduler (sigmas)"
+    }
+  },
+  "243": {
+    "inputs": {
+      "value": 1088
+    },
+    "class_type": "PrimitiveInt",
+    "_meta": {
+      "title": "Default Short Side"
+    }
+  },
+  "244": {
+    "inputs": {
+      "width": [
+        "536",
+        0
+      ],
+      "height": [
+        "537",
+        0
+      ],
+      "batch_size": [
+        "443",
+        0
+      ]
+    },
+    "class_type": "EmptySD3LatentImage",
+    "_meta": {
+      "title": "EmptySD3LatentImage"
+    }
+  },
+  "246": {
+    "inputs": {
+      "any_02": [
+        "243",
+        0
+      ]
+    },
+    "class_type": "Any Switch (rgthree)",
+    "_meta": {
+      "title": "Short Side Chooser"
+    }
+  },
+  "248": {
+    "inputs": {
+      "value": 1600
+    },
+    "class_type": "PrimitiveInt",
+    "_meta": {
+      "title": "Default Long Side"
+    }
+  },
+  "249": {
+    "inputs": {
+      "any_02": [
+        "248",
+        0
+      ]
+    },
+    "class_type": "Any Switch (rgthree)",
+    "_meta": {
+      "title": "Long Side Chooser"
+    }
+  },
+  "279": {
+    "inputs": {
+      "add_noise": true,
+      "noise_seed": 696969,
+      "cfg": 1,
+      "model": [
+        "392",
+        0
+      ],
+      "positive": [
+        "6",
+        0
+      ],
+      "negative": [
+        "6",
+        0
+      ],
+      "sampler": [
+        "377",
+        0
+      ],
+      "sigmas": [
+        "189",
+        1
+      ],
+      "latent_image": [
+        "286",
+        0
+      ]
+    },
+    "class_type": "SamplerCustom",
+    "_meta": {
+      "title": "SamplerCustom"
+    }
+  },
+  "281": {
+    "inputs": {
+      "samples": [
+        "279",
+        0
+      ],
+      "vae": [
+        "399",
+        0
+      ]
+    },
+    "class_type": "VAEDecode",
+    "_meta": {
+      "title": "Photo Refiner"
+    }
+  },
+  "286": {
+    "inputs": {
+      "add_noise": false,
+      "noise_seed": [
+        "307",
+        0
+      ],
+      "cfg": 1,
+      "model": [
+        "392",
+        0
+      ],
+      "positive": [
+        "6",
+        0
+      ],
+      "negative": [
+        "6",
+        0
+      ],
+      "sampler": [
+        "96",
+        0
+      ],
+      "sigmas": [
+        "316",
+        0
+      ],
+      "latent_image": [
+        "289",
+        0
+      ]
+    },
+    "class_type": "SamplerCustom",
+    "_meta": {
+      "title": "SamplerCustom"
+    }
+  },
+  "289": {
+    "inputs": {
+      "add_noise": true,
+      "noise_seed": [
+        "307",
+        0
+      ],
+      "cfg": 1,
+      "model": [
+        "392",
+        0
+      ],
+      "positive": [
+        "6",
+        0
+      ],
+      "negative": [
+        "6",
+        0
+      ],
+      "sampler": [
+        "96",
+        0
+      ],
+      "sigmas": [
+        "325",
+        0
+      ],
+      "latent_image": [
+        "244",
+        0
+      ]
+    },
+    "class_type": "SamplerCustom",
+    "_meta": {
+      "title": "SamplerCustom"
+    }
+  },
+  "307": {
+    "inputs": {
+      "value": 1
+    },
+    "class_type": "PrimitiveInt",
+    "_meta": {
+      "title": "SEED"
+    }
+  },
+  "316": {
+    "inputs": {
+      "any_02": [
+        "324",
+        0
+      ]
+    },
+    "class_type": "Any Switch (rgthree)",
+    "_meta": {
+      "title": "Low Sigmas Switcher"
+    }
+  },
+  "321": {
+    "inputs": {
+      "steps": 8,
+      "sigma_max": 0.99,
+      "sigma_min": 0.08,
+      "rho": 0.3
+    },
+    "class_type": "KarrasScheduler",
+    "_meta": {
+      "title": "Karras Scheduler 8-Steps"
+    }
+  },
+  "322": {
+    "inputs": {
+      "step": 2,
+      "sigmas": [
+        "321",
+        0
+      ]
+    },
+    "class_type": "SplitSigmas",
+    "_meta": {
+      "title": "Split Sigmas [2] + [6]"
+    }
+  },
+  "323": {
+    "inputs": {
+      "sigma": 0.906,
+      "sigmas": [
+        "322",
+        1
+      ]
+    },
+    "class_type": "SetFirstSigma",
+    "_meta": {
+      "title": "Set First Sigma"
+    }
+  },
+  "324": {
+    "inputs": {
+      "steps": 2,
+      "start_at_sigma": 1,
+      "end_at_sigma": 0.8,
+      "spacing": "linear",
+      "sigmas": [
+        "323",
+        0
+      ]
+    },
+    "class_type": "ExtendIntermediateSigmas",
+    "_meta": {
+      "title": "ExtendIntermediateSigmas"
+    }
+  },
+  "325": {
+    "inputs": {
+      "any_02": [
+        "322",
+        0
+      ]
+    },
+    "class_type": "Any Switch (rgthree)",
+    "_meta": {
+      "title": "High Sigmas Switcher"
+    }
+  },
+  "341": {
+    "inputs": {
+      "seed": 699669,
+      "strength": 0.04,
+      "image": [
+        "344",
+        0
+      ]
+    },
+    "class_type": "ImageAddNoise",
+    "_meta": {
+      "title": "Add Noise"
+    }
+  },
+  "344": {
+    "inputs": {
+      "measurement": "percentage",
+      "width": 150,
+      "height": 0,
+      "fit": "contain",
+      "method": "area",
+      "image": [
+        "522",
+        0
+      ]
+    },
+    "class_type": "Image Resize (rgthree)",
+    "_meta": {
+      "title": "Resize Image +50%"
+    }
+  },
+  "346": {
+    "inputs": {
+      "steps": 3,
+      "sigma_max": 0.17,
+      "sigma_min": 0.06,
+      "rho": 0.6
+    },
+    "class_type": "KarrasScheduler",
+    "_meta": {
+      "title": "Karras Scheduler (sigmas)"
+    }
+  },
+  "371": {
+    "inputs": {
+      "sampler_name": "euler"
+    },
+    "class_type": "KSamplerSelect",
+    "_meta": {
+      "title": "Default Euler Sampler"
+    }
+  },
+  "377": {
+    "inputs": {
+      "sampler_name": "euler"
+    },
+    "class_type": "KSamplerSelect",
+    "_meta": {
+      "title": "Default Euler Sampler"
+    }
+  },
+  "385": {
+    "inputs": {
+      "string": "This is a dynamic, stylized photograph capturing a woman in the middle of an athletic movement within a modern living room.\n\n**Color Palette:**\nThe scene is bathed in dramatic, cool-toned lighting that creates a high-contrast, almost cinematic atmosphere. The dominant colors are:\n*   **Cyan and Blue:** A strong, vibrant cyan light illuminates the subject from the side, casting an intense glow on her raised leg, foot, torso, and face.\n*   **Magenta and Purple:** Complementary magenta and purple hues wash over other areas of the image, particularly the couch, the wall behind it, and parts of her skin and clothing. This creates a striking color contrast.\n*   **Neutral Tones:** The background elements—a plain white wall, a light gray sofa with wooden legs, and the black fan—are rendered in neutral tones that are vividly colored by the lighting.\n\n**Objects:**\nThe main subject is a young woman with dark hair tied up in a bun. She is dressed in athletic attire: a simple white t-shirt and black shorts.\n*   Her right leg is extended high into a powerful, controlled kick, her foot pointing upwards towards the ceiling.\n*   Her left arm is bent, holding a tight fist near her chest.\n*   In the background to the right stands a large, black pedestal fan, its blades visible.\n*   A modern, minimalist gray sofa occupies the lower portion of the frame.\n\n**Composition:**\nThe composition is dynamic and centered on the woman's powerful pose. She is positioned slightly off-center, creating an energetic flow in the image as her leg sweeps upwards and outwards. The camera angle appears to be at eye level with her, capturing her intense expression and full-body movement. The background elements—the sofa and fan—act as simple anchors that ground the scene without distracting from the subject.\n\n**Mood:**\nThe mood is one of intense focus, power, and athleticism. Her facial expression—wide eyes, slightly open mouth—is one of concentration and exertion. The vibrant, contrasting lighting elevates this moment into something almost surreal or artistic, transforming a mundane living room setting into a stage for raw physical strength and discipline. It conveys a sense of personal empowerment and the fusion of domestic space with intense physical training.\n\nThe overall effect is energetic, dramatic, and visually arresting, suggesting a blend of athleticism, creativity, and modern lifestyle.",
+      "mode": "Both"
+    },
+    "class_type": "StringTrim",
+    "_meta": {
+      "title": "(used for reroute)"
+    }
+  },
+  "392": {
+    "inputs": {
+      "PowerLoraLoaderHeaderWidget": {
+        "type": "PowerLoraLoaderHeaderWidget"
+      },
+      "lora_1": {
+        "on": true,
+        "lora": "zimage\\zimage_juliettelewis_v1.safetensors",
+        "strength": 1
+      },
+      "➕ Add Lora": "",
+      "model": [
+        "397",
+        0
+      ],
+      "clip": [
+        "394",
+        0
+      ]
+    },
+    "class_type": "Power Lora Loader (rgthree)",
+    "_meta": {
+      "title": "Power Lora Loader (rgthree)"
+    }
+  },
+  "394": {
+    "inputs": {
+      "clip_name": "Qwen3-4B.i1-Q5_K_S.gguf",
+      "type": "lumina2"
+    },
+    "class_type": "CLIPLoaderGGUF",
+    "_meta": {
+      "title": "CLIPLoader (GGUF)"
+    }
+  },
+  "397": {
+    "inputs": {
+      "unet_name": "z_image_turbo-Q8_0.gguf"
+    },
+    "class_type": "UnetLoaderGGUF",
+    "_meta": {
+      "title": "Unet Loader (GGUF)"
+    }
+  },
+  "399": {
+    "inputs": {
+      "vae_name": "ae.safetensors"
+    },
+    "class_type": "VAELoader",
+    "_meta": {
+      "title": "Load VAE"
+    }
+  },
+  "443": {
+    "inputs": {
+      "value": 1
+    },
+    "class_type": "PrimitiveInt",
+    "_meta": {
+      "title": "Batch Size"
+    }
+  },
+  "471": {
+    "inputs": {
+      "sampler_name": "euler"
+    },
+    "class_type": "KSamplerSelect",
+    "_meta": {
+      "title": "Default Euler Sampler"
+    }
+  },
+  "475": {
+    "inputs": {
+      "add_noise": true,
+      "noise_seed": 969696,
+      "cfg": 1,
+      "model": [
+        "392",
+        0
+      ],
+      "positive": [
+        "6",
+        0
+      ],
+      "negative": [
+        "6",
+        0
+      ],
+      "sampler": [
+        "471",
+        0
+      ],
+      "sigmas": [
+        "488",
+        0
+      ],
+      "latent_image": [
+        "478",
+        0
+      ]
+    },
+    "class_type": "SamplerCustom",
+    "_meta": {
+      "title": "SamplerCustom"
+    }
+  },
+  "478": {
+    "inputs": {
+      "pixels": [
+        "486",
+        0
+      ],
+      "vae": [
+        "399",
+        0
+      ]
+    },
+    "class_type": "VAEEncode",
+    "_meta": {
+      "title": "VAE Encode"
+    }
+  },
+  "482": {
+    "inputs": {
+      "upscale_model": [
+        "483",
+        0
+      ],
+      "image": [
+        "487",
+        0
+      ]
+    },
+    "class_type": "ImageUpscaleWithModel",
+    "_meta": {
+      "title": "Upscale Image *4"
+    }
+  },
+  "483": {
+    "inputs": {
+      "model_name": "4x_foolhardy_Remacri.safetensors"
+    },
+    "class_type": "UpscaleModelLoader",
+    "_meta": {
+      "title": "Load Upscale Model"
+    }
+  },
+  "486": {
+    "inputs": {
+      "measurement": "percentage",
+      "width": 75,
+      "height": 0,
+      "fit": "contain",
+      "method": "area",
+      "image": [
+        "482",
+        0
+      ]
+    },
+    "class_type": "Image Resize (rgthree)",
+    "_meta": {
+      "title": "Resize Image 75*2 = 150%"
+    }
+  },
+  "487": {
+    "inputs": {
+      "measurement": "percentage",
+      "width": 50,
+      "height": 0,
+      "fit": "contain",
+      "method": "bilinear",
+      "image": [
+        "528",
+        0
+      ]
+    },
+    "class_type": "Image Resize (rgthree)",
+    "_meta": {
+      "title": "Resize Image 1/2"
+    }
+  },
+  "488": {
+    "inputs": {
+      "steps": 3,
+      "sigma_max": 0.22,
+      "sigma_min": 0.06,
+      "rho": 0.5
+    },
+    "class_type": "KarrasScheduler",
+    "_meta": {
+      "title": "Karras Scheduler (sigmas)"
+    }
+  },
+  "522": {
+    "inputs": {
+      "any_01": [
+        "281",
+        0
+      ],
+      "any_02": [
+        "526",
+        0
+      ]
+    },
+    "class_type": "Any Switch (rgthree)",
+    "_meta": {
+      "title": "Image Chooser"
+    }
+  },
+  "524": {
+    "inputs": {
+      "any_01": [
+        "543",
+        0
+      ],
+      "any_02": [
+        "522",
+        0
+      ]
+    },
+    "class_type": "Any Switch (rgthree)",
+    "_meta": {
+      "title": "\"PHOTO\" Mode"
+    }
+  },
+  "526": {
+    "inputs": {
+      "samples": [
+        "286",
+        0
+      ],
+      "vae": [
+        "399",
+        0
+      ]
+    },
+    "class_type": "VAEDecode",
+    "_meta": {
+      "title": "VAE Decode"
+    }
+  },
+  "528": {
+    "inputs": {
+      "samples": [
+        "286",
+        0
+      ],
+      "vae": [
+        "399",
+        0
+      ]
+    },
+    "class_type": "VAEDecode",
+    "_meta": {
+      "title": "VAE Decode"
+    }
+  },
+  "532": {
+    "inputs": {
+      "any_01": [
+        "524",
+        0
+      ]
+    },
+    "class_type": "Any Switch (rgthree)",
+    "_meta": {
+      "title": "Any Switch (rgthree)"
+    }
+  },
+  "534": {
+    "inputs": {
+      "any_02": [
+        "243",
+        0
+      ]
+    },
+    "class_type": "Any Switch (rgthree)",
+    "_meta": {
+      "title": "Short Side Chooser"
+    }
+  },
+  "535": {
+    "inputs": {
+      "any_02": [
+        "248",
+        0
+      ]
+    },
+    "class_type": "Any Switch (rgthree)",
+    "_meta": {
+      "title": "Long Side Chooser"
+    }
+  },
+  "536": {
+    "inputs": {
+      "any_01": [
+        "535",
+        0
+      ],
+      "any_02": [
+        "534",
+        0
+      ]
+    },
+    "class_type": "Any Switch (rgthree)",
+    "_meta": {
+      "title": "Width Long/Short Chooser"
+    }
+  },
+  "537": {
+    "inputs": {
+      "any_01": [
+        "246",
+        0
+      ],
+      "any_02": [
+        "249",
+        0
+      ]
+    },
+    "class_type": "Any Switch (rgthree)",
+    "_meta": {
+      "title": "Height Long/Short Chooser"
+    }
+  },
+  "540": {
+    "inputs": {
+      "any_01": [
+        "557",
+        0
+      ],
+      "any_02": [
+        "528",
+        0
+      ]
+    },
+    "class_type": "Any Switch (rgthree)",
+    "_meta": {
+      "title": "Image Chooser"
+    }
+  },
+  "542": {
+    "inputs": {
+      "samples": [
+        "475",
+        0
+      ],
+      "vae": [
+        "399",
+        0
+      ]
+    },
+    "class_type": "VAEDecode",
+    "_meta": {
+      "title": "VAE Decode"
+    }
+  },
+  "543": {
+    "inputs": {
+      "samples": [
+        "181",
+        0
+      ],
+      "vae": [
+        "399",
+        0
+      ]
+    },
+    "class_type": "VAEDecode",
+    "_meta": {
+      "title": "VAE Decode"
+    }
+  },
+  "545": {
+    "inputs": {
+      "model_name": "4x_foolhardy_Remacri.safetensors"
+    },
+    "class_type": "UpscaleModelLoader",
+    "_meta": {
+      "title": "Load Upscale Model"
+    }
+  },
+  "546": {
+    "inputs": {
+      "measurement": "percentage",
+      "width": 50,
+      "height": 0,
+      "fit": "contain",
+      "method": "area",
+      "image": [
+        "528",
+        0
+      ]
+    },
+    "class_type": "Image Resize (rgthree)",
+    "_meta": {
+      "title": "Resize Image 1/2"
+    }
+  },
+  "547": {
+    "inputs": {
+      "upscale_model": [
+        "545",
+        0
+      ],
+      "image": [
+        "546",
+        0
+      ]
+    },
+    "class_type": "ImageUpscaleWithModel",
+    "_meta": {
+      "title": "Upscale Image *4"
+    }
+  },
+  "548": {
+    "inputs": {
+      "measurement": "percentage",
+      "width": 50,
+      "height": 0,
+      "fit": "contain",
+      "method": "area",
+      "image": [
+        "547",
+        0
+      ]
+    },
+    "class_type": "Image Resize (rgthree)",
+    "_meta": {
+      "title": "Resize Image 1/2"
+    }
+  },
+  "552": {
+    "inputs": {
+      "pixels": [
+        "548",
+        0
+      ],
+      "vae": [
+        "399",
+        0
+      ]
+    },
+    "class_type": "VAEEncode",
+    "_meta": {
+      "title": "VAE Encode"
+    }
+  },
+  "557": {
+    "inputs": {
+      "samples": [
+        "563",
+        0
+      ],
+      "vae": [
+        "399",
+        0
+      ]
+    },
+    "class_type": "VAEDecode",
+    "_meta": {
+      "title": "VAE Decode"
+    }
+  },
+  "563": {
+    "inputs": {
+      "add_noise": "enable",
+      "noise_seed": 696969,
+      "steps": 20,
+      "cfg": 1,
+      "sampler_name": "euler",
+      "scheduler": "simple",
+      "start_at_step": 18,
+      "end_at_step": 20,
+      "return_with_leftover_noise": "disable",
+      "model": [
+        "392",
+        0
+      ],
+      "positive": [
+        "6",
+        0
+      ],
+      "negative": [
+        "6",
+        0
+      ],
+      "latent_image": [
+        "552",
+        0
+      ]
+    },
+    "class_type": "KSamplerAdvanced",
+    "_meta": {
+      "title": "KSampler (Advanced)"
+    }
+  }
+}

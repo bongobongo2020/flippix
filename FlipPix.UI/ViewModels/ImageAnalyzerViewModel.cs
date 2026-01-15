@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Collections.ObjectModel;
 using System.ComponentModel;
 using System.Diagnostics;
 using System.IO;
@@ -14,10 +15,19 @@ using FlipPix.Core.Interfaces;
 using FlipPix.UI.Services;
 using FlipPix.UI.Models;
 using Microsoft.Win32;
+using YamlDotNet.Serialization;
 using ComfyUIService = FlipPix.ComfyUI.Services.ComfyUIService;
 
 namespace FlipPix.UI.ViewModels
 {
+    public class StyleInfo
+    {
+        public string Name { get; set; } = string.Empty;
+        public string PromptTemplate { get; set; } = string.Empty;
+        public string WorkflowFile { get; set; } = string.Empty;
+        public string NodeId { get; set; } = string.Empty;
+    }
+
     public class ImageAnalyzerViewModel : INotifyPropertyChanged
     {
         private readonly ComfyUIService _comfyUIService;
@@ -47,7 +57,7 @@ namespace FlipPix.UI.ViewModels
         private string _imageInfo = string.Empty;
         private System.Threading.CancellationTokenSource? _cancellationTokenSource;
 
-        // Workflow parameters for amazing-z-image-a_GGUFAPI.json
+        // Workflow parameters for amazing-z-image workflows
         private string _negativePrompt = "";
         private int _width = 944;
         private int _height = 1408;
@@ -58,20 +68,18 @@ namespace FlipPix.UI.ViewModels
         private int _selectedPresetSizeIndex = 0;
         private int _selectedStyleIndex = 0;
 
-        // Style presets for Z-Image workflow
-        private Dictionary<string, string> _stylePresets = new Dictionary<string, string>
-        {
-            ["None"] = "{$@}",
-            ["Phone Photo"] = "YOUR CONTEXT:\nYour photographs has android phone cam-quality.\nYour photographs exhibit {$spicy-content-with} surprising compositions, sharp complex backgrounds, natural lighting, and candid moments that feel immediate and authentic.\nYour photographs are actual gritty candid photographic background.\nYOUR PHOTO:\n{$@}",
-            ["Cinematic"] = "Cinematic shot, professional photography, dramatic lighting, shallow depth of field, film grain, color grading, anamorphic lens flare, professional composition: {$@}",
-            ["Anime"] = "Anime style, manga art, cel shading, vibrant colors, clean lines, studio Ghibli inspired, detailed illustration: {$@}",
-            ["Oil Painting"] = "Oil painting style, classical art, brush strokes visible, rich textures, Renaissance inspired, museum quality: {$@}",
-            ["3D Render"] = "3D render, Octane render, ray tracing, volumetric lighting, photorealistic CGI, unreal engine 5: {$@}",
-            ["Watercolor"] = "Watercolor painting, soft edges, pastel colors, artistic flow, paper texture, traditional art medium: {$@}",
-            ["Digital Art"] = "Digital art, concept art, trending on ArtStation, highly detailed, sharp focus, vibrant colors: {$@}",
-            ["Vintage Photo"] = "Vintage photograph, film photography, kodachrome, grainy texture, aged paper, nostalgic atmosphere, 1970s style: {@}",
-            ["Cyberpunk"] = "Cyberpunk aesthetic, neon lights, futuristic, sci-fi, high contrast, blade runner style, dystopian atmosphere: {$@}"
-        };
+        // Workflow data loaded at startup
+        private Dictionary<string, JsonElement>? _workflowA;
+        private Dictionary<string, JsonElement>? _workflowB;
+
+        // Unified style list from both workflows
+        private List<StyleInfo> _allStyles = new List<StyleInfo>();
+        private string? _selectedWorkflowFile;
+
+        // LORA list - using ObservableCollection for UI binding
+        private ObservableCollection<string> _availableLoras = new();
+        private string _selectedLora = string.Empty;
+        private bool _loraEnabled = false;
 
         public event PropertyChangedEventHandler? PropertyChanged;
 
@@ -89,6 +97,7 @@ namespace FlipPix.UI.ViewModels
             OpenResultFolderCommand = new RelayCommand(OpenResultFolder, () => HasResultImage);
             TestLMStudioConnectionCommand = new RelayCommand(async () => await TestLMStudioConnectionAsync(), () => !IsAnalyzing && !IsGenerating);
             RefreshModelsCommand = new RelayCommand(async () => await RefreshModelsAsync(), () => !IsAnalyzing && !IsGenerating);
+            RefreshLorasCommand = new RelayCommand(RefreshLoras, () => !IsAnalyzing && !IsGenerating);
 
             // Load ComfyUI settings
             if (_settingsService.Settings != null)
@@ -100,6 +109,9 @@ namespace FlipPix.UI.ViewModels
 
             // Initialize LM Studio
             InitializeLMStudio();
+
+            // Load workflows and extract styles
+            LoadWorkflowsAndStyles();
 
             _logger.LogInfo("Image Analyzer initialized");
         }
@@ -420,7 +432,40 @@ namespace FlipPix.UI.ViewModels
             }
         }
 
-        public string[] StyleNames => _stylePresets.Keys.ToArray();
+        public string[] StyleNames => _allStyles.Select(s => s.Name).ToArray();
+
+        public StyleInfo? SelectedStyle => _allStyles.Count > 0 ? _allStyles[Math.Min(SelectedStyleIndex, _allStyles.Count - 1)] : null;
+
+        // Lora Properties
+        public ObservableCollection<string> AvailableLoras
+        {
+            get => _availableLoras;
+            set
+            {
+                _availableLoras = value;
+                OnPropertyChanged();
+            }
+        }
+
+        public string SelectedLora
+        {
+            get => _selectedLora;
+            set
+            {
+                _selectedLora = value;
+                OnPropertyChanged();
+            }
+        }
+
+        public bool LoraEnabled
+        {
+            get => _loraEnabled;
+            set
+            {
+                _loraEnabled = value;
+                OnPropertyChanged();
+            }
+        }
 
         // Commands
         public ICommand BrowseImageCommand { get; }
@@ -429,6 +474,7 @@ namespace FlipPix.UI.ViewModels
         public ICommand OpenResultFolderCommand { get; }
         public ICommand TestLMStudioConnectionCommand { get; }
         public ICommand RefreshModelsCommand { get; }
+        public ICommand RefreshLorasCommand { get; }
 
         // Methods
         private async void InitializeLMStudio()
@@ -490,6 +536,378 @@ namespace FlipPix.UI.ViewModels
             catch (Exception ex)
             {
                 _logger.LogError($"Error initializing LM Studio: {ex.Message}");
+            }
+        }
+
+        private void LoadWorkflowsAndStyles()
+        {
+            try
+            {
+                // Clear previous styles
+                _allStyles.Clear();
+
+                var workflowDir = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "workflow", "ZStyles");
+
+                if (!Directory.Exists(workflowDir))
+                {
+                    _logger.LogWarning($"ZStyles workflow directory not found at {workflowDir}");
+                    return;
+                }
+
+                // Load all workflow JSON files from ZStyles folder
+                var workflowFiles = Directory.GetFiles(workflowDir, "*.json");
+                _logger.LogInfo($"Found {workflowFiles.Length} workflow files in {workflowDir}");
+
+                foreach (var workflowFile in workflowFiles)
+                {
+                    try
+                    {
+                        // Extract style name from filename (e.g., "Z3drender.json" -> "3drender")
+                        var fileName = Path.GetFileNameWithoutExtension(workflowFile);
+                        var styleName = fileName.StartsWith("Z") ? fileName.Substring(1) : fileName;
+
+                        // Add style info for this workflow file
+                        _allStyles.Add(new StyleInfo
+                        {
+                            Name = styleName,
+                            PromptTemplate = "",  // Will be filled from analysis text
+                            WorkflowFile = workflowFile,
+                            NodeId = ""  // These are complete workflows, no single style node
+                        });
+
+                        _logger.LogInfo($"Loaded style: {styleName} from {Path.GetFileName(workflowFile)}");
+                    }
+                    catch (Exception ex)
+                    {
+                        _logger.LogError($"Error loading workflow file {workflowFile}: {ex.Message}");
+                    }
+                }
+
+                // Sort styles alphabetically
+                _allStyles = _allStyles.OrderBy(s => s.Name).ToList();
+
+                _logger.LogInfo($"Loaded {_allStyles.Count} total styles from ZStyles workflows");
+                OnPropertyChanged(nameof(StyleNames));
+
+                // Load LORAs
+                LoadAvailableLoras();
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError($"Error loading workflows: {ex.Message}");
+            }
+        }
+
+        private void RefreshLoras()
+        {
+            LoadAvailableLoras();
+            _logger.LogInfo("Refreshed LoRA list");
+        }
+
+        private string? GetLoraModelPath()
+        {
+            try
+            {
+                var comfyUIPath = _settingsService.Settings?.ComfyUIFolderPath;
+                if (string.IsNullOrEmpty(comfyUIPath))
+                {
+                    _logger.LogWarning("ComfyUI installation path not configured");
+                    return null;
+                }
+
+                // First try to get path from extra_model_paths.yaml
+                var extraModelPathsFile = Path.Combine(comfyUIPath, "extra_model_paths.yaml");
+
+                if (File.Exists(extraModelPathsFile))
+                {
+                    try
+                    {
+                        var yamlContent = File.ReadAllText(extraModelPathsFile);
+                        var deserializer = new DeserializerBuilder().Build();
+                        var yamlData = deserializer.Deserialize<Dictionary<string, object>>(yamlContent);
+
+                        if (yamlData != null)
+                        {
+                            string basePath = string.Empty;
+                            string lorasRelativePath = string.Empty;
+
+                            // Check for "comfyui" section (most common format)
+                            if (yamlData.ContainsKey("comfyui"))
+                            {
+                                var comfyuiSectionObject = yamlData["comfyui"];
+                                var comfyuiSection = comfyuiSectionObject as Dictionary<object, object>;
+
+                                if (comfyuiSection != null)
+                                {
+                                    // Convert to Dictionary<string, object> for easier use
+                                    var comfyuiStringDict = new Dictionary<string, object>();
+                                    foreach (var kvp in comfyuiSection)
+                                    {
+                                        if (kvp.Key != null)
+                                        {
+                                            comfyuiStringDict[kvp.Key.ToString() ?? string.Empty] = kvp.Value;
+                                        }
+                                    }
+
+                                    // Get base_path if it exists
+                                    if (comfyuiStringDict.ContainsKey("base_path"))
+                                    {
+                                        basePath = comfyuiStringDict["base_path"]?.ToString() ?? string.Empty;
+                                    }
+
+                                    // Get loras path if it exists
+                                    if (comfyuiStringDict.ContainsKey("loras"))
+                                    {
+                                        lorasRelativePath = comfyuiStringDict["loras"]?.ToString() ?? string.Empty;
+                                    }
+                                }
+                            }
+
+                            // Construct full path
+                            if (!string.IsNullOrEmpty(lorasRelativePath))
+                            {
+                                string fullLoraPath;
+                                if (!string.IsNullOrEmpty(basePath))
+                                {
+                                    // Combine base_path with loras relative path
+                                    fullLoraPath = Path.Combine(basePath, lorasRelativePath);
+                                }
+                                else
+                                {
+                                    // Use just the loras path (might be absolute)
+                                    fullLoraPath = lorasRelativePath;
+                                }
+
+                                // Normalize path separators
+                                fullLoraPath = fullLoraPath.Replace('/', Path.DirectorySeparatorChar);
+
+                                if (Directory.Exists(fullLoraPath))
+                                {
+                                    return fullLoraPath;
+                                }
+                            }
+                        }
+                    }
+                    catch (Exception ex)
+                    {
+                        _logger.LogWarning($"Error reading extra_model_paths.yaml: {ex.Message}");
+                    }
+                }
+
+                // Fallback to default ComfyUI models directory
+                var defaultLoraPath = Path.Combine(comfyUIPath, "models", "loras");
+                if (Directory.Exists(defaultLoraPath))
+                {
+                    return defaultLoraPath;
+                }
+
+                return null;
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError($"Error getting LoRA model path: {ex.Message}");
+                return null;
+            }
+        }
+
+        private void LoadAvailableLoras()
+        {
+            try
+            {
+                // Priority 1: Get LoRA path from ComfyUI extra_model_paths.yaml or default location
+                var loraBasePath = GetLoraModelPath();
+                if (!string.IsNullOrEmpty(loraBasePath))
+                {
+                    // Look for zimage subfolder
+                    var zimageLoraPath = Path.Combine(loraBasePath, "zimage");
+                    if (Directory.Exists(zimageLoraPath))
+                    {
+                        LoadLorasFromDirectory(zimageLoraPath, "ComfyUI LoRA directory");
+                        return;
+                    }
+                    else
+                    {
+                        // If zimage subfolder doesn't exist, use the base LoRA directory
+                        LoadLorasFromDirectory(loraBasePath, "ComfyUI LoRA directory");
+                        return;
+                    }
+                }
+
+                // Priority 2: Fallback to local directory
+                var localLoraPath = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "loras", "zimage");
+                LoadLorasFromDirectory(localLoraPath, "local directory");
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError($"Error loading LoRAs: {ex.Message}");
+                AvailableLoras.Clear();
+                AvailableLoras.Add("Error loading LoRAs");
+            }
+        }
+
+        private void LoadLorasFromDirectory(string loraPath, string pathDescription)
+        {
+            _logger.LogInfo($"Looking for LoRAs in {pathDescription}: {loraPath}");
+
+            if (!Directory.Exists(loraPath))
+            {
+                _logger.LogWarning($"LoRA directory not found: {loraPath}");
+                AvailableLoras.Clear();
+                AvailableLoras.Add("No LoRAs available");
+                return;
+            }
+
+            var loraFiles = Directory.GetFiles(loraPath, "*.safetensors")
+                .Select(Path.GetFileNameWithoutExtension)
+                .Where(name => !string.IsNullOrEmpty(name))
+                .OrderBy(name => name)
+                .ToList();
+
+            AvailableLoras.Clear();
+
+            if (loraFiles.Any())
+            {
+                foreach (var lora in loraFiles)
+                {
+                    if (!string.IsNullOrEmpty(lora))
+                        AvailableLoras.Add(lora);
+                }
+
+                if (string.IsNullOrEmpty(SelectedLora) && AvailableLoras.Any())
+                {
+                    SelectedLora = AvailableLoras.First();
+                }
+
+                _logger.LogInfo($"Loaded {AvailableLoras.Count} LoRAs from {loraPath}");
+            }
+            else
+            {
+                AvailableLoras.Add("No LoRAs available");
+                _logger.LogInfo($"No LoRA files found in {pathDescription}");
+            }
+        }
+
+        private void ExtractStylesFromWorkflowNew(string workflowJson, string workflowPath, string workflowLabel)
+        {
+            try
+            {
+                var workflow = JsonSerializer.Deserialize<JsonElement>(workflowJson);
+
+                // New format has "nodes" array
+                if (workflow.TryGetProperty("nodes", out var nodes))
+                {
+                    foreach (var node in nodes.EnumerateArray())
+                    {
+                        // Title is directly on the node, not under _meta
+                        if (node.TryGetProperty("title", out var title))
+                        {
+                            var titleStr = title.GetString() ?? "";
+                            if (titleStr.StartsWith("STYLE: "))
+                            {
+                                string styleName = titleStr.Substring(7); // Remove "STYLE: " prefix
+                                string promptTemplate = "";
+                                string nodeId = "";
+
+                                // Get node ID
+                                if (node.TryGetProperty("id", out var id))
+                                {
+                                    nodeId = id.GetUInt32().ToString();
+                                }
+
+                                // Try to extract from widgets_values (new format)
+                                if (node.TryGetProperty("widgets_values", out var widgetsValues))
+                                {
+                                    if (widgetsValues.ValueKind == JsonValueKind.Array &&
+                                        widgetsValues.GetArrayLength() > 0)
+                                    {
+                                        promptTemplate = widgetsValues[0].GetString() ?? "";
+                                    }
+                                }
+
+                                // Add to styles list
+                                _allStyles.Add(new StyleInfo
+                                {
+                                    Name = styleName,
+                                    PromptTemplate = promptTemplate,
+                                    WorkflowFile = workflowPath,
+                                    NodeId = nodeId
+                                });
+
+                                _logger.LogInfo($"[{workflowLabel}] Found style: {styleName} (node {nodeId})");
+                            }
+                        }
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError($"Error extracting styles from {workflowPath}: {ex.Message}");
+            }
+        }
+
+        private void ExtractStylesFromApiWorkflow(string workflowJson, string workflowPath)
+        {
+            try
+            {
+                // Clear previous styles
+                _allStyles.Clear();
+
+                var workflow = JsonSerializer.Deserialize<Dictionary<string, JsonElement>>(workflowJson);
+
+                if (workflow == null)
+                {
+                    _logger.LogWarning("Workflow is null or empty");
+                    return;
+                }
+
+                _logger.LogInfo($"Parsing workflow with {workflow.Count} nodes from: {workflowPath}");
+
+                // API format is a dictionary with node IDs as keys
+                foreach (var kvp in workflow)
+                {
+                    var nodeId = kvp.Key;
+                    var node = kvp.Value;
+
+                    // Check if this node has _meta with title starting with "STYLE: "
+                    if (node.TryGetProperty("_meta", out var meta))
+                    {
+                        if (meta.TryGetProperty("title", out var title))
+                        {
+                            var titleStr = title.GetString() ?? "";
+                            if (titleStr.StartsWith("STYLE: "))
+                            {
+                                string styleName = titleStr.Substring(7); // Remove "STYLE: " prefix
+                                string promptTemplate = "";
+
+                                // Get the value from inputs
+                                if (node.TryGetProperty("inputs", out var inputs))
+                                {
+                                    if (inputs.TryGetProperty("value", out var value))
+                                    {
+                                        promptTemplate = value.GetString() ?? "";
+                                    }
+                                }
+
+                                // Add to styles list
+                                _allStyles.Add(new StyleInfo
+                                {
+                                    Name = styleName,
+                                    PromptTemplate = promptTemplate,
+                                    WorkflowFile = workflowPath,
+                                    NodeId = nodeId
+                                });
+
+                                _logger.LogInfo($"Found style: {styleName} (node {nodeId})");
+                            }
+                        }
+                    }
+                }
+
+                _logger.LogInfo($"Total styles extracted: {_allStyles.Count}");
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError($"Error extracting styles from API workflow {workflowPath}: {ex.Message}");
             }
         }
 
@@ -699,10 +1117,23 @@ namespace FlipPix.UI.ViewModels
                     await _comfyUIService.ConnectAsync(_cancellationTokenSource.Token);
                 }
 
-                // Load workflow
-                var workflowPath = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "workflow", "amazing-z-image-a_GGUFAPI.json");
-                var workflowJson = await File.ReadAllTextAsync(workflowPath, _cancellationTokenSource.Token);
-                var workflow = JsonSerializer.Deserialize<Dictionary<string, JsonElement>>(workflowJson);
+                // Get selected style and its workflow
+                var selectedStyle = SelectedStyle;
+                if (selectedStyle == null)
+                {
+                    _logger.LogError("No style selected");
+                    StatusBarMessage = "Error: No style selected";
+                    return;
+                }
+
+                _logger.LogInfo($"Using style: {selectedStyle.Name} from workflow: {Path.GetFileName(selectedStyle.WorkflowFile)}");
+
+                // Load the appropriate workflow based on selected style
+                var workflowJson = await File.ReadAllTextAsync(selectedStyle.WorkflowFile, _cancellationTokenSource.Token);
+                _logger.LogInfo($"Loaded workflow file: {selectedStyle.WorkflowFile}, JSON length: {workflowJson.Length}");
+
+                // For ZStyles workflows, directly parse to Dictionary to preserve nested structures
+                var workflow = JsonSerializer.Deserialize<Dictionary<string, object>>(workflowJson);
 
                 if (workflow == null)
                 {
@@ -710,11 +1141,13 @@ namespace FlipPix.UI.ViewModels
                     return;
                 }
 
+                _logger.LogInfo($"Workflow deserialized successfully, node count: {workflow.Count}");
+
                 // Update workflow with generation parameters
                 ProcessingStatus = "Configuring generation settings...";
                 ProcessingProgress = 10;
 
-                var updatedWorkflow = UpdateWorkflowForGeneration(workflow);
+                var updatedWorkflow = UpdateWorkflowForGenerationSimple(workflow);
 
                 // Execute workflow
                 ProcessingStatus = "Generating image with Z-Image...";
@@ -826,89 +1259,674 @@ namespace FlipPix.UI.ViewModels
             }
         }
 
-        private Dictionary<string, object> UpdateWorkflowForGeneration(Dictionary<string, JsonElement> workflow)
+        private object UpdateWorkflowForGeneration(JsonElement workflow)
         {
-            var workflowDict = new Dictionary<string, object>();
-            var selectedStyleName = StyleNames[Math.Min(SelectedStyleIndex, StyleNames.Length - 1)];
-            var styleTemplate = _stylePresets[selectedStyleName];
+            var selectedStyle = SelectedStyle;
 
-            // Apply style template to the analysis text
-            var styledPrompt = styleTemplate.Replace("{$@}", AnalysisText).Replace("{$spicy-content-with}", "");
-            // Fix double spaces
-            styledPrompt = System.Text.RegularExpressions.Regex.Replace(styledPrompt, @" +", " ");
+            _logger.LogInfo($"Using style: {selectedStyle?.Name ?? "None"}");
 
-            _logger.LogInfo($"Using style: {selectedStyleName}");
-            _logger.LogInfo($"Styled prompt: {styledPrompt.Substring(0, Math.Min(200, styledPrompt.Length))}...");
+            // Parse the workflow
+            var workflowJson = workflow.GetRawText();
+            var workflowRoot = System.Text.Json.Nodes.JsonNode.Parse(workflowJson);
 
-            foreach (var kvp in workflow)
+            if (workflowRoot == null)
             {
-                var nodeDict = JsonSerializer.Deserialize<Dictionary<string, object>>(kvp.Value.GetRawText());
-                if (nodeDict != null)
-                {
-                    // Update node 6 (CLIPTextEncode) - directly set the styled prompt text
-                    // This overrides the connection from node 166
-                    if (kvp.Key == "6" && nodeDict.ContainsKey("inputs"))
-                    {
-                        var inputs = JsonSerializer.Deserialize<Dictionary<string, object>>(
-                            JsonSerializer.Serialize(nodeDict["inputs"]));
-                        if (inputs != null)
-                        {
-                            // Replace the connection with the actual text
-                            inputs["text"] = styledPrompt;
-                            nodeDict["inputs"] = inputs;
-                            _logger.LogInfo($"Updated node 6 (CLIPTextEncode) with styled prompt");
-                        }
-                    }
-
-                    // Update node 307 (SEED)
-                    if (kvp.Key == "307" && nodeDict.ContainsKey("inputs"))
-                    {
-                        var inputs = JsonSerializer.Deserialize<Dictionary<string, object>>(
-                            JsonSerializer.Serialize(nodeDict["inputs"]));
-                        if (inputs != null)
-                        {
-                            var actualSeed = Seed == 0 ? new Random().NextInt64(0, 999999999999999) : Seed;
-                            inputs["value"] = actualSeed;
-                            nodeDict["inputs"] = inputs;
-                            _logger.LogInfo($"Updated seed: {actualSeed}");
-                        }
-                    }
-
-                    // Update node 244 (EmptySD3LatentImage) - width/height based on aspect ratio
-                    if (kvp.Key == "244" && nodeDict.ContainsKey("inputs"))
-                    {
-                        var inputs = JsonSerializer.Deserialize<Dictionary<string, object>>(
-                            JsonSerializer.Serialize(nodeDict["inputs"]));
-                        if (inputs != null)
-                        {
-                            // Calculate dimensions based on aspect ratio
-                            var dimensions = GetDimensionsForAspectRatio(AspectRatioIndex);
-                            inputs["width"] = dimensions.Item1;
-                            inputs["height"] = dimensions.Item2;
-                            nodeDict["inputs"] = inputs;
-                            _logger.LogInfo($"Updated dimensions: {dimensions.Item1}x{dimensions.Item2}");
-                        }
-                    }
-
-                    // Update node 9 (SaveImage) filename_prefix with timestamp
-                    if (kvp.Key == "9" && nodeDict.ContainsKey("inputs"))
-                    {
-                        var inputs = JsonSerializer.Deserialize<Dictionary<string, object>>(
-                            JsonSerializer.Serialize(nodeDict["inputs"]));
-                        if (inputs != null)
-                        {
-                            var timestamp = DateTime.Now.ToString("yyyy_MM_dd");
-                            inputs["filename_prefix"] = $"ZImage/{timestamp}/ZI";
-                            nodeDict["inputs"] = inputs;
-                            _logger.LogInfo($"Updated output filename prefix");
-                        }
-                    }
-
-                    workflowDict[kvp.Key] = nodeDict;
-                }
+                _logger.LogError("Failed to parse workflow JSON");
+                return workflow;
             }
 
-            return workflowDict;
+            // Check if new format (has "nodes" array) - need to convert to API format
+            if (workflowRoot["nodes"] is System.Text.Json.Nodes.JsonArray nodesArray)
+            {
+                // Build ComfyUI API prompt format (dictionary with node IDs as keys)
+                var apiPrompt = new Dictionary<string, object>();
+
+                foreach (var node in nodesArray)
+                {
+                    if (node == null) continue;
+
+                    var nodeObj = node.AsObject();
+                    var nodeId = nodeObj["id"]?.GetValue<uint>();
+                    var nodeTypeStr = nodeId?.ToString() ?? "0";
+                    var nodeType = nodeObj["type"]?.GetValue<string>();
+
+                    // Create the node inputs dictionary
+                    var inputs = new Dictionary<string, object>();
+
+                    // Convert widgets_values to inputs
+                    if (nodeObj["widgets_values"] is System.Text.Json.Nodes.JsonArray widgets)
+                    {
+                        // Handle specific node types
+                        if (nodeType == "CLIPTextEncode")
+                        {
+                            if (widgets.Count > 0)
+                            {
+                                // Update with analysis text
+                                inputs["text"] = AnalysisText;
+                                _logger.LogInfo($"Updated CLIPTextEncode node {nodeId} with analysis text");
+                            }
+                            // Add clip input reference
+                            AddInputReferencesToDict(nodeObj, inputs);
+                        }
+                        else if (nodeType == "EmptyLatentImage" || nodeType == "EmptySD3LatentImage")
+                        {
+                            if (widgets.Count >= 3)
+                            {
+                                var dimensions = GetDimensionsForAspectRatio(AspectRatioIndex);
+                                inputs["width"] = dimensions.Item1;
+                                inputs["height"] = dimensions.Item2;
+                                if (widgets[2] != null)
+                                {
+                                    inputs["batch_size"] = GetWidgetValue(widgets[2]);
+                                }
+                                _logger.LogInfo($"Updated {nodeType} node {nodeId} dimensions: {dimensions.Item1}x{dimensions.Item2}");
+                            }
+                            AddInputReferencesToDict(nodeObj, inputs);
+                        }
+                        else if (nodeType == "KSamplerAdvanced")
+                        {
+                            // widgets_values: ['enable', seed, 'fixed', steps, cfg, sampler_name, scheduler, start_at_step, end_at_step, return_with_leftover_noise]
+                            if (widgets.Count >= 10)
+                            {
+                                var actualSeed = Seed == 0 ? (long)new Random().NextInt64(0, 999999999999999) : (long)Seed;
+                                inputs["add_noise"] = GetWidgetValue(widgets[0]);
+                                inputs["noise_seed"] = actualSeed;
+                                inputs["control_after_generate"] = GetWidgetValue(widgets[2]);
+                                inputs["steps"] = GetWidgetValue(widgets[3]);
+                                inputs["cfg"] = GetWidgetValue(widgets[4]);
+                                inputs["sampler_name"] = GetWidgetValue(widgets[5]);
+                                inputs["scheduler"] = GetWidgetValue(widgets[6]);
+                                inputs["start_at_step"] = GetWidgetValue(widgets[7]);
+                                inputs["end_at_step"] = GetWidgetValue(widgets[8]);
+                                inputs["return_with_leftover_noise"] = GetWidgetValue(widgets[9]);
+                                _logger.LogInfo($"Updated KSamplerAdvanced node {nodeId} seed: {actualSeed}");
+                            }
+                            AddInputReferencesToDict(nodeObj, inputs);
+                        }
+                        else if (nodeType == "SaveImage")
+                        {
+                            if (widgets.Count > 0)
+                            {
+                                var timestamp = DateTime.Now.ToString("yyyy_MM_dd");
+                                inputs["filename_prefix"] = $"ZImage/{timestamp}/ZI";
+                                _logger.LogInfo($"Updated SaveImage node {nodeId} filename prefix");
+                            }
+                            AddInputReferencesToDict(nodeObj, inputs);
+                        }
+                        else
+                        {
+                            // For other nodes, add input references
+                            AddInputReferencesToDict(nodeObj, inputs);
+                        }
+                    }
+                    else
+                    {
+                        // No widgets_values, just add input references
+                        AddInputReferencesToDict(nodeObj, inputs);
+                    }
+
+                    var nodeData = new Dictionary<string, object>
+                    {
+                        ["class_type"] = nodeType ?? "",
+                        ["inputs"] = inputs
+                    };
+
+                    apiPrompt[nodeTypeStr] = nodeData;
+                }
+
+                return apiPrompt;
+            }
+
+            // API format workflow - update the nodes directly
+            // Check if it's already in API format (dictionary with node IDs)
+            if (workflowRoot.AsObject().Count > 0 && workflowRoot["nodes"] == null)
+            {
+                var apiPrompt = JsonSerializer.Deserialize<Dictionary<string, JsonElement>>(workflowJson)!;
+
+                // Build a complete resolution map for all editor-only nodes
+                var resolutionMap = new Dictionary<string, (string targetNode, int outputIndex)>();
+                var editorOnlyNodes = new HashSet<string>();
+
+                // First pass: identify all editor-only nodes and build resolution map
+                foreach (var kvp in apiPrompt)
+                {
+                    var nodeId = kvp.Key;
+                    var nodeData = kvp.Value;
+                    if (nodeData.TryGetProperty("class_type", out var classTypeElem))
+                    {
+                        var classType = classTypeElem.GetString() ?? "";
+
+                        // Identify editor-only node types
+                        bool isEditorOnly = classType == "Reroute" ||
+                                           classType == "Reroute (rgthree)" ||
+                                           classType == "Node Collector (rgthree)" ||
+                                           classType == "Display Any (rgthree)" ||
+                                           classType == "Note" ||
+                                           classType == "Fast Muter (rgthree)" ||
+                                           classType == "Mute / Bypass Repeater (rgthree)" ||
+                                           classType.Contains("Reroute");
+
+                        if (isEditorOnly)
+                        {
+                            editorOnlyNodes.Add(nodeId);
+
+                            // Build resolution map for reroutes
+                            if (classType.Contains("Reroute"))
+                            {
+                                var inputs = nodeData.GetProperty("inputs");
+                                if (inputs.ValueKind == JsonValueKind.Object && inputs.EnumerateObject().Any())
+                                {
+                                    var inputProp = inputs.EnumerateObject().First();
+                                    if (inputProp.Value.ValueKind == JsonValueKind.Array)
+                                    {
+                                        var arr = inputProp.Value.EnumerateArray().ToArray();
+                                        if (arr.Length >= 2)
+                                        {
+                                            var targetNode = arr[0].GetString() ?? "";
+                                            var outputIndex = arr[1].GetInt32();
+                                            resolutionMap[nodeId] = (targetNode, outputIndex);
+                                        }
+                                    }
+                                }
+                            }
+                            // For Node Collectors, map each numbered output to its input
+                            else if (classType == "Node Collector (rgthree)")
+                            {
+                                var inputs = nodeData.GetProperty("inputs");
+                                if (inputs.ValueKind == JsonValueKind.Object)
+                                {
+                                    var inputNum = 0;
+                                    foreach (var inputProp in inputs.EnumerateObject().OrderBy(x => x.Name))
+                                    {
+                                        if (inputProp.Value.ValueKind == JsonValueKind.Array)
+                                        {
+                                            var arr = inputProp.Value.EnumerateArray().ToArray();
+                                            if (arr.Length >= 2)
+                                            {
+                                                var targetNode = arr[0].GetString() ?? "";
+                                                var outputIndex = arr[1].GetInt32();
+                                                // Node collector outputs are accessed as "nodeId:outputNum"
+                                                resolutionMap[$"{nodeId}:{inputNum}"] = (targetNode, outputIndex);
+                                            }
+                                        }
+                                        inputNum++;
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+
+                _logger.LogInfo($"Identified {editorOnlyNodes.Count} editor-only nodes, built {resolutionMap.Count} resolution mappings");
+
+                // Clone the workflow and resolve all references
+                var updatedPrompt = new Dictionary<string, object>();
+
+                // Determine which style is selected
+                string? selectedSwitchNode = null;
+                string? selectedInputName = null;
+                if (selectedStyle != null && int.TryParse(selectedStyle.NodeId, out int styleNodeId))
+                {
+                    if (styleNodeId < 1000)
+                    {
+                        selectedSwitchNode = "87";
+                        var styleMap = new Dictionary<string, string>
+                        {
+                            ["125"] = "any_02", ["101"] = "any_03", ["117"] = "any_04", ["63"] = "any_05",
+                            ["47"] = "any_06", ["38"] = "any_07", ["92"] = "any_08", ["37"] = "any_09",
+                            ["41"] = "any_10", ["122"] = "any_11", ["43"] = "any_12", ["93"] = "any_13",
+                            ["130"] = "any_14", ["45"] = "any_15", ["124"] = "any_16", ["459"] = "any_17",
+                            ["460"] = "any_18", ["461"] = "any_19"
+                        };
+                        styleMap.TryGetValue(selectedStyle.NodeId, out selectedInputName);
+                    }
+                    else if (styleNodeId >= 5000)
+                    {
+                        selectedSwitchNode = "5087";
+                        var styleMap = new Dictionary<string, string>
+                        {
+                            ["5125"] = "any_02", ["5101"] = "any_03", ["5117"] = "any_04", ["5063"] = "any_05",
+                            ["5047"] = "any_06", ["5038"] = "any_07", ["5092"] = "any_08", ["5037"] = "any_09",
+                            ["5041"] = "any_10", ["5122"] = "any_11", ["5043"] = "any_12", ["5093"] = "any_13",
+                            ["5130"] = "any_14", ["5045"] = "any_15", ["5124"] = "any_16", ["5459"] = "any_17",
+                            ["5460"] = "any_18", ["5461"] = "any_19"
+                        };
+                        styleMap.TryGetValue(selectedStyle.NodeId, out selectedInputName);
+                    }
+                    if (!string.IsNullOrEmpty(selectedInputName))
+                    {
+                        _logger.LogInfo($"Style '{selectedStyle.Name}' (node {selectedStyle.NodeId}) -> {selectedSwitchNode} input {selectedInputName}");
+                    }
+                }
+
+                // Process each node
+                foreach (var kvp in apiPrompt)
+                {
+                    var nodeId = kvp.Key;
+                    var nodeData = kvp.Value;
+                    var nodeObj = JsonSerializer.Deserialize<Dictionary<string, JsonElement>>(nodeData.GetRawText());
+
+                    if (nodeObj == null) continue;
+
+                    var classType = nodeData.TryGetProperty("class_type", out var ct) ? (ct.GetString() ?? "") : "";
+                    var inputs = nodeData.TryGetProperty("inputs", out var inp) ? inp : default;
+                    var meta = nodeObj.ContainsKey("_meta") ? nodeObj["_meta"] : default;
+
+                    // Skip editor-only nodes
+                    if (editorOnlyNodes.Contains(nodeId))
+                    {
+                        continue;
+                    }
+
+                    var newInputs = new Dictionary<string, object>();
+
+                    // Copy and resolve inputs
+                    if (inputs.ValueKind == JsonValueKind.Object)
+                    {
+                        foreach (var input in inputs.EnumerateObject())
+                        {
+                            var inputName = input.Name;
+
+                            if (input.Value.ValueKind == JsonValueKind.Array)
+                            {
+                                var arr = input.Value.EnumerateArray().ToArray();
+                                if (arr.Length >= 2)
+                                {
+                                    var refNodeId = arr[0].GetString() ?? "";
+                                    var refIndex = arr[1].GetInt32();
+
+                                    // Resolve through editor-only nodes
+                                    var resolvedNodeId = refNodeId;
+                                    var resolvedIndex = refIndex;
+                                    var depth = 0;
+                                    const int maxDepth = 20;
+
+                                    // First, try direct resolution
+                                    while (resolutionMap.ContainsKey(resolvedNodeId) && depth < maxDepth)
+                                    {
+                                        (resolvedNodeId, resolvedIndex) = resolutionMap[resolvedNodeId];
+                                        depth++;
+                                    }
+
+                                    // If still pointing to editor-only node, try numbered output format
+                                    if (editorOnlyNodes.Contains(resolvedNodeId) && depth < maxDepth)
+                                    {
+                                        // Some nodes reference collector outputs as "nodeId:outputNum"
+                                        for (int i = 0; i < 20; i++)
+                                        {
+                                            var collectorKey = $"{resolvedNodeId}:{i}";
+                                            if (resolutionMap.ContainsKey(collectorKey))
+                                            {
+                                                (resolvedNodeId, resolvedIndex) = resolutionMap[collectorKey];
+                                                break;
+                                            }
+                                        }
+                                    }
+
+                                    // Skip if still pointing to editor-only node
+                                    if (editorOnlyNodes.Contains(resolvedNodeId))
+                                    {
+                                        _logger.LogWarning($"Skipping input {inputName} of node {nodeId}: references editor-only node {resolvedNodeId}");
+                                        continue;
+                                    }
+
+                                    newInputs[inputName] = new object[] { resolvedNodeId, resolvedIndex };
+                                }
+                            }
+                            else
+                            {
+                                // Copy primitive value
+                                newInputs[inputName] = input.Value.ValueKind switch
+                                {
+                                    JsonValueKind.String => input.Value.GetString() ?? "",
+                                    JsonValueKind.Number when input.Value.TryGetInt32(out var intVal) => intVal,
+                                    JsonValueKind.Number when input.Value.TryGetInt64(out var longVal) => longVal,
+                                    JsonValueKind.Number when input.Value.TryGetDouble(out var doubleVal) => doubleVal,
+                                    JsonValueKind.True => true,
+                                    JsonValueKind.False => false,
+                                    _ => input.Value.ToString()
+                                };
+                            }
+                        }
+                    }
+
+                    // Update specific nodes
+                    if (classType == "PrimitiveNode" && nodeObj.ContainsKey("_meta") &&
+                        meta.ValueKind == JsonValueKind.Object &&
+                        meta.TryGetProperty("title", out var title) &&
+                        title.GetString() == "PROMPT")
+                    {
+                        newInputs["value"] = AnalysisText;
+                        _logger.LogInfo($"Updated PROMPT node {nodeId}");
+                    }
+                    else if (classType == "Any Switch (rgthree)" && nodeId == selectedSwitchNode && !string.IsNullOrEmpty(selectedInputName))
+                    {
+                        var inputNumStr = selectedInputName.Replace("any_", "");
+                        if (int.TryParse(inputNumStr, out int inputNum))
+                        {
+                            newInputs["select"] = inputNum;
+                            _logger.LogInfo($"Set {nodeId} select to {inputNum}");
+                        }
+                    }
+                    else if (classType == "EmptySD3LatentImage")
+                    {
+                        var dimensions = GetDimensionsForAspectRatio(AspectRatioIndex);
+                        newInputs["width"] = dimensions.Item1;
+                        newInputs["height"] = dimensions.Item2;
+                    }
+                    else if (classType == "PrimitiveInt" && nodeObj.ContainsKey("_meta") &&
+                             meta.ValueKind == JsonValueKind.Object &&
+                             meta.TryGetProperty("title", out var seedTitle) &&
+                             seedTitle.GetString() == "SEED")
+                    {
+                        var actualSeed = Seed == 0 ? (long)new Random().NextInt64(0, 999999999999999) : (long)Seed;
+                        newInputs["value"] = (int)actualSeed;
+                    }
+                    else if (classType == "SaveImage")
+                    {
+                        var timestamp = DateTime.Now.ToString("yyyy_MM_dd");
+                        newInputs["filename_prefix"] = $"ZImage/{timestamp}/ZI";
+                    }
+
+                    updatedPrompt[nodeId] = new Dictionary<string, object>
+                    {
+                        ["class_type"] = classType,
+                        ["inputs"] = newInputs
+                    };
+                }
+
+                _logger.LogInfo($"Built workflow with {updatedPrompt.Count} nodes (skipped {editorOnlyNodes.Count} editor-only nodes)");
+                return updatedPrompt;
+            }
+
+            // Old format - return as is
+            return JsonSerializer.Deserialize<Dictionary<string, object>>(workflow.GetRawText())!;
+        }
+
+        private object UpdateWorkflowForGenerationSimple(Dictionary<string, object> workflow)
+        {
+            try
+            {
+                _logger.LogInfo($"=== UpdateWorkflowForGenerationSimple START ===");
+                _logger.LogInfo($"Analysis text length: {AnalysisText?.Length ?? 0}");
+                _logger.LogInfo($"Analysis text preview: {(AnalysisText?.Length > 0 ? AnalysisText.Substring(0, Math.Min(100, AnalysisText.Length)) : "EMPTY")}");
+                _logger.LogInfo($"LORA Enabled: {LoraEnabled}, Selected LORA: {SelectedLora}");
+                _logger.LogInfo($"Total nodes in workflow: {workflow.Count}");
+
+                int updatedNodes = 0;
+                var modifiedWorkflow = new Dictionary<string, object>();
+
+                // Process each node in the workflow
+                foreach (var kvp in workflow)
+                {
+                    var nodeValue = kvp.Value;
+
+                    // Convert to JsonElement for easier inspection
+                    JsonElement nodeElement;
+                    if (nodeValue is JsonElement je)
+                    {
+                        nodeElement = je;
+                    }
+                    else
+                    {
+                        var json = JsonSerializer.Serialize(nodeValue);
+                        nodeElement = JsonSerializer.Deserialize<JsonElement>(json);
+                    }
+
+                    if (nodeElement.ValueKind == JsonValueKind.Undefined)
+                    {
+                        modifiedWorkflow[kvp.Key] = nodeValue;
+                        continue;
+                    }
+
+                    // Get class_type
+                    string classType = "";
+                    if (nodeElement.TryGetProperty("class_type", out var classTypeProp))
+                    {
+                        classType = classTypeProp.GetString() ?? "";
+                    }
+
+                    // Get _meta.title
+                    string title = "";
+                    if (nodeElement.TryGetProperty("_meta", out var metaProp))
+                    {
+                        if (metaProp.ValueKind == JsonValueKind.Object && metaProp.TryGetProperty("title", out var titleProp))
+                        {
+                            title = titleProp.GetString() ?? "";
+                        }
+                    }
+
+                    // Check if this is a node we need to update with analysis text
+                    bool shouldUpdate = false;
+                    string textPropertyName = "";  // Will be "text" for CLIPTextEncode, "string" for StringTrim/Primitive
+
+                    if (nodeElement.TryGetProperty("inputs", out var inputsProp))
+                    {
+                        if (inputsProp.ValueKind == JsonValueKind.Object)
+                        {
+                            // Case 1: CLIPTextEncode with "text" property
+                            if (classType == "CLIPTextEncode" && inputsProp.TryGetProperty("text", out var textProp))
+                            {
+                                bool isStringText = textProp.ValueKind == JsonValueKind.String;
+                                bool isPositivePrompt = !string.IsNullOrEmpty(title) && (title.Contains("Positive") || title.Contains("positive"));
+
+                                _logger.LogInfo($"Node {kvp.Key}: class_type={classType}, title=\"{title}\", isStringText={isStringText}, isPositivePrompt={isPositivePrompt}");
+
+                                shouldUpdate = isStringText && isPositivePrompt;
+                                textPropertyName = "text";
+                            }
+                            // Case 2: StringTrim or Primitive with "string" property (these contain the actual prompt text)
+                            else if ((classType == "StringTrim" || classType == "PrimitiveNode") && inputsProp.TryGetProperty("string", out var stringProp))
+                            {
+                                bool isStringText = stringProp.ValueKind == JsonValueKind.String;
+
+                                _logger.LogInfo($"Node {kvp.Key}: class_type={classType}, title=\"{title}\", isStringText={isStringText}");
+
+                                shouldUpdate = isStringText;
+                                textPropertyName = "string";
+                            }
+                        }
+                    }
+
+                    if (shouldUpdate)
+                    {
+                        _logger.LogInfo($"→ Attempting to update node {kvp.Key} (property: {textPropertyName})...");
+                        // Deserialize the entire node to Dictionary so we can modify it
+                        var nodeDict = JsonSerializer.Deserialize<Dictionary<string, object>>(nodeElement.GetRawText());
+                        _logger.LogInfo($"  nodeDict deserialized: {nodeDict != null}");
+                        if (nodeDict != null)
+                        {
+                            _logger.LogInfo($"  nodeDict keys: {string.Join(", ", nodeDict.Keys)}");
+                            _logger.LogInfo($"  nodeDict.TryGetValue('inputs'): {nodeDict.TryGetValue("inputs", out var inputsObj)}");
+                            if (inputsObj != null)
+                            {
+                                _logger.LogInfo($"  inputsObj type: {inputsObj.GetType().Name}");
+                                _logger.LogInfo($"  inputsObj is Dictionary<string, object>: {inputsObj is Dictionary<string, object>}");
+                            }
+                        }
+
+                        // Handle both Dictionary<string, object> and JsonElement cases
+                        if (nodeDict != null && nodeDict.TryGetValue("inputs", out var inputsObj2))
+                        {
+                            Dictionary<string, object> inputs = null;
+
+                            // Case 1: inputs is already a Dictionary<string, object>
+                            if (inputsObj2 is Dictionary<string, object> dictInputs)
+                            {
+                                inputs = dictInputs;
+                            }
+                            // Case 2: inputs is a JsonElement (common with System.Text.Json)
+                            else if (inputsObj2 is JsonElement elementInputs && elementInputs.ValueKind == JsonValueKind.Object)
+                            {
+                                inputs = JsonSerializer.Deserialize<Dictionary<string, object>>(elementInputs.GetRawText());
+                                _logger.LogInfo($"  Deserialized JsonElement inputs to Dictionary: {inputs != null}");
+                            }
+
+                            if (inputs != null)
+                            {
+                                // Use the appropriate property name based on node type
+                                inputs[textPropertyName] = AnalysisText ?? "";
+                                // Update the inputs in nodeDict (handle both cases)
+                                nodeDict["inputs"] = inputs;
+                                modifiedWorkflow[kvp.Key] = nodeDict;
+                                updatedNodes++;
+                                _logger.LogInfo($"✓ Updated {classType} node {kvp.Key} ({textPropertyName}) with analysis text (length: {AnalysisText?.Length ?? 0})");
+                            }
+                            else
+                            {
+                                _logger.LogInfo($"✗ Failed to deserialize inputs for node {kvp.Key}");
+                                modifiedWorkflow[kvp.Key] = nodeValue;
+                            }
+                        }
+                        else
+                        {
+                            _logger.LogInfo($"✗ Failed to update node {kvp.Key} - conditions not met");
+                            modifiedWorkflow[kvp.Key] = nodeValue;
+                        }
+                    }
+                    else if (LoraEnabled && classType == "Power Lora Loader (rgthree)" && nodeElement.TryGetProperty("inputs", out var loraInputsProp))
+                    {
+                        // Update LORA node with selected LORA
+                        _logger.LogInfo($"→ Found Power Lora Loader node {kvp.Key}, updating with selected LORA: {SelectedLora}");
+
+                        var nodeDict = JsonSerializer.Deserialize<Dictionary<string, object>>(nodeElement.GetRawText());
+                        if (nodeDict != null && nodeDict.TryGetValue("inputs", out var loraInputsObj))
+                        {
+                            Dictionary<string, object> loraInputs = null;
+
+                            // Handle both Dictionary and JsonElement cases
+                            if (loraInputsObj is Dictionary<string, object> dictLoraInputs)
+                            {
+                                loraInputs = dictLoraInputs;
+                            }
+                            else if (loraInputsObj is JsonElement loraElementInputs && loraElementInputs.ValueKind == JsonValueKind.Object)
+                            {
+                                loraInputs = JsonSerializer.Deserialize<Dictionary<string, object>>(loraElementInputs.GetRawText());
+                            }
+
+                            if (loraInputs != null)
+                            {
+                                // Update lora_1 object
+                                if (loraInputs.TryGetValue("lora_1", out var lora1Obj))
+                                {
+                                    Dictionary<string, object> lora1Dict = null;
+
+                                    if (lora1Obj is Dictionary<string, object> dictLora1)
+                                    {
+                                        lora1Dict = dictLora1;
+                                    }
+                                    else if (lora1Obj is JsonElement lora1Element && lora1Element.ValueKind == JsonValueKind.Object)
+                                    {
+                                        lora1Dict = JsonSerializer.Deserialize<Dictionary<string, object>>(lora1Element.GetRawText());
+                                    }
+
+                                    if (lora1Dict != null)
+                                    {
+                                        // Update lora filename
+                                        lora1Dict["lora"] = $"zimage\\{SelectedLora}.safetensors";
+                                        lora1Dict["on"] = true;
+
+                                        loraInputs["lora_1"] = lora1Dict;
+                                        nodeDict["inputs"] = loraInputs;
+                                        modifiedWorkflow[kvp.Key] = nodeDict;
+                                        updatedNodes++;
+                                        _logger.LogInfo($"✓ Updated LORA node {kvp.Key} with {SelectedLora}.safetensors");
+                                    }
+                                }
+                            }
+                        }
+
+                        if (!modifiedWorkflow.ContainsKey(kvp.Key))
+                        {
+                            modifiedWorkflow[kvp.Key] = nodeValue;
+                        }
+                    }
+                    else
+                    {
+                        // Keep original node
+                        modifiedWorkflow[kvp.Key] = nodeValue;
+                    }
+                }
+
+                _logger.LogInfo($"=== Workflow update complete. Updated {updatedNodes} nodes ===");
+                return modifiedWorkflow;
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError($"Error updating workflow: {ex.Message}\n{ex.StackTrace}");
+                return workflow; // Return original workflow if update fails
+            }
+        }
+
+        private void AddInputReferencesToDict(System.Text.Json.Nodes.JsonObject nodeObj, Dictionary<string, object> inputs)
+        {
+            if (nodeObj["inputs"] is System.Text.Json.Nodes.JsonArray nodeInputs)
+            {
+                foreach (var input in nodeInputs)
+                {
+                    if (input is System.Text.Json.Nodes.JsonObject inputObj)
+                    {
+                        var inputName = inputObj["name"]?.GetValue<string>();
+                        if (inputName != null && inputObj["link"] != null)
+                        {
+                            var linkNode = inputObj["link"];
+                            if (linkNode != null)
+                            {
+                                var linkValue = linkNode.AsValue();
+                                var linkKind = linkValue.GetValueKind();
+                                if (linkKind == System.Text.Json.JsonValueKind.Number)
+                                {
+                                    var linkNum = linkValue.GetValue<uint>();
+                                    // ComfyUI API format: [nodeId, outputIndex]
+                                    inputs[inputName] = new object[] { linkNum.ToString(), 0 };
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
+        private object GetWidgetValue(System.Text.Json.Nodes.JsonNode? node)
+        {
+            if (node == null) return "";
+
+            var value = node.AsValue();
+            var kind = value.GetValueKind();
+
+            if (kind == System.Text.Json.JsonValueKind.String)
+            {
+                return node.ToString();
+            }
+            else if (kind == System.Text.Json.JsonValueKind.Number)
+            {
+                // Try to get as int first, then long, then double
+                var element = JsonSerializer.Deserialize<JsonElement>(node.ToJsonString());
+                if (element.ValueKind == JsonValueKind.Number)
+                {
+                    if (element.TryGetInt32(out var intVal))
+                        return intVal;
+                    if (element.TryGetInt64(out var longVal))
+                        return longVal;
+                    if (element.TryGetDouble(out var doubleVal))
+                        return doubleVal;
+                }
+                return 0;
+            }
+            else if (kind == System.Text.Json.JsonValueKind.True)
+            {
+                return true;
+            }
+            else if (kind == System.Text.Json.JsonValueKind.False)
+            {
+                return false;
+            }
+            else if (kind == System.Text.Json.JsonValueKind.Null)
+            {
+                return null!;
+            }
+
+            return node.ToString();
         }
 
         private (int, int) GetDimensionsForAspectRatio(int aspectRatioIndex)
