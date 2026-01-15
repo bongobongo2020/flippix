@@ -45,6 +45,10 @@ namespace FlipPix.UI.ViewModels
         private double _denoise2 = 0.85;
         private string _negativePrompt = "";
 
+        // Style workflows (loaded from ZStyles folder)
+        private List<StyleInfo> _allStyles = new List<StyleInfo>();
+        private int _selectedStyleIndex = 0;
+
         // LoRA settings
         private ObservableCollection<string> _availableLoras = new();
         private string _selectedLora = string.Empty;
@@ -89,7 +93,10 @@ namespace FlipPix.UI.ViewModels
             // Load available Loras
             LoadAvailableLoras();
 
-            // Initialize available styles
+            // Load workflows and styles from ZStyles folder
+            LoadWorkflowsAndStyles();
+
+            // Initialize available styles (legacy - for backward compatibility)
             InitializeAvailableStyles();
 
             // Initialize orientations
@@ -128,6 +135,62 @@ namespace FlipPix.UI.ViewModels
         {
             UpscaleMethods.Clear();
             UpscaleMethods.Add("Photo");
+        }
+
+        private void LoadWorkflowsAndStyles()
+        {
+            try
+            {
+                // Clear previous styles
+                _allStyles.Clear();
+
+                var workflowDir = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "workflow", "ZStyles");
+
+                if (!Directory.Exists(workflowDir))
+                {
+                    AddLog($"ZStyles workflow directory not found at {workflowDir}");
+                    return;
+                }
+
+                // Load all workflow JSON files from ZStyles folder
+                var workflowFiles = Directory.GetFiles(workflowDir, "*.json");
+                AddLog($"Found {workflowFiles.Length} workflow files in {workflowDir}");
+
+                foreach (var workflowFile in workflowFiles)
+                {
+                    try
+                    {
+                        // Extract style name from filename (e.g., "Z3drender.json" -> "3drender")
+                        var fileName = Path.GetFileNameWithoutExtension(workflowFile);
+                        var styleName = fileName.StartsWith("Z") ? fileName.Substring(1) : fileName;
+
+                        // Add style info for this workflow file
+                        _allStyles.Add(new StyleInfo
+                        {
+                            Name = styleName,
+                            PromptTemplate = "",  // Will be filled from prompt text
+                            WorkflowFile = workflowFile,
+                            NodeId = ""  // These are complete workflows, no single style node
+                        });
+
+                        AddLog($"Loaded style: {styleName} from {Path.GetFileName(workflowFile)}");
+                    }
+                    catch (Exception ex)
+                    {
+                        AddLog($"Error loading workflow file {workflowFile}: {ex.Message}");
+                    }
+                }
+
+                // Sort styles alphabetically
+                _allStyles = _allStyles.OrderBy(s => s.Name).ToList();
+
+                AddLog($"Loaded {_allStyles.Count} total styles from ZStyles workflows");
+                OnPropertyChanged(nameof(StyleNames));
+            }
+            catch (Exception ex)
+            {
+                AddLog($"Error loading workflows: {ex.Message}");
+            }
         }
 
         // Properties
@@ -433,7 +496,25 @@ namespace FlipPix.UI.ViewModels
             }
         }
 
-        // Style Properties
+        // Workflow Style Properties (from ZStyles)
+        public int SelectedStyleIndex
+        {
+            get => _selectedStyleIndex;
+            set
+            {
+                if (_selectedStyleIndex != value)
+                {
+                    _selectedStyleIndex = value;
+                    OnPropertyChanged();
+                }
+            }
+        }
+
+        public string[] StyleNames => _allStyles.Select(s => s.Name).ToArray();
+
+        public StyleInfo? SelectedWorkflowStyle => _allStyles.Count > 0 ? _allStyles[Math.Min(SelectedStyleIndex, _allStyles.Count - 1)] : null;
+
+        // Style Properties (Legacy - kept for compatibility)
         public ObservableCollection<string> AvailableStyles
         {
             get => _availableStyles;
@@ -834,14 +915,22 @@ namespace FlipPix.UI.ViewModels
 
             cancellationToken.ThrowIfCancellationRequested();
 
-            // Load workflow (amazing-z-image-a_GGUFAPI.json - ZImage text-to-image workflow with style support)
-            var workflowPath = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "workflow", "amazing-z-image-a_GGUFAPI.json");
-            if (!File.Exists(workflowPath))
+            // Get selected style and its workflow
+            var selectedStyle = SelectedWorkflowStyle;
+            if (selectedStyle == null)
             {
-                throw new FileNotFoundException($"Workflow file not found: {workflowPath}");
+                throw new InvalidOperationException("No style selected. Please select a style from the ZStyles workflows.");
             }
 
-            var workflowJson = await File.ReadAllTextAsync(workflowPath, cancellationToken);
+            AddLog($"Using style: {selectedStyle.Name} from workflow: {Path.GetFileName(selectedStyle.WorkflowFile)}");
+
+            // Load workflow from selected style
+            if (!File.Exists(selectedStyle.WorkflowFile))
+            {
+                throw new FileNotFoundException($"Workflow file not found: {selectedStyle.WorkflowFile}");
+            }
+
+            var workflowJson = await File.ReadAllTextAsync(selectedStyle.WorkflowFile, cancellationToken);
             var workflow = JsonSerializer.Deserialize<JsonElement>(workflowJson);
 
             cancellationToken.ThrowIfCancellationRequested();
@@ -962,7 +1051,87 @@ namespace FlipPix.UI.ViewModels
                 }
             }
 
-            // 5. Update output filename prefix with timestamp (node 9)
+            // 5. Update LoRA if enabled
+            if (LoraEnabled)
+            {
+                AddLog($"LoRA Enabled: {LoraEnabled}, Selected LoRA: {SelectedLora}");
+
+                // Iterate through all nodes to find Power Lora Loader nodes
+                foreach (var kvp in workflowDict)
+                {
+                    var nodeElement = kvp.Value;
+                    if (nodeElement.TryGetProperty("class_type", out var classTypeElement))
+                    {
+                        var classTypeStr = classTypeElement.GetString();
+                        if (classTypeStr == "Power Lora Loader (rgthree)" && nodeElement.TryGetProperty("inputs", out var loraInputsProp))
+                        {
+                            // Update LORA node with selected LORA
+                            AddLog($"Found Power Lora Loader node {kvp.Key}, updating with selected LoRA: {SelectedLora}");
+
+                            var nodeDict = JsonSerializer.Deserialize<Dictionary<string, object>>(nodeElement.GetRawText());
+                            if (nodeDict != null && nodeDict.ContainsKey("inputs"))
+                            {
+                                var inputs = JsonSerializer.Deserialize<Dictionary<string, object>>(
+                                    JsonSerializer.Serialize(nodeDict["inputs"]));
+                                if (inputs != null)
+                                {
+                                    // Power Lora Loader uses lora_1, lora_2, etc. with structure:
+                                    // { "on": true, "lora": "path/to/lora.safetensors", "strength": 1.0 }
+                                    bool loraUpdated = false;
+                                    for (int i = 1; i <= 10; i++)
+                                    {
+                                        string loraKey = $"lora_{i}";
+                                        if (inputs.ContainsKey(loraKey))
+                                        {
+                                            // Get the lora entry
+                                            var loraEntryJson = JsonSerializer.Serialize(inputs[loraKey]);
+                                            var loraEntry = JsonSerializer.Deserialize<Dictionary<string, object>>(loraEntryJson);
+
+                                            if (loraEntry != null && loraEntry.ContainsKey("on"))
+                                            {
+                                                var onValue = loraEntry["on"];
+                                                bool isOn = onValue is bool b && b;
+
+                                                if (isOn)
+                                                {
+                                                    // Update this lora entry with proper path format
+                                                    loraEntry["lora"] = $"zimage\\{SelectedLora}.safetensors";
+                                                    loraEntry["strength"] = LoraStrengthModel;
+                                                    inputs[loraKey] = loraEntry;
+                                                    loraUpdated = true;
+                                                    AddLog($"Updated {loraKey} with LoRA: {SelectedLora}.safetensors (Strength: {LoraStrengthModel})");
+                                                    break; // Only update the first enabled lora
+                                                }
+                                            }
+                                        }
+                                    }
+
+                                    // If no lora was enabled, enable lora_1
+                                    if (!loraUpdated && inputs.ContainsKey("lora_1"))
+                                    {
+                                        var loraEntryJson = JsonSerializer.Serialize(inputs["lora_1"]);
+                                        var loraEntry = JsonSerializer.Deserialize<Dictionary<string, object>>(loraEntryJson);
+
+                                        if (loraEntry != null)
+                                        {
+                                            loraEntry["on"] = true;
+                                            loraEntry["lora"] = $"zimage\\{SelectedLora}.safetensors";
+                                            loraEntry["strength"] = LoraStrengthModel;
+                                            inputs["lora_1"] = loraEntry;
+                                            AddLog($"Enabled and updated lora_1 with LoRA: {SelectedLora}.safetensors (Strength: {LoraStrengthModel})");
+                                        }
+                                    }
+
+                                    nodeDict["inputs"] = inputs;
+                                    workflowDict[kvp.Key] = JsonSerializer.SerializeToElement(nodeDict);
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+
+            // 6. Update output filename prefix with timestamp (node 9)
             if (workflowDict.ContainsKey("9"))
             {
                 var node9 = JsonSerializer.Deserialize<Dictionary<string, object>>(workflowDict["9"].GetRawText());
@@ -980,7 +1149,7 @@ namespace FlipPix.UI.ViewModels
                 }
             }
 
-            // 6. Update resolution/orientation (nodes 56, 243, 248)
+            // 7. Update resolution/orientation (nodes 56, 243, 248)
             UpdateResolution(workflowDict);
 
             return JsonSerializer.SerializeToElement(workflowDict);
