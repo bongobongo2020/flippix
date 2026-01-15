@@ -1062,131 +1062,9 @@
                                            Background="#10B981"/>
                                 </StackPanel>
 
-                                <!-- Right Column - Generation Settings -->
+                                <!-- Right Column - Style & LoRA Settings (Top) -->
                                 <StackPanel Grid.Column="1" Margin="10,0,0,0">
-                                    <TextBlock Text="⚙️ Generation Settings" Style="{StaticResource HeaderTextStyle}" Foreground="#10B981"/>
-
-                                    <!-- Steps -->
-                                    <StackPanel Margin="0,0,0,15">
-                                        <TextBlock Text="Steps" FontWeight="SemiBold" FontSize="12" Margin="0,0,0,5"/>
-                                        <Grid>
-                                            <Grid.ColumnDefinitions>
-                                                <ColumnDefinition Width="*"/>
-                                                <ColumnDefinition Width="Auto"/>
-                                            </Grid.ColumnDefinitions>
-                                            <Slider Grid.Column="0"
-                                                    Value="{Binding StoryGenerator.Steps, Mode=TwoWay}"
-                                                    Minimum="1" Maximum="20"
-                                                    TickFrequency="1"
-                                                    IsSnapToTickEnabled="True"
-                                                    VerticalAlignment="Center"/>
-                                            <TextBlock Grid.Column="1"
-                                                      Text="{Binding StoryGenerator.Steps}"
-                                                      Margin="8,0,0,0"
-                                                      VerticalAlignment="Center"
-                                                      MinWidth="25"
-                                                      FontWeight="Bold"/>
-                                        </Grid>
-                                    </StackPanel>
-
-                                    <!-- CFG -->
-                                    <StackPanel Margin="0,0,0,15">
-                                        <TextBlock Text="CFG Scale" FontWeight="SemiBold" FontSize="12" Margin="0,0,0,5"/>
-                                        <Grid>
-                                            <Grid.ColumnDefinitions>
-                                                <ColumnDefinition Width="*"/>
-                                                <ColumnDefinition Width="Auto"/>
-                                            </Grid.ColumnDefinitions>
-                                            <Slider Grid.Column="0"
-                                                    Value="{Binding StoryGenerator.Cfg, Mode=TwoWay}"
-                                                    Minimum="1" Maximum="10"
-                                                    TickFrequency="0.5"
-                                                    IsSnapToTickEnabled="True"
-                                                    VerticalAlignment="Center"/>
-                                            <TextBlock Grid.Column="1"
-                                                      Text="{Binding StoryGenerator.Cfg, StringFormat={}{0:F1}}"
-                                                      Margin="8,0,0,0"
-                                                      VerticalAlignment="Center"
-                                                      MinWidth="25"
-                                                      FontWeight="Bold"/>
-                                        </Grid>
-                                    </StackPanel>
-
-                                    <!-- Denoise -->
-                                    <StackPanel Margin="0,0,0,15">
-                                        <TextBlock Text="Denoise" FontWeight="SemiBold" FontSize="12" Margin="0,0,0,5"/>
-                                        <Grid>
-                                            <Grid.ColumnDefinitions>
-                                                <ColumnDefinition Width="*"/>
-                                                <ColumnDefinition Width="Auto"/>
-                                            </Grid.ColumnDefinitions>
-                                            <Slider Grid.Column="0"
-                                                    Value="{Binding StoryGenerator.Denoise, Mode=TwoWay}"
-                                                    Minimum="0" Maximum="1"
-                                                    TickFrequency="0.05"
-                                                    IsSnapToTickEnabled="True"
-                                                    VerticalAlignment="Center"/>
-                                            <TextBlock Grid.Column="1"
-                                                      Text="{Binding StoryGenerator.Denoise, StringFormat={}{0:F2}}"
-                                                      Margin="8,0,0,0"
-                                                      VerticalAlignment="Center"
-                                                      MinWidth="25"
-                                                      FontWeight="Bold"/>
-                                        </Grid>
-                                    </StackPanel>
-
-                                    <!-- Negative Prompt -->
-                                    <StackPanel Margin="0,0,0,15">
-                                        <TextBlock Text="Negative Prompt" FontWeight="SemiBold" FontSize="12" Margin="0,0,0,5"/>
-                                        <TextBox Text="{Binding StoryGenerator.NegativePrompt, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
-                                                TextWrapping="Wrap"
-                                                AcceptsReturn="True"
-                                                Height="60"
-                                                Padding="10"
-                                                VerticalScrollBarVisibility="Auto"
-                                                Background="White"
-                                                BorderBrush="#CED4DA"
-                                                FontSize="11"/>
-                                    </StackPanel>
-
-                                    <!-- Orientation/Resolution -->
-                                    <StackPanel Margin="0,0,0,15">
-                                        <TextBlock Text="📐 Orientation &amp; Resolution" FontWeight="SemiBold" FontSize="12" Margin="0,0,0,5"/>
-                                        <ComboBox ItemsSource="{Binding StoryGenerator.AvailableOrientations}"
-                                                  SelectedItem="{Binding StoryGenerator.SelectedOrientation, Mode=TwoWay}"
-                                                  Padding="10"
-                                                  Background="White"
-                                                  BorderBrush="#CED4DA"
-                                                  FontSize="11"/>
-                                        <TextBlock Text="Select the image orientation and resolution"
-                                                  FontSize="10"
-                                                  Foreground="#999"
-                                                  Margin="0,5,0,0"/>
-                                    </StackPanel>
-
-                                    <!-- Spicy Content Toggle -->
-                                    <StackPanel Margin="0,0,0,15">
-                                        <Grid>
-                                            <Grid.ColumnDefinitions>
-                                                <ColumnDefinition Width="*"/>
-                                                <ColumnDefinition Width="Auto"/>
-                                            </Grid.ColumnDefinitions>
-
-                                            <TextBlock Grid.Column="0"
-                                                      Text="🌶️ Spicy Content Mode"
-                                                      FontWeight="SemiBold"
-                                                      FontSize="12"
-                                                      VerticalAlignment="Center"/>
-
-                                            <CheckBox Grid.Column="1"
-                                                    IsChecked="{Binding StoryGenerator.SpicyContentEnabled, Mode=TwoWay}"
-                                                    VerticalAlignment="Center"/>
-                                        </Grid>
-                                        <TextBlock Text="Enable for more mature/sensual content"
-                                                  FontSize="10"
-                                                  Foreground="#999"
-                                                  Margin="0,3,0,0"/>
-                                    </StackPanel>
+                                    <TextBlock Text="🎨 Style &amp; LoRA" Style="{StaticResource HeaderTextStyle}" Foreground="#10B981"/>
 
                                     <!-- Art Style Selection -->
                                     <StackPanel Margin="0,0,0,15">
@@ -1267,36 +1145,173 @@
                                                   Margin="0,5,0,0"/>
                                     </StackPanel>
 
-                                    <!-- Upscale Settings -->
-                                    <StackPanel Margin="0,0,0,15">
-                                        <TextBlock Text="🔍 Upscale Settings" FontWeight="SemiBold" FontSize="12" Margin="0,0,0,5"/>
+                                    <!-- Advanced Generation Settings (Collapsible) -->
+                                    <Expander Header="⚙️ Advanced Generation Settings"
+                                             Margin="0,0,0,0"
+                                             IsExpanded="False"
+                                             ExpandDirection="Down">
+                                        <Border Background="#F8F9FA"
+                                                BorderBrush="#DEE2E6"
+                                                BorderThickness="1"
+                                                CornerRadius="5"
+                                                Padding="15"
+                                                Margin="0,8,0,0">
+                                            <StackPanel>
+                                                <!-- Steps -->
+                                                <StackPanel Margin="0,0,0,15">
+                                                    <TextBlock Text="Steps" FontWeight="SemiBold" FontSize="12" Margin="0,0,0,5"/>
+                                                    <Grid>
+                                                        <Grid.ColumnDefinitions>
+                                                            <ColumnDefinition Width="*"/>
+                                                            <ColumnDefinition Width="Auto"/>
+                                                        </Grid.ColumnDefinitions>
+                                                        <Slider Grid.Column="0"
+                                                                Value="{Binding StoryGenerator.Steps, Mode=TwoWay}"
+                                                                Minimum="1" Maximum="20"
+                                                                TickFrequency="1"
+                                                                IsSnapToTickEnabled="True"
+                                                                VerticalAlignment="Center"/>
+                                                        <TextBlock Grid.Column="1"
+                                                                  Text="{Binding StoryGenerator.Steps}"
+                                                                  Margin="8,0,0,0"
+                                                                  VerticalAlignment="Center"
+                                                                  MinWidth="25"
+                                                                  FontWeight="Bold"/>
+                                                    </Grid>
+                                                </StackPanel>
 
-                                        <!-- Upscale Enabled -->
-                                        <Grid Margin="0,0,0,8">
-                                            <Grid.ColumnDefinitions>
-                                                <ColumnDefinition Width="*"/>
-                                                <ColumnDefinition Width="Auto"/>
-                                            </Grid.ColumnDefinitions>
+                                                <!-- CFG -->
+                                                <StackPanel Margin="0,0,0,15">
+                                                    <TextBlock Text="CFG Scale" FontWeight="SemiBold" FontSize="12" Margin="0,0,0,5"/>
+                                                    <Grid>
+                                                        <Grid.ColumnDefinitions>
+                                                            <ColumnDefinition Width="*"/>
+                                                            <ColumnDefinition Width="Auto"/>
+                                                        </Grid.ColumnDefinitions>
+                                                        <Slider Grid.Column="0"
+                                                                Value="{Binding StoryGenerator.Cfg, Mode=TwoWay}"
+                                                                Minimum="1" Maximum="10"
+                                                                TickFrequency="0.5"
+                                                                IsSnapToTickEnabled="True"
+                                                                VerticalAlignment="Center"/>
+                                                        <TextBlock Grid.Column="1"
+                                                                  Text="{Binding StoryGenerator.Cfg, StringFormat={}{0:F1}}"
+                                                                  Margin="8,0,0,0"
+                                                                  VerticalAlignment="Center"
+                                                                  MinWidth="25"
+                                                                  FontWeight="Bold"/>
+                                                    </Grid>
+                                                </StackPanel>
 
-                                            <TextBlock Grid.Column="0"
-                                                      Text="Enable Upscaling"
-                                                      FontSize="11"
-                                                      VerticalAlignment="Center"/>
+                                                <!-- Denoise -->
+                                                <StackPanel Margin="0,0,0,15">
+                                                    <TextBlock Text="Denoise" FontWeight="SemiBold" FontSize="12" Margin="0,0,0,5"/>
+                                                    <Grid>
+                                                        <Grid.ColumnDefinitions>
+                                                            <ColumnDefinition Width="*"/>
+                                                            <ColumnDefinition Width="Auto"/>
+                                                        </Grid.ColumnDefinitions>
+                                                        <Slider Grid.Column="0"
+                                                                Value="{Binding StoryGenerator.Denoise, Mode=TwoWay}"
+                                                                Minimum="0" Maximum="1"
+                                                                TickFrequency="0.05"
+                                                                IsSnapToTickEnabled="True"
+                                                                VerticalAlignment="Center"/>
+                                                        <TextBlock Grid.Column="1"
+                                                                  Text="{Binding StoryGenerator.Denoise, StringFormat={}{0:F2}}"
+                                                                  Margin="8,0,0,0"
+                                                                  VerticalAlignment="Center"
+                                                                  MinWidth="25"
+                                                                  FontWeight="Bold"/>
+                                                    </Grid>
+                                                </StackPanel>
 
-                                            <CheckBox Grid.Column="1"
-                                                    IsChecked="{Binding StoryGenerator.UpscaleEnabled, Mode=TwoWay}"
-                                                    VerticalAlignment="Center"/>
-                                        </Grid>
+                                                <!-- Negative Prompt -->
+                                                <StackPanel Margin="0,0,0,15">
+                                                    <TextBlock Text="Negative Prompt" FontWeight="SemiBold" FontSize="12" Margin="0,0,0,5"/>
+                                                    <TextBox Text="{Binding StoryGenerator.NegativePrompt, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                                                            TextWrapping="Wrap"
+                                                            AcceptsReturn="True"
+                                                            Height="60"
+                                                            Padding="10"
+                                                            VerticalScrollBarVisibility="Auto"
+                                                            Background="White"
+                                                            BorderBrush="#CED4DA"
+                                                            FontSize="11"/>
+                                                </StackPanel>
 
-                                        <!-- Upscale Method -->
-                                        <TextBlock Text="Upscale Method" FontSize="11" Margin="0,0,0,3"/>
-                                        <ComboBox ItemsSource="{Binding StoryGenerator.UpscaleMethods}"
-                                                  SelectedItem="{Binding StoryGenerator.UpscaleMethod, Mode=TwoWay}"
-                                                  Padding="8"
-                                                  Background="White"
-                                                  BorderBrush="#CED4DA"
-                                                  FontSize="10"/>
-                                    </StackPanel>
+                                                <!-- Orientation/Resolution -->
+                                                <StackPanel Margin="0,0,0,15">
+                                                    <TextBlock Text="📐 Orientation &amp; Resolution" FontWeight="SemiBold" FontSize="12" Margin="0,0,0,5"/>
+                                                    <ComboBox ItemsSource="{Binding StoryGenerator.AvailableOrientations}"
+                                                              SelectedItem="{Binding StoryGenerator.SelectedOrientation, Mode=TwoWay}"
+                                                              Padding="10"
+                                                              Background="White"
+                                                              BorderBrush="#CED4DA"
+                                                              FontSize="11"/>
+                                                    <TextBlock Text="Select the image orientation and resolution"
+                                                              FontSize="10"
+                                                              Foreground="#999"
+                                                              Margin="0,5,0,0"/>
+                                                </StackPanel>
+
+                                                <!-- Spicy Content Toggle -->
+                                                <StackPanel Margin="0,0,0,15">
+                                                    <Grid>
+                                                        <Grid.ColumnDefinitions>
+                                                            <ColumnDefinition Width="*"/>
+                                                            <ColumnDefinition Width="Auto"/>
+                                                        </Grid.ColumnDefinitions>
+
+                                                        <TextBlock Grid.Column="0"
+                                                                  Text="🌶️ Spicy Content Mode"
+                                                                  FontWeight="SemiBold"
+                                                                  FontSize="12"
+                                                                  VerticalAlignment="Center"/>
+
+                                                        <CheckBox Grid.Column="1"
+                                                                IsChecked="{Binding StoryGenerator.SpicyContentEnabled, Mode=TwoWay}"
+                                                                VerticalAlignment="Center"/>
+                                                    </Grid>
+                                                    <TextBlock Text="Enable for more mature/sensual content"
+                                                              FontSize="10"
+                                                              Foreground="#999"
+                                                              Margin="0,3,0,0"/>
+                                                </StackPanel>
+
+                                                <!-- Upscale Settings -->
+                                                <StackPanel Margin="0,0,0,0">
+                                                    <TextBlock Text="🔍 Upscale Settings" FontWeight="SemiBold" FontSize="12" Margin="0,0,0,5"/>
+
+                                                    <!-- Upscale Enabled -->
+                                                    <Grid Margin="0,0,0,8">
+                                                        <Grid.ColumnDefinitions>
+                                                            <ColumnDefinition Width="*"/>
+                                                            <ColumnDefinition Width="Auto"/>
+                                                        </Grid.ColumnDefinitions>
+
+                                                        <TextBlock Grid.Column="0"
+                                                                  Text="Enable Upscaling"
+                                                                  FontSize="11"
+                                                                  VerticalAlignment="Center"/>
+
+                                                        <CheckBox Grid.Column="1"
+                                                                IsChecked="{Binding StoryGenerator.UpscaleEnabled, Mode=TwoWay}"
+                                                                VerticalAlignment="Center"/>
+                                                    </Grid>
+
+                                                    <!-- Upscale Method -->
+                                                    <TextBlock Text="Upscale Method" FontSize="11" Margin="0,0,0,3"/>
+                                                    <ComboBox ItemsSource="{Binding StoryGenerator.UpscaleMethods}"
+                                                              SelectedItem="{Binding StoryGenerator.UpscaleMethod, Mode=TwoWay}"
+                                                              Padding="8"
+                                                              Background="White"
+                                                              BorderBrush="#CED4DA"
+                                                              FontSize="10"/>
+                                                </StackPanel>
+                                            </StackPanel>
+                                        </Border>
+                                    </Expander>
                                 </StackPanel>
                             </Grid>
                         </Border>
