@@ -254,10 +254,15 @@ namespace FlipPix.UI
             // Views
             services.AddTransient<FlipPixWindow>();
             services.AddTransient<VideoGeneratorWindow>();
-            services.AddTransient<ImageGeneratorWindow>();
+            services.AddTransient<ImageGeneratorWindow>(provider =>
+            {
+                var viewModel = provider.GetRequiredService<ImageGeneratorViewModel>();
+                var settingsService = provider.GetRequiredService<SettingsService>();
+                return new ImageGeneratorWindow(viewModel, settingsService);
+            });
             services.AddTransient<ImageAnalyzerWindow>();
             services.AddTransient<StoryVideoWindow>();
-              services.AddTransient<OllamaWindow>();
+            services.AddTransient<OllamaWindow>();
             services.AddTransient<ComfyUIFolderSetupWindow>();
         }
 
