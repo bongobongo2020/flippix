@@ -209,6 +209,69 @@ public class ComfyUIHttpClient : IDisposable
         }
     }
 
+    public async Task<string> UploadAudioAsync(string filePath, string type = "input", CancellationToken cancellationToken = default)
+    {
+        try
+        {
+            if (!File.Exists(filePath))
+            {
+                throw new FileNotFoundException($"File not found: {filePath}");
+            }
+
+            var fileInfo = new FileInfo(filePath);
+            _logger.LogInfo("Uploading audio: {FilePath} ({FileSize} bytes)", filePath, fileInfo.Length);
+
+            using var content = new MultipartFormDataContent();
+            using var fileStream = File.OpenRead(filePath);
+            using var fileContent = new StreamContent(fileStream);
+
+            // Set appropriate content type for audio files
+            var extension = Path.GetExtension(filePath).ToLower();
+            var contentType = extension switch
+            {
+                ".mp3" => "audio/mpeg",
+                ".wav" => "audio/wav",
+                ".ogg" => "audio/ogg",
+                ".flac" => "audio/flac",
+                ".m4a" => "audio/mp4",
+                ".aac" => "audio/aac",
+                _ => "audio/mpeg" // Default fallback
+            };
+
+            fileContent.Headers.ContentType = new System.Net.Http.Headers.MediaTypeHeaderValue(contentType);
+
+            // ComfyUI uses /upload/image for all file types (image, video, audio)
+            // The 'image' field name is used for all uploads in ComfyUI
+            content.Add(fileContent, "image", Path.GetFileName(filePath));
+            content.Add(new StringContent(type), "type");
+
+            var stopwatch = System.Diagnostics.Stopwatch.StartNew();
+            var response = await _httpClient.PostAsync("/upload/image", content, cancellationToken);
+            stopwatch.Stop();
+
+            if (response.IsSuccessStatusCode)
+            {
+                var responseContent = await response.Content.ReadAsStringAsync(cancellationToken);
+                var result = JsonSerializer.Deserialize<UploadResponse>(responseContent);
+
+                _logger.LogInfo("Audio uploaded successfully in {ElapsedMs}ms: {FileName}",
+                    stopwatch.ElapsedMilliseconds, result?.Name ?? "unknown");
+
+                return result?.Name ?? throw new InvalidOperationException("Upload response missing filename");
+            }
+            else
+            {
+                var errorContent = await response.Content.ReadAsStringAsync(cancellationToken);
+                throw new HttpRequestException($"Audio upload failed with status {response.StatusCode}: {errorContent}");
+            }
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Failed to upload audio: {FilePath}", filePath);
+            throw;
+        }
+    }
+
     public async Task<string> SubmitPromptAsync(object workflow, string clientId, CancellationToken cancellationToken = default)
     {
         try

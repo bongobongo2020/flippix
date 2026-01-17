@@ -195,6 +195,30 @@ public class ComfyUIService : IDisposable
         }
     }
 
+    public async Task<string> UploadAudioAsync(
+        string audioPath,
+        CancellationToken cancellationToken = default)
+    {
+        try
+        {
+            _logger.LogInfo("Uploading audio to ComfyUI: {AudioPath}", audioPath);
+
+            var uploadedFileName = await RetryAsync(
+                () => _httpClient.UploadAudioAsync(audioPath, "input", cancellationToken),
+                _settings.MaxRetries,
+                TimeSpan.FromMilliseconds(_settings.RetryDelayMilliseconds),
+                cancellationToken);
+
+            _logger.LogInfo("Audio uploaded successfully: {FileName}", uploadedFileName);
+            return uploadedFileName;
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Failed to upload audio");
+            throw;
+        }
+    }
+
     public async Task<string> QueuePromptAsync(
         object workflow,
         CancellationToken cancellationToken = default)

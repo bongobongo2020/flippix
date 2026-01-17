@@ -1136,13 +1136,31 @@ namespace FlipPix.UI.ViewModels
 
         private void NavigateToVideoGenerator()
         {
-            if (_serviceProvider == null) return;
+            if (_serviceProvider == null)
+            {
+                AddLog("ERROR: Service provider is null");
+                return;
+            }
 
             try
             {
+                AddLog("Attempting to get VideoGeneratorWindow from service provider...");
                 var videoWindow = _serviceProvider.GetService(typeof(VideoGeneratorWindow)) as VideoGeneratorWindow;
+
                 if (videoWindow != null)
                 {
+                    AddLog("VideoGeneratorWindow created successfully");
+
+                    // If window is already open, bring it to front
+                    if (videoWindow.IsVisible)
+                    {
+                        videoWindow.WindowState = WindowState.Normal;
+                        videoWindow.Activate();
+                        videoWindow.Focus();
+                        AddLog("Video Generator window already open - bringing to front");
+                        return;
+                    }
+
                     videoWindow.WindowState = WindowState.Normal;
 
                     // Ensure the window opens on screen with title bar visible
@@ -1163,7 +1181,15 @@ namespace FlipPix.UI.ViewModels
                     if (videoWindow.Left + windowWidth > screenWidth - 50)
                         videoWindow.Left = screenWidth - windowWidth - 50;
 
+                    AddLog("Calling Show() on VideoGeneratorWindow...");
                     videoWindow.Show();
+                    AddLog("Calling Activate() on VideoGeneratorWindow...");
+                    videoWindow.Activate();
+                    AddLog("Video Generator window opened successfully");
+                }
+                else
+                {
+                    AddLog("ERROR: Could not create Video Generator Window - GetService returned null");
                 }
             }
             catch (Exception ex)

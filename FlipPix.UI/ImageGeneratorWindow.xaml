@@ -2140,6 +2140,572 @@
                 </ScrollViewer>
             </TabItem>
 
+            <!-- Tab 3.6: Story Image Generator F (Flux2 Klein) -->
+            <TabItem Header="📖 Story Image F" FontWeight="Bold" FontSize="13">
+                <ScrollViewer VerticalScrollBarVisibility="Auto">
+                    <StackPanel Margin="20,20,20,20">
+
+                        <!-- Header with Settings Toggle -->
+                        <Grid Margin="0,0,0,20">
+                            <TextBlock Text="✨ Story Image Generator F"
+                                       FontSize="24"
+                                       FontWeight="SemiBold"
+                                       Foreground="#8B5CF6"
+                                       VerticalAlignment="Center"/>
+
+                            <Button HorizontalAlignment="Right"
+                                    Command="{Binding StoryGeneratorF.ToggleSettingsVisibilityCommand}"
+                                    Width="40"
+                                    Height="40"
+                                    Padding="0"
+                                    Background="#F3F4F6"
+                                    BorderThickness="0">
+                                <Button.Content>
+                                    <TextBlock Text="⚙️" FontSize="20" />
+                                </Button.Content>
+                                <Button.Style>
+                                    <Style TargetType="Button">
+                                        <Setter Property="Template">
+                                            <Setter.Value>
+                                                <ControlTemplate TargetType="Button">
+                                                    <Border Background="{TemplateBinding Background}"
+                                                           CornerRadius="8"
+                                                           Padding="{TemplateBinding Padding}">
+                                                        <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                                                    </Border>
+                                                </ControlTemplate>
+                                            </Setter.Value>
+                                        </Setter>
+                                        <Style.Triggers>
+                                            <Trigger Property="IsMouseOver" Value="True">
+                                                <Setter Property="Background" Value="#E5E7EB"/>
+                                            </Trigger>
+                                        </Style.Triggers>
+                                    </Style>
+                                </Button.Style>
+                            </Button>
+                        </Grid>
+
+                        <!-- Settings Panel (Collapsible) -->
+                        <Border Background="#F9FAFB"
+                               BorderBrush="#E5E7EB"
+                               BorderThickness="1"
+                               CornerRadius="12"
+                               Padding="20"
+                               Margin="0,0,0,20">
+                            <Border.Style>
+                                <Style TargetType="Border">
+                                    <Setter Property="Visibility" Value="Collapsed"/>
+                                    <Style.Triggers>
+                                        <DataTrigger Binding="{Binding StoryGeneratorF.SettingsVisible}" Value="True">
+                                            <Setter Property="Visibility" Value="Visible"/>
+                                        </DataTrigger>
+                                    </Style.Triggers>
+                                </Style>
+                            </Border.Style>
+                            <Grid>
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*"/>
+                                    <ColumnDefinition Width="*"/>
+                                    <ColumnDefinition Width="*"/>
+                                </Grid.ColumnDefinitions>
+                                <Grid.RowDefinitions>
+                                    <RowDefinition Height="Auto"/>
+                                    <RowDefinition Height="Auto"/>
+                                </Grid.RowDefinitions>
+
+                                <!-- Steps -->
+                                <StackPanel Grid.Column="0" Grid.Row="0" Margin="0,0,15,0">
+                                    <TextBlock Text="Steps"
+                                               FontWeight="SemiBold"
+                                               FontSize="12"
+                                               Foreground="#374151"
+                                               Margin="0,0,0,8"/>
+                                    <Grid>
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="*"/>
+                                            <ColumnDefinition Width="Auto"/>
+                                        </Grid.ColumnDefinitions>
+                                        <Slider Grid.Column="0"
+                                               Value="{Binding StoryGeneratorF.Steps, Mode=TwoWay}"
+                                               Minimum="1" Maximum="20"
+                                               TickFrequency="1"
+                                               IsSnapToTickEnabled="True"/>
+                                        <TextBlock Grid.Column="1"
+                                                  Text="{Binding StoryGeneratorF.Steps}"
+                                                  Margin="8,0,0,0"
+                                                  FontWeight="Bold"
+                                                  FontSize="13"
+                                                  Foreground="#8B5CF6"/>
+                                    </Grid>
+                                </StackPanel>
+
+                                <!-- CFG -->
+                                <StackPanel Grid.Column="1" Grid.Row="0" Margin="0,0,15,0">
+                                    <TextBlock Text="CFG"
+                                               FontWeight="SemiBold"
+                                               FontSize="12"
+                                               Foreground="#374151"
+                                               Margin="0,0,0,8"/>
+                                    <Grid>
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="*"/>
+                                            <ColumnDefinition Width="Auto"/>
+                                        </Grid.ColumnDefinitions>
+                                        <Slider Grid.Column="0"
+                                               Value="{Binding StoryGeneratorF.Cfg, Mode=TwoWay}"
+                                               Minimum="1" Maximum="10"
+                                               TickFrequency="0.5"
+                                               IsSnapToTickEnabled="True"/>
+                                        <TextBlock Grid.Column="1"
+                                                  Text="{Binding StoryGeneratorF.Cfg, StringFormat={}{0:F1}}"
+                                                  Margin="8,0,0,0"
+                                                  FontWeight="Bold"
+                                                  FontSize="13"
+                                                  Foreground="#8B5CF6"/>
+                                    </Grid>
+                                </StackPanel>
+
+                                <!-- Denoise -->
+                                <StackPanel Grid.Column="2" Grid.Row="0">
+                                    <TextBlock Text="Denoise"
+                                               FontWeight="SemiBold"
+                                               FontSize="12"
+                                               Foreground="#374151"
+                                               Margin="0,0,0,8"/>
+                                    <Grid>
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="*"/>
+                                            <ColumnDefinition Width="Auto"/>
+                                        </Grid.ColumnDefinitions>
+                                        <Slider Grid.Column="0"
+                                               Value="{Binding StoryGeneratorF.Denoise, Mode=TwoWay}"
+                                               Minimum="0" Maximum="1"
+                                               TickFrequency="0.05"
+                                               IsSnapToTickEnabled="True"/>
+                                        <TextBlock Grid.Column="1"
+                                                  Text="{Binding StoryGeneratorF.Denoise, StringFormat={}{0:F2}}"
+                                                  Margin="8,0,0,0"
+                                                  FontWeight="Bold"
+                                                  FontSize="13"
+                                                  Foreground="#8B5CF6"/>
+                                    </Grid>
+                                </StackPanel>
+
+                                <!-- Negative Prompt -->
+                                <StackPanel Grid.Column="0" Grid.ColumnSpan="3" Grid.Row="1" Margin="0,15,0,0">
+                                    <TextBlock Text="Negative Prompt"
+                                               FontWeight="SemiBold"
+                                               FontSize="12"
+                                               Foreground="#374151"
+                                               Margin="0,0,0,8"/>
+                                    <TextBox Text="{Binding StoryGeneratorF.NegativePrompt, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                                           TextWrapping="Wrap"
+                                           AcceptsReturn="True"
+                                           Height="60"
+                                           Padding="12"
+                                           VerticalScrollBarVisibility="Auto"
+                                           Background="White"
+                                           BorderBrush="#D1D5DB"
+                                           FontSize="12">
+                                        <TextBox.Resources>
+                                            <Style TargetType="Border">
+                                                <Setter Property="CornerRadius" Value="6"/>
+                                            </Style>
+                                        </TextBox.Resources>
+                                    </TextBox>
+                                </StackPanel>
+                            </Grid>
+                        </Border>
+
+                        <!-- Main Content Area -->
+                        <Border Background="White"
+                               BorderBrush="#E5E7EB"
+                               BorderThickness="1"
+                               CornerRadius="16"
+                               Padding="24">
+                            <Grid>
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*"/>
+                                    <ColumnDefinition Width="20"/>
+                                    <ColumnDefinition Width="*"/>
+                                </Grid.ColumnDefinitions>
+
+                                <!-- Left Column - File Selection -->
+                                <StackPanel Grid.Column="0">
+                                    <TextBlock Text="📝 Story Prompts"
+                                               FontSize="16"
+                                               FontWeight="SemiBold"
+                                               Foreground="#374151"
+                                               Margin="0,0,0,15"/>
+
+                                    <!-- Prompt JSON File -->
+                                    <TextBlock Text="Prompts JSON File"
+                                               FontSize="12"
+                                               Foreground="#6B7280"
+                                               Margin="0,0,0,6"/>
+                                    <Grid Margin="0,0,0,15">
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="*"/>
+                                            <ColumnDefinition Width="Auto"/>
+                                        </Grid.ColumnDefinitions>
+                                        <TextBox Grid.Column="0"
+                                               Text="{Binding StoryGeneratorF.PromptJsonFilePath, Mode=TwoWay}"
+                                               IsReadOnly="True"
+                                               Padding="10"
+                                               Background="#F9FAFB"
+                                               BorderBrush="#E5E7EB"
+                                               VerticalContentAlignment="Center"
+                                               FontSize="11"
+                                               Height="38"/>
+                                        <Button Grid.Column="1"
+                                               Content="Browse"
+                                               Command="{Binding StoryGeneratorF.SelectPromptJsonCommand}"
+                                               Margin="8,0,0,0"
+                                               Width="80"
+                                               Height="38"
+                                               Background="#F3F4F6"
+                                               Foreground="#374151"
+                                               BorderThickness="0"
+                                               FontSize="12"
+                                               Style="{StaticResource SecondaryButtonStyle}"/>
+                                    </Grid>
+
+                                    <!-- Input Image Selection -->
+                                    <TextBlock Text="Input Image"
+                                               FontSize="12"
+                                               Foreground="#6B7280"
+                                               Margin="0,0,0,6"/>
+                                    <Grid Margin="0,0,0,15">
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="*"/>
+                                            <ColumnDefinition Width="Auto"/>
+                                        </Grid.ColumnDefinitions>
+                                        <TextBox Grid.Column="0"
+                                               Text="{Binding StoryGeneratorF.InputImagePath, Mode=TwoWay}"
+                                               IsReadOnly="True"
+                                               Padding="10"
+                                               Background="#F9FAFB"
+                                               BorderBrush="#E5E7EB"
+                                               VerticalContentAlignment="Center"
+                                               FontSize="11"
+                                               Height="38"/>
+                                        <Button Grid.Column="1"
+                                               Content="Browse"
+                                               Command="{Binding StoryGeneratorF.SelectInputImageCommand}"
+                                               Margin="8,0,0,0"
+                                               Width="80"
+                                               Height="38"
+                                               Background="#F3F4F6"
+                                               Foreground="#374151"
+                                               BorderThickness="0"
+                                               FontSize="12"
+                                               Style="{StaticResource SecondaryButtonStyle}"/>
+                                    </Grid>
+
+                                    <!-- Load Prompts Button -->
+                                    <Button Content="📥 Load Prompts from JSON"
+                                           Command="{Binding StoryGeneratorF.LoadPromptsCommand}"
+                                           HorizontalAlignment="Stretch"
+                                           Height="48"
+                                           Background="#8B5CF6"
+                                           Foreground="White"
+                                           BorderThickness="0"
+                                           FontSize="14"
+                                           FontWeight="SemiBold"
+                                           Style="{StaticResource PrimaryButtonStyle}"/>
+                                </StackPanel>
+
+                                <!-- Right Column - Image Preview -->
+                                <StackPanel Grid.Column="2">
+                                    <TextBlock Text="🖼️ Image Preview"
+                                               FontSize="16"
+                                               FontWeight="SemiBold"
+                                               Foreground="#374151"
+                                               Margin="0,0,0,15"/>
+
+                                    <Border BorderBrush="#E5E7EB"
+                                           BorderThickness="2"
+                                           Background="#F9FAFB"
+                                           CornerRadius="12"
+                                           Height="220">
+                                        <Grid>
+                                            <TextBlock Text="No image selected"
+                                                      HorizontalAlignment="Center"
+                                                      VerticalAlignment="Center"
+                                                      Foreground="#9CA3AF"
+                                                      FontSize="13">
+                                                <TextBlock.Style>
+                                                    <Style TargetType="TextBlock">
+                                                        <Setter Property="Visibility" Value="Collapsed"/>
+                                                        <Style.Triggers>
+                                                            <DataTrigger Binding="{Binding StoryGeneratorF.InputImagePreview}" Value="{x:Null}">
+                                                                <Setter Property="Visibility" Value="Visible"/>
+                                                            </DataTrigger>
+                                                        </Style.Triggers>
+                                                    </Style>
+                                                </TextBlock.Style>
+                                            </TextBlock>
+                                            <Image Source="{Binding StoryGeneratorF.InputImagePreview, Mode=OneWay}"
+                                                  Stretch="Uniform"
+                                                  Margin="4"/>
+                                        </Grid>
+                                    </Border>
+                                </StackPanel>
+                            </Grid>
+                        </Border>
+
+                        <!-- Queue Management Section -->
+                        <Border Background="White"
+                               BorderBrush="#E5E7EB"
+                               BorderThickness="1"
+                               CornerRadius="16"
+                               Padding="24"
+                               Margin="0,20,0,0">
+                            <StackPanel>
+                                <TextBlock Text="📋 Queue Management"
+                                           FontSize="16"
+                                           FontWeight="SemiBold"
+                                           Foreground="#374151"
+                                           Margin="0,0,0,15"/>
+
+                                <!-- Queue Controls -->
+                                <Grid Margin="0,0,0,15">
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="*"/>
+                                        <ColumnDefinition Width="*"/>
+                                        <ColumnDefinition Width="*"/>
+                                    </Grid.ColumnDefinitions>
+
+                                    <Button Grid.Column="0"
+                                           Content="🚀 Generate Story"
+                                           Command="{Binding StoryGeneratorF.ProcessQueueCommand}"
+                                           Height="44"
+                                           Background="#8B5CF6"
+                                           Foreground="White"
+                                           BorderThickness="0"
+                                           FontSize="13"
+                                           FontWeight="SemiBold"
+                                           Margin="0,0,8,0"
+                                           Style="{StaticResource PrimaryButtonStyle}"/>
+
+                                    <Button Grid.Column="1"
+                                           Content="📂 Output Folder"
+                                           Command="{Binding StoryGeneratorF.OpenOutputFolderCommand}"
+                                           Height="44"
+                                           Background="#F3F4F6"
+                                           Foreground="#374151"
+                                           BorderThickness="0"
+                                           FontSize="13"
+                                           Margin="0,0,8,0"
+                                           Style="{StaticResource SecondaryButtonStyle}"/>
+
+                                    <Button Grid.Column="2"
+                                           Content="🗑️ Clear Queue"
+                                           Command="{Binding StoryGeneratorF.ClearQueueCommand}"
+                                           Height="44"
+                                           Background="#FEE2E2"
+                                           Foreground="#DC2626"
+                                           BorderThickness="0"
+                                           FontSize="13">
+                                        <Button.Style>
+                                            <Style TargetType="Button" BasedOn="{StaticResource SecondaryButtonStyle}">
+                                                <Setter Property="Background" Value="#FEE2E2"/>
+                                                <Setter Property="Foreground" Value="#DC2626"/>
+                                                <Style.Triggers>
+                                                    <Trigger Property="IsMouseOver" Value="True">
+                                                        <Setter Property="Background" Value="#FECACA"/>
+                                                    </Trigger>
+                                                    <Trigger Property="IsEnabled" Value="False">
+                                                        <Setter Property="Background" Value="#FEE2E2"/>
+                                                        <Setter Property="Foreground" Value="#FCA5A5"/>
+                                                    </Trigger>
+                                                </Style.Triggers>
+                                            </Style>
+                                        </Button.Style>
+                                    </Button>
+                                </Grid>
+
+                                <!-- Queue Status -->
+                                <Border Background="#F9FAFB"
+                                       BorderBrush="#E5E7EB"
+                                       BorderThickness="1"
+                                       CornerRadius="8"
+                                       Padding="12"
+                                       Margin="0,0,0,15">
+                                    <Grid>
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="*"/>
+                                            <ColumnDefinition Width="Auto"/>
+                                            <ColumnDefinition Width="Auto"/>
+                                            <ColumnDefinition Width="Auto"/>
+                                        </Grid.ColumnDefinitions>
+
+                                        <TextBlock Grid.Column="0"
+                                                  Text="Queue Status"
+                                                  FontWeight="SemiBold"
+                                                  FontSize="12"
+                                                  Foreground="#374151"
+                                                  VerticalAlignment="Center"/>
+
+                                        <TextBlock Grid.Column="1"
+                                                  Text="{Binding StoryGeneratorF.QueuedCount, StringFormat={}Queued: {0}}"
+                                                  Margin="10,0"
+                                                  FontSize="11"
+                                                  Foreground="#6B7280"
+                                                  VerticalAlignment="Center"/>
+
+                                        <TextBlock Grid.Column="2"
+                                                  Text="{Binding StoryGeneratorF.CompletedCount, StringFormat={}Completed: {0}}"
+                                                  Margin="10,0"
+                                                  FontSize="11"
+                                                  Foreground="#059669"
+                                                  VerticalAlignment="Center"/>
+
+                                        <TextBlock Grid.Column="3"
+                                                  Text="{Binding StoryGeneratorF.FailedCount, StringFormat={}Failed: {0}}"
+                                                  Margin="10,0"
+                                                  FontSize="11"
+                                                  Foreground="#DC2626"
+                                                  VerticalAlignment="Center"/>
+                                    </Grid>
+                                </Border>
+
+                                <!-- Queue Progress -->
+                                <Border Background="#FEF3C7"
+                                       BorderBrush="#F59E0B"
+                                       BorderThickness="1"
+                                       CornerRadius="8"
+                                       Padding="12"
+                                       Margin="0,0,0,15"
+                                       Visibility="{Binding StoryGeneratorF.IsProcessingQueue, Converter={StaticResource BooleanToVisibilityConverter}}">
+                                    <StackPanel>
+                                        <TextBlock Text="{Binding StoryGeneratorF.QueueProgressText, StringFormat={}Processing: {0}}"
+                                                  FontWeight="SemiBold"
+                                                  FontSize="11"
+                                                  Foreground="#92400E"
+                                                  Margin="0,0,0,6"/>
+                                        <ProgressBar Value="{Binding StoryGeneratorF.QueueProgress, Mode=OneWay}"
+                                                  Maximum="{Binding StoryGeneratorF.QueueTotal, Mode=OneWay}"
+                                                  Height="6"
+                                                  Foreground="#8B5CF6"
+                                                  Background="#F3F4F6"
+                                                  BorderThickness="0"/>
+                                        <TextBlock Text="{Binding StoryGeneratorF.CurrentQueueItem.Prompt, StringFormat={}Current: {0}}"
+                                                  FontSize="10"
+                                                  Foreground="#92400E"
+                                                  TextTrimming="CharacterEllipsis"
+                                                  Margin="0,6,0,0"/>
+                                    </StackPanel>
+                                </Border>
+
+                                <!-- Queue Items List -->
+                                <Border Background="#F9FAFB"
+                                       BorderBrush="#E5E7EB"
+                                       BorderThickness="1"
+                                       CornerRadius="8"
+                                       MaxHeight="250">
+                                    <ScrollViewer VerticalScrollBarVisibility="Auto">
+                                        <ItemsControl ItemsSource="{Binding StoryGeneratorF.QueueItems}">
+                                            <ItemsControl.ItemTemplate>
+                                                <DataTemplate>
+                                                    <Border BorderBrush="#E5E7EB"
+                                                           BorderThickness="0,0,0,1"
+                                                           Padding="12">
+                                                        <Grid>
+                                                            <Grid.ColumnDefinitions>
+                                                                <ColumnDefinition Width="Auto"/>
+                                                                <ColumnDefinition Width="*"/>
+                                                                <ColumnDefinition Width="Auto"/>
+                                                            </Grid.ColumnDefinitions>
+
+                                                            <TextBlock Grid.Column="0"
+                                                                      Text="{Binding Index, StringFormat='#{0}'}"
+                                                                      FontWeight="Bold"
+                                                                      FontSize="13"
+                                                                      VerticalAlignment="Center"
+                                                                      Margin="0,0,12,0"
+                                                                      Foreground="#8B5CF6"/>
+
+                                                            <StackPanel Grid.Column="1">
+                                                                <TextBlock Text="{Binding Prompt}"
+                                                                          FontWeight="SemiBold"
+                                                                          FontSize="12"
+                                                                          TextTrimming="CharacterEllipsis"
+                                                                          MaxWidth="400"/>
+                                                                <TextBlock Text="{Binding Status}"
+                                                                          FontSize="10"
+                                                                          Margin="0,4,0,0">
+                                                                    <TextBlock.Style>
+                                                                        <Style TargetType="TextBlock">
+                                                                            <Setter Property="Foreground" Value="#6B7280"/>
+                                                                            <Style.Triggers>
+                                                                                <DataTrigger Binding="{Binding Status}" Value="Completed">
+                                                                                    <Setter Property="Foreground" Value="#059669"/>
+                                                                                </DataTrigger>
+                                                                                <DataTrigger Binding="{Binding Status}" Value="Failed">
+                                                                                    <Setter Property="Foreground" Value="#DC2626"/>
+                                                                                </DataTrigger>
+                                                                                <DataTrigger Binding="{Binding Status}" Value="Processing">
+                                                                                    <Setter Property="Foreground" Value="#8B5CF6"/>
+                                                                                </DataTrigger>
+                                                                            </Style.Triggers>
+                                                                        </Style>
+                                                                    </TextBlock.Style>
+                                                                </TextBlock>
+                                                            </StackPanel>
+
+                                                            <TextBlock Grid.Column="2"
+                                                                      Text="{Binding Progress, StringFormat={}{0:F0}%}"
+                                                                      FontSize="11"
+                                                                      FontWeight="SemiBold"
+                                                                      VerticalAlignment="Center"
+                                                                      Foreground="#8B5CF6"/>
+                                                        </Grid>
+                                                    </Border>
+                                                </DataTemplate>
+                                            </ItemsControl.ItemTemplate>
+                                        </ItemsControl>
+                                    </ScrollViewer>
+                                </Border>
+                            </StackPanel>
+                        </Border>
+
+                        <!-- Log Output (Collapsible) -->
+                        <Expander Margin="0,20,0,0"
+                                 Background="Transparent"
+                                 BorderThickness="0"
+                                 IsExpanded="False">
+                            <Expander.Header>
+                                <TextBlock Text="📋 Activity Log"
+                                          FontSize="13"
+                                          FontWeight="SemiBold"
+                                          Foreground="#6B7280"/>
+                            </Expander.Header>
+                            <Border Background="#1F2937"
+                                   BorderBrush="#374151"
+                                   BorderThickness="1"
+                                   CornerRadius="8"
+                                   Margin="0,8,0,0">
+                                <ScrollViewer MaxHeight="150"
+                                             VerticalScrollBarVisibility="Auto">
+                                    <TextBox Text="{Binding StoryGeneratorF.LogOutput}"
+                                           TextWrapping="Wrap"
+                                           IsReadOnly="True"
+                                           FontFamily="Consolas"
+                                           FontSize="10"
+                                           Background="Transparent"
+                                           Foreground="#D1D5DB"
+                                           BorderThickness="0"
+                                           Padding="12"/>
+                                </ScrollViewer>
+                            </Border>
+                        </Expander>
+
+                    </StackPanel>
+                </ScrollViewer>
+            </TabItem>
+
             <!-- Tab: Amateur Generator -->
             <TabItem Header="📷 Amateur" FontWeight="Bold" FontSize="13">
                 <ScrollViewer VerticalScrollBarVisibility="Auto">

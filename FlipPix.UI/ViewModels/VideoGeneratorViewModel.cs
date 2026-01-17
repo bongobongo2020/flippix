@@ -10,7 +10,9 @@ using System.Runtime.CompilerServices;
 using System.Text.Json;
 using System.Threading.Tasks;
 using System.Windows;
+using System.Windows.Controls;
 using System.Windows.Input;
+using System.Windows.Media;
 using System.Windows.Media.Imaging;
 using Microsoft.Win32;
 using FlipPix.ComfyUI.Services;
@@ -91,6 +93,41 @@ namespace FlipPix.UI.ViewModels
         private string _vaceForegroundImageInfo = string.Empty;
         private string _vaceVideoInfo = string.Empty;
 
+        // LTX2Audio properties
+        private string _ltx2AudioImagePath = string.Empty;
+        private BitmapImage? _ltx2AudioImagePreview;
+        private string _ltx2AudioImageInfo = string.Empty;
+        private string _ltx2AudioPath = string.Empty;
+        private string _ltx2AudioInfo = string.Empty;
+        private string _ltx2AudioPrompt = string.Empty;
+        private int _ltx2AudioWidth = 1152;
+        private int _ltx2AudioHeight = 768;
+        private bool _isProcessingLTX2Audio = false;
+        private string _ltx2AudioProcessingStatus = string.Empty;
+        private double _ltx2AudioProcessingProgress = 0;
+        private string _ltx2AudioLogOutput = string.Empty;
+        private bool _hasLTX2AudioResult = false;
+        private string _ltx2AudioResultPath = string.Empty;
+        private string _ltx2AudioVideoInfo = string.Empty;
+        private double _ltx2AudioDuration = 0;
+        private int _ltx2AudioTotalFrames = 0;
+
+        // Mocha properties
+        private string _mochaVideoPath = string.Empty;
+        private string _mochaSourceVideoInfo = string.Empty;
+        private string _mochaImagePath = string.Empty;
+        private BitmapImage? _mochaImagePreview;
+        private string _mochaImageInfo = string.Empty;
+        private string _mochaPrompt = string.Empty;
+        private int _mochaTotalFrames = 0;
+        private bool _isProcessingMocha = false;
+        private string _mochaProcessingStatus = string.Empty;
+        private double _mochaProcessingProgress = 0;
+        private string _mochaLogOutput = string.Empty;
+        private bool _hasMochaResult = false;
+        private string _mochaResultPath = string.Empty;
+        private string _mochaVideoInfo = string.Empty;
+
         public event PropertyChangedEventHandler? PropertyChanged;
         public event EventHandler? PlayRequested;
 
@@ -133,6 +170,22 @@ namespace FlipPix.UI.ViewModels
             SelectVACEForegroundImageCommand = new RelayCommand(SelectVACEForegroundImage);
             SelectVACEVideoCommand = new RelayCommand(SelectVACEVideo);
             GenerateVACEVideoCommand = new RelayCommand(async () => await GenerateVACEVideoAsync(), () => CanGenerateVACEVideo);
+
+            // LTX2Audio commands
+            SelectLTX2AudioImageCommand = new RelayCommand(SelectLTX2AudioImage);
+            SelectLTX2AudioCommand = new RelayCommand(SelectLTX2Audio);
+            GenerateLTX2AudioVideoCommand = new RelayCommand(async () => await GenerateLTX2AudioVideoAsync(), () => CanGenerateLTX2AudioVideo);
+            PlayLTX2AudioVideoCommand = new RelayCommand(PlayLTX2AudioVideo, () => HasLTX2AudioResult);
+            OpenLTX2AudioResultFolderCommand = new RelayCommand(OpenLTX2AudioResultFolder, () => HasLTX2AudioResult);
+            SendLTX2AudioToEditCameraCommand = new RelayCommand(SendLTX2AudioToEditCamera, () => HasLTX2AudioResult);
+
+            // Mocha commands
+            SelectMochaVideoCommand = new RelayCommand(SelectMochaVideo);
+            SelectMochaImageCommand = new RelayCommand(SelectMochaImage);
+            GenerateMochaVideoCommand = new RelayCommand(async () => await GenerateMochaVideoAsync(), () => CanGenerateMochaVideo);
+            PlayMochaVideoCommand = new RelayCommand(PlayMochaVideo, () => HasMochaResult);
+            OpenMochaResultFolderCommand = new RelayCommand(OpenMochaResultFolder, () => HasMochaResult);
+            SendMochaToEditCameraCommand = new RelayCommand(SendMochaToEditCamera, () => HasMochaResult);
 
             // Workflow toggle command
             ToggleWorkflowCommand = new RelayCommand(ToggleWorkflow);
@@ -794,6 +847,458 @@ namespace FlipPix.UI.ViewModels
         public bool CanGenerateVACEVideo => HasVACEBackgroundImage && HasVACEForegroundImage && HasVACEVideo &&
                                          !string.IsNullOrWhiteSpace(VacePrompt) && !IsProcessingVACE && !IsProcessing;
 
+        // LTX2Audio Properties
+        public string LTX2AudioImagePath
+        {
+            get => _ltx2AudioImagePath;
+            set
+            {
+                if (_ltx2AudioImagePath != value)
+                {
+                    _ltx2AudioImagePath = value;
+                    OnPropertyChanged();
+                    OnPropertyChanged(nameof(HasLTX2AudioImage));
+                    OnPropertyChanged(nameof(CanGenerateLTX2AudioVideo));
+                    LoadLTX2AudioImagePreview();
+                    CommandManager.InvalidateRequerySuggested();
+                }
+            }
+        }
+
+        public BitmapImage? LTX2AudioImagePreview
+        {
+            get => _ltx2AudioImagePreview;
+            set
+            {
+                _ltx2AudioImagePreview = value;
+                OnPropertyChanged();
+            }
+        }
+
+        public string LTX2AudioImageInfo
+        {
+            get => _ltx2AudioImageInfo;
+            set
+            {
+                if (_ltx2AudioImageInfo != value)
+                {
+                    _ltx2AudioImageInfo = value;
+                    OnPropertyChanged();
+                }
+            }
+        }
+
+        public string LTX2AudioPath
+        {
+            get => _ltx2AudioPath;
+            set
+            {
+                if (_ltx2AudioPath != value)
+                {
+                    _ltx2AudioPath = value;
+                    OnPropertyChanged();
+                    OnPropertyChanged(nameof(HasLTX2Audio));
+                    OnPropertyChanged(nameof(CanGenerateLTX2AudioVideo));
+                    LoadLTX2AudioInfo();
+                    CommandManager.InvalidateRequerySuggested();
+                }
+            }
+        }
+
+        public string LTX2AudioInfo
+        {
+            get => _ltx2AudioInfo;
+            set
+            {
+                if (_ltx2AudioInfo != value)
+                {
+                    _ltx2AudioInfo = value;
+                    OnPropertyChanged();
+                }
+            }
+        }
+
+        public string LTX2AudioPrompt
+        {
+            get => _ltx2AudioPrompt;
+            set
+            {
+                if (_ltx2AudioPrompt != value)
+                {
+                    _ltx2AudioPrompt = value;
+                    OnPropertyChanged();
+                    OnPropertyChanged(nameof(CanGenerateLTX2AudioVideo));
+                    CommandManager.InvalidateRequerySuggested();
+                }
+            }
+        }
+
+        public int LTX2AudioWidth
+        {
+            get => _ltx2AudioWidth;
+            set
+            {
+                if (_ltx2AudioWidth != value)
+                {
+                    _ltx2AudioWidth = value;
+                    OnPropertyChanged();
+                }
+            }
+        }
+
+        public int LTX2AudioHeight
+        {
+            get => _ltx2AudioHeight;
+            set
+            {
+                if (_ltx2AudioHeight != value)
+                {
+                    _ltx2AudioHeight = value;
+                    OnPropertyChanged();
+                }
+            }
+        }
+
+        public bool IsProcessingLTX2Audio
+        {
+            get => _isProcessingLTX2Audio;
+            set
+            {
+                if (_isProcessingLTX2Audio != value)
+                {
+                    _isProcessingLTX2Audio = value;
+                    OnPropertyChanged();
+                    OnPropertyChanged(nameof(CanGenerateLTX2AudioVideo));
+                    CommandManager.InvalidateRequerySuggested();
+                }
+            }
+        }
+
+        public string LTX2AudioProcessingStatus
+        {
+            get => _ltx2AudioProcessingStatus;
+            set
+            {
+                if (_ltx2AudioProcessingStatus != value)
+                {
+                    _ltx2AudioProcessingStatus = value;
+                    OnPropertyChanged();
+                }
+            }
+        }
+
+        public double LTX2AudioProcessingProgress
+        {
+            get => _ltx2AudioProcessingProgress;
+            set
+            {
+                if (_ltx2AudioProcessingProgress != value)
+                {
+                    _ltx2AudioProcessingProgress = value;
+                    OnPropertyChanged();
+                    OnPropertyChanged(nameof(LTX2AudioProgressPercentage));
+                }
+            }
+        }
+
+        public string LTX2AudioProgressPercentage => $"{LTX2AudioProcessingProgress:F0}%";
+
+        public string LTX2AudioLogOutput
+        {
+            get => _ltx2AudioLogOutput;
+            set
+            {
+                if (_ltx2AudioLogOutput != value)
+                {
+                    _ltx2AudioLogOutput = value;
+                    OnPropertyChanged();
+                }
+            }
+        }
+
+        public bool HasLTX2AudioResult
+        {
+            get => _hasLTX2AudioResult;
+            set
+            {
+                if (_hasLTX2AudioResult != value)
+                {
+                    _hasLTX2AudioResult = value;
+                    OnPropertyChanged();
+                    CommandManager.InvalidateRequerySuggested();
+                }
+            }
+        }
+
+        public string LTX2AudioResultPath
+        {
+            get => _ltx2AudioResultPath;
+            set
+            {
+                if (_ltx2AudioResultPath != value)
+                {
+                    _ltx2AudioResultPath = value;
+                    OnPropertyChanged();
+                }
+            }
+        }
+
+        public string LTX2AudioVideoInfo
+        {
+            get => _ltx2AudioVideoInfo;
+            set
+            {
+                if (_ltx2AudioVideoInfo != value)
+                {
+                    _ltx2AudioVideoInfo = value;
+                    OnPropertyChanged();
+                }
+            }
+        }
+
+        public double LTX2AudioDuration
+        {
+            get => _ltx2AudioDuration;
+            set
+            {
+                if (_ltx2AudioDuration != value)
+                {
+                    _ltx2AudioDuration = value;
+                    OnPropertyChanged();
+                    OnPropertyChanged(nameof(LTX2AudioEstimatedDuration));
+                    CalculateLTX2AudioTotalFrames();
+                }
+            }
+        }
+
+        public int LTX2AudioTotalFrames
+        {
+            get => _ltx2AudioTotalFrames;
+            set
+            {
+                if (_ltx2AudioTotalFrames != value)
+                {
+                    _ltx2AudioTotalFrames = value;
+                    OnPropertyChanged();
+                }
+            }
+        }
+
+        public string LTX2AudioEstimatedDuration => LTX2AudioDuration > 0 ? $"{LTX2AudioDuration:F1} seconds ({LTX2AudioTotalFrames} frames at 24 FPS)" : "No audio loaded";
+
+        public bool HasLTX2AudioImage => !string.IsNullOrEmpty(LTX2AudioImagePath) && File.Exists(LTX2AudioImagePath);
+        public bool HasLTX2Audio => !string.IsNullOrEmpty(LTX2AudioPath) && File.Exists(LTX2AudioPath);
+
+        public bool CanGenerateLTX2AudioVideo => HasLTX2AudioImage && HasLTX2Audio &&
+                                                !string.IsNullOrWhiteSpace(LTX2AudioPrompt) &&
+                                                !IsProcessingLTX2Audio && !IsProcessing && !IsProcessingVACE;
+
+        // Mocha Properties
+        public string MochaVideoPath
+        {
+            get => _mochaVideoPath;
+            set
+            {
+                if (_mochaVideoPath != value)
+                {
+                    _mochaVideoPath = value;
+                    OnPropertyChanged();
+                    OnPropertyChanged(nameof(HasMochaVideo));
+                    OnPropertyChanged(nameof(CanGenerateMochaVideo));
+                    LoadMochaVideoInfo();
+                    CommandManager.InvalidateRequerySuggested();
+                }
+            }
+        }
+
+        public string MochaSourceVideoInfo
+        {
+            get => _mochaSourceVideoInfo;
+            set
+            {
+                if (_mochaSourceVideoInfo != value)
+                {
+                    _mochaSourceVideoInfo = value;
+                    OnPropertyChanged();
+                }
+            }
+        }
+
+        public string MochaImagePath
+        {
+            get => _mochaImagePath;
+            set
+            {
+                if (_mochaImagePath != value)
+                {
+                    _mochaImagePath = value;
+                    OnPropertyChanged();
+                    OnPropertyChanged(nameof(HasMochaImage));
+                    OnPropertyChanged(nameof(CanGenerateMochaVideo));
+                    LoadMochaImagePreview();
+                    CommandManager.InvalidateRequerySuggested();
+                }
+            }
+        }
+
+        public BitmapImage? MochaImagePreview
+        {
+            get => _mochaImagePreview;
+            set
+            {
+                _mochaImagePreview = value;
+                OnPropertyChanged();
+            }
+        }
+
+        public string MochaImageInfo
+        {
+            get => _mochaImageInfo;
+            set
+            {
+                if (_mochaImageInfo != value)
+                {
+                    _mochaImageInfo = value;
+                    OnPropertyChanged();
+                }
+            }
+        }
+
+        public string MochaPrompt
+        {
+            get => _mochaPrompt;
+            set
+            {
+                if (_mochaPrompt != value)
+                {
+                    _mochaPrompt = value;
+                    OnPropertyChanged();
+                    OnPropertyChanged(nameof(CanGenerateMochaVideo));
+                    CommandManager.InvalidateRequerySuggested();
+                }
+            }
+        }
+
+        public int MochaTotalFrames
+        {
+            get => _mochaTotalFrames;
+            set
+            {
+                if (_mochaTotalFrames != value)
+                {
+                    _mochaTotalFrames = value;
+                    OnPropertyChanged();
+                    OnPropertyChanged(nameof(MochaTotalChunks));
+                }
+            }
+        }
+
+        public int MochaTotalChunks => MochaTotalFrames > 0 ? (int)Math.Ceiling((double)MochaTotalFrames / 81) : 0;
+
+        public bool IsProcessingMocha
+        {
+            get => _isProcessingMocha;
+            set
+            {
+                if (_isProcessingMocha != value)
+                {
+                    _isProcessingMocha = value;
+                    OnPropertyChanged();
+                    OnPropertyChanged(nameof(CanGenerateMochaVideo));
+                    CommandManager.InvalidateRequerySuggested();
+                }
+            }
+        }
+
+        public string MochaProcessingStatus
+        {
+            get => _mochaProcessingStatus;
+            set
+            {
+                if (_mochaProcessingStatus != value)
+                {
+                    _mochaProcessingStatus = value;
+                    OnPropertyChanged();
+                }
+            }
+        }
+
+        public double MochaProcessingProgress
+        {
+            get => _mochaProcessingProgress;
+            set
+            {
+                if (_mochaProcessingProgress != value)
+                {
+                    _mochaProcessingProgress = value;
+                    OnPropertyChanged();
+                    OnPropertyChanged(nameof(MochaProgressPercentage));
+                }
+            }
+        }
+
+        public string MochaProgressPercentage => $"{MochaProcessingProgress:F0}%";
+
+        public string MochaLogOutput
+        {
+            get => _mochaLogOutput;
+            set
+            {
+                if (_mochaLogOutput != value)
+                {
+                    _mochaLogOutput = value;
+                    OnPropertyChanged();
+                }
+            }
+        }
+
+        public bool HasMochaResult
+        {
+            get => _hasMochaResult;
+            set
+            {
+                if (_hasMochaResult != value)
+                {
+                    _hasMochaResult = value;
+                    OnPropertyChanged();
+                    CommandManager.InvalidateRequerySuggested();
+                }
+            }
+        }
+
+        public string MochaResultPath
+        {
+            get => _mochaResultPath;
+            set
+            {
+                if (_mochaResultPath != value)
+                {
+                    _mochaResultPath = value;
+                    OnPropertyChanged();
+                }
+            }
+        }
+
+        public string MochaResultVideoInfo
+        {
+            get => _mochaVideoInfo;
+            set
+            {
+                if (_mochaVideoInfo != value)
+                {
+                    _mochaVideoInfo = value;
+                    OnPropertyChanged();
+                }
+            }
+        }
+
+        public bool HasMochaVideo => !string.IsNullOrEmpty(MochaVideoPath) && File.Exists(MochaVideoPath);
+        public bool HasMochaImage => !string.IsNullOrEmpty(MochaImagePath) && File.Exists(MochaImagePath);
+
+        public bool CanGenerateMochaVideo => HasMochaVideo && HasMochaImage &&
+                                             !string.IsNullOrWhiteSpace(MochaPrompt) &&
+                                             !IsProcessingMocha && !IsProcessing && !IsProcessingVACE && !IsProcessingLTX2Audio;
+
         // Workflow Selection Properties
         public string SelectedWorkflow
         {
@@ -1160,6 +1665,22 @@ namespace FlipPix.UI.ViewModels
         public ICommand SelectVACEForegroundImageCommand { get; }
         public ICommand SelectVACEVideoCommand { get; }
         public ICommand GenerateVACEVideoCommand { get; }
+
+        // LTX2Audio commands
+        public ICommand SelectLTX2AudioImageCommand { get; }
+        public ICommand SelectLTX2AudioCommand { get; }
+        public ICommand GenerateLTX2AudioVideoCommand { get; }
+        public ICommand PlayLTX2AudioVideoCommand { get; }
+        public ICommand OpenLTX2AudioResultFolderCommand { get; }
+        public ICommand SendLTX2AudioToEditCameraCommand { get; }
+
+        // Mocha commands
+        public ICommand SelectMochaVideoCommand { get; }
+        public ICommand SelectMochaImageCommand { get; }
+        public ICommand GenerateMochaVideoCommand { get; }
+        public ICommand PlayMochaVideoCommand { get; }
+        public ICommand OpenMochaResultFolderCommand { get; }
+        public ICommand SendMochaToEditCameraCommand { get; }
 
         // Workflow toggle command
         public ICommand ToggleWorkflowCommand { get; }
@@ -2035,6 +2556,168 @@ namespace FlipPix.UI.ViewModels
             return null;
         }
 
+        private async Task<string?> WaitForLTX2VideoInOutputFolderAsync(string promptId, int chunkIndex, int totalChunks)
+        {
+            try
+            {
+                AddLTX2AudioLog($"=== WaitForLTX2VideoInOutputFolderAsync START for chunk {chunkIndex} ===");
+
+                var settings = _settingsService.Settings;
+                if (settings == null)
+                {
+                    AddLTX2AudioLog("ERROR: Settings object is null");
+                    return null;
+                }
+
+                if (string.IsNullOrEmpty(settings.OutputFolderPath))
+                {
+                    AddLTX2AudioLog("ERROR: ComfyUI output path not configured");
+                    return null;
+                }
+
+                AddLTX2AudioLog($"Output folder path from settings: {settings.OutputFolderPath}");
+
+                // LTX2 saves to video/LTX_*.mp4
+                var outputFolder = Path.Combine(settings.OutputFolderPath, "video");
+                AddLTX2AudioLog($"Full output folder path: {outputFolder}");
+
+                if (!Directory.Exists(outputFolder))
+                {
+                    AddLTX2AudioLog($"ERROR: Output folder not found: {outputFolder}");
+                    AddLTX2AudioLog($"Checking parent folder exists: {Directory.Exists(settings.OutputFolderPath)}");
+
+                    // Try to create the video folder
+                    try
+                    {
+                        Directory.CreateDirectory(outputFolder);
+                        AddLTX2AudioLog($"Created output folder: {outputFolder}");
+                    }
+                    catch (Exception ex)
+                    {
+                        AddLTX2AudioLog($"ERROR: Could not create output folder: {ex.Message}");
+                        return null;
+                    }
+                }
+
+                AddLTX2AudioLog($"Monitoring output folder for chunk {chunkIndex}: {outputFolder}");
+
+                // Record the starting time and existing files
+                var startTime = DateTime.Now;
+                string[] allMp4Files;
+                try
+                {
+                    allMp4Files = Directory.GetFiles(outputFolder, "*.mp4");
+                    AddLTX2AudioLog($"Found {allMp4Files.Length} total .mp4 files in output folder");
+                }
+                catch (Exception ex)
+                {
+                    AddLTX2AudioLog($"ERROR listing .mp4 files: {ex.Message}");
+                    return null;
+                }
+
+                var existingFiles = new HashSet<string>(
+                    Directory.GetFiles(outputFolder, "LTX_*.mp4"),
+                    StringComparer.OrdinalIgnoreCase);
+
+                AddLTX2AudioLog($"Found {existingFiles.Count} existing LTX video files at start");
+
+                // LTX2 workflows take much longer - wait up to 15 minutes per chunk
+                var maxWaitTime = TimeSpan.FromMinutes(15);
+                var checkInterval = TimeSpan.FromSeconds(5);
+
+                while (DateTime.Now - startTime < maxWaitTime)
+                {
+                    await Task.Delay(checkInterval);
+
+                    // Check for new files
+                    var currentFiles = Directory.GetFiles(outputFolder, "LTX_*.mp4");
+                    var newFiles = currentFiles.Where(f => !existingFiles.Contains(f)).ToList();
+
+                    if (newFiles.Any())
+                    {
+                        AddLTX2AudioLog($"Found {newFiles.Count} new LTX video file(s) for chunk {chunkIndex}");
+
+                        // Get the most recently modified new file
+                        var newestFile = newFiles
+                            .OrderByDescending(f => File.GetLastWriteTime(f))
+                            .First();
+
+                        // Wait a bit more to ensure file is fully written
+                        await Task.Delay(TimeSpan.FromSeconds(5));
+
+                        // Verify file exists and has content
+                        if (File.Exists(newestFile))
+                        {
+                            var fileInfo = new FileInfo(newestFile);
+
+                            // Check if file has reasonable size (at least 1KB)
+                            if (fileInfo.Length < 1024)
+                            {
+                                AddLTX2AudioLog($"File too small ({fileInfo.Length} bytes), waiting...");
+                                await Task.Delay(TimeSpan.FromSeconds(10));
+                                continue;
+                            }
+
+                            var sizeMB = fileInfo.Length / (1024.0 * 1024.0);
+                            AddLTX2AudioLog($"✓ LTX video file ready for chunk {chunkIndex}: {Path.GetFileName(newestFile)} ({sizeMB:F2} MB)");
+                            AddLTX2AudioLog($"  Created: {fileInfo.CreationTime}, Modified: {fileInfo.LastWriteTime}");
+                            return newestFile;
+                        }
+                    }
+                    else
+                    {
+                        var elapsed = (int)(DateTime.Now - startTime).TotalSeconds;
+                        var remaining = (int)(maxWaitTime - (DateTime.Now - startTime)).TotalSeconds;
+                        AddLTX2AudioLog($"Chunk {chunkIndex}/{totalChunks}: No new videos yet... ({elapsed}s elapsed, {remaining}s remaining)");
+                    }
+                }
+
+                // If we didn't find a new file, check if any file was modified recently
+                AddLTX2AudioLog($"Chunk {chunkIndex}: No new file found, checking for recently modified files...");
+                var recentThreshold = DateTime.Now.AddMinutes(-5);
+                var recentFiles = Directory.GetFiles(outputFolder, "LTX_*.mp4")
+                    .Where(f => File.GetLastWriteTime(f) > recentThreshold)
+                    .OrderByDescending(f => File.GetLastWriteTime(f))
+                    .ToList();
+
+                if (recentFiles.Any())
+                {
+                    var recentFile = recentFiles.First();
+                    AddLTX2AudioLog($"✓ Found recently modified video for chunk {chunkIndex}: {Path.GetFileName(recentFile)}");
+                    return recentFile;
+                }
+
+                AddLTX2AudioLog($"ERROR: Failed to find output video for chunk {chunkIndex}");
+                AddLTX2AudioLog($"Output folder contains: {Directory.GetFiles(outputFolder, "LTX_*.mp4").Length} LTX .mp4 files");
+
+                // List all files in output folder for debugging
+                try
+                {
+                    var allFiles = Directory.GetFiles(outputFolder, "*.mp4");
+                    AddLTX2AudioLog($"All .mp4 files in output folder:");
+                    foreach (var file in allFiles.Take(10)) // Limit to first 10
+                    {
+                        var fi = new FileInfo(file);
+                        AddLTX2AudioLog($"  - {Path.GetFileName(file)} ({fi.Length / 1024.0 / 1024.0:F2} MB, modified: {fi.LastWriteTime})");
+                    }
+                }
+                catch (Exception ex)
+                {
+                    AddLTX2AudioLog($"Error listing files: {ex.Message}");
+                }
+
+                return null;
+            }
+            catch (Exception ex)
+            {
+                AddLTX2AudioLog($"=== EXCEPTION in WaitForLTX2VideoInOutputFolderAsync ===");
+                AddLTX2AudioLog($"Message: {ex.Message}");
+                AddLTX2AudioLog($"Type: {ex.GetType().Name}");
+                AddLTX2AudioLog($"Stack trace: {ex.StackTrace}");
+                return null;
+            }
+        }
+
         private void PlayVideo()
         {
             PlayRequested?.Invoke(this, EventArgs.Empty);
@@ -2062,12 +2745,24 @@ namespace FlipPix.UI.ViewModels
 
         private void NavigateToImageGenerator()
         {
-            if (_serviceProvider == null) return;
+            if (_serviceProvider == null)
+            {
+                AddLog("ERROR: Service provider is null");
+                return;
+            }
 
             try
             {
                 var imageGeneratorWindow = _serviceProvider.GetService(typeof(ImageGeneratorWindow)) as ImageGeneratorWindow;
-                imageGeneratorWindow?.Show();
+
+                if (imageGeneratorWindow == null)
+                {
+                    AddLog("ERROR: Failed to create ImageGeneratorWindow - GetService returned null");
+                    return;
+                }
+
+                imageGeneratorWindow.Show();
+                AddLog("Successfully opened Image Generator window");
             }
             catch (Exception ex)
             {
@@ -2077,12 +2772,24 @@ namespace FlipPix.UI.ViewModels
 
         private void NavigateToCameraEdit()
         {
-            if (_serviceProvider == null) return;
+            if (_serviceProvider == null)
+            {
+                AddLog("ERROR: Service provider is null");
+                return;
+            }
 
             try
             {
                 var cameraEditWindow = _serviceProvider.GetService(typeof(FlipPixWindow)) as FlipPixWindow;
-                cameraEditWindow?.Show();
+
+                if (cameraEditWindow == null)
+                {
+                    AddLog("ERROR: Failed to create FlipPixWindow - GetService returned null");
+                    return;
+                }
+
+                cameraEditWindow.Show();
+                AddLog("Successfully opened Camera Edit window");
             }
             catch (Exception ex)
             {
@@ -4043,6 +4750,1686 @@ namespace FlipPix.UI.ViewModels
 
             var updatedWorkflow = JsonSerializer.SerializeToElement(workflowDict);
             return updatedWorkflow;
+        }
+
+        // LTX2Audio Methods
+        private void SelectLTX2AudioImage()
+        {
+            var initialDirectory = _settingsService.Settings?.VideoGeneratorImageFolder;
+
+            if (string.IsNullOrEmpty(initialDirectory) || !Directory.Exists(initialDirectory))
+            {
+                initialDirectory = Environment.GetFolderPath(Environment.SpecialFolder.MyPictures);
+            }
+
+            var openFileDialog = new Microsoft.Win32.OpenFileDialog
+            {
+                Title = "Select Source Image",
+                Filter = "Image Files|*.jpg;*.jpeg;*.png;*.bmp|All Files|*.*",
+                CheckFileExists = true,
+                InitialDirectory = initialDirectory
+            };
+
+            if (openFileDialog.ShowDialog() == true)
+            {
+                LTX2AudioImagePath = openFileDialog.FileName;
+                AddLTX2AudioLog($"Selected image: {Path.GetFileName(LTX2AudioImagePath)}");
+            }
+        }
+
+        private void SelectLTX2Audio()
+        {
+            var initialDirectory = _settingsService.Settings?.VideoGeneratorImageFolder;
+
+            if (string.IsNullOrEmpty(initialDirectory) || !Directory.Exists(initialDirectory))
+            {
+                initialDirectory = Environment.GetFolderPath(Environment.SpecialFolder.MyMusic);
+            }
+
+            var openFileDialog = new Microsoft.Win32.OpenFileDialog
+            {
+                Title = "Select Audio File",
+                Filter = "Audio Files|*.mp3;*.wav;*.ogg;*.flac;*.m4a|All Files|*.*",
+                CheckFileExists = true,
+                InitialDirectory = initialDirectory
+            };
+
+            if (openFileDialog.ShowDialog() == true)
+            {
+                LTX2AudioPath = openFileDialog.FileName;
+                AddLTX2AudioLog($"Selected audio: {Path.GetFileName(LTX2AudioPath)}");
+            }
+        }
+
+        private void LoadLTX2AudioImagePreview()
+        {
+            if (string.IsNullOrEmpty(LTX2AudioImagePath) || !File.Exists(LTX2AudioImagePath))
+            {
+                LTX2AudioImagePreview = null;
+                LTX2AudioImageInfo = string.Empty;
+                return;
+            }
+
+            try
+            {
+                var bitmap = new BitmapImage();
+                bitmap.BeginInit();
+                bitmap.CacheOption = BitmapCacheOption.OnLoad;
+                bitmap.UriSource = new Uri(LTX2AudioImagePath, UriKind.Absolute);
+                bitmap.EndInit();
+                bitmap.Freeze();
+
+                LTX2AudioImagePreview = bitmap;
+
+                var fileInfo = new FileInfo(LTX2AudioImagePath);
+                LTX2AudioImageInfo = $"{bitmap.PixelWidth}x{bitmap.PixelHeight} • {fileInfo.Length / 1024}KB";
+            }
+            catch (Exception ex)
+            {
+                AddLTX2AudioLog($"Error loading image preview: {ex.Message}");
+                LTX2AudioImageInfo = "Error loading image";
+            }
+        }
+
+        private void LoadLTX2AudioInfo()
+        {
+            if (string.IsNullOrEmpty(LTX2AudioPath) || !File.Exists(LTX2AudioPath))
+            {
+                LTX2AudioInfo = string.Empty;
+                LTX2AudioDuration = 0;
+                return;
+            }
+
+            try
+            {
+                var fileInfo = new FileInfo(LTX2AudioPath);
+                LTX2AudioInfo = $"{fileInfo.Name} • {fileInfo.Length / 1024 / 1024:F1}MB";
+
+                // Get audio duration using ffmpeg
+                GetAudioDuration(LTX2AudioPath);
+            }
+            catch (Exception ex)
+            {
+                AddLTX2AudioLog($"Error loading audio info: {ex.Message}");
+                LTX2AudioInfo = "Error loading audio info";
+            }
+        }
+
+        private void GetAudioDuration(string audioPath)
+        {
+            try
+            {
+                var ffmpegPath = FindFFmpeg();
+                if (string.IsNullOrEmpty(ffmpegPath))
+                {
+                    AddLTX2AudioLog("ERROR: ffmpeg not found. Please install ffmpeg to use this feature.");
+                    return;
+                }
+
+                var startInfo = new ProcessStartInfo
+                {
+                    FileName = ffmpegPath,
+                    Arguments = $"-i \"{audioPath}\" -f null -",
+                    RedirectStandardOutput = true,
+                    RedirectStandardError = true,
+                    UseShellExecute = false,
+                    CreateNoWindow = true
+                };
+
+                using (var process = Process.Start(startInfo))
+                {
+                    var errorOutput = process.StandardError.ReadToEnd();
+                    process.WaitForExit();
+
+                    // Parse duration from ffmpeg output
+                    // Example: "Duration: 00:01:23.45"
+                    var match = System.Text.RegularExpressions.Regex.Match(errorOutput, @"Duration: (\d+):(\d+):(\d+\.\d+)");
+                    if (match.Success)
+                    {
+                        var hours = double.Parse(match.Groups[1].Value);
+                        var minutes = double.Parse(match.Groups[2].Value);
+                        var seconds = double.Parse(match.Groups[3].Value);
+                        LTX2AudioDuration = hours * 3600 + minutes * 60 + seconds;
+                        AddLTX2AudioLog($"Audio duration: {LTX2AudioDuration:F2} seconds");
+                    }
+                    else
+                    {
+                        AddLTX2AudioLog("Could not determine audio duration");
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                AddLTX2AudioLog($"Error getting audio duration: {ex.Message}");
+            }
+        }
+
+        private void CalculateLTX2AudioTotalFrames()
+        {
+            const int fps = 24;
+            LTX2AudioTotalFrames = (int)(LTX2AudioDuration * fps);
+        }
+
+        private void AddLTX2AudioLog(string message)
+        {
+            var timestamp = DateTime.Now.ToString("HH:mm:ss");
+            LTX2AudioLogOutput += $"[{timestamp}] {message}\n";
+        }
+
+        private async Task GenerateLTX2AudioVideoAsync()
+        {
+            if (!CanGenerateLTX2AudioVideo) return;
+
+            try
+            {
+                await GenerateLTX2AudioVideoAsyncInternal();
+            }
+            catch (Exception ex)
+            {
+                AddLTX2AudioLog($"ERROR: {ex.Message}");
+                System.Windows.MessageBox.Show($"An error occurred during LTX2 Audio video generation:\n{ex.Message}", "Error", System.Windows.MessageBoxButton.OK, System.Windows.MessageBoxImage.Error);
+            }
+        }
+
+        private async Task GenerateLTX2AudioVideoAsyncInternal()
+        {
+            try
+            {
+                AddLTX2AudioLog("=== Starting LTX2 Audio video generation ===");
+                IsProcessingLTX2Audio = true;
+
+                // Clear previous result
+                HasLTX2AudioResult = false;
+                LTX2AudioResultPath = string.Empty;
+                LTX2AudioVideoInfo = string.Empty;
+
+                LTX2AudioProcessingProgress = 0;
+                LTX2AudioProcessingStatus = "Preparing workflow...";
+                AddLTX2AudioLog($"Source image: {Path.GetFileName(LTX2AudioImagePath)}");
+                AddLTX2AudioLog($"Audio file: {Path.GetFileName(LTX2AudioPath)}");
+                AddLTX2AudioLog($"Prompt: {LTX2AudioPrompt}");
+                AddLTX2AudioLog($"Total frames: {LTX2AudioTotalFrames} ({LTX2AudioDuration:F1} seconds at 24 FPS)");
+
+                // Check if ComfyUI has crashed and restart if needed
+                LTX2AudioProcessingStatus = "Checking ComfyUI status...";
+                AddLTX2AudioLog("Checking if ComfyUI is running...");
+
+                var comfyUIOk = await _comfyUIService.DetectAndRestartIfCrashedAsync(
+                    status => AddLTX2AudioLog($"[Auto-Restart] {status}"));
+
+                if (!comfyUIOk)
+                {
+                    AddLTX2AudioLog("ERROR: ComfyUI is not running and auto-restart failed or is disabled");
+                    System.Windows.MessageBox.Show(
+                        "ComfyUI is not running. Please start ComfyUI manually or configure auto-restart in settings.",
+                        "ComfyUI Not Running",
+                        System.Windows.MessageBoxButton.OK,
+                        System.Windows.MessageBoxImage.Warning);
+                    return;
+                }
+
+                AddLTX2AudioLog("ComfyUI is running and responsive");
+
+                // Ensure ComfyUI is connected
+                if (!_comfyUIService.IsConnected)
+                {
+                    LTX2AudioProcessingStatus = "Connecting to ComfyUI...";
+                    AddLTX2AudioLog("Connecting to ComfyUI WebSocket...");
+                    await _comfyUIService.ConnectAsync();
+                    AddLTX2AudioLog("Connected to ComfyUI");
+                }
+                else
+                {
+                    AddLTX2AudioLog("ComfyUI already connected");
+                }
+
+                // Load LTX2 Audio workflow
+                var workflowPath = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "workflow", "LTX2-AudioSync-i2v-Ver2-GGUF (2)(1).json");
+
+                AddLTX2AudioLog($"Loading LTX2 Audio workflow: LTX2-AudioSync-i2v-Ver2-GGUF (2)(1).json");
+
+                if (!File.Exists(workflowPath))
+                {
+                    AddLTX2AudioLog($"ERROR: Workflow file not found: {workflowPath}");
+                    System.Windows.MessageBox.Show($"LTX2 Audio workflow file not found:\n{workflowPath}", "Error", System.Windows.MessageBoxButton.OK, System.Windows.MessageBoxImage.Error);
+                    return;
+                }
+
+                var workflowJson = await File.ReadAllTextAsync(workflowPath);
+                var workflow = JsonSerializer.Deserialize<JsonElement>(workflowJson);
+
+                // Upload image and audio
+                LTX2AudioProcessingStatus = "Uploading assets to ComfyUI...";
+                LTX2AudioProcessingProgress = 10;
+                AddLTX2AudioLog("Uploading image to ComfyUI...");
+                var uploadedImageName = await _comfyUIService.UploadImageAsync(LTX2AudioImagePath);
+                if (string.IsNullOrEmpty(uploadedImageName))
+                {
+                    AddLTX2AudioLog("ERROR: Image upload failed");
+                    System.Windows.MessageBox.Show("Failed to upload image to ComfyUI.", "Upload Failed", System.Windows.MessageBoxButton.OK, System.Windows.MessageBoxImage.Error);
+                    return;
+                }
+                AddLTX2AudioLog($"Image uploaded: {uploadedImageName}");
+
+                AddLTX2AudioLog("Uploading audio to ComfyUI...");
+                var uploadedAudioName = await _comfyUIService.UploadAudioAsync(LTX2AudioPath);
+                if (string.IsNullOrEmpty(uploadedAudioName))
+                {
+                    AddLTX2AudioLog("ERROR: Audio upload failed");
+                    System.Windows.MessageBox.Show("Failed to upload audio to ComfyUI.", "Upload Failed", System.Windows.MessageBoxButton.OK, System.Windows.MessageBoxImage.Error);
+                    return;
+                }
+                AddLTX2AudioLog($"Audio uploaded: {uploadedAudioName}");
+
+                // Calculate chunks
+                const int chunkDurationSeconds = 20;
+                var totalChunks = (int)Math.Ceiling(LTX2AudioDuration / chunkDurationSeconds);
+                AddLTX2AudioLog($"Total duration: {LTX2AudioDuration:F1}s, will generate in {totalChunks} chunks of {chunkDurationSeconds}s each");
+
+                var chunkFiles = new List<string>();
+                var currentStartIndex = 0.0;
+
+                for (int chunkIndex = 0; chunkIndex < totalChunks; chunkIndex++)
+                {
+                    try
+                    {
+                        var chunkDuration = Math.Min(chunkDurationSeconds, LTX2AudioDuration - currentStartIndex);
+                        var chunkFrames = (int)(chunkDuration * 24); // 24 FPS
+
+                        AddLTX2AudioLog($"=== Processing chunk {chunkIndex + 1}/{totalChunks} ({chunkDuration:F1}s, {chunkFrames} frames) ===");
+
+                        LTX2AudioProcessingStatus = $"Processing chunk {chunkIndex + 1}/{totalChunks}";
+                        var baseProgress = 20 + (chunkIndex * 60.0 / totalChunks);
+
+                        // Check ComfyUI connection before each chunk
+                        if (chunkIndex > 0)
+                        {
+                            AddLTX2AudioLog($"Checking ComfyUI connection before chunk {chunkIndex + 1}...");
+                            bool isComfyUIReady = _comfyUIService.IsConnected;
+                            AddLTX2AudioLog($"ComfyUI ready check: {(isComfyUIReady ? "OK" : "FAILED")}");
+
+                            if (!isComfyUIReady)
+                            {
+                                AddLTX2AudioLog($"ComfyUI not responding, attempting to reconnect...");
+
+                                // Disconnect first
+                                try
+                                {
+                                    if (_comfyUIService.IsConnected)
+                                    {
+                                        await _comfyUIService.DisconnectAsync();
+                                        AddLTX2AudioLog("Disconnected from ComfyUI");
+                                    }
+                                }
+                                catch (Exception ex)
+                                {
+                                    AddLTX2AudioLog($"Disconnect error (can be ignored): {ex.Message}");
+                                }
+
+                                // Wait a bit before reconnecting
+                                await Task.Delay(TimeSpan.FromSeconds(3));
+
+                                // Reconnect
+                                try
+                                {
+                                    await _comfyUIService.ConnectAsync();
+                                    AddLTX2AudioLog("✓ Reconnected to ComfyUI");
+
+                                    // Wait a bit more for ComfyUI to be fully ready
+                                    await Task.Delay(TimeSpan.FromSeconds(2));
+                                }
+                                catch (Exception ex)
+                                {
+                                    AddLTX2AudioLog($"ERROR: Failed to reconnect to ComfyUI: {ex.Message}");
+                                    AddLTX2AudioLog("Please ensure ComfyUI is running and press Enter in the ComfyUI window if it's waiting for input");
+                                    throw new Exception("Cannot reconnect to ComfyUI. Please check ComfyUI window.");
+                                }
+                            }
+                        }
+
+                        // Update workflow parameters for this chunk
+                        AddLTX2AudioLog($"Updating workflow parameters for chunk {chunkIndex + 1}...");
+                        JsonElement updatedWorkflow;
+                        try
+                        {
+                            updatedWorkflow = UpdateLTX2AudioWorkflowParameters(workflow, uploadedImageName, uploadedAudioName, currentStartIndex, chunkDuration, chunkFrames);
+                            AddLTX2AudioLog($"Workflow parameters updated successfully for chunk {chunkIndex + 1}");
+                        }
+                        catch (Exception ex)
+                        {
+                            AddLTX2AudioLog($"ERROR updating workflow parameters for chunk {chunkIndex + 1}: {ex.Message}");
+                            AddLTX2AudioLog($"Stack trace: {ex.StackTrace}");
+                            throw;
+                        }
+
+                        // Execute workflow
+                        AddLTX2AudioLog($"About to execute workflow for chunk {chunkIndex + 1}...");
+
+                        var progress = new Progress<FlipPix.ComfyUI.Models.ProgressMessage>(progressMsg =>
+                        {
+                            try
+                            {
+                                if (progressMsg.Data?.Value != null && progressMsg.Data?.Max != null)
+                                {
+                                    var percent = (double)progressMsg.Data.Value / progressMsg.Data.Max * 100;
+                                    System.Windows.Application.Current.Dispatcher.Invoke(() =>
+                                    {
+                                        LTX2AudioProcessingProgress = baseProgress + (percent * 0.6 / totalChunks);
+                                        LTX2AudioProcessingStatus = $"Chunk {chunkIndex + 1}/{totalChunks}: {progressMsg.Data.Value}/{progressMsg.Data.Max}";
+                                    });
+                                }
+                            }
+                            catch (Exception ex)
+                            {
+                                AddLTX2AudioLog($"ERROR in progress callback: {ex.Message}");
+                            }
+                        });
+
+                        AddLTX2AudioLog($"Calling ExecuteWorkflowAsync for chunk {chunkIndex + 1}...");
+                        string promptId;
+                        try
+                        {
+                            promptId = await _comfyUIService.ExecuteWorkflowAsync(updatedWorkflow, progress);
+                            AddLTX2AudioLog($"ExecuteWorkflowAsync returned for chunk {chunkIndex + 1}, prompt ID: {promptId}");
+                        }
+                        catch (Exception ex)
+                        {
+                            AddLTX2AudioLog($"ERROR in ExecuteWorkflowAsync for chunk {chunkIndex + 1}: {ex.Message}");
+                            AddLTX2AudioLog($"Stack trace: {ex.StackTrace}");
+
+                            // Try to reconnect for next attempt
+                            AddLTX2AudioLog("Attempting to recover connection...");
+                            try
+                            {
+                                if (_comfyUIService.IsConnected)
+                                {
+                                    await _comfyUIService.DisconnectAsync();
+                                }
+                                await Task.Delay(TimeSpan.FromSeconds(2));
+                                await _comfyUIService.ConnectAsync();
+                                AddLTX2AudioLog("✓ Connection recovered");
+                            }
+                            catch (Exception reconnectEx)
+                            {
+                                AddLTX2AudioLog($"Failed to recover connection: {reconnectEx.Message}");
+                            }
+
+                            throw;
+                        }
+
+                        // Wait and retrieve the output video
+                        AddLTX2AudioLog($"Looking for generated video for chunk {chunkIndex + 1}...");
+
+                        string? outputVideo = null;
+                        try
+                        {
+                            outputVideo = await WaitForLTX2VideoInOutputFolderAsync(promptId, chunkIndex + 1, totalChunks);
+                            AddLTX2AudioLog($"WaitForLTX2VideoInOutputFolderAsync returned: {(outputVideo != null ? "FOUND" : "NULL")}");
+                        }
+                        catch (Exception ex)
+                        {
+                            AddLTX2AudioLog($"ERROR in WaitForLTX2VideoInOutputFolderAsync: {ex.Message}");
+                            AddLTX2AudioLog($"Stack trace: {ex.StackTrace}");
+                            outputVideo = null;
+                        }
+
+                        if (outputVideo != null && File.Exists(outputVideo))
+                        {
+                            var chunkFileName = Path.Combine(Path.GetTempPath(), $"ltx2_chunk_{chunkIndex:D3}_{Path.GetFileName(outputVideo)}");
+                            AddLTX2AudioLog($"Copying video from {outputVideo} to {chunkFileName}");
+
+                            try
+                            {
+                                File.Copy(outputVideo, chunkFileName, true);
+                                chunkFiles.Add(chunkFileName);
+                                AddLTX2AudioLog($"✓ Chunk {chunkIndex + 1}/{totalChunks} saved successfully: {chunkFileName}");
+                            }
+                            catch (Exception ex)
+                            {
+                                AddLTX2AudioLog($"ERROR copying file: {ex.Message}");
+                                AddLTX2AudioLog($"Stack trace: {ex.StackTrace}");
+                            }
+                        }
+                        else
+                        {
+                            AddLTX2AudioLog($"WARNING: No output video found for chunk {chunkIndex + 1}");
+                            AddLTX2AudioLog($"outputVideo is null: {outputVideo == null}");
+                            if (outputVideo != null)
+                            {
+                                AddLTX2AudioLog($"File exists: {File.Exists(outputVideo)}");
+                            }
+                        }
+
+                        currentStartIndex += chunkDuration;
+                        AddLTX2AudioLog($"✓ Completed chunk {chunkIndex + 1}/{totalChunks}, moving to next chunk");
+                    }
+                    catch (Exception ex)
+                    {
+                        AddLTX2AudioLog($"=== ERROR processing chunk {chunkIndex + 1}/{totalChunks} ===");
+                        AddLTX2AudioLog($"Message: {ex.Message}");
+                        AddLTX2AudioLog($"Stack trace: {ex.StackTrace}");
+                        AddLTX2AudioLog($"Continuing to next chunk if possible...");
+
+                        // Don't re-throw - try to continue with remaining chunks
+                        currentStartIndex += Math.Min(chunkDurationSeconds, LTX2AudioDuration - currentStartIndex);
+                    }
+                }
+
+                // Merge chunks
+                LTX2AudioProcessingProgress = 85;
+                LTX2AudioProcessingStatus = "Merging video chunks...";
+                AddLTX2AudioLog("=== Merging video chunks ===");
+
+                if (chunkFiles.Count > 0)
+                {
+                    var outputPath = Path.Combine(_settingsService.Settings?.OutputFolderPath ?? Path.GetTempPath(), "LTX2Audio");
+                    Directory.CreateDirectory(outputPath);
+
+                    var outputFileName = $"LTX2Audio_{DateTime.Now:yyyyMMdd_HHmmss}.mp4";
+                    var finalOutputPath = Path.Combine(outputPath, outputFileName);
+
+                    if (chunkFiles.Count == 1)
+                    {
+                        // Only one chunk, just copy it
+                        File.Copy(chunkFiles[0], finalOutputPath, true);
+                        AddLTX2AudioLog($"Only one chunk, copying to final output: {finalOutputPath}");
+                    }
+                    else
+                    {
+                        // Merge multiple chunks using ffmpeg
+                        MergeVideoChunksWithFFmpeg(chunkFiles, finalOutputPath, LTX2AudioPath);
+                    }
+
+                    // Clean up chunk files
+                    foreach (var chunkFile in chunkFiles)
+                    {
+                        try
+                        {
+                            if (File.Exists(chunkFile))
+                            {
+                                File.Delete(chunkFile);
+                            }
+                        }
+                        catch (Exception ex)
+                        {
+                            AddLTX2AudioLog($"Warning: Could not delete chunk file {chunkFile}: {ex.Message}");
+                        }
+                    }
+
+                    LTX2AudioResultPath = finalOutputPath;
+                    HasLTX2AudioResult = true;
+
+                    var fileInfo = new FileInfo(finalOutputPath);
+                    LTX2AudioVideoInfo = $"LTX2 Audio Video • {fileInfo.Length / 1024 / 1024:F1}MB";
+
+                    LTX2AudioProcessingProgress = 100;
+                    LTX2AudioProcessingStatus = "Complete!";
+
+                    AddLTX2AudioLog($"=== LTX2 Audio video generation completed successfully ===");
+                    AddLTX2AudioLog($"Video saved to: {finalOutputPath}");
+                }
+                else
+                {
+                    AddLTX2AudioLog("ERROR: No video chunks were generated");
+                    LTX2AudioProcessingStatus = "No output generated";
+                }
+            }
+            catch (Exception ex)
+            {
+                AddLTX2AudioLog($"ERROR: {ex.Message}");
+                AddLTX2AudioLog($"Stack trace: {ex.StackTrace}");
+                LTX2AudioProcessingStatus = "Error occurred";
+                throw;
+            }
+            finally
+            {
+                IsProcessingLTX2Audio = false;
+            }
+        }
+
+        private JsonElement UpdateLTX2AudioWorkflowParameters(JsonElement workflow, string imageName, string audioName, double startIndex, double duration, int frames)
+        {
+            var workflowDict = JsonSerializer.Deserialize<Dictionary<string, JsonElement>>(workflow.GetRawText());
+
+            if (workflowDict == null) return workflow;
+
+            AddLTX2AudioLog("=== Updating LTX2 Audio workflow parameters ===");
+            AddLTX2AudioLog($"Start index: {startIndex:F2}s, Duration: {duration:F2}s, Frames: {frames}");
+
+            // Update image (node 110)
+            if (workflowDict.ContainsKey("110"))
+            {
+                var node = JsonSerializer.Deserialize<Dictionary<string, object>>(workflowDict["110"].GetRawText());
+                if (node != null && node.ContainsKey("inputs"))
+                {
+                    var inputs = JsonSerializer.Deserialize<Dictionary<string, object>>(
+                        JsonSerializer.Serialize(node["inputs"]));
+                    if (inputs != null)
+                    {
+                        inputs["image"] = imageName;
+                        node["inputs"] = inputs;
+                        workflowDict["110"] = JsonSerializer.SerializeToElement(node);
+                        AddLTX2AudioLog($"✓ Node 110 (LoadImage) - Image: {imageName}");
+                    }
+                }
+            }
+
+            // Update audio (node 12)
+            if (workflowDict.ContainsKey("12"))
+            {
+                var node = JsonSerializer.Deserialize<Dictionary<string, object>>(workflowDict["12"].GetRawText());
+                if (node != null && node.ContainsKey("inputs"))
+                {
+                    var inputs = JsonSerializer.Deserialize<Dictionary<string, object>>(
+                        JsonSerializer.Serialize(node["inputs"]));
+                    if (inputs != null)
+                    {
+                        inputs["audio"] = audioName;
+                        node["inputs"] = inputs;
+                        workflowDict["12"] = JsonSerializer.SerializeToElement(node);
+                        AddLTX2AudioLog($"✓ Node 12 (LoadAudio) - Audio: {audioName}");
+                    }
+                }
+            }
+
+            // Update prompt (node 85)
+            if (workflowDict.ContainsKey("85"))
+            {
+                var node = JsonSerializer.Deserialize<Dictionary<string, object>>(workflowDict["85"].GetRawText());
+                if (node != null && node.ContainsKey("inputs"))
+                {
+                    var inputs = JsonSerializer.Deserialize<Dictionary<string, object>>(
+                        JsonSerializer.Serialize(node["inputs"]));
+                    if (inputs != null)
+                    {
+                        inputs["text"] = LTX2AudioPrompt;
+                        node["inputs"] = inputs;
+                        workflowDict["85"] = JsonSerializer.SerializeToElement(node);
+                        AddLTX2AudioLog($"✓ Node 85 (Text Multiline) - Prompt updated");
+                    }
+                }
+            }
+
+            // Update video length/frames (node 81)
+            if (workflowDict.ContainsKey("81"))
+            {
+                var node = JsonSerializer.Deserialize<Dictionary<string, object>>(workflowDict["81"].GetRawText());
+                if (node != null && node.ContainsKey("inputs"))
+                {
+                    var inputs = JsonSerializer.Deserialize<Dictionary<string, object>>(
+                        JsonSerializer.Serialize(node["inputs"]));
+                    if (inputs != null)
+                    {
+                        inputs["value"] = frames;
+                        node["inputs"] = inputs;
+                        workflowDict["81"] = JsonSerializer.SerializeToElement(node);
+                        AddLTX2AudioLog($"✓ Node 81 (PrimitiveInt) - Frames: {frames}");
+                    }
+                }
+            }
+
+            // Update width and height (node 68)
+            if (workflowDict.ContainsKey("68"))
+            {
+                var node = JsonSerializer.Deserialize<Dictionary<string, object>>(workflowDict["68"].GetRawText());
+                if (node != null && node.ContainsKey("inputs"))
+                {
+                    var inputs = JsonSerializer.Deserialize<Dictionary<string, object>>(
+                        JsonSerializer.Serialize(node["inputs"]));
+                    if (inputs != null)
+                    {
+                        inputs["width"] = LTX2AudioWidth;
+                        inputs["height"] = LTX2AudioHeight;
+                        node["inputs"] = inputs;
+                        workflowDict["68"] = JsonSerializer.SerializeToElement(node);
+                        AddLTX2AudioLog($"✓ Node 68 (ImageResize) - Size: {LTX2AudioWidth}x{LTX2AudioHeight}");
+                    }
+                }
+            }
+
+            // Update audio start index (node 101)
+            if (workflowDict.ContainsKey("101"))
+            {
+                var node = JsonSerializer.Deserialize<Dictionary<string, object>>(workflowDict["101"].GetRawText());
+                if (node != null && node.ContainsKey("inputs"))
+                {
+                    var inputs = JsonSerializer.Deserialize<Dictionary<string, object>>(
+                        JsonSerializer.Serialize(node["inputs"]));
+                    if (inputs != null)
+                    {
+                        inputs["value"] = startIndex;
+                        node["inputs"] = inputs;
+                        workflowDict["101"] = JsonSerializer.SerializeToElement(node);
+                        AddLTX2AudioLog($"✓ Node 101 (FloatConstant) - Start index: {startIndex:F2}s");
+                    }
+                }
+            }
+
+            // Update audio duration (node 102)
+            if (workflowDict.ContainsKey("102"))
+            {
+                var node = JsonSerializer.Deserialize<Dictionary<string, object>>(workflowDict["102"].GetRawText());
+                if (node != null && node.ContainsKey("inputs"))
+                {
+                    var inputs = JsonSerializer.Deserialize<Dictionary<string, object>>(
+                        JsonSerializer.Serialize(node["inputs"]));
+                    if (inputs != null)
+                    {
+                        inputs["value"] = duration;
+                        node["inputs"] = inputs;
+                        workflowDict["102"] = JsonSerializer.SerializeToElement(node);
+                        AddLTX2AudioLog($"✓ Node 102 (FloatConstant) - Duration: {duration:F2}s");
+                    }
+                }
+            }
+
+            AddLTX2AudioLog("=== LTX2 Audio workflow parameters updated successfully ===");
+
+            var updatedWorkflow = JsonSerializer.SerializeToElement(workflowDict);
+            return updatedWorkflow;
+        }
+
+        private void MergeVideoChunksWithFFmpeg(List<string> chunkFiles, string outputPath, string originalAudioPath)
+        {
+            try
+            {
+                var ffmpegPath = FindFFmpeg();
+                if (string.IsNullOrEmpty(ffmpegPath))
+                {
+                    AddLTX2AudioLog("ERROR: ffmpeg not found. Cannot merge video chunks.");
+                    throw new InvalidOperationException("ffmpeg is required to merge video chunks.");
+                }
+
+                // Create a temporary file list for ffmpeg
+                var listFile = Path.Combine(Path.GetTempPath(), $"ffmpeg_list_{Guid.NewGuid()}.txt");
+                using (var writer = new StreamWriter(listFile))
+                {
+                    foreach (var chunkFile in chunkFiles)
+                    {
+                        writer.WriteLine($"file '{chunkFile.Replace("\\", "/")}'");
+                    }
+                }
+
+                AddLTX2AudioLog($"Merging {chunkFiles.Count} video chunks using ffmpeg...");
+
+                var startInfo = new ProcessStartInfo
+                {
+                    FileName = ffmpegPath,
+                    Arguments = $"-f concat -safe 0 -i \"{listFile}\" -c copy \"{outputPath}\"",
+                    RedirectStandardOutput = true,
+                    RedirectStandardError = true,
+                    UseShellExecute = false,
+                    CreateNoWindow = true
+                };
+
+                using (var process = Process.Start(startInfo))
+                {
+                    var output = process.StandardOutput.ReadToEnd();
+                    var error = process.StandardError.ReadToEnd();
+                    process.WaitForExit();
+
+                    AddLTX2AudioLog($"ffmpeg merge output: {output}");
+                    if (!string.IsNullOrEmpty(error))
+                    {
+                        AddLTX2AudioLog($"ffmpeg merge error: {error}");
+                    }
+                }
+
+                // Clean up list file
+                try
+                {
+                    File.Delete(listFile);
+                }
+                catch (Exception ex)
+                {
+                    AddLTX2AudioLog($"Warning: Could not delete list file: {ex.Message}");
+                }
+
+                // Replace audio with original audio to ensure perfect sync
+                AddLTX2AudioLog("Replacing audio with original for perfect sync...");
+                var tempOutput = outputPath + ".temp.mp4";
+
+                startInfo = new ProcessStartInfo
+                {
+                    FileName = ffmpegPath,
+                    Arguments = $"-i \"{outputPath}\" -i \"{originalAudioPath}\" -c:v copy -c:a aac -map 0:v:0 -map 1:a:0 -shortest \"{tempOutput}\"",
+                    RedirectStandardOutput = true,
+                    RedirectStandardError = true,
+                    UseShellExecute = false,
+                    CreateNoWindow = true
+                };
+
+                using (var process = Process.Start(startInfo))
+                {
+                    var output = process.StandardOutput.ReadToEnd();
+                    var error = process.StandardError.ReadToEnd();
+                    process.WaitForExit();
+
+                    AddLTX2AudioLog($"ffmpeg audio replace output: {output}");
+                    if (!string.IsNullOrEmpty(error))
+                    {
+                        AddLTX2AudioLog($"ffmpeg audio replace error: {error}");
+                    }
+                }
+
+                // Replace original with temp
+                File.Delete(outputPath);
+                File.Move(tempOutput, outputPath);
+
+                AddLTX2AudioLog($"Video merged successfully: {outputPath}");
+            }
+            catch (Exception ex)
+            {
+                AddLTX2AudioLog($"ERROR merging video chunks: {ex.Message}");
+                throw;
+            }
+        }
+
+        private string FindFFmpeg()
+        {
+            // Try to find ffmpeg in common locations
+            var commonPaths = new[]
+            {
+                @"C:\ffmpeg\bin\ffmpeg.exe",
+                @"C:\Program Files\ffmpeg\bin\ffmpeg.exe",
+                Environment.GetFolderPath(Environment.SpecialFolder.ProgramFiles) + @"\ffmpeg\bin\ffmpeg.exe"
+            };
+
+            foreach (var path in commonPaths)
+            {
+                if (File.Exists(path))
+                {
+                    return path;
+                }
+            }
+
+            // Try to find ffmpeg in PATH
+            try
+            {
+                var startInfo = new ProcessStartInfo
+                {
+                    FileName = "where",
+                    Arguments = "ffmpeg",
+                    RedirectStandardOutput = true,
+                    UseShellExecute = false,
+                    CreateNoWindow = true
+                };
+
+                using (var process = Process.Start(startInfo))
+                {
+                    var output = process.StandardOutput.ReadToEnd();
+                    process.WaitForExit();
+
+                    if (!string.IsNullOrEmpty(output) && File.Exists(output.Split('\n')[0].Trim()))
+                    {
+                        return output.Split('\n')[0].Trim();
+                    }
+                }
+            }
+            catch
+            {
+                // Ignore errors
+            }
+
+            return null;
+        }
+
+        private void PlayLTX2AudioVideo()
+        {
+            if (HasLTX2AudioResult && File.Exists(LTX2AudioResultPath))
+            {
+                try
+                {
+                    var window = System.Windows.Application.Current.MainWindow;
+                    if (window != null)
+                    {
+                        var player = window.FindName("LTX2AudioVideoPlayer") as MediaElement;
+                        if (player != null)
+                        {
+                            player.Play();
+                        }
+                    }
+                }
+                catch (Exception ex)
+                {
+                    AddLTX2AudioLog($"Error playing video: {ex.Message}");
+                }
+            }
+        }
+
+        private void OpenLTX2AudioResultFolder()
+        {
+            if (HasLTX2AudioResult && File.Exists(LTX2AudioResultPath))
+            {
+                try
+                {
+                    Process.Start("explorer.exe", $"/select,\"{LTX2AudioResultPath}\"");
+                }
+                catch (Exception ex)
+                {
+                    AddLTX2AudioLog($"Error opening folder: {ex.Message}");
+                }
+            }
+        }
+
+        private void SendLTX2AudioToEditCamera()
+        {
+            if (HasLTX2AudioResult)
+            {
+                SetImagePath(LTX2AudioImagePath);
+                AddLTX2AudioLog("Video sent to Edit Camera");
+            }
+        }
+
+        // Mocha Methods
+
+        private void SelectMochaVideo()
+        {
+            var initialDirectory = _settingsService.Settings?.VideoGeneratorImageFolder;
+
+            if (string.IsNullOrEmpty(initialDirectory) || !Directory.Exists(initialDirectory))
+            {
+                initialDirectory = Environment.GetFolderPath(Environment.SpecialFolder.MyVideos);
+            }
+
+            var openFileDialog = new Microsoft.Win32.OpenFileDialog
+            {
+                Title = "Select Input Video",
+                Filter = "Video Files|*.mp4;*.avi;*.mov;*.mkv;*.webm|All Files|*.*",
+                CheckFileExists = true,
+                InitialDirectory = initialDirectory
+            };
+
+            if (openFileDialog.ShowDialog() == true)
+            {
+                MochaVideoPath = openFileDialog.FileName;
+
+                // Save the folder location for next time
+                var folderPath = Path.GetDirectoryName(openFileDialog.FileName);
+                if (!string.IsNullOrEmpty(folderPath) && _settingsService.Settings != null)
+                {
+                    _settingsService.Settings.VideoGeneratorImageFolder = folderPath;
+                    _settingsService.SaveSettings(_settingsService.Settings);
+                }
+
+                AddLog($"Selected Mocha video: {Path.GetFileName(MochaVideoPath)}");
+            }
+        }
+
+        private void SelectMochaImage()
+        {
+            var initialDirectory = _settingsService.Settings?.VideoGeneratorImageFolder;
+
+            if (string.IsNullOrEmpty(initialDirectory) || !Directory.Exists(initialDirectory))
+            {
+                initialDirectory = Environment.GetFolderPath(Environment.SpecialFolder.MyPictures);
+            }
+
+            var openFileDialog = new Microsoft.Win32.OpenFileDialog
+            {
+                Title = "Select Reference Image",
+                Filter = "Image Files|*.jpg;*.jpeg;*.png;*.bmp|All Files|*.*",
+                CheckFileExists = true,
+                InitialDirectory = initialDirectory
+            };
+
+            if (openFileDialog.ShowDialog() == true)
+            {
+                MochaImagePath = openFileDialog.FileName;
+
+                // Save the folder location for next time
+                var folderPath = Path.GetDirectoryName(openFileDialog.FileName);
+                if (!string.IsNullOrEmpty(folderPath) && _settingsService.Settings != null)
+                {
+                    _settingsService.Settings.VideoGeneratorImageFolder = folderPath;
+                    _settingsService.SaveSettings(_settingsService.Settings);
+                }
+
+                AddLog($"Selected Mocha image: {Path.GetFileName(MochaImagePath)}");
+            }
+        }
+
+        private void LoadMochaVideoInfo()
+        {
+            if (string.IsNullOrEmpty(MochaVideoPath) || !File.Exists(MochaVideoPath))
+            {
+                MochaSourceVideoInfo = string.Empty;
+                MochaTotalFrames = 0;
+                return;
+            }
+
+            try
+            {
+                var fileInfo = new FileInfo(MochaVideoPath);
+                var duration = GetVideoDuration(MochaVideoPath);
+                var totalFrames = GetVideoFrameCount(MochaVideoPath);
+
+                MochaTotalFrames = totalFrames;
+                MochaSourceVideoInfo = $"{fileInfo.Name} • {fileInfo.Length / 1024 / 1024:F1}MB • {duration:F1}s • {totalFrames} frames • {MochaTotalChunks} chunks (81 frames each)";
+
+                AddLog($"Mocha video loaded: {fileInfo.Name}, {totalFrames} frames, {MochaTotalChunks} chunks");
+            }
+            catch (Exception ex)
+            {
+                MochaSourceVideoInfo = $"Error loading video: {ex.Message}";
+                MochaTotalFrames = 0;
+            }
+        }
+
+        private void LoadMochaImagePreview()
+        {
+            if (string.IsNullOrEmpty(MochaImagePath) || !File.Exists(MochaImagePath))
+            {
+                MochaImagePreview = null;
+                MochaImageInfo = string.Empty;
+                return;
+            }
+
+            try
+            {
+                var bitmap = new BitmapImage();
+                bitmap.BeginInit();
+                bitmap.CacheOption = BitmapCacheOption.OnLoad;
+                bitmap.UriSource = new Uri(MochaImagePath);
+                bitmap.EndInit();
+                bitmap.Freeze();
+
+                MochaImagePreview = bitmap;
+
+                var fileInfo = new FileInfo(MochaImagePath);
+                var decoder = BitmapDecoder.Create(new Uri(MochaImagePath), BitmapCreateOptions.IgnoreColorProfile, BitmapCacheOption.None);
+                MochaImageInfo = $"{fileInfo.Name} • {decoder.Frames[0].PixelWidth}x{decoder.Frames[0].PixelHeight} • {fileInfo.Length / 1024:F1}KB";
+
+                AddLog($"Mocha image loaded: {fileInfo.Name}");
+            }
+            catch (Exception ex)
+            {
+                MochaImagePreview = null;
+                MochaImageInfo = $"Error loading image: {ex.Message}";
+            }
+        }
+
+        private double GetVideoDuration(string videoPath)
+        {
+            try
+            {
+                var ffmpegPath = FindFFmpeg();
+                if (string.IsNullOrEmpty(ffmpegPath))
+                {
+                    return 0;
+                }
+
+                var startInfo = new ProcessStartInfo
+                {
+                    FileName = ffmpegPath,
+                    Arguments = $"-i \"{videoPath}\" -hide_banner",
+                    RedirectStandardError = true,
+                    UseShellExecute = false,
+                    CreateNoWindow = true
+                };
+
+                using (var process = Process.Start(startInfo))
+                {
+                    var error = process.StandardError.ReadToEnd();
+                    process.WaitForExit();
+
+                    // Parse duration from ffmpeg output
+                    var match = System.Text.RegularExpressions.Regex.Match(error, @"Duration: (\d+):(\d+):(\d+\.\d+)");
+                    if (match.Success)
+                    {
+                        var hours = double.Parse(match.Groups[1].Value);
+                        var minutes = double.Parse(match.Groups[2].Value);
+                        var seconds = double.Parse(match.Groups[3].Value);
+                        return hours * 3600 + minutes * 60 + seconds;
+                    }
+                }
+
+                return 0;
+            }
+            catch
+            {
+                return 0;
+            }
+        }
+
+        private int GetVideoFrameCount(string videoPath)
+        {
+            try
+            {
+                var ffmpegPath = FindFFmpeg();
+                if (string.IsNullOrEmpty(ffmpegPath))
+                {
+                    return 0;
+                }
+
+                var startInfo = new ProcessStartInfo
+                {
+                    FileName = ffmpegPath,
+                    Arguments = $"-i \"{videoPath}\" -hide_banner -map 0:v:0 -c copy -f null -",
+                    RedirectStandardError = true,
+                    UseShellExecute = false,
+                    CreateNoWindow = true
+                };
+
+                using (var process = Process.Start(startInfo))
+                {
+                    var error = process.StandardError.ReadToEnd();
+                    process.WaitForExit();
+
+                    // Parse frame count from ffmpeg output
+                    var match = System.Text.RegularExpressions.Regex.Match(error, @"frame=\s*(\d+)");
+                    if (match.Success)
+                    {
+                        return int.Parse(match.Groups[1].Value);
+                    }
+                }
+
+                return 0;
+            }
+            catch
+            {
+                return 0;
+            }
+        }
+
+        private async Task GenerateMochaVideoAsync()
+        {
+            if (!CanGenerateMochaVideo) return;
+
+            try
+            {
+                await GenerateMochaVideoAsyncInternal();
+            }
+            catch (Exception ex)
+            {
+                AddMochaLog($"ERROR: {ex.Message}");
+                System.Windows.MessageBox.Show($"An error occurred during Mocha video generation:\n{ex.Message}", "Error", System.Windows.MessageBoxButton.OK, System.Windows.MessageBoxImage.Error);
+            }
+        }
+
+        private async Task GenerateMochaVideoAsyncInternal()
+        {
+            try
+            {
+                AddMochaLog("=== Starting Mocha video generation ===");
+                IsProcessingMocha = true;
+
+                // Clear previous result
+                HasMochaResult = false;
+                MochaResultPath = string.Empty;
+                MochaResultVideoInfo = string.Empty;
+
+                MochaProcessingProgress = 0;
+                MochaProcessingStatus = "Preparing workflow...";
+                AddMochaLog($"Source video: {Path.GetFileName(MochaVideoPath)} ({MochaTotalFrames} frames)");
+                AddMochaLog($"Source image: {Path.GetFileName(MochaImagePath)}");
+                AddMochaLog($"Total chunks: {MochaTotalChunks} (81 frames each)");
+
+                // Check if ComfyUI has crashed and restart if needed
+                MochaProcessingStatus = "Checking ComfyUI status...";
+                AddMochaLog("Checking if ComfyUI is running...");
+
+                var comfyUIOk = await _comfyUIService.DetectAndRestartIfCrashedAsync(
+                    status => AddMochaLog($"[Auto-Restart] {status}"));
+
+                if (!comfyUIOk)
+                {
+                    AddMochaLog("ERROR: ComfyUI is not running and auto-restart failed or is disabled");
+                    System.Windows.MessageBox.Show(
+                        "ComfyUI is not running. Please start ComfyUI manually or configure auto-restart in settings.",
+                        "ComfyUI Not Running",
+                        System.Windows.MessageBoxButton.OK,
+                        System.Windows.MessageBoxImage.Warning);
+                    return;
+                }
+
+                AddMochaLog("ComfyUI is running and responsive");
+
+                // Ensure ComfyUI is connected
+                if (!_comfyUIService.IsConnected)
+                {
+                    MochaProcessingStatus = "Connecting to ComfyUI...";
+                    AddMochaLog("Connecting to ComfyUI WebSocket...");
+                    await _comfyUIService.ConnectAsync();
+                    AddMochaLog("Connected to ComfyUI");
+                }
+                else
+                {
+                    AddMochaLog("ComfyUI already connected");
+                }
+
+                // Load Mocha workflow
+                var workflowPath = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "workflow", "wanvideo_2_1_14B_MoCha_replace_subject_KJ_02(1).json");
+
+                AddMochaLog($"Loading Mocha workflow: wanvideo_2_1_14B_MoCha_replace_subject_KJ_02(1).json");
+
+                if (!File.Exists(workflowPath))
+                {
+                    AddMochaLog($"ERROR: Workflow file not found: {workflowPath}");
+                    System.Windows.MessageBox.Show($"Mocha workflow file not found:\n{workflowPath}", "Error", System.Windows.MessageBoxButton.OK, System.Windows.MessageBoxImage.Error);
+                    return;
+                }
+
+                var workflowJson = await File.ReadAllTextAsync(workflowPath);
+                var workflow = JsonSerializer.Deserialize<JsonElement>(workflowJson);
+
+                // Upload video and image
+                MochaProcessingStatus = "Uploading assets to ComfyUI...";
+                MochaProcessingProgress = 10;
+                AddMochaLog("Uploading video to ComfyUI...");
+                var uploadedVideoName = await _comfyUIService.UploadVideoAsync(MochaVideoPath);
+                if (string.IsNullOrEmpty(uploadedVideoName))
+                {
+                    AddMochaLog("ERROR: Video upload failed");
+                    System.Windows.MessageBox.Show("Failed to upload video to ComfyUI.", "Upload Failed", System.Windows.MessageBoxButton.OK, System.Windows.MessageBoxImage.Error);
+                    return;
+                }
+                AddMochaLog($"Video uploaded: {uploadedVideoName}");
+
+                AddMochaLog("Uploading image to ComfyUI...");
+                var uploadedImageName = await _comfyUIService.UploadImageAsync(MochaImagePath);
+                if (string.IsNullOrEmpty(uploadedImageName))
+                {
+                    AddMochaLog("ERROR: Image upload failed");
+                    System.Windows.MessageBox.Show("Failed to upload image to ComfyUI.", "Upload Failed", System.Windows.MessageBoxButton.OK, System.Windows.MessageBoxImage.Error);
+                    return;
+                }
+                AddMochaLog($"Image uploaded: {uploadedImageName}");
+
+                // Process 81-frame chunks
+                var chunkFiles = new List<string>();
+                const int framesPerChunk = 81;
+                var totalChunks = MochaTotalChunks;
+
+                AddMochaLog($"=== Will process {totalChunks} chunks of {framesPerChunk} frames each ===");
+
+                for (int chunkIndex = 0; chunkIndex < totalChunks; chunkIndex++)
+                {
+                    try
+                    {
+                        var startFrame = chunkIndex * framesPerChunk;
+                        var framesInChunk = Math.Min(framesPerChunk, MochaTotalFrames - startFrame);
+
+                        AddMochaLog($"=== Processing chunk {chunkIndex + 1}/{totalChunks} (frames {startFrame}-{startFrame + framesInChunk - 1}) ===");
+
+                        MochaProcessingStatus = $"Processing chunk {chunkIndex + 1}/{totalChunks}";
+                        var baseProgress = 20 + (chunkIndex * 60.0 / totalChunks);
+
+                        // Check ComfyUI connection before each chunk
+                        if (chunkIndex > 0)
+                        {
+                            AddMochaLog($"Checking ComfyUI connection before chunk {chunkIndex + 1}...");
+                            bool isComfyUIReady = _comfyUIService.IsConnected;
+                            AddMochaLog($"ComfyUI ready check: {(isComfyUIReady ? "OK" : "FAILED")}");
+
+                            if (!isComfyUIReady)
+                            {
+                                AddMochaLog($"ComfyUI not responding, attempting to reconnect...");
+
+                                try
+                                {
+                                    if (_comfyUIService.IsConnected)
+                                    {
+                                        await _comfyUIService.DisconnectAsync();
+                                        AddMochaLog("Disconnected from ComfyUI");
+                                    }
+                                }
+                                catch (Exception ex)
+                                {
+                                    AddMochaLog($"Disconnect error (can be ignored): {ex.Message}");
+                                }
+
+                                await Task.Delay(TimeSpan.FromSeconds(3));
+
+                                try
+                                {
+                                    await _comfyUIService.ConnectAsync();
+                                    AddMochaLog("✓ Reconnected to ComfyUI");
+                                    await Task.Delay(TimeSpan.FromSeconds(2));
+                                }
+                                catch (Exception ex)
+                                {
+                                    AddMochaLog($"ERROR: Failed to reconnect to ComfyUI: {ex.Message}");
+                                    throw new Exception("Cannot reconnect to ComfyUI. Please check ComfyUI window.");
+                                }
+                            }
+                        }
+
+                        // Update workflow parameters for this chunk
+                        AddMochaLog($"Updating workflow parameters for chunk {chunkIndex + 1}...");
+                        JsonElement updatedWorkflow;
+                        try
+                        {
+                            updatedWorkflow = UpdateMochaWorkflowParameters(workflow, uploadedVideoName, uploadedImageName, startFrame, framesInChunk);
+                            AddMochaLog($"Workflow parameters updated successfully for chunk {chunkIndex + 1}");
+                        }
+                        catch (Exception ex)
+                        {
+                            AddMochaLog($"ERROR updating workflow parameters for chunk {chunkIndex + 1}: {ex.Message}");
+                            throw;
+                        }
+
+                        // Execute workflow
+                        AddMochaLog($"About to execute workflow for chunk {chunkIndex + 1}...");
+
+                        var progress = new Progress<FlipPix.ComfyUI.Models.ProgressMessage>(progressMsg =>
+                        {
+                            try
+                            {
+                                if (progressMsg.Data?.Value != null && progressMsg.Data?.Max != null)
+                                {
+                                    var percent = (double)progressMsg.Data.Value / progressMsg.Data.Max * 100;
+                                    System.Windows.Application.Current.Dispatcher.Invoke(() =>
+                                    {
+                                        MochaProcessingProgress = baseProgress + (percent * 0.6 / totalChunks);
+                                        MochaProcessingStatus = $"Chunk {chunkIndex + 1}/{totalChunks}: {progressMsg.Data.Value}/{progressMsg.Data.Max}";
+                                    });
+                                }
+                            }
+                            catch (Exception ex)
+                            {
+                                AddMochaLog($"ERROR in progress callback: {ex.Message}");
+                            }
+                        });
+
+                        AddMochaLog($"Calling ExecuteWorkflowAsync for chunk {chunkIndex + 1}...");
+                        string promptId;
+                        try
+                        {
+                            promptId = await _comfyUIService.ExecuteWorkflowAsync(updatedWorkflow, progress);
+                            AddMochaLog($"ExecuteWorkflowAsync returned for chunk {chunkIndex + 1}, prompt ID: {promptId}");
+                        }
+                        catch (Exception ex)
+                        {
+                            AddMochaLog($"ERROR in ExecuteWorkflowAsync for chunk {chunkIndex + 1}: {ex.Message}");
+                            throw;
+                        }
+
+                        // Wait and retrieve the output video
+                        AddMochaLog($"Looking for generated video for chunk {chunkIndex + 1}...");
+
+                        string? outputVideo = null;
+                        try
+                        {
+                            outputVideo = await WaitForMochaVideoInOutputFolderAsync(promptId, chunkIndex + 1, totalChunks);
+                            AddMochaLog($"WaitForMochaVideoInOutputFolderAsync returned: {(outputVideo != null ? "FOUND" : "NULL")}");
+                        }
+                        catch (Exception ex)
+                        {
+                            AddMochaLog($"ERROR in WaitForMochaVideoInOutputFolderAsync: {ex.Message}");
+                            outputVideo = null;
+                        }
+
+                        if (outputVideo != null && File.Exists(outputVideo))
+                        {
+                            var chunkFileName = Path.Combine(Path.GetTempPath(), $"mocha_chunk_{chunkIndex:D3}_{Path.GetFileName(outputVideo)}");
+                            AddMochaLog($"Copying video from {outputVideo} to {chunkFileName}");
+
+                            try
+                            {
+                                File.Copy(outputVideo, chunkFileName, true);
+                                chunkFiles.Add(chunkFileName);
+                                AddMochaLog($"✓ Chunk {chunkIndex + 1}/{totalChunks} saved successfully: {chunkFileName}");
+                            }
+                            catch (Exception ex)
+                            {
+                                AddMochaLog($"ERROR copying file: {ex.Message}");
+                            }
+                        }
+                        else
+                        {
+                            AddMochaLog($"WARNING: No output video found for chunk {chunkIndex + 1}");
+                        }
+
+                        AddMochaLog($"✓ Completed chunk {chunkIndex + 1}/{totalChunks}");
+                    }
+                    catch (Exception ex)
+                    {
+                        AddMochaLog($"=== ERROR processing chunk {chunkIndex + 1}/{totalChunks} ===");
+                        AddMochaLog($"Message: {ex.Message}");
+                        AddMochaLog($"Continuing to next chunk if possible...");
+                    }
+                }
+
+                // Merge chunks
+                MochaProcessingProgress = 85;
+                MochaProcessingStatus = "Merging video chunks...";
+                AddMochaLog("=== Merging video chunks ===");
+
+                if (chunkFiles.Count > 0)
+                {
+                    var outputPath = Path.Combine(_settingsService.Settings?.OutputFolderPath ?? Path.GetTempPath(), "Mocha");
+                    Directory.CreateDirectory(outputPath);
+
+                    var outputFileName = $"Mocha_{DateTime.Now:yyyyMMdd_HHmmss}.mp4";
+                    var finalOutputPath = Path.Combine(outputPath, outputFileName);
+
+                    if (chunkFiles.Count == 1)
+                    {
+                        File.Copy(chunkFiles[0], finalOutputPath, true);
+                        AddMochaLog($"Only one chunk, copying to final output: {finalOutputPath}");
+                    }
+                    else
+                    {
+                        MergeMochaVideoChunksWithFFmpeg(chunkFiles, finalOutputPath);
+                    }
+
+                    // Clean up chunk files
+                    foreach (var chunkFile in chunkFiles)
+                    {
+                        try
+                        {
+                            if (File.Exists(chunkFile))
+                            {
+                                File.Delete(chunkFile);
+                            }
+                        }
+                        catch (Exception ex)
+                        {
+                            AddMochaLog($"Warning: Could not delete chunk file {chunkFile}: {ex.Message}");
+                        }
+                    }
+
+                    MochaResultPath = finalOutputPath;
+                    HasMochaResult = true;
+
+                    var fileInfo = new FileInfo(finalOutputPath);
+                    MochaResultVideoInfo = $"Mocha Video • {fileInfo.Length / 1024 / 1024:F1}MB";
+
+                    MochaProcessingProgress = 100;
+                    MochaProcessingStatus = "Complete!";
+
+                    AddMochaLog($"=== Mocha video generation completed successfully ===");
+                    AddMochaLog($"Video saved to: {finalOutputPath}");
+                }
+                else
+                {
+                    AddMochaLog("ERROR: No video chunks were generated");
+                    MochaProcessingStatus = "No output generated";
+                }
+            }
+            catch (Exception ex)
+            {
+                AddMochaLog($"ERROR: {ex.Message}");
+                MochaProcessingStatus = "Error occurred";
+                throw;
+            }
+            finally
+            {
+                IsProcessingMocha = false;
+            }
+        }
+
+        private JsonElement UpdateMochaWorkflowParameters(JsonElement workflow, string videoName, string imageName, int startFrame, int frameCount)
+        {
+            var workflowDict = JsonSerializer.Deserialize<Dictionary<string, JsonElement>>(workflow.GetRawText());
+
+            if (workflowDict == null) return workflow;
+
+            AddMochaLog("=== Updating Mocha workflow parameters ===");
+            AddMochaLog($"Start frame: {startFrame}, Frame count: {frameCount}");
+
+            // Update video (node 128)
+            if (workflowDict.ContainsKey("128"))
+            {
+                var node = JsonSerializer.Deserialize<Dictionary<string, object>>(workflowDict["128"].GetRawText());
+                if (node != null && node.ContainsKey("inputs"))
+                {
+                    var inputs = JsonSerializer.Deserialize<Dictionary<string, object>>(
+                        JsonSerializer.Serialize(node["inputs"]));
+                    if (inputs != null)
+                    {
+                        inputs["video"] = videoName;
+                        inputs["frame_load_cap"] = frameCount;
+                        inputs["skip_first_frames"] = startFrame;
+                        node["inputs"] = inputs;
+                        workflowDict["128"] = JsonSerializer.SerializeToElement(node);
+                        AddMochaLog($"✓ Node 128 (VHS_LoadVideo) - Video: {videoName}, Frame cap: {frameCount}, Skip: {startFrame}");
+                    }
+                }
+            }
+
+            // Update image (node 212)
+            if (workflowDict.ContainsKey("212"))
+            {
+                var node = JsonSerializer.Deserialize<Dictionary<string, object>>(workflowDict["212"].GetRawText());
+                if (node != null && node.ContainsKey("inputs"))
+                {
+                    var inputs = JsonSerializer.Deserialize<Dictionary<string, object>>(
+                        JsonSerializer.Serialize(node["inputs"]));
+                    if (inputs != null)
+                    {
+                        inputs["image"] = imageName;
+                        node["inputs"] = inputs;
+                        workflowDict["212"] = JsonSerializer.SerializeToElement(node);
+                        AddMochaLog($"✓ Node 212 (LoadImage) - Image: {imageName}");
+                    }
+                }
+            }
+
+            AddMochaLog("=== Mocha workflow parameters updated successfully ===");
+
+            var updatedWorkflow = JsonSerializer.SerializeToElement(workflowDict);
+            return updatedWorkflow;
+        }
+
+        private async Task<string?> WaitForMochaVideoInOutputFolderAsync(string promptId, int chunkIndex, int totalChunks)
+        {
+            var settings = _settingsService.Settings;
+            if (settings == null)
+            {
+                AddMochaLog("ERROR: Settings object is null");
+                return null;
+            }
+
+            // Determine the output folder based on whether ComfyUI is local or remote
+            string outputFolder;
+            var baseUrl = settings.BaseUrl ?? "http://127.0.0.1:8188";
+            var isLocalComfyUI = baseUrl.Contains("127.0.0.1") || baseUrl.Contains("localhost");
+
+            if (isLocalComfyUI)
+            {
+                // Local ComfyUI - use the configured output folder path
+                if (string.IsNullOrEmpty(settings.OutputFolderPath))
+                {
+                    AddMochaLog("ERROR: ComfyUI output path not configured in settings");
+                    return null;
+                }
+                outputFolder = settings.OutputFolderPath;
+                AddMochaLog($"Using local ComfyUI output folder: {outputFolder}");
+            }
+            else
+            {
+                // Remote ComfyUI - use the remote output folder path
+                if (string.IsNullOrEmpty(settings.RemoteOutputFolderPath))
+                {
+                    AddMochaLog("ERROR: Remote ComfyUI output path not configured in settings");
+                    return null;
+                }
+                outputFolder = settings.RemoteOutputFolderPath;
+                AddMochaLog($"Using remote ComfyUI output folder: {outputFolder}");
+            }
+
+            if (!Directory.Exists(outputFolder))
+            {
+                AddMochaLog($"ERROR: Output folder does not exist: {outputFolder}");
+                return null;
+            }
+
+            const int maxWaitTime = 600; // 10 minutes max
+            var waitTime = 0;
+            var checkInterval = 2; // Check every 2 seconds
+
+            AddMochaLog($"Waiting for output video (chunk {chunkIndex}/{totalChunks}, prompt ID: {promptId})...");
+
+            while (waitTime < maxWaitTime)
+            {
+                await Task.Delay(checkInterval * 1000);
+                waitTime += checkInterval;
+
+                try
+                {
+                    // Look for the most recent video file with the WanVideo_MoCha prefix
+                    var videoFiles = Directory.GetFiles(outputFolder, "WanVideo_MoCha*.mp4")
+                        .Concat(Directory.GetFiles(outputFolder, "WanVideo_MoCha*.webm"))
+                        .OrderByDescending(f => File.GetCreationTime(f));
+
+                    foreach (var videoFile in videoFiles)
+                    {
+                        // Check if file is recent and not locked
+                        var fileInfo = new FileInfo(videoFile);
+                        if (fileInfo.CreationTime > DateTime.Now.AddMinutes(-15))
+                        {
+                            try
+                            {
+                                // Try to open the file to check if it's still being written
+                                using (var stream = File.Open(videoFile, FileMode.Open, FileAccess.Read, FileShare.ReadWrite))
+                                {
+                                    // If we can open it, it's probably complete
+                                }
+
+                                AddMochaLog($"Found output video: {Path.GetFileName(videoFile)}");
+                                return videoFile;
+                            }
+                            catch (IOException)
+                            {
+                                // File is still being written, continue waiting
+                                AddMochaLog($"Video file found but still being written: {Path.GetFileName(videoFile)}");
+                            }
+                        }
+                    }
+                }
+                catch (Exception ex)
+                {
+                    AddMochaLog($"Error checking for output video: {ex.Message}");
+                }
+
+                if (waitTime % 10 == 0)
+                {
+                    AddMochaLog($"Still waiting for output video... ({waitTime}s elapsed)");
+                }
+            }
+
+            AddMochaLog($"Timeout waiting for output video after {maxWaitTime}s");
+            return null;
+        }
+
+        private void MergeMochaVideoChunksWithFFmpeg(List<string> chunkFiles, string outputPath)
+        {
+            try
+            {
+                var ffmpegPath = FindFFmpeg();
+                if (string.IsNullOrEmpty(ffmpegPath))
+                {
+                    AddMochaLog("ERROR: ffmpeg not found. Cannot merge video chunks.");
+                    throw new InvalidOperationException("ffmpeg is required to merge video chunks.");
+                }
+
+                // Create a temporary file list for ffmpeg
+                var listFile = Path.Combine(Path.GetTempPath(), $"ffmpeg_list_{Guid.NewGuid()}.txt");
+                using (var writer = new StreamWriter(listFile))
+                {
+                    foreach (var chunkFile in chunkFiles)
+                    {
+                        writer.WriteLine($"file '{chunkFile.Replace("\\", "/")}'");
+                    }
+                }
+
+                AddMochaLog($"Merging {chunkFiles.Count} video chunks using ffmpeg...");
+
+                var startInfo = new ProcessStartInfo
+                {
+                    FileName = ffmpegPath,
+                    Arguments = $"-f concat -safe 0 -i \"{listFile}\" -c copy \"{outputPath}\"",
+                    RedirectStandardOutput = true,
+                    RedirectStandardError = true,
+                    UseShellExecute = false,
+                    CreateNoWindow = true
+                };
+
+                using (var process = Process.Start(startInfo))
+                {
+                    var output = process.StandardOutput.ReadToEnd();
+                    var error = process.StandardError.ReadToEnd();
+                    process.WaitForExit();
+
+                    AddMochaLog($"ffmpeg merge output: {output}");
+                    if (!string.IsNullOrEmpty(error))
+                    {
+                        AddMochaLog($"ffmpeg merge errors: {error}");
+                    }
+                }
+
+                // Clean up the list file
+                try
+                {
+                    File.Delete(listFile);
+                }
+                catch
+                {
+                    // Ignore
+                }
+
+                AddMochaLog($"Video merged successfully: {outputPath}");
+            }
+            catch (Exception ex)
+            {
+                AddMochaLog($"ERROR merging video chunks: {ex.Message}");
+                throw;
+            }
+        }
+
+        private void AddMochaLog(string message)
+        {
+            var timestamp = DateTime.Now.ToString("HH:mm:ss");
+            MochaLogOutput += $"[{timestamp}] {message}\n";
+        }
+
+        private void PlayMochaVideo()
+        {
+            if (HasMochaResult && File.Exists(MochaResultPath))
+            {
+                try
+                {
+                    var window = System.Windows.Application.Current.MainWindow;
+                    if (window != null)
+                    {
+                        var player = window.FindName("MochaVideoPlayer") as MediaElement;
+                        if (player != null)
+                        {
+                            player.Play();
+                        }
+                    }
+                }
+                catch (Exception ex)
+                {
+                    AddMochaLog($"Error playing video: {ex.Message}");
+                }
+            }
+        }
+
+        private void OpenMochaResultFolder()
+        {
+            if (HasMochaResult && File.Exists(MochaResultPath))
+            {
+                try
+                {
+                    Process.Start("explorer.exe", $"/select,\"{MochaResultPath}\"");
+                }
+                catch (Exception ex)
+                {
+                    AddMochaLog($"Error opening folder: {ex.Message}");
+                }
+            }
+        }
+
+        private void SendMochaToEditCamera()
+        {
+            if (HasMochaResult)
+            {
+                SetImagePath(MochaImagePath);
+                AddMochaLog("Video sent to Edit Camera");
+            }
         }
     }
 }

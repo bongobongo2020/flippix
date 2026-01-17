@@ -58,6 +58,7 @@ namespace FlipPix.UI.ViewModels
         private FlipPixViewModel _cameraEdit;
         private StoryImageGeneratorViewModel _storyGenerator;
         private StoryImageGeneratorQViewModel _storyGeneratorQ;
+        private StoryImageGeneratorFViewModel _storyGeneratorF;
         private StoryImageGeneratorAmateurViewModel _storyGeneratorAmateur;
         private AmateurGeneratorViewModel _amateurGenerator;
 
@@ -75,6 +76,7 @@ namespace FlipPix.UI.ViewModels
             _cameraEdit = new FlipPixViewModel(comfyUIService, logger, settingsService, serviceProvider);
             _storyGenerator = new StoryImageGeneratorViewModel(comfyUIService, logger, settingsService);
             _storyGeneratorQ = new StoryImageGeneratorQViewModel(comfyUIService, logger, settingsService);
+            _storyGeneratorF = new StoryImageGeneratorFViewModel(comfyUIService, logger, settingsService);
             _storyGeneratorAmateur = new StoryImageGeneratorAmateurViewModel(comfyUIService, logger, settingsService);
             _amateurGenerator = new AmateurGeneratorViewModel(comfyUIService, logger, settingsService, promptService);
 
@@ -165,6 +167,7 @@ namespace FlipPix.UI.ViewModels
         public FlipPixViewModel CameraEdit => _cameraEdit;
         public StoryImageGeneratorViewModel StoryGenerator => _storyGenerator;
         public StoryImageGeneratorQViewModel StoryGeneratorQ => _storyGeneratorQ;
+        public StoryImageGeneratorFViewModel StoryGeneratorF => _storyGeneratorF;
         public StoryImageGeneratorAmateurViewModel StoryGeneratorAmateur => _storyGeneratorAmateur;
         public AmateurGeneratorViewModel AmateurGenerator => _amateurGenerator;
 
