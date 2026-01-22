@@ -20,6 +20,13 @@ using YamlDotNet.Serialization;
 
 namespace FlipPix.UI.ViewModels
 {
+    public enum TextGeneratorWorkflow
+    {
+        Zimage,
+        Qwen2512,
+        Klien
+    }
+
     public class ImageGeneratorViewModel : BasePromptViewModel
     {
         private readonly FlipPix.ComfyUI.Services.ComfyUIService _comfyUIService;
@@ -47,6 +54,7 @@ namespace FlipPix.UI.ViewModels
         private ObservableCollection<string> _availableLoras = new();
         private string _selectedLora = string.Empty;
         private bool _loraEnabled = false;
+        private TextGeneratorWorkflow _selectedWorkflow = TextGeneratorWorkflow.Zimage;
 
         // Queue fields
         private ObservableCollection<ImagePromptQueueItem> _promptQueue = new();
@@ -61,6 +69,7 @@ namespace FlipPix.UI.ViewModels
         private StoryImageGeneratorFViewModel _storyGeneratorF;
         private StoryImageGeneratorAmateurViewModel _storyGeneratorAmateur;
         private AmateurGeneratorViewModel _amateurGenerator;
+        private CameraAngleViewModel _cameraAngle;
 
         
         public ImageGeneratorViewModel(FlipPix.ComfyUI.Services.ComfyUIService comfyUIService, IAppLogger logger, FlipPix.Core.Services.SettingsService settingsService, IServiceProvider? serviceProvider = null, IPromptService? promptService = null)
@@ -79,6 +88,7 @@ namespace FlipPix.UI.ViewModels
             _storyGeneratorF = new StoryImageGeneratorFViewModel(comfyUIService, logger, settingsService);
             _storyGeneratorAmateur = new StoryImageGeneratorAmateurViewModel(comfyUIService, logger, settingsService);
             _amateurGenerator = new AmateurGeneratorViewModel(comfyUIService, logger, settingsService, promptService);
+            _cameraAngle = new CameraAngleViewModel(comfyUIService, logger, settingsService);
 
             // Initialize commands
             GenerateImageCommand = new RelayCommand(async () => await GenerateImageAsync(), () => CanGenerate);
@@ -170,6 +180,7 @@ namespace FlipPix.UI.ViewModels
         public StoryImageGeneratorFViewModel StoryGeneratorF => _storyGeneratorF;
         public StoryImageGeneratorAmateurViewModel StoryGeneratorAmateur => _storyGeneratorAmateur;
         public AmateurGeneratorViewModel AmateurGenerator => _amateurGenerator;
+        public CameraAngleViewModel CameraAngle => _cameraAngle;
 
         public string ProcessingStatus
         {
@@ -308,6 +319,23 @@ namespace FlipPix.UI.ViewModels
             }
         }
 
+        // Workflow Properties
+        public TextGeneratorWorkflow SelectedWorkflow
+        {
+            get => _selectedWorkflow;
+            set
+            {
+                if (_selectedWorkflow != value)
+                {
+                    _selectedWorkflow = value;
+                    OnPropertyChanged();
+                    OnPropertyChanged(nameof(ShowLoraOptions));
+                }
+            }
+        }
+
+        public bool ShowLoraOptions => SelectedWorkflow == TextGeneratorWorkflow.Zimage;
+
         // Commands
         public ICommand GenerateImageCommand { get; }
         public ICommand CancelGenerationCommand { get; }
@@ -426,8 +454,14 @@ namespace FlipPix.UI.ViewModels
 
                 _cancellationTokenSource.Token.ThrowIfCancellationRequested();
 
-                // Load workflow
-                var workflowPath = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "workflow", "image_z_image-TEXTAPI.json");
+                // Load workflow based on selected workflow
+                var workflowFileName = SelectedWorkflow switch
+                {
+                    TextGeneratorWorkflow.Qwen2512 => "qwen2512API-text.json",
+                    TextGeneratorWorkflow.Klien => "Klien-Text-API.json",
+                    _ => "image_z_image-TEXTAPI.json"
+                };
+                var workflowPath = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "workflow", workflowFileName);
                 if (!File.Exists(workflowPath))
                 {
                     AddLog($"ERROR: Workflow file not found: {workflowPath}");
@@ -509,7 +543,13 @@ namespace FlipPix.UI.ViewModels
                     Directory.CreateDirectory(outputDir);
 
                     var timestamp = DateTime.Now.ToString("yyyyMMdd_HHmmss");
-                    var outputPath = Path.Combine(outputDir, $"z-image_{timestamp}.png");
+                    var prefix = SelectedWorkflow switch
+                    {
+                        TextGeneratorWorkflow.Qwen2512 => "qwen2512",
+                        TextGeneratorWorkflow.Klien => "flux2-klein",
+                        _ => "z-image"
+                    };
+                    var outputPath = Path.Combine(outputDir, $"{prefix}_{timestamp}.png");
 
                     await File.WriteAllBytesAsync(outputPath, outputImage);
                     AddLog($"Output saved: {outputPath}");
@@ -802,6 +842,21 @@ namespace FlipPix.UI.ViewModels
 
             if (workflowDict == null) return workflow;
 
+            switch (SelectedWorkflow)
+            {
+                case TextGeneratorWorkflow.Zimage:
+                    return UpdateZimageWorkflow(workflowDict);
+                case TextGeneratorWorkflow.Qwen2512:
+                    return UpdateQwen2512Workflow(workflowDict);
+                case TextGeneratorWorkflow.Klien:
+                    return UpdateKlienWorkflow(workflowDict);
+                default:
+                    return workflow;
+            }
+        }
+
+        private JsonElement UpdateZimageWorkflow(Dictionary<string, JsonElement> workflowDict)
+        {
             // Add Lora if enabled and a Lora is selected
             if (LoraEnabled && !string.IsNullOrEmpty(SelectedLora) && SelectedLora != "No Loras available")
             {
@@ -835,9 +890,7 @@ namespace FlipPix.UI.ViewModels
                         JsonSerializer.Serialize(node44["inputs"]));
                     if (inputs != null)
                     {
-                        // Generate random seed if seed is 0
                         var actualSeed = Seed == 0 ? new Random().NextInt64(0, 999999999999999) : Seed;
-
                         inputs["seed"] = actualSeed;
                         inputs["steps"] = Steps;
                         inputs["cfg"] = Cfg;
@@ -872,6 +925,212 @@ namespace FlipPix.UI.ViewModels
                         inputs["aspect_ratio"] = selectedRatio;
                         node57["inputs"] = inputs;
                         workflowDict["57"] = JsonSerializer.SerializeToElement(node57);
+                    }
+                }
+            }
+
+            return JsonSerializer.SerializeToElement(workflowDict);
+        }
+
+        private JsonElement UpdateQwen2512Workflow(Dictionary<string, JsonElement> workflowDict)
+        {
+            // Get resolution from aspect ratio index
+            var resolutions = new[]
+            {
+                (1024, 1024), // 1:1
+                (896, 1152),  // 3:4
+                (768, 1344),  // 9:16
+                (1152, 896),  // 4:3
+                (1344, 768)   // 16:9
+            };
+            var (width, height) = resolutions[Math.Min(AspectRatioIndex, resolutions.Length - 1)];
+
+            // Update prompt (node 71 - CLIPTextEncode)
+            if (workflowDict.ContainsKey("71"))
+            {
+                var node71 = JsonSerializer.Deserialize<Dictionary<string, object>>(workflowDict["71"].GetRawText());
+                if (node71 != null && node71.ContainsKey("inputs"))
+                {
+                    var inputs = JsonSerializer.Deserialize<Dictionary<string, object>>(
+                        JsonSerializer.Serialize(node71["inputs"]));
+                    if (inputs != null)
+                    {
+                        inputs["text"] = ImagePrompt;
+                        node71["inputs"] = inputs;
+                        workflowDict["71"] = JsonSerializer.SerializeToElement(node71);
+                    }
+                }
+            }
+
+            // Update seed (node 120 - Seed)
+            if (workflowDict.ContainsKey("120"))
+            {
+                var node120 = JsonSerializer.Deserialize<Dictionary<string, object>>(workflowDict["120"].GetRawText());
+                if (node120 != null && node120.ContainsKey("inputs"))
+                {
+                    var inputs = JsonSerializer.Deserialize<Dictionary<string, object>>(
+                        JsonSerializer.Serialize(node120["inputs"]));
+                    if (inputs != null)
+                    {
+                        var actualSeed = Seed == 0 ? -1 : Seed;
+                        inputs["seed"] = actualSeed;
+                        node120["inputs"] = inputs;
+                        workflowDict["120"] = JsonSerializer.SerializeToElement(node120);
+                    }
+                }
+            }
+
+            // Update sampler settings (node 74 - KSampler)
+            if (workflowDict.ContainsKey("74"))
+            {
+                var node74 = JsonSerializer.Deserialize<Dictionary<string, object>>(workflowDict["74"].GetRawText());
+                if (node74 != null && node74.ContainsKey("inputs"))
+                {
+                    var inputs = JsonSerializer.Deserialize<Dictionary<string, object>>(
+                        JsonSerializer.Serialize(node74["inputs"]));
+                    if (inputs != null)
+                    {
+                        inputs["steps"] = Steps;
+                        inputs["cfg"] = Cfg;
+                        inputs["denoise"] = Denoise;
+                        node74["inputs"] = inputs;
+                        workflowDict["74"] = JsonSerializer.SerializeToElement(node74);
+                    }
+                }
+            }
+
+            // Update resolution (node 51 - EmptyLatentImage)
+            if (workflowDict.ContainsKey("51"))
+            {
+                var node51 = JsonSerializer.Deserialize<Dictionary<string, object>>(workflowDict["51"].GetRawText());
+                if (node51 != null && node51.ContainsKey("inputs"))
+                {
+                    var inputs = JsonSerializer.Deserialize<Dictionary<string, object>>(
+                        JsonSerializer.Serialize(node51["inputs"]));
+                    if (inputs != null)
+                    {
+                        inputs["width"] = width;
+                        inputs["height"] = height;
+                        node51["inputs"] = inputs;
+                        workflowDict["51"] = JsonSerializer.SerializeToElement(node51);
+                    }
+                }
+            }
+
+            return JsonSerializer.SerializeToElement(workflowDict);
+        }
+
+        private JsonElement UpdateKlienWorkflow(Dictionary<string, JsonElement> workflowDict)
+        {
+            // Get resolution from aspect ratio index
+            var resolutions = new[]
+            {
+                (1024, 1024), // 1:1
+                (896, 1152),  // 3:4
+                (768, 1344),  // 9:16
+                (1152, 896),  // 4:3
+                (1344, 768)   // 16:9
+            };
+            var (width, height) = resolutions[Math.Min(AspectRatioIndex, resolutions.Length - 1)];
+
+            // Update prompt (node 76 - PrimitiveStringMultiline)
+            if (workflowDict.ContainsKey("76"))
+            {
+                var node76 = JsonSerializer.Deserialize<Dictionary<string, object>>(workflowDict["76"].GetRawText());
+                if (node76 != null && node76.ContainsKey("inputs"))
+                {
+                    var inputs = JsonSerializer.Deserialize<Dictionary<string, object>>(
+                        JsonSerializer.Serialize(node76["inputs"]));
+                    if (inputs != null)
+                    {
+                        inputs["value"] = ImagePrompt;
+                        node76["inputs"] = inputs;
+                        workflowDict["76"] = JsonSerializer.SerializeToElement(node76);
+                    }
+                }
+            }
+
+            // Update seed (node 75:73 - RandomNoise)
+            if (workflowDict.ContainsKey("75:73"))
+            {
+                var node75_73 = JsonSerializer.Deserialize<Dictionary<string, object>>(workflowDict["75:73"].GetRawText());
+                if (node75_73 != null && node75_73.ContainsKey("inputs"))
+                {
+                    var inputs = JsonSerializer.Deserialize<Dictionary<string, object>>(
+                        JsonSerializer.Serialize(node75_73["inputs"]));
+                    if (inputs != null)
+                    {
+                        var actualSeed = Seed == 0 ? new Random().NextInt64(0, 999999999999999) : Seed;
+                        inputs["noise_seed"] = actualSeed;
+                        node75_73["inputs"] = inputs;
+                        workflowDict["75:73"] = JsonSerializer.SerializeToElement(node75_73);
+                    }
+                }
+            }
+
+            // Update CFG (node 75:63 - CFGGuider)
+            if (workflowDict.ContainsKey("75:63"))
+            {
+                var node75_63 = JsonSerializer.Deserialize<Dictionary<string, object>>(workflowDict["75:63"].GetRawText());
+                if (node75_63 != null && node75_63.ContainsKey("inputs"))
+                {
+                    var inputs = JsonSerializer.Deserialize<Dictionary<string, object>>(
+                        JsonSerializer.Serialize(node75_63["inputs"]));
+                    if (inputs != null)
+                    {
+                        inputs["cfg"] = Cfg;
+                        node75_63["inputs"] = inputs;
+                        workflowDict["75:63"] = JsonSerializer.SerializeToElement(node75_63);
+                    }
+                }
+            }
+
+            // Update steps (node 75:62 - Flux2Scheduler)
+            if (workflowDict.ContainsKey("75:62"))
+            {
+                var node75_62 = JsonSerializer.Deserialize<Dictionary<string, object>>(workflowDict["75:62"].GetRawText());
+                if (node75_62 != null && node75_62.ContainsKey("inputs"))
+                {
+                    var inputs = JsonSerializer.Deserialize<Dictionary<string, object>>(
+                        JsonSerializer.Serialize(node75_62["inputs"]));
+                    if (inputs != null)
+                    {
+                        inputs["steps"] = Steps;
+                        node75_62["inputs"] = inputs;
+                        workflowDict["75:62"] = JsonSerializer.SerializeToElement(node75_62);
+                    }
+                }
+            }
+
+            // Update resolution (nodes 75:68 and 75:69 - Width/Height)
+            if (workflowDict.ContainsKey("75:68"))
+            {
+                var node75_68 = JsonSerializer.Deserialize<Dictionary<string, object>>(workflowDict["75:68"].GetRawText());
+                if (node75_68 != null && node75_68.ContainsKey("inputs"))
+                {
+                    var inputs = JsonSerializer.Deserialize<Dictionary<string, object>>(
+                        JsonSerializer.Serialize(node75_68["inputs"]));
+                    if (inputs != null)
+                    {
+                        inputs["value"] = width;
+                        node75_68["inputs"] = inputs;
+                        workflowDict["75:68"] = JsonSerializer.SerializeToElement(node75_68);
+                    }
+                }
+            }
+
+            if (workflowDict.ContainsKey("75:69"))
+            {
+                var node75_69 = JsonSerializer.Deserialize<Dictionary<string, object>>(workflowDict["75:69"].GetRawText());
+                if (node75_69 != null && node75_69.ContainsKey("inputs"))
+                {
+                    var inputs = JsonSerializer.Deserialize<Dictionary<string, object>>(
+                        JsonSerializer.Serialize(node75_69["inputs"]));
+                    if (inputs != null)
+                    {
+                        inputs["value"] = height;
+                        node75_69["inputs"] = inputs;
+                        workflowDict["75:69"] = JsonSerializer.SerializeToElement(node75_69);
                     }
                 }
             }
@@ -979,8 +1238,14 @@ namespace FlipPix.UI.ViewModels
                     var outputFiles = await _comfyUIService.HttpClient.GetOutputFilesAsync();
                     AddLog($"Found {outputFiles.Count} potential output files");
 
-                    // Look for z-image files in the output
-                    var zImageFiles = outputFiles.Where(f => f.StartsWith("z-image_") && f.EndsWith(".png")).ToList();
+                    // Look for files based on the selected workflow
+                    var remotePrefix = SelectedWorkflow switch
+                    {
+                        TextGeneratorWorkflow.Qwen2512 => "qwen2512",
+                        TextGeneratorWorkflow.Klien => "Flux2-Klein",
+                        _ => "z-image"
+                    };
+                    var zImageFiles = outputFiles.Where(f => f.StartsWith($"{remotePrefix}_") && f.EndsWith(".png")).ToList();
 
                     if (zImageFiles.Any())
                     {
@@ -1048,8 +1313,15 @@ namespace FlipPix.UI.ViewModels
                         return images;
                     }
 
-                    // Look for z-image files specifically since that's what our workflow generates
-                    var zImageFiles = Directory.GetFiles(comfyUIOutputDir, "z-image_*.png")
+                    // Look for files based on the selected workflow
+                    var prefix = SelectedWorkflow switch
+                    {
+                        TextGeneratorWorkflow.Qwen2512 => "qwen2512_",
+                        TextGeneratorWorkflow.Klien => "Flux2-Klein_",  // Note: Klien uses this prefix format
+                        _ => "z-image_"
+                    };
+                    var workflowName = SelectedWorkflow.ToString();
+                    var zImageFiles = Directory.GetFiles(comfyUIOutputDir, $"{prefix}*.png")
                         .OrderByDescending(f => ExtractFileNumber(f)) // Sort by extracted number for proper numeric ordering
                         .ToList();
 
@@ -1081,7 +1353,7 @@ namespace FlipPix.UI.ViewModels
                         AddLog($"Error listing files: {ex.Message}");
                     }
 
-                    AddLog($"Found {zImageFiles.Count} z-image PNG files in output directory");
+                    AddLog($"Found {zImageFiles.Count} {workflowName} PNG files in output directory");
 
                     if (zImageFiles.Any())
                     {
@@ -1089,7 +1361,7 @@ namespace FlipPix.UI.ViewModels
                         var fileAge = DateTime.Now - File.GetLastWriteTime(latestFile);
                         var fileNumber = ExtractFileNumber(latestFile);
 
-                        AddLog($"Latest z-image file: {Path.GetFileName(latestFile)} (number: {fileNumber})");
+                        AddLog($"Latest {workflowName} file: {Path.GetFileName(latestFile)} (number: {fileNumber})");
                         AddLog($"File modification time: {File.GetLastWriteTime(latestFile):yyyy-MM-dd HH:mm:ss}");
                         AddLog($"Current time: {DateTime.Now:yyyy-MM-dd HH:mm:ss}");
                         AddLog($"File age: {fileAge.TotalSeconds:F0} seconds");
@@ -1104,13 +1376,13 @@ namespace FlipPix.UI.ViewModels
 
                         // Since ComfyUI generates sequentially numbered files, the highest number should be the newest
                         // This is more reliable than file timestamps which can have inconsistencies
-                        AddLog($"Using latest z-image file by numeric order: {Path.GetFileName(latestFile)}");
+                        AddLog($"Using latest {workflowName} file by numeric order: {Path.GetFileName(latestFile)}");
                         var imageData = await File.ReadAllBytesAsync(latestFile);
                         images.Add(imageData);
                     }
                     else
                     {
-                        AddLog("No z-image files found, looking for any other PNG files...");
+                        AddLog($"No {workflowName} files found, looking for any other PNG files...");
 
                         // Fallback to any PNG files
                         var allImageFiles = Directory.GetFiles(comfyUIOutputDir, "*.png")
@@ -1165,11 +1437,24 @@ namespace FlipPix.UI.ViewModels
         {
             var fileName = Path.GetFileNameWithoutExtension(filePath);
 
-            // Extract the number from "z-image_XXXXX_" pattern
-            var match = System.Text.RegularExpressions.Regex.Match(fileName, @"z-image_(\d+)_");
-            if (match.Success && int.TryParse(match.Groups[1].Value, out var number))
+            // Extract number based on the selected workflow
+            // Zimage: "z-image_12345_" pattern
+            // Qwen: "qwen2512_00001_" pattern (5-digit zero-padded)
+            // Klien: "Flux2-Klein_00001_" pattern (5-digit zero-padded)
+            var patterns = SelectedWorkflow switch
             {
-                return number;
+                TextGeneratorWorkflow.Qwen2512 => new[] { @"qwen2512_(\d+)_", @"qwen2512_(\d+)$" },
+                TextGeneratorWorkflow.Klien => new[] { @"Flux2-Klein_(\d+)_", @"Flux2-Klein_(\d+)$" },
+                _ => new[] { @"z-image_(\d+)_", @"z-image_(\d+)$" }
+            };
+
+            foreach (var pattern in patterns)
+            {
+                var match = System.Text.RegularExpressions.Regex.Match(fileName, pattern);
+                if (match.Success && int.TryParse(match.Groups[1].Value, out var number))
+                {
+                    return number;
+                }
             }
 
             // Fallback: return 0 if we can't extract the number
@@ -1478,9 +1763,14 @@ namespace FlipPix.UI.ViewModels
             Seed = savedPrompt.Seed;
             Denoise = savedPrompt.Denoise;
 
-            // Load Lora settings if they exist in the additional data
+            // Load additional settings if they exist in the additional data
             if (savedPrompt.AdditionalData != null && savedPrompt.AdditionalData is Dictionary<string, object> additionalData)
             {
+                if (additionalData.TryGetValue("SelectedWorkflow", out var workflowObj) && workflowObj is int workflowInt)
+                {
+                    SelectedWorkflow = (TextGeneratorWorkflow)workflowInt;
+                }
+
                 if (additionalData.TryGetValue("LoraEnabled", out var loraEnabledObj) && loraEnabledObj is bool loraEnabled)
                 {
                     LoraEnabled = loraEnabled;
@@ -1506,6 +1796,7 @@ namespace FlipPix.UI.ViewModels
         {
             var additionalData = new Dictionary<string, object>
             {
+                { "SelectedWorkflow", (int)SelectedWorkflow },
                 { "LoraEnabled", LoraEnabled },
                 { "SelectedLora", SelectedLora }
             };
@@ -1527,7 +1818,8 @@ namespace FlipPix.UI.ViewModels
                 Seed = Seed,
                 Denoise = Denoise,
                 LoraEnabled = LoraEnabled,
-                SelectedLora = SelectedLora
+                SelectedLora = SelectedLora,
+                SelectedWorkflow = SelectedWorkflow
             };
 
             PromptQueue.Add(queueItem);
@@ -1602,6 +1894,7 @@ namespace FlipPix.UI.ViewModels
                         Denoise = queueItem.Denoise;
                         LoraEnabled = queueItem.LoraEnabled;
                         SelectedLora = queueItem.SelectedLora;
+                        SelectedWorkflow = queueItem.SelectedWorkflow;
 
                         // Process the image generation
                         await ProcessQueueItemAsync(queueItem);
@@ -1673,8 +1966,14 @@ namespace FlipPix.UI.ViewModels
 
                 _cancellationTokenSource.Token.ThrowIfCancellationRequested();
 
-                // Load workflow
-                var workflowPath = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "workflow", "image_z_image-TEXTAPI.json");
+                // Load workflow based on selected workflow
+                var workflowFileName = SelectedWorkflow switch
+                {
+                    TextGeneratorWorkflow.Qwen2512 => "qwen2512API-text.json",
+                    TextGeneratorWorkflow.Klien => "Klien-Text-API.json",
+                    _ => "image_z_image-TEXTAPI.json"
+                };
+                var workflowPath = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "workflow", workflowFileName);
                 if (!File.Exists(workflowPath))
                 {
                     AddLog($"ERROR: Workflow file not found: {workflowPath}");
@@ -1755,7 +2054,13 @@ namespace FlipPix.UI.ViewModels
                     Directory.CreateDirectory(outputDir);
 
                     var timestamp = DateTime.Now.ToString("yyyyMMdd_HHmmss");
-                    var outputPath = Path.Combine(outputDir, $"z-image_{timestamp}.png");
+                    var prefix = SelectedWorkflow switch
+                    {
+                        TextGeneratorWorkflow.Qwen2512 => "qwen2512",
+                        TextGeneratorWorkflow.Klien => "flux2-klein",
+                        _ => "z-image"
+                    };
+                    var outputPath = Path.Combine(outputDir, $"{prefix}_{timestamp}.png");
 
                     await File.WriteAllBytesAsync(outputPath, outputImage);
                     AddLog($"Output saved: {outputPath}");
