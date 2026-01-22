@@ -69,8 +69,9 @@ For detailed installation instructions, model downloads, and troubleshooting, se
 ### Features
 
 **Image Generation:**
-- **Text-to-Image**: Generate images from text prompts with Z-Image models
-- **Multiple Aspect Ratios**: Support for 16:9, 1:1, 9:16, and custom dimensions
+- **Text-to-Image**: Generate images from text prompts with multiple AI models
+- **Three Model Workflows**: Choose between Zimage (with LoRA support), Qwen 2512, and Klien (Flux2) models
+- **Multiple Aspect Ratios**: Support for 16:9, 1:1, 9:16, 4:3, and 3:4 ratios
 - **Amateur Mode**: Amateur-style image generation with LoRA support
 - **Story Generation**: Create narrative-driven image series
 - **Q Edit**: Rapid image editing with Qwen models
@@ -98,7 +99,7 @@ For detailed installation instructions, model downloads, and troubleshooting, se
 
 | Window | Description | Workflow File |
 |--------|-------------|---------------|
-| **Image Generator** | Main image generation interface | `image_z_image-TEXTAPI.json` |
+| **Image Generator** | Multi-model text-to-image generation | `image_z_image-TEXTAPI.json`, `qwen2512API-text.json`, `Klien-Text-API.json` |
 | **Video Generator** | Video creation with LTX/Painter/Wan models | `LTX-2_image2video_distilledAPI.json`, `painteri2vAPI.json`, `benji_Wan_Vace-Native-V2V-CN_With_3_ExtendLongVideoAPI.json` |
 | **Story Video** | Narrative-driven video generation | `WCFMAPI.json` |
 | **FlipPix (Camera)** | Camera angle transformation | `qwen-edit-camera-API.json` |
@@ -111,9 +112,14 @@ For detailed installation instructions, model downloads, and troubleshooting, se
 ### Processing Details
 
 **Image Generation:**
+- Three model workflows available:
+  - **Zimage**: Supports LoRA models for style customization, uses CR Aspect Ratio presets
+  - **Qwen 2512**: Qwen-image model for high-quality text-to-image generation
+  - **Klien (Flux2)**: Flux2 model with advanced image generation capabilities
 - Input: Text prompts with optional style/reference images
-- Scaling: Images scaled to 1 megapixel for optimal processing
-- Output: High-quality generated images maintaining aspect ratio
+- Aspect Ratios: 1:1 (1024x1024), 3:4 (896x1152), 9:16 (768x1344), 4:3 (1152x896), 16:9 (1344x768)
+- LoRA Support: Available for Zimage workflow only
+- Output: High-quality generated images maintaining selected aspect ratio
 
 **Video Generation:**
 - Input: Source images and style references
@@ -149,7 +155,9 @@ flippix-prompt-image/
 │   ├── image_z_image-TEXTAPI.json
 │   ├── painteri2vAPI.json
 │   ├── qwen-edit-camera-API.json
-│   └── qwen-zimageAPI.json
+│   ├── qwen-zimageAPI.json
+│   ├── qwen2512API-text.json
+│   └── Klien-Text-API.json
 ├── scripts/                        # Setup and automation scripts
 │   ├── setup-comfyui-windows.bat
 │   ├── setup-comfyui.sh
@@ -208,23 +216,25 @@ dotnet publish FlipPix.UI/FlipPix.UI.csproj -c Release -r win-x64 --self-contain
 
 ## Active Workflows
 
-The application currently includes 10 active workflow files:
+The application currently includes 12 active workflow files:
 
 ### Image Processing
-1. **image_z_image-TEXTAPI.json** - Text-to-image generation with Z-Image models
-2. **amateurZimageAPI.json** - Amateur-style image generation with LoRA support
-3. **RapidEditAIO-API.json** - Qwen Rapid Edit for story image modification
-4. **qwen-zimageAPI.json** - Enhanced image understanding and analysis
-5. **qwen-edit-camera-API.json** - Camera angle transformation and perspective changes
+1. **image_z_image-TEXTAPI.json** - Text-to-image generation with Z-Image models (supports LoRA)
+2. **qwen2512API-text.json** - Text-to-image generation with Qwen 2512 model
+3. **Klien-Text-API.json** - Text-to-image generation with Flux2 Klien model
+4. **amateurZimageAPI.json** - Amateur-style image generation with LoRA support
+5. **RapidEditAIO-API.json** - Qwen Rapid Edit for story image modification
+6. **qwen-zimageAPI.json** - Enhanced image understanding and analysis
+7. **qwen-edit-camera-API.json** - Camera angle transformation and perspective changes
 
 ### Video Processing
-6. **LTX-2_image2video_distilledAPI.json** - LTX model for image-to-video
-7. **painteri2vAPI.json** - Painter model for image-to-video
-8. **benji_Wan_Vace-Native-V2V-CN_With_3_ExtendLongVideoAPI.json** - Wan VACE extended video
+8. **LTX-2_image2video_distilledAPI.json** - LTX model for image-to-video
+9. **painteri2vAPI.json** - Painter model for image-to-video
+10. **benji_Wan_Vace-Native-V2V-CN_With_3_ExtendLongVideoAPI.json** - Wan VACE extended video
 
 ### Multimedia & Story
-9. **i2v2a_simple_v2.json** - Image-to-video-to-audio pipeline
-10. **WCFMAPI.json** - Story video creation with WCFM model
+11. **i2v2a_simple_v2.json** - Image-to-video-to-audio pipeline
+12. **WCFMAPI.json** - Story video creation with WCFM model
 
 ## Contributing
 

@@ -1,6 +1,7 @@
 using System;
 using System.ComponentModel;
 using System.Runtime.CompilerServices;
+using FlipPix.UI.ViewModels;
 
 namespace FlipPix.UI.Models
 {
@@ -21,6 +22,7 @@ namespace FlipPix.UI.Models
         public double Denoise { get; set; } = 1.0;
         public bool LoraEnabled { get; set; } = false;
         public string SelectedLora { get; set; } = string.Empty;
+        public TextGeneratorWorkflow SelectedWorkflow { get; set; } = TextGeneratorWorkflow.Zimage;
 
         public string? OutputImagePath { get; set; }
         public DateTime CreatedAt { get; set; } = DateTime.Now;
