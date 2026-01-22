@@ -2437,13 +2437,41 @@ namespace FlipPix.UI.ViewModels
         private async Task<string?> WaitForVideoInOutputFolderAsync(string promptId)
         {
             var settings = _settingsService.Settings;
-            if (settings == null || string.IsNullOrEmpty(settings.OutputFolderPath))
+            if (settings == null)
             {
-                AddLog("ERROR: ComfyUI output path not configured");
+                AddLog("ERROR: Settings not available");
                 return null;
             }
 
-            var outputFolder = Path.Combine(settings.OutputFolderPath, "video");
+            // Determine if ComfyUI is remote
+            string baseUrl = ComfyUIServer == "127.0.0.1" ? $"http://{ComfyUIServer}:{ComfyUIPort}" : settings.BaseUrl;
+            bool isRemoteComfyUI = IsComfyUIRemote(new Uri(baseUrl).Host);
+
+            // Determine the correct output folder path
+            string outputFolder;
+            if (isRemoteComfyUI)
+            {
+                // Remote ComfyUI - use the remote output folder path
+                if (string.IsNullOrEmpty(settings.RemoteOutputFolderPath))
+                {
+                    AddLog("ERROR: Remote ComfyUI output path not configured in settings");
+                    return null;
+                }
+                outputFolder = Path.Combine(settings.RemoteOutputFolderPath, "video");
+                AddLog($"Using remote ComfyUI output folder: {outputFolder}");
+            }
+            else
+            {
+                // Local ComfyUI - use the local output folder path
+                if (string.IsNullOrEmpty(settings.OutputFolderPath))
+                {
+                    AddLog("ERROR: ComfyUI output path not configured");
+                    return null;
+                }
+                outputFolder = Path.Combine(settings.OutputFolderPath, "video");
+                AddLog($"Using local ComfyUI output folder: {outputFolder}");
+            }
+
             if (!Directory.Exists(outputFolder))
             {
                 AddLog($"ERROR: Output folder not found: {outputFolder}");
@@ -2569,17 +2597,34 @@ namespace FlipPix.UI.ViewModels
                     return null;
                 }
 
-                if (string.IsNullOrEmpty(settings.OutputFolderPath))
+                // Determine if ComfyUI is remote
+                string baseUrl = ComfyUIServer == "127.0.0.1" ? $"http://{ComfyUIServer}:{ComfyUIPort}" : settings.BaseUrl;
+                bool isRemoteComfyUI = IsComfyUIRemote(new Uri(baseUrl).Host);
+
+                // Determine the correct output folder path
+                string outputFolder;
+                if (isRemoteComfyUI)
                 {
-                    AddLTX2AudioLog("ERROR: ComfyUI output path not configured");
-                    return null;
+                    // Remote ComfyUI - use the remote output folder path
+                    if (string.IsNullOrEmpty(settings.RemoteOutputFolderPath))
+                    {
+                        AddLTX2AudioLog("ERROR: Remote ComfyUI output path not configured in settings");
+                        return null;
+                    }
+                    outputFolder = Path.Combine(settings.RemoteOutputFolderPath, "video");
+                    AddLTX2AudioLog($"Using remote ComfyUI output folder: {outputFolder}");
                 }
-
-                AddLTX2AudioLog($"Output folder path from settings: {settings.OutputFolderPath}");
-
-                // LTX2 saves to video/LTX_*.mp4
-                var outputFolder = Path.Combine(settings.OutputFolderPath, "video");
-                AddLTX2AudioLog($"Full output folder path: {outputFolder}");
+                else
+                {
+                    // Local ComfyUI - use the local output folder path
+                    if (string.IsNullOrEmpty(settings.OutputFolderPath))
+                    {
+                        AddLTX2AudioLog("ERROR: ComfyUI output path not configured");
+                        return null;
+                    }
+                    outputFolder = Path.Combine(settings.OutputFolderPath, "video");
+                    AddLTX2AudioLog($"Using local ComfyUI output folder: {outputFolder}");
+                }
 
                 if (!Directory.Exists(outputFolder))
                 {
@@ -4542,9 +4587,9 @@ namespace FlipPix.UI.ViewModels
                 }
 
                 // Load VACE workflow
-                var workflowPath = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "workflow", "benji_Wan_Vace-Native-V2V-CN_With_3_ExtendLongVideoAPI.json");
+                var workflowPath = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "workflow", "step1-chunkcreatorAPI.json");
 
-                AddLog($"Loading VACE workflow: benji_Wan_Vace-Native-V2V-CN_With_3_ExtendLongVideoAPI.json");
+                AddLog($"Loading VACE workflow: step1-chunkcreatorAPI.json");
 
                 if (!File.Exists(workflowPath))
                 {
@@ -4672,10 +4717,68 @@ namespace FlipPix.UI.ViewModels
 
             AddLog("=== Updating VACE workflow parameters ===");
 
-            // Update background image (node 383)
-            if (workflowDict.ContainsKey("383"))
+            // Calculate video dimensions based on foreground image aspect ratio
+            int videoWidth = 832;
+            int videoHeight = 480;
+            int imageWidth = 480;
+            int imageHeight = 832;
+
+            try
             {
-                var node = JsonSerializer.Deserialize<Dictionary<string, object>>(workflowDict["383"].GetRawText());
+                var imagePath = VaceForegroundImagePath;
+                if (!string.IsNullOrEmpty(imagePath) && File.Exists(imagePath))
+                {
+                    var bitmap = new System.Windows.Media.Imaging.BitmapImage();
+                    bitmap.BeginInit();
+                    bitmap.CacheOption = System.Windows.Media.Imaging.BitmapCacheOption.OnLoad;
+                    bitmap.UriSource = new Uri(imagePath, UriKind.Absolute);
+                    bitmap.EndInit();
+                    bitmap.Freeze(); // Freeze to make it thread-safe and allow garbage collection
+
+                    int originalWidth = bitmap.PixelWidth;
+                    int originalHeight = bitmap.PixelHeight;
+                    double aspectRatio = (double)originalWidth / originalHeight;
+
+                    AddLog($"Image dimensions: {originalWidth}x{originalHeight} (AR: {aspectRatio:F2})");
+
+                    // Calculate dimensions based on aspect ratio
+                    const int maxDimension = 832;
+                    const int minDimension = 480;
+
+                    if (aspectRatio > 1) // Landscape
+                    {
+                        videoWidth = maxDimension;
+                        videoHeight = (int)(maxDimension / aspectRatio);
+                        imageWidth = minDimension;
+                        imageHeight = (int)(minDimension / aspectRatio);
+                    }
+                    else // Portrait or square
+                    {
+                        videoWidth = (int)(minDimension * aspectRatio);
+                        videoHeight = minDimension;
+                        imageWidth = (int)(minDimension * aspectRatio);
+                        imageHeight = maxDimension;
+                    }
+
+                    // Ensure even numbers (required by many video codecs)
+                    videoWidth = videoWidth % 2 == 0 ? videoWidth : videoWidth + 1;
+                    videoHeight = videoHeight % 2 == 0 ? videoHeight : videoHeight + 1;
+                    imageWidth = imageWidth % 2 == 0 ? imageWidth : imageWidth + 1;
+                    imageHeight = imageHeight % 2 == 0 ? imageHeight : imageHeight + 1;
+
+                    AddLog($"Calculated video dimensions: {videoWidth}x{videoHeight}");
+                    AddLog($"Calculated image dimensions: {imageWidth}x{imageHeight}");
+                }
+            }
+            catch (Exception ex)
+            {
+                AddLog($"Warning: Could not read image dimensions, using defaults: {ex.Message}");
+            }
+
+            // Update background image (node 25)
+            if (workflowDict.ContainsKey("25"))
+            {
+                var node = JsonSerializer.Deserialize<Dictionary<string, object>>(workflowDict["25"].GetRawText());
                 if (node != null && node.ContainsKey("inputs"))
                 {
                     var inputs = JsonSerializer.Deserialize<Dictionary<string, object>>(
@@ -4684,16 +4787,16 @@ namespace FlipPix.UI.ViewModels
                     {
                         inputs["image"] = backgroundImageName;
                         node["inputs"] = inputs;
-                        workflowDict["383"] = JsonSerializer.SerializeToElement(node);
-                        AddLog($"✓ Node 383 (LoadImage) - Background image: {backgroundImageName}");
+                        workflowDict["25"] = JsonSerializer.SerializeToElement(node);
+                        AddLog($"✓ Node 25 (LoadImage) - Background image: {backgroundImageName}");
                     }
                 }
             }
 
-            // Update foreground image (node 390)
-            if (workflowDict.ContainsKey("390"))
+            // Update foreground image (node 24)
+            if (workflowDict.ContainsKey("24"))
             {
-                var node = JsonSerializer.Deserialize<Dictionary<string, object>>(workflowDict["390"].GetRawText());
+                var node = JsonSerializer.Deserialize<Dictionary<string, object>>(workflowDict["24"].GetRawText());
                 if (node != null && node.ContainsKey("inputs"))
                 {
                     var inputs = JsonSerializer.Deserialize<Dictionary<string, object>>(
@@ -4702,16 +4805,16 @@ namespace FlipPix.UI.ViewModels
                     {
                         inputs["image"] = foregroundImageName;
                         node["inputs"] = inputs;
-                        workflowDict["390"] = JsonSerializer.SerializeToElement(node);
-                        AddLog($"✓ Node 390 (LoadImage) - Foreground image: {foregroundImageName}");
+                        workflowDict["24"] = JsonSerializer.SerializeToElement(node);
+                        AddLog($"✓ Node 24 (LoadImage) - Foreground image: {foregroundImageName}");
                     }
                 }
             }
 
-            // Update video input (node 96)
-            if (workflowDict.ContainsKey("96"))
+            // Update video input (node 14)
+            if (workflowDict.ContainsKey("14"))
             {
-                var node = JsonSerializer.Deserialize<Dictionary<string, object>>(workflowDict["96"].GetRawText());
+                var node = JsonSerializer.Deserialize<Dictionary<string, object>>(workflowDict["14"].GetRawText());
                 if (node != null && node.ContainsKey("inputs"))
                 {
                     var inputs = JsonSerializer.Deserialize<Dictionary<string, object>>(
@@ -4722,26 +4825,83 @@ namespace FlipPix.UI.ViewModels
                         var comfyUIInputPath = Path.Combine(_settingsService.Settings?.ComfyUIFolderPath ?? "", "input", videoName);
                         inputs["video"] = comfyUIInputPath;
                         node["inputs"] = inputs;
-                        workflowDict["96"] = JsonSerializer.SerializeToElement(node);
-                        AddLog($"✓ Node 96 (LoadVideo) - Video: {comfyUIInputPath}");
+                        workflowDict["14"] = JsonSerializer.SerializeToElement(node);
+                        AddLog($"✓ Node 14 (LoadVideo) - Video: {comfyUIInputPath}");
                     }
                 }
             }
 
-            // Update positive prompt (node 15)
-            if (workflowDict.ContainsKey("15"))
+            // Update positive prompt (node 26)
+            if (workflowDict.ContainsKey("26"))
             {
-                var node = JsonSerializer.Deserialize<Dictionary<string, object>>(workflowDict["15"].GetRawText());
+                var node = JsonSerializer.Deserialize<Dictionary<string, object>>(workflowDict["26"].GetRawText());
                 if (node != null && node.ContainsKey("inputs"))
                 {
                     var inputs = JsonSerializer.Deserialize<Dictionary<string, object>>(
                         JsonSerializer.Serialize(node["inputs"]));
                     if (inputs != null)
                     {
-                        inputs["text"] = VacePrompt;
+                        inputs["string"] = VacePrompt;
                         node["inputs"] = inputs;
-                        workflowDict["15"] = JsonSerializer.SerializeToElement(node);
-                        AddLog($"✓ Node 15 (CLIPTextEncode) - Prompt updated");
+                        workflowDict["26"] = JsonSerializer.SerializeToElement(node);
+                        AddLog($"✓ Node 26 (StringConstantMultiline) - Prompt updated");
+                    }
+                }
+            }
+
+            // Update image resize dimensions (node 22)
+            if (workflowDict.ContainsKey("22"))
+            {
+                var node = JsonSerializer.Deserialize<Dictionary<string, object>>(workflowDict["22"].GetRawText());
+                if (node != null && node.ContainsKey("inputs"))
+                {
+                    var inputs = JsonSerializer.Deserialize<Dictionary<string, object>>(
+                        JsonSerializer.Serialize(node["inputs"]));
+                    if (inputs != null)
+                    {
+                        inputs["width"] = imageWidth;
+                        inputs["height"] = imageHeight;
+                        node["inputs"] = inputs;
+                        workflowDict["22"] = JsonSerializer.SerializeToElement(node);
+                        AddLog($"✓ Node 22 (ImageResizeKJv2) - Dimensions: {imageWidth}x{imageHeight}");
+                    }
+                }
+            }
+
+            // Update VACE encode dimensions (node 38)
+            if (workflowDict.ContainsKey("38"))
+            {
+                var node = JsonSerializer.Deserialize<Dictionary<string, object>>(workflowDict["38"].GetRawText());
+                if (node != null && node.ContainsKey("inputs"))
+                {
+                    var inputs = JsonSerializer.Deserialize<Dictionary<string, object>>(
+                        JsonSerializer.Serialize(node["inputs"]));
+                    if (inputs != null)
+                    {
+                        inputs["width"] = videoWidth;
+                        inputs["height"] = videoHeight;
+                        node["inputs"] = inputs;
+                        workflowDict["38"] = JsonSerializer.SerializeToElement(node);
+                        AddLog($"✓ Node 38 (WanVideoVACEEncode) - Dimensions: {videoWidth}x{videoHeight}");
+                    }
+                }
+            }
+
+            // Update VACE encode dimensions (node 48)
+            if (workflowDict.ContainsKey("48"))
+            {
+                var node = JsonSerializer.Deserialize<Dictionary<string, object>>(workflowDict["48"].GetRawText());
+                if (node != null && node.ContainsKey("inputs"))
+                {
+                    var inputs = JsonSerializer.Deserialize<Dictionary<string, object>>(
+                        JsonSerializer.Serialize(node["inputs"]));
+                    if (inputs != null)
+                    {
+                        inputs["width"] = videoWidth;
+                        inputs["height"] = videoHeight;
+                        node["inputs"] = inputs;
+                        workflowDict["48"] = JsonSerializer.SerializeToElement(node);
+                        AddLog($"✓ Node 48 (WanVideoVACEEncode) - Dimensions: {videoWidth}x{videoHeight}");
                     }
                 }
             }
@@ -4878,6 +5038,7 @@ namespace FlipPix.UI.ViewModels
 
                 using (var process = Process.Start(startInfo))
                 {
+                    if (process == null) return;
                     var errorOutput = process.StandardError.ReadToEnd();
                     process.WaitForExit();
 
@@ -5464,6 +5625,7 @@ namespace FlipPix.UI.ViewModels
 
                 using (var process = Process.Start(startInfo))
                 {
+                    if (process == null) return;
                     var output = process.StandardOutput.ReadToEnd();
                     var error = process.StandardError.ReadToEnd();
                     process.WaitForExit();
@@ -5501,6 +5663,7 @@ namespace FlipPix.UI.ViewModels
 
                 using (var process = Process.Start(startInfo))
                 {
+                    if (process == null) return;
                     var output = process.StandardOutput.ReadToEnd();
                     var error = process.StandardError.ReadToEnd();
                     process.WaitForExit();
@@ -5525,7 +5688,7 @@ namespace FlipPix.UI.ViewModels
             }
         }
 
-        private string FindFFmpeg()
+        private string? FindFFmpeg()
         {
             // Try to find ffmpeg in common locations
             var commonPaths = new[]
@@ -5557,6 +5720,7 @@ namespace FlipPix.UI.ViewModels
 
                 using (var process = Process.Start(startInfo))
                 {
+                    if (process == null) return null;
                     var output = process.StandardOutput.ReadToEnd();
                     process.WaitForExit();
 
@@ -5770,6 +5934,7 @@ namespace FlipPix.UI.ViewModels
 
                 using (var process = Process.Start(startInfo))
                 {
+                    if (process == null) return 0;
                     var error = process.StandardError.ReadToEnd();
                     process.WaitForExit();
 
@@ -5813,6 +5978,7 @@ namespace FlipPix.UI.ViewModels
 
                 using (var process = Process.Start(startInfo))
                 {
+                    if (process == null) return 0;
                     var error = process.StandardError.ReadToEnd();
                     process.WaitForExit();
 
@@ -6349,6 +6515,7 @@ namespace FlipPix.UI.ViewModels
 
                 using (var process = Process.Start(startInfo))
                 {
+                    if (process == null) return;
                     var output = process.StandardOutput.ReadToEnd();
                     var error = process.StandardError.ReadToEnd();
                     process.WaitForExit();

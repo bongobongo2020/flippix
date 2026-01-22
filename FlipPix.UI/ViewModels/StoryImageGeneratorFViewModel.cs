@@ -20,6 +20,10 @@ namespace FlipPix.UI.ViewModels
 {
     public class StoryImageGeneratorFViewModel : INotifyPropertyChanged
     {
+        // Image resolution constants
+        private const string LandscapeResolution = "1344x768";
+        private const string PortraitResolution = "768x1344";
+
         private readonly FlipPix.ComfyUI.Services.ComfyUIService _comfyUIService;
         private readonly IAppLogger _logger;
         private readonly FlipPix.Core.Services.SettingsService _settingsService;
@@ -44,6 +48,7 @@ namespace FlipPix.UI.ViewModels
         private double _cfg = 1.0;
         private double _denoise = 0.98;
         private string _negativePrompt = "";
+        private bool _isPortraitMode = false; // Default to landscape mode
 
 
         public StoryImageGeneratorFViewModel(
@@ -328,6 +333,23 @@ namespace FlipPix.UI.ViewModels
             }
         }
 
+        // Image Orientation Property
+        public bool IsPortraitMode
+        {
+            get => _isPortraitMode;
+            set
+            {
+                if (_isPortraitMode != value)
+                {
+                    _isPortraitMode = value;
+                    OnPropertyChanged();
+                    OnPropertyChanged(nameof(OrientationText));
+                }
+            }
+        }
+
+        public string OrientationText => IsPortraitMode ? "Portrait (768x1344)" : "Landscape (1344x768)";
+
         // Commands
         public ICommand SelectPromptJsonCommand { get; }
         public ICommand SelectInputImageCommand { get; }
@@ -580,8 +602,8 @@ namespace FlipPix.UI.ViewModels
 
             cancellationToken.ThrowIfCancellationRequested();
 
-            // Load workflow (workflow_Flux2_Klein_9b.json)
-            var workflowPath = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "workflow", "workflow_Flux2_Klein_9b.json");
+            // Load workflow (workflow_Flux2_Klein_9bTESTClown.json)
+            var workflowPath = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "workflow", "workflow_Flux2_Klein_9bTESTClown.json");
             if (!File.Exists(workflowPath))
             {
                 throw new FileNotFoundException($"Workflow file not found: {workflowPath}");
@@ -753,7 +775,7 @@ namespace FlipPix.UI.ViewModels
                 }
             }
 
-            // 4. Update SaveImage node (node 157) - set subfolder and filename prefix
+            // 4. Update SaveImage node (node 157) - set filename prefix only (no subfolder)
             if (workflowDict.ContainsKey("157"))
             {
                 var node157 = JsonSerializer.Deserialize<Dictionary<string, object>>(workflowDict["157"].GetRawText());
@@ -764,9 +786,28 @@ namespace FlipPix.UI.ViewModels
                     if (inputs != null)
                     {
                         inputs["filename_prefix"] = jsonFileName;
-                        inputs["subfolder"] = jsonFileName;
+                        // Don't set subfolder - all images will be saved in the same output folder
                         node157["inputs"] = inputs;
                         workflowDict["157"] = JsonSerializer.SerializeToElement(node157);
+                    }
+                }
+            }
+
+            // 5. Update ImageScale node (node 115) - set resolution based on orientation
+            if (workflowDict.ContainsKey("115"))
+            {
+                var node115 = JsonSerializer.Deserialize<Dictionary<string, object>>(workflowDict["115"].GetRawText());
+                if (node115 != null && node115.ContainsKey("inputs"))
+                {
+                    var inputs = JsonSerializer.Deserialize<Dictionary<string, object>>(
+                        JsonSerializer.Serialize(node115["inputs"]));
+                    if (inputs != null)
+                    {
+                        var newResolution = IsPortraitMode ? PortraitResolution : LandscapeResolution;
+                        inputs["resolution"] = newResolution;
+                        node115["inputs"] = inputs;
+                        workflowDict["115"] = JsonSerializer.SerializeToElement(node115);
+                        AddLog($"Image resolution set to: {newResolution} (Portrait Mode: {IsPortraitMode})");
                     }
                 }
             }
@@ -808,11 +849,11 @@ namespace FlipPix.UI.ViewModels
                         var outputFiles = await _comfyUIService.HttpClient.GetOutputFilesAsync();
                         AddLog($"Found {outputFiles.Count} potential output files");
 
-                        // Look for specific filename pattern: jsonfilename/jsonfilename-index_00001.png
-                        var expectedPattern = $"{jsonFileName}/{jsonFileName}-{imageIndex}_";
+                        // Look for specific filename pattern: jsonfilename-index_00001.png (no subfolder)
+                        var expectedPattern = $"{jsonFileName}-{imageIndex}_";
                         var imageFiles = outputFiles.Where(f =>
                             f.EndsWith(".png") &&
-                            (f.StartsWith(expectedPattern) || f.Contains(jsonFileName)))
+                            f.Contains(expectedPattern))
                             .ToList();
 
                         AddLog($"Looking for pattern: {expectedPattern}");
@@ -855,54 +896,30 @@ namespace FlipPix.UI.ViewModels
                             return images;
                         }
 
-                        // Search in the specific subfolder: jsonfilename/
-                        var subfolderPath = Path.Combine(comfyUIOutputDir, jsonFileName);
+                        // Search directly in ComfyUI output directory (no subfolder)
+                        AddLog($"Searching for images in: {comfyUIOutputDir}");
 
-                        AddLog($"Searching for images in subfolder: {subfolderPath}");
+                        // Look for files matching the pattern: jsonfilename-index_00001.png
+                        var pattern = $"{jsonFileName}-{imageIndex}_*.png";
+                        var matchingFiles = Directory.GetFiles(comfyUIOutputDir, pattern)
+                            .Select(f => new FileInfo(f))
+                            .OrderByDescending(f => f.LastWriteTime)
+                            .ToList();
 
-                        if (Directory.Exists(subfolderPath))
+                        if (matchingFiles.Any())
                         {
-                            // Look for files matching the pattern: jsonfilename-index_00001.png
-                            var pattern = $"{jsonFileName}-{imageIndex}_*.png";
-                            var matchingFiles = Directory.GetFiles(subfolderPath, pattern)
-                                .Select(f => new FileInfo(f))
-                                .OrderByDescending(f => f.LastWriteTime)
-                                .ToList();
-
-                            if (matchingFiles.Any())
-                            {
-                                var latestFile = matchingFiles.First();
-                                AddLog($"Found matching file: {latestFile.Name} (modified: {latestFile.LastWriteTime})");
-                                images.Add(await File.ReadAllBytesAsync(latestFile.FullName));
-                            }
-                            else
-                            {
-                                AddLog($"No files found matching pattern: {pattern}");
-                                // List all files in the subfolder for debugging
-                                var allFiles = Directory.GetFiles(subfolderPath, "*.png")
-                                    .Select(Path.GetFileName)
-                                    .ToList();
-                                AddLog($"Files in subfolder: {string.Join(", ", allFiles)}");
-                            }
+                            var latestFile = matchingFiles.First();
+                            AddLog($"Found matching file: {latestFile.Name} (modified: {latestFile.LastWriteTime})");
+                            images.Add(await File.ReadAllBytesAsync(latestFile.FullName));
                         }
                         else
                         {
-                            AddLog($"Subfolder does not exist: {subfolderPath}");
-
-                            // Fallback: search in the root output directory
-                            var recentFiles = Directory.GetFiles(comfyUIOutputDir, "*.png")
-                                .Select(f => new FileInfo(f))
-                                .Where(f => (DateTime.Now - f.LastWriteTime).TotalMinutes < 2)
-                                .OrderByDescending(f => f.LastWriteTime)
+                            AddLog($"No files found matching pattern: {pattern}");
+                            // List all files in the output directory for debugging
+                            var allFiles = Directory.GetFiles(comfyUIOutputDir, "*.png")
+                                .Select(Path.GetFileName)
                                 .ToList();
-
-                            if (recentFiles.Any())
-                            {
-                                AddLog($"Fallback: Found {recentFiles.Count} recent PNG files in root output directory");
-                                var latestFile = recentFiles.First();
-                                AddLog($"Using fallback file: {latestFile.Name}");
-                                images.Add(await File.ReadAllBytesAsync(latestFile.FullName));
-                            }
+                            AddLog($"Files in output directory: {string.Join(", ", allFiles.Take(10))}");
                         }
 
                         if (!images.Any())

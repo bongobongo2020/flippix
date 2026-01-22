@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Collections.ObjectModel;
 using System.ComponentModel;
 using System.Diagnostics;
 using System.IO;
@@ -12,10 +13,17 @@ using System.Windows.Input;
 using System.Windows.Media.Imaging;
 using FlipPix.ComfyUI.Services;
 using FlipPix.Core.Interfaces;
+using FlipPix.UI.Models;
 using Microsoft.Win32;
 
 namespace FlipPix.UI.ViewModels
 {
+    public class WorkflowInfo
+    {
+        public string Name { get; set; } = string.Empty;
+        public string WorkflowFile { get; set; } = string.Empty;
+    }
+
     public class StoryVideoViewModel : INotifyPropertyChanged
     {
         private readonly ComfyUIService _comfyUIService;
@@ -42,6 +50,12 @@ namespace FlipPix.UI.ViewModels
         private string _resultVideoPath = string.Empty;
         private System.Threading.CancellationTokenSource? _cancellationTokenSource;
         private string _promptsFolderPath = string.Empty;
+        private string _loadedPromptsJsonPath = string.Empty;
+
+        // Workflow settings
+        private ObservableCollection<WorkflowInfo> _allWorkflows = new ObservableCollection<WorkflowInfo>();
+        private int _selectedWorkflowIndex = 0;
+        private string _selectedWorkflowName = string.Empty;
 
         public event PropertyChangedEventHandler? PropertyChanged;
 
@@ -54,6 +68,9 @@ namespace FlipPix.UI.ViewModels
             // Load persisted prompts folder path
             LoadPromptsFolderFromSettings();
 
+            // Load workflows
+            LoadWorkflows();
+
             // Initialize commands
             GenerateVideoCommand = new RelayCommand(async () => await GenerateVideoAsync(), () => CanGenerateVideo);
             CancelGenerationCommand = new RelayCommand(CancelGeneration, () => IsProcessing);
@@ -64,6 +81,38 @@ namespace FlipPix.UI.ViewModels
             AddLog("Story Video Generator initialized");
             AddLog("Load prompts from file to begin video generation");
         }
+
+        // Workflow Properties
+        public int SelectedWorkflowIndex
+        {
+            get => _selectedWorkflowIndex;
+            set
+            {
+                if (_selectedWorkflowIndex != value)
+                {
+                    _selectedWorkflowIndex = value;
+                    OnPropertyChanged();
+                    OnPropertyChanged(nameof(SelectedWorkflowName));
+                }
+            }
+        }
+
+        public ObservableCollection<string> WorkflowNames { get; } = new ObservableCollection<string>();
+
+        public string SelectedWorkflowName
+        {
+            get => _selectedWorkflowName;
+            private set
+            {
+                if (_selectedWorkflowName != value)
+                {
+                    _selectedWorkflowName = value;
+                    OnPropertyChanged();
+                }
+            }
+        }
+
+        public WorkflowInfo? SelectedWorkflow => _allWorkflows.Count > 0 ? _allWorkflows[Math.Min(SelectedWorkflowIndex, _allWorkflows.Count - 1)] : null;
 
         // Properties
         public string PromptsFolderPath
@@ -114,6 +163,81 @@ namespace FlipPix.UI.ViewModels
             {
                 AddLog($"ERROR loading prompts folder from settings: {ex.Message}");
                 _promptsFolderPath = Environment.GetFolderPath(Environment.SpecialFolder.MyDocuments);
+            }
+        }
+
+        private void LoadWorkflows()
+        {
+            try
+            {
+                // Clear previous workflows
+                _allWorkflows.Clear();
+                WorkflowNames.Clear();
+
+                var workflowDir = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "workflow");
+
+                if (!Directory.Exists(workflowDir))
+                {
+                    AddLog($"Workflow directory not found at {workflowDir}");
+                    return;
+                }
+
+                // Load all workflow JSON files from workflow folder (excluding ZStyles subfolder)
+                var workflowFiles = Directory.GetFiles(workflowDir, "*.json")
+                    .Where(f => !Path.GetDirectoryName(f).EndsWith("ZStyles", StringComparison.OrdinalIgnoreCase))
+                    .ToArray();
+
+                AddLog($"Found {workflowFiles.Length} workflow files in {workflowDir}");
+
+                foreach (var workflowFile in workflowFiles)
+                {
+                    try
+                    {
+                        // Extract workflow name from filename
+                        var fileName = Path.GetFileNameWithoutExtension(workflowFile);
+                        var workflowName = fileName;
+
+                        // Add workflow info for this workflow file
+                        _allWorkflows.Add(new WorkflowInfo
+                        {
+                            Name = workflowName,
+                            WorkflowFile = workflowFile
+                        });
+
+                        WorkflowNames.Add(workflowName);
+                        AddLog($"Loaded workflow: {workflowName} from {Path.GetFileName(workflowFile)}");
+                    }
+                    catch (Exception ex)
+                    {
+                        AddLog($"Error loading workflow file {workflowFile}: {ex.Message}");
+                    }
+                }
+
+                // Sort workflows alphabetically
+                var sortedWorkflows = _allWorkflows.OrderBy(w => w.Name).ToList();
+                _allWorkflows.Clear();
+                foreach (var workflow in sortedWorkflows)
+                {
+                    _allWorkflows.Add(workflow);
+                }
+
+                WorkflowNames.Clear();
+                foreach (var workflow in _allWorkflows)
+                {
+                    WorkflowNames.Add(workflow.Name);
+                }
+
+                AddLog($"Loaded {_allWorkflows.Count} total workflows");
+
+                // Set initial selected workflow name
+                if (_allWorkflows.Count > 0)
+                {
+                    SelectedWorkflowName = _allWorkflows[0].Name;
+                }
+            }
+            catch (Exception ex)
+            {
+                AddLog($"Error loading workflows: {ex.Message}");
             }
         }
 
@@ -360,17 +484,27 @@ namespace FlipPix.UI.ViewModels
 
                 _cancellationTokenSource.Token.ThrowIfCancellationRequested();
 
-                // Load workflow
-                var workflowPath = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "workflow", "WCFMAPI.json");
-                if (!File.Exists(workflowPath))
+                // Get selected workflow
+                var selectedWorkflow = SelectedWorkflow;
+                if (selectedWorkflow == null)
                 {
-                    AddLog($"ERROR: Workflow file not found: {workflowPath}");
-                    System.Windows.MessageBox.Show($"Workflow file not found: {workflowPath}", "Error", System.Windows.MessageBoxButton.OK, System.Windows.MessageBoxImage.Error);
+                    AddLog("ERROR: No workflow selected. Please select a workflow first.");
+                    System.Windows.MessageBox.Show("No workflow selected. Please select a workflow first.", "Error",
+                        System.Windows.MessageBoxButton.OK, System.Windows.MessageBoxImage.Error);
                     return;
                 }
 
-                AddLog($"Loading workflow: {workflowPath}");
-                var workflowJson = await File.ReadAllTextAsync(workflowPath, _cancellationTokenSource.Token);
+                // Load workflow
+                if (!File.Exists(selectedWorkflow.WorkflowFile))
+                {
+                    AddLog($"ERROR: Workflow file not found: {selectedWorkflow.WorkflowFile}");
+                    System.Windows.MessageBox.Show($"Workflow file not found: {selectedWorkflow.WorkflowFile}", "Error",
+                        System.Windows.MessageBoxButton.OK, System.Windows.MessageBoxImage.Error);
+                    return;
+                }
+
+                AddLog($"Loading workflow: {selectedWorkflow.Name} ({Path.GetFileName(selectedWorkflow.WorkflowFile)})");
+                var workflowJson = await File.ReadAllTextAsync(selectedWorkflow.WorkflowFile, _cancellationTokenSource.Token);
                 var workflow = JsonSerializer.Deserialize<JsonElement>(workflowJson);
 
                 _cancellationTokenSource.Token.ThrowIfCancellationRequested();
@@ -557,24 +691,36 @@ namespace FlipPix.UI.ViewModels
                     }
 
                     // Copy all videos to output folder with proper naming
-                    var outputDir = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "output", "story-video");
-                    Directory.CreateDirectory(outputDir);
+                    // Create subfolder based on JSON filename (similar to StoryImageGeneratorViewModel)
+                    var baseOutputDir = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "output", "story-video");
+                    Directory.CreateDirectory(baseOutputDir);
 
-                    var timestamp = DateTime.Now.ToString("yyyyMMdd_HHmmss");
+                    // Get JSON filename for subfolder naming
+                    var jsonFileName = "story-videos";
+                    if (!string.IsNullOrEmpty(_loadedPromptsJsonPath))
+                    {
+                        jsonFileName = Path.GetFileNameWithoutExtension(_loadedPromptsJsonPath);
+                    }
+
+                    // Create sequential folder if it already exists
+                    var sessionOutputDir = GetUniqueFolderPath(baseOutputDir, jsonFileName);
+                    Directory.CreateDirectory(sessionOutputDir);
+
                     var copiedVideos = new List<string>();
 
                     for (int i = 0; i < generatedVideos.Count; i++)
                     {
-                        var destPath = Path.Combine(outputDir, $"story-video_clip{i + 1}_{timestamp}.mp4");
+                        // Generate sequential filename: jsonfilename-1.mp4, jsonfilename-2.mp4, etc.
+                        var destPath = Path.Combine(sessionOutputDir, $"{jsonFileName}-{i + 1}.mp4");
                         File.Copy(generatedVideos[i], destPath, true);
                         copiedVideos.Add(destPath);
                         AddLog($"✓ Copied clip {i + 1} to: {destPath}");
                     }
 
-                    AddLog($"\n✓ All {copiedVideos.Count} videos copied to: {outputDir}");
+                    AddLog($"\n✓ All {copiedVideos.Count} videos copied to: {sessionOutputDir}");
 
                     System.Windows.MessageBox.Show(
-                        $"Successfully generated {successfulClips} video clips!\n\nVideos saved to:\n{outputDir}\n\nClip files:\n{string.Join("\n", copiedVideos.Select(Path.GetFileName))}",
+                        $"Successfully generated {successfulClips} video clips!\n\nVideos saved to:\n{sessionOutputDir}\n\nClip files:\n{string.Join("\n", copiedVideos.Select(Path.GetFileName))}",
                         "Generation Complete",
                         System.Windows.MessageBoxButton.OK,
                         System.Windows.MessageBoxImage.Information);
@@ -1205,6 +1351,7 @@ namespace FlipPix.UI.ViewModels
                     }
 
                     HasGeneratedPrompts = true;
+                    _loadedPromptsJsonPath = openFileDialog.FileName;
                     AddLog($"Loaded {promptCount} prompts from: {Path.GetFileName(openFileDialog.FileName)}");
                     StatusBarMessage = $"{promptCount} prompts loaded successfully";
 
@@ -1244,6 +1391,28 @@ namespace FlipPix.UI.ViewModels
             var timestamp = DateTime.Now.ToString("HH:mm:ss");
             LogOutput += $"[{timestamp}] {message}\n";
             _logger.LogInfo(message);
+        }
+
+        private string GetUniqueFolderPath(string baseDir, string folderName)
+        {
+            var folderPath = Path.Combine(baseDir, folderName);
+
+            // If the folder doesn't exist, return it as-is
+            if (!Directory.Exists(folderPath))
+            {
+                return folderPath;
+            }
+
+            // If it exists, find the next available sequential number
+            int counter = 2;
+            string newFolderPath;
+            do
+            {
+                newFolderPath = Path.Combine(baseDir, $"{folderName} ({counter})");
+                counter++;
+            } while (Directory.Exists(newFolderPath));
+
+            return newFolderPath;
         }
 
         protected void OnPropertyChanged([CallerMemberName] string? propertyName = null)

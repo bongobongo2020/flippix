@@ -1,4 +1,6 @@
 using System;
+using System.Diagnostics;
+using System.IO;
 using System.Windows;
 using System.Windows.Input;
 using FlipPix.UI.ViewModels;
@@ -58,6 +60,29 @@ namespace FlipPix.UI
             catch (Exception ex)
             {
                 System.Windows.MessageBox.Show($"Failed to open settings: {ex.Message}", "Error",
+                    System.Windows.MessageBoxButton.OK, System.Windows.MessageBoxImage.Error);
+            }
+        }
+
+        private void OpenOutputImage_Click(object sender, RoutedEventArgs e)
+        {
+            try
+            {
+                if (sender is System.Windows.Controls.Button button && button.Tag is string imagePath)
+                {
+                    if (File.Exists(imagePath))
+                    {
+                        Process.Start(new ProcessStartInfo
+                        {
+                            FileName = imagePath,
+                            UseShellExecute = true
+                        });
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                System.Windows.MessageBox.Show($"Failed to open image: {ex.Message}", "Error",
                     System.Windows.MessageBoxButton.OK, System.Windows.MessageBoxImage.Error);
             }
         }

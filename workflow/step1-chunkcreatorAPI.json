@@ -33,7 +33,7 @@
   },
   "14": {
     "inputs": {
-      "video": "\"C:\\Users\\x2\\Videos\\elechtra - DDhQwJcIkgP.mp4\"",
+      "video": "\"C:\\Users\\x2\\Videos\\vids1\\elechtra - DDhQwJcIkgP.mp4\"",
       "force_rate": 0,
       "custom_width": 0,
       "custom_height": 0,
@@ -81,7 +81,7 @@
   },
   "24": {
     "inputs": {
-      "image": "spend-all-day-testing-chroma-it-just-too-good-v0-bh6zv0jvtv7f1.webp"
+      "image": "qwen2512_00007_.png"
     },
     "class_type": "LoadImage",
     "_meta": {
@@ -115,7 +115,9 @@
       "dynamic": false,
       "dynamo_cache_size_limit": 64,
       "compile_transformer_blocks_only": true,
-      "dynamo_recompile_limit": 128
+      "dynamo_recompile_limit": 128,
+      "force_parameter_static_shapes": false,
+      "allow_unmerged_lora_compile": false
     },
     "class_type": "WanVideoTorchCompileSettings",
     "_meta": {
@@ -128,7 +130,9 @@
       "offload_img_emb": false,
       "offload_txt_emb": false,
       "use_non_blocking": true,
-      "vace_blocks_to_swap": 0
+      "vace_blocks_to_swap": 0,
+      "prefetch_blocks": 0,
+      "block_swap_debug": false
     },
     "class_type": "WanVideoBlockSwap",
     "_meta": {
@@ -138,7 +142,9 @@
   "33": {
     "inputs": {
       "model_name": "Wan2_1_VAE_fp32.safetensors",
-      "precision": "fp32"
+      "precision": "fp32",
+      "use_cpu_cache": false,
+      "verbose": false
     },
     "class_type": "WanVideoVAELoader",
     "_meta": {
@@ -159,9 +165,10 @@
   },
   "35": {
     "inputs": {
-      "lora": "vace\\Wan21_CausVid_14B_T2V_lora_rank32.safetensors",
-      "strength": 0.5000000000000001,
-      "low_mem_load": false
+      "lora": "WAN\\Wan21_CausVid_14B_T2V_lora_rank32_v2.safetensors",
+      "strength": 0.5,
+      "low_mem_load": false,
+      "merge_loras": true
     },
     "class_type": "WanVideoLoraSelect",
     "_meta": {
@@ -170,7 +177,7 @@
   },
   "36": {
     "inputs": {
-      "vace_model": "Wan2_1-VACE_module_14B_bf16.safetensors"
+      "vace_model": "Wan2_1-VACE_module_14B_fp8_e4m3fn.safetensors"
     },
     "class_type": "WanVideoVACEModelSelect",
     "_meta": {
@@ -179,11 +186,12 @@
   },
   "37": {
     "inputs": {
-      "model": "Wan2_1-T2V-14B_fp8_e4m3fn.safetensors",
+      "model": "wan2.1_t2v_14B_fp8_e4m3fn.safetensors",
       "base_precision": "fp16",
       "quantization": "fp8_e4m3fn",
       "load_device": "offload_device",
       "attention_mode": "sageattn",
+      "rms_norm_function": "default",
       "compile_args": [
         "27",
         0
@@ -196,7 +204,7 @@
         "35",
         0
       ],
-      "vace_model": [
+      "extra_model": [
         "36",
         0
       ]
@@ -211,7 +219,7 @@
       "width": 832,
       "height": 480,
       "num_frames": 109,
-      "strength": 0.5000000000000001,
+      "strength": 0.5,
       "vace_start_percent": 0,
       "vace_end_percent": 1,
       "tiled_vae": false,
@@ -274,9 +282,9 @@
       "width": 832,
       "height": 480,
       "num_frames": 109,
-      "strength": 0.5000000000000001,
+      "strength": 0.5,
       "vace_start_percent": 0,
-      "vace_end_percent": 0.5000000000000001,
+      "vace_end_percent": 0.5,
       "tiled_vae": false,
       "vae": [
         "33",
@@ -344,15 +352,18 @@
   "70": {
     "inputs": {
       "steps": 8,
-      "cfg": 1.0000000000000002,
-      "shift": 8.000000000000002,
-      "seed": 1013166398531279,
+      "cfg": 1,
+      "shift": 8,
+      "seed": 147912926340849,
       "force_offload": true,
       "scheduler": "flowmatch_causvid",
       "riflex_freq_index": 0,
       "denoise_strength": 1,
       "batched_cfg": false,
       "rope_function": "comfy",
+      "start_step": 0,
+      "end_step": -1,
+      "add_noise_to_samples": false,
       "model": [
         "37",
         0
@@ -379,6 +390,8 @@
       ],
       "negative_prompt": "色调艳丽，过曝，静态，细节模糊不清，字幕，风格，作品，画作，画面，静止，整体发灰，最差质量，低质量，JPEG压缩残留，丑陋的，残缺的，多余的手指，画得不好的手部，画得不好的脸部，畸形的，毁容的，形态畸形的肢体，手指融合，静止不动的画面，杂乱的背景，三条腿，背景人很多，倒着走",
       "force_offload": true,
+      "use_disk_cache": false,
+      "device": "gpu",
       "t5": [
         "34",
         0
@@ -396,6 +409,7 @@
       "tile_y": 320,
       "tile_stride_x": 144,
       "tile_stride_y": 128,
+      "normalization": "default",
       "vae": [
         "33",
         0
