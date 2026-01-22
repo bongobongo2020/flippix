@@ -795,7 +795,17 @@ namespace FlipPix.UI.ViewModels
                 QueueTotal = queuedItems.Count;
                 QueueProgress = 0;
 
+                // Create output folder for this queue processing session (named after JSON file)
+                var jsonFileName = Path.GetFileNameWithoutExtension(PromptJsonFilePath);
+                var baseOutputDir = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "output", "story-generator");
+                Directory.CreateDirectory(baseOutputDir);
+
+                // Create sequential folder if it already exists
+                var sessionOutputDir = GetUniqueFolderPath(baseOutputDir, jsonFileName);
+                Directory.CreateDirectory(sessionOutputDir);
+
                 AddLog($"=== Starting story queue processing ({QueueTotal} images) ===");
+                AddLog($"Output folder: {sessionOutputDir}");
 
                 foreach (var item in queuedItems)
                 {
@@ -848,8 +858,8 @@ namespace FlipPix.UI.ViewModels
 
                     try
                     {
-                        // Process the current queue item using the original input image
-                        var outputPath = await ProcessQueueItemAsync(item, InputImagePath, _cancellationTokenSource.Token);
+                        // Process the current queue item using the original input image and shared output folder
+                        var outputPath = await ProcessQueueItemAsync(item, InputImagePath, sessionOutputDir, jsonFileName, _cancellationTokenSource.Token);
                         item.OutputImagePath = outputPath;
                         item.Status = "Completed";
                         item.CompletedAt = DateTime.Now;
@@ -905,7 +915,7 @@ namespace FlipPix.UI.ViewModels
             }
         }
 
-        private async Task<string> ProcessQueueItemAsync(StoryPromptItem item, string inputImagePath, System.Threading.CancellationToken cancellationToken)
+        private async Task<string> ProcessQueueItemAsync(StoryPromptItem item, string inputImagePath, string outputDir, string jsonFileName, System.Threading.CancellationToken cancellationToken)
         {
             // Ensure ComfyUI is connected
             if (!_comfyUIService.IsConnected)
@@ -961,15 +971,37 @@ namespace FlipPix.UI.ViewModels
             }
 
             var outputImage = outputImages.First();
-            var outputDir = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "output", "story-generator");
-            Directory.CreateDirectory(outputDir);
 
-            var timestamp = DateTime.Now.ToString("yyyyMMdd_HHmmss");
-            var outputPath = Path.Combine(outputDir, $"story_{item.Index:D2}_{timestamp}.png");
+            // Generate sequential filename: jsonfilename-1.png, jsonfilename-2.png, etc.
+            var outputPath = Path.Combine(outputDir, $"{jsonFileName}-{item.Index}.png");
 
             await File.WriteAllBytesAsync(outputPath, outputImage);
             AddLog($"Story image #{item.Index} saved: {outputPath} ({outputImage.Length} bytes)");
             return outputPath;
+        }
+
+        private string SanitizeFolderName(string prompt)
+        {
+            // Remove invalid filename characters and limit length
+            var invalidChars = Path.GetInvalidFileNameChars().Concat(Path.GetInvalidPathChars()).ToArray();
+            var sanitized = string.Join("_", prompt.Split(invalidChars, StringSplitOptions.RemoveEmptyEntries));
+
+            // Take first 50 characters to avoid path length issues
+            if (sanitized.Length > 50)
+            {
+                sanitized = sanitized.Substring(0, 50);
+            }
+
+            // Remove leading/trailing spaces and dots
+            sanitized = sanitized.Trim().Trim('.');
+
+            // If empty after sanitization, use a default name
+            if (string.IsNullOrEmpty(sanitized))
+            {
+                sanitized = "unnamed";
+            }
+
+            return sanitized;
         }
 
         private JsonElement UpdateWorkflowParameters(JsonElement workflow, string promptText)
@@ -1051,39 +1083,39 @@ namespace FlipPix.UI.ViewModels
                 }
             }
 
-            // 5. Update LoRA if enabled
-            if (LoraEnabled)
+            // 5. Update LoRA settings - always process to disable hardcoded loras when not enabled
+            AddLog($"Processing LoRA nodes - LoRA Enabled: {LoraEnabled}, Selected LoRA: {SelectedLora}");
+
+            // Iterate through all nodes to find Power Lora Loader nodes
+            foreach (var kvp in workflowDict)
             {
-                AddLog($"LoRA Enabled: {LoraEnabled}, Selected LoRA: {SelectedLora}");
-
-                // Iterate through all nodes to find Power Lora Loader nodes
-                foreach (var kvp in workflowDict)
+                var nodeElement = kvp.Value;
+                if (nodeElement.TryGetProperty("class_type", out var classTypeElement))
                 {
-                    var nodeElement = kvp.Value;
-                    if (nodeElement.TryGetProperty("class_type", out var classTypeElement))
+                    var classTypeStr = classTypeElement.GetString();
+                    if (classTypeStr == "Power Lora Loader (rgthree)" && nodeElement.TryGetProperty("inputs", out var loraInputsProp))
                     {
-                        var classTypeStr = classTypeElement.GetString();
-                        if (classTypeStr == "Power Lora Loader (rgthree)" && nodeElement.TryGetProperty("inputs", out var loraInputsProp))
-                        {
-                            // Update LORA node with selected LORA
-                            AddLog($"Found Power Lora Loader node {kvp.Key}, updating with selected LoRA: {SelectedLora}");
+                        AddLog($"Found Power Lora Loader node {kvp.Key}");
 
-                            var nodeDict = JsonSerializer.Deserialize<Dictionary<string, object>>(nodeElement.GetRawText());
-                            if (nodeDict != null && nodeDict.ContainsKey("inputs"))
+                        var nodeDict = JsonSerializer.Deserialize<Dictionary<string, object>>(nodeElement.GetRawText());
+                        if (nodeDict != null && nodeDict.ContainsKey("inputs"))
+                        {
+                            var inputs = JsonSerializer.Deserialize<Dictionary<string, object>>(
+                                JsonSerializer.Serialize(nodeDict["inputs"]));
+                            if (inputs != null)
                             {
-                                var inputs = JsonSerializer.Deserialize<Dictionary<string, object>>(
-                                    JsonSerializer.Serialize(nodeDict["inputs"]));
-                                if (inputs != null)
+                                // Power Lora Loader uses lora_1, lora_2, etc. with structure:
+                                // { "on": true, "lora": "path/to/lora.safetensors", "strength": 1.0 }
+
+                                if (LoraEnabled)
                                 {
-                                    // Power Lora Loader uses lora_1, lora_2, etc. with structure:
-                                    // { "on": true, "lora": "path/to/lora.safetensors", "strength": 1.0 }
+                                    // Enable and update with selected LoRA
                                     bool loraUpdated = false;
                                     for (int i = 1; i <= 10; i++)
                                     {
                                         string loraKey = $"lora_{i}";
                                         if (inputs.ContainsKey(loraKey))
                                         {
-                                            // Get the lora entry
                                             var loraEntryJson = JsonSerializer.Serialize(inputs[loraKey]);
                                             var loraEntry = JsonSerializer.Deserialize<Dictionary<string, object>>(loraEntryJson);
 
@@ -1121,10 +1153,31 @@ namespace FlipPix.UI.ViewModels
                                             AddLog($"Enabled and updated lora_1 with LoRA: {SelectedLora}.safetensors (Strength: {LoraStrengthModel})");
                                         }
                                     }
-
-                                    nodeDict["inputs"] = inputs;
-                                    workflowDict[kvp.Key] = JsonSerializer.SerializeToElement(nodeDict);
                                 }
+                                else
+                                {
+                                    // Disable all loras
+                                    for (int i = 1; i <= 10; i++)
+                                    {
+                                        string loraKey = $"lora_{i}";
+                                        if (inputs.ContainsKey(loraKey))
+                                        {
+                                            var loraEntryJson = JsonSerializer.Serialize(inputs[loraKey]);
+                                            var loraEntry = JsonSerializer.Deserialize<Dictionary<string, object>>(loraEntryJson);
+
+                                            if (loraEntry != null && loraEntry.ContainsKey("on"))
+                                            {
+                                                loraEntry["on"] = false;
+                                                inputs[loraKey] = loraEntry;
+                                                AddLog($"Disabled {loraKey} (LoRA not enabled in settings)");
+                                            }
+                                        }
+                                    }
+                                    AddLog("All LoRAs disabled in workflow");
+                                }
+
+                                nodeDict["inputs"] = inputs;
+                                workflowDict[kvp.Key] = JsonSerializer.SerializeToElement(nodeDict);
                             }
                         }
                     }
@@ -1795,6 +1848,28 @@ namespace FlipPix.UI.ViewModels
             var timestamp = DateTime.Now.ToString("HH:mm:ss");
             LogOutput += $"[{timestamp}] {message}\n";
             _logger.LogInfo(message);
+        }
+
+        private string GetUniqueFolderPath(string baseDir, string folderName)
+        {
+            var folderPath = Path.Combine(baseDir, folderName);
+
+            // If the folder doesn't exist, return it as-is
+            if (!Directory.Exists(folderPath))
+            {
+                return folderPath;
+            }
+
+            // If it exists, find the next available sequential number
+            int counter = 2;
+            string newFolderPath;
+            do
+            {
+                newFolderPath = Path.Combine(baseDir, $"{folderName} ({counter})");
+                counter++;
+            } while (Directory.Exists(newFolderPath));
+
+            return newFolderPath;
         }
 
         public event PropertyChangedEventHandler? PropertyChanged;

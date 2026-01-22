@@ -62,24 +62,22 @@ namespace FlipPix.UI.ViewModels
         private int _width = 944;
         private int _height = 1408;
         private double _denoise = 1.0;
-        private string _samplerName = "euler";
-        private string _scheduler = "simple";
-        private string _modelName = "z_image_turbo-Q8_0.gguf";
-        private int _selectedPresetSizeIndex = 0;
         private int _selectedStyleIndex = 0;
-
-        // Workflow data loaded at startup
-        private Dictionary<string, JsonElement>? _workflowA;
-        private Dictionary<string, JsonElement>? _workflowB;
 
         // Unified style list from both workflows
         private List<StyleInfo> _allStyles = new List<StyleInfo>();
-        private string? _selectedWorkflowFile;
 
         // LORA list - using ObservableCollection for UI binding
         private ObservableCollection<string> _availableLoras = new();
         private string _selectedLora = string.Empty;
         private bool _loraEnabled = false;
+
+        // Queue system
+        private ObservableCollection<ImageAnalyzerQueueItem> _queueItems = new();
+        private bool _isProcessingQueue = false;
+        private ImageAnalyzerQueueItem? _currentQueueItem;
+        private int _queueProgress = 0;
+        private int _queueTotal = 0;
 
         public event PropertyChangedEventHandler? PropertyChanged;
 
@@ -420,7 +418,7 @@ namespace FlipPix.UI.ViewModels
             }
         }
 
-        public bool CanGenerate => HasSourceImage && !string.IsNullOrWhiteSpace(AnalysisText) && !IsGenerating && !IsAnalyzing;
+        public bool CanGenerate => HasSourceImage && !string.IsNullOrWhiteSpace(AnalysisText) && !IsAnalyzing;
 
         public int SelectedStyleIndex
         {
@@ -466,6 +464,101 @@ namespace FlipPix.UI.ViewModels
                 OnPropertyChanged();
             }
         }
+
+        public string NegativePrompt
+        {
+            get => _negativePrompt;
+            set
+            {
+                _negativePrompt = value;
+                OnPropertyChanged();
+            }
+        }
+
+        public double Denoise
+        {
+            get => _denoise;
+            set
+            {
+                _denoise = value;
+                OnPropertyChanged();
+            }
+        }
+
+        // Queue properties
+        public ObservableCollection<ImageAnalyzerQueueItem> QueueItems
+        {
+            get => _queueItems;
+            set
+            {
+                if (_queueItems != value)
+                {
+                    _queueItems = value;
+                    OnPropertyChanged();
+                }
+            }
+        }
+
+        public bool IsProcessingQueue
+        {
+            get => _isProcessingQueue;
+            set
+            {
+                if (_isProcessingQueue != value)
+                {
+                    _isProcessingQueue = value;
+                    OnPropertyChanged();
+                    System.Windows.Input.CommandManager.InvalidateRequerySuggested();
+                }
+            }
+        }
+
+        public ImageAnalyzerQueueItem? CurrentQueueItem
+        {
+            get => _currentQueueItem;
+            set
+            {
+                if (_currentQueueItem != value)
+                {
+                    _currentQueueItem = value;
+                    OnPropertyChanged();
+                }
+            }
+        }
+
+        public int QueueProgress
+        {
+            get => _queueProgress;
+            set
+            {
+                if (_queueProgress != value)
+                {
+                    _queueProgress = value;
+                    OnPropertyChanged();
+                    OnPropertyChanged(nameof(QueueProgressText));
+                }
+            }
+        }
+
+        public int QueueTotal
+        {
+            get => _queueTotal;
+            set
+            {
+                if (_queueTotal != value)
+                {
+                    _queueTotal = value;
+                    OnPropertyChanged();
+                    OnPropertyChanged(nameof(QueueProgressText));
+                }
+            }
+        }
+
+        public string QueueProgressText => QueueTotal > 0 ? $"{QueueProgress}/{QueueTotal}" : "0/0";
+
+        public int QueuedCount => QueueItems.Count(item => item.Status == "Queued");
+        public int CompletedCount => QueueItems.Count(item => item.Status == "Completed");
+        public int FailedCount => QueueItems.Count(item => item.Status == "Failed");
 
         // Commands
         public ICommand BrowseImageCommand { get; }
@@ -1087,13 +1180,119 @@ namespace FlipPix.UI.ViewModels
             }
         }
 
-        private async Task GenerateImageAsync()
+        private Task GenerateImageAsync()
         {
-            if (!CanGenerate) return;
+            if (!CanGenerate) return Task.CompletedTask;
+
+            // Create a new queue item from current settings
+            var queueItem = new ImageAnalyzerQueueItem
+            {
+                SourceImagePath = SourceImagePath,
+                Prompt = AnalysisText,
+                SelectedStyleIndex = SelectedStyleIndex,
+                StyleName = SelectedStyle?.Name ?? "Unknown",
+                AspectRatioIndex = AspectRatioIndex,
+                Steps = Steps,
+                Cfg = Cfg,
+                Seed = Seed,
+                Denoise = Denoise,
+                LoraEnabled = LoraEnabled,
+                SelectedLora = SelectedLora,
+                NegativePrompt = NegativePrompt,
+                Width = _width,
+                Height = _height,
+                Status = "Queued"
+            };
+
+            QueueItems.Add(queueItem);
+            _logger.LogInfo($"Added item to queue: {queueItem.StyleName} - {queueItem.DisplayPrompt}");
+
+            // Start processing if not already processing
+            if (!IsProcessingQueue)
+            {
+                _ = Task.Run(() => ProcessQueueAsync());
+            }
+
+            return Task.CompletedTask;
+        }
+
+        private async Task ProcessQueueAsync()
+        {
+            if (IsProcessingQueue) return;
 
             _cancellationTokenSource?.Dispose();
             _cancellationTokenSource = new System.Threading.CancellationTokenSource();
 
+            try
+            {
+                IsProcessingQueue = true;
+                var queuedItems = QueueItems.Where(item => item.Status == "Queued").ToList();
+                QueueTotal = queuedItems.Count;
+                QueueProgress = 0;
+
+                _logger.LogInfo($"=== Starting queue processing ({QueueTotal} items) ===");
+
+                foreach (var item in queuedItems)
+                {
+                    if (_cancellationTokenSource.Token.IsCancellationRequested)
+                    {
+                        _logger.LogInfo("Queue processing cancelled");
+                        break;
+                    }
+
+                    CurrentQueueItem = item;
+                    item.Status = "Processing";
+                    item.StartedAt = DateTime.Now;
+
+                    _logger.LogInfo($"Processing queue item {QueueProgress + 1}/{QueueTotal}: {item.StyleName}");
+
+                    try
+                    {
+                        await ProcessQueueItemAsync(item, _cancellationTokenSource.Token);
+                        item.Status = "Completed";
+                        item.CompletedAt = DateTime.Now;
+                        item.Progress = 100;
+
+                        _logger.LogInfo($"Completed queue item {QueueProgress + 1}/{QueueTotal}: {item.StyleName}");
+                    }
+                    catch (OperationCanceledException)
+                    {
+                        item.Status = "Cancelled";
+                        item.ErrorMessage = "Cancelled by user";
+                        _logger.LogInfo($"Queue item cancelled: {item.StyleName}");
+                        break;
+                    }
+                    catch (Exception ex)
+                    {
+                        item.Status = "Failed";
+                        item.ErrorMessage = ex.Message;
+                        item.Progress = 0;
+                        _logger.LogError($"Queue item failed: {item.StyleName} - {ex.Message}");
+                    }
+                    finally
+                    {
+                        QueueProgress++;
+                    }
+                }
+
+                _logger.LogInfo($"=== Queue processing completed ({CompletedCount} successful, {FailedCount} failed) ===");
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError($"Error processing queue: {ex}");
+            }
+            finally
+            {
+                IsProcessingQueue = false;
+                CurrentQueueItem = null;
+                QueueProgress = 0;
+                QueueTotal = 0;
+                System.Windows.Input.CommandManager.InvalidateRequerySuggested();
+            }
+        }
+
+        private async Task ProcessQueueItemAsync(ImageAnalyzerQueueItem item, System.Threading.CancellationToken cancellationToken)
+        {
             try
             {
                 _logger.LogInfo("=== Starting image generation with Z-Image ===");
@@ -1107,29 +1306,29 @@ namespace FlipPix.UI.ViewModels
 
                 ProcessingProgress = 0;
                 ProcessingStatus = "Preparing workflow...";
-                StatusBarMessage = "Generating image...";
-                _logger.LogInfo($"Using prompt: {AnalysisText}");
+                StatusBarMessage = $"Generating image ({QueueProgress + 1}/{QueueTotal})...";
+                _logger.LogInfo($"Using prompt: {item.Prompt}");
 
                 // Ensure ComfyUI is connected
                 if (!_comfyUIService.IsConnected)
                 {
                     ProcessingStatus = "Connecting to ComfyUI...";
-                    await _comfyUIService.ConnectAsync(_cancellationTokenSource.Token);
+                    await _comfyUIService.ConnectAsync(cancellationToken);
                 }
 
-                // Get selected style and its workflow
-                var selectedStyle = SelectedStyle;
+                // Get the workflow for the item's style
+                var selectedStyle = _allStyles.FirstOrDefault(s => s.Name == item.StyleName);
                 if (selectedStyle == null)
                 {
-                    _logger.LogError("No style selected");
-                    StatusBarMessage = "Error: No style selected";
+                    _logger.LogError($"Style not found: {item.StyleName}");
+                    StatusBarMessage = "Error: Style not found";
                     return;
                 }
 
                 _logger.LogInfo($"Using style: {selectedStyle.Name} from workflow: {Path.GetFileName(selectedStyle.WorkflowFile)}");
 
                 // Load the appropriate workflow based on selected style
-                var workflowJson = await File.ReadAllTextAsync(selectedStyle.WorkflowFile, _cancellationTokenSource.Token);
+                var workflowJson = await File.ReadAllTextAsync(selectedStyle.WorkflowFile, cancellationToken);
                 _logger.LogInfo($"Loaded workflow file: {selectedStyle.WorkflowFile}, JSON length: {workflowJson.Length}");
 
                 // For ZStyles workflows, directly parse to Dictionary to preserve nested structures
@@ -1146,12 +1345,46 @@ namespace FlipPix.UI.ViewModels
                 // Update workflow with generation parameters
                 ProcessingStatus = "Configuring generation settings...";
                 ProcessingProgress = 10;
+                item.Progress = 10;
+
+                // Temporarily set the view model properties for the workflow update
+                var originalAnalysisText = AnalysisText;
+                var originalAspectRatioIndex = AspectRatioIndex;
+                var originalSteps = Steps;
+                var originalCfg = Cfg;
+                var originalSeed = Seed;
+                var originalLoraEnabled = LoraEnabled;
+                var originalSelectedLora = SelectedLora;
+                var originalSelectedStyleIndex = SelectedStyleIndex;
+
+                AnalysisText = item.Prompt;
+                AspectRatioIndex = item.AspectRatioIndex;
+                Steps = item.Steps;
+                Cfg = item.Cfg;
+                Seed = item.Seed;
+                LoraEnabled = item.LoraEnabled;
+                SelectedLora = item.SelectedLora;
+                _width = item.Width;
+                _height = item.Height;
+                _negativePrompt = item.NegativePrompt;
+                _selectedStyleIndex = item.SelectedStyleIndex;
 
                 var updatedWorkflow = UpdateWorkflowForGenerationSimple(workflow);
 
+                // Restore original properties
+                AnalysisText = originalAnalysisText;
+                AspectRatioIndex = originalAspectRatioIndex;
+                Steps = originalSteps;
+                Cfg = originalCfg;
+                Seed = originalSeed;
+                LoraEnabled = originalLoraEnabled;
+                SelectedLora = originalSelectedLora;
+                _selectedStyleIndex = originalSelectedStyleIndex;
+
                 // Execute workflow
-                ProcessingStatus = "Generating image with Z-Image...";
+                ProcessingStatus = $"Generating image {QueueProgress + 1}/{QueueTotal}...";
                 ProcessingProgress = 30;
+                item.Progress = 30;
                 _logger.LogInfo("Executing Z-Image generation workflow...");
 
                 var progress = new Progress<FlipPix.ComfyUI.Models.ProgressMessage>(progressMsg =>
@@ -1162,16 +1395,18 @@ namespace FlipPix.UI.ViewModels
                         System.Windows.Application.Current.Dispatcher.Invoke(() =>
                         {
                             ProcessingProgress = 30 + (percent * 0.6); // Scale to 30-90%
-                            ProcessingStatus = $"Generating: {progressMsg.Data.Value}/{progressMsg.Data.Max}";
+                            item.Progress = ProcessingProgress;
+                            ProcessingStatus = $"Generating {QueueProgress + 1}/{QueueTotal}: {progressMsg.Data.Value}/{progressMsg.Data.Max}";
                         });
                     }
                 });
 
-                var promptId = await _comfyUIService.ExecuteWorkflowAsync(updatedWorkflow, progress, _cancellationTokenSource.Token);
+                var promptId = await _comfyUIService.ExecuteWorkflowAsync(updatedWorkflow, progress, cancellationToken);
 
                 System.Windows.Application.Current.Dispatcher.Invoke(() =>
                 {
                     ProcessingProgress = 90;
+                    item.Progress = 90;
                     ProcessingStatus = "Workflow completed, retrieving output...";
                 });
 
@@ -1180,10 +1415,11 @@ namespace FlipPix.UI.ViewModels
                 // Retrieve output image
                 ProcessingStatus = "Retrieving generated image...";
                 ProcessingProgress = 95;
+                item.Progress = 95;
 
                 // Give ComfyUI time to save the image
                 _logger.LogInfo("Waiting for image to be saved...");
-                await Task.Delay(3000, _cancellationTokenSource.Token);
+                await Task.Delay(3000, cancellationToken);
 
                 // Get the most recent image file directly (simpler and more reliable)
                 _logger.LogInfo("Looking for most recently created image file...");
@@ -1196,10 +1432,10 @@ namespace FlipPix.UI.ViewModels
                     if (retryCount > 0)
                     {
                         _logger.LogInfo($"Retry {retryCount}/{maxRetries} - waiting 2 seconds...");
-                        await Task.Delay(2000, _cancellationTokenSource.Token);
+                        await Task.Delay(2000, cancellationToken);
                     }
 
-                    _cancellationTokenSource.Token.ThrowIfCancellationRequested();
+                    cancellationToken.ThrowIfCancellationRequested();
                     outputImages = await GetMostRecentImageFromOutput();
                     retryCount++;
 
@@ -1221,11 +1457,18 @@ namespace FlipPix.UI.ViewModels
                     await File.WriteAllBytesAsync(outputPath, outputImage);
                     _logger.LogInfo($"Output saved: {outputPath}");
 
-                    ResultImagePath = outputPath;
-                    LoadResultPreview(outputPath);
-                    HasResultImage = true;
+                    item.OutputImagePath = outputPath;
+
+                    // Only update the main result preview if this is the most recent item
+                    if (item == CurrentQueueItem)
+                    {
+                        ResultImagePath = outputPath;
+                        LoadResultPreview(outputPath);
+                        HasResultImage = true;
+                    }
 
                     ProcessingProgress = 100;
+                    item.Progress = 100;
                     ProcessingStatus = "Complete!";
                     StatusBarMessage = $"Image generated - {Path.GetFileName(outputPath)}";
                 }
@@ -1234,7 +1477,7 @@ namespace FlipPix.UI.ViewModels
                     _logger.LogWarning("No output images received after all retries");
                     ProcessingStatus = "No output generated";
                     StatusBarMessage = "Generation failed - no output";
-                    System.Windows.MessageBox.Show("No output images were generated. Please check the ComfyUI console for errors.", "Warning", System.Windows.MessageBoxButton.OK, System.Windows.MessageBoxImage.Warning);
+                    throw new InvalidOperationException("No output images were generated");
                 }
             }
             catch (OperationCanceledException)
@@ -1243,6 +1486,7 @@ namespace FlipPix.UI.ViewModels
                 ProcessingStatus = "Cancelled";
                 ProcessingProgress = 0;
                 StatusBarMessage = "Generation cancelled";
+                throw;
             }
             catch (Exception ex)
             {
@@ -1250,7 +1494,7 @@ namespace FlipPix.UI.ViewModels
                 ProcessingStatus = "Error occurred";
                 ProcessingProgress = 0;
                 StatusBarMessage = "Generation failed";
-                System.Windows.MessageBox.Show($"Error generating image:\n\n{ex.Message}\n\nCheck the log for more details.", "Error", System.Windows.MessageBoxButton.OK, System.Windows.MessageBoxImage.Error);
+                throw;
             }
             finally
             {
@@ -1748,7 +1992,7 @@ namespace FlipPix.UI.ViewModels
                         // Handle both Dictionary<string, object> and JsonElement cases
                         if (nodeDict != null && nodeDict.TryGetValue("inputs", out var inputsObj2))
                         {
-                            Dictionary<string, object> inputs = null;
+                            Dictionary<string, object>? inputs = null;
 
                             // Case 1: inputs is already a Dictionary<string, object>
                             if (inputsObj2 is Dictionary<string, object> dictInputs)
@@ -1792,7 +2036,7 @@ namespace FlipPix.UI.ViewModels
                         var nodeDict = JsonSerializer.Deserialize<Dictionary<string, object>>(nodeElement.GetRawText());
                         if (nodeDict != null && nodeDict.TryGetValue("inputs", out var loraInputsObj))
                         {
-                            Dictionary<string, object> loraInputs = null;
+                            Dictionary<string, object>? loraInputs = null;
 
                             // Handle both Dictionary and JsonElement cases
                             if (loraInputsObj is Dictionary<string, object> dictLoraInputs)
@@ -1809,7 +2053,7 @@ namespace FlipPix.UI.ViewModels
                                 // Update lora_1 object
                                 if (loraInputs.TryGetValue("lora_1", out var lora1Obj))
                                 {
-                                    Dictionary<string, object> lora1Dict = null;
+                                    Dictionary<string, object>? lora1Dict = null;
 
                                     if (lora1Obj is Dictionary<string, object> dictLora1)
                                     {

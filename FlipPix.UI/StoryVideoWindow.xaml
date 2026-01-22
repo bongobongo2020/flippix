@@ -294,7 +294,26 @@
                     <StackPanel>
                         <TextBlock Text="Step 2: Generate Story Video" Style="{StaticResource HeaderTextStyle}" Foreground="#9C27B0"/>
 
-                        <TextBlock Text="This will generate video clips for each prompt using the WCFMAPI workflow (LTX-2 model)"
+                        <!-- Workflow Selection -->
+                        <StackPanel Margin="0,0,0,15">
+                            <TextBlock Text="🎬 Video Workflow" FontWeight="SemiBold" FontSize="12" Margin="0,0,0,5"/>
+                            <ComboBox ItemsSource="{Binding WorkflowNames}"
+                                      SelectedIndex="{Binding SelectedWorkflowIndex, Mode=TwoWay}"
+                                      Padding="10"
+                                      Background="White"
+                                      BorderBrush="#CED4DA"
+                                      FontSize="11"/>
+                            <TextBlock Text="Select the workflow for video generation"
+                                      FontSize="10"
+                                      Foreground="#999"
+                                      Margin="0,5,0,0"/>
+                            <TextBlock>
+                                <Run Text="Currently selected: " FontWeight="SemiBold"/>
+                                <Run Text="{Binding SelectedWorkflowName}" Foreground="#4CAF50"/>
+                            </TextBlock>
+                        </StackPanel>
+
+                        <TextBlock Text="This will generate video clips for each prompt using the selected workflow"
                                    FontSize="12"
                                    Foreground="#666"
                                    Margin="0,0,0,10"/>

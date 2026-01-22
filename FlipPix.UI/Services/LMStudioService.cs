@@ -22,7 +22,7 @@ namespace FlipPix.UI.Services
         private bool _disposed = false;
         private readonly Func<string> _getBaseUrl;
 
-        public LMStudioService(HttpClient httpClient, IAppLogger logger, Func<string> getBaseUrl = null)
+        public LMStudioService(HttpClient httpClient, IAppLogger logger, Func<string>? getBaseUrl = null)
         {
             _httpClient = httpClient;
             _logger = logger;

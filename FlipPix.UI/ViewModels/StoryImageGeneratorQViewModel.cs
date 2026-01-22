@@ -613,14 +613,11 @@ namespace FlipPix.UI.ViewModels
             var outputImage = outputImages.First();
 
             // Create output directory with folder named after the JSON filename
-            var baseOutputDir = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "output", "story-generator-q");
+            var baseOutputDir = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "output", "story-generator-q", jsonFileName);
             Directory.CreateDirectory(baseOutputDir);
 
-            var promptOutputDir = Path.Combine(baseOutputDir, jsonFileName);
-            Directory.CreateDirectory(promptOutputDir);
-
-            // Generate sequential filename: jsonfilename-1.png, jsonfilename-2.png, etc.
-            var outputPath = Path.Combine(promptOutputDir, $"{jsonFileName}-{item.Index}.png");
+            // Generate filename using prompt index (all images in the same folder)
+            var outputPath = Path.Combine(baseOutputDir, $"{jsonFileName}-{item.Index}.png");
 
             await File.WriteAllBytesAsync(outputPath, outputImage);
             AddLog($"Story Q image #{item.Index} saved: {outputPath} ({outputImage.Length} bytes)");
@@ -816,7 +813,7 @@ namespace FlipPix.UI.ViewModels
                 }
             }
 
-            // 6. Update SaveImage filename prefix (node 218) to use JSON filename with sequential numbering
+            // 6. Update SaveImage filename prefix (node 218) to use single folder named after JSON file
             if (workflowDict.ContainsKey("218"))
             {
                 var node218 = JsonSerializer.Deserialize<Dictionary<string, object>>(workflowDict["218"].GetRawText());
@@ -870,11 +867,11 @@ namespace FlipPix.UI.ViewModels
                         var outputFiles = await _comfyUIService.HttpClient.GetOutputFilesAsync();
                         AddLog($"Found {outputFiles.Count} potential output files");
 
-                        // Look for specific filename pattern: jsonfilename/jsonfilename-index_00001.png
+                        // Look for specific filename pattern: jsonfilename/jsonfilename-{index}_00001.png
                         var expectedPattern = $"{jsonFileName}/{jsonFileName}-{imageIndex}_";
                         var imageFiles = outputFiles.Where(f =>
                             f.EndsWith(".png") &&
-                            (f.StartsWith(expectedPattern) || f.Contains(jsonFileName)))
+                            (f.StartsWith(expectedPattern) || f.Contains($"{jsonFileName}-{imageIndex}")))
                             .ToList();
 
                         AddLog($"Looking for pattern: {expectedPattern}");
@@ -917,10 +914,10 @@ namespace FlipPix.UI.ViewModels
                             return images;
                         }
 
-                        // Search in the specific subfolder: jsonfilename/
+                        // Search in the single folder named after the JSON file
                         var subfolderPath = Path.Combine(comfyUIOutputDir, jsonFileName);
 
-                        AddLog($"Searching for images in subfolder: {subfolderPath}");
+                        AddLog($"Searching for images in folder: {subfolderPath}");
 
                         if (Directory.Exists(subfolderPath))
                         {
