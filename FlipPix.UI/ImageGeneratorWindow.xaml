@@ -360,51 +360,56 @@
                                         </ComboBox>
                                     </StackPanel>
 
-                                    <!-- Steps -->
-                                    <StackPanel Margin="0,0,0,10">
-                                        <TextBlock Text="Steps" FontWeight="SemiBold" FontSize="12" Margin="0,0,0,5"/>
-                                        <Grid>
-                                            <Grid.ColumnDefinitions>
-                                                <ColumnDefinition Width="*"/>
-                                                <ColumnDefinition Width="Auto"/>
-                                            </Grid.ColumnDefinitions>
-                                            <Slider Grid.Column="0"
-                                                    Value="{Binding Steps, Mode=TwoWay}"
-                                                    Minimum="4" Maximum="20"
-                                                    TickFrequency="1"
-                                                    IsSnapToTickEnabled="True"
-                                                    VerticalAlignment="Center"/>
-                                            <TextBlock Grid.Column="1"
-                                                      Text="{Binding Steps}"
-                                                      Margin="8,0,0,0"
-                                                      VerticalAlignment="Center"
-                                                      MinWidth="25"
-                                                      FontWeight="Bold"/>
-                                        </Grid>
-                                    </StackPanel>
+                                    <!-- Advanced Settings Expander (Steps & CFG) -->
+                                    <Expander Header="⚙️ Advanced Generation Settings" Margin="0,10,0,0" IsExpanded="False">
+                                        <StackPanel Margin="0,10,0,0">
+                                            <!-- Steps -->
+                                            <StackPanel Margin="0,0,0,10">
+                                                <TextBlock Text="Steps" FontWeight="SemiBold" FontSize="12" Margin="0,0,0,5"/>
+                                                <Grid>
+                                                    <Grid.ColumnDefinitions>
+                                                        <ColumnDefinition Width="*"/>
+                                                        <ColumnDefinition Width="Auto"/>
+                                                    </Grid.ColumnDefinitions>
+                                                    <Slider Grid.Column="0"
+                                                            Value="{Binding Steps, Mode=TwoWay}"
+                                                            Minimum="4" Maximum="20"
+                                                            TickFrequency="1"
+                                                            IsSnapToTickEnabled="True"
+                                                            VerticalAlignment="Center"/>
+                                                    <TextBlock Grid.Column="1"
+                                                              Text="{Binding Steps}"
+                                                              Margin="8,0,0,0"
+                                                              VerticalAlignment="Center"
+                                                              MinWidth="25"
+                                                              FontWeight="Bold"/>
+                                                </Grid>
+                                            </StackPanel>
 
-                                    <!-- CFG -->
-                                    <StackPanel>
-                                        <TextBlock Text="CFG Scale" FontWeight="SemiBold" FontSize="12" Margin="0,0,0,5"/>
-                                        <Grid>
-                                            <Grid.ColumnDefinitions>
-                                                <ColumnDefinition Width="*"/>
-                                                <ColumnDefinition Width="Auto"/>
-                                            </Grid.ColumnDefinitions>
-                                            <Slider Grid.Column="0"
-                                                    Value="{Binding Cfg, Mode=TwoWay}"
-                                                    Minimum="1" Maximum="3"
-                                                    TickFrequency="0.5"
-                                                    IsSnapToTickEnabled="True"
-                                                    VerticalAlignment="Center"/>
-                                            <TextBlock Grid.Column="1"
-                                                      Text="{Binding Cfg, StringFormat={}{0:F1}}"
-                                                      Margin="8,0,0,0"
-                                                      VerticalAlignment="Center"
-                                                      MinWidth="25"
-                                                      FontWeight="Bold"/>
-                                        </Grid>
-                                    </StackPanel>
+                                            <!-- CFG -->
+                                            <StackPanel>
+                                                <TextBlock Text="CFG Scale" FontWeight="SemiBold" FontSize="12" Margin="0,0,0,5"/>
+                                                <Grid>
+                                                    <Grid.ColumnDefinitions>
+                                                        <ColumnDefinition Width="*"/>
+                                                        <ColumnDefinition Width="Auto"/>
+                                                    </Grid.ColumnDefinitions>
+                                                    <Slider Grid.Column="0"
+                                                            Value="{Binding Cfg, Mode=TwoWay}"
+                                                            Minimum="1" Maximum="3"
+                                                            TickFrequency="0.5"
+                                                            IsSnapToTickEnabled="True"
+                                                            VerticalAlignment="Center"/>
+                                                    <TextBlock Grid.Column="1"
+                                                              Text="{Binding Cfg, StringFormat={}{0:F1}}"
+                                                              Margin="8,0,0,0"
+                                                              VerticalAlignment="Center"
+                                                              MinWidth="25"
+                                                              FontWeight="Bold"/>
+                                                </Grid>
+                                            </StackPanel>
+                                        </StackPanel>
+                                    </Expander>
 
                                     <!-- Lora Settings -->
                                     <StackPanel Margin="0,15,0,0" Visibility="{Binding ShowLoraOptions, Converter={StaticResource BooleanToVisibilityConverter}}">
@@ -663,25 +668,25 @@
             <!-- Tab 2: Image Analysis -->
             <TabItem Header="🔍 Image Analysis" FontWeight="Bold" FontSize="13">
                 <ScrollViewer VerticalScrollBarVisibility="Auto">
-                    <Grid Margin="10,15,10,15">
+                    <Grid Margin="8,12,8,12">
                         <Grid.ColumnDefinitions>
                             <ColumnDefinition Width="*"/>
                             <ColumnDefinition Width="*"/>
                         </Grid.ColumnDefinitions>
 
                         <!-- Left Column - Image Input -->
-                        <StackPanel Grid.Column="0" Margin="0,0,15,0">
+                        <StackPanel Grid.Column="0" Margin="0,0,8,0">
                             <!-- Source Image Upload Section -->
                             <Border Style="{StaticResource SectionPanelStyle}">
                                 <StackPanel>
                                     <TextBlock Text="Source Image" Style="{StaticResource HeaderTextStyle}" Foreground="#6366F1"/>
 
                                     <TextBlock Text="Upload an image to analyze"
-                                               FontSize="12"
+                                               FontSize="11"
                                                Foreground="#666"
-                                               Margin="0,0,0,10"/>
+                                               Margin="0,0,0,8"/>
 
-                                    <Grid Margin="0,0,0,10">
+                                    <Grid Margin="0,0,0,8">
                                         <Grid.ColumnDefinitions>
                                             <ColumnDefinition Width="*"/>
                                             <ColumnDefinition Width="Auto"/>
@@ -690,21 +695,25 @@
                                         <TextBox Grid.Column="0"
                                                 Text="{Binding Analyzer.SourceImagePath, Mode=TwoWay}"
                                                 IsReadOnly="True"
-                                                Padding="10"
+                                                Padding="8"
                                                 Background="White"
                                                 BorderBrush="#CED4DA"
-                                                VerticalContentAlignment="Center"/>
+                                                VerticalContentAlignment="Center"
+                                                FontSize="11"
+                                                Height="30"/>
 
                                         <Button Grid.Column="1"
                                                Content="Browse"
                                                Style="{StaticResource SecondaryButtonStyle}"
                                                Command="{Binding Analyzer.BrowseImageCommand}"
-                                               Margin="8,0,0,0"/>
+                                               Margin="6,0,0,0"
+                                               Height="30"
+                                               Padding="12,6"/>
                                     </Grid>
 
                                     <!-- Image Preview -->
                                     <Border BorderBrush="#DEE2E6" BorderThickness="2"
-                                            Background="White" Height="300"
+                                            Background="White" Height="240"
                                             CornerRadius="5">
                                         <Grid>
                                             <TextBlock Text="No image selected"
@@ -712,7 +721,7 @@
                                                       VerticalAlignment="Center"
                                                       Foreground="#999"
                                                       FontStyle="Italic"
-                                                      FontSize="14">
+                                                      FontSize="13">
                                                 <TextBlock.Style>
                                                     <Style TargetType="TextBlock">
                                                         <Setter Property="Visibility" Value="Collapsed"/>
@@ -737,8 +746,8 @@
                                            Style="{StaticResource AnalyzeButtonStyle}"
                                            Command="{Binding Analyzer.AnalyzeImageCommand}"
                                            HorizontalAlignment="Stretch"
-                                           Margin="0,15,0,0"
-                                           Height="45"
+                                           Margin="0,12,0,0"
+                                           Height="38"
                                            Background="#F59E0B"/>
                                 </StackPanel>
                             </Border>
@@ -749,13 +758,14 @@
                                     <TextBlock Text="Analysis Settings" Style="{StaticResource HeaderTextStyle}" Foreground="#6366F1"/>
 
                                     <!-- Aspect Ratio -->
-                                    <StackPanel Margin="0,0,0,12">
-                                        <TextBlock Text="Aspect Ratio" FontWeight="SemiBold" FontSize="12" Margin="0,0,0,5"/>
+                                    <StackPanel Margin="0,0,0,10">
+                                        <TextBlock Text="Aspect Ratio" FontWeight="SemiBold" FontSize="11" Margin="0,0,0,4"/>
                                         <ComboBox SelectedIndex="{Binding Analyzer.AspectRatioIndex, Mode=TwoWay}"
-                                                 Padding="10"
+                                                 Padding="8"
                                                  Background="White"
                                                  BorderBrush="#CED4DA"
-                                                 FontSize="12">
+                                                 FontSize="11"
+                                                 Height="30">
                                             <ComboBoxItem Content="SDXL - 1:1 square 1024x1024"/>
                                             <ComboBoxItem Content="SDXL - 3:4 portrait 896x1152"/>
                                             <ComboBoxItem Content="SDXL - 9:16 portrait 768x1344"/>
@@ -764,27 +774,145 @@
                                         </ComboBox>
                                     </StackPanel>
 
-                                    <!-- Style Preset -->
-                                    <StackPanel Margin="0,0,0,12">
-                                        <TextBlock Text="Style Preset" FontWeight="SemiBold" FontSize="12" Margin="0,0,0,5"/>
-                                        <ComboBox SelectedIndex="{Binding Analyzer.SelectedStyleIndex, Mode=TwoWay}"
-                                                 ItemsSource="{Binding Analyzer.StyleNames}"
-                                                 Padding="10"
-                                                 Background="White"
-                                                 BorderBrush="#CED4DA"
-                                                 FontSize="12"/>
+                                    <!-- Steps -->
+                                    <StackPanel Margin="0,0,0,10">
+                                        <TextBlock Text="Steps" FontWeight="SemiBold" FontSize="11" Margin="0,0,0,4"/>
+                                        <Grid>
+                                            <Grid.ColumnDefinitions>
+                                                <ColumnDefinition Width="*"/>
+                                                <ColumnDefinition Width="Auto"/>
+                                            </Grid.ColumnDefinitions>
+                                            <Slider Grid.Column="0"
+                                                    Value="{Binding Analyzer.Steps, Mode=TwoWay}"
+                                                    Minimum="4" Maximum="20"
+                                                    TickFrequency="1"
+                                                    IsSnapToTickEnabled="True"
+                                                    VerticalAlignment="Center"
+                                                    Height="20"/>
+                                            <TextBlock Grid.Column="1"
+                                                      Text="{Binding Analyzer.Steps}"
+                                                      Margin="8,0,0,0"
+                                                      VerticalAlignment="Center"
+                                                      MinWidth="25"
+                                                      FontWeight="Bold"
+                                                      FontSize="11"/>
+                                        </Grid>
                                     </StackPanel>
 
-                                    <!-- LORA (Optional) -->
-                                    <StackPanel Margin="0,0,0,12">
-                                        <TextBlock Text="LoRA Model" FontWeight="SemiBold" FontSize="12" Margin="0,0,0,5"/>
+                                    <!-- CFG -->
+                                    <StackPanel>
+                                        <TextBlock Text="CFG Scale" FontWeight="SemiBold" FontSize="11" Margin="0,0,0,4"/>
+                                        <Grid>
+                                            <Grid.ColumnDefinitions>
+                                                <ColumnDefinition Width="*"/>
+                                                <ColumnDefinition Width="Auto"/>
+                                            </Grid.ColumnDefinitions>
+                                            <Slider Grid.Column="0"
+                                                    Value="{Binding Analyzer.Cfg, Mode=TwoWay}"
+                                                    Minimum="1" Maximum="3"
+                                                    TickFrequency="0.5"
+                                                    IsSnapToTickEnabled="True"
+                                                    VerticalAlignment="Center"
+                                                    Height="20"/>
+                                            <TextBlock Grid.Column="1"
+                                                      Text="{Binding Analyzer.Cfg, StringFormat={}{0:F1}}"
+                                                      Margin="8,0,0,0"
+                                                      VerticalAlignment="Center"
+                                                      MinWidth="25"
+                                                      FontWeight="Bold"
+                                                      FontSize="11"/>
+                                        </Grid>
+                                    </StackPanel>
+                                </StackPanel>
+                            </Border>
+                        </StackPanel>
+
+                        <!-- Right Column - Analysis Result -->
+                        <StackPanel Grid.Column="1" Margin="8,0,0,0">
+                            <!-- Analysis Result Section -->
+                            <Border Style="{StaticResource SectionPanelStyle}">
+                                <StackPanel>
+                                    <TextBlock Text="AI Analysis Result" Style="{StaticResource HeaderTextStyle}" Foreground="#8B5CF6"/>
+
+                                    <TextBlock Text="Edit the analysis before generating the image"
+                                               FontSize="11"
+                                               Foreground="#666"
+                                               Margin="0,0,0,8"/>
+
+                                    <TextBox Text="{Binding Analyzer.AnalysisText, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                                            TextWrapping="Wrap"
+                                            AcceptsReturn="True"
+                                            Height="140"
+                                            Padding="10"
+                                            VerticalScrollBarVisibility="Auto"
+                                            Background="White"
+                                            BorderBrush="#CED4DA"
+                                            FontSize="12"
+                                            Margin="0,0,0,10"/>
+
+                                    <!-- Processing Status for Analysis -->
+                                    <Border Background="#FEF3C7"
+                                            BorderBrush="#FCD34D"
+                                            BorderThickness="2"
+                                            CornerRadius="6"
+                                            Padding="12"
+                                            Margin="0,0,0,10"
+                                            Visibility="{Binding Analyzer.IsAnalyzing, Converter={StaticResource BooleanToVisibilityConverter}}">
+                                        <StackPanel>
+                                            <TextBlock Text="Analyzing image..."
+                                                      FontWeight="Bold"
+                                                      FontSize="11"
+                                                      Margin="0,0,0,6"
+                                                      TextAlignment="Center"
+                                                      Foreground="#92400E"/>
+                                            <ProgressBar IsIndeterminate="True"
+                                                        Height="18"
+                                                        Foreground="#F59E0B"/>
+                                        </StackPanel>
+                                    </Border>
+
+                                    <!-- Workflow Selection -->
+                                    <StackPanel Margin="0,0,0,8">
+                                        <TextBlock Text="Model Workflow" FontWeight="SemiBold" FontSize="11" Margin="0,0,0,4"/>
+                                        <ComboBox SelectedIndex="{Binding Analyzer.SelectedWorkflow, Mode=TwoWay}"
+                                                 Padding="8"
+                                                 Background="White"
+                                                 BorderBrush="#CED4DA"
+                                                 FontSize="11"
+                                                 Height="32">
+                                            <ComboBoxItem Content="Zimage (with LoRA support)"/>
+                                            <ComboBoxItem Content="Qwen 2512"/>
+                                            <ComboBoxItem Content="Klien (Flux2)"/>
+                                        </ComboBox>
+                                        <TextBlock Text="Different workflows use different AI models with varying capabilities and styles"
+                                                   FontSize="9"
+                                                   Foreground="#666"
+                                                   FontStyle="Italic"
+                                                   Margin="0,4,0,0"/>
+                                    </StackPanel>
+
+                                    <!-- Style Preset - Only for Zimage workflow -->
+                                    <StackPanel Margin="0,0,0,8" Visibility="{Binding Analyzer.ShowStyleOptions, Converter={StaticResource BooleanToVisibilityConverter}}">
+                                        <TextBlock Text="Style Preset" FontWeight="SemiBold" FontSize="11" Margin="0,0,0,4"/>
+                                        <ComboBox SelectedIndex="{Binding Analyzer.SelectedStyleIndex, Mode=TwoWay}"
+                                                 ItemsSource="{Binding Analyzer.StyleNames}"
+                                                 Padding="8"
+                                                 Background="White"
+                                                 BorderBrush="#CED4DA"
+                                                 FontSize="11"
+                                                 Height="32"/>
+                                    </StackPanel>
+
+                                    <!-- LORA (Optional) - Only for Zimage workflow -->
+                                    <StackPanel Margin="0,0,0,10" Visibility="{Binding Analyzer.ShowLoraOptions, Converter={StaticResource BooleanToVisibilityConverter}}">
+                                        <TextBlock Text="LoRA Model" FontWeight="SemiBold" FontSize="11" Margin="0,0,0,4"/>
 
                                         <!-- Lora Enable Toggle -->
                                         <CheckBox Content="Enable LoRA"
                                                  IsChecked="{Binding Analyzer.LoraEnabled, Mode=TwoWay}"
                                                  FontWeight="SemiBold"
-                                                 FontSize="12"
-                                                 Margin="0,0,0,8"/>
+                                                 FontSize="11"
+                                                 Margin="0,0,0,6"/>
 
                                         <!-- Lora Selection (only visible when enabled) -->
                                         <Grid Visibility="{Binding Analyzer.LoraEnabled, Converter={StaticResource BooleanToVisibilityConverter}}">
@@ -796,122 +924,30 @@
                                             <ComboBox Grid.Column="0"
                                                      ItemsSource="{Binding Analyzer.AvailableLoras}"
                                                      SelectedItem="{Binding Analyzer.SelectedLora, Mode=TwoWay}"
-                                                     Padding="10"
+                                                     Padding="8"
                                                      Background="White"
                                                      BorderBrush="#CED4DA"
-                                                     FontSize="12"
-                                                     Height="35"
-                                                     Margin="0,0,8,0"/>
+                                                     FontSize="11"
+                                                     Height="32"
+                                                     Margin="0,0,6,0"/>
 
                                             <Button Grid.Column="1"
                                                    Content="Refresh"
                                                    Command="{Binding Analyzer.RefreshLorasCommand}"
                                                    Style="{StaticResource SecondaryButtonStyle}"
-                                                   Width="70"
-                                                   Height="35"/>
+                                                   Width="60"
+                                                   Height="32"
+                                                   Padding="10,5"/>
                                         </Grid>
                                     </StackPanel>
-
-                                    <!-- Steps -->
-                                    <StackPanel Margin="0,0,0,12">
-                                        <TextBlock Text="Steps" FontWeight="SemiBold" FontSize="12" Margin="0,0,0,5"/>
-                                        <Grid>
-                                            <Grid.ColumnDefinitions>
-                                                <ColumnDefinition Width="*"/>
-                                                <ColumnDefinition Width="Auto"/>
-                                            </Grid.ColumnDefinitions>
-                                            <Slider Grid.Column="0"
-                                                    Value="{Binding Analyzer.Steps, Mode=TwoWay}"
-                                                    Minimum="4" Maximum="20"
-                                                    TickFrequency="1"
-                                                    IsSnapToTickEnabled="True"
-                                                    VerticalAlignment="Center"/>
-                                            <TextBlock Grid.Column="1"
-                                                      Text="{Binding Analyzer.Steps}"
-                                                      Margin="10,0,0,0"
-                                                      VerticalAlignment="Center"
-                                                      MinWidth="30"
-                                                      FontWeight="Bold"/>
-                                        </Grid>
-                                    </StackPanel>
-
-                                    <!-- CFG -->
-                                    <StackPanel>
-                                        <TextBlock Text="CFG Scale" FontWeight="SemiBold" FontSize="12" Margin="0,0,0,5"/>
-                                        <Grid>
-                                            <Grid.ColumnDefinitions>
-                                                <ColumnDefinition Width="*"/>
-                                                <ColumnDefinition Width="Auto"/>
-                                            </Grid.ColumnDefinitions>
-                                            <Slider Grid.Column="0"
-                                                    Value="{Binding Analyzer.Cfg, Mode=TwoWay}"
-                                                    Minimum="1" Maximum="3"
-                                                    TickFrequency="0.5"
-                                                    IsSnapToTickEnabled="True"
-                                                    VerticalAlignment="Center"/>
-                                            <TextBlock Grid.Column="1"
-                                                      Text="{Binding Analyzer.Cfg, StringFormat={}{0:F1}}"
-                                                      Margin="10,0,0,0"
-                                                      VerticalAlignment="Center"
-                                                      MinWidth="30"
-                                                      FontWeight="Bold"/>
-                                        </Grid>
-                                    </StackPanel>
-                                </StackPanel>
-                            </Border>
-                        </StackPanel>
-
-                        <!-- Right Column - Analysis Result -->
-                        <StackPanel Grid.Column="1" Margin="15,0,0,0">
-                            <!-- Analysis Result Section -->
-                            <Border Style="{StaticResource SectionPanelStyle}">
-                                <StackPanel>
-                                    <TextBlock Text="AI Analysis Result" Style="{StaticResource HeaderTextStyle}" Foreground="#8B5CF6"/>
-
-                                    <TextBlock Text="Edit the analysis before generating the image"
-                                               FontSize="12"
-                                               Foreground="#666"
-                                               Margin="0,0,0,10"/>
-
-                                    <TextBox Text="{Binding Analyzer.AnalysisText, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
-                                            TextWrapping="Wrap"
-                                            AcceptsReturn="True"
-                                            Height="200"
-                                            Padding="12"
-                                            VerticalScrollBarVisibility="Auto"
-                                            Background="White"
-                                            BorderBrush="#CED4DA"
-                                            FontSize="13"
-                                            Margin="0,0,0,15"/>
-
-                                    <!-- Processing Status for Analysis -->
-                                    <Border Background="#FEF3C7"
-                                            BorderBrush="#FCD34D"
-                                            BorderThickness="2"
-                                            CornerRadius="6"
-                                            Padding="15"
-                                            Margin="0,0,0,15"
-                                            Visibility="{Binding Analyzer.IsAnalyzing, Converter={StaticResource BooleanToVisibilityConverter}}">
-                                        <StackPanel>
-                                            <TextBlock Text="Analyzing image..."
-                                                      FontWeight="Bold"
-                                                      FontSize="12"
-                                                      Margin="0,0,0,8"
-                                                      TextAlignment="Center"
-                                                      Foreground="#92400E"/>
-                                            <ProgressBar IsIndeterminate="True"
-                                                        Height="20"
-                                                        Foreground="#F59E0B"/>
-                                        </StackPanel>
-                                    </Border>
 
                                     <!-- Generate Button -->
                                     <Button Content="Process &amp; Generate Image"
                                            Style="{StaticResource PrimaryButtonStyle}"
                                            Command="{Binding Analyzer.GenerateImageCommand}"
                                            HorizontalAlignment="Stretch"
-                                           Height="50"
-                                           FontSize="16"
+                                           Height="42"
+                                           FontSize="14"
                                            Background="#8B5CF6"/>
                                 </StackPanel>
                             </Border>
@@ -922,15 +958,15 @@
                                     <TextBlock Text="Generated Image" Style="{StaticResource HeaderTextStyle}" Foreground="#10B981"/>
 
                                     <Border BorderBrush="#DEE2E6" BorderThickness="2"
-                                            Background="White" Height="350"
-                                            CornerRadius="5" Margin="0,0,0,12">
+                                            Background="White" Height="280"
+                                            CornerRadius="5" Margin="0,0,0,8">
                                         <Grid>
                                             <TextBlock Text="Generated image will appear here"
                                                       HorizontalAlignment="Center"
                                                       VerticalAlignment="Center"
                                                       Foreground="#999"
                                                       FontStyle="Italic"
-                                                      FontSize="14">
+                                                      FontSize="13">
                                                 <TextBlock.Style>
                                                     <Style TargetType="TextBlock">
                                                         <Setter Property="Visibility" Value="Collapsed"/>
@@ -954,13 +990,15 @@
                                            Style="{StaticResource SecondaryButtonStyle}"
                                            Command="{Binding Analyzer.OpenResultFolderCommand}"
                                            IsEnabled="{Binding Analyzer.HasResultImage}"
-                                           HorizontalAlignment="Stretch"/>
+                                           HorizontalAlignment="Stretch"
+                                           Height="34"
+                                           Padding="12,6"/>
 
                                     <TextBlock Text="{Binding Analyzer.ImageInfo}"
                                               FontStyle="Italic"
                                               Foreground="#666"
-                                              FontSize="11"
-                                              Margin="0,10,0,0"
+                                              FontSize="10"
+                                              Margin="0,8,0,0"
                                               TextAlignment="Center"/>
                                 </StackPanel>
                             </Border>
