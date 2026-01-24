@@ -1,6 +1,7 @@
 using System;
 using System.ComponentModel;
 using System.Runtime.CompilerServices;
+using FlipPix.UI.ViewModels;
 
 namespace FlipPix.UI.Models
 {
@@ -15,6 +16,7 @@ namespace FlipPix.UI.Models
         public string Id { get; set; } = Guid.NewGuid().ToString();
         public string SourceImagePath { get; set; } = string.Empty;
         public string Prompt { get; set; } = string.Empty;
+        public TextGeneratorWorkflow SelectedWorkflow { get; set; } = TextGeneratorWorkflow.Zimage;
         public int SelectedStyleIndex { get; set; } = 0;
         public string StyleName { get; set; } = string.Empty;
         public int AspectRatioIndex { get; set; } = 2; // Default to 9:16 portrait

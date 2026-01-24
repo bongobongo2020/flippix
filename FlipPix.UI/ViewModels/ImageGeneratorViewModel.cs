@@ -36,7 +36,7 @@ namespace FlipPix.UI.ViewModels
         private string _imagePrompt = "Latina female with thick wavy hair, harbor boats and pastel houses behind. Breezy seaside light, warm tones, cinematic close-up.";
         private int _aspectRatioIndex = 0;
         private int _steps = 9;
-        private double _cfg = 1.0;
+        private double _cfg = 1.5;
         private long _seed = 0;
         private double _denoise = 1.0;
         private bool _isProcessing = false;
@@ -286,7 +286,7 @@ namespace FlipPix.UI.ViewModels
             }
         }
 
-        public bool CanGenerate => !string.IsNullOrEmpty(ImagePrompt) && !IsProcessing && !IsProcessingQueue;
+        public bool CanGenerate => !string.IsNullOrEmpty(ImagePrompt);
 
         // Lora Properties
         public ObservableCollection<string> AvailableLoras
@@ -419,6 +419,18 @@ namespace FlipPix.UI.ViewModels
         // Methods
         private async Task GenerateImageAsync()
         {
+            // If already processing, add to queue instead
+            if (IsProcessing)
+            {
+                AddToQueue();
+                // Auto-start queue processing if not already processing queue
+                if (!IsProcessingQueue && PromptQueue.Any(q => q.Status == "Pending"))
+                {
+                    _ = Task.Run(async () => await ProcessQueueAsync());
+                }
+                return;
+            }
+
             if (!CanGenerate) return;
 
             _cancellationTokenSource?.Dispose();
@@ -1830,6 +1842,12 @@ namespace FlipPix.UI.ViewModels
             OnPropertyChanged(nameof(QueueCount));
             OnPropertyChanged(nameof(PendingQueueCount));
             CommandManager.InvalidateRequerySuggested();
+
+            // Auto-start queue processing if not already processing queue and not processing single image
+            if (!IsProcessingQueue && !IsProcessing && PromptQueue.Any(q => q.Status == "Pending"))
+            {
+                _ = Task.Run(async () => await ProcessQueueAsync());
+            }
         }
 
         private void RemoveFromQueue(ImagePromptQueueItem? item)

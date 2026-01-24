@@ -4,19 +4,19 @@
         xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
         xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
         mc:Ignorable="d"
-        Title="FlipPix - Image Analyzer and Generator" Height="850" Width="1100"
+        Title="FlipPix - Image Analyzer and Generator" Height="720" Width="1000"
         WindowStartupLocation="CenterScreen"
         WindowState="Normal"
-        MinHeight="750" MinWidth="1000"
+        MinHeight="650" MinWidth="950"
         ResizeMode="CanResize">
 
     <Window.Resources>
         <BooleanToVisibilityConverter x:Key="BooleanToVisibilityConverter"/>
 
         <Style x:Key="HeaderTextStyle" TargetType="TextBlock">
-            <Setter Property="FontSize" Value="16"/>
+            <Setter Property="FontSize" Value="14"/>
             <Setter Property="FontWeight" Value="Bold"/>
-            <Setter Property="Margin" Value="0,0,0,10"/>
+            <Setter Property="Margin" Value="0,0,0,8"/>
         </Style>
 
         <Style x:Key="SectionPanelStyle" TargetType="Border">
@@ -24,23 +24,23 @@
             <Setter Property="BorderBrush" Value="#DEE2E6"/>
             <Setter Property="BorderThickness" Value="1"/>
             <Setter Property="CornerRadius" Value="8"/>
-            <Setter Property="Padding" Value="20"/>
-            <Setter Property="Margin" Value="0,0,0,15"/>
+            <Setter Property="Padding" Value="15"/>
+            <Setter Property="Margin" Value="0,0,0,10"/>
         </Style>
 
         <Style x:Key="PrimaryButtonStyle" TargetType="Button">
             <Setter Property="Background" Value="#6366F1"/>
             <Setter Property="Foreground" Value="White"/>
             <Setter Property="BorderThickness" Value="0"/>
-            <Setter Property="Padding" Value="20,10"/>
+            <Setter Property="Padding" Value="16,8"/>
             <Setter Property="FontWeight" Value="Bold"/>
-            <Setter Property="FontSize" Value="14"/>
+            <Setter Property="FontSize" Value="13"/>
             <Setter Property="Cursor" Value="Hand"/>
             <Setter Property="Template">
                 <Setter.Value>
                     <ControlTemplate TargetType="Button">
                         <Border Background="{TemplateBinding Background}"
-                                CornerRadius="6"
+                                CornerRadius="5"
                                 Padding="{TemplateBinding Padding}">
                             <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center"/>
                         </Border>
@@ -62,8 +62,9 @@
             <Setter Property="Background" Value="#10B981"/>
             <Setter Property="Foreground" Value="White"/>
             <Setter Property="BorderThickness" Value="0"/>
-            <Setter Property="Padding" Value="15,8"/>
+            <Setter Property="Padding" Value="12,6"/>
             <Setter Property="FontWeight" Value="SemiBold"/>
+            <Setter Property="FontSize" Value="11"/>
             <Setter Property="Cursor" Value="Hand"/>
             <Setter Property="Template">
                 <Setter.Value>
@@ -91,15 +92,15 @@
             <Setter Property="Background" Value="#F59E0B"/>
             <Setter Property="Foreground" Value="White"/>
             <Setter Property="BorderThickness" Value="0"/>
-            <Setter Property="Padding" Value="18,10"/>
+            <Setter Property="Padding" Value="14,8"/>
             <Setter Property="FontWeight" Value="Bold"/>
-            <Setter Property="FontSize" Value="14"/>
+            <Setter Property="FontSize" Value="13"/>
             <Setter Property="Cursor" Value="Hand"/>
             <Setter Property="Template">
                 <Setter.Value>
                     <ControlTemplate TargetType="Button">
                         <Border Background="{TemplateBinding Background}"
-                                CornerRadius="6"
+                                CornerRadius="5"
                                 Padding="{TemplateBinding Padding}">
                             <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center"/>
                         </Border>
@@ -135,18 +136,18 @@
                     <GradientStop Color="#EC4899" Offset="1"/>
                 </LinearGradientBrush>
             </Border.Background>
-            <StackPanel Margin="30,20">
+            <StackPanel Margin="25,15">
                 <TextBlock Text="Image Analyzer and Generator"
-                          FontSize="32" FontWeight="Bold"
+                          FontSize="26" FontWeight="Bold"
                           Foreground="White"/>
                 <TextBlock Text="Analyze images with QwenVL AI and generate new images with Z-Image"
-                          FontSize="13" Foreground="#F3E8FF"
-                          Margin="0,5,0,0"/>
+                          FontSize="12" Foreground="#F3E8FF"
+                          Margin="0,4,0,0"/>
             </StackPanel>
         </Border>
 
         <!-- Main Content -->
-        <ScrollViewer Grid.Row="1" VerticalScrollBarVisibility="Auto" Padding="20,15,20,15">
+        <ScrollViewer Grid.Row="1" VerticalScrollBarVisibility="Auto" Padding="15,12,15,12">
             <Grid>
                 <Grid.ColumnDefinitions>
                     <ColumnDefinition Width="*"/>
@@ -154,7 +155,7 @@
                 </Grid.ColumnDefinitions>
 
                 <!-- Left Column -->
-                <StackPanel Grid.Column="0" Margin="0,0,10,0">
+                <StackPanel Grid.Column="0" Margin="0,0,8,0">
 
                     <!-- Source Image Upload Section -->
                     <Border Style="{StaticResource SectionPanelStyle}">
@@ -162,11 +163,11 @@
                             <TextBlock Text="Source Image" Style="{StaticResource HeaderTextStyle}" Foreground="#6366F1"/>
 
                             <TextBlock Text="Upload an image to analyze"
-                                       FontSize="12"
+                                       FontSize="11"
                                        Foreground="#666"
-                                       Margin="0,0,0,10"/>
+                                       Margin="0,0,0,8"/>
 
-                            <Grid Margin="0,0,0,10">
+                            <Grid Margin="0,0,0,8">
                                 <Grid.ColumnDefinitions>
                                     <ColumnDefinition Width="*"/>
                                     <ColumnDefinition Width="Auto"/>
@@ -175,21 +176,25 @@
                                 <TextBox Grid.Column="0"
                                         Text="{Binding SourceImagePath, Mode=TwoWay}"
                                         IsReadOnly="True"
-                                        Padding="10"
+                                        Padding="8"
                                         Background="White"
                                         BorderBrush="#CED4DA"
-                                        VerticalContentAlignment="Center"/>
+                                        VerticalContentAlignment="Center"
+                                        FontSize="11"
+                                        Height="30"/>
 
                                 <Button Grid.Column="1"
                                        Content="Browse"
                                        Style="{StaticResource SecondaryButtonStyle}"
                                        Command="{Binding BrowseImageCommand}"
-                                       Margin="8,0,0,0"/>
+                                       Margin="6,0,0,0"
+                                       Height="30"
+                                       Padding="12,6"/>
                             </Grid>
 
                             <!-- Image Preview -->
                             <Border BorderBrush="#DEE2E6" BorderThickness="2"
-                                    Background="White" Height="300"
+                                    Background="White" Height="240"
                                     CornerRadius="5">
                                 <Grid>
                                     <TextBlock Text="No image selected"
@@ -197,7 +202,7 @@
                                               VerticalAlignment="Center"
                                               Foreground="#999"
                                               FontStyle="Italic"
-                                              FontSize="14">
+                                              FontSize="13">
                                         <TextBlock.Style>
                                             <Style TargetType="TextBlock">
                                                 <Setter Property="Visibility" Value="Collapsed"/>
@@ -222,8 +227,8 @@
                                    Style="{StaticResource AnalyzeButtonStyle}"
                                    Command="{Binding AnalyzeImageCommand}"
                                    HorizontalAlignment="Stretch"
-                                   Margin="0,15,0,0"
-                                   Height="45"/>
+                                   Margin="0,12,0,0"
+                                   Height="38"/>
                         </StackPanel>
                     </Border>
 
@@ -232,7 +237,7 @@
                         <StackPanel>
                             <TextBlock Text="LM Studio Settings" Style="{StaticResource HeaderTextStyle}" Foreground="#10B981"/>
 
-                            <Grid Margin="0,0,0,12">
+                            <Grid Margin="0,0,0,10">
                                 <Grid.ColumnDefinitions>
                                     <ColumnDefinition Width="*"/>
                                     <ColumnDefinition Width="*"/>
@@ -240,52 +245,57 @@
                                 </Grid.ColumnDefinitions>
 
                                 <!-- Server -->
-                                <StackPanel Grid.Column="0" Margin="0,0,10,0">
-                                    <TextBlock Text="Server" FontWeight="SemiBold" FontSize="12" Margin="0,0,0,5"/>
+                                <StackPanel Grid.Column="0" Margin="0,0,8,0">
+                                    <TextBlock Text="Server" FontWeight="SemiBold" FontSize="11" Margin="0,0,0,4"/>
                                     <TextBox Text="{Binding LMStudioServer, UpdateSourceTrigger=PropertyChanged}"
-                                             Padding="10"
+                                             Padding="8"
                                              Background="White"
                                              BorderBrush="#CED4DA"
-                                             FontSize="12"/>
+                                             FontSize="11"
+                                             Height="30"/>
                                 </StackPanel>
 
                                 <!-- Port -->
-                                <StackPanel Grid.Column="1" Margin="0,0,10,0">
-                                    <TextBlock Text="Port" FontWeight="SemiBold" FontSize="12" Margin="0,0,0,5"/>
+                                <StackPanel Grid.Column="1" Margin="0,0,8,0">
+                                    <TextBlock Text="Port" FontWeight="SemiBold" FontSize="11" Margin="0,0,0,4"/>
                                     <TextBox Text="{Binding LMStudioPort, UpdateSourceTrigger=PropertyChanged}"
-                                             Padding="10"
+                                             Padding="8"
                                              Background="White"
                                              BorderBrush="#CED4DA"
-                                             FontSize="12"/>
+                                             FontSize="11"
+                                             Height="30"/>
                                 </StackPanel>
 
                                 <!-- Test Connection Button -->
                                 <StackPanel Grid.Column="2">
-                                    <TextBlock Text="" Height="17" Margin="0,0,0,5"/>
+                                    <TextBlock Text="" Height="15" Margin="0,0,0,4"/>
                                     <Button Content="Test" Command="{Binding TestLMStudioConnectionCommand}"
                                             Style="{StaticResource SecondaryButtonStyle}"
-                                            Width="50"/>
+                                            Width="50"
+                                            Height="30"
+                                            Padding="10,5"/>
                                 </StackPanel>
                             </Grid>
 
                             <!-- Model Selection -->
-                            <Grid Margin="0,0,0,12">
+                            <Grid>
                                 <Grid.ColumnDefinitions>
                                     <ColumnDefinition Width="*"/>
                                     <ColumnDefinition Width="Auto"/>
                                 </Grid.ColumnDefinitions>
 
                                 <!-- Model Dropdown -->
-                                <StackPanel Grid.Column="0" Margin="0,0,10,0">
-                                    <TextBlock Text="AI Model" FontWeight="SemiBold" FontSize="12" Margin="0,0,0,5"/>
+                                <StackPanel Grid.Column="0" Margin="0,0,8,0">
+                                    <TextBlock Text="AI Model" FontWeight="SemiBold" FontSize="11" Margin="0,0,0,4"/>
                                     <ComboBox ItemsSource="{Binding AvailableModels}"
                                               SelectedValue="{Binding SelectedModel}"
                                               SelectedValuePath="Name"
                                               DisplayMemberPath="Name"
-                                              Padding="10"
+                                              Padding="8"
                                               Background="White"
                                               BorderBrush="#CED4DA"
-                                              FontSize="12">
+                                              FontSize="11"
+                                              Height="30">
                                         <ComboBox.ItemTemplate>
                                             <DataTemplate>
                                                 <TextBlock Text="{Binding Name}" TextTrimming="CharacterEllipsis"/>
@@ -296,10 +306,12 @@
 
                                 <!-- Refresh Models Button -->
                                 <StackPanel Grid.Column="1">
-                                    <TextBlock Text="" Height="17" Margin="0,0,0,5"/>
+                                    <TextBlock Text="" Height="15" Margin="0,0,0,4"/>
                                     <Button Content="Refresh" Command="{Binding RefreshModelsCommand}"
                                             Style="{StaticResource SecondaryButtonStyle}"
-                                            Width="70"/>
+                                            Width="65"
+                                            Height="30"
+                                            Padding="10,5"/>
                                 </StackPanel>
                             </Grid>
                         </StackPanel>
@@ -311,13 +323,14 @@
                             <TextBlock Text="Generation Settings" Style="{StaticResource HeaderTextStyle}" Foreground="#6366F1"/>
 
                             <!-- Aspect Ratio -->
-                            <StackPanel Margin="0,0,0,12">
-                                <TextBlock Text="Aspect Ratio" FontWeight="SemiBold" FontSize="12" Margin="0,0,0,5"/>
+                            <StackPanel Margin="0,0,0,10">
+                                <TextBlock Text="Aspect Ratio" FontWeight="SemiBold" FontSize="11" Margin="0,0,0,4"/>
                                 <ComboBox SelectedIndex="{Binding AspectRatioIndex, Mode=TwoWay}"
-                                         Padding="10"
+                                         Padding="8"
                                          Background="White"
                                          BorderBrush="#CED4DA"
-                                         FontSize="12">
+                                         FontSize="11"
+                                         Height="30">
                                     <ComboBoxItem Content="SDXL - 1:1 square 1024x1024"/>
                                     <ComboBoxItem Content="SDXL - 3:4 portrait 896x1152"/>
                                     <ComboBoxItem Content="SDXL - 9:16 portrait 768x1344"/>
@@ -326,27 +339,127 @@
                                 </ComboBox>
                             </StackPanel>
 
+                            <!-- Steps -->
+                            <StackPanel Margin="0,0,0,10">
+                                <TextBlock Text="Steps" FontWeight="SemiBold" FontSize="11" Margin="0,0,0,4"/>
+                                <Grid>
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="*"/>
+                                        <ColumnDefinition Width="Auto"/>
+                                    </Grid.ColumnDefinitions>
+                                    <Slider Grid.Column="0"
+                                            Value="{Binding Steps, Mode=TwoWay}"
+                                            Minimum="4" Maximum="20"
+                                            TickFrequency="1"
+                                            IsSnapToTickEnabled="True"
+                                            VerticalAlignment="Center"
+                                            Height="20"/>
+                                    <TextBlock Grid.Column="1"
+                                              Text="{Binding Steps}"
+                                              Margin="8,0,0,0"
+                                              VerticalAlignment="Center"
+                                              MinWidth="25"
+                                              FontWeight="Bold"
+                                              FontSize="11"/>
+                                </Grid>
+                            </StackPanel>
+
+                            <!-- CFG -->
+                            <StackPanel>
+                                <TextBlock Text="CFG Scale" FontWeight="SemiBold" FontSize="11" Margin="0,0,0,4"/>
+                                <Grid>
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="*"/>
+                                        <ColumnDefinition Width="Auto"/>
+                                    </Grid.ColumnDefinitions>
+                                    <Slider Grid.Column="0"
+                                            Value="{Binding Cfg, Mode=TwoWay}"
+                                            Minimum="1" Maximum="3"
+                                            TickFrequency="0.5"
+                                            IsSnapToTickEnabled="True"
+                                            VerticalAlignment="Center"
+                                            Height="20"/>
+                                    <TextBlock Grid.Column="1"
+                                              Text="{Binding Cfg, StringFormat={}{0:F1}}"
+                                              Margin="8,0,0,0"
+                                              VerticalAlignment="Center"
+                                              MinWidth="25"
+                                              FontWeight="Bold"
+                                              FontSize="11"/>
+                                </Grid>
+                            </StackPanel>
+                        </StackPanel>
+                    </Border>
+
+                </StackPanel>
+
+                <!-- Right Column -->
+                <StackPanel Grid.Column="1" Margin="8,0,0,0">
+
+                    <!-- Analysis Result Section -->
+                    <Border Style="{StaticResource SectionPanelStyle}">
+                        <StackPanel>
+                            <TextBlock Text="AI Analysis Result" Style="{StaticResource HeaderTextStyle}" Foreground="#8B5CF6"/>
+
+                            <TextBlock Text="Edit the analysis before generating the image"
+                                       FontSize="11"
+                                       Foreground="#666"
+                                       Margin="0,0,0,8"/>
+
+                            <TextBox Text="{Binding AnalysisText, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                                    TextWrapping="Wrap"
+                                    AcceptsReturn="True"
+                                    Height="140"
+                                    Padding="10"
+                                    VerticalScrollBarVisibility="Auto"
+                                    Background="White"
+                                    BorderBrush="#CED4DA"
+                                    FontSize="12"
+                                    Margin="0,0,0,10"/>
+
+                            <!-- Processing Status for Analysis -->
+                            <Border Background="#FEF3C7"
+                                    BorderBrush="#FCD34D"
+                                    BorderThickness="2"
+                                    CornerRadius="6"
+                                    Padding="12"
+                                    Margin="0,0,0,10"
+                                    Visibility="{Binding IsAnalyzing, Converter={StaticResource BooleanToVisibilityConverter}}">
+                                <StackPanel>
+                                    <TextBlock Text="Analyzing image..."
+                                              FontWeight="Bold"
+                                              FontSize="11"
+                                              Margin="0,0,0,6"
+                                              TextAlignment="Center"
+                                              Foreground="#92400E"/>
+                                    <ProgressBar IsIndeterminate="True"
+                                                Height="18"
+                                                Foreground="#F59E0B"/>
+                                </StackPanel>
+                            </Border>
+
                             <!-- Style Preset -->
-                            <StackPanel Margin="0,0,0,12">
-                                <TextBlock Text="Style Preset" FontWeight="SemiBold" FontSize="12" Margin="0,0,0,5"/>
+                            <StackPanel Margin="0,0,0,8">
+                                <TextBlock Text="Style Preset" FontWeight="SemiBold" FontSize="11" Margin="0,0,0,4"/>
                                 <ComboBox SelectedIndex="{Binding SelectedStyleIndex, Mode=TwoWay}"
                                          ItemsSource="{Binding StyleNames}"
-                                         Padding="10"
+                                         Padding="8"
                                          Background="White"
                                          BorderBrush="#CED4DA"
-                                         FontSize="12"/>
+                                         FontSize="11"
+                                         Height="32"/>
                             </StackPanel>
 
                             <!-- LORA (Optional) -->
-                            <StackPanel Margin="0,0,0,12">
-                                <TextBlock Text="LoRA Model" FontWeight="SemiBold" FontSize="12" Margin="0,0,0,5"/>
+                            <StackPanel Margin="0,0,0,10">
+                                <TextBlock Text="LoRA Model" FontWeight="SemiBold" FontSize="11" Margin="0,0,0,4"/>
 
                                 <!-- Lora Enable Toggle -->
                                 <CheckBox Content="Enable LoRA"
                                          IsChecked="{Binding LoraEnabled, Mode=TwoWay}"
                                          FontWeight="SemiBold"
-                                         FontSize="12"
-                                         Margin="0,0,0,8"/>
+                                         FontSize="11"
+                                         Margin="0,0,0,6"/>
 
                                 <!-- Lora Selection (only visible when enabled) -->
                                 <Grid Visibility="{Binding LoraEnabled, Converter={StaticResource BooleanToVisibilityConverter}}">
@@ -358,124 +471,30 @@
                                     <ComboBox Grid.Column="0"
                                              ItemsSource="{Binding AvailableLoras}"
                                              SelectedItem="{Binding SelectedLora, Mode=TwoWay}"
-                                             Padding="10"
+                                             Padding="8"
                                              Background="White"
                                              BorderBrush="#CED4DA"
-                                             FontSize="12"
-                                             Height="35"
-                                             Margin="0,0,8,0"/>
+                                             FontSize="11"
+                                             Height="32"
+                                             Margin="0,0,6,0"/>
 
                                     <Button Grid.Column="1"
                                            Content="Refresh"
                                            Command="{Binding RefreshLorasCommand}"
                                            Style="{StaticResource SecondaryButtonStyle}"
-                                           Width="70"
-                                           Height="35"/>
+                                           Width="60"
+                                           Height="32"
+                                           Padding="10,5"/>
                                 </Grid>
                             </StackPanel>
-
-                            <!-- Steps -->
-                            <StackPanel Margin="0,0,0,12">
-                                <TextBlock Text="Steps" FontWeight="SemiBold" FontSize="12" Margin="0,0,0,5"/>
-                                <Grid>
-                                    <Grid.ColumnDefinitions>
-                                        <ColumnDefinition Width="*"/>
-                                        <ColumnDefinition Width="Auto"/>
-                                    </Grid.ColumnDefinitions>
-                                    <Slider Grid.Column="0"
-                                            Value="{Binding Steps, Mode=TwoWay}"
-                                            Minimum="4" Maximum="20"
-                                            TickFrequency="1"
-                                            IsSnapToTickEnabled="True"
-                                            VerticalAlignment="Center"/>
-                                    <TextBlock Grid.Column="1"
-                                              Text="{Binding Steps}"
-                                              Margin="10,0,0,0"
-                                              VerticalAlignment="Center"
-                                              MinWidth="30"
-                                              FontWeight="Bold"/>
-                                </Grid>
-                            </StackPanel>
-
-                            <!-- CFG -->
-                            <StackPanel>
-                                <TextBlock Text="CFG Scale" FontWeight="SemiBold" FontSize="12" Margin="0,0,0,5"/>
-                                <Grid>
-                                    <Grid.ColumnDefinitions>
-                                        <ColumnDefinition Width="*"/>
-                                        <ColumnDefinition Width="Auto"/>
-                                    </Grid.ColumnDefinitions>
-                                    <Slider Grid.Column="0"
-                                            Value="{Binding Cfg, Mode=TwoWay}"
-                                            Minimum="1" Maximum="3"
-                                            TickFrequency="0.5"
-                                            IsSnapToTickEnabled="True"
-                                            VerticalAlignment="Center"/>
-                                    <TextBlock Grid.Column="1"
-                                              Text="{Binding Cfg, StringFormat={}{0:F1}}"
-                                              Margin="10,0,0,0"
-                                              VerticalAlignment="Center"
-                                              MinWidth="30"
-                                              FontWeight="Bold"/>
-                                </Grid>
-                            </StackPanel>
-                        </StackPanel>
-                    </Border>
-
-                </StackPanel>
-
-                <!-- Right Column -->
-                <StackPanel Grid.Column="1" Margin="10,0,0,0">
-
-                    <!-- Analysis Result Section -->
-                    <Border Style="{StaticResource SectionPanelStyle}">
-                        <StackPanel>
-                            <TextBlock Text="AI Analysis Result" Style="{StaticResource HeaderTextStyle}" Foreground="#8B5CF6"/>
-
-                            <TextBlock Text="Edit the analysis before generating the image"
-                                       FontSize="12"
-                                       Foreground="#666"
-                                       Margin="0,0,0,10"/>
-
-                            <TextBox Text="{Binding AnalysisText, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
-                                    TextWrapping="Wrap"
-                                    AcceptsReturn="True"
-                                    Height="200"
-                                    Padding="12"
-                                    VerticalScrollBarVisibility="Auto"
-                                    Background="White"
-                                    BorderBrush="#CED4DA"
-                                    FontSize="13"
-                                    Margin="0,0,0,15"/>
-
-                            <!-- Processing Status for Analysis -->
-                            <Border Background="#FEF3C7"
-                                    BorderBrush="#FCD34D"
-                                    BorderThickness="2"
-                                    CornerRadius="6"
-                                    Padding="15"
-                                    Margin="0,0,0,15"
-                                    Visibility="{Binding IsAnalyzing, Converter={StaticResource BooleanToVisibilityConverter}}">
-                                <StackPanel>
-                                    <TextBlock Text="Analyzing image..."
-                                              FontWeight="Bold"
-                                              FontSize="12"
-                                              Margin="0,0,0,8"
-                                              TextAlignment="Center"
-                                              Foreground="#92400E"/>
-                                    <ProgressBar IsIndeterminate="True"
-                                                Height="20"
-                                                Foreground="#F59E0B"/>
-                                </StackPanel>
-                            </Border>
 
                             <!-- Generate Button -->
                             <Button Content="Process &amp; Generate Image"
                                    Style="{StaticResource PrimaryButtonStyle}"
                                    Command="{Binding GenerateImageCommand}"
                                    HorizontalAlignment="Stretch"
-                                   Height="50"
-                                   FontSize="16"/>
+                                   Height="42"
+                                   FontSize="14"/>
                         </StackPanel>
                     </Border>
 
@@ -489,22 +508,22 @@
                                     BorderBrush="#F9A8D4"
                                     BorderThickness="2"
                                     CornerRadius="6"
-                                    Padding="15">
+                                    Padding="12">
                                 <StackPanel>
                                     <TextBlock Text="{Binding ProcessingStatus}"
                                               FontWeight="SemiBold"
-                                              FontSize="12"
-                                              Margin="0,0,0,8"
+                                              FontSize="11"
+                                              Margin="0,0,0,6"
                                               TextAlignment="Center"
                                               TextWrapping="Wrap"
                                               Foreground="#831843"/>
                                     <ProgressBar Value="{Binding ProcessingProgress}"
-                                                Height="20"
+                                                Height="18"
                                                 Foreground="#EC4899"
-                                                Margin="0,0,0,5"/>
+                                                Margin="0,0,0,4"/>
                                     <TextBlock Text="{Binding ProgressPercentage}"
                                               HorizontalAlignment="Center"
-                                              FontSize="12"
+                                              FontSize="11"
                                               FontWeight="Bold"
                                               Foreground="#EC4899"/>
                                 </StackPanel>
@@ -518,15 +537,15 @@
                             <TextBlock Text="Generated Image" Style="{StaticResource HeaderTextStyle}" Foreground="#10B981"/>
 
                             <Border BorderBrush="#DEE2E6" BorderThickness="2"
-                                    Background="White" Height="350"
-                                    CornerRadius="5" Margin="0,0,0,12">
+                                    Background="White" Height="280"
+                                    CornerRadius="5" Margin="0,0,0,8">
                                 <Grid>
                                     <TextBlock Text="Generated image will appear here"
                                               HorizontalAlignment="Center"
                                               VerticalAlignment="Center"
                                               Foreground="#999"
                                               FontStyle="Italic"
-                                              FontSize="14">
+                                              FontSize="13">
                                         <TextBlock.Style>
                                             <Style TargetType="TextBlock">
                                                 <Setter Property="Visibility" Value="Collapsed"/>
@@ -550,13 +569,15 @@
                                    Style="{StaticResource SecondaryButtonStyle}"
                                    Command="{Binding OpenResultFolderCommand}"
                                    IsEnabled="{Binding HasResultImage}"
-                                   HorizontalAlignment="Stretch"/>
+                                   HorizontalAlignment="Stretch"
+                                   Height="34"
+                                   Padding="12,6"/>
 
                             <TextBlock Text="{Binding ImageInfo}"
                                       FontStyle="Italic"
                                       Foreground="#666"
-                                      FontSize="11"
-                                      Margin="0,10,0,0"
+                                      FontSize="10"
+                                      Margin="0,8,0,0"
                                       TextAlignment="Center"/>
                         </StackPanel>
                     </Border>
@@ -567,24 +588,24 @@
         </ScrollViewer>
 
         <!-- Status Bar -->
-        <StatusBar Grid.Row="2" Background="#F8F9FA" BorderBrush="#DEE2E6" BorderThickness="0,1,0,0" Height="30">
+        <StatusBar Grid.Row="2" Background="#F8F9FA" BorderBrush="#DEE2E6" BorderThickness="0,1,0,0" Height="26">
             <StatusBarItem>
-                <TextBlock Text="{Binding StatusBarMessage}" FontSize="11" FontWeight="SemiBold"/>
+                <TextBlock Text="{Binding StatusBarMessage}" FontSize="10" FontWeight="SemiBold"/>
             </StatusBarItem>
             <StatusBarItem HorizontalAlignment="Right">
                 <StackPanel Orientation="Horizontal">
-                    <TextBlock Text="ComfyUI: " FontSize="11" Foreground="#666"/>
-                    <TextBlock Text="{Binding ComfyUIServer}" FontSize="11" FontWeight="Bold"/>
-                    <TextBlock Text=":" FontSize="11"/>
-                    <TextBlock Text="{Binding ComfyUIPort}" FontSize="11" FontWeight="Bold"/>
-                    <TextBlock Text=" | " FontSize="11"/>
-                    <TextBlock Text="LM Studio: " FontSize="11" Foreground="#10B981"/>
-                    <TextBlock Text="{Binding LMStudioServer}" FontSize="11" FontWeight="Bold"/>
-                    <TextBlock Text=":" FontSize="11"/>
-                    <TextBlock Text="{Binding LMStudioPort}" FontSize="11" FontWeight="Bold"/>
-                    <TextBlock Text=" (" FontSize="11"/>
-                    <TextBlock Text="{Binding SelectedModel}" FontSize="11" FontWeight="Bold" Foreground="#10B981"/>
-                    <TextBlock Text=")" FontSize="11"/>
+                    <TextBlock Text="ComfyUI: " FontSize="10" Foreground="#666"/>
+                    <TextBlock Text="{Binding ComfyUIServer}" FontSize="10" FontWeight="Bold"/>
+                    <TextBlock Text=":" FontSize="10"/>
+                    <TextBlock Text="{Binding ComfyUIPort}" FontSize="10" FontWeight="Bold"/>
+                    <TextBlock Text=" | " FontSize="10"/>
+                    <TextBlock Text="LM Studio: " FontSize="10" Foreground="#10B981"/>
+                    <TextBlock Text="{Binding LMStudioServer}" FontSize="10" FontWeight="Bold"/>
+                    <TextBlock Text=":" FontSize="10"/>
+                    <TextBlock Text="{Binding LMStudioPort}" FontSize="10" FontWeight="Bold"/>
+                    <TextBlock Text=" (" FontSize="10"/>
+                    <TextBlock Text="{Binding SelectedModel}" FontSize="10" FontWeight="Bold" Foreground="#10B981"/>
+                    <TextBlock Text=")" FontSize="10"/>
                 </StackPanel>
             </StatusBarItem>
         </StatusBar>

@@ -818,6 +818,7 @@ namespace FlipPix.UI.ViewModels
         private async Task<List<byte[]>> GetOutputImagesFromComfyUI(string promptId, string jsonFileName, int imageIndex)
         {
             var images = new List<byte[]>();
+            HashSet<string> filesBeforeGeneration = new HashSet<string>();
 
             try
             {
@@ -829,6 +830,19 @@ namespace FlipPix.UI.ViewModels
 
                 AddLog($"ComfyUI server: {actualServer}");
                 AddLog($"Is remote ComfyUI: {isRemoteComfyUI}");
+
+                // For local ComfyUI, capture existing files before generation
+                var comfyUIOutputDir = _settingsService.Settings?.OutputFolderPath;
+                if (!isRemoteComfyUI && !string.IsNullOrEmpty(comfyUIOutputDir) && Directory.Exists(comfyUIOutputDir))
+                {
+                    filesBeforeGeneration = new HashSet<string>(
+                        Directory.GetFiles(comfyUIOutputDir, "*.png")
+                        .Select(Path.GetFileName)
+                        .Where(f => f != null)!,
+                        StringComparer.OrdinalIgnoreCase
+                    );
+                    AddLog($"Tracking {filesBeforeGeneration.Count} existing files before generation");
+                }
 
                 // Retry image retrieval with delays to give ComfyUI time to write the file
                 int retryCount = 0;
@@ -883,7 +897,6 @@ namespace FlipPix.UI.ViewModels
                     }
                     else
                     {
-                        var comfyUIOutputDir = _settingsService.Settings?.OutputFolderPath;
                         if (string.IsNullOrEmpty(comfyUIOutputDir))
                         {
                             AddLog("ERROR: ComfyUI output folder not configured");
@@ -915,11 +928,39 @@ namespace FlipPix.UI.ViewModels
                         else
                         {
                             AddLog($"No files found matching pattern: {pattern}");
-                            // List all files in the output directory for debugging
-                            var allFiles = Directory.GetFiles(comfyUIOutputDir, "*.png")
+
+                            // Find newly created files by comparing with files before generation
+                            var currentFiles = new HashSet<string>(
+                                Directory.GetFiles(comfyUIOutputDir, "*.png")
                                 .Select(Path.GetFileName)
-                                .ToList();
-                            AddLog($"Files in output directory: {string.Join(", ", allFiles.Take(10))}");
+                                .Where(f => f != null)!,
+                                StringComparer.OrdinalIgnoreCase
+                            );
+
+                            var newFiles = currentFiles.Except(filesBeforeGeneration).ToList();
+                            AddLog($"Found {newFiles.Count} new files since generation started");
+
+                            if (newFiles.Any())
+                            {
+                                // Get the newest file among the newly created ones
+                                var newFileInfos = newFiles
+                                    .Select(f => new FileInfo(Path.Combine(comfyUIOutputDir, f)))
+                                    .OrderByDescending(f => f.CreationTime > f.LastWriteTime ? f.CreationTime : f.LastWriteTime)
+                                    .ToList();
+
+                                var newestFile = newFileInfos.First();
+                                var fileTime = newestFile.CreationTime > newestFile.LastWriteTime ? newestFile.CreationTime : newestFile.LastWriteTime;
+                                AddLog($"Using newest created file: {newestFile.Name} (created/modified: {fileTime})");
+                                images.Add(await File.ReadAllBytesAsync(newestFile.FullName));
+                            }
+                            else
+                            {
+                                // List all files in the output directory for debugging
+                                var allFiles = Directory.GetFiles(comfyUIOutputDir, "*.png")
+                                    .Select(Path.GetFileName)
+                                    .ToList();
+                                AddLog($"Files in output directory: {string.Join(", ", allFiles.Take(10))}");
+                            }
                         }
 
                         if (!images.Any())

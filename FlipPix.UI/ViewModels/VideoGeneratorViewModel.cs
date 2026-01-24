@@ -2457,7 +2457,7 @@ namespace FlipPix.UI.ViewModels
                     AddLog("ERROR: Remote ComfyUI output path not configured in settings");
                     return null;
                 }
-                outputFolder = Path.Combine(settings.RemoteOutputFolderPath, "video");
+                outputFolder = settings.RemoteOutputFolderPath;
                 AddLog($"Using remote ComfyUI output folder: {outputFolder}");
             }
             else
@@ -2468,7 +2468,7 @@ namespace FlipPix.UI.ViewModels
                     AddLog("ERROR: ComfyUI output path not configured");
                     return null;
                 }
-                outputFolder = Path.Combine(settings.OutputFolderPath, "video");
+                outputFolder = settings.OutputFolderPath;
                 AddLog($"Using local ComfyUI output folder: {outputFolder}");
             }
 
