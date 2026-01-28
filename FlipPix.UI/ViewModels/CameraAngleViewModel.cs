@@ -539,7 +539,7 @@ namespace FlipPix.UI.ViewModels
                         await Task.Delay(5000);
                     }
 
-                    _cancellationTokenSource.Token.ThrowIfCancellationRequested();
+                    _cancellationTokenSource?.Token.ThrowIfCancellationRequested();
 
                     if (isRemoteComfyUI)
                     {

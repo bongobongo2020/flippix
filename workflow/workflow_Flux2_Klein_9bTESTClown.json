@@ -92,7 +92,6 @@
       "multiple_of": 16,
       "resize_mode": "crop",
       "upscale_method": "lanczos",
-      "resolution": "1344x768",
       "image": [
         "148",
         0
@@ -171,9 +170,10 @@
     "inputs": {
       "prompt": "The two characters are fighting each other in a kickboxing ring",
       "vl_megapixels": 0,
+      "max_images_allowed": "3",
       "clip": [
-        "156",
-        0
+        "165",
+        1
       ],
       "vae": [
         "105",
@@ -259,7 +259,7 @@
       "max_shift": 1.35,
       "base_shift": 0.85,
       "model": [
-        "103",
+        "165",
         0
       ],
       "latent_image": [
@@ -270,6 +270,30 @@
     "class_type": "ModelSamplingAdvancedResolution",
     "_meta": {
       "title": "ModelSamplingAdvancedResolution"
+    }
+  },
+  "165": {
+    "inputs": {
+      "lora_01": "klein\\klein_slider_anatomy.safetensors",
+      "strength_01": 1,
+      "lora_02": "None",
+      "strength_02": 1,
+      "lora_03": "None",
+      "strength_03": 1,
+      "lora_04": "None",
+      "strength_04": 1,
+      "model": [
+        "103",
+        0
+      ],
+      "clip": [
+        "156",
+        0
+      ]
+    },
+    "class_type": "Lora Loader Stack (rgthree)",
+    "_meta": {
+      "title": "Lora Loader Stack (rgthree)"
     }
   }
 }
