@@ -542,8 +542,15 @@ public class ComfyUIHttpClient : IDisposable
                                             var filename = filenameProp.GetString();
                                             if (!string.IsNullOrEmpty(filename))
                                             {
-                                                files.Add(filename);
-                                                _logger.LogInfo($"Found output image: {filename}");
+                                                // Check if there's a subfolder and include it in the path
+                                                var subfolderStr = "";
+                                                if (image.TryGetProperty("subfolder", out var subfolderProp))
+                                                {
+                                                    subfolderStr = subfolderProp.GetString() ?? "";
+                                                }
+                                                var fullPath = string.IsNullOrEmpty(subfolderStr) ? filename : $"{subfolderStr}/{filename}";
+                                                files.Add(fullPath);
+                                                _logger.LogInfo($"Found output image: {fullPath}");
                                             }
                                         }
                                     }
@@ -559,8 +566,15 @@ public class ComfyUIHttpClient : IDisposable
                                             var filename = filenameProp.GetString();
                                             if (!string.IsNullOrEmpty(filename))
                                             {
-                                                files.Add(filename);
-                                                _logger.LogInfo($"Found output video: {filename}");
+                                                // Check if there's a subfolder and include it in the path
+                                                var subfolderStr = "";
+                                                if (video.TryGetProperty("subfolder", out var subfolderProp))
+                                                {
+                                                    subfolderStr = subfolderProp.GetString() ?? "";
+                                                }
+                                                var fullPath = string.IsNullOrEmpty(subfolderStr) ? filename : $"{subfolderStr}/{filename}";
+                                                files.Add(fullPath);
+                                                _logger.LogInfo($"Found output video: {fullPath}");
                                             }
                                         }
                                     }
@@ -576,8 +590,15 @@ public class ComfyUIHttpClient : IDisposable
                                             var filename = filenameProp.GetString();
                                             if (!string.IsNullOrEmpty(filename))
                                             {
-                                                files.Add(filename);
-                                                _logger.LogInfo($"Found output file: {filename}");
+                                                // Check if there's a subfolder and include it in the path
+                                                var subfolderStr = "";
+                                                if (file.TryGetProperty("subfolder", out var subfolderProp))
+                                                {
+                                                    subfolderStr = subfolderProp.GetString() ?? "";
+                                                }
+                                                var fullPath = string.IsNullOrEmpty(subfolderStr) ? filename : $"{subfolderStr}/{filename}";
+                                                files.Add(fullPath);
+                                                _logger.LogInfo($"Found output file: {fullPath}");
                                             }
                                         }
                                     }
@@ -625,6 +646,111 @@ public class ComfyUIHttpClient : IDisposable
             _logger.LogError(ex, "Failed to get output files list");
             return new List<string>();
         }
+    }
+
+    /// <summary>
+    /// Gets output files for a specific prompt ID from the history endpoint
+    /// </summary>
+    public async Task<List<string>> GetOutputFilesForPromptAsync(string promptId, CancellationToken cancellationToken = default)
+    {
+        var files = new List<string>();
+        try
+        {
+            _logger.LogInfo($"Getting output files for prompt: {promptId}");
+
+            var url = "/history";
+            var response = await _httpClient.GetAsync(url, cancellationToken);
+
+            if (response.IsSuccessStatusCode)
+            {
+                var responseContent = await response.Content.ReadAsStringAsync(cancellationToken);
+                var history = JsonSerializer.Deserialize<Dictionary<string, JsonElement>>(responseContent);
+
+                if (history != null && history.TryGetValue(promptId, out var historyEntry))
+                {
+                    _logger.LogInfo($"Found history entry for prompt: {promptId}");
+
+                    // Try different structures that ComfyUI might return
+                    JsonElement outputs = default;
+
+                    if (historyEntry.TryGetProperty("outputs", out outputs))
+                    {
+                        _logger.LogInfo("Found outputs in main outputs property");
+                    }
+                    else if (historyEntry.TryGetProperty("result", out var result) &&
+                            result.TryGetProperty("outputs", out outputs))
+                    {
+                        _logger.LogInfo("Found outputs in result.outputs property");
+                    }
+
+                    if (!outputs.Equals(default(JsonElement)))
+                    {
+                        foreach (var output in outputs.EnumerateObject())
+                        {
+                            // Check for images
+                            if (output.Value.TryGetProperty("images", out var images))
+                            {
+                                foreach (var image in images.EnumerateArray())
+                                {
+                                    if (image.TryGetProperty("filename", out var filenameProp))
+                                    {
+                                        var filename = filenameProp.GetString();
+                                        if (!string.IsNullOrEmpty(filename))
+                                        {
+                                            var subfolderStr = "";
+                                            if (image.TryGetProperty("subfolder", out var subfolderProp))
+                                            {
+                                                subfolderStr = subfolderProp.GetString() ?? "";
+                                            }
+                                            var fullPath = string.IsNullOrEmpty(subfolderStr) ? filename : $"{subfolderStr}/{filename}";
+                                            files.Add(fullPath);
+                                            _logger.LogInfo($"Found output image for prompt: {fullPath}");
+                                        }
+                                    }
+                                }
+                            }
+
+                            // Check for files (generic case)
+                            if (output.Value.TryGetProperty("files", out var fileProps))
+                            {
+                                foreach (var file in fileProps.EnumerateArray())
+                                {
+                                    if (file.TryGetProperty("filename", out var filenameProp))
+                                    {
+                                        var filename = filenameProp.GetString();
+                                        if (!string.IsNullOrEmpty(filename))
+                                        {
+                                            var subfolderStr = "";
+                                            if (file.TryGetProperty("subfolder", out var subfolderProp))
+                                            {
+                                                subfolderStr = subfolderProp.GetString() ?? "";
+                                            }
+                                            var fullPath = string.IsNullOrEmpty(subfolderStr) ? filename : $"{subfolderStr}/{filename}";
+                                            files.Add(fullPath);
+                                            _logger.LogInfo($"Found output file for prompt: {fullPath}");
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+                else
+                {
+                    _logger.LogWarning($"No history entry found for prompt: {promptId}");
+                }
+            }
+            else
+            {
+                _logger.LogError("Failed to get history with status: {StatusCode}", response.StatusCode);
+            }
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Failed to get output files for prompt: {PromptId}", promptId);
+        }
+
+        return files;
     }
 
     public async Task<byte[]?> TryDownloadRecentOutputAsync(string promptId, CancellationToken cancellationToken = default)

@@ -869,10 +869,52 @@ namespace FlipPix.UI.ViewModels
 
         private JsonElement UpdateZimageWorkflow(Dictionary<string, JsonElement> workflowDict)
         {
-            // Add Lora if enabled and a Lora is selected
+            // Handle LoRA: the base workflow has a built-in LoRA node (58) that needs to be bypassed when disabled
             if (LoraEnabled && !string.IsNullOrEmpty(SelectedLora) && SelectedLora != "No Loras available")
             {
+                // Add selected LoRA (this creates node 100 and bypasses node 58)
                 workflowDict = AddLoraToWorkflow(workflowDict, SelectedLora);
+            }
+            else
+            {
+                // LoRA disabled: bypass the existing LoRA node (58) by connecting directly to model/clip loaders
+                // Update ModelSamplingAuraFlow (node 47) to connect directly to UNETLoader (node 46)
+                if (workflowDict.ContainsKey("47"))
+                {
+                    var node47 = JsonSerializer.Deserialize<Dictionary<string, object>>(workflowDict["47"].GetRawText());
+                    if (node47 != null && node47.ContainsKey("inputs"))
+                    {
+                        var inputs = JsonSerializer.Deserialize<Dictionary<string, object>>(
+                            JsonSerializer.Serialize(node47["inputs"]));
+                        if (inputs != null)
+                        {
+                            inputs["model"] = new object[] { "46", 0 }; // Connect directly to UNETLoader
+                            node47["inputs"] = inputs;
+                            workflowDict["47"] = JsonSerializer.SerializeToElement(node47);
+                        }
+                    }
+                }
+
+                // Update CLIPTextEncode (node 45) to connect directly to CLIPLoader (node 39)
+                if (workflowDict.ContainsKey("45"))
+                {
+                    var node45 = JsonSerializer.Deserialize<Dictionary<string, object>>(workflowDict["45"].GetRawText());
+                    if (node45 != null && node45.ContainsKey("inputs"))
+                    {
+                        var inputs = JsonSerializer.Deserialize<Dictionary<string, object>>(
+                            JsonSerializer.Serialize(node45["inputs"]));
+                        if (inputs != null)
+                        {
+                            inputs["clip"] = new object[] { "39", 0 }; // Connect directly to CLIPLoader
+                            node45["inputs"] = inputs;
+                            workflowDict["45"] = JsonSerializer.SerializeToElement(node45);
+                        }
+                    }
+                }
+
+                // Remove the orphaned LoRA node (58) from the workflow
+                workflowDict.Remove("58");
+                AddLog("LoRA disabled: bypassing built-in LoRA node");
             }
 
             // Update prompt (node 45 - CLIPTextEncode)
@@ -1246,39 +1288,42 @@ namespace FlipPix.UI.ViewModels
                 {
                     AddLog("Detected remote ComfyUI server, downloading generated image...");
 
-                    // First try the history API approach
-                    var outputFiles = await _comfyUIService.HttpClient.GetOutputFilesAsync();
-                    AddLog($"Found {outputFiles.Count} potential output files");
+                    // Get output files for this specific prompt ID
+                    var outputFiles = await _comfyUIService.HttpClient.GetOutputFilesForPromptAsync(promptId);
+                    AddLog($"Found {outputFiles.Count} output files for prompt {promptId}");
 
-                    // Look for files based on the selected workflow
-                    var remotePrefix = SelectedWorkflow switch
+                    if (outputFiles.Any())
                     {
-                        TextGeneratorWorkflow.Qwen2512 => "qwen2512",
-                        TextGeneratorWorkflow.Klien => "Flux2-Klein",
-                        _ => "z-image"
-                    };
-                    var zImageFiles = outputFiles.Where(f => f.StartsWith($"{remotePrefix}_") && f.EndsWith(".png")).ToList();
+                        // Get the first image file (there should typically be just one)
+                        var imageFile = outputFiles.FirstOrDefault(f => f.EndsWith(".png") || f.EndsWith(".jpg") || f.EndsWith(".jpeg"));
 
-                    if (zImageFiles.Any())
-                    {
-                        // Download the most recent z-image file
-                        var filename = zImageFiles.Last(); // Get the last/most recent
-                        AddLog($"Downloading generated image: {filename}");
-
-                        var imageData = await _comfyUIService.HttpClient.DownloadOutputImageAsync(filename);
-                        if (imageData != null)
+                        if (!string.IsNullOrEmpty(imageFile))
                         {
-                            images.Add(imageData);
-                            AddLog($"Successfully downloaded image ({imageData.Length} bytes)");
+                            AddLog($"Downloading generated image: {imageFile}");
+
+                            var imageData = await _comfyUIService.HttpClient.DownloadOutputImageAsync(imageFile);
+                            if (imageData != null)
+                            {
+                                images.Add(imageData);
+                                AddLog($"Successfully downloaded image ({imageData.Length} bytes)");
+                            }
+                            else
+                            {
+                                AddLog($"Failed to download image: {imageFile}");
+                            }
                         }
                         else
                         {
-                            AddLog($"Failed to download image: {filename}");
+                            AddLog("No image files found in prompt output");
+                            foreach (var file in outputFiles)
+                            {
+                                AddLog($"  - {file}");
+                            }
                         }
                     }
                     else
                     {
-                        AddLog("No z-image files found in history, trying alternative approach...");
+                        AddLog("No output files found for this prompt, trying fallback approach...");
 
                         // Try the fallback approach
                         var fallbackImage = await _comfyUIService.HttpClient.TryDownloadRecentOutputAsync(promptId);
@@ -1294,16 +1339,6 @@ namespace FlipPix.UI.ViewModels
                             AddLog("- ComfyUI output folder not being accessible via HTTP");
                             AddLog("- Different filename pattern than expected");
                             AddLog("- ComfyUI server configuration preventing file access");
-                        }
-                    }
-
-                    // Debug info about what files we found
-                    if (outputFiles.Any())
-                    {
-                        AddLog("All files found in history:");
-                        foreach (var file in outputFiles.Take(5))
-                        {
-                            AddLog($"  - {file}");
                         }
                     }
                 }

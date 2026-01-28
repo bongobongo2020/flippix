@@ -949,6 +949,31 @@
                                            Height="42"
                                            FontSize="14"
                                            Background="#8B5CF6"/>
+
+                                    <!-- Progress Bar -->
+                                    <StackPanel Margin="0,10,0,0"
+                                               Visibility="{Binding Analyzer.IsGenerating, Converter={StaticResource BooleanToVisibilityConverter}}">
+                                        <TextBlock Text="{Binding Analyzer.ProcessingStatus}"
+                                                  FontSize="11"
+                                                  FontWeight="SemiBold"
+                                                  Foreground="#8B5CF6"
+                                                  Margin="0,0,0,4"
+                                                  TextTrimming="CharacterEllipsis"/>
+                                        <Grid>
+                                            <ProgressBar Value="{Binding Analyzer.ProcessingProgress}"
+                                                        Minimum="0"
+                                                        Maximum="100"
+                                                        Height="20"
+                                                        Foreground="#8B5CF6"
+                                                        Background="#EDE9FE"/>
+                                            <TextBlock Text="{Binding Analyzer.ProgressPercentage}"
+                                                      HorizontalAlignment="Center"
+                                                      VerticalAlignment="Center"
+                                                      FontSize="10"
+                                                      FontWeight="Bold"
+                                                      Foreground="#1E1B4B"/>
+                                        </Grid>
+                                    </StackPanel>
                                 </StackPanel>
                             </Border>
 

@@ -178,9 +178,12 @@ namespace FlipPix.UI.ViewModels
                 _isGenerating = value;
                 OnPropertyChanged();
                 OnPropertyChanged(nameof(CanGenerate));
+                OnPropertyChanged(nameof(GenerateButtonText));
                 System.Windows.Input.CommandManager.InvalidateRequerySuggested();
             }
         }
+
+        public string GenerateButtonText => IsGenerating ? $"Generating... {ProgressPercentage}" : "Process & Generate Image";
 
         public string ProcessingStatus
         {
@@ -200,6 +203,7 @@ namespace FlipPix.UI.ViewModels
                 _processingProgress = value;
                 OnPropertyChanged();
                 OnPropertyChanged(nameof(ProgressPercentage));
+                OnPropertyChanged(nameof(GenerateButtonText));
             }
         }
 
@@ -419,7 +423,7 @@ namespace FlipPix.UI.ViewModels
             }
         }
 
-        public bool CanGenerate => HasSourceImage && !string.IsNullOrWhiteSpace(AnalysisText) && !IsAnalyzing;
+        public bool CanGenerate => HasSourceImage && !string.IsNullOrWhiteSpace(AnalysisText) && !IsAnalyzing && !IsGenerating;
 
         public TextGeneratorWorkflow SelectedWorkflow
         {
@@ -1201,6 +1205,12 @@ namespace FlipPix.UI.ViewModels
         {
             if (!CanGenerate) return Task.CompletedTask;
 
+            // Set IsGenerating immediately so the UI updates right away
+            IsGenerating = true;
+            ProcessingProgress = 0;
+            ProcessingStatus = "Starting generation...";
+            StatusBarMessage = "Preparing to generate image...";
+
             // Create a new queue item from current settings
             var queueItem = new ImageAnalyzerQueueItem
             {
@@ -1314,24 +1324,33 @@ namespace FlipPix.UI.ViewModels
             try
             {
                 _logger.LogInfo($"=== Starting image generation with {item.SelectedWorkflow} ===");
-                IsGenerating = true;
 
-                // Clear previous result
-                HasResultImage = false;
-                ResultImageSource = null;
+                // Update UI on dispatcher thread
+                System.Windows.Application.Current.Dispatcher.Invoke(() =>
+                {
+                    IsGenerating = true;
+                    HasResultImage = false;
+                    ResultImageSource = null;
+                });
                 GC.Collect();
                 GC.WaitForPendingFinalizers();
 
-                ProcessingProgress = 0;
-                ProcessingStatus = "Preparing workflow...";
-                StatusBarMessage = $"Generating image ({QueueProgress + 1}/{QueueTotal})...";
+                System.Windows.Application.Current.Dispatcher.Invoke(() =>
+                {
+                    ProcessingProgress = 0;
+                    ProcessingStatus = "Preparing workflow...";
+                    StatusBarMessage = $"Generating image ({QueueProgress + 1}/{QueueTotal})...";
+                });
                 _logger.LogInfo($"Using prompt: {item.Prompt}");
                 _logger.LogInfo($"Selected workflow: {item.SelectedWorkflow}");
 
                 // Ensure ComfyUI is connected
                 if (!_comfyUIService.IsConnected)
                 {
-                    ProcessingStatus = "Connecting to ComfyUI...";
+                    System.Windows.Application.Current.Dispatcher.Invoke(() =>
+                    {
+                        ProcessingStatus = "Connecting to ComfyUI...";
+                    });
                     await _comfyUIService.ConnectAsync(cancellationToken);
                 }
 
@@ -1358,7 +1377,10 @@ namespace FlipPix.UI.ViewModels
                         if (selectedStyle == null)
                         {
                             _logger.LogError($"Style not found: {item.StyleName}");
-                            StatusBarMessage = "Error: Style not found";
+                            System.Windows.Application.Current.Dispatcher.Invoke(() =>
+                            {
+                                StatusBarMessage = "Error: Style not found";
+                            });
                             return;
                         }
                         workflowPath = selectedStyle.WorkflowFile;
@@ -1369,7 +1391,10 @@ namespace FlipPix.UI.ViewModels
                 if (!File.Exists(workflowPath))
                 {
                     _logger.LogError($"Workflow file not found: {workflowPath}");
-                    StatusBarMessage = "Error: Workflow file not found";
+                    System.Windows.Application.Current.Dispatcher.Invoke(() =>
+                    {
+                        StatusBarMessage = "Error: Workflow file not found";
+                    });
                     return;
                 }
 
@@ -1389,9 +1414,12 @@ namespace FlipPix.UI.ViewModels
                 _logger.LogInfo($"Workflow deserialized successfully, node count: {workflow.Count}");
 
                 // Update workflow with generation parameters
-                ProcessingStatus = "Configuring generation settings...";
-                ProcessingProgress = 10;
-                item.Progress = 10;
+                System.Windows.Application.Current.Dispatcher.Invoke(() =>
+                {
+                    ProcessingStatus = "Configuring generation settings...";
+                    ProcessingProgress = 10;
+                    item.Progress = 10;
+                });
 
                 // Temporarily set the view model properties for the workflow update
                 var originalAnalysisText = AnalysisText;
@@ -1438,9 +1466,12 @@ namespace FlipPix.UI.ViewModels
                 _selectedStyleIndex = originalSelectedStyleIndex;
 
                 // Execute workflow
-                ProcessingStatus = $"Generating image {QueueProgress + 1}/{QueueTotal}...";
-                ProcessingProgress = 30;
-                item.Progress = 30;
+                System.Windows.Application.Current.Dispatcher.Invoke(() =>
+                {
+                    ProcessingStatus = $"Generating image {QueueProgress + 1}/{QueueTotal}...";
+                    ProcessingProgress = 30;
+                    item.Progress = 30;
+                });
                 _logger.LogInfo($"Executing {item.SelectedWorkflow} generation workflow...");
 
                 var progress = new Progress<FlipPix.ComfyUI.Models.ProgressMessage>(progressMsg =>
@@ -1469,16 +1500,19 @@ namespace FlipPix.UI.ViewModels
                 _logger.LogInfo($"Workflow execution completed with prompt ID: {promptId}");
 
                 // Retrieve output image
-                ProcessingStatus = "Retrieving generated image...";
-                ProcessingProgress = 95;
-                item.Progress = 95;
+                System.Windows.Application.Current.Dispatcher.Invoke(() =>
+                {
+                    ProcessingStatus = "Retrieving generated image...";
+                    ProcessingProgress = 95;
+                    item.Progress = 95;
+                });
 
                 // Give ComfyUI time to save the image
                 _logger.LogInfo("Waiting for image to be saved...");
                 await Task.Delay(3000, cancellationToken);
 
-                // Get the most recent image file directly (simpler and more reliable)
-                _logger.LogInfo("Looking for most recently created image file...");
+                // First, try to get the specific output file from this prompt's history
+                _logger.LogInfo($"Getting output file for prompt ID: {promptId}");
                 List<byte[]> outputImages = new();
                 int retryCount = 0;
                 int maxRetries = 8;
@@ -1492,7 +1526,17 @@ namespace FlipPix.UI.ViewModels
                     }
 
                     cancellationToken.ThrowIfCancellationRequested();
-                    outputImages = await GetMostRecentImageFromOutput(item.SelectedWorkflow);
+
+                    // Try to get the specific file from this prompt's history first
+                    outputImages = await GetOutputImageFromPromptHistory(promptId, item.SelectedWorkflow);
+
+                    // Fallback to scanning output folder if history lookup fails
+                    if (!outputImages.Any())
+                    {
+                        _logger.LogInfo("History lookup failed, falling back to folder scan...");
+                        outputImages = await GetMostRecentImageFromOutput(item.SelectedWorkflow);
+                    }
+
                     retryCount++;
 
                     if (!outputImages.Any())
@@ -1524,43 +1568,61 @@ namespace FlipPix.UI.ViewModels
                     // Only update the main result preview if this is the most recent item
                     if (item == CurrentQueueItem)
                     {
-                        ResultImagePath = outputPath;
-                        LoadResultPreview(outputPath);
-                        HasResultImage = true;
+                        System.Windows.Application.Current.Dispatcher.Invoke(() =>
+                        {
+                            ResultImagePath = outputPath;
+                            LoadResultPreview(outputPath);
+                            HasResultImage = true;
+                        });
                     }
 
-                    ProcessingProgress = 100;
-                    item.Progress = 100;
-                    ProcessingStatus = "Complete!";
-                    StatusBarMessage = $"Image generated - {Path.GetFileName(outputPath)}";
+                    System.Windows.Application.Current.Dispatcher.Invoke(() =>
+                    {
+                        ProcessingProgress = 100;
+                        item.Progress = 100;
+                        ProcessingStatus = "Complete!";
+                        StatusBarMessage = $"Image generated - {Path.GetFileName(outputPath)}";
+                    });
                 }
                 else
                 {
                     _logger.LogWarning("No output images received after all retries");
-                    ProcessingStatus = "No output generated";
-                    StatusBarMessage = "Generation failed - no output";
+                    System.Windows.Application.Current.Dispatcher.Invoke(() =>
+                    {
+                        ProcessingStatus = "No output generated";
+                        StatusBarMessage = "Generation failed - no output";
+                    });
                     throw new InvalidOperationException("No output images were generated");
                 }
             }
             catch (OperationCanceledException)
             {
                 _logger.LogInfo("Image generation cancelled by user");
-                ProcessingStatus = "Cancelled";
-                ProcessingProgress = 0;
-                StatusBarMessage = "Generation cancelled";
+                System.Windows.Application.Current.Dispatcher.Invoke(() =>
+                {
+                    ProcessingStatus = "Cancelled";
+                    ProcessingProgress = 0;
+                    StatusBarMessage = "Generation cancelled";
+                });
                 throw;
             }
             catch (Exception ex)
             {
                 _logger.LogError($"Error generating image: {ex}");
-                ProcessingStatus = "Error occurred";
-                ProcessingProgress = 0;
-                StatusBarMessage = "Generation failed";
+                System.Windows.Application.Current.Dispatcher.Invoke(() =>
+                {
+                    ProcessingStatus = "Error occurred";
+                    ProcessingProgress = 0;
+                    StatusBarMessage = "Generation failed";
+                });
                 throw;
             }
             finally
             {
-                IsGenerating = false;
+                System.Windows.Application.Current.Dispatcher.Invoke(() =>
+                {
+                    IsGenerating = false;
+                });
                 _logger.LogInfo("=== Image generation ended ===");
             }
         }
@@ -2370,6 +2432,123 @@ namespace FlipPix.UI.ViewModels
             return dimensions[Math.Min(aspectRatioIndex, dimensions.Length - 1)];
         }
 
+        private async Task<List<byte[]>> GetOutputImageFromPromptHistory(string promptId, TextGeneratorWorkflow workflow)
+        {
+            var images = new List<byte[]>();
+
+            try
+            {
+                var baseUrl = _settingsService.Settings?.BaseUrl ?? "http://127.0.0.1:8188";
+                _logger.LogInfo($"Querying history for prompt ID: {promptId}");
+
+                using var httpClient = new System.Net.Http.HttpClient();
+                httpClient.Timeout = TimeSpan.FromSeconds(30);
+
+                var historyUrl = $"{baseUrl}/history/{promptId}";
+                var response = await httpClient.GetAsync(historyUrl);
+
+                if (!response.IsSuccessStatusCode)
+                {
+                    _logger.LogWarning($"History request failed with status: {response.StatusCode}");
+                    return images;
+                }
+
+                var responseContent = await response.Content.ReadAsStringAsync();
+                _logger.LogInfo($"History response received ({responseContent.Length} chars)");
+
+                var historyData = JsonSerializer.Deserialize<Dictionary<string, JsonElement>>(responseContent);
+
+                if (historyData == null || !historyData.ContainsKey(promptId))
+                {
+                    _logger.LogWarning($"Prompt ID {promptId} not found in history response");
+                    return images;
+                }
+
+                var promptData = historyData[promptId];
+                _logger.LogInfo($"Found prompt data for ID: {promptId}");
+
+                if (!promptData.TryGetProperty("outputs", out var outputs))
+                {
+                    _logger.LogWarning("Prompt data found but no 'outputs' property");
+                    return images;
+                }
+
+                _logger.LogInfo("Found 'outputs' property in prompt data");
+
+                // Search through all output nodes for images
+                foreach (var outputNode in outputs.EnumerateObject())
+                {
+                    if (outputNode.Value.TryGetProperty("images", out var imagesArray))
+                    {
+                        _logger.LogInfo($"Found 'images' array in node {outputNode.Name} with {imagesArray.GetArrayLength()} items");
+
+                        foreach (var imageInfo in imagesArray.EnumerateArray())
+                        {
+                            if (imageInfo.TryGetProperty("filename", out var filenameProp))
+                            {
+                                var filename = filenameProp.GetString() ?? string.Empty;
+                                var subfolder = "";
+
+                                if (imageInfo.TryGetProperty("subfolder", out var subfolderProp))
+                                {
+                                    subfolder = subfolderProp.GetString() ?? "";
+                                }
+
+                                _logger.LogInfo($"Found image from history: filename='{filename}', subfolder='{subfolder}'");
+
+                                if (!string.IsNullOrEmpty(filename))
+                                {
+                                    var uri = new Uri(baseUrl);
+                                    bool isRemoteComfyUI = IsComfyUIRemote(uri.Host);
+
+                                    if (isRemoteComfyUI)
+                                    {
+                                        // Download via HTTP
+                                        var imageData = await _comfyUIService.HttpClient.DownloadOutputImageAsync(filename, subfolder);
+                                        if (imageData != null)
+                                        {
+                                            images.Add(imageData);
+                                            _logger.LogInfo($"Successfully downloaded image from prompt history ({imageData.Length} bytes)");
+                                            return images; // Return immediately with the specific image
+                                        }
+                                    }
+                                    else
+                                    {
+                                        // Read from local folder
+                                        var comfyUIOutputDir = _settingsService.Settings?.OutputFolderPath;
+                                        if (!string.IsNullOrEmpty(comfyUIOutputDir))
+                                        {
+                                            var fullPath = string.IsNullOrEmpty(subfolder)
+                                                ? Path.Combine(comfyUIOutputDir, filename)
+                                                : Path.Combine(comfyUIOutputDir, subfolder, filename);
+
+                                            _logger.LogInfo($"Looking for local file: {fullPath}");
+
+                                            if (File.Exists(fullPath))
+                                            {
+                                                var imageData = await File.ReadAllBytesAsync(fullPath);
+                                                images.Add(imageData);
+                                                _logger.LogInfo($"Successfully loaded image from local path ({imageData.Length} bytes)");
+                                                return images;
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+
+                _logger.LogWarning("No images found in prompt history outputs");
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError($"Error getting output from prompt history: {ex.Message}");
+            }
+
+            return images;
+        }
+
         private async Task<List<byte[]>> GetMostRecentImageFromOutput(TextGeneratorWorkflow workflow)
         {
             var images = new List<byte[]>();
@@ -2421,7 +2600,13 @@ namespace FlipPix.UI.ViewModels
                         var newestFile = filteredFiles.Last();
                         _logger.LogInfo($"✓ Selected newest file: {newestFile}");
 
-                        var imageData = await _comfyUIService.HttpClient.DownloadOutputImageAsync(newestFile);
+                        // Parse the path to extract subfolder and filename
+                        var lastSlash = newestFile.LastIndexOf('/');
+                        var subfolder = lastSlash > 0 ? newestFile.Substring(0, lastSlash) : "";
+                        var filename = lastSlash > 0 ? newestFile.Substring(lastSlash + 1) : newestFile;
+                        _logger.LogInfo($"  Subfolder: '{subfolder}', Filename: '{filename}'");
+
+                        var imageData = await _comfyUIService.HttpClient.DownloadOutputImageAsync(filename, subfolder);
                         if (imageData != null)
                         {
                             images.Add(imageData);
@@ -2630,7 +2815,11 @@ namespace FlipPix.UI.ViewModels
                     if (!string.IsNullOrEmpty(specificFilename))
                     {
                         _logger.LogInfo($"Trying to download specific file from history: {specificFilename}");
-                        var imageData = await _comfyUIService.HttpClient.DownloadOutputImageAsync(specificFilename);
+                        // Parse the path to extract subfolder and filename
+                        var lastSlash = specificFilename.LastIndexOf('/');
+                        var subfolderSpec = lastSlash > 0 ? specificFilename.Substring(0, lastSlash) : "";
+                        var filenameSpec = lastSlash > 0 ? specificFilename.Substring(lastSlash + 1) : specificFilename;
+                        var imageData = await _comfyUIService.HttpClient.DownloadOutputImageAsync(filenameSpec, subfolderSpec);
                         if (imageData != null)
                         {
                             images.Add(imageData);
@@ -2646,15 +2835,20 @@ namespace FlipPix.UI.ViewModels
                     var outputFiles = await _comfyUIService.HttpClient.GetOutputFilesAsync();
                     _logger.LogInfo($"Found {outputFiles.Count} total output files");
 
-                    // Look for z-image files
-                    var zImageFiles = outputFiles.Where(f => f.Contains("z-image") && f.EndsWith(".png")).ToList();
+                    // Look for z-image files (path may include subfolder like ZImage/2026_01_15/ZI_00001.png)
+                    var zImageFiles = outputFiles.Where(f => (f.Contains("z-image") || f.Contains("ZI")) && f.EndsWith(".png")).ToList();
                     _logger.LogInfo($"Found {zImageFiles.Count} z-image files: {string.Join(", ", zImageFiles.Take(5))}");
 
                     if (zImageFiles.Any())
                     {
-                        var filename = zImageFiles.Last();
-                        _logger.LogInfo($"Downloading most recent: {filename}");
-                        var imageData = await _comfyUIService.HttpClient.DownloadOutputImageAsync(filename);
+                        var fullPath = zImageFiles.Last();
+                        _logger.LogInfo($"Downloading most recent: {fullPath}");
+                        // Parse the path to extract subfolder and filename
+                        var lastSlash = fullPath.LastIndexOf('/');
+                        var subfolder = lastSlash > 0 ? fullPath.Substring(0, lastSlash) : "";
+                        var filename = lastSlash > 0 ? fullPath.Substring(lastSlash + 1) : fullPath;
+                        _logger.LogInfo($"  Subfolder: '{subfolder}', Filename: '{filename}'");
+                        var imageData = await _comfyUIService.HttpClient.DownloadOutputImageAsync(filename, subfolder);
                         if (imageData != null)
                         {
                             images.Add(imageData);
@@ -2662,7 +2856,7 @@ namespace FlipPix.UI.ViewModels
                         }
                         else
                         {
-                            _logger.LogWarning($"Download returned null for {filename}");
+                            _logger.LogWarning($"Download returned null for {fullPath}");
                         }
                     }
                     else
@@ -2673,9 +2867,13 @@ namespace FlipPix.UI.ViewModels
 
                         if (pngFiles.Any())
                         {
-                            var filename = pngFiles.Last();
-                            _logger.LogInfo($"Trying to download most recent PNG: {filename}");
-                            var imageData = await _comfyUIService.HttpClient.DownloadOutputImageAsync(filename);
+                            var fullPath = pngFiles.Last();
+                            _logger.LogInfo($"Trying to download most recent PNG: {fullPath}");
+                            // Parse the path to extract subfolder and filename
+                            var lastSlash = fullPath.LastIndexOf('/');
+                            var subfolder = lastSlash > 0 ? fullPath.Substring(0, lastSlash) : "";
+                            var filename = lastSlash > 0 ? fullPath.Substring(lastSlash + 1) : fullPath;
+                            var imageData = await _comfyUIService.HttpClient.DownloadOutputImageAsync(filename, subfolder);
                             if (imageData != null)
                             {
                                 images.Add(imageData);
