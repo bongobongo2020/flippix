@@ -692,6 +692,7 @@ namespace FlipPix.UI.ViewModels
                     if (inputs != null)
                     {
                         inputs["prompt"] = promptText;
+                        inputs["max_images_allowed"] = "1"; // Required by TextEncodeEditAdvanced node (must be string)
                         node154["inputs"] = inputs;
                         workflowDict["154"] = JsonSerializer.SerializeToElement(node154);
                     }
@@ -752,6 +753,7 @@ namespace FlipPix.UI.ViewModels
                     if (inputs != null)
                     {
                         inputs["prompt"] = promptText;
+                        inputs["max_images_allowed"] = "1"; // Required by TextEncodeEditAdvanced node (must be string)
                         node154["inputs"] = inputs;
                         workflowDict["154"] = JsonSerializer.SerializeToElement(node154);
                     }
@@ -775,7 +777,7 @@ namespace FlipPix.UI.ViewModels
                 }
             }
 
-            // 4. Update SaveImage node (node 157) - set filename prefix only (no subfolder)
+            // 4. Update SaveImage node (node 157) - set filename prefix with image index and subfolder
             if (workflowDict.ContainsKey("157"))
             {
                 var node157 = JsonSerializer.Deserialize<Dictionary<string, object>>(workflowDict["157"].GetRawText());
@@ -785,8 +787,9 @@ namespace FlipPix.UI.ViewModels
                         JsonSerializer.Serialize(node157["inputs"]));
                     if (inputs != null)
                     {
-                        inputs["filename_prefix"] = jsonFileName;
-                        // Don't set subfolder - all images will be saved in the same output folder
+                        // Use jsonFileName as both prefix and subfolder for organized storage
+                        inputs["filename_prefix"] = $"{jsonFileName}-{imageIndex}";
+                        inputs["subfolder"] = jsonFileName; // Save in subfolder named after JSON file
                         node157["inputs"] = inputs;
                         workflowDict["157"] = JsonSerializer.SerializeToElement(node157);
                     }
@@ -833,10 +836,19 @@ namespace FlipPix.UI.ViewModels
 
                 // For local ComfyUI, capture existing files before generation
                 var comfyUIOutputDir = _settingsService.Settings?.OutputFolderPath;
+                string subfolderPath = string.Empty;
+                string[] searchDirs = Array.Empty<string>();
+
                 if (!isRemoteComfyUI && !string.IsNullOrEmpty(comfyUIOutputDir) && Directory.Exists(comfyUIOutputDir))
                 {
+                    // Check both the subfolder and main output directory
+                    subfolderPath = Path.Combine(comfyUIOutputDir, jsonFileName);
+                    searchDirs = Directory.Exists(subfolderPath)
+                        ? new[] { subfolderPath, comfyUIOutputDir }
+                        : new[] { comfyUIOutputDir };
+
                     filesBeforeGeneration = new HashSet<string>(
-                        Directory.GetFiles(comfyUIOutputDir, "*.png")
+                        searchDirs.SelectMany(dir => Directory.GetFiles(dir, "*.png"))
                         .Select(Path.GetFileName)
                         .Where(f => f != null)!,
                         StringComparer.OrdinalIgnoreCase
@@ -863,14 +875,16 @@ namespace FlipPix.UI.ViewModels
                         var outputFiles = await _comfyUIService.HttpClient.GetOutputFilesAsync();
                         AddLog($"Found {outputFiles.Count} potential output files");
 
-                        // Look for specific filename pattern: jsonfilename-index_00001.png (no subfolder)
+                        // ComfyUI names files as: {filename_prefix}_00001_.png
+                        // When using subfolder, files may be named like: {subfolder}/{filename_prefix}_00001_.png
+                        // The filename_prefix we set is: {jsonFileName}-{imageIndex}
                         var expectedPattern = $"{jsonFileName}-{imageIndex}_";
                         var imageFiles = outputFiles.Where(f =>
                             f.EndsWith(".png") &&
-                            f.Contains(expectedPattern))
+                            (f.Contains(expectedPattern) || f.Contains($"{jsonFileName}/{expectedPattern}")))
                             .ToList();
 
-                        AddLog($"Looking for pattern: {expectedPattern}");
+                        AddLog($"Looking for pattern: {expectedPattern} (with or without subfolder prefix)");
 
                         if (imageFiles.Any())
                         {
@@ -909,12 +923,21 @@ namespace FlipPix.UI.ViewModels
                             return images;
                         }
 
-                        // Search directly in ComfyUI output directory (no subfolder)
-                        AddLog($"Searching for images in: {comfyUIOutputDir}");
+                        // Search in ComfyUI output directory's subfolder
+                        subfolderPath = Path.Combine(comfyUIOutputDir, jsonFileName);
+                        AddLog($"Searching for images in: {subfolderPath}");
 
-                        // Look for files matching the pattern: jsonfilename-index_00001.png
+                        if (!Directory.Exists(subfolderPath))
+                        {
+                            AddLog($"WARNING: Subfolder not found: {subfolderPath}");
+                            AddLog("Falling back to main output directory...");
+                            subfolderPath = comfyUIOutputDir;
+                        }
+
+                        // ComfyUI names files as: {filename_prefix}_00001_.png
+                        // The filename_prefix we set is: {jsonFileName}-{imageIndex}
                         var pattern = $"{jsonFileName}-{imageIndex}_*.png";
-                        var matchingFiles = Directory.GetFiles(comfyUIOutputDir, pattern)
+                        var matchingFiles = Directory.GetFiles(subfolderPath, pattern)
                             .Select(f => new FileInfo(f))
                             .OrderByDescending(f => f.LastWriteTime)
                             .ToList();
@@ -930,8 +953,13 @@ namespace FlipPix.UI.ViewModels
                             AddLog($"No files found matching pattern: {pattern}");
 
                             // Find newly created files by comparing with files before generation
+                            subfolderPath = Path.Combine(comfyUIOutputDir, jsonFileName);
+                            searchDirs = Directory.Exists(subfolderPath)
+                                ? new[] { subfolderPath, comfyUIOutputDir }
+                                : new[] { comfyUIOutputDir };
+
                             var currentFiles = new HashSet<string>(
-                                Directory.GetFiles(comfyUIOutputDir, "*.png")
+                                searchDirs.SelectMany(dir => Directory.GetFiles(dir, "*.png"))
                                 .Select(Path.GetFileName)
                                 .Where(f => f != null)!,
                                 StringComparer.OrdinalIgnoreCase
@@ -942,9 +970,16 @@ namespace FlipPix.UI.ViewModels
 
                             if (newFiles.Any())
                             {
-                                // Get the newest file among the newly created ones
+                                // Get the newest file among the newly created ones (search in subfolder first)
+                                subfolderPath = Path.Combine(comfyUIOutputDir, jsonFileName);
+                                searchDirs = Directory.Exists(subfolderPath)
+                                    ? new[] { subfolderPath, comfyUIOutputDir }
+                                    : new[] { comfyUIOutputDir };
+
                                 var newFileInfos = newFiles
-                                    .Select(f => new FileInfo(Path.Combine(comfyUIOutputDir, f)))
+                                    .SelectMany(f => searchDirs.Select(dir => Path.Combine(dir, f)))
+                                    .Where(path => File.Exists(path))
+                                    .Select(path => new FileInfo(path))
                                     .OrderByDescending(f => f.CreationTime > f.LastWriteTime ? f.CreationTime : f.LastWriteTime)
                                     .ToList();
 

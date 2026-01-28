@@ -152,6 +152,7 @@ namespace FlipPix.UI.ViewModels
             AnalyzeImageCommand = new RelayCommand(async () => await AnalyzeImageAsync());
             SendAnalysisToQueueCommand = new RelayCommand(SendAnalysisToQueue, () => HasAnalysis);
             OpenLMStudioSettingsCommand = new RelayCommand(OpenLMStudioSettings);
+            CopyAnalysisCommand = new RelayCommand(CopyAnalysis, () => HasAnalysis);
             AddToQueueCommand = new RelayCommand(AddToQueue, () => CanAddToQueue);
             RemoveFromQueueCommand = new RelayCommand<QueueItem>(RemoveFromQueue);
             ProcessQueueCommand = new RelayCommand(async () => await ProcessQueueAsync(), () => CanProcessQueue);
@@ -469,7 +470,7 @@ namespace FlipPix.UI.ViewModels
 
         public bool CanGenerateVideo => !string.IsNullOrEmpty(ImageFilePath) &&
                                         File.Exists(ImageFilePath) &&
-                                        !string.IsNullOrWhiteSpace(VideoPrompt) &&
+                                        (!string.IsNullOrWhiteSpace(VideoPrompt) || !string.IsNullOrWhiteSpace(ImageAnalysis)) &&
                                         !IsProcessing && !IsProcessingQueue;
 
         public bool HasImage => !string.IsNullOrEmpty(ImageFilePath) && File.Exists(ImageFilePath);
@@ -526,6 +527,7 @@ namespace FlipPix.UI.ViewModels
                     _imageAnalysis = value;
                     OnPropertyChanged();
                     OnPropertyChanged(nameof(HasAnalysis));
+                    OnPropertyChanged(nameof(CanGenerateVideo));
                     CommandManager.InvalidateRequerySuggested();
                 }
             }
@@ -1340,6 +1342,7 @@ namespace FlipPix.UI.ViewModels
                     OnPropertyChanged();
                     OnPropertyChanged(nameof(WorkflowDisplay));
                     OnPropertyChanged(nameof(WorkflowIndicator));
+                    OnPropertyChanged(nameof(SelectedWorkflowIndex));
                     CommandManager.InvalidateRequerySuggested();
 
                     // Save to settings
@@ -1358,9 +1361,32 @@ namespace FlipPix.UI.ViewModels
         public string WorkflowDisplay => UseLTXWorkflow ? "LTXV (LTX-2_image2video_distilledAPI.json)" : "Painter (painteri2vAPI.json)";
         public string WorkflowIndicator => UseLTXWorkflow ? "🟢 LTXV" : "🔵 Painter";
 
+        // Workflow index for ComboBox binding (0 = LTXV, 1 = Painter)
+        public int SelectedWorkflowIndex
+        {
+            get => UseLTXWorkflow ? 0 : 1;
+            set => UseLTXWorkflow = value == 0;
+        }
+
         private void ToggleWorkflow()
         {
             UseLTXWorkflow = !UseLTXWorkflow;
+        }
+
+        private void CopyAnalysis()
+        {
+            if (!string.IsNullOrWhiteSpace(ImageAnalysis))
+            {
+                try
+                {
+                    System.Windows.Clipboard.SetText(ImageAnalysis);
+                    AddLog("Analysis copied to clipboard");
+                }
+                catch (Exception ex)
+                {
+                    AddLog($"Failed to copy to clipboard: {ex.Message}");
+                }
+            }
         }
 
         private void OpenLMStudioSettings()
@@ -1647,6 +1673,7 @@ namespace FlipPix.UI.ViewModels
         public ICommand AnalyzeImageCommand { get; }
         public ICommand SendAnalysisToQueueCommand { get; }
         public ICommand OpenLMStudioSettingsCommand { get; }
+        public ICommand CopyAnalysisCommand { get; }
         public ICommand AddToQueueCommand { get; }
         public ICommand RemoveFromQueueCommand { get; }
         public ICommand ProcessQueueCommand { get; }
@@ -1780,6 +1807,14 @@ namespace FlipPix.UI.ViewModels
 
             try
             {
+                // For single video generation, always use ImageAnalysis as the prompt if available
+                // This ensures the analysis result is used (queue processing sets VideoPrompt directly from item.Prompt)
+                if (!string.IsNullOrWhiteSpace(ImageAnalysis))
+                {
+                    VideoPrompt = ImageAnalysis;
+                    AddLog("Using ImageAnalysis as video prompt for single video generation");
+                }
+
                 await GenerateVideoAsyncInternal();
             }
             catch (Exception ex)
@@ -1801,6 +1836,13 @@ namespace FlipPix.UI.ViewModels
                 HasResultVideo = false;
                 ResultVideoPath = string.Empty;
                 VideoInfo = string.Empty;
+
+                // Use ImageAnalysis as prompt if VideoPrompt is empty (for single video generation)
+                if (string.IsNullOrWhiteSpace(VideoPrompt) && !string.IsNullOrWhiteSpace(ImageAnalysis))
+                {
+                    VideoPrompt = ImageAnalysis;
+                    AddLog("Using ImageAnalysis as video prompt");
+                }
 
                 ProcessingProgress = 0;
                 ProcessingStatus = "Preparing workflow...";
@@ -1937,6 +1979,10 @@ namespace FlipPix.UI.ViewModels
                 ProcessingProgress = 30;
                 AddLog("Executing video generation workflow...");
 
+                // Record existing video files BEFORE execution so we can detect new ones
+                var existingFilesBeforeExecution = GetExistingVideoFiles();
+                AddLog($"Recording {existingFilesBeforeExecution.Count} existing video files before execution");
+
                 var progress = new Progress<FlipPix.ComfyUI.Models.ProgressMessage>(progressMsg =>
                 {
                     if (progressMsg.Data?.Value != null && progressMsg.Data?.Max != null)
@@ -1967,7 +2013,7 @@ namespace FlipPix.UI.ViewModels
                 AddLog("Looking for generated video...");
 
                 // Wait for the video to be saved - use direct folder checking since WebSocket may disconnect
-                var outputVideo = await WaitForVideoInOutputFolderAsync(promptId);
+                var outputVideo = await WaitForVideoInOutputFolderAsync(promptId, existingFilesBeforeExecution);
 
                 if (outputVideo != null && File.Exists(outputVideo))
                 {
@@ -2012,8 +2058,8 @@ namespace FlipPix.UI.ViewModels
             if (workflowDict == null) return workflow;
 
             // Update image input - check multiple possible nodes
-            // LTXV distilled uses node "167", LTXV original uses "98", Painter uses "97", "143", "119"
-            string[] imageNodes = UseLTXWorkflow ? new[] { "167", "98" } : new[] { "97", "143", "119" };
+            // LTXV distilled uses node "149", LTXV original uses "98", Painter uses "97", "143", "119"
+            string[] imageNodes = UseLTXWorkflow ? new[] { "149", "167", "98" } : new[] { "97", "143", "119" };
             bool imageNodeFound = false;
 
             foreach (var nodeId in imageNodes)
@@ -2023,15 +2069,19 @@ namespace FlipPix.UI.ViewModels
                     var node = JsonSerializer.Deserialize<Dictionary<string, object>>(workflowDict[nodeId].GetRawText());
                     if (node != null && node.ContainsKey("inputs"))
                     {
-                        var inputs = JsonSerializer.Deserialize<Dictionary<string, object>>(
-                            JsonSerializer.Serialize(node["inputs"]));
-                        if (inputs != null)
+                        // Only update nodes that are LoadImage type
+                        if (node.ContainsKey("class_type") && node["class_type"]?.ToString() == "LoadImage")
                         {
-                            inputs["image"] = inputImageName;
-                            node["inputs"] = inputs;
-                            workflowDict[nodeId] = JsonSerializer.SerializeToElement(node);
-                            AddLog($"✓ Node {nodeId} (LoadImage) - Image updated to: {inputImageName}");
-                            imageNodeFound = true;
+                            var inputs = JsonSerializer.Deserialize<Dictionary<string, object>>(
+                                JsonSerializer.Serialize(node["inputs"]));
+                            if (inputs != null)
+                            {
+                                inputs["image"] = inputImageName;
+                                node["inputs"] = inputs;
+                                workflowDict[nodeId] = JsonSerializer.SerializeToElement(node);
+                                AddLog($"✓ Node {nodeId} (LoadImage) - Image updated to: {inputImageName}");
+                                imageNodeFound = true;
+                            }
                         }
                     }
                 }
@@ -2211,6 +2261,32 @@ namespace FlipPix.UI.ViewModels
                             node92_97["inputs"] = inputs;
                             workflowDict["92:97"] = JsonSerializer.SerializeToElement(node92_97);
                             AddLog($"✓ Node 92:97 (CreateVideo) - FPS: {Fps}");
+                        }
+                    }
+                }
+
+                // Update RandomNoise nodes (114 and 115) with random seed for variation
+                // Always generate a new random seed to ensure different results each time
+                var random = new Random();
+                long randomSeed = Seed > 0 ? Seed : ((long)random.Next() << 32) | (uint)random.Next();
+
+                string[] randomNoiseNodes = { "114", "115" };
+                foreach (var nodeId in randomNoiseNodes)
+                {
+                    if (workflowDict.ContainsKey(nodeId))
+                    {
+                        var node = JsonSerializer.Deserialize<Dictionary<string, object>>(workflowDict[nodeId].GetRawText());
+                        if (node != null && node.ContainsKey("inputs"))
+                        {
+                            var inputs = JsonSerializer.Deserialize<Dictionary<string, object>>(
+                                JsonSerializer.Serialize(node["inputs"]));
+                            if (inputs != null)
+                            {
+                                inputs["noise_seed"] = randomSeed;
+                                node["inputs"] = inputs;
+                                workflowDict[nodeId] = JsonSerializer.SerializeToElement(node);
+                                AddLog($"✓ Node {nodeId} (RandomNoise) - Seed: {randomSeed}");
+                            }
                         }
                     }
                 }
@@ -2431,10 +2507,44 @@ namespace FlipPix.UI.ViewModels
         }
 
         /// <summary>
+        /// Gets existing video files from output folders for tracking before workflow execution.
+        /// </summary>
+        private HashSet<string> GetExistingVideoFiles()
+        {
+            var existingFiles = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+            var settings = _settingsService.Settings;
+            if (settings == null) return existingFiles;
+
+            string baseUrl = ComfyUIServer == "127.0.0.1" ? $"http://{ComfyUIServer}:{ComfyUIPort}" : settings.BaseUrl;
+            bool isRemoteComfyUI = IsComfyUIRemote(new Uri(baseUrl).Host);
+
+            string outputFolder = isRemoteComfyUI ? settings.RemoteOutputFolderPath : settings.OutputFolderPath;
+            if (string.IsNullOrEmpty(outputFolder) || !Directory.Exists(outputFolder)) return existingFiles;
+
+            // Check main folder
+            foreach (var file in Directory.GetFiles(outputFolder, "*.mp4"))
+            {
+                existingFiles.Add(file);
+            }
+
+            // Check video subfolder for LTXV workflows
+            var videoSubfolder = Path.Combine(outputFolder, "video");
+            if (UseLTXWorkflow && Directory.Exists(videoSubfolder))
+            {
+                foreach (var file in Directory.GetFiles(videoSubfolder, "*.mp4"))
+                {
+                    existingFiles.Add(file);
+                }
+            }
+
+            return existingFiles;
+        }
+
+        /// <summary>
         /// Waits for the video to appear in the output folder and verifies it's complete.
         /// This approach doesn't rely on ComfyUI API calls since WebSocket may disconnect.
         /// </summary>
-        private async Task<string?> WaitForVideoInOutputFolderAsync(string promptId)
+        private async Task<string?> WaitForVideoInOutputFolderAsync(string promptId, HashSet<string>? preRecordedExistingFiles = null)
         {
             var settings = _settingsService.Settings;
             if (settings == null)
@@ -2472,19 +2582,49 @@ namespace FlipPix.UI.ViewModels
                 AddLog($"Using local ComfyUI output folder: {outputFolder}");
             }
 
+            // For LTXV workflows, also check the "video" subdirectory (workflow uses filename_prefix: "video/LTX-2")
+            var videoSubfolder = Path.Combine(outputFolder, "video");
+            var foldersToCheck = new List<string> { outputFolder };
+            if (UseLTXWorkflow && Directory.Exists(videoSubfolder))
+            {
+                foldersToCheck.Insert(0, videoSubfolder); // Check video subfolder first for LTXV
+                AddLog($"Also checking video subfolder: {videoSubfolder}");
+            }
+            else if (UseLTXWorkflow && !Directory.Exists(videoSubfolder))
+            {
+                AddLog($"Video subfolder not found, will check base folder only: {outputFolder}");
+            }
+
             if (!Directory.Exists(outputFolder))
             {
                 AddLog($"ERROR: Output folder not found: {outputFolder}");
                 return null;
             }
 
-            AddLog($"Monitoring output folder: {outputFolder}");
+            AddLog($"Monitoring output folder(s): {string.Join(", ", foldersToCheck)}");
 
-            // Record the starting time and existing files
+            // Use pre-recorded existing files if provided, otherwise record now
             var startTime = DateTime.Now;
-            var existingFiles = new HashSet<string>(
-                Directory.GetFiles(outputFolder, "*.mp4"),
-                StringComparer.OrdinalIgnoreCase);
+            HashSet<string> existingFiles;
+            if (preRecordedExistingFiles != null)
+            {
+                existingFiles = preRecordedExistingFiles;
+                AddLog($"Using pre-recorded list of {existingFiles.Count} existing files (recorded before workflow execution)");
+            }
+            else
+            {
+                existingFiles = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+                foreach (var folder in foldersToCheck)
+                {
+                    if (Directory.Exists(folder))
+                    {
+                        foreach (var file in Directory.GetFiles(folder, "*.mp4"))
+                        {
+                            existingFiles.Add(file);
+                        }
+                    }
+                }
+            }
 
             AddLog($"Found {existingFiles.Count} existing video files at start");
 
@@ -2492,12 +2632,46 @@ namespace FlipPix.UI.ViewModels
             var maxWaitTime = TimeSpan.FromSeconds(60);
             var checkInterval = TimeSpan.FromSeconds(2);
 
+            // Check immediately for new files (video might already be generated)
+            var immediateCheck = new List<string>();
+            foreach (var folder in foldersToCheck)
+            {
+                if (Directory.Exists(folder))
+                {
+                    immediateCheck.AddRange(Directory.GetFiles(folder, "*.mp4"));
+                }
+            }
+            var immediateNewFiles = immediateCheck.Where(f => !existingFiles.Contains(f)).ToList();
+            if (immediateNewFiles.Any())
+            {
+                AddLog($"Found {immediateNewFiles.Count} new video file(s) immediately after execution");
+                var newestFile = immediateNewFiles.OrderByDescending(f => File.GetLastWriteTime(f)).First();
+
+                // Wait a bit to ensure file is fully written
+                await Task.Delay(TimeSpan.FromSeconds(2));
+
+                if (File.Exists(newestFile))
+                {
+                    var fileInfo = new FileInfo(newestFile);
+                    var sizeMB = fileInfo.Length / (1024.0 * 1024.0);
+                    AddLog($"✓ Video file ready: {Path.GetFileName(newestFile)} ({sizeMB:F2} MB)");
+                    return newestFile;
+                }
+            }
+
             while (DateTime.Now - startTime < maxWaitTime)
             {
                 await Task.Delay(checkInterval);
 
-                // Check for new files
-                var currentFiles = Directory.GetFiles(outputFolder, "*.mp4");
+                // Check for new files in all monitored folders
+                var currentFiles = new List<string>();
+                foreach (var folder in foldersToCheck)
+                {
+                    if (Directory.Exists(folder))
+                    {
+                        currentFiles.AddRange(Directory.GetFiles(folder, "*.mp4"));
+                    }
+                }
                 var newFiles = currentFiles.Where(f => !existingFiles.Contains(f)).ToList();
 
                 if (newFiles.Any())
@@ -2564,11 +2738,19 @@ namespace FlipPix.UI.ViewModels
                 }
             }
 
-            // If we didn't find a new file, check if any file was modified recently
+            // If we didn't find a new file, check if any file was modified recently in all folders
             AddLog("No new file found, checking for recently modified files...");
             var recentThreshold = DateTime.Now.AddSeconds(-30);
-            var recentFiles = Directory.GetFiles(outputFolder, "*.mp4")
-                .Where(f => File.GetLastWriteTime(f) > recentThreshold)
+            var allRecentFiles = new List<string>();
+            foreach (var folder in foldersToCheck)
+            {
+                if (Directory.Exists(folder))
+                {
+                    allRecentFiles.AddRange(Directory.GetFiles(folder, "*.mp4")
+                        .Where(f => File.GetLastWriteTime(f) > recentThreshold));
+                }
+            }
+            var recentFiles = allRecentFiles
                 .OrderByDescending(f => File.GetLastWriteTime(f))
                 .ToList();
 
@@ -2580,7 +2762,8 @@ namespace FlipPix.UI.ViewModels
             }
 
             AddLog("Failed to find any output video in the expected time frame");
-            AddLog($"Output folder contains: {Directory.GetFiles(outputFolder, "*.mp4").Length} .mp4 files");
+            var totalMp4Files = foldersToCheck.Where(Directory.Exists).Sum(f => Directory.GetFiles(f, "*.mp4").Length);
+            AddLog($"Output folders contain: {totalMp4Files} .mp4 files total");
             return null;
         }
 

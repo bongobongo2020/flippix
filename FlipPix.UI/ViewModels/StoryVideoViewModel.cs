@@ -184,7 +184,7 @@ namespace FlipPix.UI.ViewModels
 
                 // Load all workflow JSON files from workflow folder (excluding ZStyles subfolder)
                 var workflowFiles = Directory.GetFiles(workflowDir, "*.json")
-                    .Where(f => !Path.GetDirectoryName(f).EndsWith("ZStyles", StringComparison.OrdinalIgnoreCase))
+                    .Where(f => !Path.GetDirectoryName(f)?.EndsWith("ZStyles", StringComparison.OrdinalIgnoreCase) ?? false)
                     .ToArray();
 
                 AddLog($"Found {workflowFiles.Length} workflow files in {workflowDir}");

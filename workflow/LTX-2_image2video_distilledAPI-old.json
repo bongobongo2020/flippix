@@ -1,35 +1,13 @@
 {
-  "75": {
+  "99": {
     "inputs": {
-      "filename_prefix": "video/LTX-2",
-      "format": "mp4",
-      "codec": "auto",
-      "video-preview": "",
-      "video": [
-        "122",
-        0
-      ]
+      "text_encoder": "gemma3\\gemma_3_12B_it_fp8_e4m3fn.safetensors",
+      "ckpt_name": "ltx-2-19b-distilled-fp8.safetensors",
+      "device": "default"
     },
-    "class_type": "SaveVideo",
+    "class_type": "LTXAVTextEncoderLoader",
     "_meta": {
-      "title": "Save Video"
-    }
-  },
-  "98": {
-    "inputs": {
-      "steps": 8,
-      "max_shift": 2.05,
-      "base_shift": 0.95,
-      "stretch": true,
-      "terminal": 0.1,
-      "latent": [
-        "109",
-        0
-      ]
-    },
-    "class_type": "LTXVScheduler",
-    "_meta": {
-      "title": "LTXVScheduler"
+      "title": "LTXV Audio Text Encoder Loader"
     }
   },
   "100": {
@@ -50,71 +28,25 @@
       "title": "Load Latent Upscale Model"
     }
   },
-  "102": {
-    "inputs": {
-      "positive": [
-        "107",
-        0
-      ],
-      "negative": [
-        "107",
-        1
-      ],
-      "latent": [
-        "116",
-        0
-      ]
-    },
-    "class_type": "LTXVCropGuides",
-    "_meta": {
-      "title": "LTXVCropGuides"
-    }
-  },
   "103": {
     "inputs": {
       "cfg": 1,
       "model": [
-        "141",
+        "133",
         0
       ],
       "positive": [
-        "102",
+        "107",
         0
       ],
       "negative": [
-        "102",
+        "107",
         1
       ]
     },
     "class_type": "CFGGuider",
     "_meta": {
       "title": "CFGGuider"
-    }
-  },
-  "104": {
-    "inputs": {
-      "upscale_method": "lanczos",
-      "scale_by": 0.5,
-      "image": [
-        "111",
-        0
-      ]
-    },
-    "class_type": "ImageScaleBy",
-    "_meta": {
-      "title": "Upscale Image By"
-    }
-  },
-  "105": {
-    "inputs": {
-      "image": [
-        "104",
-        0
-      ]
-    },
-    "class_type": "GetImageSize",
-    "_meta": {
-      "title": "Get Image Size"
     }
   },
   "106": {
@@ -124,12 +56,12 @@
         0
       ],
       "frame_rate": [
-        "130",
+        "131",
         0
       ],
       "batch_size": 1,
       "audio_vae": [
-        "145",
+        "124",
         0
       ]
     },
@@ -141,8 +73,8 @@
   "107": {
     "inputs": {
       "frame_rate": [
-        "129",
-        0
+        "141",
+        1
       ],
       "positive": [
         "121",
@@ -161,11 +93,11 @@
   "108": {
     "inputs": {
       "width": [
-        "105",
+        "163",
         0
       ],
       "height": [
-        "105",
+        "163",
         1
       ],
       "length": [
@@ -182,7 +114,7 @@
   "109": {
     "inputs": {
       "video_latent": [
-        "153",
+        "161",
         0
       ],
       "audio_latent": [
@@ -197,9 +129,9 @@
   },
   "110": {
     "inputs": {
-      "text": "blurry, low quality, still frame, frames, watermark, overlay, titles, has blurbox, has subtitles",
+      "text": "",
       "clip": [
-        "146",
+        "99",
         0
       ]
     },
@@ -208,25 +140,13 @@
       "title": "CLIP Text Encode (Prompt)"
     }
   },
-  "111": {
-    "inputs": {
-      "width": 848,
-      "height": 480,
-      "batch_size": 1,
-      "color": 0
-    },
-    "class_type": "EmptyImage",
-    "_meta": {
-      "title": "EmptyImage"
-    }
-  },
   "112": {
     "inputs": {
-      "value": 121
+      "value": 240
     },
     "class_type": "PrimitiveInt",
     "_meta": {
-      "title": "Length"
+      "title": "INT: Length"
     }
   },
   "113": {
@@ -236,15 +156,15 @@
         0
       ],
       "guider": [
-        "128",
+        "129",
         0
       ],
       "sampler": [
-        "135",
+        "137",
         0
       ],
       "sigmas": [
-        "98",
+        "157",
         0
       ],
       "latent_image": [
@@ -259,7 +179,7 @@
   },
   "114": {
     "inputs": {
-      "noise_seed": 0
+      "noise_seed": 788365721625026
     },
     "class_type": "RandomNoise",
     "_meta": {
@@ -268,7 +188,7 @@
   },
   "115": {
     "inputs": {
-      "noise_seed": 947958214127828
+      "noise_seed": 726275618535042
     },
     "class_type": "RandomNoise",
     "_meta": {
@@ -290,7 +210,7 @@
   "117": {
     "inputs": {
       "video_latent": [
-        "154",
+        "160",
         0
       ],
       "audio_latent": [
@@ -306,16 +226,16 @@
   "118": {
     "inputs": {
       "samples": [
-        "102",
-        2
+        "116",
+        0
       ],
       "upscale_model": [
         "101",
         0
       ],
       "vae": [
-        "160",
-        0
+        "133",
+        2
       ]
     },
     "class_type": "LTXVLatentUpsampler",
@@ -334,7 +254,7 @@
         0
       ],
       "sampler": [
-        "136",
+        "138",
         0
       ],
       "sigmas": [
@@ -353,9 +273,9 @@
   },
   "121": {
     "inputs": {
-      "text": "INT. LUXURIOUS APARTMENT – NIGHT – ACTION. A medium shot captures a woman in her late twenties with dark hair pulled high, wearing a beige sports bra and a flowing maroon wrap skirt, lunging forward with a black-and-purple boxing glove slamming into a man’s mouth; blood flies from the impact as his teeth crack open under the force. The man, mid-thirties with slicked-back dark hair and stubble, recoils sharply, eyes squeezed shut, jaw clenched, veins pulsing visibly on his neck; he grips his own fist tightly, knuckles white, as if bracing for the next blow. Behind them, ambient lighting from a warm overhead fixture casts dramatic shadows across purple walls, illuminating dust motes swirling in the air and highlighting the texture of cracked concrete flooring beneath their feet. The camera whips to reveal the full scope of the room — a framed fantasy poster glows in the corner while steam curls from a nearby coffee maker — then pushes in as the woman’s arm follows through with the punch, her face contorted in rage, breaths heavy and ragged; the man stumbles back, his body twisting mid-fall as he attempts to recover, sweat glistening on his brow under the flickering neon glow.",
+      "text": "INT. DUSTY APARTMENT – NIGHT – ACTION. A wide shot establishes a cramped room bathed in low, warm tungsten light spilling from a window, casting deep shadows across cracked concrete floors and peeling wallpaper; rain streaks the glass above, while dust motes swirl in beams of amber glow. A woman, mid-20s with wet, dark hair slicked back by sweat and blood, stands defiant—her face contorted into a snarl as veins pulse visibly on her neck, fists clenched tight and dripping with crimson; she wears a torn grey tank top that hangs off her shoulders, revealing scarred skin beneath. Her opponent, a muscular man in his 30s with a gash bleeding down his chest, lunges forward from the left, arm extended to strike—his expression fierce but blurred by motion as he misses her punch. The camera whip-pans to follow the impact, capturing the spray of blood and sweat as she pivots mid-air, dodging with fluid grace before slamming into a chair behind him; the frame freezes on her grimace as she lands, knuckles glowing red from exertion, while the man staggers back, breath ragged and eyes wide. The sound design pulses: heavy breathing, metallic clatter of chairs, distant thunder echoing through cracked walls.",
       "clip": [
-        "146",
+        "99",
         0
       ]
     },
@@ -364,27 +284,16 @@
       "title": "CLIP Text Encode (Prompt)"
     }
   },
-  "122": {
+  "124": {
     "inputs": {
-      "fps": [
-        "129",
-        0
-      ],
-      "images": [
-        "126",
-        0
-      ],
-      "audio": [
-        "127",
-        0
-      ]
+      "ckpt_name": "ltx-2-19b-distilled-fp8.safetensors"
     },
-    "class_type": "CreateVideo",
+    "class_type": "LTXVAudioVAELoader",
     "_meta": {
-      "title": "Create Video"
+      "title": "LTXV Audio VAE Loader"
     }
   },
-  "124": {
+  "125": {
     "inputs": {
       "av_latent": [
         "119",
@@ -396,19 +305,19 @@
       "title": "LTXVSeparateAVLatent"
     }
   },
-  "126": {
+  "127": {
     "inputs": {
       "tile_size": 512,
       "overlap": 64,
       "temporal_size": 4096,
       "temporal_overlap": 8,
       "samples": [
-        "124",
+        "125",
         0
       ],
       "vae": [
-        "160",
-        0
+        "133",
+        2
       ]
     },
     "class_type": "VAEDecodeTiled",
@@ -416,14 +325,14 @@
       "title": "VAE Decode (Tiled)"
     }
   },
-  "127": {
+  "128": {
     "inputs": {
       "samples": [
-        "124",
+        "125",
         1
       ],
       "audio_vae": [
-        "145",
+        "124",
         0
       ]
     },
@@ -432,11 +341,11 @@
       "title": "LTXV Audio VAE Decode"
     }
   },
-  "128": {
+  "129": {
     "inputs": {
       "cfg": 1,
       "model": [
-        "141",
+        "133",
         0
       ],
       "positive": [
@@ -453,25 +362,25 @@
       "title": "CFGGuider"
     }
   },
-  "129": {
-    "inputs": {
-      "value": 24
-    },
-    "class_type": "PrimitiveFloat",
-    "_meta": {
-      "title": "Frame Rate(float)"
-    }
-  },
-  "130": {
+  "131": {
     "inputs": {
       "value": 24
     },
     "class_type": "PrimitiveInt",
     "_meta": {
-      "title": "Frame Rate(int)"
+      "title": "INT: Frame Rate"
     }
   },
-  "135": {
+  "133": {
+    "inputs": {
+      "ckpt_name": "ltx-2-19b-distilled-fp8.safetensors"
+    },
+    "class_type": "CheckpointLoaderSimple",
+    "_meta": {
+      "title": "Load Checkpoint"
+    }
+  },
+  "137": {
     "inputs": {
       "sampler_name": "euler_ancestral"
     },
@@ -480,114 +389,79 @@
       "title": "KSamplerSelect"
     }
   },
-  "136": {
+  "138": {
     "inputs": {
       "sampler_name": "euler_ancestral"
     },
     "class_type": "KSamplerSelect",
     "_meta": {
       "title": "KSamplerSelect"
+    }
+  },
+  "140": {
+    "inputs": {
+      "frame_rate": 24,
+      "loop_count": 0,
+      "filename_prefix": "LTX-2",
+      "format": "video/h264-mp4",
+      "pix_fmt": "yuv420p",
+      "crf": 19,
+      "save_metadata": true,
+      "trim_to_audio": false,
+      "pingpong": false,
+      "save_output": true,
+      "images": [
+        "127",
+        0
+      ],
+      "audio": [
+        "128",
+        0
+      ]
+    },
+    "class_type": "VHS_VideoCombine",
+    "_meta": {
+      "title": "Video Combine 🎥🅥🅗🅢"
     }
   },
   "141": {
     "inputs": {
-      "unet_name": "ltx-2-19b-distilled_Q8_0.gguf"
-    },
-    "class_type": "UnetLoaderGGUF",
-    "_meta": {
-      "title": "Unet Loader (GGUF)"
-    }
-  },
-  "145": {
-    "inputs": {
-      "vae_name": "LTX2_audio_vae_bf16.safetensors",
-      "device": "main_device",
-      "weight_dtype": "bf16"
-    },
-    "class_type": "VAELoaderKJ",
-    "_meta": {
-      "title": "AUDIO VAE"
-    }
-  },
-  "146": {
-    "inputs": {
-      "clip_name1": "gemma3\\gemma_3_12B_it_fp8_e4m3fn.safetensors",
-      "clip_name2": "gemma3\\ltx-2-19b-embeddings_connector_bf16.safetensors",
-      "type": "ltxv",
-      "device": "default"
-    },
-    "class_type": "DualCLIPLoader",
-    "_meta": {
-      "title": "DualCLIPLoader"
-    }
-  },
-  "149": {
-    "inputs": {
-      "image": "fighter-closeup_0113_0216-5_00001_.png"
-    },
-    "class_type": "LoadImage",
-    "_meta": {
-      "title": "Load Image"
-    }
-  },
-  "151": {
-    "inputs": {
-      "longer_edge": 1536,
-      "images": [
-        "149",
+      "value": "a",
+      "a": [
+        "131",
         0
       ]
     },
-    "class_type": "ResizeImagesByLongerEdge",
+    "class_type": "SimpleMath+",
     "_meta": {
-      "title": "Resize Images by Longer Edge"
+      "title": "🔧 Simple Math"
     }
   },
-  "152": {
+  "157": {
     "inputs": {
-      "img_compression": 33,
-      "image": [
-        "151",
+      "scheduler": "simple",
+      "steps": 8,
+      "denoise": 1,
+      "model": [
+        "133",
         0
       ]
     },
-    "class_type": "LTXVPreprocess",
+    "class_type": "BasicScheduler",
     "_meta": {
-      "title": "LTXVPreprocess"
+      "title": "BasicScheduler"
     }
   },
-  "153": {
+  "160": {
     "inputs": {
       "strength": 1,
       "bypass": false,
       "vae": [
-        "160",
-        0
+        "133",
+        2
       ],
       "image": [
-        "152",
-        0
-      ],
-      "latent": [
-        "108",
-        0
-      ]
-    },
-    "class_type": "LTXVImgToVideoInplace",
-    "_meta": {
-      "title": "LTXVImgToVideoInplace"
-    }
-  },
-  "154": {
-    "inputs": {
-      "strength": 1,
-      "bypass": false,
-      "vae": [
-        "160",
-        0
-      ],
-      "image": [
-        "152",
+        "162",
         0
       ],
       "latent": [
@@ -600,15 +474,110 @@
       "title": "LTXVImgToVideoInplace"
     }
   },
-  "160": {
+  "161": {
     "inputs": {
-      "vae_name": "LTX2_video_vae_bf16.safetensors",
-      "device": "main_device",
-      "weight_dtype": "bf16"
+      "strength": 1,
+      "bypass": false,
+      "vae": [
+        "133",
+        2
+      ],
+      "image": [
+        "162",
+        0
+      ],
+      "latent": [
+        "108",
+        0
+      ]
     },
-    "class_type": "VAELoaderKJ",
+    "class_type": "LTXVImgToVideoInplace",
     "_meta": {
-      "title": "VIDEO VAE"
+      "title": "LTXVImgToVideoInplace"
+    }
+  },
+  "162": {
+    "inputs": {
+      "img_compression": 33,
+      "image": [
+        "165",
+        0
+      ]
+    },
+    "class_type": "LTXVPreprocess",
+    "_meta": {
+      "title": "LTXVPreprocess"
+    }
+  },
+  "163": {
+    "inputs": {
+      "image": [
+        "164",
+        0
+      ]
+    },
+    "class_type": "GetImageSize",
+    "_meta": {
+      "title": "Get Image Size"
+    }
+  },
+  "164": {
+    "inputs": {
+      "resize_type": "scale by multiplier",
+      "resize_type.multiplier": 0.5,
+      "scale_method": "area",
+      "input": [
+        "165",
+        0
+      ]
+    },
+    "class_type": "ResizeImageMaskNode",
+    "_meta": {
+      "title": "Resize Image/Mask"
+    }
+  },
+  "165": {
+    "inputs": {
+      "width": 0,
+      "height": 0,
+      "upscale_method": "nearest-exact",
+      "keep_proportion": "crop",
+      "pad_color": "0, 0, 0",
+      "crop_position": "center",
+      "divisible_by": 32,
+      "device": "cpu",
+      "image": [
+        "166",
+        0
+      ]
+    },
+    "class_type": "ImageResizeKJv2",
+    "_meta": {
+      "title": "Resize Image v2"
+    }
+  },
+  "166": {
+    "inputs": {
+      "resize_type": "scale total pixels",
+      "resize_type.megapixels": 1,
+      "scale_method": "area",
+      "input": [
+        "167",
+        0
+      ]
+    },
+    "class_type": "ResizeImageMaskNode",
+    "_meta": {
+      "title": "Resize Image/Mask"
+    }
+  },
+  "167": {
+    "inputs": {
+      "image": "z-image_00025_.png"
+    },
+    "class_type": "LoadImage",
+    "_meta": {
+      "title": "Load Image"
     }
   }
 }
