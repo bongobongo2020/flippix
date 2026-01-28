@@ -489,12 +489,37 @@
                             </StackPanel>
 
                             <!-- Generate Button -->
-                            <Button Content="Process &amp; Generate Image"
+                            <Button Content="{Binding GenerateButtonText}"
                                    Style="{StaticResource PrimaryButtonStyle}"
                                    Command="{Binding GenerateImageCommand}"
                                    HorizontalAlignment="Stretch"
                                    Height="42"
                                    FontSize="14"/>
+
+                            <!-- Progress Bar (visible during generation) -->
+                            <StackPanel Margin="0,10,0,0"
+                                       Visibility="{Binding IsGenerating, Converter={StaticResource BooleanToVisibilityConverter}}">
+                                <TextBlock Text="{Binding ProcessingStatus}"
+                                          FontSize="11"
+                                          FontWeight="SemiBold"
+                                          Foreground="#6366F1"
+                                          Margin="0,0,0,4"
+                                          TextTrimming="CharacterEllipsis"/>
+                                <Grid>
+                                    <ProgressBar Value="{Binding ProcessingProgress}"
+                                                Minimum="0"
+                                                Maximum="100"
+                                                Height="20"
+                                                Foreground="#6366F1"
+                                                Background="#E0E7FF"/>
+                                    <TextBlock Text="{Binding ProgressPercentage}"
+                                              HorizontalAlignment="Center"
+                                              VerticalAlignment="Center"
+                                              FontSize="10"
+                                              FontWeight="Bold"
+                                              Foreground="#1E1B4B"/>
+                                </Grid>
+                            </StackPanel>
                         </StackPanel>
                     </Border>
 
