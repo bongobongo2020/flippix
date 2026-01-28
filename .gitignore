@@ -44,7 +44,12 @@ bld/
 publish/
 publish*/
 *.pdb
-prompts/
+# Ignore prompts folder except system prompt files
+prompts/*
+prompts/**/*
+!prompts/prompt2json/
+!prompts/prompt2json/ltx_action_video_system_prompt.md
+!prompts/prompt2json/ltxv2_system_prompt_addition.md
 # Release packages (generated files)
 *-Release.zip
 *-Setup.exe
