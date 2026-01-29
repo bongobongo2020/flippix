@@ -217,7 +217,7 @@
             <StackPanel Orientation="Horizontal">
                 <TextBlock Text="Navigate:" FontWeight="SemiBold" FontSize="12" VerticalAlignment="Center" Margin="0,0,12,0" Foreground="#495057"/>
                 <Button Content="🎬 Video Generator" Style="{StaticResource NavButtonStyle}" Command="{Binding NavigateToVideoGeneratorCommand}" Background="#6366F1"/>
-                <Button Content="📖 Story Generator" Style="{StaticResource NavButtonStyle}" Command="{Binding NavigateToStoryVideoCommand}" Background="#10B981"/>
+                <Button Content="📷 Camera Edit" Style="{StaticResource NavButtonStyle}" Command="{Binding NavigateToCameraEditCommand}" Background="#10B981"/>
             </StackPanel>
         </Border>
 

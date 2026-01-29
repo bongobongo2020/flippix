@@ -4,7 +4,7 @@
         xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
         xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
         mc:Ignorable="d"
-        Title="FlipPix - Transform Camera Angles" Height="900" Width="950"
+        Title="Camera Edit" Height="900" Width="950"
         WindowStartupLocation="CenterScreen"
         WindowState="Normal"
         WindowStyle="SingleBorderWindow"
@@ -143,7 +143,6 @@
                 <TextBlock Text="Tools:" FontWeight="SemiBold" FontSize="12" VerticalAlignment="Center" Margin="0,0,12,0" Foreground="#495057"/>
                 <Button Content="🖼️ Image Generator" Style="{StaticResource NavButtonStyle}" Command="{Binding NavigateToImageGeneratorCommand}" Background="#FF6B35"/>
                 <Button Content="🎬 Video Generator" Style="{StaticResource NavButtonStyle}" Command="{Binding NavigateToVideoGeneratorCommand}" Background="#6366F1"/>
-                <Button Content="📖 Story Generator" Style="{StaticResource NavButtonStyle}" Command="{Binding NavigateToStoryVideoCommand}" Background="#10B981"/>
             </StackPanel>
         </Border>
 
@@ -171,20 +170,11 @@
                                               HorizontalAlignment="Center"
                                               VerticalAlignment="Center"
                                               Foreground="#999"
-                                              FontStyle="Italic">
-                                        <TextBlock.Style>
-                                            <Style TargetType="TextBlock">
-                                                <Setter Property="Visibility" Value="Collapsed"/>
-                                                <Style.Triggers>
-                                                    <DataTrigger Binding="{Binding ImagePreviewSource}" Value="{x:Null}">
-                                                        <Setter Property="Visibility" Value="Visible"/>
-                                                    </DataTrigger>
-                                                </Style.Triggers>
-                                            </Style>
-                                        </TextBlock.Style>
-                                    </TextBlock>
+                                              FontStyle="Italic"
+                                              Visibility="{Binding NoInputImage, Converter={StaticResource BooleanToVisibilityConverter}}"/>
                                     <Image Source="{Binding ImagePreviewSource}"
-                                           Stretch="Uniform"/>
+                                           Stretch="Uniform"
+                                           Visibility="{Binding HasInputImage, Converter={StaticResource BooleanToVisibilityConverter}}"/>
                                 </Grid>
                             </Border>
 
@@ -225,20 +215,11 @@
                                               HorizontalAlignment="Center"
                                               VerticalAlignment="Center"
                                               Foreground="#999"
-                                              FontStyle="Italic">
-                                        <TextBlock.Style>
-                                            <Style TargetType="TextBlock">
-                                                <Setter Property="Visibility" Value="Collapsed"/>
-                                                <Style.Triggers>
-                                                    <DataTrigger Binding="{Binding ResultPreviewSource}" Value="{x:Null}">
-                                                        <Setter Property="Visibility" Value="Visible"/>
-                                                    </DataTrigger>
-                                                </Style.Triggers>
-                                            </Style>
-                                        </TextBlock.Style>
-                                    </TextBlock>
+                                              FontStyle="Italic"
+                                              Visibility="{Binding NoResultImage, Converter={StaticResource BooleanToVisibilityConverter}}"/>
                                     <Image Source="{Binding ResultPreviewSource}"
-                                           Stretch="Uniform"/>
+                                           Stretch="Uniform"
+                                           Visibility="{Binding HasResultImage, Converter={StaticResource BooleanToVisibilityConverter}}"/>
                                 </Grid>
                             </Border>
 

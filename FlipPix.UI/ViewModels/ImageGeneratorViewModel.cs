@@ -1613,11 +1613,24 @@ namespace FlipPix.UI.ViewModels
 
         private void NavigateToCameraEdit()
         {
+            if (_serviceProvider == null)
+            {
+                AddLog("ERROR: Service provider is null");
+                return;
+            }
+
             try
             {
-                // Camera Edit is tab index 2 (Text Generation = 0, Image Analyzer = 1, Camera Edit = 2)
-                SelectedTabIndex = 2;
-                AddLog("Navigated to Camera Edit tab");
+                var cameraEditWindow = _serviceProvider.GetService(typeof(FlipPixWindow)) as FlipPixWindow;
+
+                if (cameraEditWindow == null)
+                {
+                    AddLog("ERROR: Failed to create FlipPixWindow - GetService returned null");
+                    return;
+                }
+
+                cameraEditWindow.Show();
+                AddLog("Successfully opened Camera Edit window");
             }
             catch (Exception ex)
             {

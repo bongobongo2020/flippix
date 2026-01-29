@@ -64,8 +64,6 @@ namespace FlipPix.UI.ViewModels
         private double _denoise = 1.0;
         private int _aspectRatioIndex = 0;
 
-        public new event PropertyChangedEventHandler? PropertyChanged;
-
         public FlipPixViewModel(FlipPix.ComfyUI.Services.ComfyUIService comfyUIService, IAppLogger logger, FlipPix.Core.Services.SettingsService settingsService, IServiceProvider? serviceProvider = null, IPromptService? promptService = null)
             : base(promptService ?? new PromptService(logger), logger, "CameraEdit")
         {
@@ -123,12 +121,17 @@ namespace FlipPix.UI.ViewModels
                 _imagePreviewSource = value;
                 AddLog($"ImagePreviewSource changed: {oldValue?.ToString() ?? "null"} -> {value?.ToString() ?? "null"}, Dimensions: {value?.PixelWidth}x{value?.PixelHeight}");
                 OnPropertyChanged();
+                OnPropertyChanged(nameof(HasInputImage));
+                OnPropertyChanged(nameof(NoInputImage));
 
                 // Force UI refresh
                 OnPropertyChanged(nameof(ImageFilePath));
                 OnPropertyChanged(nameof(ImageInfo));
             }
         }
+
+        public bool HasInputImage => ImagePreviewSource != null;
+        public bool NoInputImage => ImagePreviewSource == null;
 
         public BitmapImage? ResultPreviewSource
         {
@@ -279,9 +282,12 @@ namespace FlipPix.UI.ViewModels
             {
                 _hasResultImage = value;
                 OnPropertyChanged();
+                OnPropertyChanged(nameof(NoResultImage));
                 CommandManager.InvalidateRequerySuggested();
             }
         }
+
+        public bool NoResultImage => !_hasResultImage;
 
         public string ResultImagePath
         {
@@ -645,47 +651,38 @@ namespace FlipPix.UI.ViewModels
                 {
                     AddLog($"Loading image from: {ImageFilePath}");
 
-                    // Load image using URI source to avoid stream issues
+                    // Read file into memory first to avoid file locking and caching issues
+                    byte[] imageBytes = File.ReadAllBytes(ImageFilePath);
+
                     var bitmap = new BitmapImage();
-                    bitmap.BeginInit();
-
-                    // Create URI safely
-                    Uri imageUri;
-                    if (Path.IsPathRooted(ImageFilePath))
+                    using (var memoryStream = new MemoryStream(imageBytes))
                     {
-                        imageUri = new Uri(ImageFilePath);
+                        bitmap.BeginInit();
+                        bitmap.CacheOption = BitmapCacheOption.OnLoad;
+                        bitmap.StreamSource = memoryStream;
+                        bitmap.EndInit();
                     }
-                    else
-                    {
-                        imageUri = new Uri(Path.GetFullPath(ImageFilePath));
-                    }
-
-                    bitmap.UriSource = imageUri;
-                    bitmap.CacheOption = BitmapCacheOption.OnLoad;
-                    bitmap.EndInit();
                     bitmap.Freeze();
 
-                    // Ensure we're on the UI thread when setting the image source
-                    System.Windows.Application.Current.Dispatcher.Invoke(() =>
-                    {
-                        ImagePreviewSource = bitmap;
-                        ImageInfo = $"{bitmap.PixelWidth} × {bitmap.PixelHeight} pixels";
-                        OnPropertyChanged(nameof(ImagePreviewSource));
-                    });
+                    // Set the image source directly (we're already on UI thread from command)
+                    ImagePreviewSource = bitmap;
+                    ImageInfo = $"{bitmap.PixelWidth} × {bitmap.PixelHeight} pixels";
 
-                    AddLog($"Image loaded successfully: {bitmap.PixelWidth}x{bitmap.PixelHeight}, ImagePreviewSource is null: {ImagePreviewSource == null}");
+                    AddLog($"Image loaded successfully: {bitmap.PixelWidth}x{bitmap.PixelHeight}");
                 }
                 catch (Exception ex)
                 {
                     AddLog($"Error loading image preview: {ex.Message}");
                     _logger.LogError($"Error loading image preview from {ImageFilePath}: {ex}");
                     ImageInfo = "Error loading image";
+                    ImagePreviewSource = null;
                 }
             }
             else
             {
                 AddLog($"Cannot load image preview - ImageFilePath is empty or file does not exist");
                 ImagePreviewSource = null;
+                ImageInfo = string.Empty;
             }
         }
 
@@ -963,34 +960,26 @@ namespace FlipPix.UI.ViewModels
                 {
                     AddLog($"Loading result image from: {imagePath}");
 
-                    // Load image using URI source to avoid stream issues
+                    // Read file into memory first to avoid file locking and caching issues
+                    byte[] imageBytes = File.ReadAllBytes(imagePath);
+
                     var bitmap = new BitmapImage();
-                    bitmap.BeginInit();
-
-                    // Create URI safely
-                    Uri imageUri;
-                    if (Path.IsPathRooted(imagePath))
+                    using (var memoryStream = new MemoryStream(imageBytes))
                     {
-                        imageUri = new Uri(imagePath);
+                        bitmap.BeginInit();
+                        bitmap.CacheOption = BitmapCacheOption.OnLoad;
+                        bitmap.StreamSource = memoryStream;
+                        bitmap.EndInit();
                     }
-                    else
-                    {
-                        imageUri = new Uri(Path.GetFullPath(imagePath));
-                    }
-
-                    bitmap.UriSource = imageUri;
-                    bitmap.CacheOption = BitmapCacheOption.OnLoad;
-                    bitmap.EndInit();
                     bitmap.Freeze();
 
-                    // Ensure we're on the UI thread when setting the image source
+                    // Set on UI thread
                     System.Windows.Application.Current.Dispatcher.Invoke(() =>
                     {
                         ResultPreviewSource = bitmap;
-                        OnPropertyChanged(nameof(ResultPreviewSource));
                     });
 
-                    AddLog($"Result image loaded successfully: {bitmap.PixelWidth}x{bitmap.PixelHeight}, ResultPreviewSource is null: {ResultPreviewSource == null}");
+                    AddLog($"Result image loaded successfully: {bitmap.PixelWidth}x{bitmap.PixelHeight}");
                 }
                 catch (Exception ex)
                 {
@@ -1262,113 +1251,117 @@ namespace FlipPix.UI.ViewModels
                 AddLog($"ComfyUI server: {actualServer}:{actualPort}");
                 AddLog($"Is remote ComfyUI: {isRemoteComfyUI}");
 
-                if (isRemoteComfyUI)
+                // First try to get output files specifically for this prompt ID
+                AddLog($"Checking ComfyUI history API for prompt: {promptId}");
+                var outputFiles = await _comfyUIService.HttpClient.GetOutputFilesForPromptAsync(promptId);
+                AddLog($"Found {outputFiles.Count} output files for this prompt");
+
+                // Debug: show what files were found
+                if (outputFiles.Any())
                 {
-                    AddLog("Detected remote ComfyUI server, downloading generated image...");
-
-                    // First try the history API approach
-                    var outputFiles = await _comfyUIService.HttpClient.GetOutputFilesAsync();
-                    AddLog($"Found {outputFiles.Count} potential output files");
-
-                    // Look for recent image files in the output
-                    var imageFiles = outputFiles.Where(f =>
-                        (f.EndsWith(".png") || f.EndsWith(".jpg") || f.EndsWith(".jpeg")) &&
-                        !f.StartsWith("z-image_")) // Exclude z-image files (those are from image generator)
-                        .ToList();
-
-                    if (imageFiles.Any())
+                    AddLog("Files found for this prompt:");
+                    foreach (var file in outputFiles)
                     {
-                        // Download the most recent file
-                        var filename = imageFiles.Last(); // Get the last/most recent
-                        AddLog($"Downloading generated image: {filename}");
+                        AddLog($"  - {file}");
+                    }
+                }
 
-                        var imageData = await _comfyUIService.HttpClient.DownloadOutputImageAsync(filename);
-                        if (imageData != null)
-                        {
-                            images.Add(imageData);
-                            AddLog($"Successfully downloaded image ({imageData.Length} bytes)");
-                        }
-                        else
-                        {
-                            AddLog($"Failed to download image: {filename}");
-                        }
+                // Look for image files
+                var imageFiles = outputFiles.Where(f =>
+                    f.EndsWith(".png") || f.EndsWith(".jpg") || f.EndsWith(".jpeg"))
+                    .ToList();
+
+                if (imageFiles.Any())
+                {
+                    // Get the last file (should be the output from this prompt)
+                    var filename = imageFiles.Last();
+                    AddLog($"Attempting to download: {filename}");
+
+                    var imageData = await _comfyUIService.HttpClient.DownloadOutputImageAsync(filename);
+                    if (imageData != null)
+                    {
+                        images.Add(imageData);
+                        AddLog($"Successfully downloaded image ({imageData.Length} bytes)");
+                        return images;
                     }
                     else
                     {
-                        AddLog("No suitable image files found in history, trying alternative approach...");
-
-                        // Try the fallback approach
-                        var fallbackImage = await _comfyUIService.HttpClient.TryDownloadRecentOutputAsync(promptId);
-                        if (fallbackImage != null)
-                        {
-                            images.Add(fallbackImage);
-                            AddLog($"Successfully downloaded image via fallback method ({fallbackImage.Length} bytes)");
-                        }
-                        else
-                        {
-                            AddLog("Failed to download image using all available methods");
-                        }
+                        AddLog($"Failed to download via API, trying local file access...");
                     }
+                }
 
-                    // Debug info about what files we found
-                    if (outputFiles.Any())
+                // If API download failed or no files found, try local file system
+                var comfyUIOutputDir = _settingsService.Settings?.OutputFolderPath;
+                AddLog($"Configured output folder: {comfyUIOutputDir}");
+
+                // Build list of directories to check
+                var dirsToCheck = new List<string>();
+
+                if (!string.IsNullOrEmpty(comfyUIOutputDir) && Directory.Exists(comfyUIOutputDir))
+                {
+                    dirsToCheck.Add(comfyUIOutputDir);
+                }
+
+                // Also check common alternative locations
+                var driveLetters = new[] { "Y:", "C:", "D:", "E:" };
+                foreach (var drive in driveLetters)
+                {
+                    var altPath = Path.Combine(drive, "output");
+                    if (Directory.Exists(altPath) && !dirsToCheck.Contains(altPath))
                     {
-                        AddLog("All files found in history:");
-                        foreach (var file in outputFiles.Take(10))
+                        dirsToCheck.Add(altPath);
+                    }
+                }
+
+                if (!dirsToCheck.Any())
+                {
+                    AddLog("ERROR: No valid output directories found");
+                    return images;
+                }
+
+                AddLog($"Searching for output images in {dirsToCheck.Count} directories...");
+
+                // Look for recently created images (png, jpg, jpeg) within the last 2 minutes
+                var imageExtensions = new[] { "*.png", "*.jpg", "*.jpeg" };
+                var allRecentFiles = new List<FileInfo>();
+
+                foreach (var dir in dirsToCheck)
+                {
+                    AddLog($"Checking: {dir}");
+                    foreach (var extension in imageExtensions)
+                    {
+                        try
                         {
-                            AddLog($"  - {file}");
+                            var files = Directory.GetFiles(dir, extension)
+                                .Select(f => new FileInfo(f))
+                                .Where(f => (DateTime.Now - f.LastWriteTime).TotalMinutes < 2);
+                            allRecentFiles.AddRange(files);
+                        }
+                        catch (Exception ex)
+                        {
+                            AddLog($"  Error accessing {dir}: {ex.Message}");
                         }
                     }
                 }
+
+                // Prioritize Qwen files for camera edit
+                var recentFiles = allRecentFiles
+                    .OrderByDescending(f => f.Name.Contains("Qwen") ? 1 : 0)
+                    .ThenByDescending(f => f.LastWriteTime)
+                    .ToList();
+
+                AddLog($"Found {recentFiles.Count} recent image files");
+
+                if (recentFiles.Any())
+                {
+                    var latestFile = recentFiles.First();
+                    AddLog($"Using file: {latestFile.FullName} (modified: {latestFile.LastWriteTime})");
+                    images.Add(await File.ReadAllBytesAsync(latestFile.FullName));
+                }
                 else
                 {
-                    // Local ComfyUI - check the output folder directly
-                    var comfyUIOutputDir = _settingsService.Settings?.OutputFolderPath;
-                    if (string.IsNullOrEmpty(comfyUIOutputDir))
-                    {
-                        AddLog("ERROR: ComfyUI output folder not configured");
-                        AddLog("Please restart the application and configure the ComfyUI folder path");
-                        return images;
-                    }
-
-                    if (!Directory.Exists(comfyUIOutputDir))
-                    {
-                        AddLog($"ERROR: ComfyUI output folder not found: {comfyUIOutputDir}");
-                        AddLog("Please check the ComfyUI folder configuration in settings");
-                        return images;
-                    }
-
-                    AddLog($"Searching for output images in: {comfyUIOutputDir}");
-
-                    // Look for recently created images (png, jpg, jpeg) within the last 2 minutes
-                    var imageExtensions = new[] { "*.png", "*.jpg", "*.jpeg" };
-                    var allRecentFiles = new List<FileInfo>();
-
-                    foreach (var extension in imageExtensions)
-                    {
-                        var files = Directory.GetFiles(comfyUIOutputDir, extension)
-                            .Select(f => new FileInfo(f))
-                            .Where(f => (DateTime.Now - f.LastWriteTime).TotalMinutes < 2);
-                        allRecentFiles.AddRange(files);
-                    }
-
-                    var recentFiles = allRecentFiles
-                        .OrderByDescending(f => f.LastWriteTime)
-                        .ToList();
-
-                    AddLog($"Found {recentFiles.Count} recent image files");
-
-                    if (recentFiles.Any())
-                    {
-                        var latestFile = recentFiles.First();
-                        AddLog($"Using latest file: {latestFile.Name} (modified: {latestFile.LastWriteTime})");
-                        images.Add(await File.ReadAllBytesAsync(latestFile.FullName));
-                    }
-                    else
-                    {
-                        AddLog("WARNING: No recent output images found");
-                        AddLog("Please check that ComfyUI completed successfully and saved the output");
-                    }
+                    AddLog("WARNING: No recent output images found in any location");
+                    AddLog("Please check that ComfyUI completed successfully and saved the output");
                 }
             }
             catch (Exception ex)
@@ -1544,11 +1537,6 @@ namespace FlipPix.UI.ViewModels
             var timestamp = DateTime.Now.ToString("HH:mm:ss");
             LogOutput += $"[{timestamp}] {message}\n";
             _logger.LogInfo(message);
-        }
-
-        protected new void OnPropertyChanged([CallerMemberName] string? propertyName = null)
-        {
-            PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(propertyName));
         }
 
         // Implementation of abstract base class properties
