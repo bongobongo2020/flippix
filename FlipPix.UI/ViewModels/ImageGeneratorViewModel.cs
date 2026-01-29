@@ -633,14 +633,38 @@ namespace FlipPix.UI.ViewModels
 
                 if (isRemoteServer)
                 {
-                    // Use remote LoRA path if configured
-                    loraBasePath = _settingsService.Settings?.RemoteLoraFolderPath;
-                    if (string.IsNullOrEmpty(loraBasePath))
+                    // For remote servers, derive LoRA path from RemoteOutputFolderPath
+                    // RemoteOutputFolderPath is usually something like \\server\ComfyUI\output
+                    // We need to get \\server\ComfyUI\models\loras
+                    var remoteOutputPath = _settingsService.Settings?.RemoteOutputFolderPath;
+
+                    if (string.IsNullOrEmpty(remoteOutputPath))
                     {
-                        AddLog("Remote LoRA path not configured in settings");
+                        AddLog("Remote output path not configured in settings - cannot derive LoRA path");
                         return null;
                     }
-                    AddLog($"Using remote LoRA path: {loraBasePath}");
+
+                    // Also check if RemoteLoraFolderPath is explicitly set (for custom paths)
+                    var explicitLoraPath = _settingsService.Settings?.RemoteLoraFolderPath;
+                    if (!string.IsNullOrEmpty(explicitLoraPath))
+                    {
+                        loraBasePath = explicitLoraPath;
+                        AddLog($"Using explicitly configured remote LoRA path: {loraBasePath}");
+                    }
+                    else
+                    {
+                        // Derive LoRA path from output path
+                        // Expected: \\server\ComfyUI\output -> \\server\ComfyUI\models\loras
+                        var comfyUIRoot = Path.GetDirectoryName(remoteOutputPath);
+                        if (string.IsNullOrEmpty(comfyUIRoot))
+                        {
+                            AddLog($"Could not derive ComfyUI root from output path: {remoteOutputPath}");
+                            return null;
+                        }
+
+                        loraBasePath = Path.Combine(comfyUIRoot, "models", "loras");
+                        AddLog($"Derived remote LoRA path from output path: {loraBasePath}");
+                    }
 
                     // For remote paths, check if directory exists directly
                     if (Directory.Exists(loraBasePath))
