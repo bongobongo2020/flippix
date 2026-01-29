@@ -18,6 +18,7 @@ namespace FlipPix.UI.ViewModels
         private string _folderPath = string.Empty;
         private string _serverUrl = "http://localhost:8188";
         private string _remoteOutputFolderPath = string.Empty;
+        private string _remoteLoraFolderPath = string.Empty;
         private string _validationMessage = string.Empty;
         private System.Windows.Media.Brush _validationMessageColor = System.Windows.Media.Brushes.Red;
         private bool _canSave = false;
@@ -36,6 +37,7 @@ namespace FlipPix.UI.ViewModels
 
             BrowseFolderCommand = new DelegateCommand(BrowseFolder);
             BrowseRemoteOutputFolderCommand = new DelegateCommand(BrowseRemoteOutputFolder);
+            BrowseRemoteLoraFolderCommand = new DelegateCommand(BrowseRemoteLoraFolder);
             SaveCommand = new DelegateCommand(Save, () => CanSave);
             CancelCommand = new DelegateCommand(Cancel);
             TestConnectionCommand = new DelegateCommand(async () => await TestConnectionAsync(), () => !IsTestingConnection);
@@ -54,6 +56,11 @@ namespace FlipPix.UI.ViewModels
             if (!string.IsNullOrEmpty(_settingsService.Settings.RemoteOutputFolderPath))
             {
                 RemoteOutputFolderPath = _settingsService.Settings.RemoteOutputFolderPath;
+            }
+
+            if (!string.IsNullOrEmpty(_settingsService.Settings.RemoteLoraFolderPath))
+            {
+                RemoteLoraFolderPath = _settingsService.Settings.RemoteLoraFolderPath;
             }
         }
 
@@ -93,6 +100,20 @@ namespace FlipPix.UI.ViewModels
                 if (_remoteOutputFolderPath != value)
                 {
                     _remoteOutputFolderPath = value;
+                    OnPropertyChanged();
+                    ValidateFolderPath(); // This will call the correct validation logic
+                }
+            }
+        }
+
+        public string RemoteLoraFolderPath
+        {
+            get => _remoteLoraFolderPath;
+            set
+            {
+                if (_remoteLoraFolderPath != value)
+                {
+                    _remoteLoraFolderPath = value;
                     OnPropertyChanged();
                     ValidateFolderPath(); // This will call the correct validation logic
                 }
@@ -193,6 +214,7 @@ namespace FlipPix.UI.ViewModels
 
         public ICommand BrowseFolderCommand { get; }
         public ICommand BrowseRemoteOutputFolderCommand { get; }
+        public ICommand BrowseRemoteLoraFolderCommand { get; }
         public ICommand SaveCommand { get; }
         public ICommand CancelCommand { get; }
         public ICommand TestConnectionCommand { get; }
@@ -231,6 +253,25 @@ namespace FlipPix.UI.ViewModels
                 if (folderDialog.ShowDialog() == Forms.DialogResult.OK)
                 {
                     RemoteOutputFolderPath = folderDialog.SelectedPath;
+                }
+            }
+        }
+
+        private void BrowseRemoteLoraFolder()
+        {
+            using (var folderDialog = new Forms.FolderBrowserDialog())
+            {
+                folderDialog.Description = "Select the network path to the remote ComfyUI LoRA folder (e.g., Y:\\ai-models\\loras\\zimage)";
+                folderDialog.ShowNewFolderButton = false;
+
+                if (!string.IsNullOrEmpty(RemoteLoraFolderPath) && Directory.Exists(RemoteLoraFolderPath))
+                {
+                    folderDialog.SelectedPath = RemoteLoraFolderPath;
+                }
+
+                if (folderDialog.ShowDialog() == Forms.DialogResult.OK)
+                {
+                    RemoteLoraFolderPath = folderDialog.SelectedPath;
                 }
             }
         }
@@ -560,6 +601,9 @@ namespace FlipPix.UI.ViewModels
 
                 // Save remote output folder setting
                 _settingsService.Settings.RemoteOutputFolderPath = RemoteOutputFolderPath;
+
+                // Save remote LoRA folder setting
+                _settingsService.Settings.RemoteLoraFolderPath = RemoteLoraFolderPath;
 
                 // For remote servers, don't validate local ComfyUI folder
                 if (IsRemoteServer(ServerUrl))
