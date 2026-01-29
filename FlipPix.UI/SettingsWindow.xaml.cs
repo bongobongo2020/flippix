@@ -44,6 +44,7 @@ namespace FlipPix.UI
                 ComfyUIFolderPath = original.ComfyUIFolderPath,
                 OutputFolderPath = original.OutputFolderPath,
                 RemoteOutputFolderPath = original.RemoteOutputFolderPath,
+                RemoteLoraFolderPath = original.RemoteLoraFolderPath,
                 SavedCameraPrompts = original.SavedCameraPrompts,
                 AutoRestartComfyUI = original.AutoRestartComfyUI,
                 ComfyUIRestartScriptPath = original.ComfyUIRestartScriptPath,
@@ -100,6 +101,25 @@ namespace FlipPix.UI
             {
                 OutputPathTextBox.Text = dialog.SelectedPath;
                 UpdateStatus();
+            }
+        }
+
+        private void BrowseRemoteLoraPath_Click(object sender, RoutedEventArgs e)
+        {
+            var dialog = new System.Windows.Forms.FolderBrowserDialog
+            {
+                Description = "Select Remote LoRA Folder",
+                ShowNewFolderButton = false
+            };
+
+            if (!string.IsNullOrEmpty(RemoteLoraPathTextBox.Text))
+            {
+                dialog.SelectedPath = RemoteLoraPathTextBox.Text;
+            }
+
+            if (dialog.ShowDialog() == System.Windows.Forms.DialogResult.OK)
+            {
+                RemoteLoraPathTextBox.Text = dialog.SelectedPath;
             }
         }
 
@@ -454,6 +474,7 @@ namespace FlipPix.UI
                     ComfyUIFolderPath = ComfyUIPathTextBox.Text?.Trim() ?? "",
                     OutputFolderPath = OutputPathTextBox.Text?.Trim() ?? "",
                     RemoteOutputFolderPath = _originalSettings.RemoteOutputFolderPath,
+                    RemoteLoraFolderPath = RemoteLoraPathTextBox.Text?.Trim() ?? "",
                     SavedCameraPrompts = _originalSettings.SavedCameraPrompts,
                     AutoRestartComfyUI = AutoRestartCheckBox.IsChecked ?? true,
                     ComfyUIRestartScriptPath = ComfyUIRestartScriptTextBox.Text?.Trim() ?? "",
