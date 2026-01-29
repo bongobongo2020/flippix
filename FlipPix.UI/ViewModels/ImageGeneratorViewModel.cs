@@ -625,15 +625,48 @@ namespace FlipPix.UI.ViewModels
         {
             try
             {
-                var comfyUIPath = _settingsService.Settings?.ComfyUIFolderPath;
-                if (string.IsNullOrEmpty(comfyUIPath))
+                // Check if we're connecting to a remote ComfyUI server
+                var baseUrl = _settingsService.Settings?.BaseUrl ?? string.Empty;
+                bool isRemoteServer = IsRemoteUrl(baseUrl);
+
+                string? loraBasePath;
+
+                if (isRemoteServer)
                 {
-                    AddLog("ComfyUI installation path not configured");
-                    return null;
+                    // Use remote LoRA path if configured
+                    loraBasePath = _settingsService.Settings?.RemoteLoraFolderPath;
+                    if (string.IsNullOrEmpty(loraBasePath))
+                    {
+                        AddLog("Remote LoRA path not configured in settings");
+                        return null;
+                    }
+                    AddLog($"Using remote LoRA path: {loraBasePath}");
+
+                    // For remote paths, check if directory exists directly
+                    if (Directory.Exists(loraBasePath))
+                    {
+                        AddLog($"Remote LoRA directory exists: {loraBasePath}");
+                        return loraBasePath;
+                    }
+                    else
+                    {
+                        AddLog($"Remote LoRA directory not found: {loraBasePath}");
+                        return null;
+                    }
+                }
+                else
+                {
+                    // Use local ComfyUI path
+                    loraBasePath = _settingsService.Settings?.ComfyUIFolderPath;
+                    if (string.IsNullOrEmpty(loraBasePath))
+                    {
+                        AddLog("ComfyUI installation path not configured");
+                        return null;
+                    }
                 }
 
-                // First try to get path from extra_model_paths.yaml
-                var extraModelPathsFile = Path.Combine(comfyUIPath, "extra_model_paths.yaml");
+                // First try to get path from extra_model_paths.yaml (local only)
+                var extraModelPathsFile = Path.Combine(loraBasePath, "extra_model_paths.yaml");
                 AddLog($"Looking for extra_model_paths.yaml at: {extraModelPathsFile}");
 
                 if (File.Exists(extraModelPathsFile))
@@ -754,14 +787,14 @@ namespace FlipPix.UI.ViewModels
                 }
 
                 // Fallback to default ComfyUI models directory
-                var defaultLoraPath = Path.Combine(comfyUIPath, "models", "loras");
+                var defaultLoraPath = Path.Combine(loraBasePath, "models", "loras");
                 if (Directory.Exists(defaultLoraPath))
                 {
                     AddLog($"Using default ComfyUI LoRA path: {defaultLoraPath}");
                     return defaultLoraPath;
                 }
 
-                AddLog($"No LoRA directory found in: {comfyUIPath}");
+                AddLog($"No LoRA directory found in: {loraBasePath}");
                 return null;
             }
             catch (Exception ex)
@@ -2150,6 +2183,28 @@ namespace FlipPix.UI.ViewModels
             finally
             {
                 IsProcessing = false;
+            }
+        }
+
+        private bool IsRemoteUrl(string url)
+        {
+            try
+            {
+                if (string.IsNullOrEmpty(url))
+                    return false;
+
+                var uri = new Uri(url);
+                var host = uri.Host.ToLowerInvariant();
+
+                // Check if it's not a local address
+                return !host.Equals("localhost") &&
+                       !host.Equals("127.0.0.1") &&
+                       !host.Equals("0.0.0.0") &&
+                       !host.Equals("::1");
+            }
+            catch
+            {
+                return false;
             }
         }
     }
