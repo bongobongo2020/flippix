@@ -25,6 +25,7 @@
     <UseWPF>true</UseWPF>
     <UseWindowsForms>true</UseWindowsForms>
     <EnableWindowsTargeting>true</EnableWindowsTargeting>
+    <ApplicationIcon>flipping-icon.ico</ApplicationIcon>
   </PropertyGroup>
 
   <ItemGroup>
