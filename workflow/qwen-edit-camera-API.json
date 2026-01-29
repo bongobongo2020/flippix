@@ -133,6 +133,7 @@
     "inputs": {
       "upscale_method": "lanczos",
       "megapixels": 1,
+      "resolution_steps": 8,
       "image": [
         "78",
         0
