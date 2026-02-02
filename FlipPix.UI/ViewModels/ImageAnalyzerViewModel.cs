@@ -2122,7 +2122,9 @@ namespace FlipPix.UI.ViewModels
                                     (896, 1152),  // 3:4
                                     (768, 1344),  // 9:16
                                     (1152, 896),  // 4:3
-                                    (1344, 768)   // 16:9
+                                    (1344, 768),  // 16:9
+                                    (1568, 1352), // 16:9 custom
+                                    (1352, 1568)  // 9:16 custom
                                 };
                                 var (width, height) = resolutions[Math.Min(AspectRatioIndex, resolutions.Length - 1)];
 
@@ -2153,7 +2155,9 @@ namespace FlipPix.UI.ViewModels
                                 (896, 1152),  // 3:4
                                 (768, 1344),  // 9:16
                                 (1152, 896),  // 4:3
-                                (1344, 768)   // 16:9
+                                (1344, 768),  // 16:9
+                                (1568, 1352), // 16:9 custom
+                                (1352, 1568)  // 9:16 custom
                             };
                             var (width, height) = resolutions[Math.Min(AspectRatioIndex, resolutions.Length - 1)];
 
@@ -2483,7 +2487,9 @@ namespace FlipPix.UI.ViewModels
                 (896, 1152),   // 1: 3:4 portrait
                 (768, 1344),   // 2: 9:16 portrait
                 (1152, 896),   // 3: 4:3 landscape
-                (1344, 768)    // 4: 16:9 landscape
+                (1344, 768),   // 4: 16:9 landscape
+                (1568, 1352),  // 5: 16:9 landscape (custom)
+                (1352, 1568)   // 6: 9:16 portrait (custom)
             };
 
             return dimensions[Math.Min(aspectRatioIndex, dimensions.Length - 1)];

@@ -357,6 +357,8 @@
                                             <ComboBoxItem Content="SDXL - 9:16 portrait 768x1344"/>
                                             <ComboBoxItem Content="SDXL - 4:3 landscape 1152x896"/>
                                             <ComboBoxItem Content="SDXL - 16:9 landscape 1344x768"/>
+                                            <ComboBoxItem Content="Custom - 1568x1352 landscape"/>
+                                            <ComboBoxItem Content="Custom - 1352x1568 portrait"/>
                                         </ComboBox>
                                     </StackPanel>
 
@@ -771,6 +773,8 @@
                                             <ComboBoxItem Content="SDXL - 9:16 portrait 768x1344"/>
                                             <ComboBoxItem Content="SDXL - 4:3 landscape 1152x896"/>
                                             <ComboBoxItem Content="SDXL - 16:9 landscape 1344x768"/>
+                                            <ComboBoxItem Content="Custom - 1568x1352 landscape"/>
+                                            <ComboBoxItem Content="Custom - 1352x1568 portrait"/>
                                         </ComboBox>
                                     </StackPanel>
 

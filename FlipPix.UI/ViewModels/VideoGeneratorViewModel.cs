@@ -32,6 +32,16 @@ namespace FlipPix.UI.ViewModels
         private string _imageFilePath = string.Empty;
         private BitmapImage? _imagePreviewSource;
         private string _imageInfo = string.Empty;
+
+        // First frame properties
+        private string _firstFrameImagePath = string.Empty;
+        private BitmapImage? _firstFrameImagePreview;
+        private string _firstFrameImageInfo = string.Empty;
+
+        // Last frame properties
+        private string _lastFrameImagePath = string.Empty;
+        private BitmapImage? _lastFrameImagePreview;
+        private string _lastFrameImageInfo = string.Empty;
         private string _videoPrompt = "The subject stands still, eyes full of determination and strength. The camera slowly moves closer or circles around, highlighting the powerful presence and heroic spirit of the character.";
         private string _negativePrompt = "色调艳丽，过曝，静态，细节模糊不清，字幕，风格，作品，画作，画面，静止，整体发灰，最差质量，低质量，JPEG压缩残留，丑陋的，残缺的，多余的手指，画得不好的手部，画得不好的脸部，畸形的，毁容的，形态畸形的肢体，手指融合，静止不动的画面，杂乱的背景，三条腿，背景人很多，倒着走";
         private bool _isProcessing = false;
@@ -141,7 +151,9 @@ namespace FlipPix.UI.ViewModels
 
             // Initialize commands
             SelectImageCommand = new RelayCommand(SelectImage);
-            GenerateVideoCommand = new RelayCommand(async () => await GenerateVideoAsync(), () => CanGenerateVideo);
+            SelectFirstFrameImageCommand = new RelayCommand(SelectFirstFrameImage);
+            SelectLastFrameImageCommand = new RelayCommand(SelectLastFrameImage);
+            GenerateVideoCommand = new RelayCommand(AddVideoGenerationToQueue, () => CanGenerateVideo);
             PlayVideoCommand = new RelayCommand(PlayVideo, () => HasResultVideo);
             OpenResultFolderCommand = new RelayCommand(OpenResultFolder, () => HasResultVideo);
             SendToEditCameraCommand = new RelayCommand(SendToEditCamera, () => HasResultVideo);
@@ -150,6 +162,7 @@ namespace FlipPix.UI.ViewModels
 
             // New commands for image analysis and queue
             AnalyzeImageCommand = new RelayCommand(async () => await AnalyzeImageAsync());
+            AnalyzeFirstFrameImageCommand = new RelayCommand(async () => await AnalyzeFirstFrameImageAsync());
             SendAnalysisToQueueCommand = new RelayCommand(SendAnalysisToQueue, () => HasAnalysis);
             OpenLMStudioSettingsCommand = new RelayCommand(OpenLMStudioSettings);
             CopyAnalysisCommand = new RelayCommand(CopyAnalysis, () => HasAnalysis);
@@ -264,6 +277,102 @@ namespace FlipPix.UI.ViewModels
                 OnPropertyChanged();
             }
         }
+
+        // First Frame properties
+        public string FirstFrameImagePath
+        {
+            get => _firstFrameImagePath;
+            set
+            {
+                if (_firstFrameImagePath != value)
+                {
+                    _firstFrameImagePath = value;
+                    OnPropertyChanged();
+                    LoadFirstFrameImagePreview();
+                    OnPropertyChanged(nameof(HasFirstFrameImage));
+                    OnPropertyChanged(nameof(CanAddToQueue));
+                    OnPropertyChanged(nameof(CanProcessQueue));
+                    OnPropertyChanged(nameof(CanGenerateVideo));
+                    CommandManager.InvalidateRequerySuggested();
+                }
+            }
+        }
+
+        public BitmapImage? FirstFrameImagePreview
+        {
+            get => _firstFrameImagePreview;
+            set
+            {
+                if (_firstFrameImagePreview != value)
+                {
+                    _firstFrameImagePreview = value;
+                    OnPropertyChanged();
+                }
+            }
+        }
+
+        public string FirstFrameImageInfo
+        {
+            get => _firstFrameImageInfo;
+            set
+            {
+                if (_firstFrameImageInfo != value)
+                {
+                    _firstFrameImageInfo = value;
+                    OnPropertyChanged();
+                }
+            }
+        }
+
+        public bool HasFirstFrameImage => !string.IsNullOrEmpty(FirstFrameImagePath) && File.Exists(FirstFrameImagePath);
+
+        // Last Frame properties
+        public string LastFrameImagePath
+        {
+            get => _lastFrameImagePath;
+            set
+            {
+                if (_lastFrameImagePath != value)
+                {
+                    _lastFrameImagePath = value;
+                    OnPropertyChanged();
+                    LoadLastFrameImagePreview();
+                    OnPropertyChanged(nameof(HasLastFrameImage));
+                    OnPropertyChanged(nameof(CanAddToQueue));
+                    OnPropertyChanged(nameof(CanProcessQueue));
+                    OnPropertyChanged(nameof(CanGenerateVideo));
+                    CommandManager.InvalidateRequerySuggested();
+                }
+            }
+        }
+
+        public BitmapImage? LastFrameImagePreview
+        {
+            get => _lastFrameImagePreview;
+            set
+            {
+                if (_lastFrameImagePreview != value)
+                {
+                    _lastFrameImagePreview = value;
+                    OnPropertyChanged();
+                }
+            }
+        }
+
+        public string LastFrameImageInfo
+        {
+            get => _lastFrameImageInfo;
+            set
+            {
+                if (_lastFrameImageInfo != value)
+                {
+                    _lastFrameImageInfo = value;
+                    OnPropertyChanged();
+                }
+            }
+        }
+
+        public bool HasLastFrameImage => !string.IsNullOrEmpty(LastFrameImagePath) && File.Exists(LastFrameImagePath);
 
         public string VideoPrompt
         {
@@ -468,8 +577,7 @@ namespace FlipPix.UI.ViewModels
             }
         }
 
-        public bool CanGenerateVideo => !string.IsNullOrEmpty(ImageFilePath) &&
-                                        File.Exists(ImageFilePath) &&
+        public bool CanGenerateVideo => HasFirstFrameImage && HasLastFrameImage &&
                                         (!string.IsNullOrWhiteSpace(VideoPrompt) || !string.IsNullOrWhiteSpace(ImageAnalysis)) &&
                                         !IsProcessing && !IsProcessingQueue;
 
@@ -569,9 +677,9 @@ namespace FlipPix.UI.ViewModels
             }
         }
 
-        public bool CanProcessQueue => PromptQueue.Any() && !IsProcessingQueue && !IsProcessing && HasImage;
+        public bool CanProcessQueue => PromptQueue.Any(x => x.Status == QueueItemStatus.Pending) && !IsProcessingQueue && !IsProcessing;
 
-        public bool CanAddToQueue => !string.IsNullOrWhiteSpace(NewQueuePrompt) && HasImage;
+        public bool CanAddToQueue => !string.IsNullOrWhiteSpace(NewQueuePrompt) && (HasImage || (HasFirstFrameImage && HasLastFrameImage));
 
         public bool HasFailedItems => PromptQueue.Any(x => x.Status == QueueItemStatus.Failed);
 
@@ -1662,6 +1770,8 @@ namespace FlipPix.UI.ViewModels
 
         // Commands
         public ICommand SelectImageCommand { get; }
+        public ICommand SelectFirstFrameImageCommand { get; }
+        public ICommand SelectLastFrameImageCommand { get; }
         public ICommand GenerateVideoCommand { get; }
         public ICommand PlayVideoCommand { get; }
         public ICommand OpenResultFolderCommand { get; }
@@ -1671,6 +1781,7 @@ namespace FlipPix.UI.ViewModels
 
         // New commands
         public ICommand AnalyzeImageCommand { get; }
+        public ICommand AnalyzeFirstFrameImageCommand { get; }
         public ICommand SendAnalysisToQueueCommand { get; }
         public ICommand OpenLMStudioSettingsCommand { get; }
         public ICommand CopyAnalysisCommand { get; }
@@ -1746,6 +1857,72 @@ namespace FlipPix.UI.ViewModels
             }
         }
 
+        private void SelectFirstFrameImage()
+        {
+            var initialDirectory = _settingsService.Settings?.VideoGeneratorImageFolder;
+
+            if (string.IsNullOrEmpty(initialDirectory) || !Directory.Exists(initialDirectory))
+            {
+                initialDirectory = Environment.GetFolderPath(Environment.SpecialFolder.MyPictures);
+            }
+
+            var openFileDialog = new Microsoft.Win32.OpenFileDialog
+            {
+                Title = "Select First Frame Image",
+                Filter = "Image Files|*.jpg;*.jpeg;*.png;*.bmp|All Files|*.*",
+                CheckFileExists = true,
+                InitialDirectory = initialDirectory
+            };
+
+            if (openFileDialog.ShowDialog() == true)
+            {
+                FirstFrameImagePath = openFileDialog.FileName;
+
+                // Save the folder location for next time
+                var folderPath = Path.GetDirectoryName(openFileDialog.FileName);
+                if (!string.IsNullOrEmpty(folderPath) && _settingsService.Settings != null)
+                {
+                    _settingsService.Settings.VideoGeneratorImageFolder = folderPath;
+                    _settingsService.SaveSettings(_settingsService.Settings);
+                }
+
+                AddLog($"Selected first frame: {Path.GetFileName(FirstFrameImagePath)}");
+            }
+        }
+
+        private void SelectLastFrameImage()
+        {
+            var initialDirectory = _settingsService.Settings?.VideoGeneratorImageFolder;
+
+            if (string.IsNullOrEmpty(initialDirectory) || !Directory.Exists(initialDirectory))
+            {
+                initialDirectory = Environment.GetFolderPath(Environment.SpecialFolder.MyPictures);
+            }
+
+            var openFileDialog = new Microsoft.Win32.OpenFileDialog
+            {
+                Title = "Select Last Frame Image",
+                Filter = "Image Files|*.jpg;*.jpeg;*.png;*.bmp|All Files|*.*",
+                CheckFileExists = true,
+                InitialDirectory = initialDirectory
+            };
+
+            if (openFileDialog.ShowDialog() == true)
+            {
+                LastFrameImagePath = openFileDialog.FileName;
+
+                // Save the folder location for next time
+                var folderPath = Path.GetDirectoryName(openFileDialog.FileName);
+                if (!string.IsNullOrEmpty(folderPath) && _settingsService.Settings != null)
+                {
+                    _settingsService.Settings.VideoGeneratorImageFolder = folderPath;
+                    _settingsService.SaveSettings(_settingsService.Settings);
+                }
+
+                AddLog($"Selected last frame: {Path.GetFileName(LastFrameImagePath)}");
+            }
+        }
+
         public void SetImagePath(string imagePath)
         {
             if (File.Exists(imagePath))
@@ -1798,6 +1975,66 @@ namespace FlipPix.UI.ViewModels
             {
                 AddLog($"Error loading image preview: {ex.Message}");
                 ImageInfo = "Error loading image";
+            }
+        }
+
+        private void LoadFirstFrameImagePreview()
+        {
+            if (string.IsNullOrEmpty(FirstFrameImagePath) || !File.Exists(FirstFrameImagePath))
+            {
+                FirstFrameImagePreview = null;
+                FirstFrameImageInfo = string.Empty;
+                return;
+            }
+
+            try
+            {
+                var bitmap = new BitmapImage();
+                bitmap.BeginInit();
+                bitmap.CacheOption = BitmapCacheOption.OnLoad;
+                bitmap.UriSource = new Uri(FirstFrameImagePath, UriKind.Absolute);
+                bitmap.EndInit();
+                bitmap.Freeze();
+
+                FirstFrameImagePreview = bitmap;
+
+                var fileInfo = new FileInfo(FirstFrameImagePath);
+                FirstFrameImageInfo = $"{bitmap.PixelWidth}x{bitmap.PixelHeight} • {fileInfo.Length / 1024}KB";
+            }
+            catch (Exception ex)
+            {
+                AddLog($"Error loading first frame preview: {ex.Message}");
+                FirstFrameImageInfo = "Error loading image";
+            }
+        }
+
+        private void LoadLastFrameImagePreview()
+        {
+            if (string.IsNullOrEmpty(LastFrameImagePath) || !File.Exists(LastFrameImagePath))
+            {
+                LastFrameImagePreview = null;
+                LastFrameImageInfo = string.Empty;
+                return;
+            }
+
+            try
+            {
+                var bitmap = new BitmapImage();
+                bitmap.BeginInit();
+                bitmap.CacheOption = BitmapCacheOption.OnLoad;
+                bitmap.UriSource = new Uri(LastFrameImagePath, UriKind.Absolute);
+                bitmap.EndInit();
+                bitmap.Freeze();
+
+                LastFrameImagePreview = bitmap;
+
+                var fileInfo = new FileInfo(LastFrameImagePath);
+                LastFrameImageInfo = $"{bitmap.PixelWidth}x{bitmap.PixelHeight} • {fileInfo.Length / 1024}KB";
+            }
+            catch (Exception ex)
+            {
+                AddLog($"Error loading last frame preview: {ex.Message}");
+                LastFrameImageInfo = "Error loading image";
             }
         }
 
@@ -1884,7 +2121,7 @@ namespace FlipPix.UI.ViewModels
                 }
 
                 // Load workflow
-                var workflowFileName = UseLTXWorkflow ? "LTX-2_image2video_distilledAPI.json" : "painteri2vAPI.json";
+                var workflowFileName = UseLTXWorkflow ? "LTXV-DoEverything-v2.json" : "painteri2vAPI.json";
                 var workflowPath = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "workflow", workflowFileName);
 
                 AddLog($"=== WORKFLOW DEBUG INFO ===");
@@ -1939,31 +2176,48 @@ namespace FlipPix.UI.ViewModels
                 }
                 AddLog($"=== END WORKFLOW DEBUG INFO ===");
 
-                // Upload input image
-                ProcessingStatus = "Uploading input image...";
+                // Upload input images
+                ProcessingStatus = "Uploading input images...";
                 ProcessingProgress = 10;
-                AddLog("Uploading input image to ComfyUI...");
+                AddLog("Uploading first frame image to ComfyUI...");
 
-                var uploadedImageName = await _comfyUIService.UploadImageAsync(ImageFilePath);
+                var uploadedFirstFrameImageName = await _comfyUIService.UploadImageAsync(FirstFrameImagePath);
 
-                // Validate that upload succeeded
-                if (string.IsNullOrEmpty(uploadedImageName))
+                // Validate that first frame upload succeeded
+                if (string.IsNullOrEmpty(uploadedFirstFrameImageName))
                 {
-                    AddLog("ERROR: Image upload failed - no filename returned from ComfyUI");
+                    AddLog("ERROR: First frame image upload failed - no filename returned from ComfyUI");
                     System.Windows.MessageBox.Show(
-                        "Failed to upload image to ComfyUI. Please check the ComfyUI console for errors.",
+                        "Failed to upload first frame image to ComfyUI. Please check the ComfyUI console for errors.",
                         "Upload Failed",
                         System.Windows.MessageBoxButton.OK,
                         System.Windows.MessageBoxImage.Error);
                     return;
                 }
 
-                AddLog($"Image uploaded: {uploadedImageName}");
+                AddLog($"First frame uploaded: {uploadedFirstFrameImageName}");
+
+                AddLog("Uploading last frame image to ComfyUI...");
+                var uploadedLastFrameImageName = await _comfyUIService.UploadImageAsync(LastFrameImagePath);
+
+                // Validate that last frame upload succeeded
+                if (string.IsNullOrEmpty(uploadedLastFrameImageName))
+                {
+                    AddLog("ERROR: Last frame image upload failed - no filename returned from ComfyUI");
+                    System.Windows.MessageBox.Show(
+                        "Failed to upload last frame image to ComfyUI. Please check the ComfyUI console for errors.",
+                        "Upload Failed",
+                        System.Windows.MessageBoxButton.OK,
+                        System.Windows.MessageBoxImage.Error);
+                    return;
+                }
+
+                AddLog($"Last frame uploaded: {uploadedLastFrameImageName}");
 
                 // Update workflow parameters
                 ProcessingStatus = "Updating workflow parameters...";
                 ProcessingProgress = 20;
-                var updatedWorkflow = UpdateWorkflowParameters(workflow, uploadedImageName);
+                var updatedWorkflow = UpdateWorkflowParameters(workflow, uploadedFirstFrameImageName, uploadedLastFrameImageName);
 
                 // Debug: Log the updated workflow image node
                 AddLog("=== DEBUG: Verifying workflow before execution ===");
@@ -2051,18 +2305,19 @@ namespace FlipPix.UI.ViewModels
             }
         }
 
-        private JsonElement UpdateWorkflowParameters(JsonElement workflow, string inputImageName)
+        private JsonElement UpdateWorkflowParameters(JsonElement workflow, string firstFrameImageName, string lastFrameImageName)
         {
             var workflowDict = JsonSerializer.Deserialize<Dictionary<string, JsonElement>>(workflow.GetRawText());
 
             if (workflowDict == null) return workflow;
 
-            // Update image input - check multiple possible nodes
-            // LTXV distilled uses node "149", LTXV original uses "98", Painter uses "97", "143", "119"
-            string[] imageNodes = UseLTXWorkflow ? new[] { "149", "167", "98" } : new[] { "97", "143", "119" };
-            bool imageNodeFound = false;
+            // For LTXV-DoEverything-v2 workflow, update both image nodes
+            // Node 106: "First Image" (title: "First Image")
+            // Node 35: "Last Image" (title: "Last Image")
+            string[] firstFrameNodes = { "106" };
+            bool firstFrameNodeFound = false;
 
-            foreach (var nodeId in imageNodes)
+            foreach (var nodeId in firstFrameNodes)
             {
                 if (workflowDict.ContainsKey(nodeId))
                 {
@@ -2076,25 +2331,59 @@ namespace FlipPix.UI.ViewModels
                                 JsonSerializer.Serialize(node["inputs"]));
                             if (inputs != null)
                             {
-                                inputs["image"] = inputImageName;
+                                inputs["image"] = firstFrameImageName;
                                 node["inputs"] = inputs;
                                 workflowDict[nodeId] = JsonSerializer.SerializeToElement(node);
-                                AddLog($"✓ Node {nodeId} (LoadImage) - Image updated to: {inputImageName}");
-                                imageNodeFound = true;
+                                AddLog($"✓ Node {nodeId} (First Frame LoadImage) - Image updated to: {firstFrameImageName}");
+                                firstFrameNodeFound = true;
                             }
                         }
                     }
                 }
             }
 
-            if (!imageNodeFound)
+            if (!firstFrameNodeFound)
             {
-                AddLog($"WARNING: No image input nodes found in workflow!");
+                AddLog($"WARNING: First frame image node (106) not found in workflow!");
+            }
+
+            string[] lastFrameNodes = { "35" };
+            bool lastFrameNodeFound = false;
+
+            foreach (var nodeId in lastFrameNodes)
+            {
+                if (workflowDict.ContainsKey(nodeId))
+                {
+                    var node = JsonSerializer.Deserialize<Dictionary<string, object>>(workflowDict[nodeId].GetRawText());
+                    if (node != null && node.ContainsKey("inputs"))
+                    {
+                        // Only update nodes that are LoadImage type
+                        if (node.ContainsKey("class_type") && node["class_type"]?.ToString() == "LoadImage")
+                        {
+                            var inputs = JsonSerializer.Deserialize<Dictionary<string, object>>(
+                                JsonSerializer.Serialize(node["inputs"]));
+                            if (inputs != null)
+                            {
+                                inputs["image"] = lastFrameImageName;
+                                node["inputs"] = inputs;
+                                workflowDict[nodeId] = JsonSerializer.SerializeToElement(node);
+                                AddLog($"✓ Node {nodeId} (Last Frame LoadImage) - Image updated to: {lastFrameImageName}");
+                                lastFrameNodeFound = true;
+                            }
+                        }
+                    }
+                }
+            }
+
+            if (!lastFrameNodeFound)
+            {
+                AddLog($"WARNING: Last frame image node (35) not found in workflow!");
             }
 
             // Update positive prompt - check multiple possible nodes
+            // LTXV DoEverything-v2 uses "59" (PrimitiveStringMultiline with "value" field)
             // LTXV distilled uses "121", LTXV original uses "92:3", Painter uses "93", "62", "6"
-            string[] positivePromptNodes = UseLTXWorkflow ? new[] { "121", "92:3" } : new[] { "93", "62", "6" };
+            string[] positivePromptNodes = UseLTXWorkflow ? new[] { "59", "121", "92:3" } : new[] { "93", "62", "6" };
             foreach (var nodeId in positivePromptNodes)
             {
                 if (workflowDict.ContainsKey(nodeId))
@@ -2106,7 +2395,15 @@ namespace FlipPix.UI.ViewModels
                             JsonSerializer.Serialize(node["inputs"]));
                         if (inputs != null)
                         {
-                            inputs["text"] = VideoPrompt;
+                            // PrimitiveStringMultiline nodes (e.g. node 59) use "value", CLIPTextEncode nodes use "text"
+                            if (inputs.ContainsKey("value"))
+                            {
+                                inputs["value"] = VideoPrompt;
+                            }
+                            else
+                            {
+                                inputs["text"] = VideoPrompt;
+                            }
                             node["inputs"] = inputs;
                             workflowDict[nodeId] = JsonSerializer.SerializeToElement(node);
                             AddLog($"✓ Node {nodeId} (Positive Prompt) - Prompt updated");
@@ -2160,6 +2457,95 @@ namespace FlipPix.UI.ViewModels
             // Update LTXV video parameters (nodes 92:62, 92:22, 75, 92:97 for original; 112, 131 for distilled) - for LTXV workflow
             if (UseLTXWorkflow)
             {
+                // LTXV DoEverything-v2 workflow uses node 54 for frame count
+                if (workflowDict.ContainsKey("54"))
+                {
+                    var node54 = JsonSerializer.Deserialize<Dictionary<string, object>>(workflowDict["54"].GetRawText());
+                    if (node54 != null && node54.ContainsKey("inputs"))
+                    {
+                        var inputs = JsonSerializer.Deserialize<Dictionary<string, object>>(
+                            JsonSerializer.Serialize(node54["inputs"]));
+                        if (inputs != null && inputs.ContainsKey("value"))
+                        {
+                            inputs["value"] = VideoLength;
+                            node54["inputs"] = inputs;
+                            workflowDict["54"] = JsonSerializer.SerializeToElement(node54);
+                            AddLog($"✓ Node 54 (CONFIG FrameCount) - Video Length: {VideoLength}");
+                        }
+                    }
+                }
+
+                // LTXV DoEverything-v2 workflow uses node 55 for frame rate
+                if (workflowDict.ContainsKey("55"))
+                {
+                    var node55 = JsonSerializer.Deserialize<Dictionary<string, object>>(workflowDict["55"].GetRawText());
+                    if (node55 != null && node55.ContainsKey("inputs"))
+                    {
+                        var inputs = JsonSerializer.Deserialize<Dictionary<string, object>>(
+                            JsonSerializer.Serialize(node55["inputs"]));
+                        if (inputs != null && inputs.ContainsKey("value"))
+                        {
+                            inputs["value"] = Fps;
+                            node55["inputs"] = inputs;
+                            workflowDict["55"] = JsonSerializer.SerializeToElement(node55);
+                            AddLog($"✓ Node 55 (CONFIG FrameRate) - Frame Rate: {Fps}");
+                        }
+                    }
+                }
+
+                // LTXV DoEverything-v2 workflow uses node 56 for width, node 57 for height
+                if (workflowDict.ContainsKey("56"))
+                {
+                    var node56 = JsonSerializer.Deserialize<Dictionary<string, object>>(workflowDict["56"].GetRawText());
+                    if (node56 != null && node56.ContainsKey("inputs"))
+                    {
+                        var inputs = JsonSerializer.Deserialize<Dictionary<string, object>>(
+                            JsonSerializer.Serialize(node56["inputs"]));
+                        if (inputs != null && inputs.ContainsKey("value"))
+                        {
+                            inputs["value"] = Width;
+                            node56["inputs"] = inputs;
+                            workflowDict["56"] = JsonSerializer.SerializeToElement(node56);
+                            AddLog($"✓ Node 56 (CONFIG SizeX) - Width: {Width}");
+                        }
+                    }
+                }
+                if (workflowDict.ContainsKey("57"))
+                {
+                    var node57 = JsonSerializer.Deserialize<Dictionary<string, object>>(workflowDict["57"].GetRawText());
+                    if (node57 != null && node57.ContainsKey("inputs"))
+                    {
+                        var inputs = JsonSerializer.Deserialize<Dictionary<string, object>>(
+                            JsonSerializer.Serialize(node57["inputs"]));
+                        if (inputs != null && inputs.ContainsKey("value"))
+                        {
+                            inputs["value"] = Height;
+                            node57["inputs"] = inputs;
+                            workflowDict["57"] = JsonSerializer.SerializeToElement(node57);
+                            AddLog($"✓ Node 57 (CONFIG SizeY) - Height: {Height}");
+                        }
+                    }
+                }
+
+                // LTXV DoEverything-v2 workflow uses node 128 for seed
+                if (workflowDict.ContainsKey("128"))
+                {
+                    var seed128 = Seed > 0 ? Seed : ((long)new Random().Next() << 32) | (uint)new Random().Next();
+                    var node128 = JsonSerializer.Deserialize<Dictionary<string, object>>(workflowDict["128"].GetRawText());
+                    if (node128 != null && node128.ContainsKey("inputs"))
+                    {
+                        var inputs = JsonSerializer.Deserialize<Dictionary<string, object>>(
+                            JsonSerializer.Serialize(node128["inputs"]));
+                        if (inputs != null && inputs.ContainsKey("value"))
+                        {
+                            inputs["value"] = seed128;
+                            node128["inputs"] = inputs;
+                            workflowDict["128"] = JsonSerializer.SerializeToElement(node128);
+                            AddLog($"✓ Node 128 (CONFIG Seed) - Seed: {seed128}");
+                        }
+                    }
+                }
+
                 // LTXV distilled workflow uses node 112 for video length
                 if (workflowDict.ContainsKey("112"))
                 {
@@ -2527,13 +2913,36 @@ namespace FlipPix.UI.ViewModels
                 existingFiles.Add(file);
             }
 
-            // Check video subfolder for LTXV workflows
-            var videoSubfolder = Path.Combine(outputFolder, "video");
-            if (UseLTXWorkflow && Directory.Exists(videoSubfolder))
+            // For LTXV workflows, check testrun and video subfolders
+            if (UseLTXWorkflow)
             {
-                foreach (var file in Directory.GetFiles(videoSubfolder, "*.mp4"))
+                // Check testrun subfolder (LTXV-DoEverything-v2 workflow uses "testrun/vid")
+                var testrunSubfolder = Path.Combine(outputFolder, "testrun");
+                if (Directory.Exists(testrunSubfolder))
                 {
-                    existingFiles.Add(file);
+                    foreach (var file in Directory.GetFiles(testrunSubfolder, "*.mp4"))
+                    {
+                        existingFiles.Add(file);
+                    }
+                    // Also check testrun/vid subfolder
+                    var vidSubfolder = Path.Combine(testrunSubfolder, "vid");
+                    if (Directory.Exists(vidSubfolder))
+                    {
+                        foreach (var file in Directory.GetFiles(vidSubfolder, "*.mp4"))
+                        {
+                            existingFiles.Add(file);
+                        }
+                    }
+                }
+
+                // Check video subfolder (LTXV distilled workflow uses "video/LTX-2")
+                var videoSubfolder = Path.Combine(outputFolder, "video");
+                if (Directory.Exists(videoSubfolder))
+                {
+                    foreach (var file in Directory.GetFiles(videoSubfolder, "*.mp4"))
+                    {
+                        existingFiles.Add(file);
+                    }
                 }
             }
 
@@ -2582,17 +2991,36 @@ namespace FlipPix.UI.ViewModels
                 AddLog($"Using local ComfyUI output folder: {outputFolder}");
             }
 
-            // For LTXV workflows, also check the "video" subdirectory (workflow uses filename_prefix: "video/LTX-2")
+            // For LTXV-DoEverything-v2 workflow, check the "testrun" subdirectory (workflow uses filename_prefix: "testrun/vid")
+            // For LTXV distilled, check the "video" subdirectory (workflow uses filename_prefix: "video/LTX-2")
+            var testrunSubfolder = Path.Combine(outputFolder, "testrun");
+            var testrunVidSubfolder = Path.Combine(testrunSubfolder, "vid");
             var videoSubfolder = Path.Combine(outputFolder, "video");
             var foldersToCheck = new List<string> { outputFolder };
-            if (UseLTXWorkflow && Directory.Exists(videoSubfolder))
+
+            if (UseLTXWorkflow)
             {
-                foldersToCheck.Insert(0, videoSubfolder); // Check video subfolder first for LTXV
-                AddLog($"Also checking video subfolder: {videoSubfolder}");
-            }
-            else if (UseLTXWorkflow && !Directory.Exists(videoSubfolder))
-            {
-                AddLog($"Video subfolder not found, will check base folder only: {outputFolder}");
+                // Check for testrun/vid structure first (LTXV-DoEverything-v2 workflow)
+                if (Directory.Exists(testrunVidSubfolder))
+                {
+                    foldersToCheck.Insert(0, testrunVidSubfolder);
+                    AddLog($"Also checking testrun/vid subfolder: {testrunVidSubfolder}");
+                }
+                else if (Directory.Exists(testrunSubfolder))
+                {
+                    foldersToCheck.Insert(0, testrunSubfolder);
+                    AddLog($"Also checking testrun subfolder: {testrunSubfolder}");
+                }
+                // Then check for video subfolder (LTXV distilled workflow)
+                else if (Directory.Exists(videoSubfolder))
+                {
+                    foldersToCheck.Insert(0, videoSubfolder);
+                    AddLog($"Also checking video subfolder: {videoSubfolder}");
+                }
+                else
+                {
+                    AddLog($"No testrun or video subfolder found, will check base folder only: {outputFolder}");
+                }
             }
 
             if (!Directory.Exists(outputFolder))
@@ -3492,6 +3920,130 @@ namespace FlipPix.UI.ViewModels
             }
         }
 
+        // Analyze First Frame Image (for LTXV-DoEverything-v2 workflow)
+        private async Task AnalyzeFirstFrameImageAsync()
+        {
+            AddLog($"AnalyzeFirstFrameImageAsync called - HasFirstFrameImage: {HasFirstFrameImage}, FirstFrameImagePath: {FirstFrameImagePath}");
+
+            if (!HasFirstFrameImage)
+            {
+                AddLog("Cannot analyze: No first frame image loaded");
+                return;
+            }
+
+            _analysisCancellationTokenSource?.Dispose();
+            _analysisCancellationTokenSource = new System.Threading.CancellationTokenSource();
+
+            try
+            {
+                IsAnalyzing = true;
+                AnalysisStatus = "Analyzing first frame with LM Studio Qwen-VL...";
+                AnalysisProgress = 0;
+                ImageAnalysis = "Analyzing first frame with LM Studio Qwen-VL AI...";
+
+                AddLog("=== Starting first frame analysis with LM Studio Qwen-VL ===");
+
+                // Get the selected model from settings
+                var baseUrl = _settingsService.Settings?.LMStudioSettings?.BaseUrl ?? "http://localhost:1234";
+                await _lmStudioService.SetBaseUrlAsync(baseUrl);
+                AddLog($"Using LM Studio at: {baseUrl}");
+
+                // Get the selected model or try to find a qwen-vl model
+                var models = await _lmStudioService.GetAvailableModelsAsync(_analysisCancellationTokenSource.Token);
+                string selectedModel = _settingsService.Settings?.LMStudioSettings?.SelectedModel ?? string.Empty;
+
+                if (string.IsNullOrEmpty(selectedModel))
+                {
+                    // Try to find qwen-vl model
+                    var qwenModel = models.FirstOrDefault(m =>
+                        m.Name.ToLower().Contains("qwen") && m.Name.ToLower().Contains("vl"));
+
+                    if (qwenModel != null)
+                    {
+                        selectedModel = qwenModel.Name;
+                        AddLog($"Auto-selected Qwen VL model: {selectedModel}");
+                    }
+                    else if (models.Any())
+                    {
+                        selectedModel = models.First().Name;
+                        AddLog($"Using first available model: {selectedModel}");
+                    }
+                    else
+                    {
+                        throw new Exception("No models available in LM Studio. Please load a vision model like Qwen-VL.");
+                    }
+                }
+                else
+                {
+                    AddLog($"Using configured model: {selectedModel}");
+                }
+
+                AnalysisStatus = "Analyzing with LM Studio Qwen-VL...";
+                AnalysisProgress = 30;
+
+                // Load LTX action video system prompt for LTXV workflow
+                var ltxPromptPath = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "prompts", "prompt2json", "ltx_action_video_system_prompt.md");
+                string analysisPrompt;
+                if (File.Exists(ltxPromptPath))
+                {
+                    analysisPrompt = await File.ReadAllTextAsync(ltxPromptPath, _analysisCancellationTokenSource.Token);
+                    AddLog("Using LTX-2 Action Video system prompt");
+                }
+                else
+                {
+                    AddLog($"WARNING: LTX action video prompt not found at {ltxPromptPath}, using default");
+                    analysisPrompt = "Describe this image in detail, focusing on the subject, their actions, the setting, mood, and any camera or motion elements. This description will be used to generate a video from the image.";
+                }
+
+                var analysisResult = await _lmStudioService.AnalyzeImageAsync(
+                    selectedModel,
+                    FirstFrameImagePath,
+                    analysisPrompt,
+                    maxTokens: 2000,
+                    _analysisCancellationTokenSource.Token);
+
+                AnalysisProgress = 90;
+                AddLog("Analysis received from LM Studio");
+
+                if (!string.IsNullOrEmpty(analysisResult))
+                {
+                    ImageAnalysis = analysisResult;
+                    AnalysisStatus = "Analysis complete";
+                    AnalysisProgress = 100;
+                    AddLog("First frame analysis completed successfully");
+                    StatusBarMessage = "First frame analysis complete - you can use this for prompts";
+
+                    // Automatically save the prompt to JSON (like prompt2json does)
+                    await SaveAnalysisToJsonAsync(analysisResult, analysisPrompt);
+                }
+                else
+                {
+                    ImageAnalysis = "Analysis completed but no text was returned from LM Studio.";
+                    AnalysisStatus = "Analysis complete (no output)";
+                    AddLog("Analysis completed but no text output was detected");
+                }
+            }
+            catch (OperationCanceledException)
+            {
+                IsAnalyzing = false;
+                AnalysisStatus = "Cancelled";
+                AddLog("First frame analysis cancelled by user");
+            }
+            catch (Exception ex)
+            {
+                IsAnalyzing = false;
+                AnalysisStatus = "Error";
+                ImageAnalysis = $"Error analyzing first frame: {ex.Message}";
+                AddLog($"ERROR analyzing first frame: {ex.Message}");
+                System.Windows.MessageBox.Show($"Error analyzing first frame:\n\n{ex.Message}\n\nPlease ensure LM Studio is running and the Qwen-VL model is loaded.", "Error", System.Windows.MessageBoxButton.OK, System.Windows.MessageBoxImage.Error);
+            }
+            finally
+            {
+                IsAnalyzing = false;
+                CommandManager.InvalidateRequerySuggested();
+            }
+        }
+
         /// <summary>
         /// Saves the image analysis result to a JSON file (matching prompt2json_app.py functionality)
         /// </summary>
@@ -3709,12 +4261,36 @@ namespace FlipPix.UI.ViewModels
 
         private void SendAnalysisToQueue()
         {
-            if (!string.IsNullOrEmpty(ImageAnalysis) && HasImage)
+            if (!string.IsNullOrEmpty(ImageAnalysis) && HasFirstFrameImage && HasLastFrameImage)
             {
+                // Check if same images are already in queue and generate random seed
+                var randomSeed = GenerateRandomSeedIfNeeded(FirstFrameImagePath, LastFrameImagePath);
+
+                var queueItem = new QueueItem
+                {
+                    Prompt = ImageAnalysis,
+                    FirstFrameImagePath = FirstFrameImagePath,
+                    LastFrameImagePath = LastFrameImagePath,
+                    Seed = randomSeed,
+                    Status = QueueItemStatus.Pending
+                };
+
+                PromptQueue.Add(queueItem);
+                UpdateQueueStatus();
+                SaveQueueToFile();
+                AddLog($"Analysis sent to queue: {queueItem.DisplayText.Substring(0, Math.Min(80, queueItem.DisplayText.Length))}...");
+                StatusBarMessage = "Analysis added to queue";
+            }
+            else if (!string.IsNullOrEmpty(ImageAnalysis) && HasImage)
+            {
+                // Fallback for single image mode
+                var randomSeed = GenerateRandomSeedIfNeeded(ImageFilePath, ImageFilePath);
+
                 var queueItem = new QueueItem
                 {
                     Prompt = ImageAnalysis,
                     ImagePath = ImageFilePath,
+                    Seed = randomSeed,
                     Status = QueueItemStatus.Pending
                 };
 
@@ -3726,23 +4302,98 @@ namespace FlipPix.UI.ViewModels
             }
         }
 
+        // Add video generation to queue with dual-frame support
+        private void AddVideoGenerationToQueue()
+        {
+            if (HasFirstFrameImage && HasLastFrameImage)
+            {
+                var prompt = !string.IsNullOrWhiteSpace(ImageAnalysis) ? ImageAnalysis : VideoPrompt;
+
+                // Check if same images are already in queue and generate random seed
+                var randomSeed = GenerateRandomSeedIfNeeded(FirstFrameImagePath, LastFrameImagePath);
+
+                var queueItem = new QueueItem
+                {
+                    Prompt = prompt,
+                    FirstFrameImagePath = FirstFrameImagePath,
+                    LastFrameImagePath = LastFrameImagePath,
+                    Seed = randomSeed,
+                    Status = QueueItemStatus.Pending
+                };
+
+                PromptQueue.Add(queueItem);
+                OnPropertyChanged(nameof(CanProcessQueue)); // Explicitly notify after adding to queue
+                UpdateQueueStatus();
+                SaveQueueToFile();
+                AddLog($"Video generation added to queue: {queueItem.DisplayText.Substring(0, Math.Min(80, queueItem.DisplayText.Length))}...");
+                StatusBarMessage = "Video generation added to queue";
+            }
+        }
+
+        // Generate random seed if same images are already in queue
+        private long GenerateRandomSeedIfNeeded(string firstImagePath, string lastImagePath)
+        {
+            // Check if same images are already in queue
+            var hasSameImages = PromptQueue.Any(item =>
+                item.FirstFrameImagePath == firstImagePath &&
+                item.LastFrameImagePath == lastImagePath &&
+                item.Status == QueueItemStatus.Pending);
+
+            if (hasSameImages || Seed == 0)
+            {
+                // Generate random seed
+                var random = new Random();
+                return (long)(random.NextDouble() * long.MaxValue);
+            }
+
+            return Seed;
+        }
+
         // Queue Management Methods
         private void AddToQueue()
         {
-            if (string.IsNullOrWhiteSpace(NewQueuePrompt) || !HasImage) return;
+            if (string.IsNullOrWhiteSpace(NewQueuePrompt)) return;
 
-            var queueItem = new QueueItem
+            // Determine if we're using dual-frame or single-image mode
+            if (HasFirstFrameImage && HasLastFrameImage)
             {
-                Prompt = NewQueuePrompt,
-                ImagePath = ImageFilePath,
-                Status = QueueItemStatus.Pending
-            };
+                // Dual-frame mode
+                var randomSeed = GenerateRandomSeedIfNeeded(FirstFrameImagePath, LastFrameImagePath);
 
-            PromptQueue.Add(queueItem);
-            NewQueuePrompt = string.Empty;
-            UpdateQueueStatus();
-            SaveQueueToFile();
-            AddLog($"Added to queue: {queueItem.DisplayText.Substring(0, Math.Min(80, queueItem.DisplayText.Length))}...");
+                var queueItem = new QueueItem
+                {
+                    Prompt = NewQueuePrompt,
+                    FirstFrameImagePath = FirstFrameImagePath,
+                    LastFrameImagePath = LastFrameImagePath,
+                    Seed = randomSeed,
+                    Status = QueueItemStatus.Pending
+                };
+
+                PromptQueue.Add(queueItem);
+                NewQueuePrompt = string.Empty;
+                UpdateQueueStatus();
+                SaveQueueToFile();
+                AddLog($"Added to queue: {queueItem.DisplayText.Substring(0, Math.Min(80, queueItem.DisplayText.Length))}...");
+            }
+            else if (HasImage)
+            {
+                // Single-image mode (fallback)
+                var randomSeed = GenerateRandomSeedIfNeeded(ImageFilePath, ImageFilePath);
+
+                var queueItem = new QueueItem
+                {
+                    Prompt = NewQueuePrompt,
+                    ImagePath = ImageFilePath,
+                    Seed = randomSeed,
+                    Status = QueueItemStatus.Pending
+                };
+
+                PromptQueue.Add(queueItem);
+                NewQueuePrompt = string.Empty;
+                UpdateQueueStatus();
+                SaveQueueToFile();
+                AddLog($"Added to queue: {queueItem.DisplayText.Substring(0, Math.Min(80, queueItem.DisplayText.Length))}...");
+            }
         }
 
         private void RemoveFromQueue(QueueItem? item)
@@ -3812,13 +4463,40 @@ namespace FlipPix.UI.ViewModels
                             }
                         }
 
-                        // Check if the image still exists
-                        if (!File.Exists(item.ImagePath))
+                        // Check if the images still exist (handle both dual-frame and single-image modes)
+                        bool imagesExist = false;
+                        if (!string.IsNullOrEmpty(item.FirstFrameImagePath) && !string.IsNullOrEmpty(item.LastFrameImagePath))
+                        {
+                            // Dual-frame mode
+                            imagesExist = File.Exists(item.FirstFrameImagePath) && File.Exists(item.LastFrameImagePath);
+                            if (!imagesExist)
+                            {
+                                item.Status = QueueItemStatus.Failed;
+                                UpdateQueueStatus();
+                                SaveQueueToFile();
+                                AddLog($"❌ Queue item failed - first/last frame images not found");
+                                continue;
+                            }
+                        }
+                        else if (!string.IsNullOrEmpty(item.ImagePath))
+                        {
+                            // Single-image mode
+                            imagesExist = File.Exists(item.ImagePath);
+                            if (!imagesExist)
+                            {
+                                item.Status = QueueItemStatus.Failed;
+                                UpdateQueueStatus();
+                                SaveQueueToFile();
+                                AddLog($"❌ Queue item failed - image not found: {item.ImagePath}");
+                                continue;
+                            }
+                        }
+                        else
                         {
                             item.Status = QueueItemStatus.Failed;
                             UpdateQueueStatus();
                             SaveQueueToFile();
-                            AddLog($"❌ Queue item failed - image not found: {item.ImagePath}");
+                            AddLog($"❌ Queue item failed - no images specified");
                             continue;
                         }
 
@@ -3826,13 +4504,36 @@ namespace FlipPix.UI.ViewModels
                         var originalPrompt = VideoPrompt;
                         var originalImagePath = ImageFilePath;
                         var originalImageSource = ImagePreviewSource;
+                        var originalFirstFramePath = FirstFrameImagePath;
+                        var originalLastFramePath = LastFrameImagePath;
+                        var originalFirstFrameSource = FirstFrameImagePreview;
+                        var originalLastFrameSource = LastFrameImagePreview;
+                        var originalSeed = Seed;
 
-                        // Set the image and prompt from queue item
-                        ImageFilePath = item.ImagePath;
+                        // Set the images and prompt from queue item
                         VideoPrompt = item.Prompt;
 
-                        // Load the image preview
-                        LoadImagePreview();
+                        if (!string.IsNullOrEmpty(item.FirstFrameImagePath) && !string.IsNullOrEmpty(item.LastFrameImagePath))
+                        {
+                            // Dual-frame mode
+                            FirstFrameImagePath = item.FirstFrameImagePath;
+                            LastFrameImagePath = item.LastFrameImagePath;
+                            LoadFirstFrameImagePreview();
+                            LoadLastFrameImagePreview();
+                        }
+                        else if (!string.IsNullOrEmpty(item.ImagePath))
+                        {
+                            // Single-image mode
+                            ImageFilePath = item.ImagePath;
+                            LoadImagePreview();
+                        }
+
+                        // Set seed from queue item (for randomization)
+                        if (item.Seed > 0)
+                        {
+                            Seed = item.Seed;
+                            AddLog($"Using seed from queue item: {Seed}");
+                        }
 
                         // Generate video for this prompt (bypass CanGenerateVideo check for queue processing)
                         await GenerateVideoAsyncInternal();
@@ -3853,6 +4554,11 @@ namespace FlipPix.UI.ViewModels
                         VideoPrompt = originalPrompt;
                         ImageFilePath = originalImagePath;
                         ImagePreviewSource = originalImageSource;
+                        FirstFrameImagePath = originalFirstFramePath;
+                        LastFrameImagePath = originalLastFramePath;
+                        FirstFrameImagePreview = originalFirstFrameSource;
+                        LastFrameImagePreview = originalLastFrameSource;
+                        Seed = originalSeed;
                         HasResultVideo = false; // Reset for next item
 
                         // Save queue after each item completion
@@ -3934,8 +4640,9 @@ namespace FlipPix.UI.ViewModels
                 QueueStatus = $"Queue: {totalCount} items ({pendingCount} pending, {completedCount} completed, {failedCount} failed)";
             }
 
-            // Update HasFailedItems notification
+            // Update property notifications
             OnPropertyChanged(nameof(HasFailedItems));
+            OnPropertyChanged(nameof(CanProcessQueue));
             CommandManager.InvalidateRequerySuggested();
         }
 

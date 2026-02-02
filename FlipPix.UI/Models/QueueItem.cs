@@ -10,6 +10,9 @@ namespace FlipPix.UI.Models
         private QueueItemStatus _status = QueueItemStatus.Pending;
         private string _videoPath = string.Empty;
         private string _imagePath = string.Empty;
+        private string _firstFrameImagePath = string.Empty;
+        private string _lastFrameImagePath = string.Empty;
+        private long _seed = 0;
 
         public string Id { get; set; } = Guid.NewGuid().ToString();
 
@@ -40,7 +43,60 @@ namespace FlipPix.UI.Models
             }
         }
 
-        public string DisplayText => $"📎 {Path.GetFileName(ImagePath)}: {Prompt}";
+        public string FirstFrameImagePath
+        {
+            get => _firstFrameImagePath;
+            set
+            {
+                if (_firstFrameImagePath != value)
+                {
+                    _firstFrameImagePath = value;
+                    OnPropertyChanged(nameof(FirstFrameImagePath));
+                    OnPropertyChanged(nameof(DisplayText));
+                }
+            }
+        }
+
+        public string LastFrameImagePath
+        {
+            get => _lastFrameImagePath;
+            set
+            {
+                if (_lastFrameImagePath != value)
+                {
+                    _lastFrameImagePath = value;
+                    OnPropertyChanged(nameof(LastFrameImagePath));
+                    OnPropertyChanged(nameof(DisplayText));
+                }
+            }
+        }
+
+        public long Seed
+        {
+            get => _seed;
+            set
+            {
+                if (_seed != value)
+                {
+                    _seed = value;
+                    OnPropertyChanged(nameof(Seed));
+                    OnPropertyChanged(nameof(DisplayText));
+                }
+            }
+        }
+
+        public string DisplayText
+        {
+            get
+            {
+                var imageInfo = !string.IsNullOrEmpty(FirstFrameImagePath)
+                    ? $"🖼️ {Path.GetFileNameWithoutExtension(FirstFrameImagePath)}→{Path.GetFileNameWithoutExtension(LastFrameImagePath)}"
+                    : $"📎 {Path.GetFileName(ImagePath)}";
+
+                var seedInfo = Seed > 0 ? $" [Seed: {Seed}]" : "";
+                return $"{imageInfo}{seedInfo}: {Prompt}";
+            }
+        }
 
         public QueueItemStatus Status
         {
