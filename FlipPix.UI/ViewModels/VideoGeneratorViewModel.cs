@@ -2493,39 +2493,8 @@ namespace FlipPix.UI.ViewModels
                     }
                 }
 
-                // LTXV DoEverything-v2 workflow uses node 56 for width, node 57 for height
-                if (workflowDict.ContainsKey("56"))
-                {
-                    var node56 = JsonSerializer.Deserialize<Dictionary<string, object>>(workflowDict["56"].GetRawText());
-                    if (node56 != null && node56.ContainsKey("inputs"))
-                    {
-                        var inputs = JsonSerializer.Deserialize<Dictionary<string, object>>(
-                            JsonSerializer.Serialize(node56["inputs"]));
-                        if (inputs != null && inputs.ContainsKey("value"))
-                        {
-                            inputs["value"] = Width;
-                            node56["inputs"] = inputs;
-                            workflowDict["56"] = JsonSerializer.SerializeToElement(node56);
-                            AddLog($"✓ Node 56 (CONFIG SizeX) - Width: {Width}");
-                        }
-                    }
-                }
-                if (workflowDict.ContainsKey("57"))
-                {
-                    var node57 = JsonSerializer.Deserialize<Dictionary<string, object>>(workflowDict["57"].GetRawText());
-                    if (node57 != null && node57.ContainsKey("inputs"))
-                    {
-                        var inputs = JsonSerializer.Deserialize<Dictionary<string, object>>(
-                            JsonSerializer.Serialize(node57["inputs"]));
-                        if (inputs != null && inputs.ContainsKey("value"))
-                        {
-                            inputs["value"] = Height;
-                            node57["inputs"] = inputs;
-                            workflowDict["57"] = JsonSerializer.SerializeToElement(node57);
-                            AddLog($"✓ Node 57 (CONFIG SizeY) - Height: {Height}");
-                        }
-                    }
-                }
+                // LTXV DoEverything-v2 workflow: width/height use workflow defaults (1280x720 in nodes 56/57)
+                // No resolution setting is exposed in the app for this workflow
 
                 // LTXV DoEverything-v2 workflow uses node 128 for seed
                 if (workflowDict.ContainsKey("128"))
