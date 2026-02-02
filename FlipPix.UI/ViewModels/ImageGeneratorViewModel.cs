@@ -471,7 +471,7 @@ namespace FlipPix.UI.ViewModels
                 {
                     TextGeneratorWorkflow.Qwen2512 => "qwen2512API-text.json",
                     TextGeneratorWorkflow.Klien => "Klien-Text-API.json",
-                    _ => "image_z_image-TEXTAPI.json"
+                    _ => "Zib-Zit.json"
                 };
                 var workflowPath = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "workflow", workflowFileName);
                 if (!File.Exists(workflowPath))
@@ -926,94 +926,166 @@ namespace FlipPix.UI.ViewModels
 
         private JsonElement UpdateZimageWorkflow(Dictionary<string, JsonElement> workflowDict)
         {
-            // Handle LoRA: the base workflow has a built-in LoRA node (58) that needs to be bypassed when disabled
-            if (LoraEnabled && !string.IsNullOrEmpty(SelectedLora) && SelectedLora != "No Loras available")
+            // Zib-Zit workflow uses Power Lora Loader (node 583)
+            // Handle LoRA: enable/disable lora_1 slot in the Power Lora Loader
+            if (workflowDict.ContainsKey("583"))
             {
-                // Add selected LoRA (this creates node 100 and bypasses node 58)
-                workflowDict = AddLoraToWorkflow(workflowDict, SelectedLora);
+                // Power Lora Loader exists - Zib-Zit workflow
+                var node583 = JsonSerializer.Deserialize<Dictionary<string, object>>(workflowDict["583"].GetRawText());
+                if (node583 != null && node583.ContainsKey("inputs"))
+                {
+                    var inputs = JsonSerializer.Deserialize<Dictionary<string, object>>(
+                        JsonSerializer.Serialize(node583["inputs"]));
+                    if (inputs != null)
+                    {
+                        if (LoraEnabled && !string.IsNullOrEmpty(SelectedLora) && SelectedLora != "No Loras available")
+                        {
+                            // Enable lora_1 with the selected lora
+                            var lora1Config = new
+                            {
+                                on = true,
+                                lora = $"{SelectedLora}.safetensors",
+                                strength = 1.0
+                            };
+                            inputs["lora_1"] = JsonSerializer.Deserialize<object>(
+                                JsonSerializer.Serialize(lora1Config));
+                            AddLog($"LoRA enabled: {SelectedLora}.safetensors");
+                        }
+                        else
+                        {
+                            // Disable lora_1
+                            var lora1Config = new
+                            {
+                                on = false,
+                                lora = "",
+                                strength = 0.0
+                            };
+                            inputs["lora_1"] = JsonSerializer.Deserialize<object>(
+                                JsonSerializer.Serialize(lora1Config));
+                            AddLog("LoRA disabled");
+                        }
+
+                        node583["inputs"] = inputs;
+                        workflowDict["583"] = JsonSerializer.SerializeToElement(node583);
+                    }
+                }
             }
             else
             {
-                // LoRA disabled: bypass the existing LoRA node (58) by connecting directly to model/clip loaders
-                // Update ModelSamplingAuraFlow (node 47) to connect directly to UNETLoader (node 46)
-                if (workflowDict.ContainsKey("47"))
+                // Legacy workflow - use old LoRA handling
+                if (LoraEnabled && !string.IsNullOrEmpty(SelectedLora) && SelectedLora != "No Loras available")
                 {
-                    var node47 = JsonSerializer.Deserialize<Dictionary<string, object>>(workflowDict["47"].GetRawText());
-                    if (node47 != null && node47.ContainsKey("inputs"))
+                    workflowDict = AddLoraToWorkflow(workflowDict, SelectedLora);
+                }
+                else
+                {
+                    // LoRA disabled: bypass the existing LoRA node (58) by connecting directly to model/clip loaders
+                    // Update ModelSamplingAuraFlow (node 47) to connect directly to UNETLoader (node 46)
+                    if (workflowDict.ContainsKey("47"))
                     {
-                        var inputs = JsonSerializer.Deserialize<Dictionary<string, object>>(
-                            JsonSerializer.Serialize(node47["inputs"]));
-                        if (inputs != null)
+                        var node47 = JsonSerializer.Deserialize<Dictionary<string, object>>(workflowDict["47"].GetRawText());
+                        if (node47 != null && node47.ContainsKey("inputs"))
                         {
-                            inputs["model"] = new object[] { "46", 0 }; // Connect directly to UNETLoader
-                            node47["inputs"] = inputs;
-                            workflowDict["47"] = JsonSerializer.SerializeToElement(node47);
+                            var inputs = JsonSerializer.Deserialize<Dictionary<string, object>>(
+                                JsonSerializer.Serialize(node47["inputs"]));
+                            if (inputs != null)
+                            {
+                                inputs["model"] = new object[] { "46", 0 }; // Connect directly to UNETLoader
+                                node47["inputs"] = inputs;
+                                workflowDict["47"] = JsonSerializer.SerializeToElement(node47);
+                            }
                         }
                     }
-                }
 
-                // Update CLIPTextEncode (node 45) to connect directly to CLIPLoader (node 39)
-                if (workflowDict.ContainsKey("45"))
-                {
-                    var node45 = JsonSerializer.Deserialize<Dictionary<string, object>>(workflowDict["45"].GetRawText());
-                    if (node45 != null && node45.ContainsKey("inputs"))
+                    // Update CLIPTextEncode (node 45) to connect directly to CLIPLoader (node 39)
+                    if (workflowDict.ContainsKey("45"))
                     {
-                        var inputs = JsonSerializer.Deserialize<Dictionary<string, object>>(
-                            JsonSerializer.Serialize(node45["inputs"]));
-                        if (inputs != null)
+                        var node45 = JsonSerializer.Deserialize<Dictionary<string, object>>(workflowDict["45"].GetRawText());
+                        if (node45 != null && node45.ContainsKey("inputs"))
                         {
-                            inputs["clip"] = new object[] { "39", 0 }; // Connect directly to CLIPLoader
-                            node45["inputs"] = inputs;
-                            workflowDict["45"] = JsonSerializer.SerializeToElement(node45);
+                            var inputs = JsonSerializer.Deserialize<Dictionary<string, object>>(
+                                JsonSerializer.Serialize(node45["inputs"]));
+                            if (inputs != null)
+                            {
+                                inputs["clip"] = new object[] { "39", 0 }; // Connect directly to CLIPLoader
+                                node45["inputs"] = inputs;
+                                workflowDict["45"] = JsonSerializer.SerializeToElement(node45);
+                            }
                         }
                     }
-                }
 
-                // Remove the orphaned LoRA node (58) from the workflow
-                workflowDict.Remove("58");
-                AddLog("LoRA disabled: bypassing built-in LoRA node");
+                    // Remove the orphaned LoRA node (58) from the workflow
+                    workflowDict.Remove("58");
+                    AddLog("LoRA disabled: bypassing built-in LoRA node");
+                }
             }
 
-            // Update prompt (node 45 - CLIPTextEncode)
-            if (workflowDict.ContainsKey("45"))
+            // Zib-Zit workflow uses different node IDs:
+            // Node 443: Textbox - Positive Prompt
+            // Node 445: Textbox - Negative Prompt
+            // Node 569: Seed String
+            // Node 639: KSamplerAdvanced - Z-image (steps, cfg, denoise)
+            // Node 176: CR Aspect Ratio
+
+            // Update positive prompt (node 443 - Textbox)
+            if (workflowDict.ContainsKey("443"))
             {
-                var node45 = JsonSerializer.Deserialize<Dictionary<string, object>>(workflowDict["45"].GetRawText());
-                if (node45 != null && node45.ContainsKey("inputs"))
+                var node443 = JsonSerializer.Deserialize<Dictionary<string, object>>(workflowDict["443"].GetRawText());
+                if (node443 != null && node443.ContainsKey("inputs"))
                 {
                     var inputs = JsonSerializer.Deserialize<Dictionary<string, object>>(
-                        JsonSerializer.Serialize(node45["inputs"]));
+                        JsonSerializer.Serialize(node443["inputs"]));
                     if (inputs != null)
                     {
                         inputs["text"] = ImagePrompt;
-                        node45["inputs"] = inputs;
-                        workflowDict["45"] = JsonSerializer.SerializeToElement(node45);
+                        node443["inputs"] = inputs;
+                        workflowDict["443"] = JsonSerializer.SerializeToElement(node443);
+                        AddLog($"Updated positive prompt (node 443)");
                     }
                 }
             }
 
-            // Update sampler settings (node 44 - KSampler)
-            if (workflowDict.ContainsKey("44"))
+            // Update seed (node 569 - Seed String)
+            if (workflowDict.ContainsKey("569"))
             {
-                var node44 = JsonSerializer.Deserialize<Dictionary<string, object>>(workflowDict["44"].GetRawText());
-                if (node44 != null && node44.ContainsKey("inputs"))
+                var node569 = JsonSerializer.Deserialize<Dictionary<string, object>>(workflowDict["569"].GetRawText());
+                if (node569 != null && node569.ContainsKey("inputs"))
                 {
                     var inputs = JsonSerializer.Deserialize<Dictionary<string, object>>(
-                        JsonSerializer.Serialize(node44["inputs"]));
+                        JsonSerializer.Serialize(node569["inputs"]));
                     if (inputs != null)
                     {
                         var actualSeed = Seed == 0 ? new Random().NextInt64(0, 999999999999999) : Seed;
-                        inputs["seed"] = actualSeed;
-                        inputs["steps"] = Steps;
-                        inputs["cfg"] = Cfg;
-                        inputs["denoise"] = Denoise;
-                        node44["inputs"] = inputs;
-                        workflowDict["44"] = JsonSerializer.SerializeToElement(node44);
+                        inputs["seed"] = (long)actualSeed;
+                        node569["inputs"] = inputs;
+                        workflowDict["569"] = JsonSerializer.SerializeToElement(node569);
+                        AddLog($"Updated seed: {actualSeed}");
                     }
                 }
             }
 
-            // Update aspect ratio (node 57 - CR Aspect Ratio)
-            if (workflowDict.ContainsKey("57"))
+            // Update Z-image sampler settings (node 639 - KSamplerAdvanced)
+            if (workflowDict.ContainsKey("639"))
+            {
+                var node639 = JsonSerializer.Deserialize<Dictionary<string, object>>(workflowDict["639"].GetRawText());
+                if (node639 != null && node639.ContainsKey("inputs"))
+                {
+                    var inputs = JsonSerializer.Deserialize<Dictionary<string, object>>(
+                        JsonSerializer.Serialize(node639["inputs"]));
+                    if (inputs != null)
+                    {
+                        inputs["steps"] = Steps;
+                        inputs["cfg"] = Cfg;
+                        inputs["denoise"] = Denoise;
+                        node639["inputs"] = inputs;
+                        workflowDict["639"] = JsonSerializer.SerializeToElement(node639);
+                        AddLog($"Updated Z-image sampler: steps={Steps}, cfg={Cfg}, denoise={Denoise}");
+                    }
+                }
+            }
+
+            // Update aspect ratio (node 176 - CR Aspect Ratio)
+            if (workflowDict.ContainsKey("176"))
             {
                 var aspectRatios = new[]
                 {
@@ -1021,21 +1093,26 @@ namespace FlipPix.UI.ViewModels
                     "SDXL - 3:4 portrait 896x1152",
                     "SDXL - 9:16 portrait 768x1344",
                     "SDXL - 4:3 landscape 1152x896",
-                    "SDXL - 16:9 landscape 1344x768"
+                    "SDXL - 16:9 landscape 1344x768",
+                    "SDXL - 16:9 landscape 1568x1352",
+                    "SDXL - 9:16 portrait 1352x1568"
                 };
 
                 var selectedRatio = aspectRatios[Math.Min(AspectRatioIndex, aspectRatios.Length - 1)];
 
-                var node57 = JsonSerializer.Deserialize<Dictionary<string, object>>(workflowDict["57"].GetRawText());
-                if (node57 != null && node57.ContainsKey("inputs"))
+                var node176 = JsonSerializer.Deserialize<Dictionary<string, object>>(workflowDict["176"].GetRawText());
+                if (node176 != null && node176.ContainsKey("inputs"))
                 {
                     var inputs = JsonSerializer.Deserialize<Dictionary<string, object>>(
-                        JsonSerializer.Serialize(node57["inputs"]));
+                        JsonSerializer.Serialize(node176["inputs"]));
                     if (inputs != null)
                     {
                         inputs["aspect_ratio"] = selectedRatio;
-                        node57["inputs"] = inputs;
-                        workflowDict["57"] = JsonSerializer.SerializeToElement(node57);
+                        // Turn off swap_dimensions to prevent width/height inversion
+                        inputs["swap_dimensions"] = "Off";
+                        node176["inputs"] = inputs;
+                        workflowDict["176"] = JsonSerializer.SerializeToElement(node176);
+                        AddLog($"Updated aspect ratio: {selectedRatio}");
                     }
                 }
             }
@@ -1052,7 +1129,9 @@ namespace FlipPix.UI.ViewModels
                 (896, 1152),  // 3:4
                 (768, 1344),  // 9:16
                 (1152, 896),  // 4:3
-                (1344, 768)   // 16:9
+                (1344, 768),  // 16:9
+                (1568, 1352), // 16:9 custom
+                (1352, 1568)  // 9:16 custom
             };
             var (width, height) = resolutions[Math.Min(AspectRatioIndex, resolutions.Length - 1)];
 
@@ -1140,7 +1219,9 @@ namespace FlipPix.UI.ViewModels
                 (896, 1152),  // 3:4
                 (768, 1344),  // 9:16
                 (1152, 896),  // 4:3
-                (1344, 768)   // 16:9
+                (1344, 768),  // 16:9
+                (1568, 1352), // 16:9 custom
+                (1352, 1568)  // 9:16 custom
             };
             var (width, height) = resolutions[Math.Min(AspectRatioIndex, resolutions.Length - 1)];
 
@@ -1255,63 +1336,99 @@ namespace FlipPix.UI.ViewModels
             {
                 AddLog($"Applying Lora: {loraName}");
 
-                // Create LoraLoader node (using a high node number to avoid conflicts)
-                var loraNodeNumber = "100";
-                var loraNode = new
+                // Check if this is the Zib-Zit workflow with Power Lora Loader (node 583)
+                if (workflowDict.ContainsKey("583"))
                 {
-                    inputs = new
-                    {
-                        lora_name = $"zimage\\{loraName}.safetensors",
-                        strength_model = 1.0,
-                        strength_clip = 1.0,
-                        model = new object[] { "46", 0 }, // Connect to UNETLoader (node 46)
-                        clip = new object[] { "39", 0 }   // Connect to CLIPLoader (node 39)
-                    },
-                    class_type = "LoraLoader",
-                    _meta = new
-                    {
-                        title = "Load LoRA"
-                    }
-                };
+                    // Zib-Zit workflow uses Power Lora Loader (rgthree) node
+                    AddLog("Detected Power Lora Loader (Zib-Zit workflow)");
 
-                workflowDict[loraNodeNumber] = JsonSerializer.SerializeToElement(loraNode);
-
-                // Update nodes that use the model to use the Lora-enhanced model instead
-                // Update ModelSamplingAuraFlow (node 47) to use Lora output
-                if (workflowDict.ContainsKey("47"))
-                {
-                    var node47 = JsonSerializer.Deserialize<Dictionary<string, object>>(workflowDict["47"].GetRawText());
-                    if (node47 != null && node47.ContainsKey("inputs"))
+                    var node583 = JsonSerializer.Deserialize<Dictionary<string, object>>(workflowDict["583"].GetRawText());
+                    if (node583 != null && node583.ContainsKey("inputs"))
                     {
                         var inputs = JsonSerializer.Deserialize<Dictionary<string, object>>(
-                            JsonSerializer.Serialize(node47["inputs"]));
+                            JsonSerializer.Serialize(node583["inputs"]));
                         if (inputs != null)
                         {
-                            inputs["model"] = new object[] { loraNodeNumber, 0 }; // Use Lora-enhanced model
-                            node47["inputs"] = inputs;
-                            workflowDict["47"] = JsonSerializer.SerializeToElement(node47);
+                            // Update lora_1 slot to enable it and set the selected lora
+                            // The lora structure in Power Lora Loader is: { on: bool, lora: string, strength: float }
+                            var lora1Config = new
+                            {
+                                on = true,
+                                lora = $"{loraName}.safetensors",
+                                strength = 1.0
+                            };
+
+                            inputs["lora_1"] = JsonSerializer.Deserialize<object>(
+                                JsonSerializer.Serialize(lora1Config));
+
+                            node583["inputs"] = inputs;
+                            workflowDict["583"] = JsonSerializer.SerializeToElement(node583);
+                            AddLog($"Successfully enabled lora_1 with: {loraName}.safetensors");
                         }
                     }
                 }
-
-                // Update CLIPTextEncode (node 45) to use Lora-enhanced CLIP
-                if (workflowDict.ContainsKey("45"))
+                else
                 {
-                    var node45 = JsonSerializer.Deserialize<Dictionary<string, object>>(workflowDict["45"].GetRawText());
-                    if (node45 != null && node45.ContainsKey("inputs"))
+                    // Legacy workflow: Create LoraLoader node (using a high node number to avoid conflicts)
+                    AddLog("Using legacy LoraLoader node");
+
+                    var loraNodeNumber = "100";
+                    var loraNode = new
                     {
-                        var inputs = JsonSerializer.Deserialize<Dictionary<string, object>>(
-                            JsonSerializer.Serialize(node45["inputs"]));
-                        if (inputs != null && inputs.ContainsKey("clip"))
+                        inputs = new
                         {
-                            inputs["clip"] = new object[] { loraNodeNumber, 1 }; // Use Lora-enhanced CLIP (output 1)
-                            node45["inputs"] = inputs;
-                            workflowDict["45"] = JsonSerializer.SerializeToElement(node45);
+                            lora_name = $"zimage\\{loraName}.safetensors",
+                            strength_model = 1.0,
+                            strength_clip = 1.0,
+                            model = new object[] { "46", 0 }, // Connect to UNETLoader (node 46)
+                            clip = new object[] { "39", 0 }   // Connect to CLIPLoader (node 39)
+                        },
+                        class_type = "LoraLoader",
+                        _meta = new
+                        {
+                            title = "Load LoRA"
+                        }
+                    };
+
+                    workflowDict[loraNodeNumber] = JsonSerializer.SerializeToElement(loraNode);
+
+                    // Update nodes that use the model to use the Lora-enhanced model instead
+                    // Update ModelSamplingAuraFlow (node 47) to use Lora output
+                    if (workflowDict.ContainsKey("47"))
+                    {
+                        var node47 = JsonSerializer.Deserialize<Dictionary<string, object>>(workflowDict["47"].GetRawText());
+                        if (node47 != null && node47.ContainsKey("inputs"))
+                        {
+                            var inputs = JsonSerializer.Deserialize<Dictionary<string, object>>(
+                                JsonSerializer.Serialize(node47["inputs"]));
+                            if (inputs != null)
+                            {
+                                inputs["model"] = new object[] { loraNodeNumber, 0 }; // Use Lora-enhanced model
+                                node47["inputs"] = inputs;
+                                workflowDict["47"] = JsonSerializer.SerializeToElement(node47);
+                            }
                         }
                     }
-                }
 
-                AddLog($"Successfully added Lora node {loraNodeNumber} for {loraName}");
+                    // Update CLIPTextEncode (node 45) to use Lora-enhanced CLIP
+                    if (workflowDict.ContainsKey("45"))
+                    {
+                        var node45 = JsonSerializer.Deserialize<Dictionary<string, object>>(workflowDict["45"].GetRawText());
+                        if (node45 != null && node45.ContainsKey("inputs"))
+                        {
+                            var inputs = JsonSerializer.Deserialize<Dictionary<string, object>>(
+                                JsonSerializer.Serialize(node45["inputs"]));
+                            if (inputs != null && inputs.ContainsKey("clip"))
+                            {
+                                inputs["clip"] = new object[] { loraNodeNumber, 1 }; // Use Lora-enhanced CLIP (output 1)
+                                node45["inputs"] = inputs;
+                                workflowDict["45"] = JsonSerializer.SerializeToElement(node45);
+                            }
+                        }
+                    }
+
+                    AddLog($"Successfully added Lora node {loraNodeNumber} for {loraName}");
+                }
             }
             catch (Exception ex)
             {
@@ -1410,6 +1527,20 @@ namespace FlipPix.UI.ViewModels
                         return images;
                     }
 
+                    // For Zimage (Zib-Zit workflow), the output is in a subdirectory: Jib_Mix_Z-Image/%date/
+                    string searchDirectory;
+                    if (SelectedWorkflow == TextGeneratorWorkflow.Zimage)
+                    {
+                        // Look in Jib_Mix_Z-Image subdirectory with today's date
+                        var dateSubdir = DateTime.Now.ToString("yyyy-MM-dd");
+                        searchDirectory = Path.Combine(comfyUIOutputDir, "Jib_Mix_Z-Image", dateSubdir);
+                        AddLog($"Zimage workflow: searching in {searchDirectory}");
+                    }
+                    else
+                    {
+                        searchDirectory = comfyUIOutputDir;
+                    }
+
                     if (!Directory.Exists(comfyUIOutputDir))
                     {
                         AddLog($"ERROR: ComfyUI output folder not found: {comfyUIOutputDir}");
@@ -1418,35 +1549,71 @@ namespace FlipPix.UI.ViewModels
                     }
 
                     // Look for files based on the selected workflow
-                    var prefix = SelectedWorkflow switch
+                    List<string> imageFiles;
+                    if (SelectedWorkflow == TextGeneratorWorkflow.Zimage)
                     {
-                        TextGeneratorWorkflow.Qwen2512 => "qwen2512_",
-                        TextGeneratorWorkflow.Klien => "Flux2-Klein_",  // Note: Klien uses this prefix format
-                        _ => "z-image_"
-                    };
-                    var workflowName = SelectedWorkflow.ToString();
-                    var zImageFiles = Directory.GetFiles(comfyUIOutputDir, $"{prefix}*.png")
-                        .OrderByDescending(f => ExtractFileNumber(f)) // Sort by extracted number for proper numeric ordering
-                        .ToList();
+                        // Zib-Zit workflow: files are named like "False__0_blur_02.png"
+                        // Just look for all PNG files in the subdirectory and sort by modification time
+                        if (Directory.Exists(searchDirectory))
+                        {
+                            imageFiles = Directory.GetFiles(searchDirectory, "*.png")
+                                .OrderByDescending(f => File.GetLastWriteTime(f))
+                                .ToList();
+                        }
+                        else
+                        {
+                            AddLog($"Zimage output directory not found: {searchDirectory}");
+                            // Try to find the Jib_Mix_Z-Image directory and its subdirectories
+                            var zimageBaseDir = Path.Combine(comfyUIOutputDir, "Jib_Mix_Z-Image");
+                            if (Directory.Exists(zimageBaseDir))
+                            {
+                                AddLog($"Found Jib_Mix_Z-Image directory, searching for recent files...");
+                                imageFiles = Directory.GetFiles(zimageBaseDir, "*.png", SearchOption.AllDirectories)
+                                    .OrderByDescending(f => File.GetLastWriteTime(f))
+                                    .Take(20)
+                                    .ToList();
+                                AddLog($"Found {imageFiles.Count} files in Jib_Mix_Z-Image directory tree");
+                            }
+                            else
+                            {
+                                AddLog($"Jib_Mix_Z-Image directory not found at: {zimageBaseDir}");
+                                imageFiles = new List<string>();
+                            }
+                        }
+                    }
+                    else
+                    {
+                        // Other workflows use prefix-based file naming
+                        var prefix = SelectedWorkflow switch
+                        {
+                            TextGeneratorWorkflow.Qwen2512 => "qwen2512_",
+                            TextGeneratorWorkflow.Klien => "Flux2-Klein_",  // Note: Klien uses this prefix format
+                            _ => "z-image_"
+                        };
+                        imageFiles = Directory.GetFiles(comfyUIOutputDir, $"{prefix}*.png")
+                            .OrderByDescending(f => ExtractFileNumber(f)) // Sort by extracted number for proper numeric ordering
+                            .ToList();
+                    }
 
                     AddLog($"Output directory path: {comfyUIOutputDir}");
-                    AddLog($"Directory exists: {Directory.Exists(comfyUIOutputDir)}");
+                    AddLog($"Search directory: {searchDirectory}");
+                    AddLog($"Directory exists: {Directory.Exists(searchDirectory)}");
 
-                    if (!Directory.Exists(comfyUIOutputDir))
+                    if (!Directory.Exists(searchDirectory))
                     {
-                        AddLog($"ERROR: Output directory does not exist: {comfyUIOutputDir}");
+                        AddLog($"ERROR: Output directory does not exist: {searchDirectory}");
                         return images;
                     }
 
                     // Debug: List ALL files in the directory to understand what's there
                     try
                     {
-                        var allFiles = Directory.GetFiles(comfyUIOutputDir, "*.png")
-                            .OrderByDescending(f => ExtractFileNumber(f))
+                        var allFiles = Directory.GetFiles(searchDirectory, "*.png")
+                            .OrderByDescending(f => File.GetLastWriteTime(f))
                             .Take(10)
-                            .Select(f => $"{Path.GetFileName(f)} (#{ExtractFileNumber(f)})");
+                            .Select(f => $"{Path.GetFileName(f)} ({(DateTime.Now - File.GetLastWriteTime(f)).TotalSeconds:F0}s old)");
 
-                        AddLog("All PNG files in directory (first 10 by number):");
+                        AddLog("All PNG files in directory (first 10 by time):");
                         foreach (var file in allFiles)
                         {
                             AddLog($"  - {file}");
@@ -1457,30 +1624,22 @@ namespace FlipPix.UI.ViewModels
                         AddLog($"Error listing files: {ex.Message}");
                     }
 
-                    AddLog($"Found {zImageFiles.Count} {workflowName} PNG files in output directory");
+                    var workflowName = SelectedWorkflow.ToString();
+                    AddLog($"Found {imageFiles.Count} {workflowName} PNG files in output directory");
 
-                    if (zImageFiles.Any())
+                    if (imageFiles.Any())
                     {
-                        var latestFile = zImageFiles.First();
+                        var latestFile = imageFiles.First();
                         var fileAge = DateTime.Now - File.GetLastWriteTime(latestFile);
-                        var fileNumber = ExtractFileNumber(latestFile);
 
-                        AddLog($"Latest {workflowName} file: {Path.GetFileName(latestFile)} (number: {fileNumber})");
+                        AddLog($"Latest {workflowName} file: {Path.GetFileName(latestFile)}");
                         AddLog($"File modification time: {File.GetLastWriteTime(latestFile):yyyy-MM-dd HH:mm:ss}");
                         AddLog($"Current time: {DateTime.Now:yyyy-MM-dd HH:mm:ss}");
                         AddLog($"File age: {fileAge.TotalSeconds:F0} seconds");
 
-                        // Debug: show the top 5 files found
-                        AddLog("Top 5 files found (by numeric order):");
-                        foreach (var file in zImageFiles.Take(5))
-                        {
-                            var number = ExtractFileNumber(file);
-                            AddLog($"  - {Path.GetFileName(file)} (number: {number})");
-                        }
-
-                        // Since ComfyUI generates sequentially numbered files, the highest number should be the newest
-                        // This is more reliable than file timestamps which can have inconsistencies
-                        AddLog($"Using latest {workflowName} file by numeric order: {Path.GetFileName(latestFile)}");
+                        // For Zimage, use the most recently modified file
+                        // For other workflows, use the highest numbered file
+                        AddLog($"Using latest {workflowName} file: {Path.GetFileName(latestFile)}");
                         var imageData = await File.ReadAllBytesAsync(latestFile);
                         images.Add(imageData);
                     }
@@ -1488,11 +1647,22 @@ namespace FlipPix.UI.ViewModels
                     {
                         AddLog($"No {workflowName} files found, looking for any other PNG files...");
 
-                        // Fallback to any PNG files
-                        var allImageFiles = Directory.GetFiles(comfyUIOutputDir, "*.png")
+                        // Fallback to any PNG files in the search directory
+                        var allImageFiles = Directory.GetFiles(searchDirectory, "*.png")
                             .Where(f => !Path.GetFileName(f).StartsWith("temp_")) // Exclude temporary files
                             .OrderByDescending(f => File.GetLastWriteTime(f))
                             .ToList();
+
+                        // If still no files, try the base output directory
+                        if (!allImageFiles.Any() && searchDirectory != comfyUIOutputDir)
+                        {
+                            AddLog($"No files in subdirectory, checking base output directory...");
+                            allImageFiles = Directory.GetFiles(comfyUIOutputDir, "*.png", SearchOption.AllDirectories)
+                                .Where(f => !Path.GetFileName(f).StartsWith("temp_"))
+                                .OrderByDescending(f => File.GetLastWriteTime(f))
+                                .Take(50)
+                                .ToList();
+                        }
 
                         AddLog($"Found {allImageFiles.Count} other PNG files");
 
@@ -2094,7 +2264,7 @@ namespace FlipPix.UI.ViewModels
                 {
                     TextGeneratorWorkflow.Qwen2512 => "qwen2512API-text.json",
                     TextGeneratorWorkflow.Klien => "Klien-Text-API.json",
-                    _ => "image_z_image-TEXTAPI.json"
+                    _ => "Zib-Zit.json"
                 };
                 var workflowPath = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "workflow", workflowFileName);
                 if (!File.Exists(workflowPath))
