@@ -7,6 +7,7 @@ using System.IO;
 using System.Linq;
 using System.Runtime.CompilerServices;
 using System.Text.Json;
+using System.Threading;
 using System.Threading.Tasks;
 using System.Windows;
 using System.Windows.Input;
@@ -32,6 +33,7 @@ namespace FlipPix.UI.ViewModels
         private readonly FlipPix.ComfyUI.Services.ComfyUIService _comfyUIService;
         private readonly FlipPix.Core.Services.SettingsService _settingsService;
         private readonly IServiceProvider? _serviceProvider;
+        private readonly WorkflowQueueCoordinator _workflowCoordinator;
 
         private string _imagePrompt = "Latina female with thick wavy hair, harbor boats and pastel houses behind. Breezy seaside light, warm tones, cinematic close-up.";
         private int _aspectRatioIndex = 0;
@@ -60,6 +62,8 @@ namespace FlipPix.UI.ViewModels
         private ObservableCollection<ImagePromptQueueItem> _promptQueue = new();
         private ImagePromptQueueItem? _selectedQueueItem;
         private bool _isProcessingQueue = false;
+        private bool _isQueuePaused = false;
+        private readonly ManualResetEventSlim _pauseEvent = new(true);
 
         // Nested ViewModels for tabs
         private ImageAnalyzerViewModel _analyzer;
@@ -78,15 +82,16 @@ namespace FlipPix.UI.ViewModels
             _comfyUIService = comfyUIService ?? throw new ArgumentNullException(nameof(comfyUIService));
             _settingsService = settingsService ?? throw new ArgumentNullException(nameof(settingsService));
             _serviceProvider = serviceProvider;
+            _workflowCoordinator = serviceProvider?.GetRequiredService<WorkflowQueueCoordinator>() ?? throw new InvalidOperationException("WorkflowQueueCoordinator is required");
 
             // Initialize nested ViewModels
             var lmStudioService = serviceProvider?.GetRequiredService<LMStudioService>();
-            _analyzer = new ImageAnalyzerViewModel(comfyUIService, lmStudioService ?? throw new InvalidOperationException("LMStudioService is required"), logger, settingsService);
+            _analyzer = new ImageAnalyzerViewModel(comfyUIService, lmStudioService ?? throw new InvalidOperationException("LMStudioService is required"), logger, settingsService, _workflowCoordinator);
             _cameraEdit = new FlipPixViewModel(comfyUIService, logger, settingsService, serviceProvider);
-            _storyGenerator = new StoryImageGeneratorViewModel(comfyUIService, logger, settingsService);
-            _storyGeneratorQ = new StoryImageGeneratorQViewModel(comfyUIService, logger, settingsService);
-            _storyGeneratorF = new StoryImageGeneratorFViewModel(comfyUIService, logger, settingsService);
-            _storyGeneratorAmateur = new StoryImageGeneratorAmateurViewModel(comfyUIService, logger, settingsService);
+            _storyGenerator = new StoryImageGeneratorViewModel(comfyUIService, logger, settingsService, _workflowCoordinator);
+            _storyGeneratorQ = new StoryImageGeneratorQViewModel(comfyUIService, logger, settingsService, _workflowCoordinator);
+            _storyGeneratorF = new StoryImageGeneratorFViewModel(comfyUIService, logger, settingsService, _workflowCoordinator);
+            _storyGeneratorAmateur = new StoryImageGeneratorAmateurViewModel(comfyUIService, logger, settingsService, _workflowCoordinator);
             _amateurGenerator = new AmateurGeneratorViewModel(comfyUIService, logger, settingsService, promptService);
             _cameraAngle = new CameraAngleViewModel(comfyUIService, logger, settingsService);
 
@@ -107,9 +112,13 @@ namespace FlipPix.UI.ViewModels
             RemoveFromQueueCommand = new RelayCommand<ImagePromptQueueItem>(RemoveFromQueue, (item) => item != null);
             ClearQueueCommand = new RelayCommand(ClearQueue, () => CanClearQueue);
             ProcessQueueCommand = new RelayCommand(async () => await ProcessQueueAsync(), () => CanProcessQueue);
+            PauseQueueCommand = new RelayCommand(PauseQueue, () => IsProcessingQueue && !IsQueuePaused);
+            ResumeQueueCommand = new RelayCommand(ResumeQueue, () => IsProcessingQueue && IsQueuePaused);
 
             // Load available Loras
             LoadAvailableLoras();
+
+            LoadQueueFromFile();
 
             AddLog("Image Generator initialized");
         }
@@ -388,6 +397,23 @@ namespace FlipPix.UI.ViewModels
                 CommandManager.InvalidateRequerySuggested();
             }
         }
+
+        public bool IsQueuePaused
+        {
+            get => _isQueuePaused;
+            set
+            {
+                if (_isQueuePaused != value)
+                {
+                    _isQueuePaused = value;
+                    OnPropertyChanged();
+                    CommandManager.InvalidateRequerySuggested();
+                }
+            }
+        }
+
+        public ICommand PauseQueueCommand { get; }
+        public ICommand ResumeQueueCommand { get; }
 
         public bool HasQueueItems => _promptQueue.Any();
         public int QueueCount => _promptQueue.Count;
@@ -1951,6 +1977,75 @@ namespace FlipPix.UI.ViewModels
             }
         }
 
+        private void PauseQueue()
+        {
+            IsQueuePaused = true;
+            _pauseEvent.Reset();
+            AddLog("Queue paused");
+        }
+
+        private void ResumeQueue()
+        {
+            IsQueuePaused = false;
+            _pauseEvent.Set();
+            AddLog("Queue resumed");
+        }
+
+        private string QueueFilePath => Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "queue", "image_generator_queue.json");
+
+        private void SaveQueueToFile()
+        {
+            try
+            {
+                var queueDir = Path.GetDirectoryName(QueueFilePath);
+                if (!string.IsNullOrEmpty(queueDir) && !Directory.Exists(queueDir))
+                {
+                    Directory.CreateDirectory(queueDir);
+                }
+
+                var options = new JsonSerializerOptions { WriteIndented = true };
+                var json = JsonSerializer.Serialize(PromptQueue.ToList(), options);
+                File.WriteAllText(QueueFilePath, json);
+            }
+            catch (Exception ex)
+            {
+                AddLog($"Error saving queue to file: {ex.Message}");
+            }
+        }
+
+        private void LoadQueueFromFile()
+        {
+            try
+            {
+                if (!File.Exists(QueueFilePath)) return;
+
+                var json = File.ReadAllText(QueueFilePath);
+                var savedItems = JsonSerializer.Deserialize<List<ImagePromptQueueItem>>(json);
+
+                if (savedItems != null && savedItems.Any())
+                {
+                    _promptQueue.Clear();
+                    foreach (var item in savedItems)
+                    {
+                        if (item.Status == "Processing")
+                        {
+                            item.Status = "Failed";
+                            item.ErrorMessage = "Interrupted by crash or app restart";
+                        }
+                        _promptQueue.Add(item);
+                    }
+                    OnPropertyChanged(nameof(HasQueueItems));
+                    OnPropertyChanged(nameof(QueueCount));
+                    OnPropertyChanged(nameof(PendingQueueCount));
+                    AddLog($"Queue loaded from file: {_promptQueue.Count} items");
+                }
+            }
+            catch (Exception ex)
+            {
+                AddLog($"Error loading queue from file: {ex.Message}");
+            }
+        }
+
         private void AddLog(string message)
         {
             var timestamp = DateTime.Now.ToString("HH:mm:ss");
@@ -1958,7 +2053,6 @@ namespace FlipPix.UI.ViewModels
             _logger.LogInfo(message);
         }
 
-        
         private bool IsComfyUIRemote(string serverAddress)
         {
             try
@@ -2110,6 +2204,7 @@ namespace FlipPix.UI.ViewModels
             };
 
             PromptQueue.Add(queueItem);
+            SaveQueueToFile();
             AddLog($"Added prompt to queue: {queueItem.DisplayPrompt}");
             StatusBarMessage = $"Added to queue ({PromptQueue.Count} items)";
 
@@ -2130,6 +2225,7 @@ namespace FlipPix.UI.ViewModels
             if (item == null) return;
 
             PromptQueue.Remove(item);
+            SaveQueueToFile();
             AddLog($"Removed prompt from queue: {item.DisplayPrompt}");
             StatusBarMessage = $"Removed from queue ({PromptQueue.Count} items)";
 
@@ -2145,6 +2241,7 @@ namespace FlipPix.UI.ViewModels
 
             var count = PromptQueue.Count;
             PromptQueue.Clear();
+            SaveQueueToFile();
             AddLog($"Cleared {count} items from queue");
             StatusBarMessage = "Queue cleared";
 
@@ -2159,6 +2256,19 @@ namespace FlipPix.UI.ViewModels
             if (!CanProcessQueue) return;
 
             IsProcessingQueue = true;
+            AddLog("Waiting for other workflows to finish...");
+
+            try
+            {
+                await _workflowCoordinator.AcquireAsync("ImageGenerator", _cancellationTokenSource?.Token ?? CancellationToken.None);
+            }
+            catch (OperationCanceledException)
+            {
+                AddLog("Queue processing cancelled while waiting");
+                IsProcessingQueue = false;
+                return;
+            }
+
             AddLog("=== Starting queue processing ===");
 
             try
@@ -2167,18 +2277,21 @@ namespace FlipPix.UI.ViewModels
 
                 foreach (var queueItem in pendingItems)
                 {
-                    if (queueItem.Status == "Failed") continue; // Skip failed items
+                    if (queueItem.Status == "Failed") continue;
+
+                    // Wait if paused
+                    _pauseEvent.Wait(_cancellationTokenSource?.Token ?? CancellationToken.None);
 
                     try
                     {
                         queueItem.Status = "Processing";
                         queueItem.StartedAt = DateTime.Now;
                         queueItem.Progress = 0;
+                        SaveQueueToFile();
                         OnPropertyChanged(nameof(PendingQueueCount));
 
                         AddLog($"Processing queue item: {queueItem.DisplayPrompt}");
 
-                        // Set current prompt settings from queue item
                         ImagePrompt = queueItem.Prompt;
                         AspectRatioIndex = queueItem.AspectRatioIndex;
                         Steps = queueItem.Steps;
@@ -2189,25 +2302,27 @@ namespace FlipPix.UI.ViewModels
                         SelectedLora = queueItem.SelectedLora;
                         SelectedWorkflow = queueItem.SelectedWorkflow;
 
-                        // Process the image generation
                         await ProcessQueueItemAsync(queueItem);
 
                         queueItem.Status = "Completed";
                         queueItem.CompletedAt = DateTime.Now;
                         queueItem.Progress = 100;
+                        SaveQueueToFile();
                         AddLog($"Completed queue item: {queueItem.DisplayPrompt}");
                     }
                     catch (OperationCanceledException)
                     {
                         queueItem.Status = "Failed";
                         queueItem.ErrorMessage = "Cancelled";
+                        SaveQueueToFile();
                         AddLog($"Queue item cancelled: {queueItem.DisplayPrompt}");
-                        break; // Stop processing on cancellation
+                        break;
                     }
                     catch (Exception ex)
                     {
                         queueItem.Status = "Failed";
                         queueItem.ErrorMessage = ex.Message;
+                        SaveQueueToFile();
                         AddLog($"ERROR processing queue item: {ex.Message}");
                     }
                     finally
@@ -2221,7 +2336,10 @@ namespace FlipPix.UI.ViewModels
             }
             finally
             {
+                _workflowCoordinator.Release();
                 IsProcessingQueue = false;
+                IsQueuePaused = false;
+                _pauseEvent.Set();
             }
         }
 
