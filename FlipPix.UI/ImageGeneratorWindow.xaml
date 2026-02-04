@@ -1139,8 +1139,8 @@
                                         </Grid>
                                     </Border>
 
-                                    <!-- Load Prompts Button -->
-                                    <Button Content="📥 Load Prompts from JSON"
+                                    <!-- Add Prompts Button -->
+                                    <Button Content="📥 Add Prompts from JSON"
                                            Style="{StaticResource PrimaryButtonStyle}"
                                            Command="{Binding StoryGenerator.LoadPromptsCommand}"
                                            HorizontalAlignment="Stretch"
@@ -1448,6 +1448,17 @@
                                     </Button>
                                 </Grid>
 
+                                <!-- Pause/Resume Controls -->
+                                <StackPanel Orientation="Horizontal" Margin="0,0,0,10"
+                                            Visibility="{Binding StoryGenerator.IsProcessingQueue, Converter={StaticResource BooleanToVisibilityConverter}}">
+                                    <Button Content="⏸ Pause" Width="100" Height="32" Margin="0,0,8,0"
+                                            Command="{Binding StoryGenerator.PauseQueueCommand}"
+                                            Background="#F59E0B" Foreground="White" BorderThickness="0" FontWeight="SemiBold"/>
+                                    <Button Content="▶ Resume" Width="100" Height="32" Margin="0,0,8,0"
+                                            Command="{Binding StoryGenerator.ResumeQueueCommand}"
+                                            Background="#10B981" Foreground="White" BorderThickness="0" FontWeight="SemiBold"/>
+                                </StackPanel>
+
                                 <!-- Queue Status -->
                                 <Border Background="#F8F9FA"
                                         BorderBrush="#DEE2E6"
@@ -1461,6 +1472,7 @@
                                             <ColumnDefinition Width="Auto"/>
                                             <ColumnDefinition Width="Auto"/>
                                             <ColumnDefinition Width="Auto"/>
+                                            <ColumnDefinition Width="Auto"/>
                                         </Grid.ColumnDefinitions>
 
                                         <TextBlock Grid.Column="0"
@@ -1468,20 +1480,32 @@
                                                   FontWeight="SemiBold"
                                                   VerticalAlignment="Center"/>
 
-                                        <TextBlock Grid.Column="1"
+                                        <Border Grid.Column="1"
+                                                Background="#FF8C00"
+                                                CornerRadius="10"
+                                                Padding="8,3"
+                                                Margin="10,0">
+                                            <TextBlock Text="{Binding StoryGenerator.QueuedCount, StringFormat={}Remaining: {0}}"
+                                                      FontWeight="Bold"
+                                                      FontSize="12"
+                                                      Foreground="White"
+                                                      VerticalAlignment="Center"/>
+                                        </Border>
+
+                                        <TextBlock Grid.Column="2"
                                                   Text="{Binding StoryGenerator.QueuedCount, StringFormat={}Queued: {0}}"
                                                   Margin="10,0"
                                                   VerticalAlignment="Center"
                                                   FontSize="11"/>
 
-                                        <TextBlock Grid.Column="2"
+                                        <TextBlock Grid.Column="3"
                                                   Text="{Binding StoryGenerator.CompletedCount, StringFormat={}Completed: {0}}"
                                                   Margin="10,0"
                                                   VerticalAlignment="Center"
                                                   FontSize="11"
                                                   Foreground="#28A745"/>
 
-                                        <TextBlock Grid.Column="3"
+                                        <TextBlock Grid.Column="4"
                                                   Text="{Binding StoryGenerator.FailedCount, StringFormat={}Failed: {0}}"
                                                   Margin="10,0"
                                                   VerticalAlignment="Center"
@@ -1568,11 +1592,34 @@
                                                                           MaxWidth="400"/>
                                                             </StackPanel>
 
-                                                            <!-- Status -->
+                                                            <!-- Status / Thumbnail -->
                                                             <StackPanel Grid.Column="2"
                                                                        Orientation="Horizontal"
                                                                        VerticalAlignment="Center"
                                                                        Margin="10,0">
+                                                                <!-- Thumbnail (replaces status text when completed) -->
+                                                                <Button Command="{Binding OpenImageCommand}"
+                                                                        Background="Transparent"
+                                                                        BorderThickness="0"
+                                                                        Cursor="Hand"
+                                                                        Padding="0"
+                                                                        VerticalAlignment="Center">
+                                                                    <Button.Style>
+                                                                        <Style TargetType="Button">
+                                                                            <Setter Property="Visibility" Value="Collapsed"/>
+                                                                            <Style.Triggers>
+                                                                                <DataTrigger Binding="{Binding Status}" Value="Completed">
+                                                                                    <Setter Property="Visibility" Value="Visible"/>
+                                                                                </DataTrigger>
+                                                                            </Style.Triggers>
+                                                                        </Style>
+                                                                    </Button.Style>
+                                                                    <Image Source="{Binding ThumbnailImage}"
+                                                                           Height="60"
+                                                                           Stretch="Uniform"/>
+                                                                </Button>
+
+                                                                <!-- Status text (hidden when completed) -->
                                                                 <TextBlock Text="{Binding Status}"
                                                                           FontSize="11"
                                                                           FontWeight="Bold">
@@ -1586,11 +1633,11 @@
                                                                                 <DataTrigger Binding="{Binding Status}" Value="Processing">
                                                                                     <Setter Property="Foreground" Value="#FF6B35"/>
                                                                                 </DataTrigger>
-                                                                                <DataTrigger Binding="{Binding Status}" Value="Completed">
-                                                                                    <Setter Property="Foreground" Value="#28A745"/>
-                                                                                </DataTrigger>
                                                                                 <DataTrigger Binding="{Binding Status}" Value="Failed">
                                                                                     <Setter Property="Foreground" Value="#DC3545"/>
+                                                                                </DataTrigger>
+                                                                                <DataTrigger Binding="{Binding Status}" Value="Completed">
+                                                                                    <Setter Property="Visibility" Value="Collapsed"/>
                                                                                 </DataTrigger>
                                                                             </Style.Triggers>
                                                                         </Style>
@@ -1923,8 +1970,8 @@
                                                Style="{StaticResource SecondaryButtonStyle}"/>
                                     </Grid>
 
-                                    <!-- Load Prompts Button -->
-                                    <Button Content="📥 Load Prompts from JSON"
+                                    <!-- Add Prompts Button -->
+                                    <Button Content="📥 Add Prompts from JSON"
                                            Command="{Binding StoryGeneratorQ.LoadPromptsCommand}"
                                            HorizontalAlignment="Stretch"
                                            Height="48"
@@ -2046,6 +2093,17 @@
                                     </Button>
                                 </Grid>
 
+                                <!-- Pause/Resume Controls (Q) -->
+                                <StackPanel Orientation="Horizontal" Margin="0,0,0,10"
+                                            Visibility="{Binding StoryGeneratorQ.IsProcessingQueue, Converter={StaticResource BooleanToVisibilityConverter}}">
+                                    <Button Content="⏸ Pause" Width="100" Height="32" Margin="0,0,8,0"
+                                            Command="{Binding StoryGeneratorQ.PauseQueueCommand}"
+                                            Background="#F59E0B" Foreground="White" BorderThickness="0" FontWeight="SemiBold"/>
+                                    <Button Content="▶ Resume" Width="100" Height="32" Margin="0,0,8,0"
+                                            Command="{Binding StoryGeneratorQ.ResumeQueueCommand}"
+                                            Background="#10B981" Foreground="White" BorderThickness="0" FontWeight="SemiBold"/>
+                                </StackPanel>
+
                                 <!-- Queue Status -->
                                 <Border Background="#F9FAFB"
                                        BorderBrush="#E5E7EB"
@@ -2059,6 +2117,7 @@
                                             <ColumnDefinition Width="Auto"/>
                                             <ColumnDefinition Width="Auto"/>
                                             <ColumnDefinition Width="Auto"/>
+                                            <ColumnDefinition Width="Auto"/>
                                         </Grid.ColumnDefinitions>
 
                                         <TextBlock Grid.Column="0"
@@ -2068,21 +2127,33 @@
                                                   Foreground="#374151"
                                                   VerticalAlignment="Center"/>
 
-                                        <TextBlock Grid.Column="1"
+                                        <Border Grid.Column="1"
+                                                Background="#FF8C00"
+                                                CornerRadius="10"
+                                                Padding="8,3"
+                                                Margin="10,0">
+                                            <TextBlock Text="{Binding StoryGeneratorQ.QueuedCount, StringFormat={}Remaining: {0}}"
+                                                      FontWeight="Bold"
+                                                      FontSize="12"
+                                                      Foreground="White"
+                                                      VerticalAlignment="Center"/>
+                                        </Border>
+
+                                        <TextBlock Grid.Column="2"
                                                   Text="{Binding StoryGeneratorQ.QueuedCount, StringFormat={}Queued: {0}}"
                                                   Margin="10,0"
                                                   FontSize="11"
                                                   Foreground="#6B7280"
                                                   VerticalAlignment="Center"/>
 
-                                        <TextBlock Grid.Column="2"
+                                        <TextBlock Grid.Column="3"
                                                   Text="{Binding StoryGeneratorQ.CompletedCount, StringFormat={}Completed: {0}}"
                                                   Margin="10,0"
                                                   FontSize="11"
                                                   Foreground="#059669"
                                                   VerticalAlignment="Center"/>
 
-                                        <TextBlock Grid.Column="3"
+                                        <TextBlock Grid.Column="4"
                                                   Text="{Binding StoryGeneratorQ.FailedCount, StringFormat={}Failed: {0}}"
                                                   Margin="10,0"
                                                   FontSize="11"
@@ -2153,6 +2224,7 @@
                                                                           FontSize="12"
                                                                           TextTrimming="CharacterEllipsis"
                                                                           MaxWidth="400"/>
+                                                                <!-- Status text (hidden when completed) -->
                                                                 <TextBlock Text="{Binding Status}"
                                                                           FontSize="10"
                                                                           Margin="0,4,0,0">
@@ -2160,19 +2232,41 @@
                                                                         <Style TargetType="TextBlock">
                                                                             <Setter Property="Foreground" Value="#6B7280"/>
                                                                             <Style.Triggers>
-                                                                                <DataTrigger Binding="{Binding Status}" Value="Completed">
-                                                                                    <Setter Property="Foreground" Value="#059669"/>
-                                                                                </DataTrigger>
                                                                                 <DataTrigger Binding="{Binding Status}" Value="Failed">
                                                                                     <Setter Property="Foreground" Value="#DC2626"/>
                                                                                 </DataTrigger>
                                                                                 <DataTrigger Binding="{Binding Status}" Value="Processing">
                                                                                     <Setter Property="Foreground" Value="#8B5CF6"/>
                                                                                 </DataTrigger>
+                                                                                <DataTrigger Binding="{Binding Status}" Value="Completed">
+                                                                                    <Setter Property="Visibility" Value="Collapsed"/>
+                                                                                </DataTrigger>
                                                                             </Style.Triggers>
                                                                         </Style>
                                                                     </TextBlock.Style>
                                                                 </TextBlock>
+                                                                <!-- Thumbnail (replaces status text when completed) -->
+                                                                <Button Command="{Binding OpenImageCommand}"
+                                                                        Background="Transparent"
+                                                                        BorderThickness="0"
+                                                                        Cursor="Hand"
+                                                                        Padding="0"
+                                                                        Margin="0,4,0,0"
+                                                                        HorizontalAlignment="Left">
+                                                                    <Button.Style>
+                                                                        <Style TargetType="Button">
+                                                                            <Setter Property="Visibility" Value="Collapsed"/>
+                                                                            <Style.Triggers>
+                                                                                <DataTrigger Binding="{Binding Status}" Value="Completed">
+                                                                                    <Setter Property="Visibility" Value="Visible"/>
+                                                                                </DataTrigger>
+                                                                            </Style.Triggers>
+                                                                        </Style>
+                                                                    </Button.Style>
+                                                                    <Image Source="{Binding ThumbnailImage}"
+                                                                           Height="60"
+                                                                           Stretch="Uniform"/>
+                                                                </Button>
                                                             </StackPanel>
 
                                                             <TextBlock Grid.Column="2"
@@ -2514,8 +2608,8 @@
                                                Style="{StaticResource SecondaryButtonStyle}"/>
                                     </Grid>
 
-                                    <!-- Load Prompts Button -->
-                                    <Button Content="📥 Load Prompts from JSON"
+                                    <!-- Add Prompts Button -->
+                                    <Button Content="📥 Add Prompts from JSON"
                                            Command="{Binding StoryGeneratorF.LoadPromptsCommand}"
                                            HorizontalAlignment="Stretch"
                                            Height="48"
@@ -2637,6 +2731,17 @@
                                     </Button>
                                 </Grid>
 
+                                <!-- Pause/Resume Controls (F) -->
+                                <StackPanel Orientation="Horizontal" Margin="0,0,0,10"
+                                            Visibility="{Binding StoryGeneratorF.IsProcessingQueue, Converter={StaticResource BooleanToVisibilityConverter}}">
+                                    <Button Content="⏸ Pause" Width="100" Height="32" Margin="0,0,8,0"
+                                            Command="{Binding StoryGeneratorF.PauseQueueCommand}"
+                                            Background="#F59E0B" Foreground="White" BorderThickness="0" FontWeight="SemiBold"/>
+                                    <Button Content="▶ Resume" Width="100" Height="32" Margin="0,0,8,0"
+                                            Command="{Binding StoryGeneratorF.ResumeQueueCommand}"
+                                            Background="#10B981" Foreground="White" BorderThickness="0" FontWeight="SemiBold"/>
+                                </StackPanel>
+
                                 <!-- Queue Status -->
                                 <Border Background="#F9FAFB"
                                        BorderBrush="#E5E7EB"
@@ -2650,6 +2755,7 @@
                                             <ColumnDefinition Width="Auto"/>
                                             <ColumnDefinition Width="Auto"/>
                                             <ColumnDefinition Width="Auto"/>
+                                            <ColumnDefinition Width="Auto"/>
                                         </Grid.ColumnDefinitions>
 
                                         <TextBlock Grid.Column="0"
@@ -2659,21 +2765,33 @@
                                                   Foreground="#374151"
                                                   VerticalAlignment="Center"/>
 
-                                        <TextBlock Grid.Column="1"
+                                        <Border Grid.Column="1"
+                                                Background="#FF8C00"
+                                                CornerRadius="10"
+                                                Padding="8,3"
+                                                Margin="10,0">
+                                            <TextBlock Text="{Binding StoryGeneratorF.QueuedCount, StringFormat={}Remaining: {0}}"
+                                                      FontWeight="Bold"
+                                                      FontSize="12"
+                                                      Foreground="White"
+                                                      VerticalAlignment="Center"/>
+                                        </Border>
+
+                                        <TextBlock Grid.Column="2"
                                                   Text="{Binding StoryGeneratorF.QueuedCount, StringFormat={}Queued: {0}}"
                                                   Margin="10,0"
                                                   FontSize="11"
                                                   Foreground="#6B7280"
                                                   VerticalAlignment="Center"/>
 
-                                        <TextBlock Grid.Column="2"
+                                        <TextBlock Grid.Column="3"
                                                   Text="{Binding StoryGeneratorF.CompletedCount, StringFormat={}Completed: {0}}"
                                                   Margin="10,0"
                                                   FontSize="11"
                                                   Foreground="#059669"
                                                   VerticalAlignment="Center"/>
 
-                                        <TextBlock Grid.Column="3"
+                                        <TextBlock Grid.Column="4"
                                                   Text="{Binding StoryGeneratorF.FailedCount, StringFormat={}Failed: {0}}"
                                                   Margin="10,0"
                                                   FontSize="11"
@@ -2744,6 +2862,7 @@
                                                                           FontSize="12"
                                                                           TextTrimming="CharacterEllipsis"
                                                                           MaxWidth="400"/>
+                                                                <!-- Status text (hidden when completed) -->
                                                                 <TextBlock Text="{Binding Status}"
                                                                           FontSize="10"
                                                                           Margin="0,4,0,0">
@@ -2751,19 +2870,41 @@
                                                                         <Style TargetType="TextBlock">
                                                                             <Setter Property="Foreground" Value="#6B7280"/>
                                                                             <Style.Triggers>
-                                                                                <DataTrigger Binding="{Binding Status}" Value="Completed">
-                                                                                    <Setter Property="Foreground" Value="#059669"/>
-                                                                                </DataTrigger>
                                                                                 <DataTrigger Binding="{Binding Status}" Value="Failed">
                                                                                     <Setter Property="Foreground" Value="#DC2626"/>
                                                                                 </DataTrigger>
                                                                                 <DataTrigger Binding="{Binding Status}" Value="Processing">
                                                                                     <Setter Property="Foreground" Value="#8B5CF6"/>
                                                                                 </DataTrigger>
+                                                                                <DataTrigger Binding="{Binding Status}" Value="Completed">
+                                                                                    <Setter Property="Visibility" Value="Collapsed"/>
+                                                                                </DataTrigger>
                                                                             </Style.Triggers>
                                                                         </Style>
                                                                     </TextBlock.Style>
                                                                 </TextBlock>
+                                                                <!-- Thumbnail (replaces status text when completed) -->
+                                                                <Button Command="{Binding OpenImageCommand}"
+                                                                        Background="Transparent"
+                                                                        BorderThickness="0"
+                                                                        Cursor="Hand"
+                                                                        Padding="0"
+                                                                        Margin="0,4,0,0"
+                                                                        HorizontalAlignment="Left">
+                                                                    <Button.Style>
+                                                                        <Style TargetType="Button">
+                                                                            <Setter Property="Visibility" Value="Collapsed"/>
+                                                                            <Style.Triggers>
+                                                                                <DataTrigger Binding="{Binding Status}" Value="Completed">
+                                                                                    <Setter Property="Visibility" Value="Visible"/>
+                                                                                </DataTrigger>
+                                                                            </Style.Triggers>
+                                                                        </Style>
+                                                                    </Button.Style>
+                                                                    <Image Source="{Binding ThumbnailImage}"
+                                                                           Height="60"
+                                                                           Stretch="Uniform"/>
+                                                                </Button>
                                                             </StackPanel>
 
                                                             <TextBlock Grid.Column="2"

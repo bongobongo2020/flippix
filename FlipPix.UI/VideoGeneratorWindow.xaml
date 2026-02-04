@@ -494,6 +494,17 @@
                             </Button>
                         </Grid>
 
+                        <!-- Pause/Resume Controls (Video Queue) -->
+                        <StackPanel Orientation="Horizontal" Margin="0,0,0,10"
+                                    Visibility="{Binding IsProcessingQueue, Converter={StaticResource BooleanToVisibilityConverter}}">
+                            <Button Content="⏸ Pause" Width="100" Height="32" Margin="0,0,8,0"
+                                    Command="{Binding PauseQueueCommand}"
+                                    Background="#F59E0B" Foreground="White" BorderThickness="0" FontWeight="SemiBold"/>
+                            <Button Content="▶ Resume" Width="100" Height="32" Margin="0,0,8,0"
+                                    Command="{Binding ResumeQueueCommand}"
+                                    Background="#10B981" Foreground="White" BorderThickness="0" FontWeight="SemiBold"/>
+                        </StackPanel>
+
                         <TextBlock Text="Queue Items:" FontWeight="SemiBold" FontSize="12" Margin="0,0,0,5"/>
 
                         <Border BorderBrush="#DEE2E6" BorderThickness="1" Background="White" CornerRadius="5" MaxHeight="200">
@@ -1027,6 +1038,17 @@
                                                 </Button.Style>
                                             </Button>
                                         </Grid>
+
+                                        <!-- Pause/Resume Controls (Story Video Queue) -->
+                                        <StackPanel Orientation="Horizontal" Margin="0,0,0,10"
+                                                    Visibility="{Binding IsProcessingStoryQueue, Converter={StaticResource BooleanToVisibilityConverter}}">
+                                            <Button Content="⏸ Pause" Width="100" Height="32" Margin="0,0,8,0"
+                                                    Command="{Binding PauseStoryQueueCommand}"
+                                                    Background="#F59E0B" Foreground="White" BorderThickness="0" FontWeight="SemiBold"/>
+                                            <Button Content="▶ Resume" Width="100" Height="32" Margin="0,0,8,0"
+                                                    Command="{Binding ResumeStoryQueueCommand}"
+                                                    Background="#10B981" Foreground="White" BorderThickness="0" FontWeight="SemiBold"/>
+                                        </StackPanel>
 
                                         <!-- Progress Display -->
                                         <Border Background="#FFF9F0"

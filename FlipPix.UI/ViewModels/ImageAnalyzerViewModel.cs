@@ -7,6 +7,7 @@ using System.IO;
 using System.Linq;
 using System.Runtime.CompilerServices;
 using System.Text.Json;
+using System.Threading;
 using System.Threading.Tasks;
 using System.Windows.Input;
 using System.Windows.Media.Imaging;
@@ -34,6 +35,7 @@ namespace FlipPix.UI.ViewModels
         private readonly LMStudioService _lmStudioService;
         private readonly IAppLogger _logger;
         private readonly FlipPix.Core.Services.SettingsService _settingsService;
+        private readonly WorkflowQueueCoordinator _workflowCoordinator;
 
         private string _sourceImagePath = string.Empty;
         private BitmapImage? _sourceImageSource;
@@ -79,11 +81,14 @@ namespace FlipPix.UI.ViewModels
         private ImageAnalyzerQueueItem? _currentQueueItem;
         private int _queueProgress = 0;
         private int _queueTotal = 0;
+        private bool _isQueuePaused = false;
+        private readonly ManualResetEventSlim _pauseEvent = new(true);
 
         public event PropertyChangedEventHandler? PropertyChanged;
 
-        public ImageAnalyzerViewModel(ComfyUIService comfyUIService, LMStudioService lmStudioService, IAppLogger logger, FlipPix.Core.Services.SettingsService settingsService)
+        public ImageAnalyzerViewModel(ComfyUIService comfyUIService, LMStudioService lmStudioService, IAppLogger logger, FlipPix.Core.Services.SettingsService settingsService, WorkflowQueueCoordinator workflowCoordinator)
         {
+            _workflowCoordinator = workflowCoordinator ?? throw new ArgumentNullException(nameof(workflowCoordinator));
             _comfyUIService = comfyUIService ?? throw new ArgumentNullException(nameof(comfyUIService));
             _lmStudioService = lmStudioService ?? throw new ArgumentNullException(nameof(lmStudioService));
             _logger = logger ?? throw new ArgumentNullException(nameof(logger));
@@ -97,6 +102,8 @@ namespace FlipPix.UI.ViewModels
             TestLMStudioConnectionCommand = new RelayCommand(async () => await TestLMStudioConnectionAsync(), () => !IsAnalyzing && !IsGenerating);
             RefreshModelsCommand = new RelayCommand(async () => await RefreshModelsAsync(), () => !IsAnalyzing && !IsGenerating);
             RefreshLorasCommand = new RelayCommand(RefreshLoras, () => !IsAnalyzing && !IsGenerating);
+            PauseQueueCommand = new RelayCommand(PauseQueue, () => IsProcessingQueue && !IsQueuePaused);
+            ResumeQueueCommand = new RelayCommand(ResumeQueue, () => IsProcessingQueue && IsQueuePaused);
 
             // Load ComfyUI settings
             if (_settingsService.Settings != null)
@@ -111,6 +118,8 @@ namespace FlipPix.UI.ViewModels
 
             // Load workflows and extract styles
             LoadWorkflowsAndStyles();
+
+            LoadQueueFromFile();
 
             _logger.LogInfo("Image Analyzer initialized");
         }
@@ -533,6 +542,23 @@ namespace FlipPix.UI.ViewModels
                 }
             }
         }
+
+        public bool IsQueuePaused
+        {
+            get => _isQueuePaused;
+            set
+            {
+                if (_isQueuePaused != value)
+                {
+                    _isQueuePaused = value;
+                    OnPropertyChanged();
+                    System.Windows.Input.CommandManager.InvalidateRequerySuggested();
+                }
+            }
+        }
+
+        public ICommand PauseQueueCommand { get; }
+        public ICommand ResumeQueueCommand { get; }
 
         public ImageAnalyzerQueueItem? CurrentQueueItem
         {
@@ -1290,6 +1316,7 @@ namespace FlipPix.UI.ViewModels
             };
 
             QueueItems.Add(queueItem);
+            SaveQueueToFile();
             _logger.LogInfo($"Added item to queue: {queueItem.StyleName} - {queueItem.DisplayPrompt}");
 
             // Start processing if not already processing
@@ -1308,6 +1335,18 @@ namespace FlipPix.UI.ViewModels
             _cancellationTokenSource?.Dispose();
             _cancellationTokenSource = new System.Threading.CancellationTokenSource();
 
+            _logger.LogInfo("Waiting for other workflows to finish...");
+
+            try
+            {
+                await _workflowCoordinator.AcquireAsync("ImageAnalyzer", _cancellationTokenSource.Token);
+            }
+            catch (OperationCanceledException)
+            {
+                _logger.LogInfo("Queue processing cancelled while waiting");
+                return;
+            }
+
             try
             {
                 IsProcessingQueue = true;
@@ -1325,9 +1364,13 @@ namespace FlipPix.UI.ViewModels
                         break;
                     }
 
+                    // Wait if paused
+                    _pauseEvent.Wait(_cancellationTokenSource.Token);
+
                     CurrentQueueItem = item;
                     item.Status = "Processing";
                     item.StartedAt = DateTime.Now;
+                    SaveQueueToFile();
 
                     _logger.LogInfo($"Processing queue item {QueueProgress + 1}/{QueueTotal}: {item.StyleName}");
 
@@ -1337,6 +1380,7 @@ namespace FlipPix.UI.ViewModels
                         item.Status = "Completed";
                         item.CompletedAt = DateTime.Now;
                         item.Progress = 100;
+                        SaveQueueToFile();
 
                         _logger.LogInfo($"Completed queue item {QueueProgress + 1}/{QueueTotal}: {item.StyleName}");
                     }
@@ -1344,6 +1388,7 @@ namespace FlipPix.UI.ViewModels
                     {
                         item.Status = "Cancelled";
                         item.ErrorMessage = "Cancelled by user";
+                        SaveQueueToFile();
                         _logger.LogInfo($"Queue item cancelled: {item.StyleName}");
                         break;
                     }
@@ -1352,6 +1397,7 @@ namespace FlipPix.UI.ViewModels
                         item.Status = "Failed";
                         item.ErrorMessage = ex.Message;
                         item.Progress = 0;
+                        SaveQueueToFile();
                         _logger.LogError($"Queue item failed: {item.StyleName} - {ex.Message}");
                     }
                     finally
@@ -1368,7 +1414,10 @@ namespace FlipPix.UI.ViewModels
             }
             finally
             {
+                _workflowCoordinator.Release();
                 IsProcessingQueue = false;
+                IsQueuePaused = false;
+                _pauseEvent.Set();
                 CurrentQueueItem = null;
                 QueueProgress = 0;
                 QueueTotal = 0;
@@ -3140,6 +3189,72 @@ namespace FlipPix.UI.ViewModels
                 _logger.LogError($"Error refreshing models: {ex.Message}");
                 System.Windows.MessageBox.Show($"Error refreshing models: {ex.Message}", "Refresh Error",
                     System.Windows.MessageBoxButton.OK, System.Windows.MessageBoxImage.Error);
+            }
+        }
+
+        private void PauseQueue()
+        {
+            IsQueuePaused = true;
+            _pauseEvent.Reset();
+            _logger.LogInfo("Queue paused");
+        }
+
+        private void ResumeQueue()
+        {
+            IsQueuePaused = false;
+            _pauseEvent.Set();
+            _logger.LogInfo("Queue resumed");
+        }
+
+        private string QueueFilePath => Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "queue", "image_analyzer_queue.json");
+
+        private void SaveQueueToFile()
+        {
+            try
+            {
+                var queueDir = Path.GetDirectoryName(QueueFilePath);
+                if (!string.IsNullOrEmpty(queueDir) && !Directory.Exists(queueDir))
+                {
+                    Directory.CreateDirectory(queueDir);
+                }
+
+                var options = new JsonSerializerOptions { WriteIndented = true };
+                var json = JsonSerializer.Serialize(QueueItems.ToList(), options);
+                File.WriteAllText(QueueFilePath, json);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError($"Error saving queue to file: {ex.Message}");
+            }
+        }
+
+        private void LoadQueueFromFile()
+        {
+            try
+            {
+                if (!File.Exists(QueueFilePath)) return;
+
+                var json = File.ReadAllText(QueueFilePath);
+                var savedItems = JsonSerializer.Deserialize<List<ImageAnalyzerQueueItem>>(json);
+
+                if (savedItems != null && savedItems.Any())
+                {
+                    _queueItems.Clear();
+                    foreach (var item in savedItems)
+                    {
+                        if (item.Status == "Processing")
+                        {
+                            item.Status = "Failed";
+                            item.ErrorMessage = "Interrupted by crash or app restart";
+                        }
+                        _queueItems.Add(item);
+                    }
+                    _logger.LogInfo($"Queue loaded from file: {_queueItems.Count} items");
+                }
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError($"Error loading queue from file: {ex.Message}");
             }
         }
 

@@ -202,6 +202,7 @@ namespace FlipPix.UI
                 return new ComfyUIWebSocketClient(logger, settings.BaseUrl);
             });
             services.AddSingleton<FlipPix.ComfyUI.Services.ComfyUIService>();
+            services.AddSingleton<WorkflowQueueCoordinator>();
 
             // ViewModels
             services.AddTransient<FlipPixViewModel>(provider =>
@@ -234,7 +235,8 @@ namespace FlipPix.UI
                 var lmStudioService = provider.GetRequiredService<LMStudioService>();
                 var logger = provider.GetRequiredService<IAppLogger>();
                 var settingsService = provider.GetRequiredService<SettingsService>();
-                return new ImageAnalyzerViewModel(comfyUIService, lmStudioService, logger, settingsService);
+                var workflowCoordinator = provider.GetRequiredService<WorkflowQueueCoordinator>();
+                return new ImageAnalyzerViewModel(comfyUIService, lmStudioService, logger, settingsService, workflowCoordinator);
             });
             services.AddTransient<StoryVideoViewModel>(provider =>
             {

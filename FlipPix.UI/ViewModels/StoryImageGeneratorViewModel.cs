@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using System.Collections.ObjectModel;
 using System.ComponentModel;
 using System.Diagnostics;
@@ -6,6 +7,7 @@ using System.IO;
 using System.Linq;
 using System.Runtime.CompilerServices;
 using System.Text.Json;
+using System.Threading;
 using System.Threading.Tasks;
 using System.Windows;
 using System.Windows.Input;
@@ -14,6 +16,7 @@ using WinForms = System.Windows.Forms;
 using FlipPix.ComfyUI.Services;
 using FlipPix.Core.Interfaces;
 using FlipPix.UI.Models;
+using FlipPix.UI.Services;
 using YamlDotNet.Serialization;
 
 namespace FlipPix.UI.ViewModels
@@ -23,6 +26,7 @@ namespace FlipPix.UI.ViewModels
         private readonly FlipPix.ComfyUI.Services.ComfyUIService _comfyUIService;
         private readonly IAppLogger _logger;
         private readonly FlipPix.Core.Services.SettingsService _settingsService;
+        private readonly WorkflowQueueCoordinator _workflowCoordinator;
 
         private string _promptJsonFilePath = string.Empty;
         private string _inputImagePath = string.Empty;
@@ -37,6 +41,8 @@ namespace FlipPix.UI.ViewModels
         private string _processingStatus = string.Empty;
         private double _processingProgress = 0;
         private System.Threading.CancellationTokenSource? _cancellationTokenSource;
+        private bool _isQueuePaused = false;
+        private readonly ManualResetEventSlim _pauseEvent = new(true);
 
         // Generation settings
         private int _steps = 8;
@@ -74,11 +80,13 @@ namespace FlipPix.UI.ViewModels
         public StoryImageGeneratorViewModel(
             FlipPix.ComfyUI.Services.ComfyUIService comfyUIService,
             IAppLogger logger,
-            FlipPix.Core.Services.SettingsService settingsService)
+            FlipPix.Core.Services.SettingsService settingsService,
+            WorkflowQueueCoordinator workflowCoordinator)
         {
             _comfyUIService = comfyUIService ?? throw new ArgumentNullException(nameof(comfyUIService));
             _logger = logger ?? throw new ArgumentNullException(nameof(logger));
             _settingsService = settingsService ?? throw new ArgumentNullException(nameof(settingsService));
+            _workflowCoordinator = workflowCoordinator ?? throw new ArgumentNullException(nameof(workflowCoordinator));
 
             // Initialize commands
             SelectPromptJsonCommand = new RelayCommand(SelectPromptJson);
@@ -89,6 +97,8 @@ namespace FlipPix.UI.ViewModels
             OpenOutputFolderCommand = new RelayCommand(OpenOutputFolder);
             CancelProcessingCommand = new RelayCommand(CancelProcessing, () => IsProcessing);
             RefreshLorasCommand = new RelayCommand(RefreshLoras);
+            PauseQueueCommand = new RelayCommand(PauseQueue, () => IsProcessingQueue && !IsQueuePaused);
+            ResumeQueueCommand = new RelayCommand(ResumeQueue, () => IsProcessingQueue && IsQueuePaused);
 
             // Load available Loras
             LoadAvailableLoras();
@@ -104,6 +114,8 @@ namespace FlipPix.UI.ViewModels
 
             // Initialize upscale methods
             InitializeUpscaleMethods();
+
+            LoadQueueFromFile();
 
             AddLog("Story Image Generator initialized");
         }
@@ -266,6 +278,23 @@ namespace FlipPix.UI.ViewModels
             }
         }
 
+        public bool IsQueuePaused
+        {
+            get => _isQueuePaused;
+            set
+            {
+                if (_isQueuePaused != value)
+                {
+                    _isQueuePaused = value;
+                    OnPropertyChanged();
+                    CommandManager.InvalidateRequerySuggested();
+                }
+            }
+        }
+
+        public ICommand PauseQueueCommand { get; }
+        public ICommand ResumeQueueCommand { get; }
+
         public StoryPromptItem? CurrentQueueItem
         {
             get => _currentQueueItem;
@@ -307,11 +336,10 @@ namespace FlipPix.UI.ViewModels
             }
         }
 
-        public string QueueProgressText => QueueTotal > 0 ? $"{QueueProgress}/{QueueTotal}" : "0/0";
+        public string QueueProgressText => QueueItems.Count > 0 ? $"{CompletedCount}/{QueueItems.Count} ({QueuedCount} remaining)" : "0/0";
 
         public bool CanLoadPrompts => !string.IsNullOrEmpty(PromptJsonFilePath) &&
-                                      File.Exists(PromptJsonFilePath) &&
-                                      !IsProcessingQueue;
+                                      File.Exists(PromptJsonFilePath);
 
         public bool CanProcessQueue => QueueItems.Any(item => item.Status == "Queued") &&
                                        !IsProcessingQueue;
@@ -753,23 +781,36 @@ namespace FlipPix.UI.ViewModels
                     return;
                 }
 
-                // Clear existing queue
-                QueueItems.Clear();
+                // Append to existing queue (calculate next index from existing items)
+                var startIndex = QueueItems.Any() ? QueueItems.Max(q => q.Index) + 1 : 1;
 
                 // Create queue items for each prompt
                 for (int i = 0; i < storyData.Prompts.Count; i++)
                 {
                     QueueItems.Add(new StoryPromptItem
                     {
-                        Index = i + 1,
+                        Index = startIndex + i,
                         Prompt = storyData.Prompts[i],
                         InputImagePath = InputImagePath, // All items use the same input image
-                        Status = "Queued"
+                        Status = "Queued",
+                        // Snapshot current settings
+                        StyleName = SelectedWorkflowStyle?.Name ?? "",
+                        StyleWorkflowFile = SelectedWorkflowStyle?.WorkflowFile ?? "",
+                        LoraEnabled = LoraEnabled,
+                        SelectedLora = SelectedLora,
+                        LoraStrengthModel = LoraStrengthModel,
+                        LoraStrengthClip = LoraStrengthClip,
+                        SelectedStyle = SelectedStyle,
+                        SpicyContentEnabled = SpicyContentEnabled,
+                        NegativePrompt = NegativePrompt,
+                        SelectedOrientation = SelectedOrientation,
                     });
                 }
 
-                AddLog($"Loaded {QueueItems.Count} prompts into queue");
-                System.Windows.MessageBox.Show($"Successfully loaded {QueueItems.Count} prompts into the queue.", "Success",
+                UpdateQueueCountNotifications();
+                SaveQueueToFile();
+                AddLog($"Added {storyData.Prompts.Count} prompts to queue (total: {QueueItems.Count})");
+                System.Windows.MessageBox.Show($"Added {storyData.Prompts.Count} prompts to the queue.\nTotal queue items: {QueueItems.Count}", "Success",
                     MessageBoxButton.OK, MessageBoxImage.Information);
             }
             catch (Exception ex)
@@ -788,11 +829,22 @@ namespace FlipPix.UI.ViewModels
             _cancellationTokenSource?.Dispose();
             _cancellationTokenSource = new System.Threading.CancellationTokenSource();
 
+            AddLog("Waiting for other workflows to finish...");
+
+            try
+            {
+                await _workflowCoordinator.AcquireAsync("StoryImageZ", _cancellationTokenSource.Token);
+            }
+            catch (OperationCanceledException)
+            {
+                AddLog("Queue processing cancelled while waiting");
+                return;
+            }
+
             try
             {
                 IsProcessingQueue = true;
-                var queuedItems = QueueItems.Where(item => item.Status == "Queued").ToList();
-                QueueTotal = queuedItems.Count;
+                QueueTotal = QueueItems.Count;
                 QueueProgress = 0;
 
                 // Create output folder for this queue processing session (named after JSON file)
@@ -804,16 +856,24 @@ namespace FlipPix.UI.ViewModels
                 var sessionOutputDir = GetUniqueFolderPath(baseOutputDir, jsonFileName);
                 Directory.CreateDirectory(sessionOutputDir);
 
-                AddLog($"=== Starting story queue processing ({QueueTotal} images) ===");
+                AddLog($"=== Starting story queue processing ({QueuedCount} images) ===");
                 AddLog($"Output folder: {sessionOutputDir}");
 
-                foreach (var item in queuedItems)
+                while (true)
                 {
                     if (_cancellationTokenSource.Token.IsCancellationRequested)
                     {
                         AddLog("Queue processing cancelled");
                         break;
                     }
+
+                    // Wait if paused
+                    _pauseEvent.Wait(_cancellationTokenSource.Token);
+
+                    var item = QueueItems.FirstOrDefault(i => i.Status == "Queued");
+                    if (item == null) break;
+
+                    QueueTotal = QueueItems.Count;
 
                     // Check ComfyUI status before processing each item
                     AddLog("Checking ComfyUI status before processing...");
@@ -853,6 +913,7 @@ namespace FlipPix.UI.ViewModels
                     item.Status = "Processing";
                     item.StartedAt = DateTime.Now;
                     item.InputImagePath = InputImagePath; // Always use the original input image
+                    SaveQueueToFile();
 
                     AddLog($"Processing story image {QueueProgress + 1}/{QueueTotal}");
 
@@ -864,6 +925,7 @@ namespace FlipPix.UI.ViewModels
                         item.Status = "Completed";
                         item.CompletedAt = DateTime.Now;
                         item.Progress = 100;
+                        SaveQueueToFile();
 
                         AddLog($"Completed story image {QueueProgress + 1}/{QueueTotal}: {Path.GetFileName(outputPath)}");
                     }
@@ -871,6 +933,7 @@ namespace FlipPix.UI.ViewModels
                     {
                         item.Status = "Cancelled";
                         item.ErrorMessage = "Cancelled by user";
+                        SaveQueueToFile();
                         AddLog($"Queue item cancelled: Prompt #{item.Index}");
                         break;
                     }
@@ -879,6 +942,7 @@ namespace FlipPix.UI.ViewModels
                         item.Status = "Failed";
                         item.ErrorMessage = ex.Message;
                         item.Progress = 0;
+                        SaveQueueToFile();
                         AddLog($"Queue item failed: Prompt #{item.Index} - {ex.Message}");
                         _logger.LogError($"Error processing queue item {item.Id}: {ex}");
 
@@ -891,6 +955,7 @@ namespace FlipPix.UI.ViewModels
                     finally
                     {
                         QueueProgress++;
+                        UpdateQueueCountNotifications();
                     }
                 }
 
@@ -907,12 +972,24 @@ namespace FlipPix.UI.ViewModels
             }
             finally
             {
+                _workflowCoordinator.Release();
                 IsProcessingQueue = false;
+                IsQueuePaused = false;
+                _pauseEvent.Set();
                 CurrentQueueItem = null;
                 QueueProgress = 0;
                 QueueTotal = 0;
+                UpdateQueueCountNotifications();
                 CommandManager.InvalidateRequerySuggested();
             }
+        }
+
+        private void UpdateQueueCountNotifications()
+        {
+            OnPropertyChanged(nameof(QueuedCount));
+            OnPropertyChanged(nameof(CompletedCount));
+            OnPropertyChanged(nameof(FailedCount));
+            OnPropertyChanged(nameof(QueueProgressText));
         }
 
         private async Task<string> ProcessQueueItemAsync(StoryPromptItem item, string inputImagePath, string outputDir, string jsonFileName, System.Threading.CancellationToken cancellationToken)
@@ -925,28 +1002,27 @@ namespace FlipPix.UI.ViewModels
 
             cancellationToken.ThrowIfCancellationRequested();
 
-            // Get selected style and its workflow
-            var selectedStyle = SelectedWorkflowStyle;
-            if (selectedStyle == null)
+            // Get style from item snapshot
+            if (string.IsNullOrEmpty(item.StyleWorkflowFile))
             {
                 throw new InvalidOperationException("No style selected. Please select a style from the ZStyles workflows.");
             }
 
-            AddLog($"Using style: {selectedStyle.Name} from workflow: {Path.GetFileName(selectedStyle.WorkflowFile)}");
+            AddLog($"Using style: {item.StyleName} from workflow: {Path.GetFileName(item.StyleWorkflowFile)}");
 
-            // Load workflow from selected style
-            if (!File.Exists(selectedStyle.WorkflowFile))
+            // Load workflow from item's snapshotted style
+            if (!File.Exists(item.StyleWorkflowFile))
             {
-                throw new FileNotFoundException($"Workflow file not found: {selectedStyle.WorkflowFile}");
+                throw new FileNotFoundException($"Workflow file not found: {item.StyleWorkflowFile}");
             }
 
-            var workflowJson = await File.ReadAllTextAsync(selectedStyle.WorkflowFile, cancellationToken);
+            var workflowJson = await File.ReadAllTextAsync(item.StyleWorkflowFile, cancellationToken);
             var workflow = JsonSerializer.Deserialize<JsonElement>(workflowJson);
 
             cancellationToken.ThrowIfCancellationRequested();
 
             // Update workflow parameters (text-to-image, no input image needed)
-            var updatedWorkflow = UpdateWorkflowParameters(workflow, item.Prompt);
+            var updatedWorkflow = UpdateWorkflowParameters(workflow, item);
 
             // Execute workflow with progress reporting
             var progress = new Progress<FlipPix.ComfyUI.Models.ProgressMessage>(progressMsg =>
@@ -1004,7 +1080,7 @@ namespace FlipPix.UI.ViewModels
             return sanitized;
         }
 
-        private JsonElement UpdateWorkflowParameters(JsonElement workflow, string promptText)
+        private JsonElement UpdateWorkflowParameters(JsonElement workflow, StoryPromptItem item)
         {
             var workflowDict = JsonSerializer.Deserialize<Dictionary<string, JsonElement>>(workflow.GetRawText());
 
@@ -1020,7 +1096,7 @@ namespace FlipPix.UI.ViewModels
                         JsonSerializer.Serialize(node385["inputs"]));
                     if (inputs != null)
                     {
-                        inputs["string"] = promptText;
+                        inputs["string"] = item.Prompt;
                         node385["inputs"] = inputs;
                         workflowDict["385"] = JsonSerializer.SerializeToElement(node385);
                     }
@@ -1037,7 +1113,7 @@ namespace FlipPix.UI.ViewModels
                         JsonSerializer.Serialize(node60["inputs"]));
                     if (inputs != null)
                     {
-                        inputs["text"] = NegativePrompt;
+                        inputs["text"] = item.NegativePrompt;
                         node60["inputs"] = inputs;
                         workflowDict["60"] = JsonSerializer.SerializeToElement(node60);
                     }
@@ -1075,7 +1151,7 @@ namespace FlipPix.UI.ViewModels
                     if (inputs != null)
                     {
                         // Build the style template
-                        var styleTemplate = GetStyleTemplateForWorkflow();
+                        var styleTemplate = GetStyleTemplateForWorkflow(item.SelectedStyle, item.SpicyContentEnabled);
                         inputs["value"] = styleTemplate;
                         node125["inputs"] = inputs;
                         workflowDict["125"] = JsonSerializer.SerializeToElement(node125);
@@ -1084,7 +1160,7 @@ namespace FlipPix.UI.ViewModels
             }
 
             // 5. Update LoRA settings - always process to disable hardcoded loras when not enabled
-            AddLog($"Processing LoRA nodes - LoRA Enabled: {LoraEnabled}, Selected LoRA: {SelectedLora}");
+            AddLog($"Processing LoRA nodes - LoRA Enabled: {item.LoraEnabled}, Selected LoRA: {item.SelectedLora}");
 
             // Iterate through all nodes to find Power Lora Loader nodes
             foreach (var kvp in workflowDict)
@@ -1107,7 +1183,7 @@ namespace FlipPix.UI.ViewModels
                                 // Power Lora Loader uses lora_1, lora_2, etc. with structure:
                                 // { "on": true, "lora": "path/to/lora.safetensors", "strength": 1.0 }
 
-                                if (LoraEnabled)
+                                if (item.LoraEnabled)
                                 {
                                     // Enable and update with selected LoRA
                                     bool loraUpdated = false;
@@ -1127,11 +1203,11 @@ namespace FlipPix.UI.ViewModels
                                                 if (isOn)
                                                 {
                                                     // Update this lora entry with proper path format
-                                                    loraEntry["lora"] = $"zimage\\{SelectedLora}.safetensors";
-                                                    loraEntry["strength"] = LoraStrengthModel;
+                                                    loraEntry["lora"] = $"zimage\\{item.SelectedLora}.safetensors";
+                                                    loraEntry["strength"] = item.LoraStrengthModel;
                                                     inputs[loraKey] = loraEntry;
                                                     loraUpdated = true;
-                                                    AddLog($"Updated {loraKey} with LoRA: {SelectedLora}.safetensors (Strength: {LoraStrengthModel})");
+                                                    AddLog($"Updated {loraKey} with LoRA: {item.SelectedLora}.safetensors (Strength: {item.LoraStrengthModel})");
                                                     break; // Only update the first enabled lora
                                                 }
                                             }
@@ -1147,10 +1223,10 @@ namespace FlipPix.UI.ViewModels
                                         if (loraEntry != null)
                                         {
                                             loraEntry["on"] = true;
-                                            loraEntry["lora"] = $"zimage\\{SelectedLora}.safetensors";
-                                            loraEntry["strength"] = LoraStrengthModel;
+                                            loraEntry["lora"] = $"zimage\\{item.SelectedLora}.safetensors";
+                                            loraEntry["strength"] = item.LoraStrengthModel;
                                             inputs["lora_1"] = loraEntry;
-                                            AddLog($"Enabled and updated lora_1 with LoRA: {SelectedLora}.safetensors (Strength: {LoraStrengthModel})");
+                                            AddLog($"Enabled and updated lora_1 with LoRA: {item.SelectedLora}.safetensors (Strength: {item.LoraStrengthModel})");
                                         }
                                     }
                                 }
@@ -1203,18 +1279,18 @@ namespace FlipPix.UI.ViewModels
             }
 
             // 7. Update resolution/orientation (nodes 56, 243, 248)
-            UpdateResolution(workflowDict);
+            UpdateResolution(workflowDict, item.SelectedOrientation);
 
             return JsonSerializer.SerializeToElement(workflowDict);
         }
 
-        private void UpdateResolution(Dictionary<string, JsonElement> workflowDict)
+        private void UpdateResolution(Dictionary<string, JsonElement> workflowDict, string selectedOrientation)
         {
             // Parse orientation and set dimensions
             int width = 944;
             int height = 1408;
 
-            switch (SelectedOrientation)
+            switch (selectedOrientation)
             {
                 case "Portrait (944x1408)":
                     width = 944;
@@ -1263,12 +1339,12 @@ namespace FlipPix.UI.ViewModels
             int heightSD3 = height;
 
             // For SD3, we need to map the actual width/height to short/long sides
-            if (SelectedOrientation == "Portrait (944x1408)")
+            if (selectedOrientation == "Portrait (944x1408)")
             {
                 widthSD3 = shortSide;  // 1088
                 heightSD3 = longSide;  // 1600
             }
-            else if (SelectedOrientation == "Landscape (1408x944)")
+            else if (selectedOrientation == "Landscape (1408x944)")
             {
                 widthSD3 = longSide;   // 1600
                 heightSD3 = shortSide;  // 1088
@@ -1313,12 +1389,12 @@ namespace FlipPix.UI.ViewModels
                 }
             }
 
-            AddLog($"Orientation: {SelectedOrientation} -> Node56: {width}x{height}, SD3: {widthSD3}x{heightSD3}");
+            AddLog($"Orientation: {selectedOrientation} -> Node56: {width}x{height}, SD3: {widthSD3}x{heightSD3}");
         }
 
-        private string GetStyleTemplate()
+        private string GetStyleTemplate(string selectedStyle)
         {
-            return SelectedStyle switch
+            return selectedStyle switch
             {
                 "Phone Photo" => "YOUR CONTEXT:\nYour photographs has android phone cam-quality.\nYour photographs exhibit {$spicy-content-with} surprising compositions, sharp complex backgrounds, natural lighting, and candid moments that feel immediate and authentic.\nYour photographs are actual gritty candid photographic background.\nYOUR PHOTO:\n{$@}",
 
@@ -1344,12 +1420,12 @@ namespace FlipPix.UI.ViewModels
             };
         }
 
-        private string GetStyleTemplateForWorkflow()
+        private string GetStyleTemplateForWorkflow(string selectedStyle, bool spicyContentEnabled)
         {
-            var baseTemplate = GetStyleTemplate();
+            var baseTemplate = GetStyleTemplate(selectedStyle);
 
             // Add spicy content modifier if enabled
-            if (SpicyContentEnabled)
+            if (spicyContentEnabled)
             {
                 return baseTemplate.Replace("{$spicy-content-with}", "erotic, sensual,");
             }
@@ -1803,6 +1879,7 @@ namespace FlipPix.UI.ViewModels
             if (result == MessageBoxResult.Yes)
             {
                 QueueItems.Clear();
+                SaveQueueToFile();
                 AddLog("Queue cleared");
                 CommandManager.InvalidateRequerySuggested();
             }
@@ -1840,6 +1917,73 @@ namespace FlipPix.UI.ViewModels
                 AddLog("Cancellation requested by user");
                 _cancellationTokenSource.Cancel();
                 ProcessingStatus = "Cancelling...";
+            }
+        }
+
+        private void PauseQueue()
+        {
+            IsQueuePaused = true;
+            _pauseEvent.Reset();
+            AddLog("Queue paused");
+        }
+
+        private void ResumeQueue()
+        {
+            IsQueuePaused = false;
+            _pauseEvent.Set();
+            AddLog("Queue resumed");
+        }
+
+        private string QueueFilePath => Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "queue", "story_image_queue.json");
+
+        private void SaveQueueToFile()
+        {
+            try
+            {
+                var queueDir = Path.GetDirectoryName(QueueFilePath);
+                if (!string.IsNullOrEmpty(queueDir) && !Directory.Exists(queueDir))
+                {
+                    Directory.CreateDirectory(queueDir);
+                }
+
+                var options = new JsonSerializerOptions { WriteIndented = true };
+                var json = JsonSerializer.Serialize(QueueItems.ToList(), options);
+                File.WriteAllText(QueueFilePath, json);
+            }
+            catch (Exception ex)
+            {
+                AddLog($"Error saving queue to file: {ex.Message}");
+            }
+        }
+
+        private void LoadQueueFromFile()
+        {
+            try
+            {
+                if (!File.Exists(QueueFilePath)) return;
+
+                var json = File.ReadAllText(QueueFilePath);
+                var savedItems = JsonSerializer.Deserialize<List<StoryPromptItem>>(json);
+
+                if (savedItems != null && savedItems.Any())
+                {
+                    _queueItems.Clear();
+                    foreach (var item in savedItems)
+                    {
+                        if (item.Status == "Processing")
+                        {
+                            item.Status = "Failed";
+                            item.ErrorMessage = "Interrupted by crash or app restart";
+                        }
+                        _queueItems.Add(item);
+                    }
+                    UpdateQueueCountNotifications();
+                    AddLog($"Queue loaded from file: {_queueItems.Count} items");
+                }
+            }
+            catch (Exception ex)
+            {
+                AddLog($"Error loading queue from file: {ex.Message}");
             }
         }
 

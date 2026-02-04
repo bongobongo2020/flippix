@@ -8,6 +8,7 @@ using System.Linq;
 using System.Net.Http;
 using System.Runtime.CompilerServices;
 using System.Text.Json;
+using System.Threading;
 using System.Threading.Tasks;
 using System.Windows;
 using System.Windows.Controls;
@@ -18,6 +19,7 @@ using Microsoft.Win32;
 using FlipPix.ComfyUI.Services;
 using FlipPix.Core.Interfaces;
 using FlipPix.UI.Models;
+using Microsoft.Extensions.DependencyInjection;
 
 namespace FlipPix.UI.ViewModels
 {
@@ -28,6 +30,7 @@ namespace FlipPix.UI.ViewModels
         private readonly IAppLogger _logger;
         private readonly FlipPix.Core.Services.SettingsService _settingsService;
         private readonly IServiceProvider? _serviceProvider;
+        private readonly FlipPix.UI.Services.WorkflowQueueCoordinator _workflowCoordinator;
 
         private string _imageFilePath = string.Empty;
         private BitmapImage? _imagePreviewSource;
@@ -86,6 +89,10 @@ namespace FlipPix.UI.ViewModels
         private int _storyQueueTotal = 0;
         private string _storyQueueStatus = "No images loaded";
         private readonly ObservableCollection<StoryVideoQueueItem> _storyVideoQueue = new();
+        private bool _isQueuePaused = false;
+        private bool _isStoryQueuePaused = false;
+        private readonly ManualResetEventSlim _pauseEvent = new(true);
+        private readonly ManualResetEventSlim _storyPauseEvent = new(true);
 
         // Workflow selection
         private string _selectedWorkflow = "ltx2_i2v";
@@ -148,6 +155,7 @@ namespace FlipPix.UI.ViewModels
             _logger = logger ?? throw new ArgumentNullException(nameof(logger));
             _settingsService = settingsService ?? throw new ArgumentNullException(nameof(settingsService));
             _serviceProvider = serviceProvider;
+            _workflowCoordinator = serviceProvider?.GetRequiredService<FlipPix.UI.Services.WorkflowQueueCoordinator>() ?? throw new InvalidOperationException("WorkflowQueueCoordinator is required");
 
             // Initialize commands
             SelectImageCommand = new RelayCommand(SelectImage);
@@ -200,6 +208,12 @@ namespace FlipPix.UI.ViewModels
             PlayMochaVideoCommand = new RelayCommand(PlayMochaVideo, () => HasMochaResult);
             OpenMochaResultFolderCommand = new RelayCommand(OpenMochaResultFolder, () => HasMochaResult);
             SendMochaToEditCameraCommand = new RelayCommand(SendMochaToEditCamera, () => HasMochaResult);
+
+            // Pause/Resume commands
+            PauseQueueCommand = new RelayCommand(PauseQueue, () => IsProcessingQueue && !IsQueuePaused);
+            ResumeQueueCommand = new RelayCommand(ResumeQueue, () => IsProcessingQueue && IsQueuePaused);
+            PauseStoryQueueCommand = new RelayCommand(PauseStoryQueue, () => IsProcessingStoryQueue && !IsStoryQueuePaused);
+            ResumeStoryQueueCommand = new RelayCommand(ResumeStoryQueue, () => IsProcessingStoryQueue && IsStoryQueuePaused);
 
             // Workflow toggle command
             ToggleWorkflowCommand = new RelayCommand(ToggleWorkflow);
@@ -676,6 +690,39 @@ namespace FlipPix.UI.ViewModels
                 }
             }
         }
+
+        public bool IsQueuePaused
+        {
+            get => _isQueuePaused;
+            set
+            {
+                if (_isQueuePaused != value)
+                {
+                    _isQueuePaused = value;
+                    OnPropertyChanged();
+                    CommandManager.InvalidateRequerySuggested();
+                }
+            }
+        }
+
+        public bool IsStoryQueuePaused
+        {
+            get => _isStoryQueuePaused;
+            set
+            {
+                if (_isStoryQueuePaused != value)
+                {
+                    _isStoryQueuePaused = value;
+                    OnPropertyChanged();
+                    CommandManager.InvalidateRequerySuggested();
+                }
+            }
+        }
+
+        public ICommand PauseQueueCommand { get; }
+        public ICommand ResumeQueueCommand { get; }
+        public ICommand PauseStoryQueueCommand { get; }
+        public ICommand ResumeStoryQueueCommand { get; }
 
         public bool CanProcessQueue => PromptQueue.Any(x => x.Status == QueueItemStatus.Pending) && !IsProcessingQueue && !IsProcessing;
 
@@ -3422,6 +3469,34 @@ namespace FlipPix.UI.ViewModels
             }
         }
 
+        private void PauseQueue()
+        {
+            IsQueuePaused = true;
+            _pauseEvent.Reset();
+            AddLog("Queue paused");
+        }
+
+        private void ResumeQueue()
+        {
+            IsQueuePaused = false;
+            _pauseEvent.Set();
+            AddLog("Queue resumed");
+        }
+
+        private void PauseStoryQueue()
+        {
+            IsStoryQueuePaused = true;
+            _storyPauseEvent.Reset();
+            AddLog("Story queue paused");
+        }
+
+        private void ResumeStoryQueue()
+        {
+            IsStoryQueuePaused = false;
+            _storyPauseEvent.Set();
+            AddLog("Story queue resumed");
+        }
+
         private void AddLog(string message)
         {
             var timestamp = DateTime.Now.ToString("HH:mm:ss");
@@ -4381,6 +4456,19 @@ namespace FlipPix.UI.ViewModels
             if (!PromptQueue.Any()) return;
 
             IsProcessingQueue = true;
+            AddLog("Waiting for other workflows to finish...");
+
+            try
+            {
+                await _workflowCoordinator.AcquireAsync("VideoGenerator", CancellationToken.None);
+            }
+            catch (OperationCanceledException)
+            {
+                AddLog("Queue processing cancelled while waiting");
+                IsProcessingQueue = false;
+                return;
+            }
+
             AddLog($"=== Starting to process queue with {PromptQueue.Count} items ===");
 
             try
@@ -4389,7 +4477,10 @@ namespace FlipPix.UI.ViewModels
 
                 foreach (var item in pendingItems)
                 {
-                    if (IsProcessing) break; // Stop if single video generation starts
+                    if (IsProcessing) break;
+
+                    // Wait if paused
+                    _pauseEvent.Wait(CancellationToken.None);
 
                     try
                     {
@@ -4584,7 +4675,10 @@ namespace FlipPix.UI.ViewModels
             }
             finally
             {
+                _workflowCoordinator.Release();
                 IsProcessingQueue = false;
+                IsQueuePaused = false;
+                _pauseEvent.Set();
                 CommandManager.InvalidateRequerySuggested();
             }
         }
@@ -5021,6 +5115,18 @@ namespace FlipPix.UI.ViewModels
         {
             if (!CanProcessStoryQueue) return;
 
+            AddLog("Waiting for other workflows to finish...");
+
+            try
+            {
+                await _workflowCoordinator.AcquireAsync("StoryVideo", CancellationToken.None);
+            }
+            catch (OperationCanceledException)
+            {
+                AddLog("Queue processing cancelled while waiting");
+                return;
+            }
+
             try
             {
                 IsProcessingStoryQueue = true;
@@ -5032,6 +5138,9 @@ namespace FlipPix.UI.ViewModels
 
                 foreach (var item in pendingItems)
                 {
+                    // Wait if paused
+                    _storyPauseEvent.Wait(CancellationToken.None);
+
                     CurrentStoryQueueItem = item;
                     item.Status = "Processing";
                     item.StartedAt = DateTime.Now;
@@ -5159,7 +5268,10 @@ namespace FlipPix.UI.ViewModels
             }
             finally
             {
+                _workflowCoordinator.Release();
                 IsProcessingStoryQueue = false;
+                IsStoryQueuePaused = false;
+                _storyPauseEvent.Set();
                 CurrentStoryQueueItem = null;
                 StoryQueueProgress = 0;
                 StoryQueueTotal = 0;
