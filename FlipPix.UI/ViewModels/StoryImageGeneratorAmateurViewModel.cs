@@ -1,54 +1,26 @@
 using System;
 using System.Collections.Generic;
 using System.Collections.ObjectModel;
-using System.ComponentModel;
-using System.Diagnostics;
 using System.IO;
 using System.Linq;
-using System.Runtime.CompilerServices;
 using System.Text.Json;
 using System.Threading;
 using System.Threading.Tasks;
-using System.Windows;
 using System.Windows.Input;
-using System.Windows.Media.Imaging;
 using FlipPix.ComfyUI.Services;
 using FlipPix.Core.Interfaces;
+using FlipPix.UI.Commands;
 using FlipPix.UI.Models;
 using FlipPix.UI.Services;
-using YamlDotNet.Serialization;
 
 namespace FlipPix.UI.ViewModels
 {
-    public class StoryImageGeneratorAmateurViewModel : INotifyPropertyChanged
+    public class StoryImageGeneratorAmateurViewModel : StoryImageGeneratorBaseViewModel
     {
-        private readonly FlipPix.ComfyUI.Services.ComfyUIService _comfyUIService;
-        private readonly IAppLogger _logger;
-        private readonly FlipPix.Core.Services.SettingsService _settingsService;
-        private readonly WorkflowQueueCoordinator _workflowCoordinator;
-
-        private string _promptJsonFilePath = string.Empty;
-        private string _inputImagePath = string.Empty;
-        private BitmapImage? _inputImagePreview;
-        private ObservableCollection<StoryPromptItem> _queueItems = new();
-        private bool _isProcessingQueue = false;
-        private StoryPromptItem? _currentQueueItem;
-        private int _queueProgress = 0;
-        private int _queueTotal = 0;
-        private string _logOutput = string.Empty;
-        private bool _isProcessing = false;
-        private string _processingStatus = string.Empty;
-        private double _processingProgress = 0;
-        private System.Threading.CancellationTokenSource? _cancellationTokenSource;
-        private bool _isQueuePaused = false;
-        private readonly ManualResetEventSlim _pauseEvent = new(true);
-
-        // Generation settings
-        private int _steps = 9;
-        private double _cfg = 1.0;
-        private double _denoise = 0.5;
-        private double _denoise2 = 0.3;
-        private string _negativePrompt = "";
+        // Amateur LoRA is always enabled
+        private const string AmateurLoraName = "amateur_photography_zimage_v1.safetensors";
+        private const double AmateurLoraStrength1 = 0.4; // Node 105
+        private const double AmateurLoraStrength2 = 0.9; // Node 752
 
         // Character LoRA settings (optional)
         private ObservableCollection<string> _availableCharacterLoras = new();
@@ -56,311 +28,42 @@ namespace FlipPix.UI.ViewModels
         private bool _characterLoraEnabled = false;
         private double _characterLoraStrength = 0.8;
 
-        // Amateur LoRA is always enabled
-        private const string AmateurLoraName = "amateur_photography_zimage_v1.safetensors";
-        private const double AmateurLoraStrength1 = 0.4; // Node 105
-        private const double AmateurLoraStrength2 = 0.9; // Node 752
+        // Additional denoise setting
+        private double _denoise2 = 0.3;
 
         public StoryImageGeneratorAmateurViewModel(
-            FlipPix.ComfyUI.Services.ComfyUIService comfyUIService,
+            ComfyUIService comfyUIService,
             IAppLogger logger,
             FlipPix.Core.Services.SettingsService settingsService,
             WorkflowQueueCoordinator workflowCoordinator)
+            : base(comfyUIService, logger, settingsService, workflowCoordinator)
         {
-            _comfyUIService = comfyUIService ?? throw new ArgumentNullException(nameof(comfyUIService));
-            _logger = logger ?? throw new ArgumentNullException(nameof(logger));
-            _settingsService = settingsService ?? throw new ArgumentNullException(nameof(settingsService));
-            _workflowCoordinator = workflowCoordinator ?? throw new ArgumentNullException(nameof(workflowCoordinator));
+        }
 
-            // Initialize commands
-            SelectPromptJsonCommand = new RelayCommand(SelectPromptJson);
-            SelectInputImageCommand = new RelayCommand(SelectInputImage);
-            LoadPromptsCommand = new RelayCommand(async () => await LoadPromptsAsync(), () => CanLoadPrompts);
-            ProcessQueueCommand = new RelayCommand(async () => await ProcessQueueAsync(), () => CanProcessQueue);
-            ClearQueueCommand = new RelayCommand(ClearQueue, () => QueueItems.Any());
-            OpenOutputFolderCommand = new RelayCommand(OpenOutputFolder);
-            CancelProcessingCommand = new RelayCommand(CancelProcessing, () => IsProcessing);
+        // --- Abstract member implementations ---
+
+        protected override string VariantDisplayName => "Story Image Generator Amateur";
+        protected override string WorkflowTypeName => "StoryImageAmateur";
+        protected override string QueuePersistenceFileName => "story_image_amateur_queue.json";
+        protected override string OutputFolderName => "story-generator-amateur";
+        protected override int DefaultSteps => 9;
+        protected override double DefaultCfg => 1.0;
+        protected override double DefaultDenoise => 0.5;
+
+        // --- Virtual overrides ---
+
+        protected override bool ShowCompletionMessageBox => true;
+
+        // --- Variant-specific initialization ---
+
+        protected override void InitializeVariant()
+        {
             RefreshLorasCommand = new RelayCommand(RefreshLoras);
-            PauseQueueCommand = new RelayCommand(PauseQueue, () => IsProcessingQueue && !IsQueuePaused);
-            ResumeQueueCommand = new RelayCommand(ResumeQueue, () => IsProcessingQueue && IsQueuePaused);
-
-            // Load available character Loras
             LoadAvailableCharacterLoras();
-
-            LoadQueueFromFile();
-
-            AddLog("Story Image Generator Amateur initialized");
         }
 
-        // Properties
-        public string PromptJsonFilePath
-        {
-            get => _promptJsonFilePath;
-            set
-            {
-                if (_promptJsonFilePath != value)
-                {
-                    _promptJsonFilePath = value;
-                    OnPropertyChanged();
-                    OnPropertyChanged(nameof(CanLoadPrompts));
-                    CommandManager.InvalidateRequerySuggested();
-                }
-            }
-        }
+        // --- Variant-specific properties ---
 
-        public string InputImagePath
-        {
-            get => _inputImagePath;
-            set
-            {
-                if (_inputImagePath != value)
-                {
-                    _inputImagePath = value;
-                    OnPropertyChanged();
-                    OnPropertyChanged(nameof(CanLoadPrompts));
-                    LoadInputImagePreview();
-                    CommandManager.InvalidateRequerySuggested();
-                }
-            }
-        }
-
-        public BitmapImage? InputImagePreview
-        {
-            get => _inputImagePreview;
-            set
-            {
-                if (_inputImagePreview != value)
-                {
-                    _inputImagePreview = value;
-                    OnPropertyChanged();
-                }
-            }
-        }
-
-        public ObservableCollection<StoryPromptItem> QueueItems
-        {
-            get => _queueItems;
-            set
-            {
-                if (_queueItems != value)
-                {
-                    _queueItems = value;
-                    OnPropertyChanged();
-                }
-            }
-        }
-
-        public bool IsProcessingQueue
-        {
-            get => _isProcessingQueue;
-            set
-            {
-                if (_isProcessingQueue != value)
-                {
-                    _isProcessingQueue = value;
-                    OnPropertyChanged();
-                    OnPropertyChanged(nameof(CanProcessQueue));
-                    CommandManager.InvalidateRequerySuggested();
-                }
-            }
-        }
-
-        public bool IsQueuePaused
-        {
-            get => _isQueuePaused;
-            set
-            {
-                if (_isQueuePaused != value)
-                {
-                    _isQueuePaused = value;
-                    OnPropertyChanged();
-                    CommandManager.InvalidateRequerySuggested();
-                }
-            }
-        }
-
-        public ICommand PauseQueueCommand { get; }
-        public ICommand ResumeQueueCommand { get; }
-
-        public StoryPromptItem? CurrentQueueItem
-        {
-            get => _currentQueueItem;
-            set
-            {
-                if (_currentQueueItem != value)
-                {
-                    _currentQueueItem = value;
-                    OnPropertyChanged();
-                }
-            }
-        }
-
-        public int QueueProgress
-        {
-            get => _queueProgress;
-            set
-            {
-                if (_queueProgress != value)
-                {
-                    _queueProgress = value;
-                    OnPropertyChanged();
-                    OnPropertyChanged(nameof(QueueProgressText));
-                }
-            }
-        }
-
-        public int QueueTotal
-        {
-            get => _queueTotal;
-            set
-            {
-                if (_queueTotal != value)
-                {
-                    _queueTotal = value;
-                    OnPropertyChanged();
-                    OnPropertyChanged(nameof(QueueProgressText));
-                }
-            }
-        }
-
-        public string QueueProgressText => QueueItems.Count > 0 ? $"{CompletedCount}/{QueueItems.Count} ({QueuedCount} remaining)" : "0/0";
-
-        public bool CanLoadPrompts => !string.IsNullOrEmpty(PromptJsonFilePath) &&
-                                      File.Exists(PromptJsonFilePath) &&
-                                      !string.IsNullOrEmpty(InputImagePath) &&
-                                      File.Exists(InputImagePath);
-
-        public bool CanProcessQueue => QueueItems.Any(item => item.Status == "Queued") &&
-                                       !IsProcessingQueue;
-
-        public int QueuedCount => QueueItems.Count(item => item.Status == "Queued");
-
-        public int CompletedCount => QueueItems.Count(item => item.Status == "Completed");
-
-        public int FailedCount => QueueItems.Count(item => item.Status == "Failed");
-
-        public string LogOutput
-        {
-            get => _logOutput;
-            set
-            {
-                if (_logOutput != value)
-                {
-                    _logOutput = value;
-                    OnPropertyChanged();
-                }
-            }
-        }
-
-        public bool IsProcessing
-        {
-            get => _isProcessing;
-            set
-            {
-                if (_isProcessing != value)
-                {
-                    _isProcessing = value;
-                    OnPropertyChanged();
-                }
-            }
-        }
-
-        public string ProcessingStatus
-        {
-            get => _processingStatus;
-            set
-            {
-                if (_processingStatus != value)
-                {
-                    _processingStatus = value;
-                    OnPropertyChanged();
-                }
-            }
-        }
-
-        public double ProcessingProgress
-        {
-            get => _processingProgress;
-            set
-            {
-                if (_processingProgress != value)
-                {
-                    _processingProgress = value;
-                    OnPropertyChanged();
-                    OnPropertyChanged(nameof(ProgressPercentage));
-                }
-            }
-        }
-
-        public string ProgressPercentage => $"{ProcessingProgress:F0}%";
-
-        // Settings Properties
-        public int Steps
-        {
-            get => _steps;
-            set
-            {
-                if (_steps != value)
-                {
-                    _steps = value;
-                    OnPropertyChanged();
-                }
-            }
-        }
-
-        public double Cfg
-        {
-            get => _cfg;
-            set
-            {
-                if (_cfg != value)
-                {
-                    _cfg = value;
-                    OnPropertyChanged();
-                }
-            }
-        }
-
-        public double Denoise
-        {
-            get => _denoise;
-            set
-            {
-                if (_denoise != value)
-                {
-                    _denoise = value;
-                    OnPropertyChanged();
-                }
-            }
-        }
-
-        public double Denoise2
-        {
-            get => _denoise2;
-            set
-            {
-                if (_denoise2 != value)
-                {
-                    _denoise2 = value;
-                    OnPropertyChanged();
-                }
-            }
-        }
-
-        public string NegativePrompt
-        {
-            get => _negativePrompt;
-            set
-            {
-                if (_negativePrompt != value)
-                {
-                    _negativePrompt = value;
-                    OnPropertyChanged();
-                }
-            }
-        }
-
-        // Character LoRA Properties
         public ObservableCollection<string> AvailableCharacterLoras
         {
             get => _availableCharacterLoras;
@@ -413,243 +116,112 @@ namespace FlipPix.UI.ViewModels
             }
         }
 
-        // Commands
-        public ICommand SelectPromptJsonCommand { get; }
-        public ICommand SelectInputImageCommand { get; }
-        public ICommand LoadPromptsCommand { get; }
-        public ICommand ProcessQueueCommand { get; }
-        public ICommand ClearQueueCommand { get; }
-        public ICommand OpenOutputFolderCommand { get; }
-        public ICommand CancelProcessingCommand { get; }
-        public ICommand RefreshLorasCommand { get; }
-
-        // Methods
-        private void SelectPromptJson()
+        public double Denoise2
         {
-            var dialog = new Microsoft.Win32.OpenFileDialog
+            get => _denoise2;
+            set
             {
-                Filter = "JSON Files (*.json)|*.json|All Files (*.*)|*.*",
-                Title = "Select Story Prompts JSON File",
-                InitialDirectory = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "prompts")
-            };
-
-            if (dialog.ShowDialog() == true)
-            {
-                PromptJsonFilePath = dialog.FileName;
-                AddLog($"Selected prompt file: {Path.GetFileName(PromptJsonFilePath)}");
-            }
-        }
-
-        private void SelectInputImage()
-        {
-            var dialog = new Microsoft.Win32.OpenFileDialog
-            {
-                Filter = "Image Files (*.jpg;*.jpeg;*.png;*.bmp)|*.jpg;*.jpeg;*.png;*.bmp|All Files (*.*)|*.*",
-                Title = "Select Input Image"
-            };
-
-            if (dialog.ShowDialog() == true)
-            {
-                InputImagePath = dialog.FileName;
-                AddLog($"Selected input image: {Path.GetFileName(InputImagePath)}");
-            }
-        }
-
-        private void LoadInputImagePreview()
-        {
-            if (!string.IsNullOrEmpty(InputImagePath) && File.Exists(InputImagePath))
-            {
-                try
+                if (_denoise2 != value)
                 {
-                    var bitmap = new BitmapImage();
-                    bitmap.BeginInit();
-                    bitmap.UriSource = new Uri(InputImagePath, UriKind.Absolute);
-                    bitmap.CacheOption = BitmapCacheOption.OnLoad;
-                    bitmap.EndInit();
-                    bitmap.Freeze();
-
-                    InputImagePreview = bitmap;
-                }
-                catch (Exception ex)
-                {
-                    AddLog($"Error loading image preview: {ex.Message}");
-                    InputImagePreview = null;
+                    _denoise2 = value;
+                    OnPropertyChanged();
                 }
             }
-            else
-            {
-                InputImagePreview = null;
-            }
         }
 
-        private async Task LoadPromptsAsync()
-        {
-            if (!CanLoadPrompts) return;
+        public ICommand RefreshLorasCommand { get; private set; } = null!;
 
+        private void RefreshLoras()
+        {
+            LoadAvailableCharacterLoras();
+            AddLog("Refreshed character LoRA list");
+        }
+
+        // --- LoRA loading ---
+
+        private void LoadAvailableCharacterLoras()
+        {
             try
             {
-                AddLog("Loading prompts from JSON file...");
-                var jsonContent = await File.ReadAllTextAsync(PromptJsonFilePath);
-                var storyData = JsonSerializer.Deserialize<StoryPromptData>(jsonContent);
-
-                if (storyData?.Prompts == null || !storyData.Prompts.Any())
+                var loraBasePath = GetLoraModelPath();
+                if (!string.IsNullOrEmpty(loraBasePath))
                 {
-                    AddLog("ERROR: No prompts found in JSON file");
-                    System.Windows.MessageBox.Show("No prompts found in the JSON file.", "Error",
-                        MessageBoxButton.OK, MessageBoxImage.Error);
-                    return;
-                }
-
-                // Append to existing queue (calculate next index from existing items)
-                var startIndex = QueueItems.Any() ? QueueItems.Max(q => q.Index) + 1 : 1;
-
-                // Create queue items for each prompt
-                for (int i = 0; i < storyData.Prompts.Count; i++)
-                {
-                    QueueItems.Add(new StoryPromptItem
+                    var zimageLoraPath = Path.Combine(loraBasePath, "zimage");
+                    if (Directory.Exists(zimageLoraPath))
                     {
-                        Index = startIndex + i,
-                        Prompt = storyData.Prompts[i],
-                        InputImagePath = InputImagePath,
-                        Status = "Queued"
-                    });
+                        LoadCharacterLorasFromDirectory(zimageLoraPath, "ComfyUI LoRA directory");
+                        return;
+                    }
+                    else
+                    {
+                        LoadCharacterLorasFromDirectory(loraBasePath, "ComfyUI LoRA directory");
+                        return;
+                    }
                 }
 
-                UpdateQueueCountNotifications();
-                SaveQueueToFile();
-                AddLog($"Added {storyData.Prompts.Count} prompts to queue (total: {QueueItems.Count})");
-                System.Windows.MessageBox.Show($"Added {storyData.Prompts.Count} prompts to the queue.\nTotal queue items: {QueueItems.Count}", "Success",
-                    MessageBoxButton.OK, MessageBoxImage.Information);
+                var localLoraPath = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "loras", "zimage");
+                LoadCharacterLorasFromDirectory(localLoraPath, "local directory");
             }
             catch (Exception ex)
             {
-                AddLog($"ERROR loading prompts: {ex.Message}");
-                _logger.LogError($"Error loading prompts: {ex}");
-                System.Windows.MessageBox.Show($"Error loading prompts:\n\n{ex.Message}", "Error",
-                    MessageBoxButton.OK, MessageBoxImage.Error);
+                AddLog($"Error loading character LoRAs: {ex.Message}");
+                AvailableCharacterLoras.Clear();
+                AvailableCharacterLoras.Add("Error loading LoRAs");
             }
         }
 
-        private async Task ProcessQueueAsync()
+        private void LoadCharacterLorasFromDirectory(string loraPath, string pathDescription)
         {
-            if (!CanProcessQueue) return;
+            AddLog($"Looking for character LoRAs in {pathDescription}: {loraPath}");
 
-            _cancellationTokenSource?.Dispose();
-            _cancellationTokenSource = new System.Threading.CancellationTokenSource();
-
-            AddLog("Waiting for other workflows to finish...");
-
-            try
+            if (!Directory.Exists(loraPath))
             {
-                await _workflowCoordinator.AcquireAsync("StoryImageAmateur", _cancellationTokenSource.Token);
-            }
-            catch (OperationCanceledException)
-            {
-                AddLog("Queue processing cancelled while waiting");
+                AddLog($"LoRA directory not found: {loraPath}");
+                AvailableCharacterLoras.Clear();
+                AvailableCharacterLoras.Add("No LoRAs available");
                 return;
             }
 
-            try
+            // Filter out amateur photography LoRA since it's always applied
+            var loraFiles = Directory.GetFiles(loraPath, "*.safetensors")
+                .Select(Path.GetFileNameWithoutExtension)
+                .Where(name => !string.IsNullOrEmpty(name) &&
+                               !name.Equals("amateur_photography_zimage_v1", StringComparison.OrdinalIgnoreCase))
+                .OrderBy(name => name)
+                .ToList();
+
+            AvailableCharacterLoras.Clear();
+
+            if (loraFiles.Any())
             {
-                IsProcessingQueue = true;
-                QueueTotal = QueueItems.Count;
-                QueueProgress = 0;
-
-                AddLog($"=== Starting story queue processing ({QueuedCount} images) ===");
-
-                while (true)
+                foreach (var lora in loraFiles)
                 {
-                    if (_cancellationTokenSource.Token.IsCancellationRequested)
-                    {
-                        AddLog("Queue processing cancelled");
-                        break;
-                    }
-
-                    // Wait if paused
-                    _pauseEvent.Wait(_cancellationTokenSource.Token);
-
-                    var item = QueueItems.FirstOrDefault(i => i.Status == "Queued");
-                    if (item == null) break;
-
-                    QueueTotal = QueueItems.Count;
-
-                    CurrentQueueItem = item;
-                    item.Status = "Processing";
-                    item.StartedAt = DateTime.Now;
-                    item.InputImagePath = InputImagePath;
-                    SaveQueueToFile();
-
-                    AddLog($"Processing story image {QueueProgress + 1}/{QueueTotal}");
-
-                    try
-                    {
-                        var outputPath = await ProcessQueueItemAsync(item, InputImagePath, _cancellationTokenSource.Token);
-                        item.OutputImagePath = outputPath;
-                        item.Status = "Completed";
-                        item.CompletedAt = DateTime.Now;
-                        item.Progress = 100;
-                        SaveQueueToFile();
-
-                        AddLog($"Completed story image {QueueProgress + 1}/{QueueTotal}: {Path.GetFileName(outputPath)}");
-                    }
-                    catch (OperationCanceledException)
-                    {
-                        item.Status = "Cancelled";
-                        item.ErrorMessage = "Cancelled by user";
-                        SaveQueueToFile();
-                        AddLog($"Queue item cancelled: Prompt #{item.Index}");
-                        break;
-                    }
-                    catch (Exception ex)
-                    {
-                        item.Status = "Failed";
-                        item.ErrorMessage = ex.Message;
-                        item.Progress = 0;
-                        SaveQueueToFile();
-                        AddLog($"Queue item failed: Prompt #{item.Index} - {ex.Message}");
-                        _logger.LogError($"Error processing queue item {item.Id}: {ex}");
-                    }
-                    finally
-                    {
-                        QueueProgress++;
-                        UpdateQueueCountNotifications();
-                    }
+                    if (!string.IsNullOrEmpty(lora))
+                        AvailableCharacterLoras.Add(lora);
                 }
 
-                AddLog($"=== Story queue processing completed ({CompletedCount} successful, {FailedCount} failed) ===");
-                System.Windows.MessageBox.Show($"Story generation completed!\n\nSuccessful: {CompletedCount}\nFailed: {FailedCount}",
-                    "Processing Complete", MessageBoxButton.OK, MessageBoxImage.Information);
+                if (string.IsNullOrEmpty(SelectedCharacterLora) && AvailableCharacterLoras.Any())
+                {
+                    SelectedCharacterLora = AvailableCharacterLoras.First();
+                }
+
+                AddLog($"Loaded {AvailableCharacterLoras.Count} character LoRAs from {loraPath}");
             }
-            catch (Exception ex)
+            else
             {
-                AddLog($"ERROR: Queue processing failed: {ex.Message}");
-                _logger.LogError($"Error processing queue: {ex}");
-                System.Windows.MessageBox.Show($"Queue processing failed:\n\n{ex.Message}", "Error",
-                    MessageBoxButton.OK, MessageBoxImage.Error);
-            }
-            finally
-            {
-                _workflowCoordinator.Release();
-                IsProcessingQueue = false;
-                IsQueuePaused = false;
-                _pauseEvent.Set();
-                CurrentQueueItem = null;
-                QueueProgress = 0;
-                QueueTotal = 0;
-                UpdateQueueCountNotifications();
-                CommandManager.InvalidateRequerySuggested();
+                AvailableCharacterLoras.Add("No LoRAs available");
+                AddLog($"No character LoRA files found in {pathDescription}");
             }
         }
 
-        private void UpdateQueueCountNotifications()
-        {
-            OnPropertyChanged(nameof(QueuedCount));
-            OnPropertyChanged(nameof(CompletedCount));
-            OnPropertyChanged(nameof(FailedCount));
-            OnPropertyChanged(nameof(QueueProgressText));
-        }
+        // --- Core processing logic ---
 
-        private async Task<string> ProcessQueueItemAsync(StoryPromptItem item, string inputImagePath, System.Threading.CancellationToken cancellationToken)
+        protected override async Task<string> ProcessQueueItemAsync(
+            StoryPromptItem item,
+            string inputImagePath,
+            string? sessionOutputDir,
+            string jsonFileName,
+            CancellationToken cancellationToken)
         {
             // Ensure ComfyUI is connected
             if (!_comfyUIService.IsConnected)
@@ -675,18 +247,7 @@ namespace FlipPix.UI.ViewModels
             var updatedWorkflow = UpdateWorkflowParameters(workflow, item.Prompt);
 
             // Execute workflow with progress reporting
-            var progress = new Progress<FlipPix.ComfyUI.Models.ProgressMessage>(progressMsg =>
-            {
-                if (progressMsg.Data?.Value != null && progressMsg.Data?.Max != null)
-                {
-                    var percent = (double)progressMsg.Data.Value / progressMsg.Data.Max * 100;
-                    System.Windows.Application.Current.Dispatcher.Invoke(() =>
-                    {
-                        item.Progress = percent;
-                    });
-                }
-            });
-
+            var progress = CreateProgressReporter(item);
             var promptId = await _comfyUIService.ExecuteWorkflowAsync(updatedWorkflow, progress, cancellationToken);
 
             // Get output images
@@ -697,7 +258,7 @@ namespace FlipPix.UI.ViewModels
             }
 
             var outputImage = outputImages.First();
-            var outputDir = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "output", "story-generator-amateur");
+            var outputDir = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "output", OutputFolderName);
             Directory.CreateDirectory(outputDir);
 
             var timestamp = DateTime.Now.ToString("yyyyMMdd_HHmmss");
@@ -1087,413 +648,6 @@ namespace FlipPix.UI.ViewModels
             }
 
             return images;
-        }
-
-        private bool IsComfyUIRemote(string serverAddress)
-        {
-            try
-            {
-                if (serverAddress.Equals("127.0.0.1", StringComparison.OrdinalIgnoreCase) ||
-                    serverAddress.Equals("localhost", StringComparison.OrdinalIgnoreCase) ||
-                    serverAddress.Equals("0.0.0.0", StringComparison.OrdinalIgnoreCase))
-                {
-                    return false;
-                }
-
-                if (System.Net.IPAddress.TryParse(serverAddress, out var ip))
-                {
-                    var bytes = ip.GetAddressBytes();
-                    if (bytes.Length == 4)
-                    {
-                        if (bytes[0] == 192 && bytes[1] == 168) return true;
-                        if (bytes[0] == 10) return true;
-                        if (bytes[0] == 172 && bytes[1] >= 16 && bytes[1] <= 31) return true;
-                    }
-                }
-
-                return !string.IsNullOrEmpty(serverAddress) && serverAddress != ".";
-            }
-            catch
-            {
-                return true;
-            }
-        }
-
-        private void RefreshLoras()
-        {
-            LoadAvailableCharacterLoras();
-            AddLog("Refreshed character LoRA list");
-        }
-
-        private string? GetLoraModelPath()
-        {
-            try
-            {
-                var comfyUIPath = _settingsService.Settings?.ComfyUIFolderPath;
-                if (string.IsNullOrEmpty(comfyUIPath))
-                {
-                    AddLog("ComfyUI installation path not configured");
-                    return null;
-                }
-
-                var extraModelPathsFile = Path.Combine(comfyUIPath, "extra_model_paths.yaml");
-                AddLog($"Looking for extra_model_paths.yaml at: {extraModelPathsFile}");
-
-                if (File.Exists(extraModelPathsFile))
-                {
-                    try
-                    {
-                        AddLog("Found extra_model_paths.yaml, reading content...");
-                        var yamlContent = File.ReadAllText(extraModelPathsFile);
-                        var deserializer = new DeserializerBuilder().Build();
-                        var yamlData = deserializer.Deserialize<Dictionary<string, object>>(yamlContent);
-
-                        AddLog($"YAML parsed successfully. Keys found: {string.Join(", ", yamlData.Keys)}");
-
-                        if (yamlData != null)
-                        {
-                            string basePath = string.Empty;
-                            string lorasRelativePath = string.Empty;
-
-                            if (yamlData.ContainsKey("comfyui"))
-                            {
-                                AddLog("Found 'comfyui' section in YAML");
-                                var comfyuiSectionObject = yamlData["comfyui"];
-                                var comfyuiSection = comfyuiSectionObject as Dictionary<object, object>;
-
-                                if (comfyuiSection != null)
-                                {
-                                    var comfyuiStringDict = new Dictionary<string, object>();
-                                    foreach (var kvp in comfyuiSection)
-                                    {
-                                        if (kvp.Key != null)
-                                        {
-                                            comfyuiStringDict[kvp.Key.ToString() ?? string.Empty] = kvp.Value;
-                                        }
-                                    }
-
-                                    AddLog($"ComfyUI section keys: {string.Join(", ", comfyuiStringDict.Keys)}");
-
-                                    if (comfyuiStringDict.ContainsKey("base_path"))
-                                    {
-                                        basePath = comfyuiStringDict["base_path"]?.ToString() ?? string.Empty;
-                                        AddLog($"Found base_path: {basePath}");
-                                    }
-
-                                    if (comfyuiStringDict.ContainsKey("loras"))
-                                    {
-                                        lorasRelativePath = comfyuiStringDict["loras"]?.ToString() ?? string.Empty;
-                                        AddLog($"Found loras path: {lorasRelativePath}");
-                                    }
-                                    else
-                                    {
-                                        AddLog("No 'loras' key found in comfyui section");
-                                    }
-                                }
-                            }
-                            else
-                            {
-                                AddLog("No 'comfyui' section found in YAML");
-
-                                if (yamlData.ContainsKey("loras"))
-                                {
-                                    lorasRelativePath = yamlData["loras"]?.ToString() ?? string.Empty;
-                                    AddLog($"Found direct loras path: {lorasRelativePath}");
-                                }
-                            }
-
-                            if (!string.IsNullOrEmpty(lorasRelativePath))
-                            {
-                                string fullLoraPath;
-                                if (!string.IsNullOrEmpty(basePath))
-                                {
-                                    fullLoraPath = Path.Combine(basePath, lorasRelativePath);
-                                    AddLog($"Combined base_path and loras: {basePath} + {lorasRelativePath} = {fullLoraPath}");
-                                }
-                                else
-                                {
-                                    fullLoraPath = lorasRelativePath;
-                                    AddLog($"Using loras path directly: {fullLoraPath}");
-                                }
-
-                                fullLoraPath = fullLoraPath.Replace('/', Path.DirectorySeparatorChar);
-
-                                AddLog($"Final LoRA path: {fullLoraPath}");
-
-                                if (Directory.Exists(fullLoraPath))
-                                {
-                                    AddLog($"SUCCESS: LoRA directory exists: {fullLoraPath}");
-                                    return fullLoraPath;
-                                }
-                                else
-                                {
-                                    AddLog($"ERROR: LoRA path from extra_model_paths.yaml exists but directory not found: {fullLoraPath}");
-                                }
-                            }
-                            else
-                            {
-                                AddLog("ERROR: No loras path found in YAML configuration");
-                            }
-                        }
-                    }
-                    catch (Exception ex)
-                    {
-                        AddLog($"ERROR reading extra_model_paths.yaml: {ex.Message}");
-                    }
-                }
-                else
-                {
-                    AddLog($"ERROR: extra_model_paths.yaml not found in ComfyUI directory: {extraModelPathsFile}");
-                }
-
-                var defaultLoraPath = Path.Combine(comfyUIPath, "models", "loras");
-                if (Directory.Exists(defaultLoraPath))
-                {
-                    AddLog($"Using default ComfyUI LoRA path: {defaultLoraPath}");
-                    return defaultLoraPath;
-                }
-
-                AddLog($"No LoRA directory found in: {comfyUIPath}");
-                return null;
-            }
-            catch (Exception ex)
-            {
-                AddLog($"Error getting LoRA model path: {ex.Message}");
-                return null;
-            }
-        }
-
-        private void LoadAvailableCharacterLoras()
-        {
-            try
-            {
-                var loraBasePath = GetLoraModelPath();
-                if (!string.IsNullOrEmpty(loraBasePath))
-                {
-                    var zimageLoraPath = Path.Combine(loraBasePath, "zimage");
-                    if (Directory.Exists(zimageLoraPath))
-                    {
-                        LoadCharacterLorasFromDirectory(zimageLoraPath, "ComfyUI LoRA directory");
-                        return;
-                    }
-                    else
-                    {
-                        LoadCharacterLorasFromDirectory(loraBasePath, "ComfyUI LoRA directory");
-                        return;
-                    }
-                }
-
-                var localLoraPath = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "loras", "zimage");
-                LoadCharacterLorasFromDirectory(localLoraPath, "local directory");
-            }
-            catch (Exception ex)
-            {
-                AddLog($"Error loading character LoRAs: {ex.Message}");
-                AvailableCharacterLoras.Clear();
-                AvailableCharacterLoras.Add("Error loading LoRAs");
-            }
-        }
-
-        private void LoadCharacterLorasFromDirectory(string loraPath, string pathDescription)
-        {
-            AddLog($"Looking for character LoRAs in {pathDescription}: {loraPath}");
-
-            if (!Directory.Exists(loraPath))
-            {
-                AddLog($"LoRA directory not found: {loraPath}");
-                AvailableCharacterLoras.Clear();
-                AvailableCharacterLoras.Add("No LoRAs available");
-                return;
-            }
-
-            // Filter out amateur photography LoRA since it's always applied
-            var loraFiles = Directory.GetFiles(loraPath, "*.safetensors")
-                .Select(Path.GetFileNameWithoutExtension)
-                .Where(name => !string.IsNullOrEmpty(name) &&
-                               !name.Equals("amateur_photography_zimage_v1", StringComparison.OrdinalIgnoreCase))
-                .OrderBy(name => name)
-                .ToList();
-
-            AvailableCharacterLoras.Clear();
-
-            if (loraFiles.Any())
-            {
-                foreach (var lora in loraFiles)
-                {
-                    if (!string.IsNullOrEmpty(lora))
-                        AvailableCharacterLoras.Add(lora);
-                }
-
-                if (string.IsNullOrEmpty(SelectedCharacterLora) && AvailableCharacterLoras.Any())
-                {
-                    SelectedCharacterLora = AvailableCharacterLoras.First();
-                }
-
-                AddLog($"Loaded {AvailableCharacterLoras.Count} character LoRAs from {loraPath}");
-            }
-            else
-            {
-                AvailableCharacterLoras.Add("No LoRAs available");
-                AddLog($"No character LoRA files found in {pathDescription}");
-            }
-        }
-
-        private void ClearQueue()
-        {
-            if (!QueueItems.Any()) return;
-
-            var result = System.Windows.MessageBox.Show(
-                $"Are you sure you want to clear all {QueueItems.Count} items from the queue?",
-                "Clear Queue",
-                MessageBoxButton.YesNo,
-                MessageBoxImage.Question);
-
-            if (result == MessageBoxResult.Yes)
-            {
-                QueueItems.Clear();
-                SaveQueueToFile();
-                AddLog("Queue cleared");
-                CommandManager.InvalidateRequerySuggested();
-            }
-        }
-
-        private void OpenOutputFolder()
-        {
-            try
-            {
-                var outputDir = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "output", "story-generator-amateur");
-                if (Directory.Exists(outputDir))
-                {
-                    Process.Start(new ProcessStartInfo
-                    {
-                        FileName = outputDir,
-                        UseShellExecute = true
-                    });
-                }
-                else
-                {
-                    System.Windows.MessageBox.Show("Output folder does not exist yet. Generate some images first.", "Info",
-                        MessageBoxButton.OK, MessageBoxImage.Information);
-                }
-            }
-            catch (Exception ex)
-            {
-                AddLog($"ERROR opening output folder: {ex.Message}");
-            }
-        }
-
-        private void CancelProcessing()
-        {
-            if (_cancellationTokenSource != null && !_cancellationTokenSource.IsCancellationRequested)
-            {
-                AddLog("Cancellation requested by user");
-                _cancellationTokenSource.Cancel();
-                ProcessingStatus = "Cancelling...";
-            }
-        }
-
-        private void PauseQueue()
-        {
-            IsQueuePaused = true;
-            _pauseEvent.Reset();
-            AddLog("Queue paused");
-        }
-
-        private void ResumeQueue()
-        {
-            IsQueuePaused = false;
-            _pauseEvent.Set();
-            AddLog("Queue resumed");
-        }
-
-        private string QueueFilePath => Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "queue", "story_image_amateur_queue.json");
-
-        private void SaveQueueToFile()
-        {
-            try
-            {
-                var queueDir = Path.GetDirectoryName(QueueFilePath);
-                if (!string.IsNullOrEmpty(queueDir) && !Directory.Exists(queueDir))
-                {
-                    Directory.CreateDirectory(queueDir);
-                }
-
-                var options = new JsonSerializerOptions { WriteIndented = true };
-                var json = JsonSerializer.Serialize(QueueItems.ToList(), options);
-                File.WriteAllText(QueueFilePath, json);
-            }
-            catch (Exception ex)
-            {
-                AddLog($"Error saving queue to file: {ex.Message}");
-            }
-        }
-
-        private void LoadQueueFromFile()
-        {
-            try
-            {
-                if (!File.Exists(QueueFilePath)) return;
-
-                var json = File.ReadAllText(QueueFilePath);
-                var savedItems = JsonSerializer.Deserialize<List<StoryPromptItem>>(json);
-
-                if (savedItems != null && savedItems.Any())
-                {
-                    _queueItems.Clear();
-                    foreach (var item in savedItems)
-                    {
-                        if (item.Status == "Processing")
-                        {
-                            item.Status = "Failed";
-                            item.ErrorMessage = "Interrupted by crash or app restart";
-                        }
-                        _queueItems.Add(item);
-                    }
-                    UpdateQueueCountNotifications();
-                    AddLog($"Queue loaded from file: {_queueItems.Count} items");
-                }
-            }
-            catch (Exception ex)
-            {
-                AddLog($"Error loading queue from file: {ex.Message}");
-            }
-        }
-
-        private void AddLog(string message)
-        {
-            var timestamp = DateTime.Now.ToString("HH:mm:ss");
-            LogOutput += $"[{timestamp}] {message}\n";
-            _logger.LogInfo(message);
-        }
-
-        public event PropertyChangedEventHandler? PropertyChanged;
-
-        protected void OnPropertyChanged([CallerMemberName] string? propertyName = null)
-        {
-            PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(propertyName));
-        }
-
-        // RelayCommand class
-        public class RelayCommand : ICommand
-        {
-            private readonly Action _execute;
-            private readonly Func<bool>? _canExecute;
-
-            public RelayCommand(Action execute, Func<bool>? canExecute = null)
-            {
-                _execute = execute ?? throw new ArgumentNullException(nameof(execute));
-                _canExecute = canExecute;
-            }
-
-            public event EventHandler? CanExecuteChanged
-            {
-                add => CommandManager.RequerySuggested += value;
-                remove => CommandManager.RequerySuggested -= value;
-            }
-
-            public bool CanExecute(object? parameter) => _canExecute?.Invoke() ?? true;
-
-            public void Execute(object? parameter) => _execute();
         }
     }
 }

@@ -10,16 +10,31 @@ namespace FlipPix.UI.Services
 
         public string? CurrentWorkflowType => _currentWorkflowType;
 
-        public async Task AcquireAsync(string workflowType, CancellationToken ct)
+        public async Task<WorkflowLease> AcquireAsync(string workflowType, CancellationToken ct)
         {
             await _lock.WaitAsync(ct);
             _currentWorkflowType = workflowType;
+            return new WorkflowLease(this);
         }
 
-        public void Release()
+        private void Release()
         {
             _currentWorkflowType = null;
             _lock.Release();
+        }
+
+        public sealed class WorkflowLease : IDisposable
+        {
+            private WorkflowQueueCoordinator? _coordinator;
+
+            internal WorkflowLease(WorkflowQueueCoordinator coordinator)
+                => _coordinator = coordinator;
+
+            public void Dispose()
+            {
+                var coordinator = Interlocked.Exchange(ref _coordinator, null);
+                coordinator?.Release();
+            }
         }
     }
 }

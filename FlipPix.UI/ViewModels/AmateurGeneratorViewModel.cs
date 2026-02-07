@@ -428,7 +428,7 @@ namespace FlipPix.UI.ViewModels
             if (!CanGenerate) return;
 
             _cancellationTokenSource?.Dispose();
-            _cancellationTokenSource = new System.Threading.CancellationTokenSource();
+            _cancellationTokenSource = System.Threading.CancellationTokenSource.CreateLinkedTokenSource(App.ShutdownToken);
 
             try
             {

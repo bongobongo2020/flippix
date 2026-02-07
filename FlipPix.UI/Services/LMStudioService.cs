@@ -53,8 +53,6 @@ namespace FlipPix.UI.Services
             await _semaphore.WaitAsync(cancellationToken);
             try
             {
-                CheckMemoryUsage();
-
                 var fullUrl = $"{_baseUrl.TrimEnd('/')}/v1/models";
                 using var response = await _httpClient.GetAsync(fullUrl, HttpCompletionOption.ResponseHeadersRead, cancellationToken);
                 response.EnsureSuccessStatusCode();
@@ -113,8 +111,6 @@ namespace FlipPix.UI.Services
             await _semaphore.WaitAsync(cancellationToken);
             try
             {
-                CheckMemoryUsage();
-
                 if (!File.Exists(imagePath))
                 {
                     throw new FileNotFoundException($"Image file not found: {imagePath}");
@@ -228,8 +224,6 @@ namespace FlipPix.UI.Services
             await _semaphore.WaitAsync(cancellationToken);
             try
             {
-                CheckMemoryUsage();
-
                 var systemPrompt = enhancementType switch
                 {
                     "video" => "You are an expert at creating detailed 5-second video prompts. Enhance the user's image prompt to include motion, camera movement, and timing details suitable for a 5-second video generation. Keep the enhancement concise but descriptive.",
@@ -408,18 +402,6 @@ namespace FlipPix.UI.Services
             throw new NotSupportedException($"Codec not found for MIME type: {mimeType}");
         }
 
-        private void CheckMemoryUsage()
-        {
-            var memoryMB = GC.GetTotalMemory(false) / 1024 / 1024;
-            if (memoryMB > 500) // 500MB threshold
-            {
-                _logger.LogInfo($"Memory usage is high ({memoryMB}MB), triggering garbage collection");
-                GC.Collect();
-                GC.WaitForPendingFinalizers();
-                GC.Collect();
-            }
-        }
-
         public void Dispose()
         {
             Dispose(true);
@@ -430,7 +412,6 @@ namespace FlipPix.UI.Services
         {
             if (!_disposed && disposing)
             {
-                _httpClient?.Dispose();
                 _semaphore?.Dispose();
                 _disposed = true;
             }

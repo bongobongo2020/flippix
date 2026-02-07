@@ -152,7 +152,7 @@ namespace FlipPix.UI.ViewModels
             _ollamaService = ollamaService;
             _logger = logger;
             _serviceProvider = serviceProvider;
-            _cancellationTokenSource = new CancellationTokenSource();
+            _cancellationTokenSource = CancellationTokenSource.CreateLinkedTokenSource(App.ShutdownToken);
 
             ConnectCommand = new RelayCommand(async () => await ConnectAsync(), () => CanConnect);
             RefreshModelsCommand = new RelayCommand(async () => await RefreshModelsAsync(), () => IsConnected && !IsProcessing);
@@ -338,7 +338,7 @@ namespace FlipPix.UI.ViewModels
                 _cancellationTokenSource.Cancel();
                 _cancellationTokenSource.Dispose();
             }
-            _cancellationTokenSource = new CancellationTokenSource();
+            _cancellationTokenSource = CancellationTokenSource.CreateLinkedTokenSource(App.ShutdownToken);
         }
 
         public void Dispose()

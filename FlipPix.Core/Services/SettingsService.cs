@@ -1,6 +1,8 @@
 using System;
 using System.IO;
 using System.Text.Json;
+using System.Threading;
+using FlipPix.Core.Interfaces;
 using FlipPix.Core.Models;
 
 namespace FlipPix.Core.Services
@@ -8,6 +10,8 @@ namespace FlipPix.Core.Services
     public class SettingsService
     {
         private readonly string _settingsFilePath;
+        private readonly ReaderWriterLockSlim _lock = new();
+        private IAppLogger? _logger;
         private ComfyUISettings _settings;
 
         public SettingsService()
@@ -24,8 +28,11 @@ namespace FlipPix.Core.Services
 
         public ComfyUISettings Settings => _settings;
 
+        public void SetLogger(IAppLogger logger) => _logger = logger;
+
         public ComfyUISettings LoadSettings()
         {
+            _lock.EnterReadLock();
             try
             {
                 if (File.Exists(_settingsFilePath))
@@ -42,12 +49,17 @@ namespace FlipPix.Core.Services
             {
                 // If loading fails, return default settings
             }
+            finally
+            {
+                _lock.ExitReadLock();
+            }
 
             return new ComfyUISettings();
         }
 
         public void SaveSettings(ComfyUISettings settings)
         {
+            _lock.EnterWriteLock();
             try
             {
                 _settings = settings;
@@ -61,6 +73,10 @@ namespace FlipPix.Core.Services
             catch (Exception ex)
             {
                 throw new Exception($"Failed to save settings: {ex.Message}", ex);
+            }
+            finally
+            {
+                _lock.ExitWriteLock();
             }
         }
 
@@ -101,36 +117,36 @@ namespace FlipPix.Core.Services
         {
             try
             {
-                System.Diagnostics.Debug.WriteLine($"SettingsService: ValidateAndSetComfyUIFolder called with path: {folderPath}");
+                _logger?.LogInfo($"ValidateAndSetComfyUIFolder called with path: {folderPath}");
 
                 if (string.IsNullOrEmpty(folderPath) || !Directory.Exists(folderPath))
                 {
-                    System.Diagnostics.Debug.WriteLine($"SettingsService: Validation failed - Invalid or non-existent folder: {folderPath}");
+                    _logger?.LogWarning($"Validation failed - Invalid or non-existent folder: {folderPath}");
                     return false;
                 }
 
                 // Check if the output folder exists
                 var outputFolder = Path.Combine(folderPath, "output");
-                System.Diagnostics.Debug.WriteLine($"SettingsService: Checking for output folder: {outputFolder}");
+                _logger?.LogInfo($"Checking for output folder: {outputFolder}");
 
                 if (!Directory.Exists(outputFolder))
                 {
-                    System.Diagnostics.Debug.WriteLine($"SettingsService: Validation failed - Output folder does not exist: {outputFolder}");
+                    _logger?.LogWarning($"Validation failed - Output folder does not exist: {outputFolder}");
                     return false;
                 }
 
                 _settings.ComfyUIFolderPath = folderPath;
                 _settings.OutputFolderPath = outputFolder;
 
-                System.Diagnostics.Debug.WriteLine($"SettingsService: Saving settings to: {_settingsFilePath}");
+                _logger?.LogInfo($"Saving settings to: {_settingsFilePath}");
                 SaveSettings(_settings);
 
-                System.Diagnostics.Debug.WriteLine("SettingsService: Settings saved successfully");
+                _logger?.LogInfo("Settings saved successfully");
                 return true;
             }
             catch (Exception ex)
             {
-                System.Diagnostics.Debug.WriteLine($"SettingsService: Exception in ValidateAndSetComfyUIFolder - {ex}");
+                _logger?.LogError(ex, $"Exception in ValidateAndSetComfyUIFolder");
                 throw;
             }
         }

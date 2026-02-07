@@ -1,5 +1,4 @@
-using System.Configuration;
-using System.Data;
+using System.Threading;
 using System.Windows;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
@@ -18,6 +17,9 @@ namespace FlipPix.UI
 {
     public partial class App : System.Windows.Application
     {
+        private static readonly CancellationTokenSource _shutdownCts = new();
+        public static CancellationToken ShutdownToken => _shutdownCts.Token;
+
         private ServiceProvider? _serviceProvider;
 
         public ServiceProvider? Services => _serviceProvider;
@@ -34,12 +36,17 @@ namespace FlipPix.UI
             ConfigureServices(services);
             _serviceProvider = services.BuildServiceProvider();
 
-            // Check if ComfyUI is configured
-            System.Diagnostics.Debug.WriteLine("FlipPix App: OnStartup - Checking if ComfyUI is configured");
+            var logger = _serviceProvider.GetRequiredService<IAppLogger>();
+
+            // Wire logger into SettingsService (created before DI was ready)
             var settingsService = _serviceProvider.GetRequiredService<SettingsService>();
+            settingsService.SetLogger(logger);
+
+            // Check if ComfyUI is configured
+            logger.LogInfo("OnStartup - Checking if ComfyUI is configured");
             if (!settingsService.IsComfyUIFolderConfigured())
             {
-                System.Diagnostics.Debug.WriteLine("FlipPix App: ComfyUI not configured. Showing choice window.");
+                logger.LogInfo("ComfyUI not configured. Showing choice window.");
 
                 // Show choice window first
                 var choiceWindow = new SetupChoiceWindow();
@@ -47,7 +54,7 @@ namespace FlipPix.UI
 
                 if (choiceResult != true)
                 {
-                    System.Diagnostics.Debug.WriteLine("FlipPix App: User cancelled choice. Shutting down application.");
+                    logger.LogInfo("User cancelled choice. Shutting down application.");
                     Shutdown();
                     return;
                 }
@@ -56,27 +63,27 @@ namespace FlipPix.UI
                 {
                     if (choiceWindow.IsLocalSelected)
                     {
-                        System.Diagnostics.Debug.WriteLine("FlipPix App: Local installation selected. Showing local setup window.");
+                        logger.LogInfo("Local installation selected. Showing local setup window.");
                         var setupViewModel = _serviceProvider.GetRequiredService<ComfyUIFolderSetupViewModel>();
                         var setupWindow = new ComfyUIFolderSetupWindow(setupViewModel);
                         var result = setupWindow.ShowDialog();
 
                         if (result != true)
                         {
-                            System.Diagnostics.Debug.WriteLine("FlipPix App: User cancelled local setup. Shutting down application.");
+                            logger.LogInfo("User cancelled local setup. Shutting down application.");
                             Shutdown();
                             return;
                         }
                     }
                     else if (choiceWindow.IsRemoteSelected)
                     {
-                        System.Diagnostics.Debug.WriteLine("FlipPix App: Remote server selected. Showing remote setup window.");
+                        logger.LogInfo("Remote server selected. Showing remote setup window.");
                         var remoteSetupWindow = new RemoteSetupWindow(settingsService);
                         var result = remoteSetupWindow.ShowDialog();
 
                         if (result != true)
                         {
-                            System.Diagnostics.Debug.WriteLine("FlipPix App: User cancelled remote setup. Shutting down application.");
+                            logger.LogInfo("User cancelled remote setup. Shutting down application.");
                             Shutdown();
                             return;
                         }
@@ -84,7 +91,7 @@ namespace FlipPix.UI
                 }
                 catch (Exception ex)
                 {
-                    System.Diagnostics.Debug.WriteLine($"FlipPix App: ERROR showing setup window: {ex}");
+                    logger.LogError(ex, "Error showing setup window");
                     System.Windows.MessageBox.Show(
                         $"Error showing setup window:\n\n{ex.Message}\n\nStack trace:\n{ex.StackTrace}",
                         "Setup Error",
@@ -95,34 +102,34 @@ namespace FlipPix.UI
                     return;
                 }
 
-                System.Diagnostics.Debug.WriteLine("FlipPix App: Setup completed successfully. Proceeding to main window.");
+                logger.LogInfo("Setup completed successfully. Proceeding to main window.");
             }
             else
             {
-                System.Diagnostics.Debug.WriteLine($"FlipPix App: ComfyUI folder already configured: {settingsService.Settings.ComfyUIFolderPath}");
+                logger.LogInfo($"ComfyUI folder already configured: {settingsService.Settings.ComfyUIFolderPath}");
 
                 // Check server connectivity for existing installations
-                await CheckServerConnectivityAsync(settingsService);
+                await CheckServerConnectivityAsync(settingsService, logger);
             }
 
             // Create and show Image Generator window as default
             try
             {
-                System.Diagnostics.Debug.WriteLine("FlipPix App: Creating and showing Image Generator window as default");
+                logger.LogInfo("Creating and showing Image Generator window as default");
                 var imageGeneratorViewModel = _serviceProvider.GetRequiredService<ImageGeneratorViewModel>();
                 var imageGeneratorWindow = new ImageGeneratorWindow(imageGeneratorViewModel, settingsService);
-                System.Diagnostics.Debug.WriteLine("FlipPix App: ImageGeneratorWindow created successfully");
+                logger.LogInfo("ImageGeneratorWindow created successfully");
 
                 // Set shutdown mode to close when main window closes
                 ShutdownMode = ShutdownMode.OnMainWindowClose;
                 MainWindow = imageGeneratorWindow;
 
                 imageGeneratorWindow.Show();
-                System.Diagnostics.Debug.WriteLine("FlipPix App: Main Image Generator window shown successfully");
+                logger.LogInfo("Main Image Generator window shown successfully");
             }
             catch (Exception ex)
             {
-                System.Diagnostics.Debug.WriteLine($"FlipPix App: CRITICAL ERROR - Failed to create/show main window: {ex}");
+                logger.LogError(ex, "Failed to create/show main window");
                 System.Windows.MessageBox.Show(
                     $"Failed to open main window:\n\n{ex.Message}\n\nStack trace:\n{ex.StackTrace}",
                     "FlipPix Error",
@@ -268,12 +275,12 @@ namespace FlipPix.UI
             services.AddTransient<ComfyUIFolderSetupWindow>();
         }
 
-        private async Task CheckServerConnectivityAsync(SettingsService settingsService)
+        private async Task CheckServerConnectivityAsync(SettingsService settingsService, IAppLogger logger)
         {
             try
             {
                 var serverUrl = settingsService.Settings.BaseUrl;
-                System.Diagnostics.Debug.WriteLine($"FlipPix App: Checking ComfyUI server connectivity at {serverUrl}");
+                logger.LogInfo($"Checking ComfyUI server connectivity at {serverUrl}");
 
                 using var httpClient = new HttpClient();
                 httpClient.Timeout = TimeSpan.FromSeconds(5);
@@ -282,11 +289,11 @@ namespace FlipPix.UI
 
                 if (response.IsSuccessStatusCode)
                 {
-                    System.Diagnostics.Debug.WriteLine("FlipPix App: ComfyUI server connection successful");
+                    logger.LogInfo("ComfyUI server connection successful");
                 }
                 else
                 {
-                    System.Diagnostics.Debug.WriteLine($"FlipPix App: ComfyUI server returned status {response.StatusCode}");
+                    logger.LogWarning($"ComfyUI server returned status {response.StatusCode}");
 
                     // Show message to user that server is not accessible
                     System.Windows.Application.Current.Dispatcher.Invoke(() =>
@@ -315,7 +322,7 @@ namespace FlipPix.UI
             }
             catch (Exception ex)
             {
-                System.Diagnostics.Debug.WriteLine($"FlipPix App: Server connectivity check failed: {ex.Message}");
+                logger.LogWarning($"Server connectivity check failed: {ex.Message}");
 
                 // Show message to user that server is not accessible
                 System.Windows.Application.Current.Dispatcher.Invoke(() =>
@@ -347,6 +354,8 @@ namespace FlipPix.UI
 
         protected override void OnExit(ExitEventArgs e)
         {
+            _shutdownCts.Cancel();
+            _shutdownCts.Dispose();
             _serviceProvider?.Dispose();
             base.OnExit(e);
         }
