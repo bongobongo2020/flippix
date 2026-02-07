@@ -69,6 +69,7 @@ namespace FlipPix.UI.ViewModels
             GenerateImageCommand = new RelayCommand(async () => await GenerateImageAsync(), () => CanGenerate);
             CancelGenerationCommand = new RelayCommand(CancelGeneration, () => IsProcessing);
             OpenResultFolderCommand = new RelayCommand(OpenResultFolder, () => HasResultImage);
+            OpenResultImageCommand = new RelayCommand(OpenResultImage, () => HasResultImage);
             RefreshLorasCommand = new RelayCommand(RefreshLoras);
             PasteFromClipboardCommand = new RelayCommand(PasteFromClipboard);
 
@@ -419,6 +420,7 @@ namespace FlipPix.UI.ViewModels
         public ICommand GenerateImageCommand { get; }
         public ICommand CancelGenerationCommand { get; }
         public ICommand OpenResultFolderCommand { get; }
+        public ICommand OpenResultImageCommand { get; }
         public ICommand RefreshLorasCommand { get; }
         public ICommand PasteFromClipboardCommand { get; }
 
@@ -1295,6 +1297,25 @@ namespace FlipPix.UI.ViewModels
             catch (Exception ex)
             {
                 AddLog($"ERROR opening result folder: {ex.Message}");
+            }
+        }
+
+        private void OpenResultImage()
+        {
+            try
+            {
+                if (!string.IsNullOrEmpty(ResultImagePath) && File.Exists(ResultImagePath))
+                {
+                    Process.Start(new ProcessStartInfo
+                    {
+                        FileName = ResultImagePath,
+                        UseShellExecute = true
+                    });
+                }
+            }
+            catch (Exception ex)
+            {
+                AddLog($"ERROR opening result image: {ex.Message}");
             }
         }
 

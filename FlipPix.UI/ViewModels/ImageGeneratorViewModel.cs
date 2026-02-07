@@ -102,6 +102,7 @@ namespace FlipPix.UI.ViewModels
             GenerateImageCommand = new RelayCommand(async () => await GenerateImageAsync(), () => CanGenerate);
             CancelGenerationCommand = new RelayCommand(CancelGeneration, () => IsProcessing);
             OpenResultFolderCommand = new RelayCommand(OpenResultFolder, () => HasResultImage);
+            OpenResultImageCommand = new RelayCommand(OpenResultImage, () => HasResultImage);
             SendToCameraEditCommand = new RelayCommand(SendToCameraEdit, () => HasResultImage);
             SendToVideoGeneratorCommand = new RelayCommand(SendToVideoGenerator, () => HasResultImage);
             NavigateToCameraEditCommand = new RelayCommand(NavigateToCameraEdit);
@@ -352,6 +353,7 @@ namespace FlipPix.UI.ViewModels
         public ICommand GenerateImageCommand { get; }
         public ICommand CancelGenerationCommand { get; }
         public ICommand OpenResultFolderCommand { get; }
+        public ICommand OpenResultImageCommand { get; }
         public ICommand SendToCameraEditCommand { get; }
         public ICommand SendToVideoGeneratorCommand { get; }
         public ICommand NavigateToCameraEditCommand { get; }
@@ -1118,13 +1120,9 @@ namespace FlipPix.UI.ViewModels
             {
                 var aspectRatios = new[]
                 {
-                    "SDXL - 1:1 square 1024x1024",
-                    "SDXL - 3:4 portrait 896x1152",
-                    "SDXL - 9:16 portrait 768x1344",
-                    "SDXL - 4:3 landscape 1152x896",
-                    "SDXL - 16:9 landscape 1344x768",
-                    "SDXL - 16:9 landscape 1568x1352",
-                    "SDXL - 9:16 portrait 1352x1568"
+                    "SDXL - 9:16 portrait 1088x1600",
+                    "SDXL - 16:9 landscape 1600x1088",
+                    "SDXL - 1:1 square 1600x1600"
                 };
 
                 var selectedRatio = aspectRatios[Math.Min(AspectRatioIndex, aspectRatios.Length - 1)];
@@ -1154,13 +1152,9 @@ namespace FlipPix.UI.ViewModels
             // Get resolution from aspect ratio index
             var resolutions = new[]
             {
-                (1024, 1024), // 1:1
-                (896, 1152),  // 3:4
-                (768, 1344),  // 9:16
-                (1152, 896),  // 4:3
-                (1344, 768),  // 16:9
-                (1568, 1352), // 16:9 custom
-                (1352, 1568)  // 9:16 custom
+                (1088, 1600), // Portrait
+                (1600, 1088), // Landscape
+                (1600, 1600), // Square
             };
             var (width, height) = resolutions[Math.Min(AspectRatioIndex, resolutions.Length - 1)];
 
@@ -1244,13 +1238,9 @@ namespace FlipPix.UI.ViewModels
             // Get resolution from aspect ratio index
             var resolutions = new[]
             {
-                (1024, 1024), // 1:1
-                (896, 1152),  // 3:4
-                (768, 1344),  // 9:16
-                (1152, 896),  // 4:3
-                (1344, 768),  // 16:9
-                (1568, 1352), // 16:9 custom
-                (1352, 1568)  // 9:16 custom
+                (1088, 1600), // Portrait
+                (1600, 1088), // Landscape
+                (1600, 1600), // Square
             };
             var (width, height) = resolutions[Math.Min(AspectRatioIndex, resolutions.Length - 1)];
 
@@ -1815,6 +1805,25 @@ namespace FlipPix.UI.ViewModels
             catch (Exception ex)
             {
                 AddLog($"ERROR opening result folder: {ex.Message}");
+            }
+        }
+
+        private void OpenResultImage()
+        {
+            try
+            {
+                if (!string.IsNullOrEmpty(ResultImagePath) && File.Exists(ResultImagePath))
+                {
+                    Process.Start(new ProcessStartInfo
+                    {
+                        FileName = ResultImagePath,
+                        UseShellExecute = true
+                    });
+                }
+            }
+            catch (Exception ex)
+            {
+                AddLog($"ERROR opening result image: {ex.Message}");
             }
         }
 

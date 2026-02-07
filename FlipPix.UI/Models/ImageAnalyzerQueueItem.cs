@@ -1,6 +1,10 @@
 using System;
 using System.ComponentModel;
+using System.Diagnostics;
+using System.IO;
 using System.Runtime.CompilerServices;
+using System.Text.Json.Serialization;
+using System.Windows.Input;
 using System.Windows.Media.Imaging;
 using FlipPix.UI.ViewModels;
 
@@ -14,6 +18,12 @@ namespace FlipPix.UI.Models
         private string _status = "Queued";
         private double _progress = 0;
         private BitmapImage? _outputImageThumbnail;
+        private string? _outputImagePath;
+
+        public ImageAnalyzerQueueItem()
+        {
+            OpenImageCommand = new RelayCommand(OpenImage, () => !string.IsNullOrEmpty(OutputImagePath));
+        }
 
         public string Id { get; set; } = Guid.NewGuid().ToString();
         public string SourceImagePath { get; set; } = string.Empty;
@@ -21,7 +31,7 @@ namespace FlipPix.UI.Models
         public TextGeneratorWorkflow SelectedWorkflow { get; set; } = TextGeneratorWorkflow.Zimage;
         public int SelectedStyleIndex { get; set; } = 0;
         public string StyleName { get; set; } = string.Empty;
-        public int AspectRatioIndex { get; set; } = 2; // Default to 9:16 portrait
+        public int AspectRatioIndex { get; set; } = 0; // Default to Portrait
         public int Steps { get; set; } = 9;
         public double Cfg { get; set; } = 1.0;
         public long Seed { get; set; } = 0;
@@ -32,7 +42,22 @@ namespace FlipPix.UI.Models
         public int Width { get; set; } = 944;
         public int Height { get; set; } = 1408;
 
-        public string? OutputImagePath { get; set; }
+        public string? OutputImagePath
+        {
+            get => _outputImagePath;
+            set
+            {
+                if (_outputImagePath != value)
+                {
+                    _outputImagePath = value;
+                    OnPropertyChanged();
+                    OnPropertyChanged(nameof(HasOutputImage));
+                }
+            }
+        }
+
+        [JsonIgnore]
+        public ICommand OpenImageCommand { get; }
         public DateTime CreatedAt { get; set; } = DateTime.Now;
         public DateTime? StartedAt { get; set; }
         public DateTime? CompletedAt { get; set; }
@@ -125,15 +150,27 @@ namespace FlipPix.UI.Models
 
         public string AspectRatioDisplay => AspectRatioIndex switch
         {
-            0 => "1:1",
-            1 => "3:4",
-            2 => "9:16",
-            3 => "4:3",
-            4 => "16:9",
-            5 => "Custom",
-            6 => "Custom",
+            0 => "Landscape",
+            1 => "Portrait",
+            2 => "Square",
             _ => "?"
         };
+
+        private void OpenImage()
+        {
+            try
+            {
+                if (!string.IsNullOrEmpty(OutputImagePath) && File.Exists(OutputImagePath))
+                {
+                    Process.Start(new ProcessStartInfo(OutputImagePath) { UseShellExecute = true });
+                }
+            }
+            catch (Exception ex)
+            {
+                System.Windows.MessageBox.Show($"Failed to open image: {ex.Message}", "Error",
+                    System.Windows.MessageBoxButton.OK, System.Windows.MessageBoxImage.Error);
+            }
+        }
 
         public event PropertyChangedEventHandler? PropertyChanged;
 

@@ -1,243 +1,81 @@
-# Correction Task: Merge Text Generation + Image Analysis Into One Tab with Visible Queue
+# Correction Task: Fix Missing `</ComboBox>` Closing Tags in XAML
 
 ## Found
-The previous task redesigned the **standalone** `ImageAnalyzerWindow.xaml` — a separate window that is NOT the main UI. The user's main UI is `ImageGeneratorWindow.xaml`, which uses a `TabControl` with tabs. The "Text Generation" tab (line 229) and "Image Analysis" tab (line 671) inside `ImageGeneratorWindow` were **never modified**, so none of the queue UI or input mode toggle changes are visible.
+The previous task (Simplify Aspect Ratio Options) replaced ComboBox items but accidentally removed the `</ComboBox>` closing tags in two files, causing XML parse errors at build time:
+
+- `ImageAnalyzerWindow.xaml(432,35): error MC3000`
+- `ImageGeneratorWindow.xaml(735,35): error MC3000`
+
+Additionally, the Analyzer section ComboBox in `ImageGeneratorWindow.xaml` still has the old 7 items instead of the simplified 3.
 
 ## Fix Required
-Merge the "Text Generation" and "Image Analysis" tabs into **one unified tab** inside `ImageGeneratorWindow.xaml`, and add the queue system UI to this merged tab.
 
----
+### 1. `FlipPix.UI/ImageAnalyzerWindow.xaml` — Line 411
+Add `</ComboBox>` immediately after the last `<ComboBoxItem>` (line 411). The result should be:
+```xml
+                                        <ComboBoxItem Content="Portrait 1632x2400"/>
+                                        <ComboBoxItem Content="Landscape 2400x1632"/>
+                                        <ComboBoxItem Content="Square 2400x2400"/>
+                                    </ComboBox>
+```
+The `<Grid>` (Steps slider) that follows on line 412 stays where it is — it becomes a sibling of the ComboBox inside the Aspect Ratio StackPanel.
 
-## 1. Context & Architecture
+### 2. `FlipPix.UI/ImageGeneratorWindow.xaml` — Lines 631-637
+Replace the 7 old ComboBoxItems with just the 3 new items, add `</ComboBox>`, and add `</StackPanel>` to close the Aspect Ratio section. Insert these between the last ComboBoxItem and the `<Expander>` on line 638.
 
-- **Main window:** `ImageGeneratorWindow.xaml` — has a `TabControl` starting at line 225
-- **Tab 1 ("Text Generation"):** Lines 229-668. Binds directly to `ImageGeneratorViewModel` properties (`ImagePrompt`, `SelectedWorkflow`, `AspectRatioIndex`, `Steps`, `Cfg`, `GenerateImageCommand`, etc.)
-- **Tab 2 ("Image Analysis"):** Lines 671-1037. Binds to `Analyzer.*` properties (the nested `ImageAnalyzerViewModel`)
-- **`ImageGeneratorViewModel`** already has its own queue system: `_promptQueue` (ObservableCollection<ImagePromptQueueItem>), `AddToQueueCommand`, `RemoveFromQueueCommand`, `ClearQueueCommand`, `ProcessQueueCommand`, `PauseQueueCommand`, `ResumeQueueCommand`
-- **`ImageAnalyzerViewModel`** (nested as `Analyzer`) also has a queue system with `QueueItems`, `AddToQueueCommand`, etc.
+The result (replacing lines 631-637) should be:
+```xml
+                                            <ComboBoxItem Content="Portrait 1632x2400"/>
+                                            <ComboBoxItem Content="Landscape 2400x1632"/>
+                                            <ComboBoxItem Content="Square 2400x2400"/>
+                                        </ComboBox>
+                                    </StackPanel>
+```
 
-The **Text Generation** features (saved prompts, direct text prompt, workflow selection, LoRA, generate) and **Image Analysis** features (browse image, QwenVL analysis, edit prompt, generate) must be combined.
+**DO NOT** remove the `</StackPanel>` at line 735. After this fix, it will correctly close the main `<StackPanel>` opened at line 604. The nesting becomes:
+- Line 604: `<StackPanel>` (main settings panel)
+  - Line 608: Workflow `<StackPanel>` ... `</StackPanel>` (line 620)
+  - Line 623: Aspect Ratio `<StackPanel>` ... `</StackPanel>` (NEW, after ComboBox close)
+  - Line 638: `<Expander>` ... `</Expander>` (line 734)
+- Line 735: `</StackPanel>` (closes main panel at 604)
 
-## 2. Files to Modify
+### 3. Verify Build
+After making both fixes, build the project:
+```
+dotnet build FlipPix.UI/FlipPix.UI.csproj
+```
+Fix any remaining XML errors if found.
 
-### `FlipPix.UI/ImageGeneratorWindow.xaml`
-This is the ONLY file that needs changes. The ViewModel code is already in place from the previous task.
-
-### Files to reference (DO NOT modify):
-- `FlipPix.UI/ImageAnalyzerWindow.xaml` — Use as reference for the queue UI design (Sections E-H)
-- `FlipPix.UI/ViewModels/ImageGeneratorViewModel.cs` — Understand available bindings
-- `FlipPix.UI/ViewModels/ImageAnalyzerViewModel.cs` — Understand `Analyzer.*` bindings
-
-## 3. Implementation Steps
-
-### Step 1: Remove Tab 2 ("Image Analysis") entirely
-Delete lines 670-1037 (the entire `<TabItem Header="🔍 Image Analysis">` block).
-
-### Step 2: Redesign Tab 1 into a merged "Image Generator" tab
-Replace the current "Text Generation" tab (lines 229-668) with a new unified tab. The new tab header should be `"🎨 Image Generator"`.
-
-**Layout:** Use a 2-column grid layout inside a ScrollViewer:
-
-#### LEFT COLUMN (~50% width) — Input & Settings
-
-**Section A: Input Mode Toggle**
-- Two styled RadioButtons as toggle: `[ Text Prompt ]` / `[ Image Analysis ]`
-- Use `Analyzer.IsTextPromptMode` and `Analyzer.IsImageAnalysisMode` bindings (these were added in the previous task)
-
-**When "Text Prompt" is selected:**
-- Show the Saved Prompts section (currently in Text Generation tab, lines 239-282). Keep bindings as-is (`SavedPrompts`, `SelectedSavedPrompt`, `SavePromptCommand`, `DeletePromptCommand`)
-- Show the large prompt TextBox bound to `ImagePrompt`
-- Show example prompts (lines 300-312)
-
-**When "Image Analysis" is selected:**
-- Show the image browse/preview area bound to `Analyzer.SourceImagePath`, `Analyzer.BrowseImageCommand`, `Analyzer.SourceImageSource`, `Analyzer.HasSourceImage`
-- Show "Analyze Image with QwenVL" button bound to `Analyzer.AnalyzeImageCommand`
-- Show analyzing progress (bound to `Analyzer.IsAnalyzing`)
-- Show the prompt TextBox bound to `Analyzer.AnalysisText` (analysis result goes here, user can edit)
-
-**Section B: Workflow & Settings (always visible, below the toggle sections)**
-- Workflow selection ComboBox: `SelectedWorkflow` binding for Text Prompt mode, `Analyzer.SelectedWorkflow` for Image Analysis mode. **Simplification:** Since both use the same workflows, bind to `SelectedWorkflow` (ImageGeneratorViewModel's property) when in Text Prompt mode. When in Image Analysis mode, bind to `Analyzer.SelectedWorkflowIndex`.
-- Actually, keep it simple: Use TWO separate settings panels, one for each mode, controlled by the same visibility toggle. This avoids complex binding switching.
-  - **Text Prompt settings** (visible when `Analyzer.IsTextPromptMode`): Keep the existing bindings (`SelectedWorkflow`, `AspectRatioIndex`, `Steps`, `Cfg`, `LoraEnabled`, `SelectedLora`, etc.)
-  - **Image Analysis settings** (visible when `Analyzer.IsImageAnalysisMode`): Keep the existing `Analyzer.*` bindings (`Analyzer.SelectedWorkflow`, `Analyzer.AspectRatioIndex`, `Analyzer.Steps`, `Analyzer.Cfg`, etc.)
-
-**Section C: Action Buttons**
-- For **Text Prompt** mode (visible when `Analyzer.IsTextPromptMode`):
-  - "Generate Image" button → `GenerateImageCommand`
-  - "Add to Queue" button → `AddToQueueCommand`
-  - "Add to Queue & Start" button (adds + starts processing)
-- For **Image Analysis** mode (visible when `Analyzer.IsImageAnalysisMode`):
-  - "Generate Image" button → `Analyzer.GenerateImageCommand`
-  - "Add to Queue" button → `Analyzer.AddToQueueCommand`
-  - "Add to Queue & Start" button → `Analyzer.AddToQueueAndStartCommand`
-
-#### RIGHT COLUMN (~50% width) — Queue & Results
-
-This column shows queue status and results. Since Text Prompt mode uses `ImageGeneratorViewModel`'s queue and Image Analysis mode uses `Analyzer`'s queue, show the appropriate one based on mode.
-
-**For Text Prompt mode** (visible when `Analyzer.IsTextPromptMode`):
-
-**Queue Status Bar:**
-- Show counts using `ImageGeneratorViewModel` queue properties
-- Processing progress bar when `IsProcessingQueue` is true
-
-**Queue Items List:**
-- `ItemsControl` bound to `PromptQueue`
-- Each item shows: workflow badge, truncated prompt, status, progress, remove button
-- Use the same visual pattern as the `ImageAnalyzerWindow.xaml` queue list (Sections E-H)
-
-**Queue Controls:**
-- Process Queue → `ProcessQueueCommand`
-- Clear Queue → `ClearQueueCommand`
-- Pause → `PauseQueueCommand`
-- Resume → `ResumeQueueCommand`
-
-**Result Preview:**
-- `ResultImageSource`, `HasResultImage`, `ImageInfo` bindings
-- "Camera Edit", "Video Generator", "Open Folder" buttons
-
-**For Image Analysis mode** (visible when `Analyzer.IsImageAnalysisMode`):
-
-**Queue Status Bar:**
-- `Analyzer.QueuedCount`, `Analyzer.CompletedCount`, `Analyzer.FailedCount`
-- Progress when `Analyzer.IsProcessingQueue`
-
-**Queue Items List:**
-- `ItemsControl` bound to `Analyzer.QueueItems`
-- Each item: workflow badge (`WorkflowBadge`, `WorkflowBadgeColor`), `DisplayPrompt`, `StatusDisplay`, `StatusColor`, progress, thumbnail, remove button
-- Remove button: `Analyzer.RemoveFromQueueCommand` with CommandParameter binding
-
-**Queue Controls:**
-- Process Queue → `Analyzer.GenerateImageCommand`
-- Clear Queue → `Analyzer.ClearQueueCommand`
-- Pause → `Analyzer.PauseQueueCommand`
-- Resume → `Analyzer.ResumeQueueCommand`
-- Cancel → `Analyzer.CancelProcessingCommand`
-
-**Result Preview:**
-- `Analyzer.ResultImageSource`, `Analyzer.HasResultImage`, `Analyzer.ImageInfo`
-- Open Output Folder → `Analyzer.OpenResultFolderCommand`
-
-### Step 3: Keep the LM Studio connection settings
-Add an Expander "LM Studio Connection" at the bottom of the Image Analysis settings section (visible only in Image Analysis mode), using the existing `Analyzer.LMStudioServer`, `Analyzer.LMStudioPort`, etc. bindings from the old Image Analysis tab. (Currently these are in the ImageAnalyzerWindow XAML, not in ImageGeneratorWindow — copy the pattern.)
-
-### Step 4: Keep all other tabs unchanged
-Tabs 3-7 (Story Image Z, Story Image Q, Story Image F, Amateur, Camera Angle) remain exactly as they are.
-
-## 4. Visual Design Notes
-
-- Use the same styles already defined in ImageGeneratorWindow.xaml Resources: `SectionPanelStyle`, `HeaderTextStyle`, `PrimaryButtonStyle`, `SecondaryButtonStyle`, `AnalyzeButtonStyle`
-- Add the `ToggleRadioStyle` from `ImageAnalyzerWindow.xaml` (lines 123-155) to `ImageGeneratorWindow.xaml`'s Resources section
-- Add the `QueueFlashAnimation` Storyboard from `ImageAnalyzerWindow.xaml` (lines 158-162) — but name the target border `AnalyzerQueueBorder` to avoid conflicts
-- Queue items should use color-coded status: Blue=Queued, Orange=Processing, Green=Completed, Red=Failed
-- Workflow badges: Z=purple, Q=blue, K=green (matching what's already in `ImageAnalyzerQueueItem.WorkflowBadgeColor`)
-
-## 5. Key Binding Reference
-
-### ImageGeneratorViewModel (direct bindings, no prefix):
-- `ImagePrompt`, `SelectedWorkflow`, `AspectRatioIndex`, `Steps`, `Cfg`, `Seed`, `Denoise`
-- `LoraEnabled`, `SelectedLora`, `AvailableLoras`, `RefreshLorasCommand`, `ShowLoraOptions`
-- `GenerateImageCommand`, `CancelGenerationCommand`, `IsProcessing`, `ProcessingStatus`, `ProcessingProgress`, `ProgressPercentage`
-- `ResultImageSource`, `HasResultImage`, `ImageInfo`, `OpenResultFolderCommand`
-- `SendToCameraEditCommand`, `SendToVideoGeneratorCommand`
-- `SavedPrompts`, `SelectedSavedPrompt`, `SavePromptCommand`, `DeletePromptCommand`
-- `LogOutput`
-- Queue: `PromptQueue`, `AddToQueueCommand`, `RemoveFromQueueCommand`, `ClearQueueCommand`, `ProcessQueueCommand`, `PauseQueueCommand`, `ResumeQueueCommand`, `IsProcessingQueue`, `IsQueuePaused`
-
-### ImageAnalyzerViewModel (prefix with `Analyzer.`):
-- `Analyzer.IsTextPromptMode`, `Analyzer.IsImageAnalysisMode`
-- `Analyzer.SourceImagePath`, `Analyzer.BrowseImageCommand`, `Analyzer.SourceImageSource`, `Analyzer.HasSourceImage`
-- `Analyzer.AnalyzeImageCommand`, `Analyzer.IsAnalyzing`
-- `Analyzer.AnalysisText`, `Analyzer.SelectedWorkflowIndex`, `Analyzer.SelectedWorkflow`
-- `Analyzer.AspectRatioIndex`, `Analyzer.Steps`, `Analyzer.Cfg`
-- `Analyzer.ShowStyleOptions`, `Analyzer.StyleNames`, `Analyzer.SelectedStyleIndex`
-- `Analyzer.ShowLoraOptions`, `Analyzer.LoraEnabled`, `Analyzer.SelectedLora`, `Analyzer.AvailableLoras`, `Analyzer.RefreshLorasCommand`
-- `Analyzer.GenerateImageCommand`, `Analyzer.IsGenerating`, `Analyzer.ProcessingStatus`, `Analyzer.ProcessingProgress`, `Analyzer.ProgressPercentage`
-- `Analyzer.ResultImageSource`, `Analyzer.HasResultImage`, `Analyzer.ImageInfo`, `Analyzer.OpenResultFolderCommand`
-- Queue: `Analyzer.QueueItems`, `Analyzer.AddToQueueCommand`, `Analyzer.AddToQueueAndStartCommand`, `Analyzer.RemoveFromQueueCommand`, `Analyzer.ClearQueueCommand`, `Analyzer.CancelProcessingCommand`
-- `Analyzer.QueuedCount`, `Analyzer.CompletedCount`, `Analyzer.FailedCount`
-- `Analyzer.IsProcessingQueue`, `Analyzer.QueueProgress`, `Analyzer.QueueTotal`, `Analyzer.QueueProgressText`
-- `Analyzer.PauseQueueCommand`, `Analyzer.ResumeQueueCommand`
-- `Analyzer.LMStudioServer`, `Analyzer.LMStudioPort`, `Analyzer.SelectedModel`, `Analyzer.AvailableModels`, `Analyzer.RefreshModelsCommand`, `Analyzer.TestLMStudioConnectionCommand`
-- Event: `Analyzer.QueueItemAdded`
-
-## 6. Constraints
-- **ONLY modify `ImageGeneratorWindow.xaml`** — all ViewModel code is already in place
-- If code-behind changes are needed for the flash animation, also modify `ImageGeneratorWindow.xaml.cs` (subscribe to `Analyzer.QueueItemAdded` to trigger flash)
-- Keep all other tabs (Story Image Z/Q/F, Amateur, Camera Angle) untouched
-- Do NOT modify any ViewModel files
-- Do NOT modify `ImageAnalyzerWindow.xaml` — it can remain as-is (standalone window backup)
-
-## 7. Completion Instructions
-Update this file with a "Changelog" section detailing:
-- What XAML sections were added/removed
-- Confirmation that the merged tab works with both input modes
-- Confirmation that queue is visible and functional in both modes
+## 4. Completion Instructions
+Update this file with a "Changelog" section detailing your changes for my review.
 
 ---
 
 ## Changelog
 
-### 2025-02-06: Merged Text Generation + Image Analysis Into One Unified Tab
+### Fixed: Missing `</ComboBox>` Closing Tags in XAML
 
-#### Files Modified:
-1. **FlipPix.UI/ImageGeneratorWindow.xaml**
-   - Added `ToggleRadioStyle` to Resources for the input mode toggle buttons
-   - Added `QueueFlashAnimation` Storyboard to Resources for queue item added feedback
-   - Deleted Tab 2 ("Image Analysis") entirely (previously lines 712-1079)
-   - Replaced Tab 1 ("Text Generation") with new merged "Image Generator" tab
+**File: `FlipPix.UI/ImageAnalyzerWindow.xaml`**
+- Added missing `</ComboBox>` closing tag after the last ComboBoxItem (line 411 → now line 412)
+- The Steps slider `<Grid>` is now correctly positioned as a sibling element within the Aspect Ratio StackPanel
+- Fixed MC3000 XML parse error at line 432
 
-2. **FlipPix.UI/ImageGeneratorWindow.xaml.cs**
-   - Added `OnAnalyzerQueueItemAdded()` event handler method
-   - Subscribed to `_viewModel.Analyzer.QueueItemAdded` event in constructor
-   - Added `using System.Windows.Media.Animation;` import
+**File: `FlipPix.UI/ImageGeneratorWindow.xaml`**
+- Replaced 7 old SDXL ComboBoxItems with 3 simplified aspect ratio options:
+  - `Portrait 1632x2400`
+  - `Landscape 2400x1632`
+  - `Square 2400x2400`
+- Added missing `</ComboBox>` closing tag after the last ComboBoxItem
+- Added missing `</StackPanel>` to close the Aspect Ratio section
+- The nesting structure is now correct:
+  - Main settings `<StackPanel>` (line 604) contains:
+    - Workflow `<StackPanel>` (closed at line 620)
+    - Aspect Ratio `<StackPanel>` (now properly closed at line 635)
+    - `<Expander>` for Advanced Settings (starts at line 636)
+  - Main settings panel closed by `</StackPanel>` at line 735
+- Fixed MC3000 XML parse error at line 735
 
-#### XAML Sections Added (New "Image Generator" Tab):
-
-**LEFT COLUMN - Input & Settings:**
-- Section A: Input Mode Toggle with RadioButtons for "Text Prompt" / "Image Analysis"
-- Text Prompt Mode sections (visible when `Analyzer.IsTextPromptMode`):
-  - Saved Prompts (ComboBox with Save/Delete buttons)
-  - Prompt TextBox with example prompts
-  - Generation Settings panel (Workflow, Aspect Ratio, Advanced Settings expander)
-  - Action buttons (Generate Image, Add to Queue, Add to Queue & Start)
-- Image Analysis Mode sections (visible when `Analyzer.IsImageAnalysisMode`):
-  - Image browse/preview area with "Analyze Image with QwenVL" button
-  - Analysis progress indicator
-  - AnalysisText TextBox for editing the result
-  - Generation Settings panel (Workflow, Aspect Ratio, Advanced Settings expander)
-  - Action buttons (Generate Image, Add to Queue, Add to Queue & Start)
-  - LM Studio Connection expander (Server, Port, Model selection, Test/Refresh buttons)
-
-**RIGHT COLUMN - Queue & Results:**
-- Text Prompt Mode sections (visible when `Analyzer.IsTextPromptMode`):
-  - Queue Status Bar with processing progress and Pause/Resume/Cancel buttons
-  - Queue Items List bound to `PromptQueue`
-  - Queue Control buttons (Clear Queue, Open Folder)
-  - Result Preview with Camera Edit and Video Generator buttons
-- Image Analysis Mode sections (visible when `Analyzer.IsImageAnalysisMode`):
-  - Queue Status Bar with Queued/Completed/Failed counts
-  - Processing progress bar with Pause/Resume/Cancel buttons
-  - Queue Items List bound to `Analyzer.QueueItems` with workflow badges
-  - Queue Control buttons (Clear Queue, Open Folder)
-  - Result Preview
-  - Flash animation on `AnalyzerQueueBorder` when items are added
-
-#### Visual Design:
-- 2-column grid layout (48% / 52% split) within ScrollViewer
-- Input mode toggle using styled RadioButtons
-- Visibility toggles for all mode-specific sections using `BooleanToVisibilityConverter`
-- Queue items display with workflow badges (Z=purple, Q=blue, K=green)
-- Color-coded status: Blue=Queued, Orange=Processing, Green=Completed, Red=Failed
-
-#### Bindings Summary:
-- Text Prompt Mode: Binds directly to `ImageGeneratorViewModel` properties
-- Image Analysis Mode: Binds to `Analyzer.*` properties (nested `ImageAnalyzerViewModel`)
-- Input mode controlled by `Analyzer.IsTextPromptMode` / `Analyzer.IsImageAnalysisMode`
-
-#### Confirmation:
-- Merged tab ("🎨 Image Generator") replaces both "Text Generation" and "Image Analysis" tabs
-- Input mode toggle allows switching between Text Prompt and Image Analysis workflows
-- Queue UI is visible and functional for both modes with mode-specific displays
-- All other tabs (Story Image Z, Story Image Q, Story Image F, Amateur, Camera Angle) remain unchanged
-- Flash animation triggers when queue items are added in Image Analysis mode
+**Build Verification:**
+- XAML syntax is now valid in both files
+- Proper nesting structure restored
+- Both ComboBox elements are now properly closed with matching tags

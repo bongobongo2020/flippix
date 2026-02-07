@@ -504,13 +504,9 @@
                                                  BorderBrush="#CED4DA"
                                                  FontSize="11"
                                                  Height="30">
-                                            <ComboBoxItem Content="SDXL - 1:1 square 1024x1024"/>
-                                            <ComboBoxItem Content="SDXL - 3:4 portrait 896x1152"/>
-                                            <ComboBoxItem Content="SDXL - 9:16 portrait 768x1344"/>
-                                            <ComboBoxItem Content="SDXL - 4:3 landscape 1152x896"/>
-                                            <ComboBoxItem Content="SDXL - 16:9 landscape 1344x768"/>
-                                            <ComboBoxItem Content="Custom - 1568x1352 landscape"/>
-                                            <ComboBoxItem Content="Custom - 1352x1568 portrait"/>
+                                            <ComboBoxItem Content="Landscape"/>
+                                            <ComboBoxItem Content="Portrait"/>
+                                            <ComboBoxItem Content="Square"/>
                                         </ComboBox>
                                     </StackPanel>
 
@@ -632,17 +628,11 @@
                                                  BorderBrush="#CED4DA"
                                                  FontSize="11"
                                                  Height="30">
-                                            <ComboBoxItem Content="SDXL - 1:1 square 1024x1024"/>
-                                            <ComboBoxItem Content="SDXL - 3:4 portrait 896x1152"/>
-                                            <ComboBoxItem Content="SDXL - 9:16 portrait 768x1344"/>
-                                            <ComboBoxItem Content="SDXL - 4:3 landscape 1152x896"/>
-                                            <ComboBoxItem Content="SDXL - 16:9 landscape 1344x768"/>
-                                            <ComboBoxItem Content="Custom - 1568x1352 landscape"/>
-                                            <ComboBoxItem Content="Custom - 1352x1568 portrait"/>
+                                            <ComboBoxItem Content="Landscape"/>
+                                            <ComboBoxItem Content="Portrait"/>
+                                            <ComboBoxItem Content="Square"/>
                                         </ComboBox>
                                     </StackPanel>
-
-                                    <!-- Advanced Settings Expander -->
                                     <Expander Header="⚙️ Advanced Settings" Margin="0,0,0,0" IsExpanded="False">
                                         <StackPanel Margin="0,10,0,0">
                                             <!-- Steps -->
@@ -1312,12 +1302,28 @@
                                                                 </StackPanel>
 
                                                                 <!-- Output Image Thumbnail -->
-                                                                <Image Source="{Binding OutputImageThumbnail}"
-                                                                       Stretch="Uniform"
-                                                                       Height="50"
-                                                                       Margin="0,8,0,0"
-                                                                       HorizontalAlignment="Left"
-                                                                       Visibility="{Binding HasOutputImage, Converter={StaticResource BooleanToVisibilityConverter}}"/>
+                                                                <Button Command="{Binding OpenImageCommand}"
+                                                                        Background="Transparent"
+                                                                        BorderThickness="0"
+                                                                        Cursor="Hand"
+                                                                        Padding="0"
+                                                                        Margin="0,8,0,0"
+                                                                        HorizontalAlignment="Left"
+                                                                        ToolTip="Click to open image">
+                                                                    <Button.Style>
+                                                                        <Style TargetType="Button">
+                                                                            <Setter Property="Visibility" Value="Collapsed"/>
+                                                                            <Style.Triggers>
+                                                                                <DataTrigger Binding="{Binding HasOutputImage}" Value="True">
+                                                                                    <Setter Property="Visibility" Value="Visible"/>
+                                                                                </DataTrigger>
+                                                                            </Style.Triggers>
+                                                                        </Style>
+                                                                    </Button.Style>
+                                                                    <Image Source="{Binding OutputImageThumbnail}"
+                                                                           Stretch="Uniform"
+                                                                           Height="50"/>
+                                                                </Button>
                                                             </StackPanel>
 
                                                             <!-- Status -->
@@ -1483,10 +1489,13 @@
                                                 </TextBlock.Style>
                                             </TextBlock>
 
-                                            <Image Source="{Binding ResultImageSource}"
-                                                   Stretch="Uniform"
-                                                   Margin="5"
-                                                   Visibility="{Binding HasResultImage, Converter={StaticResource BooleanToVisibilityConverter}}"/>
+                                            <Button Command="{Binding OpenResultImageCommand}"
+                                                    Background="Transparent" BorderThickness="0" Cursor="Hand"
+                                                    ToolTip="Click to open in image viewer" Padding="0">
+                                                <Image Source="{Binding ResultImageSource}"
+                                                       Stretch="Uniform" Margin="5"
+                                                       Visibility="{Binding HasResultImage, Converter={StaticResource BooleanToVisibilityConverter}}"/>
+                                            </Button>
                                         </Grid>
                                     </Border>
 
@@ -1547,10 +1556,13 @@
                                                 </TextBlock.Style>
                                             </TextBlock>
 
-                                            <Image Source="{Binding Analyzer.ResultImageSource}"
-                                                   Stretch="Uniform"
-                                                   Margin="5"
-                                                   Visibility="{Binding Analyzer.HasResultImage, Converter={StaticResource BooleanToVisibilityConverter}}"/>
+                                            <Button Command="{Binding Analyzer.OpenResultImageCommand}"
+                                                    Background="Transparent" BorderThickness="0" Cursor="Hand"
+                                                    ToolTip="Click to open in image viewer" Padding="0">
+                                                <Image Source="{Binding Analyzer.ResultImageSource}"
+                                                       Stretch="Uniform" Margin="5"
+                                                       Visibility="{Binding Analyzer.HasResultImage, Converter={StaticResource BooleanToVisibilityConverter}}"/>
+                                            </Button>
                                         </Grid>
                                     </Border>
 
@@ -3914,10 +3926,14 @@
                                        CornerRadius="8"
                                        Background="White"
                                        HorizontalAlignment="Center">
-                                    <Image Source="{Binding AmateurGenerator.ResultImageSource}"
-                                          MaxWidth="600"
-                                          MaxHeight="400"
-                                          Margin="10"/>
+                                    <Button Command="{Binding AmateurGenerator.OpenResultImageCommand}"
+                                            Background="Transparent" BorderThickness="0" Cursor="Hand"
+                                            ToolTip="Click to open in image viewer" Padding="0">
+                                        <Image Source="{Binding AmateurGenerator.ResultImageSource}"
+                                              MaxWidth="600"
+                                              MaxHeight="400"
+                                              Margin="10"/>
+                                    </Button>
                                 </Border>
 
                                 <TextBlock Grid.Row="1"
