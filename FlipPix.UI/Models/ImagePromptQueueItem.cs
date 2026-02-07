@@ -146,9 +146,17 @@ namespace FlipPix.UI.Models
 
         private void OpenImage()
         {
-            if (!string.IsNullOrEmpty(OutputImagePath) && File.Exists(OutputImagePath))
+            try
             {
-                Process.Start(new ProcessStartInfo(OutputImagePath) { UseShellExecute = true });
+                if (!string.IsNullOrEmpty(OutputImagePath) && File.Exists(OutputImagePath))
+                {
+                    Process.Start(new ProcessStartInfo(OutputImagePath) { UseShellExecute = true });
+                }
+            }
+            catch (Exception ex)
+            {
+                System.Windows.MessageBox.Show($"Failed to open image: {ex.Message}", "Error",
+                    System.Windows.MessageBoxButton.OK, System.Windows.MessageBoxImage.Error);
             }
         }
 

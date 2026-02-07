@@ -45,7 +45,7 @@ namespace FlipPix.UI.ViewModels
         private bool _isGenerating = false;
         private string _processingStatus = string.Empty;
         private double _processingProgress = 0;
-        private int _aspectRatioIndex = 2; // Default to 9:16 portrait
+        private int _aspectRatioIndex = 0; // Default to Portrait
         private int _steps = 9;
         private double _cfg = 1.0;
         private long _seed = 0;
@@ -103,6 +103,7 @@ namespace FlipPix.UI.ViewModels
             AnalyzeImageCommand = new RelayCommand(async () => await AnalyzeImageAsync(), () => HasSourceImage && !IsAnalyzing && !IsGenerating);
             GenerateImageCommand = new RelayCommand(async () => await GenerateImageAsync(), () => CanGenerate);
             OpenResultFolderCommand = new RelayCommand(OpenResultFolder, () => HasResultImage);
+            OpenResultImageCommand = new RelayCommand(OpenResultImage, () => HasResultImage);
             TestLMStudioConnectionCommand = new RelayCommand(async () => await TestLMStudioConnectionAsync(), () => !IsAnalyzing && !IsGenerating);
             RefreshModelsCommand = new RelayCommand(async () => await RefreshModelsAsync(), () => !IsAnalyzing && !IsGenerating);
             RefreshLorasCommand = new RelayCommand(RefreshLoras, () => !IsAnalyzing && !IsGenerating);
@@ -650,6 +651,7 @@ namespace FlipPix.UI.ViewModels
         public ICommand AnalyzeImageCommand { get; }
         public ICommand GenerateImageCommand { get; }
         public ICommand OpenResultFolderCommand { get; }
+        public ICommand OpenResultImageCommand { get; }
         public ICommand TestLMStudioConnectionCommand { get; }
         public ICommand RefreshModelsCommand { get; }
         public ICommand RefreshLorasCommand { get; }
@@ -2234,13 +2236,9 @@ namespace FlipPix.UI.ViewModels
                             {
                                 var resolutions = new[]
                                 {
-                                    (1024, 1024), // 1:1
-                                    (896, 1152),  // 3:4
-                                    (768, 1344),  // 9:16
-                                    (1152, 896),  // 4:3
-                                    (1344, 768),  // 16:9
-                                    (1568, 1352), // 16:9 custom
-                                    (1352, 1568)  // 9:16 custom
+                                    (1088, 1600), // Portrait
+                                    (1600, 1088), // Landscape
+                                    (1600, 1600), // Square
                                 };
                                 var (width, height) = resolutions[Math.Min(AspectRatioIndex, resolutions.Length - 1)];
 
@@ -2267,13 +2265,9 @@ namespace FlipPix.UI.ViewModels
 
                             var resolutions = new[]
                             {
-                                (1024, 1024), // 1:1
-                                (896, 1152),  // 3:4
-                                (768, 1344),  // 9:16
-                                (1152, 896),  // 4:3
-                                (1344, 768),  // 16:9
-                                (1568, 1352), // 16:9 custom
-                                (1352, 1568)  // 9:16 custom
+                                (1088, 1600), // Portrait
+                                (1600, 1088), // Landscape
+                                (1600, 1600), // Square
                             };
                             var (width, height) = resolutions[Math.Min(AspectRatioIndex, resolutions.Length - 1)];
 
@@ -2308,6 +2302,50 @@ namespace FlipPix.UI.ViewModels
                                         workflow[heightNodeId] = heightNode;
                                         _logger.LogInfo($"✓ Updated node {heightNodeId} with height: {height}");
                                     }
+                                }
+                            }
+                        }
+                    }
+
+                    // Randomize seed for non-Zimage workflows
+                    var randomSeed = Seed == 0 ? (long)new Random().NextInt64(0, 999999999999999) : (long)Seed;
+
+                    if (selectedWorkflow == TextGeneratorWorkflow.Qwen2512)
+                    {
+                        // Node 120 is Seed (rgthree) - feeds into KSampler node 74
+                        string seedNodeId = "120";
+                        if (workflow.ContainsKey(seedNodeId))
+                        {
+                            var seedNode = JsonSerializer.Deserialize<Dictionary<string, object>>(JsonSerializer.Serialize(workflow[seedNodeId]));
+                            if (seedNode != null && seedNode.ContainsKey("inputs"))
+                            {
+                                var inputs = JsonSerializer.Deserialize<Dictionary<string, object>>(JsonSerializer.Serialize(seedNode["inputs"]));
+                                if (inputs != null)
+                                {
+                                    inputs["seed"] = randomSeed;
+                                    seedNode["inputs"] = inputs;
+                                    workflow[seedNodeId] = seedNode;
+                                    _logger.LogInfo($"✓ Updated Qwen2512 seed node {seedNodeId} with seed: {randomSeed}");
+                                }
+                            }
+                        }
+                    }
+                    else if (selectedWorkflow == TextGeneratorWorkflow.Klien)
+                    {
+                        // Node 75:73 is RandomNoise - provides noise for the sampler
+                        string seedNodeId = "75:73";
+                        if (workflow.ContainsKey(seedNodeId))
+                        {
+                            var seedNode = JsonSerializer.Deserialize<Dictionary<string, object>>(JsonSerializer.Serialize(workflow[seedNodeId]));
+                            if (seedNode != null && seedNode.ContainsKey("inputs"))
+                            {
+                                var inputs = JsonSerializer.Deserialize<Dictionary<string, object>>(JsonSerializer.Serialize(seedNode["inputs"]));
+                                if (inputs != null)
+                                {
+                                    inputs["noise_seed"] = randomSeed;
+                                    seedNode["inputs"] = inputs;
+                                    workflow[seedNodeId] = seedNode;
+                                    _logger.LogInfo($"✓ Updated Klien seed node {seedNodeId} with noise_seed: {randomSeed}");
                                 }
                             }
                         }
@@ -2506,6 +2544,83 @@ namespace FlipPix.UI.ViewModels
                             modifiedWorkflow[kvp.Key] = nodeValue;
                         }
                     }
+                    else if (classType == "PrimitiveInt" && title == "SEED")
+                    {
+                        // Randomize the SEED node so repeated runs produce different images
+                        var actualSeed = Seed == 0 ? new Random().NextInt64(0, 999999999999999) : Seed;
+
+                        var nodeDict = JsonSerializer.Deserialize<Dictionary<string, object>>(nodeElement.GetRawText());
+                        if (nodeDict != null && nodeDict.TryGetValue("inputs", out var seedInputsObj))
+                        {
+                            Dictionary<string, object>? seedInputs = null;
+
+                            if (seedInputsObj is Dictionary<string, object> dictSeedInputs)
+                            {
+                                seedInputs = dictSeedInputs;
+                            }
+                            else if (seedInputsObj is JsonElement seedElementInputs && seedElementInputs.ValueKind == JsonValueKind.Object)
+                            {
+                                seedInputs = JsonSerializer.Deserialize<Dictionary<string, object>>(seedElementInputs.GetRawText());
+                            }
+
+                            if (seedInputs != null)
+                            {
+                                seedInputs["value"] = actualSeed;
+                                nodeDict["inputs"] = seedInputs;
+                                modifiedWorkflow[kvp.Key] = nodeDict;
+                                updatedNodes++;
+                                _logger.LogInfo($"✓ Randomized SEED node {kvp.Key} with value: {actualSeed}");
+                            }
+                            else
+                            {
+                                modifiedWorkflow[kvp.Key] = nodeValue;
+                            }
+                        }
+                        else
+                        {
+                            modifiedWorkflow[kvp.Key] = nodeValue;
+                        }
+                    }
+                    else if (classType == "PrimitiveInt" && (title == "Default Short Side" || title == "Default Long Side"))
+                    {
+                        // Update resolution for Zstyle workflows based on selected aspect ratio
+                        var (selectedWidth, selectedHeight) = GetDimensionsForAspectRatio(AspectRatioIndex);
+                        // "Default Short Side" maps to WIDTH, "Default Long Side" maps to HEIGHT
+                        // This preserves orientation: Portrait W=1088,H=1600 vs Landscape W=1600,H=1088
+                        int targetValue = title == "Default Short Side" ? selectedWidth : selectedHeight;
+
+                        var nodeDict = JsonSerializer.Deserialize<Dictionary<string, object>>(nodeElement.GetRawText());
+                        if (nodeDict != null && nodeDict.TryGetValue("inputs", out var resInputsObj))
+                        {
+                            Dictionary<string, object>? resInputs = null;
+
+                            if (resInputsObj is Dictionary<string, object> dictResInputs)
+                            {
+                                resInputs = dictResInputs;
+                            }
+                            else if (resInputsObj is JsonElement resElementInputs && resElementInputs.ValueKind == JsonValueKind.Object)
+                            {
+                                resInputs = JsonSerializer.Deserialize<Dictionary<string, object>>(resElementInputs.GetRawText());
+                            }
+
+                            if (resInputs != null)
+                            {
+                                resInputs["value"] = targetValue;
+                                nodeDict["inputs"] = resInputs;
+                                modifiedWorkflow[kvp.Key] = nodeDict;
+                                updatedNodes++;
+                                _logger.LogInfo($"✓ Updated {title} node {kvp.Key} with value: {targetValue}");
+                            }
+                            else
+                            {
+                                modifiedWorkflow[kvp.Key] = nodeValue;
+                            }
+                        }
+                        else
+                        {
+                            modifiedWorkflow[kvp.Key] = nodeValue;
+                        }
+                    }
                     else
                     {
                         // Keep original node
@@ -2599,13 +2714,9 @@ namespace FlipPix.UI.ViewModels
             // Z-Image recommended dimensions based on aspect ratios
             var dimensions = new[]
             {
-                (1024, 1024),  // 0: 1:1 square
-                (896, 1152),   // 1: 3:4 portrait
-                (768, 1344),   // 2: 9:16 portrait
-                (1152, 896),   // 3: 4:3 landscape
-                (1344, 768),   // 4: 16:9 landscape
-                (1568, 1352),  // 5: 16:9 landscape (custom)
-                (1352, 1568)   // 6: 9:16 portrait (custom)
+                (1088, 1600),  // 0: Portrait
+                (1600, 1088),  // 1: Landscape
+                (1600, 1600),  // 2: Square
             };
 
             return dimensions[Math.Min(aspectRatioIndex, dimensions.Length - 1)];
@@ -3181,6 +3292,25 @@ namespace FlipPix.UI.ViewModels
             catch (Exception ex)
             {
                 _logger.LogError($"Error opening result folder: {ex.Message}");
+            }
+        }
+
+        private void OpenResultImage()
+        {
+            try
+            {
+                if (!string.IsNullOrEmpty(ResultImagePath) && File.Exists(ResultImagePath))
+                {
+                    Process.Start(new ProcessStartInfo
+                    {
+                        FileName = ResultImagePath,
+                        UseShellExecute = true
+                    });
+                }
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError($"Error opening result image: {ex.Message}");
             }
         }
 
