@@ -1,6 +1,7 @@
 using System;
 using System.ComponentModel;
 using System.Runtime.CompilerServices;
+using System.Windows.Media.Imaging;
 using FlipPix.UI.ViewModels;
 
 namespace FlipPix.UI.Models
@@ -12,6 +13,7 @@ namespace FlipPix.UI.Models
     {
         private string _status = "Queued";
         private double _progress = 0;
+        private BitmapImage? _outputImageThumbnail;
 
         public string Id { get; set; } = Guid.NewGuid().ToString();
         public string SourceImagePath { get; set; } = string.Empty;
@@ -85,6 +87,53 @@ namespace FlipPix.UI.Models
         };
 
         public string DisplayPrompt => Prompt.Length > 50 ? Prompt.Substring(0, 47) + "..." : Prompt;
+
+        // UI Helper Properties
+        public string WorkflowBadge => SelectedWorkflow switch
+        {
+            TextGeneratorWorkflow.Zimage => "Z",
+            TextGeneratorWorkflow.Qwen2512 => "Q",
+            TextGeneratorWorkflow.Klien => "K",
+            _ => "?"
+        };
+
+        public string WorkflowBadgeColor => SelectedWorkflow switch
+        {
+            TextGeneratorWorkflow.Zimage => "#6366F1",
+            TextGeneratorWorkflow.Qwen2512 => "#10B981",
+            TextGeneratorWorkflow.Klien => "#F59E0B",
+            _ => "#6C757D"
+        };
+
+        public bool HasOutputImage => !string.IsNullOrEmpty(OutputImagePath);
+
+        public BitmapImage? OutputImageThumbnail
+        {
+            get => _outputImageThumbnail;
+            set
+            {
+                if (_outputImageThumbnail != value)
+                {
+                    _outputImageThumbnail = value;
+                    OnPropertyChanged();
+                }
+            }
+        }
+
+        public System.Windows.Visibility StyleNameVisibility =>
+            SelectedWorkflow == TextGeneratorWorkflow.Zimage ? System.Windows.Visibility.Visible : System.Windows.Visibility.Collapsed;
+
+        public string AspectRatioDisplay => AspectRatioIndex switch
+        {
+            0 => "1:1",
+            1 => "3:4",
+            2 => "9:16",
+            3 => "4:3",
+            4 => "16:9",
+            5 => "Custom",
+            6 => "Custom",
+            _ => "?"
+        };
 
         public event PropertyChangedEventHandler? PropertyChanged;
 

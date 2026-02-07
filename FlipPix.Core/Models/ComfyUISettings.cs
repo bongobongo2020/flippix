@@ -43,6 +43,11 @@ public class ComfyUISettings
     // Prompt2Json save directory for image analysis
     public string Prompt2JsonSaveDirectory { get; set; } = string.Empty;
 
+    // Default prompts
+    public string DefaultImagePrompt { get; set; } = string.Empty;
+    public string DefaultVideoPrompt { get; set; } = string.Empty;
+    public string DefaultNegativePrompt { get; set; } = string.Empty;
+
     // LM Studio helper properties for UI binding (parsed from LMStudioSettings.BaseUrl)
     public string LMStudioServer
     {

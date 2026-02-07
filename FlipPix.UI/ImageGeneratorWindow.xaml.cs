@@ -3,6 +3,7 @@ using System.Diagnostics;
 using System.IO;
 using System.Windows;
 using System.Windows.Input;
+using System.Windows.Media.Animation;
 using FlipPix.UI.ViewModels;
 using FlipPix.Core.Services;
 
@@ -20,12 +21,28 @@ namespace FlipPix.UI
             _viewModel = viewModel;
             _settingsService = settingsService;
             Loaded += OnLoaded;
+
+            // Subscribe to the Analyzer's QueueItemAdded event to trigger flash animation
+            if (_viewModel.Analyzer != null)
+            {
+                _viewModel.Analyzer.QueueItemAdded += OnAnalyzerQueueItemAdded;
+            }
         }
 
         private void OnLoaded(object sender, RoutedEventArgs e)
         {
             // Ensure window is on screen and fully visible
             EnsureWindowVisible();
+        }
+
+        private void OnAnalyzerQueueItemAdded()
+        {
+            // Trigger the flash animation on the UI thread
+            Dispatcher.Invoke(() =>
+            {
+                var flashAnimation = FindResource("QueueFlashAnimation") as Storyboard;
+                flashAnimation?.Begin();
+            });
         }
 
         private void EnsureWindowVisible()

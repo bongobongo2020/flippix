@@ -691,7 +691,7 @@ namespace FlipPix.UI.ViewModels
             if (!CanProcess) return;
 
             _cancellationTokenSource?.Dispose();
-            _cancellationTokenSource = new System.Threading.CancellationTokenSource();
+            _cancellationTokenSource = System.Threading.CancellationTokenSource.CreateLinkedTokenSource(App.ShutdownToken);
 
             try
             {
@@ -1686,7 +1686,7 @@ namespace FlipPix.UI.ViewModels
             if (!CanProcessQueue) return;
 
             _cancellationTokenSource?.Dispose();
-            _cancellationTokenSource = new System.Threading.CancellationTokenSource();
+            _cancellationTokenSource = System.Threading.CancellationTokenSource.CreateLinkedTokenSource(App.ShutdownToken);
 
             try
             {

@@ -143,6 +143,48 @@
             </Style.Triggers>
         </Style>
 
+        <!-- Toggle Radio Button Style for Input Mode -->
+        <Style x:Key="ToggleRadioStyle" TargetType="RadioButton">
+            <Setter Property="Background" Value="#E9ECEF"/>
+            <Setter Property="Foreground" Value="#495057"/>
+            <Setter Property="BorderThickness" Value="1"/>
+            <Setter Property="BorderBrush" Value="#DEE2E6"/>
+            <Setter Property="Padding" Value="12,8"/>
+            <Setter Property="FontWeight" Value="SemiBold"/>
+            <Setter Property="FontSize" Value="12"/>
+            <Setter Property="Cursor" Value="Hand"/>
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="RadioButton">
+                        <Border Background="{TemplateBinding Background}"
+                                BorderBrush="{TemplateBinding BorderBrush}"
+                                BorderThickness="{TemplateBinding BorderThickness}"
+                                CornerRadius="5"
+                                Padding="{TemplateBinding Padding}">
+                            <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                        </Border>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+            <Style.Triggers>
+                <Trigger Property="IsMouseOver" Value="True">
+                    <Setter Property="Background" Value="#DEE2E6"/>
+                </Trigger>
+                <Trigger Property="IsChecked" Value="True">
+                    <Setter Property="Background" Value="#6366F1"/>
+                    <Setter Property="Foreground" Value="White"/>
+                    <Setter Property="BorderBrush" Value="#6366F1"/>
+                </Trigger>
+            </Style.Triggers>
+        </Style>
+
+        <!-- Queue Flash Animation -->
+        <Storyboard x:Key="QueueFlashAnimation">
+            <ColorAnimation Storyboard.TargetName="AnalyzerQueueBorder"
+                          Storyboard.TargetProperty="(Border.BorderBrush).(SolidColorBrush.Color)"
+                          From="#28A745" To="#DEE2E6" Duration="0:0:1"/>
+        </Storyboard>
+
     </Window.Resources>
 
     <Grid>
@@ -225,133 +267,243 @@
         <TabControl Grid.Row="2" Margin="15,10,15,10" Background="Transparent"
                    SelectedIndex="{Binding SelectedTabIndex}">
 
-            <!-- Tab 1: Text Generation -->
-            <TabItem Header="✏️ Text Generation" FontWeight="Bold" FontSize="13">
-                <ScrollViewer VerticalScrollBarVisibility="Auto">
-                    <StackPanel Margin="5,15,5,15">
+            <!-- Tab 1: Image Generator (Merged Text Generation + Image Analysis) -->
+            <TabItem Header="🎨 Image Generator" FontWeight="Bold" FontSize="13">
+                <ScrollViewer VerticalScrollBarVisibility="Auto" Padding="15,12,15,12">
+                    <Grid>
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="48*"/>
+                            <ColumnDefinition Width="10"/>
+                            <ColumnDefinition Width="52*"/>
+                        </Grid.ColumnDefinitions>
 
-                        <!-- Image Prompt Section -->
-                        <Border Style="{StaticResource SectionPanelStyle}">
-                            <StackPanel>
-                                <TextBlock Text="Image Prompt" Style="{StaticResource HeaderTextStyle}" Foreground="#FF6B35"/>
+                        <!-- LEFT COLUMN - Input & Settings -->
+                        <StackPanel Grid.Column="0">
 
-                                <!-- Saved Prompts Section -->
-                                <Border Background="#FFF8DC" BorderBrush="#DEB887" BorderThickness="1" CornerRadius="5" Padding="10" Margin="0,0,0,10">
-                                    <StackPanel>
-                                        <TextBlock Text="📝 Saved Prompts" FontWeight="Bold" FontSize="13" Foreground="#8B4513" Margin="0,0,0,8"/>
-                                        <Grid>
+                            <!-- Section A: Input Mode Toggle -->
+                            <Border Style="{StaticResource SectionPanelStyle}">
+                                <StackPanel>
+                                    <TextBlock Text="Input Mode" Style="{StaticResource HeaderTextStyle}" Foreground="#6366F1"/>
+
+                                    <!-- Input Mode Toggle -->
+                                    <StackPanel Orientation="Horizontal" Margin="0,0,0,12">
+                                        <RadioButton Content="Text Prompt"
+                                                   IsChecked="{Binding Analyzer.IsTextPromptMode, Mode=OneWay}"
+                                                   GroupName="InputMode"
+                                                   Style="{StaticResource ToggleRadioStyle}"
+                                                   Margin="0,0,5,0"/>
+                                        <RadioButton Content="Image Analysis"
+                                                   IsChecked="{Binding Analyzer.IsImageAnalysisMode}"
+                                                   GroupName="InputMode"
+                                                   Style="{StaticResource ToggleRadioStyle}"
+                                                   Margin="5,0,0,0"/>
+                                    </StackPanel>
+
+                                    <!-- Text Prompt Section (visible only in Text Prompt mode) -->
+                                    <StackPanel Visibility="{Binding Analyzer.IsTextPromptMode, Converter={StaticResource BooleanToVisibilityConverter}}">
+                                        <!-- Saved Prompts Section -->
+                                        <Border Background="#FFF8DC" BorderBrush="#DEB887" BorderThickness="1" CornerRadius="5" Padding="10" Margin="0,0,0,10">
+                                            <StackPanel>
+                                                <TextBlock Text="📝 Saved Prompts" FontWeight="Bold" FontSize="13" Foreground="#8B4513" Margin="0,0,0,8"/>
+                                                <Grid>
+                                                    <Grid.ColumnDefinitions>
+                                                        <ColumnDefinition Width="*"/>
+                                                        <ColumnDefinition Width="Auto"/>
+                                                        <ColumnDefinition Width="Auto"/>
+                                                    </Grid.ColumnDefinitions>
+
+                                                    <TextBlock Grid.Column="0" Text="Select a saved prompt or save current:" FontWeight="SemiBold" FontSize="12" VerticalAlignment="Center"/>
+                                                    <Button Grid.Column="1" Content="💾 Save" Style="{StaticResource SecondaryButtonStyle}"
+                                                            Command="{Binding SavePromptCommand}" Padding="10,5" Margin="5,0,5,0"
+                                                            ToolTip="Save current prompt settings"
+                                                            Background="#4CAF50"/>
+                                                    <Button Grid.Column="2" Content="🗑️ Delete" Style="{StaticResource SecondaryButtonStyle}"
+                                                            Command="{Binding DeletePromptCommand}" Padding="10,5" Margin="0,0,0,0"
+                                                            ToolTip="Delete selected saved prompt"
+                                                            Background="#F44336"/>
+                                                </Grid>
+
+                                                <ComboBox ItemsSource="{Binding SavedPrompts}"
+                                                          SelectedItem="{Binding SelectedSavedPrompt, Mode=TwoWay}"
+                                                          SelectedValuePath="Id"
+                                                          Padding="10"
+                                                          Background="White"
+                                                          BorderBrush="#CED4DA"
+                                                          FontSize="12"
+                                                          Margin="0,5,0,10"
+                                                          Height="40">
+                                                    <ComboBox.ItemTemplate>
+                                                        <DataTemplate>
+                                                            <StackPanel>
+                                                                <TextBlock Text="{Binding Name}" FontWeight="SemiBold" FontSize="12"/>
+                                                                <TextBlock Text="{Binding LastUsed, StringFormat='Last used: {0:yyyy-MM-dd HH:mm}'}"
+                                                                           FontSize="10" Foreground="#666"/>
+                                                            </StackPanel>
+                                                        </DataTemplate>
+                                                    </ComboBox.ItemTemplate>
+                                                </ComboBox>
+                                            </StackPanel>
+                                        </Border>
+
+                                        <TextBlock Text="Prompt" FontWeight="SemiBold" FontSize="11" Margin="0,0,0,4"/>
+                                        <TextBox Text="{Binding ImagePrompt, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                                                TextWrapping="Wrap"
+                                                AcceptsReturn="True"
+                                                Height="100"
+                                                Padding="10"
+                                                VerticalScrollBarVisibility="Auto"
+                                                Background="White"
+                                                BorderBrush="#CED4DA"
+                                                FontSize="12"/>
+
+                                        <TextBlock Text="Example prompts:" FontWeight="SemiBold" FontSize="11" Margin="0,8,0,5"/>
+                                        <TextBlock FontSize="11" Foreground="#666" Margin="0,0,0,3">
+                                            <Run Text="• "/>
+                                            <Run Text="Latina female with thick wavy hair, harbor boats and pastel houses behind."/>
+                                        </TextBlock>
+                                        <TextBlock FontSize="11" Foreground="#666" Margin="0,0,0,3">
+                                            <Run Text="• "/>
+                                            <Run Text="A majestic mountain landscape at sunset with dramatic clouds and golden light"/>
+                                        </TextBlock>
+                                        <TextBlock FontSize="11" Foreground="#666" Margin="0,0,0,0">
+                                            <Run Text="• "/>
+                                            <Run Text="Portrait of a cyberpunk character with neon lights reflecting on metallic surfaces"/>
+                                        </TextBlock>
+                                    </StackPanel>
+
+                                    <!-- Image Analysis Section (visible only in Image Analysis mode) -->
+                                    <StackPanel Visibility="{Binding Analyzer.IsImageAnalysisMode, Converter={StaticResource BooleanToVisibilityConverter}}">
+                                        <TextBlock Text="Upload an image to analyze"
+                                                   FontSize="11"
+                                                   Foreground="#666"
+                                                   Margin="0,0,0,8"/>
+
+                                        <Grid Margin="0,0,0,8">
                                             <Grid.ColumnDefinitions>
                                                 <ColumnDefinition Width="*"/>
                                                 <ColumnDefinition Width="Auto"/>
-                                                <ColumnDefinition Width="Auto"/>
                                             </Grid.ColumnDefinitions>
 
-                                            <TextBlock Grid.Column="0" Text="Select a saved prompt or save current:" FontWeight="SemiBold" FontSize="12" VerticalAlignment="Center"/>
-                                            <Button Grid.Column="1" Content="💾 Save" Style="{StaticResource SecondaryButtonStyle}"
-                                                    Command="{Binding SavePromptCommand}" Padding="10,5" Margin="5,0,5,0"
-                                                    ToolTip="Save current prompt settings"
-                                                    Background="#4CAF50"/>
-                                            <Button Grid.Column="2" Content="🗑️ Delete" Style="{StaticResource SecondaryButtonStyle}"
-                                                    Command="{Binding DeletePromptCommand}" Padding="10,5" Margin="0,0,0,0"
-                                                    ToolTip="Delete selected saved prompt"
-                                                    Background="#F44336"/>
+                                            <TextBox Grid.Column="0"
+                                                    Text="{Binding Analyzer.SourceImagePath, Mode=TwoWay}"
+                                                    IsReadOnly="True"
+                                                    Padding="8"
+                                                    Background="White"
+                                                    BorderBrush="#CED4DA"
+                                                    VerticalContentAlignment="Center"
+                                                    FontSize="11"
+                                                    Height="30"/>
+
+                                            <Button Grid.Column="1"
+                                                   Content="Browse"
+                                                   Style="{StaticResource SecondaryButtonStyle}"
+                                                   Command="{Binding Analyzer.BrowseImageCommand}"
+                                                   Margin="6,0,0,0"
+                                                   Height="30"
+                                                   Padding="12,6"/>
                                         </Grid>
 
-                                    <ComboBox ItemsSource="{Binding SavedPrompts}"
-                                              SelectedItem="{Binding SelectedSavedPrompt, Mode=TwoWay}"
-                                              SelectedValuePath="Id"
-                                              Padding="10"
-                                              Background="White"
-                                              BorderBrush="#CED4DA"
-                                              FontSize="12"
-                                              Margin="0,5,0,10"
-                                              Height="40">
-                                        <ComboBox.ItemTemplate>
-                                            <DataTemplate>
-                                                <StackPanel>
-                                                    <TextBlock Text="{Binding Name}" FontWeight="SemiBold" FontSize="12"/>
-                                                    <TextBlock Text="{Binding LastUsed, StringFormat='Last used: {0:yyyy-MM-dd HH:mm}'}"
-                                                               FontSize="10" Foreground="#666"/>
-                                                </StackPanel>
-                                            </DataTemplate>
-                                        </ComboBox.ItemTemplate>
-                                    </ComboBox>
-                                    <TextBlock Text="💡 Tip: Your saved prompts appear here. Click Save to store the current prompt settings."
-                                               FontSize="11" Foreground="#666" FontStyle="Italic" Margin="0,5,0,0"/>
+                                        <!-- Image Preview -->
+                                        <Border BorderBrush="#DEE2E6" BorderThickness="2"
+                                                Background="White" Height="160"
+                                                CornerRadius="5" Margin="0,0,0,8">
+                                            <Grid>
+                                                <TextBlock Text="No image selected"
+                                                          HorizontalAlignment="Center"
+                                                          VerticalAlignment="Center"
+                                                          Foreground="#999"
+                                                          FontStyle="Italic"
+                                                          FontSize="13">
+                                                    <TextBlock.Style>
+                                                        <Style TargetType="TextBlock">
+                                                            <Setter Property="Visibility" Value="Collapsed"/>
+                                                            <Style.Triggers>
+                                                                <DataTrigger Binding="{Binding Analyzer.HasSourceImage}" Value="False">
+                                                                    <Setter Property="Visibility" Value="Visible"/>
+                                                                </DataTrigger>
+                                                            </Style.Triggers>
+                                                        </Style>
+                                                    </TextBlock.Style>
+                                                </TextBlock>
+
+                                                <Image Source="{Binding Analyzer.SourceImageSource}"
+                                                       Stretch="Uniform"
+                                                       Margin="5"
+                                                       Visibility="{Binding Analyzer.HasSourceImage, Converter={StaticResource BooleanToVisibilityConverter}}"/>
+                                            </Grid>
+                                        </Border>
+
+                                        <!-- Analyze Button -->
+                                        <Button Content="Analyze Image with QwenVL"
+                                               Style="{StaticResource AnalyzeButtonStyle}"
+                                               Command="{Binding Analyzer.AnalyzeImageCommand}"
+                                               HorizontalAlignment="Stretch"
+                                               Height="38"
+                                               Margin="0,0,0,8"/>
+
+                                        <!-- Processing Status for Analysis -->
+                                        <Border Background="#FEF3C7"
+                                                BorderBrush="#FCD34D"
+                                                BorderThickness="2"
+                                                CornerRadius="6"
+                                                Padding="12"
+                                                Visibility="{Binding Analyzer.IsAnalyzing, Converter={StaticResource BooleanToVisibilityConverter}}">
+                                            <StackPanel>
+                                                <TextBlock Text="Analyzing image..."
+                                                          FontWeight="Bold"
+                                                          FontSize="11"
+                                                          Margin="0,0,0,6"
+                                                          TextAlignment="Center"
+                                                          Foreground="#92400E"/>
+                                                <ProgressBar IsIndeterminate="True"
+                                                            Height="18"
+                                                            Foreground="#F59E0B"/>
+                                            </StackPanel>
+                                        </Border>
+
+                                        <TextBlock Text="Prompt" FontWeight="SemiBold" FontSize="11" Margin="0,8,0,4"/>
+                                        <TextBox Text="{Binding Analyzer.AnalysisText, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                                                TextWrapping="Wrap"
+                                                AcceptsReturn="True"
+                                                Height="80"
+                                                Padding="10"
+                                                VerticalScrollBarVisibility="Auto"
+                                                Background="White"
+                                                BorderBrush="#CED4DA"
+                                                FontSize="12"/>
+                                    </StackPanel>
                                 </StackPanel>
                             </Border>
 
-                                <TextBlock Text="Describe the image you want to generate"
-                                           FontSize="12"
-                                           Foreground="#666"
-                                           Margin="0,0,0,10"/>
-
-                                <TextBox Text="{Binding ImagePrompt, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
-                                        TextWrapping="Wrap"
-                                        AcceptsReturn="True"
-                                        Height="120"
-                                        Padding="12"
-                                        VerticalScrollBarVisibility="Auto"
-                                        Background="White"
-                                        BorderBrush="#CED4DA"
-                                        FontSize="13"
-                                        Margin="0,0,0,10"/>
-
-                                <TextBlock Text="Example prompts:" FontWeight="SemiBold" FontSize="11" Margin="0,0,0,5"/>
-                                <TextBlock FontSize="11" Foreground="#666" Margin="0,0,0,3">
-                                    <Run Text="• "/>
-                                    <Run Text="Latina female with thick wavy hair, harbor boats and pastel houses behind. Breezy seaside light, warm tones, cinematic close-up."/>
-                                </TextBlock>
-                                <TextBlock FontSize="11" Foreground="#666" Margin="0,0,0,3">
-                                    <Run Text="• "/>
-                                    <Run Text="A majestic mountain landscape at sunset with dramatic clouds and golden light"/>
-                                </TextBlock>
-                                <TextBlock FontSize="11" Foreground="#666">
-                                    <Run Text="• "/>
-                                    <Run Text="Portrait of a cyberpunk character with neon lights reflecting on metallic surfaces"/>
-                                </TextBlock>
-                            </StackPanel>
-                        </Border>
-
-                        <!-- Image Settings and Generate -->
-                        <Border Style="{StaticResource SectionPanelStyle}">
-                            <Grid>
-                                <Grid.ColumnDefinitions>
-                                    <ColumnDefinition Width="2*"/>
-                                    <ColumnDefinition Width="*"/>
-                                </Grid.ColumnDefinitions>
-
-                                <!-- Settings -->
-                                <StackPanel Grid.Column="0" Margin="0,0,20,0">
-                                    <TextBlock Text="Image Settings" Style="{StaticResource HeaderTextStyle}" Foreground="#FF6B35"/>
+                            <!-- Section B: Text Prompt Settings (visible only in Text Prompt mode) -->
+                            <Border Style="{StaticResource SectionPanelStyle}" Visibility="{Binding Analyzer.IsTextPromptMode, Converter={StaticResource BooleanToVisibilityConverter}}">
+                                <StackPanel>
+                                    <TextBlock Text="Generation Settings" Style="{StaticResource HeaderTextStyle}" Foreground="#FF6B35"/>
 
                                     <!-- Workflow Selection -->
-                                    <StackPanel Margin="0,0,0,15">
-                                        <TextBlock Text="Model Workflow" FontWeight="SemiBold" FontSize="12" Margin="0,0,0,5"/>
+                                    <StackPanel Margin="0,0,0,12">
+                                        <TextBlock Text="Model Workflow" FontWeight="SemiBold" FontSize="11" Margin="0,0,0,4"/>
                                         <ComboBox SelectedIndex="{Binding SelectedWorkflow, Mode=TwoWay}"
-                                                 Padding="10"
+                                                 Padding="8"
                                                  Background="White"
                                                  BorderBrush="#CED4DA"
-                                                 FontSize="12">
+                                                 FontSize="11"
+                                                 Height="32">
                                             <ComboBoxItem Content="Zimage (with LoRA support)"/>
                                             <ComboBoxItem Content="Qwen 2512"/>
                                             <ComboBoxItem Content="Klien (Flux2)"/>
                                         </ComboBox>
-                                        <TextBlock Text="Different workflows use different AI models with varying capabilities and styles"
-                                                   FontSize="10"
-                                                   Foreground="#666"
-                                                   FontStyle="Italic"
-                                                   Margin="0,5,0,0"/>
                                     </StackPanel>
 
                                     <!-- Aspect Ratio -->
-                                    <StackPanel Margin="0,0,0,15">
-                                        <TextBlock Text="Aspect Ratio" FontWeight="SemiBold" FontSize="12" Margin="0,0,0,5"/>
+                                    <StackPanel Margin="0,0,0,12">
+                                        <TextBlock Text="Aspect Ratio" FontWeight="SemiBold" FontSize="11" Margin="0,0,0,4"/>
                                         <ComboBox SelectedIndex="{Binding AspectRatioIndex, Mode=TwoWay}"
-                                                 Padding="10"
+                                                 Padding="8"
                                                  Background="White"
                                                  BorderBrush="#CED4DA"
-                                                 FontSize="12">
+                                                 FontSize="11"
+                                                 Height="30">
                                             <ComboBoxItem Content="SDXL - 1:1 square 1024x1024"/>
                                             <ComboBoxItem Content="SDXL - 3:4 portrait 896x1152"/>
                                             <ComboBoxItem Content="SDXL - 9:16 portrait 768x1344"/>
@@ -362,12 +514,12 @@
                                         </ComboBox>
                                     </StackPanel>
 
-                                    <!-- Advanced Settings Expander (Steps & CFG) -->
-                                    <Expander Header="⚙️ Advanced Generation Settings" Margin="0,10,0,0" IsExpanded="False">
+                                    <!-- Advanced Settings Expander -->
+                                    <Expander Header="⚙️ Advanced Settings" Margin="0,0,0,0" IsExpanded="False">
                                         <StackPanel Margin="0,10,0,0">
                                             <!-- Steps -->
                                             <StackPanel Margin="0,0,0,10">
-                                                <TextBlock Text="Steps" FontWeight="SemiBold" FontSize="12" Margin="0,0,0,5"/>
+                                                <TextBlock Text="Steps" FontWeight="SemiBold" FontSize="11" Margin="0,0,0,4"/>
                                                 <Grid>
                                                     <Grid.ColumnDefinitions>
                                                         <ColumnDefinition Width="*"/>
@@ -378,19 +530,21 @@
                                                             Minimum="4" Maximum="20"
                                                             TickFrequency="1"
                                                             IsSnapToTickEnabled="True"
-                                                            VerticalAlignment="Center"/>
+                                                            VerticalAlignment="Center"
+                                                            Height="20"/>
                                                     <TextBlock Grid.Column="1"
                                                               Text="{Binding Steps}"
                                                               Margin="8,0,0,0"
                                                               VerticalAlignment="Center"
                                                               MinWidth="25"
-                                                              FontWeight="Bold"/>
+                                                              FontWeight="Bold"
+                                                              FontSize="11"/>
                                                 </Grid>
                                             </StackPanel>
 
                                             <!-- CFG -->
-                                            <StackPanel>
-                                                <TextBlock Text="CFG Scale" FontWeight="SemiBold" FontSize="12" Margin="0,0,0,5"/>
+                                            <StackPanel Margin="0,0,0,10">
+                                                <TextBlock Text="CFG Scale" FontWeight="SemiBold" FontSize="11" Margin="0,0,0,4"/>
                                                 <Grid>
                                                     <Grid.ColumnDefinitions>
                                                         <ColumnDefinition Width="*"/>
@@ -401,366 +555,76 @@
                                                             Minimum="1" Maximum="3"
                                                             TickFrequency="0.5"
                                                             IsSnapToTickEnabled="True"
-                                                            VerticalAlignment="Center"/>
+                                                            VerticalAlignment="Center"
+                                                            Height="20"/>
                                                     <TextBlock Grid.Column="1"
                                                               Text="{Binding Cfg, StringFormat={}{0:F1}}"
                                                               Margin="8,0,0,0"
                                                               VerticalAlignment="Center"
                                                               MinWidth="25"
-                                                              FontWeight="Bold"/>
+                                                              FontWeight="Bold"
+                                                              FontSize="11"/>
+                                                </Grid>
+                                            </StackPanel>
+
+                                            <!-- LoRA -->
+                                            <StackPanel Visibility="{Binding ShowLoraOptions, Converter={StaticResource BooleanToVisibilityConverter}}">
+                                                <TextBlock Text="LoRA Model" FontWeight="SemiBold" FontSize="11" Margin="0,0,0,4"/>
+                                                <CheckBox Content="Enable LoRA"
+                                                         IsChecked="{Binding LoraEnabled, Mode=TwoWay}"
+                                                         FontWeight="SemiBold"
+                                                         FontSize="11"
+                                                         Margin="0,0,0,6"/>
+                                                <Grid Visibility="{Binding LoraEnabled, Converter={StaticResource BooleanToVisibilityConverter}}">
+                                                    <Grid.ColumnDefinitions>
+                                                        <ColumnDefinition Width="*"/>
+                                                        <ColumnDefinition Width="Auto"/>
+                                                    </Grid.ColumnDefinitions>
+                                                    <ComboBox Grid.Column="0"
+                                                             ItemsSource="{Binding AvailableLoras}"
+                                                             SelectedItem="{Binding SelectedLora, Mode=TwoWay}"
+                                                             Padding="8"
+                                                             Background="White"
+                                                             BorderBrush="#CED4DA"
+                                                             FontSize="11"
+                                                             Height="32"
+                                                             Margin="0,0,6,0"/>
+                                                    <Button Grid.Column="1"
+                                                           Content="Refresh"
+                                                           Command="{Binding RefreshLorasCommand}"
+                                                           Style="{StaticResource SecondaryButtonStyle}"
+                                                           Width="60"
+                                                           Height="32"
+                                                           Padding="10,5"/>
                                                 </Grid>
                                             </StackPanel>
                                         </StackPanel>
                                     </Expander>
-
-                                    <!-- Lora Settings -->
-                                    <StackPanel Margin="0,15,0,0" Visibility="{Binding ShowLoraOptions, Converter={StaticResource BooleanToVisibilityConverter}}">
-                                        <TextBlock Text="LoRA Model" FontWeight="SemiBold" FontSize="12" Margin="0,0,0,5"/>
-
-                                        <!-- Lora Enable Toggle -->
-                                        <CheckBox Content="Enable LoRA"
-                                                 IsChecked="{Binding LoraEnabled, Mode=TwoWay}"
-                                                 FontWeight="SemiBold"
-                                                 FontSize="12"
-                                                 Margin="0,0,0,8"/>
-
-                                        <!-- Lora Selection (only visible when enabled) -->
-                                        <Grid Visibility="{Binding LoraEnabled, Converter={StaticResource BooleanToVisibilityConverter}}">
-                                            <Grid.RowDefinitions>
-                                                <RowDefinition Height="Auto"/>
-                                                <RowDefinition Height="Auto"/>
-                                            </Grid.RowDefinitions>
-
-                                            <Grid Grid.Row="0">
-                                                <Grid.ColumnDefinitions>
-                                                    <ColumnDefinition Width="*"/>
-                                                    <ColumnDefinition Width="Auto"/>
-                                                </Grid.ColumnDefinitions>
-
-                                                <ComboBox Grid.Column="0"
-                                                         ItemsSource="{Binding AvailableLoras}"
-                                                         SelectedItem="{Binding SelectedLora, Mode=TwoWay}"
-                                                         Padding="10"
-                                                         Background="White"
-                                                         BorderBrush="#CED4DA"
-                                                         FontSize="12"
-                                                         Height="35"
-                                                         Margin="0,0,8,0"/>
-
-                                                <Button Grid.Column="1"
-                                                       Content="↻"
-                                                       Command="{Binding RefreshLorasCommand}"
-                                                       Padding="10,5"
-                                                       Background="#6C757D"
-                                                       Foreground="White"
-                                                       BorderThickness="0"
-                                                       FontSize="14"
-                                                       FontWeight="Bold"
-                                                       Width="35"
-                                                       Height="35"
-                                                       Cursor="Hand"
-                                                       ToolTip="Refresh LoRA list">
-                                                    <Button.Template>
-                                                        <ControlTemplate TargetType="Button">
-                                                            <Border Background="{TemplateBinding Background}"
-                                                                   CornerRadius="5"
-                                                                   Padding="{TemplateBinding Padding}">
-                                                                <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center"/>
-                                                            </Border>
-                                                            <ControlTemplate.Triggers>
-                                                                <Trigger Property="IsMouseOver" Value="True">
-                                                                    <Setter Property="Background" Value="#5A6268"/>
-                                                                </Trigger>
-                                                            </ControlTemplate.Triggers>
-                                                        </ControlTemplate>
-                                                    </Button.Template>
-                                                </Button>
-                                            </Grid>
-
-                                            <TextBlock Grid.Row="1"
-                                                     Text="Configure ComfyUI installation path in Settings. LoRAs will be auto-detected from ComfyUI's model paths"
-                                                     FontSize="10"
-                                                     Foreground="#666"
-                                                     FontStyle="Italic"
-                                                     Margin="0,5,0,0"/>
-                                        </Grid>
-                                    </StackPanel>
-                                </StackPanel>
-
-                                <!-- Generate Button and Status -->
-                                <StackPanel Grid.Column="1" VerticalAlignment="Center">
-                                    <Button Content="Generate Image"
-                                           Style="{StaticResource PrimaryButtonStyle}"
-                                           Command="{Binding GenerateImageCommand}"
-                                           HorizontalAlignment="Stretch"
-                                           Height="55"
-                                           FontSize="15"
-                                           Margin="0,0,0,15"/>
-
-                                    <!-- Processing Status -->
-                                    <Border Background="#FFF9F0"
-                                            BorderBrush="#FFE0B0"
-                                            BorderThickness="1"
-                                            CornerRadius="5"
-                                            Padding="12"
-                                            Visibility="{Binding IsProcessing, Converter={StaticResource BooleanToVisibilityConverter}}">
-                                        <StackPanel>
-                                            <TextBlock Text="{Binding ProcessingStatus}"
-                                                      FontWeight="SemiBold"
-                                                      FontSize="11"
-                                                      Margin="0,0,0,5"
-                                                      TextAlignment="Center"
-                                                      TextWrapping="Wrap"/>
-                                            <ProgressBar Value="{Binding ProcessingProgress}"
-                                                        Height="16"
-                                                        Foreground="#FF6B35"
-                                                        Margin="0,0,0,5"/>
-                                            <TextBlock Text="{Binding ProgressPercentage}"
-                                                      HorizontalAlignment="Center"
-                                                      FontSize="11"
-                                                      FontWeight="Bold"
-                                                      Foreground="#FF6B35"/>
-                                        </StackPanel>
-                                    </Border>
-                                </StackPanel>
-                            </Grid>
-                        </Border>
-
-                        <!-- Result Image Section -->
-                        <Border Style="{StaticResource SectionPanelStyle}">
-                            <StackPanel>
-                                <TextBlock Text="Result Image" Style="{StaticResource HeaderTextStyle}" Foreground="#FF6B35"/>
-
-                                <Border BorderBrush="#DEE2E6" BorderThickness="2"
-                                        Background="White" Height="400"
-                                        CornerRadius="5" Margin="0,0,0,10">
-                                    <Grid>
-                                        <TextBlock Text="Image will appear here after generation"
-                                                  HorizontalAlignment="Center"
-                                                  VerticalAlignment="Center"
-                                                  Foreground="#999"
-                                                  FontStyle="Italic">
-                                            <TextBlock.Style>
-                                                <Style TargetType="TextBlock">
-                                                    <Setter Property="Visibility" Value="Collapsed"/>
-                                                    <Style.Triggers>
-                                                        <DataTrigger Binding="{Binding HasResultImage}" Value="False">
-                                                            <Setter Property="Visibility" Value="Visible"/>
-                                                        </DataTrigger>
-                                                    </Style.Triggers>
-                                                </Style>
-                                            </TextBlock.Style>
-                                        </TextBlock>
-
-                                        <Image Source="{Binding ResultImageSource}"
-                                               Stretch="Uniform"
-                                               Visibility="{Binding HasResultImage, Converter={StaticResource BooleanToVisibilityConverter}}"/>
-                                    </Grid>
-                                </Border>
-
-                                <Grid>
-                                    <Grid.ColumnDefinitions>
-                                        <ColumnDefinition Width="*"/>
-                                        <ColumnDefinition Width="Auto"/>
-                                        <ColumnDefinition Width="Auto"/>
-                                    </Grid.ColumnDefinitions>
-
-                                    <Button Grid.Column="0"
-                                           Content="🎥 Camera Edit"
-                                           Style="{StaticResource SecondaryButtonStyle}"
-                                           Command="{Binding SendToCameraEditCommand}"
-                                           IsEnabled="{Binding HasResultImage}"
-                                           Margin="0,0,8,0"/>
-
-                                    <Button Grid.Column="1"
-                                           Content="🎬 Video Generator"
-                                           Style="{StaticResource SecondaryButtonStyle}"
-                                           Command="{Binding SendToVideoGeneratorCommand}"
-                                           IsEnabled="{Binding HasResultImage}"
-                                           Margin="0,0,8,0"/>
-
-                                    <Button Grid.Column="2"
-                                           Content="📂 Open Folder"
-                                           Style="{StaticResource SecondaryButtonStyle}"
-                                           Command="{Binding OpenResultFolderCommand}"
-                                           IsEnabled="{Binding HasResultImage}"/>
-                                </Grid>
-
-                                <TextBlock Text="{Binding ImageInfo}"
-                                          FontStyle="Italic"
-                                          Foreground="#666"
-                                          FontSize="11"
-                                          Margin="0,10,0,0"/>
-                            </StackPanel>
-                        </Border>
-
-                        <!-- Advanced Settings (Collapsible) -->
-                        <Expander Header="Advanced Settings"
-                                 Margin="0,0,0,15"
-                                 IsExpanded="False">
-                            <Border Background="#F8F9FA"
-                                    BorderBrush="#DEE2E6"
-                                    BorderThickness="1"
-                                    CornerRadius="5"
-                                    Padding="15"
-                                    Margin="0,8,0,0">
-                                <StackPanel>
-                                    <!-- Seed -->
-                                    <StackPanel Margin="0,0,0,10">
-                                        <TextBlock Text="Seed (0 = Random)" FontWeight="SemiBold" FontSize="11" Margin="0,0,0,5"/>
-                                        <TextBox Text="{Binding Seed, Mode=TwoWay}"
-                                                Padding="8"
-                                                Background="White"
-                                                BorderBrush="#CED4DA"
-                                                FontSize="11"/>
-                                    </StackPanel>
-
-                                    <!-- Denoise -->
-                                    <StackPanel>
-                                        <TextBlock Text="Denoise" FontWeight="SemiBold" FontSize="11" Margin="0,0,0,5"/>
-                                        <Grid>
-                                            <Grid.ColumnDefinitions>
-                                                <ColumnDefinition Width="*"/>
-                                                <ColumnDefinition Width="Auto"/>
-                                            </Grid.ColumnDefinitions>
-                                            <Slider Grid.Column="0"
-                                                    Value="{Binding Denoise, Mode=TwoWay}"
-                                                    Minimum="0.5" Maximum="1"
-                                                    TickFrequency="0.1"
-                                                    IsSnapToTickEnabled="True"
-                                                    VerticalAlignment="Center"/>
-                                            <TextBlock Grid.Column="1"
-                                                      Text="{Binding Denoise, StringFormat={}{0:F1}}"
-                                                      Margin="8,0,0,0"
-                                                      VerticalAlignment="Center"
-                                                      MinWidth="25"
-                                                      FontWeight="Bold"/>
-                                        </Grid>
-                                    </StackPanel>
-                                </StackPanel>
-                            </Border>
-                        </Expander>
-
-                        <!-- Log (Collapsible) -->
-                        <Expander Header="Processing Log"
-                                 IsExpanded="True"
-                                 Margin="0,0,0,0">
-                            <Border Background="White"
-                                    BorderBrush="#DEE2E6"
-                                    BorderThickness="1"
-                                    Margin="0,8,0,0">
-                                <ScrollViewer MaxHeight="150"
-                                             VerticalScrollBarVisibility="Auto">
-                                    <TextBox Text="{Binding LogOutput}"
-                                            TextWrapping="Wrap"
-                                            IsReadOnly="True"
-                                            FontFamily="Consolas"
-                                            FontSize="10"
-                                            Background="Transparent"
-                                            BorderThickness="0"
-                                            Padding="10"/>
-                                </ScrollViewer>
-                            </Border>
-                        </Expander>
-
-                    </StackPanel>
-                </ScrollViewer>
-            </TabItem>
-
-            <!-- Tab 2: Image Analysis -->
-            <TabItem Header="🔍 Image Analysis" FontWeight="Bold" FontSize="13">
-                <ScrollViewer VerticalScrollBarVisibility="Auto">
-                    <Grid Margin="8,12,8,12">
-                        <Grid.ColumnDefinitions>
-                            <ColumnDefinition Width="*"/>
-                            <ColumnDefinition Width="*"/>
-                        </Grid.ColumnDefinitions>
-
-                        <!-- Left Column - Image Input -->
-                        <StackPanel Grid.Column="0" Margin="0,0,8,0">
-                            <!-- Source Image Upload Section -->
-                            <Border Style="{StaticResource SectionPanelStyle}">
-                                <StackPanel>
-                                    <TextBlock Text="Source Image" Style="{StaticResource HeaderTextStyle}" Foreground="#6366F1"/>
-
-                                    <TextBlock Text="Upload an image to analyze"
-                                               FontSize="11"
-                                               Foreground="#666"
-                                               Margin="0,0,0,8"/>
-
-                                    <Grid Margin="0,0,0,8">
-                                        <Grid.ColumnDefinitions>
-                                            <ColumnDefinition Width="*"/>
-                                            <ColumnDefinition Width="Auto"/>
-                                        </Grid.ColumnDefinitions>
-
-                                        <TextBox Grid.Column="0"
-                                                Text="{Binding Analyzer.SourceImagePath, Mode=TwoWay}"
-                                                IsReadOnly="True"
-                                                Padding="8"
-                                                Background="White"
-                                                BorderBrush="#CED4DA"
-                                                VerticalContentAlignment="Center"
-                                                FontSize="11"
-                                                Height="30"/>
-
-                                        <Button Grid.Column="1"
-                                               Content="Browse"
-                                               Style="{StaticResource SecondaryButtonStyle}"
-                                               Command="{Binding Analyzer.BrowseImageCommand}"
-                                               Margin="6,0,0,0"
-                                               Height="30"
-                                               Padding="12,6"/>
-                                    </Grid>
-
-                                    <!-- Image Preview -->
-                                    <Border BorderBrush="#DEE2E6" BorderThickness="2"
-                                            Background="White" Height="240"
-                                            CornerRadius="5">
-                                        <Grid>
-                                            <TextBlock Text="No image selected"
-                                                      HorizontalAlignment="Center"
-                                                      VerticalAlignment="Center"
-                                                      Foreground="#999"
-                                                      FontStyle="Italic"
-                                                      FontSize="13">
-                                                <TextBlock.Style>
-                                                    <Style TargetType="TextBlock">
-                                                        <Setter Property="Visibility" Value="Collapsed"/>
-                                                        <Style.Triggers>
-                                                            <DataTrigger Binding="{Binding Analyzer.HasSourceImage}" Value="False">
-                                                                <Setter Property="Visibility" Value="Visible"/>
-                                                            </DataTrigger>
-                                                        </Style.Triggers>
-                                                    </Style>
-                                                </TextBlock.Style>
-                                            </TextBlock>
-
-                                            <Image Source="{Binding Analyzer.SourceImageSource}"
-                                                   Stretch="Uniform"
-                                                   Margin="5"
-                                                   Visibility="{Binding Analyzer.HasSourceImage, Converter={StaticResource BooleanToVisibilityConverter}}"/>
-                                        </Grid>
-                                    </Border>
-
-                                    <!-- Analyze Button -->
-                                    <Button Content="Analyze Image with QwenVL"
-                                           Style="{StaticResource AnalyzeButtonStyle}"
-                                           Command="{Binding Analyzer.AnalyzeImageCommand}"
-                                           HorizontalAlignment="Stretch"
-                                           Margin="0,12,0,0"
-                                           Height="38"
-                                           Background="#F59E0B"/>
                                 </StackPanel>
                             </Border>
 
-                            <!-- Analysis Settings -->
-                            <Border Style="{StaticResource SectionPanelStyle}">
+                            <!-- Section B2: Image Analysis Settings (visible only in Image Analysis mode) -->
+                            <Border Style="{StaticResource SectionPanelStyle}" Visibility="{Binding Analyzer.IsImageAnalysisMode, Converter={StaticResource BooleanToVisibilityConverter}}">
                                 <StackPanel>
-                                    <TextBlock Text="Analysis Settings" Style="{StaticResource HeaderTextStyle}" Foreground="#6366F1"/>
+                                    <TextBlock Text="Generation Settings" Style="{StaticResource HeaderTextStyle}" Foreground="#6366F1"/>
+
+                                    <!-- Workflow Selection -->
+                                    <StackPanel Margin="0,0,0,12">
+                                        <TextBlock Text="Model Workflow" FontWeight="SemiBold" FontSize="11" Margin="0,0,0,4"/>
+                                        <ComboBox SelectedIndex="{Binding Analyzer.SelectedWorkflow, Mode=TwoWay}"
+                                                 Padding="8"
+                                                 Background="White"
+                                                 BorderBrush="#CED4DA"
+                                                 FontSize="11"
+                                                 Height="32">
+                                            <ComboBoxItem Content="Zimage (with LoRA support)"/>
+                                            <ComboBoxItem Content="Qwen 2512"/>
+                                            <ComboBoxItem Content="Klien (Flux2)"/>
+                                        </ComboBox>
+                                    </StackPanel>
 
                                     <!-- Aspect Ratio -->
-                                    <StackPanel Margin="0,0,0,10">
+                                    <StackPanel Margin="0,0,0,12">
                                         <TextBlock Text="Aspect Ratio" FontWeight="SemiBold" FontSize="11" Margin="0,0,0,4"/>
                                         <ComboBox SelectedIndex="{Binding Analyzer.AspectRatioIndex, Mode=TwoWay}"
                                                  Padding="8"
@@ -778,219 +642,894 @@
                                         </ComboBox>
                                     </StackPanel>
 
-                                    <!-- Steps -->
-                                    <StackPanel Margin="0,0,0,10">
-                                        <TextBlock Text="Steps" FontWeight="SemiBold" FontSize="11" Margin="0,0,0,4"/>
-                                        <Grid>
-                                            <Grid.ColumnDefinitions>
-                                                <ColumnDefinition Width="*"/>
-                                                <ColumnDefinition Width="Auto"/>
-                                            </Grid.ColumnDefinitions>
-                                            <Slider Grid.Column="0"
-                                                    Value="{Binding Analyzer.Steps, Mode=TwoWay}"
-                                                    Minimum="4" Maximum="20"
-                                                    TickFrequency="1"
-                                                    IsSnapToTickEnabled="True"
-                                                    VerticalAlignment="Center"
-                                                    Height="20"/>
-                                            <TextBlock Grid.Column="1"
-                                                      Text="{Binding Analyzer.Steps}"
-                                                      Margin="8,0,0,0"
-                                                      VerticalAlignment="Center"
-                                                      MinWidth="25"
-                                                      FontWeight="Bold"
-                                                      FontSize="11"/>
-                                        </Grid>
-                                    </StackPanel>
+                                    <!-- Advanced Settings Expander -->
+                                    <Expander Header="⚙️ Advanced Settings" Margin="0,0,0,0" IsExpanded="False">
+                                        <StackPanel Margin="0,10,0,0">
+                                            <!-- Steps -->
+                                            <StackPanel Margin="0,0,0,10">
+                                                <TextBlock Text="Steps" FontWeight="SemiBold" FontSize="11" Margin="0,0,0,4"/>
+                                                <Grid>
+                                                    <Grid.ColumnDefinitions>
+                                                        <ColumnDefinition Width="*"/>
+                                                        <ColumnDefinition Width="Auto"/>
+                                                    </Grid.ColumnDefinitions>
+                                                    <Slider Grid.Column="0"
+                                                            Value="{Binding Analyzer.Steps, Mode=TwoWay}"
+                                                            Minimum="4" Maximum="20"
+                                                            TickFrequency="1"
+                                                            IsSnapToTickEnabled="True"
+                                                            VerticalAlignment="Center"
+                                                            Height="20"/>
+                                                    <TextBlock Grid.Column="1"
+                                                              Text="{Binding Analyzer.Steps}"
+                                                              Margin="8,0,0,0"
+                                                              VerticalAlignment="Center"
+                                                              MinWidth="25"
+                                                              FontWeight="Bold"
+                                                              FontSize="11"/>
+                                                </Grid>
+                                            </StackPanel>
 
-                                    <!-- CFG -->
-                                    <StackPanel>
-                                        <TextBlock Text="CFG Scale" FontWeight="SemiBold" FontSize="11" Margin="0,0,0,4"/>
-                                        <Grid>
-                                            <Grid.ColumnDefinitions>
-                                                <ColumnDefinition Width="*"/>
-                                                <ColumnDefinition Width="Auto"/>
-                                            </Grid.ColumnDefinitions>
-                                            <Slider Grid.Column="0"
-                                                    Value="{Binding Analyzer.Cfg, Mode=TwoWay}"
-                                                    Minimum="1" Maximum="3"
-                                                    TickFrequency="0.5"
-                                                    IsSnapToTickEnabled="True"
-                                                    VerticalAlignment="Center"
-                                                    Height="20"/>
-                                            <TextBlock Grid.Column="1"
-                                                      Text="{Binding Analyzer.Cfg, StringFormat={}{0:F1}}"
-                                                      Margin="8,0,0,0"
-                                                      VerticalAlignment="Center"
-                                                      MinWidth="25"
-                                                      FontWeight="Bold"
-                                                      FontSize="11"/>
-                                        </Grid>
-                                    </StackPanel>
+                                            <!-- CFG -->
+                                            <StackPanel Margin="0,0,0,10">
+                                                <TextBlock Text="CFG Scale" FontWeight="SemiBold" FontSize="11" Margin="0,0,0,4"/>
+                                                <Grid>
+                                                    <Grid.ColumnDefinitions>
+                                                        <ColumnDefinition Width="*"/>
+                                                        <ColumnDefinition Width="Auto"/>
+                                                    </Grid.ColumnDefinitions>
+                                                    <Slider Grid.Column="0"
+                                                            Value="{Binding Analyzer.Cfg, Mode=TwoWay}"
+                                                            Minimum="1" Maximum="3"
+                                                            TickFrequency="0.5"
+                                                            IsSnapToTickEnabled="True"
+                                                            VerticalAlignment="Center"
+                                                            Height="20"/>
+                                                    <TextBlock Grid.Column="1"
+                                                              Text="{Binding Analyzer.Cfg, StringFormat={}{0:F1}}"
+                                                              Margin="8,0,0,0"
+                                                              VerticalAlignment="Center"
+                                                              MinWidth="25"
+                                                              FontWeight="Bold"
+                                                              FontSize="11"/>
+                                                </Grid>
+                                            </StackPanel>
+
+                                            <!-- Style Preset - Only for Zimage -->
+                                            <StackPanel Margin="0,0,0,10" Visibility="{Binding Analyzer.ShowStyleOptions, Converter={StaticResource BooleanToVisibilityConverter}}">
+                                                <TextBlock Text="Style Preset" FontWeight="SemiBold" FontSize="11" Margin="0,0,0,4"/>
+                                                <ComboBox SelectedIndex="{Binding Analyzer.SelectedStyleIndex, Mode=TwoWay}"
+                                                         ItemsSource="{Binding Analyzer.StyleNames}"
+                                                         Padding="8"
+                                                         Background="White"
+                                                         BorderBrush="#CED4DA"
+                                                         FontSize="11"
+                                                         Height="32"/>
+                                            </StackPanel>
+
+                                            <!-- LoRA - Only for Zimage -->
+                                            <StackPanel Visibility="{Binding Analyzer.ShowLoraOptions, Converter={StaticResource BooleanToVisibilityConverter}}">
+                                                <TextBlock Text="LoRA Model" FontWeight="SemiBold" FontSize="11" Margin="0,0,0,4"/>
+                                                <CheckBox Content="Enable LoRA"
+                                                         IsChecked="{Binding Analyzer.LoraEnabled, Mode=TwoWay}"
+                                                         FontWeight="SemiBold"
+                                                         FontSize="11"
+                                                         Margin="0,0,0,6"/>
+                                                <Grid Visibility="{Binding Analyzer.LoraEnabled, Converter={StaticResource BooleanToVisibilityConverter}}">
+                                                    <Grid.ColumnDefinitions>
+                                                        <ColumnDefinition Width="*"/>
+                                                        <ColumnDefinition Width="Auto"/>
+                                                    </Grid.ColumnDefinitions>
+                                                    <ComboBox Grid.Column="0"
+                                                             ItemsSource="{Binding Analyzer.AvailableLoras}"
+                                                             SelectedItem="{Binding Analyzer.SelectedLora, Mode=TwoWay}"
+                                                             Padding="8"
+                                                             Background="White"
+                                                             BorderBrush="#CED4DA"
+                                                             FontSize="11"
+                                                             Height="32"
+                                                             Margin="0,0,6,0"/>
+                                                    <Button Grid.Column="1"
+                                                           Content="Refresh"
+                                                           Command="{Binding Analyzer.RefreshLorasCommand}"
+                                                           Style="{StaticResource SecondaryButtonStyle}"
+                                                           Width="60"
+                                                           Height="32"
+                                                           Padding="10,5"/>
+                                                </Grid>
+                                            </StackPanel>
+                                        </StackPanel>
+                                    </Expander>
                                 </StackPanel>
                             </Border>
-                        </StackPanel>
 
-                        <!-- Right Column - Analysis Result -->
-                        <StackPanel Grid.Column="1" Margin="8,0,0,0">
-                            <!-- Analysis Result Section -->
-                            <Border Style="{StaticResource SectionPanelStyle}">
+                            <!-- Section C: Action Buttons (Text Prompt mode) -->
+                            <Border Style="{StaticResource SectionPanelStyle}" Visibility="{Binding Analyzer.IsTextPromptMode, Converter={StaticResource BooleanToVisibilityConverter}}">
                                 <StackPanel>
-                                    <TextBlock Text="AI Analysis Result" Style="{StaticResource HeaderTextStyle}" Foreground="#8B5CF6"/>
+                                    <TextBlock Text="Actions" Style="{StaticResource HeaderTextStyle}" Foreground="#FF6B35"/>
 
-                                    <TextBlock Text="Edit the analysis before generating the image"
-                                               FontSize="11"
-                                               Foreground="#666"
-                                               Margin="0,0,0,8"/>
+                                    <Button Content="Generate Image"
+                                           Style="{StaticResource PrimaryButtonStyle}"
+                                           Command="{Binding GenerateImageCommand}"
+                                           HorizontalAlignment="Stretch"
+                                           Height="42"
+                                           FontSize="14"
+                                           Margin="0,0,0,8"/>
 
-                                    <TextBox Text="{Binding Analyzer.AnalysisText, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
-                                            TextWrapping="Wrap"
-                                            AcceptsReturn="True"
-                                            Height="140"
-                                            Padding="10"
-                                            VerticalScrollBarVisibility="Auto"
-                                            Background="White"
-                                            BorderBrush="#CED4DA"
-                                            FontSize="12"
-                                            Margin="0,0,0,10"/>
+                                    <Button Content="Add to Queue"
+                                           Style="{StaticResource SecondaryButtonStyle}"
+                                           Command="{Binding AddToQueueCommand}"
+                                           HorizontalAlignment="Stretch"
+                                           Height="38"
+                                           FontSize="13"
+                                           Margin="0,0,0,8"/>
 
-                                    <!-- Processing Status for Analysis -->
-                                    <Border Background="#FEF3C7"
-                                            BorderBrush="#FCD34D"
-                                            BorderThickness="2"
-                                            CornerRadius="6"
-                                            Padding="12"
-                                            Margin="0,0,0,10"
-                                            Visibility="{Binding Analyzer.IsAnalyzing, Converter={StaticResource BooleanToVisibilityConverter}}">
-                                        <StackPanel>
-                                            <TextBlock Text="Analyzing image..."
-                                                      FontWeight="Bold"
-                                                      FontSize="11"
-                                                      Margin="0,0,0,6"
-                                                      TextAlignment="Center"
-                                                      Foreground="#92400E"/>
-                                            <ProgressBar IsIndeterminate="True"
-                                                        Height="18"
-                                                        Foreground="#F59E0B"/>
-                                        </StackPanel>
-                                    </Border>
+                                    <Button Content="Add to Queue &amp; Start"
+                                           Style="{StaticResource SecondaryButtonStyle}"
+                                           Command="{Binding ProcessQueueCommand}"
+                                           HorizontalAlignment="Stretch"
+                                           Height="38"
+                                           FontSize="13"
+                                           Background="#10B981"/>
+                                </StackPanel>
+                            </Border>
 
-                                    <!-- Workflow Selection -->
-                                    <StackPanel Margin="0,0,0,8">
-                                        <TextBlock Text="Model Workflow" FontWeight="SemiBold" FontSize="11" Margin="0,0,0,4"/>
-                                        <ComboBox SelectedIndex="{Binding Analyzer.SelectedWorkflow, Mode=TwoWay}"
-                                                 Padding="8"
-                                                 Background="White"
-                                                 BorderBrush="#CED4DA"
-                                                 FontSize="11"
-                                                 Height="32">
-                                            <ComboBoxItem Content="Zimage (with LoRA support)"/>
-                                            <ComboBoxItem Content="Qwen 2512"/>
-                                            <ComboBoxItem Content="Klien (Flux2)"/>
-                                        </ComboBox>
-                                        <TextBlock Text="Different workflows use different AI models with varying capabilities and styles"
-                                                   FontSize="9"
-                                                   Foreground="#666"
-                                                   FontStyle="Italic"
-                                                   Margin="0,4,0,0"/>
-                                    </StackPanel>
+                            <!-- Section C2: Action Buttons (Image Analysis mode) -->
+                            <Border Style="{StaticResource SectionPanelStyle}" Visibility="{Binding Analyzer.IsImageAnalysisMode, Converter={StaticResource BooleanToVisibilityConverter}}">
+                                <StackPanel>
+                                    <TextBlock Text="Actions" Style="{StaticResource HeaderTextStyle}" Foreground="#6366F1"/>
 
-                                    <!-- Style Preset - Only for Zimage workflow -->
-                                    <StackPanel Margin="0,0,0,8" Visibility="{Binding Analyzer.ShowStyleOptions, Converter={StaticResource BooleanToVisibilityConverter}}">
-                                        <TextBlock Text="Style Preset" FontWeight="SemiBold" FontSize="11" Margin="0,0,0,4"/>
-                                        <ComboBox SelectedIndex="{Binding Analyzer.SelectedStyleIndex, Mode=TwoWay}"
-                                                 ItemsSource="{Binding Analyzer.StyleNames}"
-                                                 Padding="8"
-                                                 Background="White"
-                                                 BorderBrush="#CED4DA"
-                                                 FontSize="11"
-                                                 Height="32"/>
-                                    </StackPanel>
-
-                                    <!-- LORA (Optional) - Only for Zimage workflow -->
-                                    <StackPanel Margin="0,0,0,10" Visibility="{Binding Analyzer.ShowLoraOptions, Converter={StaticResource BooleanToVisibilityConverter}}">
-                                        <TextBlock Text="LoRA Model" FontWeight="SemiBold" FontSize="11" Margin="0,0,0,4"/>
-
-                                        <!-- Lora Enable Toggle -->
-                                        <CheckBox Content="Enable LoRA"
-                                                 IsChecked="{Binding Analyzer.LoraEnabled, Mode=TwoWay}"
-                                                 FontWeight="SemiBold"
-                                                 FontSize="11"
-                                                 Margin="0,0,0,6"/>
-
-                                        <!-- Lora Selection (only visible when enabled) -->
-                                        <Grid Visibility="{Binding Analyzer.LoraEnabled, Converter={StaticResource BooleanToVisibilityConverter}}">
-                                            <Grid.ColumnDefinitions>
-                                                <ColumnDefinition Width="*"/>
-                                                <ColumnDefinition Width="Auto"/>
-                                            </Grid.ColumnDefinitions>
-
-                                            <ComboBox Grid.Column="0"
-                                                     ItemsSource="{Binding Analyzer.AvailableLoras}"
-                                                     SelectedItem="{Binding Analyzer.SelectedLora, Mode=TwoWay}"
-                                                     Padding="8"
-                                                     Background="White"
-                                                     BorderBrush="#CED4DA"
-                                                     FontSize="11"
-                                                     Height="32"
-                                                     Margin="0,0,6,0"/>
-
-                                            <Button Grid.Column="1"
-                                                   Content="Refresh"
-                                                   Command="{Binding Analyzer.RefreshLorasCommand}"
-                                                   Style="{StaticResource SecondaryButtonStyle}"
-                                                   Width="60"
-                                                   Height="32"
-                                                   Padding="10,5"/>
-                                        </Grid>
-                                    </StackPanel>
-
-                                    <!-- Generate Button -->
-                                    <Button Content="Process &amp; Generate Image"
+                                    <Button Content="Generate Image"
                                            Style="{StaticResource PrimaryButtonStyle}"
                                            Command="{Binding Analyzer.GenerateImageCommand}"
                                            HorizontalAlignment="Stretch"
                                            Height="42"
                                            FontSize="14"
-                                           Background="#8B5CF6"/>
+                                           Margin="0,0,0,8"
+                                           Background="#6366F1"/>
 
-                                    <!-- Progress Bar -->
-                                    <StackPanel Margin="0,10,0,0"
-                                               Visibility="{Binding Analyzer.IsGenerating, Converter={StaticResource BooleanToVisibilityConverter}}">
-                                        <TextBlock Text="{Binding Analyzer.ProcessingStatus}"
-                                                  FontSize="11"
-                                                  FontWeight="SemiBold"
-                                                  Foreground="#8B5CF6"
-                                                  Margin="0,0,0,4"
-                                                  TextTrimming="CharacterEllipsis"/>
-                                        <Grid>
-                                            <ProgressBar Value="{Binding Analyzer.ProcessingProgress}"
-                                                        Minimum="0"
-                                                        Maximum="100"
-                                                        Height="20"
-                                                        Foreground="#8B5CF6"
-                                                        Background="#EDE9FE"/>
-                                            <TextBlock Text="{Binding Analyzer.ProgressPercentage}"
-                                                      HorizontalAlignment="Center"
-                                                      VerticalAlignment="Center"
-                                                      FontSize="10"
-                                                      FontWeight="Bold"
-                                                      Foreground="#1E1B4B"/>
-                                        </Grid>
-                                    </StackPanel>
+                                    <Button Content="Add to Queue"
+                                           Style="{StaticResource SecondaryButtonStyle}"
+                                           Command="{Binding Analyzer.AddToQueueCommand}"
+                                           HorizontalAlignment="Stretch"
+                                           Height="38"
+                                           FontSize="13"
+                                           Margin="0,0,0,8"/>
+
+                                    <Button Content="Add to Queue &amp; Start"
+                                           Style="{StaticResource SecondaryButtonStyle}"
+                                           Command="{Binding Analyzer.AddToQueueAndStartCommand}"
+                                           HorizontalAlignment="Stretch"
+                                           Height="38"
+                                           FontSize="13"
+                                           Background="#10B981"/>
                                 </StackPanel>
                             </Border>
 
-                            <!-- Result Image Section -->
-                            <Border Style="{StaticResource SectionPanelStyle}">
+                            <!-- LM Studio Connection (Image Analysis mode only) -->
+                            <Expander Header="🔌 LM Studio Connection"
+                                     Margin="0,0,0,10"
+                                     IsExpanded="False"
+                                     Visibility="{Binding Analyzer.IsImageAnalysisMode, Converter={StaticResource BooleanToVisibilityConverter}}">
+                                <Border Style="{StaticResource SectionPanelStyle}" Margin="0,8,0,0">
+                                    <StackPanel>
+                                        <TextBlock Text="LM Studio Settings" Style="{StaticResource HeaderTextStyle}" Foreground="#10B981"/>
+
+                                        <Grid Margin="0,0,0,10">
+                                            <Grid.ColumnDefinitions>
+                                                <ColumnDefinition Width="*"/>
+                                                <ColumnDefinition Width="*"/>
+                                                <ColumnDefinition Width="Auto"/>
+                                            </Grid.ColumnDefinitions>
+
+                                            <StackPanel Grid.Column="0" Margin="0,0,8,0">
+                                                <TextBlock Text="Server" FontWeight="SemiBold" FontSize="11" Margin="0,0,0,4"/>
+                                                <TextBox Text="{Binding Analyzer.LMStudioServer, UpdateSourceTrigger=PropertyChanged}"
+                                                         Padding="8"
+                                                         Background="White"
+                                                         BorderBrush="#CED4DA"
+                                                         FontSize="11"
+                                                         Height="30"/>
+                                            </StackPanel>
+
+                                            <StackPanel Grid.Column="1" Margin="0,0,8,0">
+                                                <TextBlock Text="Port" FontWeight="SemiBold" FontSize="11" Margin="0,0,0,4"/>
+                                                <TextBox Text="{Binding Analyzer.LMStudioPort, UpdateSourceTrigger=PropertyChanged}"
+                                                         Padding="8"
+                                                         Background="White"
+                                                         BorderBrush="#CED4DA"
+                                                         FontSize="11"
+                                                         Height="30"/>
+                                            </StackPanel>
+
+                                            <StackPanel Grid.Column="2">
+                                                <TextBlock Text="" Height="15" Margin="0,0,0,4"/>
+                                                <Button Content="Test"
+                                                       Command="{Binding Analyzer.TestLMStudioConnectionCommand}"
+                                                       Style="{StaticResource SecondaryButtonStyle}"
+                                                       Width="50"
+                                                       Height="30"
+                                                       Padding="10,5"/>
+                                            </StackPanel>
+                                        </Grid>
+
+                                        <Grid>
+                                            <Grid.ColumnDefinitions>
+                                                <ColumnDefinition Width="*"/>
+                                                <ColumnDefinition Width="Auto"/>
+                                            </Grid.ColumnDefinitions>
+
+                                            <StackPanel Grid.Column="0" Margin="0,0,8,0">
+                                                <TextBlock Text="AI Model" FontWeight="SemiBold" FontSize="11" Margin="0,0,0,4"/>
+                                                <ComboBox ItemsSource="{Binding Analyzer.AvailableModels}"
+                                                          SelectedValue="{Binding Analyzer.SelectedModel}"
+                                                          SelectedValuePath="Name"
+                                                          Padding="8"
+                                                          Background="White"
+                                                          BorderBrush="#CED4DA"
+                                                          FontSize="11"
+                                                          Height="30">
+                                                    <ComboBox.ItemTemplate>
+                                                        <DataTemplate>
+                                                            <TextBlock Text="{Binding Name}" TextTrimming="CharacterEllipsis"/>
+                                                        </DataTemplate>
+                                                    </ComboBox.ItemTemplate>
+                                                </ComboBox>
+                                            </StackPanel>
+
+                                            <StackPanel Grid.Column="1">
+                                                <TextBlock Text="" Height="15" Margin="0,0,0,4"/>
+                                                <Button Content="Refresh"
+                                                       Command="{Binding Analyzer.RefreshModelsCommand}"
+                                                       Style="{StaticResource SecondaryButtonStyle}"
+                                                       Width="65"
+                                                       Height="30"
+                                                       Padding="10,5"/>
+                                            </StackPanel>
+                                        </Grid>
+                                    </StackPanel>
+                                </Border>
+                            </Expander>
+
+                        </StackPanel>
+
+                        <!-- RIGHT COLUMN - Queue & Results -->
+                        <StackPanel Grid.Column="2">
+
+                            <!-- Queue Status Bar - Text Prompt Mode -->
+                            <Border Style="{StaticResource SectionPanelStyle}" Visibility="{Binding Analyzer.IsTextPromptMode, Converter={StaticResource BooleanToVisibilityConverter}}">
                                 <StackPanel>
-                                    <TextBlock Text="Generated Image" Style="{StaticResource HeaderTextStyle}" Foreground="#10B981"/>
+                                    <TextBlock Text="Queue Status" Style="{StaticResource HeaderTextStyle}" Foreground="#EC4899"/>
+
+                                    <!-- Processing Progress -->
+                                    <Border Background="#FFF9F0"
+                                            BorderBrush="#FFE0B0"
+                                            BorderThickness="1"
+                                            CornerRadius="5"
+                                            Padding="12"
+                                            Visibility="{Binding IsProcessingQueue, Converter={StaticResource BooleanToVisibilityConverter}}">
+                                        <StackPanel>
+                                            <TextBlock Text="Processing queue..."
+                                                      FontWeight="SemiBold"
+                                                      FontSize="11"
+                                                      Margin="0,0,0,5"
+                                                      TextAlignment="Center"/>
+
+                                            <!-- Pause/Resume/Cancel Buttons -->
+                                            <Grid>
+                                                <Grid.ColumnDefinitions>
+                                                    <ColumnDefinition Width="*"/>
+                                                    <ColumnDefinition Width="*"/>
+                                                    <ColumnDefinition Width="*"/>
+                                                </Grid.ColumnDefinitions>
+
+                                                <Button Grid.Column="0"
+                                                       Content="⏸ Pause"
+                                                       Command="{Binding PauseQueueCommand}"
+                                                       Style="{StaticResource SecondaryButtonStyle}"
+                                                       Width="70"
+                                                       Height="28"
+                                                       HorizontalAlignment="Center"
+                                                       Padding="8,4"
+                                                       FontSize="11"
+                                                       Margin="0,0,5,0"/>
+
+                                                <Button Grid.Column="1"
+                                                       Content="▶ Resume"
+                                                       Command="{Binding ResumeQueueCommand}"
+                                                       Style="{StaticResource SecondaryButtonStyle}"
+                                                       Width="70"
+                                                       Height="28"
+                                                       HorizontalAlignment="Center"
+                                                       Padding="8,4"
+                                                       FontSize="11"
+                                                       Margin="5,0"/>
+
+                                                <Button Grid.Column="2"
+                                                       Content="✖ Cancel"
+                                                       Command="{Binding CancelGenerationCommand}"
+                                                       Width="70"
+                                                       Height="28"
+                                                       HorizontalAlignment="Center"
+                                                       Padding="8,4"
+                                                       FontSize="11"
+                                                       Background="#DC3545"
+                                                       Foreground="White"
+                                                       BorderThickness="0"
+                                                       Margin="5,0,0,0">
+                                                    <Button.Style>
+                                                        <Style TargetType="Button">
+                                                            <Setter Property="Background" Value="#DC3545"/>
+                                                            <Setter Property="Foreground" Value="White"/>
+                                                            <Setter Property="BorderThickness" Value="0"/>
+                                                            <Setter Property="Padding" Value="8,4"/>
+                                                            <Setter Property="FontSize" Value="11"/>
+                                                            <Setter Property="Cursor" Value="Hand"/>
+                                                            <Setter Property="Template">
+                                                                <Setter.Value>
+                                                                    <ControlTemplate TargetType="Button">
+                                                                        <Border Background="{TemplateBinding Background}"
+                                                                                CornerRadius="5"
+                                                                                Padding="{TemplateBinding Padding}">
+                                                                            <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                                                                        </Border>
+                                                                    </ControlTemplate>
+                                                                </Setter.Value>
+                                                            </Setter>
+                                                            <Style.Triggers>
+                                                                <Trigger Property="IsMouseOver" Value="True">
+                                                                    <Setter Property="Background" Value="#E55563"/>
+                                                                </Trigger>
+                                                            </Style.Triggers>
+                                                        </Style>
+                                                    </Button.Style>
+                                                </Button>
+                                            </Grid>
+                                        </StackPanel>
+                                    </Border>
+                                </StackPanel>
+                            </Border>
+
+                            <!-- Queue Status Bar - Image Analysis Mode -->
+                            <Border Style="{StaticResource SectionPanelStyle}" Visibility="{Binding Analyzer.IsImageAnalysisMode, Converter={StaticResource BooleanToVisibilityConverter}}">
+                                <StackPanel>
+                                    <TextBlock Text="Queue Status" Style="{StaticResource HeaderTextStyle}" Foreground="#EC4899"/>
+
+                                    <Border Background="#F8F9FA"
+                                            BorderBrush="#DEE2E6"
+                                            BorderThickness="1"
+                                            CornerRadius="5"
+                                            Padding="12">
+                                        <Grid>
+                                            <Grid.ColumnDefinitions>
+                                                <ColumnDefinition Width="*"/>
+                                                <ColumnDefinition Width="Auto"/>
+                                                <ColumnDefinition Width="Auto"/>
+                                                <ColumnDefinition Width="Auto"/>
+                                            </Grid.ColumnDefinitions>
+
+                                            <TextBlock Grid.Column="0"
+                                                      Text="Queue:"
+                                                      FontWeight="SemiBold"
+                                                      VerticalAlignment="Center"/>
+
+                                            <TextBlock Grid.Column="1"
+                                                      Text="{Binding Analyzer.QueuedCount, StringFormat={}Queued: {0}}"
+                                                      Margin="10,0"
+                                                      VerticalAlignment="Center"
+                                                      FontSize="11"/>
+
+                                            <TextBlock Grid.Column="2"
+                                                      Text="{Binding Analyzer.CompletedCount, StringFormat={}Completed: {0}}"
+                                                      Margin="10,0"
+                                                      VerticalAlignment="Center"
+                                                      FontSize="11"
+                                                      Foreground="#28A745"/>
+
+                                            <TextBlock Grid.Column="3"
+                                                      Text="{Binding Analyzer.FailedCount, StringFormat={}Failed: {0}}"
+                                                      Margin="10,0"
+                                                      VerticalAlignment="Center"
+                                                      FontSize="11"
+                                                      Foreground="#DC3545"/>
+                                        </Grid>
+                                    </Border>
+
+                                    <!-- Processing Progress -->
+                                    <Border Background="#FFF9F0"
+                                            BorderBrush="#FFE0B0"
+                                            BorderThickness="1"
+                                            CornerRadius="5"
+                                            Padding="12"
+                                            Margin="0,8,0,0"
+                                            Visibility="{Binding Analyzer.IsProcessingQueue, Converter={StaticResource BooleanToVisibilityConverter}}">
+                                        <StackPanel>
+                                            <TextBlock Text="{Binding Analyzer.QueueProgressText, StringFormat={}Processing: {0}}"
+                                                      FontWeight="SemiBold"
+                                                      FontSize="11"
+                                                      Margin="0,0,0,5"
+                                                      TextAlignment="Center"/>
+                                            <ProgressBar Value="{Binding Analyzer.QueueProgress, Mode=OneWay}"
+                                                        Maximum="{Binding Analyzer.QueueTotal, Mode=OneWay}"
+                                                        Height="16"
+                                                        Foreground="#FF6B35"
+                                                        Margin="0,0,0,5"/>
+
+                                            <!-- Pause/Resume/Cancel Buttons -->
+                                            <Grid>
+                                                <Grid.ColumnDefinitions>
+                                                    <ColumnDefinition Width="*"/>
+                                                    <ColumnDefinition Width="*"/>
+                                                    <ColumnDefinition Width="*"/>
+                                                </Grid.ColumnDefinitions>
+
+                                                <Button Grid.Column="0"
+                                                       Content="⏸ Pause"
+                                                       Command="{Binding Analyzer.PauseQueueCommand}"
+                                                       Style="{StaticResource SecondaryButtonStyle}"
+                                                       Width="70"
+                                                       Height="28"
+                                                       HorizontalAlignment="Center"
+                                                       Padding="8,4"
+                                                       FontSize="11"
+                                                       Margin="0,0,5,0"/>
+
+                                                <Button Grid.Column="1"
+                                                       Content="▶ Resume"
+                                                       Command="{Binding Analyzer.ResumeQueueCommand}"
+                                                       Style="{StaticResource SecondaryButtonStyle}"
+                                                       Width="70"
+                                                       Height="28"
+                                                       HorizontalAlignment="Center"
+                                                       Padding="8,4"
+                                                       FontSize="11"
+                                                       Margin="5,0"/>
+
+                                                <Button Grid.Column="2"
+                                                       Content="✖ Cancel"
+                                                       Command="{Binding Analyzer.CancelProcessingCommand}"
+                                                       Width="70"
+                                                       Height="28"
+                                                       HorizontalAlignment="Center"
+                                                       Padding="8,4"
+                                                       FontSize="11"
+                                                       Background="#DC3545"
+                                                       Foreground="White"
+                                                       BorderThickness="0"
+                                                       Margin="5,0,0,0">
+                                                    <Button.Style>
+                                                        <Style TargetType="Button">
+                                                            <Setter Property="Background" Value="#DC3545"/>
+                                                            <Setter Property="Foreground" Value="White"/>
+                                                            <Setter Property="BorderThickness" Value="0"/>
+                                                            <Setter Property="Padding" Value="8,4"/>
+                                                            <Setter Property="FontSize" Value="11"/>
+                                                            <Setter Property="Cursor" Value="Hand"/>
+                                                            <Setter Property="Template">
+                                                                <Setter.Value>
+                                                                    <ControlTemplate TargetType="Button">
+                                                                        <Border Background="{TemplateBinding Background}"
+                                                                                CornerRadius="5"
+                                                                                Padding="{TemplateBinding Padding}">
+                                                                            <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                                                                        </Border>
+                                                                    </ControlTemplate>
+                                                                </Setter.Value>
+                                                            </Setter>
+                                                            <Style.Triggers>
+                                                                <Trigger Property="IsMouseOver" Value="True">
+                                                                    <Setter Property="Background" Value="#E55563"/>
+                                                                </Trigger>
+                                                            </Style.Triggers>
+                                                        </Style>
+                                                    </Button.Style>
+                                                </Button>
+                                            </Grid>
+                                        </StackPanel>
+                                    </Border>
+                                </StackPanel>
+                            </Border>
+
+                            <!-- Queue Items List - Text Prompt Mode -->
+                            <Border BorderBrush="#DEE2E6"
+                                    BorderThickness="2"
+                                    CornerRadius="8"
+                                    Background="White"
+                                    Margin="0,0,0,10"
+                                    Visibility="{Binding Analyzer.IsTextPromptMode, Converter={StaticResource BooleanToVisibilityConverter}}">
+                                <StackPanel>
+                                    <TextBlock Text="Queue Items" Style="{StaticResource HeaderTextStyle}" Foreground="#6366F1" Padding="15,15,15,0"/>
+
+                                    <ScrollViewer VerticalScrollBarVisibility="Auto" MaxHeight="250" Padding="15">
+                                        <ItemsControl ItemsSource="{Binding PromptQueue}">
+                                            <ItemsControl.ItemTemplate>
+                                                <DataTemplate>
+                                                    <Border BorderBrush="#E9ECEF"
+                                                           BorderThickness="0,0,0,1"
+                                                           Padding="12"
+                                                           Background="White">
+                                                        <Grid>
+                                                            <Grid.ColumnDefinitions>
+                                                                <ColumnDefinition Width="*"/>
+                                                                <ColumnDefinition Width="Auto"/>
+                                                                <ColumnDefinition Width="Auto"/>
+                                                            </Grid.ColumnDefinitions>
+
+                                                                <!-- Item Info -->
+                                                            <StackPanel Grid.Column="0">
+                                                                <TextBlock Text="{Binding Prompt}"
+                                                                          FontWeight="SemiBold"
+                                                                          FontSize="12"
+                                                                          TextTrimming="CharacterEllipsis"
+                                                                          MaxWidth="300"/>
+
+                                                                <TextBlock Text="{Binding AspectRatioDisplay}"
+                                                                          FontSize="10"
+                                                                          Foreground="#666"
+                                                                          Margin="0,4,0,0"/>
+                                                            </StackPanel>
+
+                                                            <!-- Status / Thumbnail -->
+                                                            <StackPanel Grid.Column="1"
+                                                                       Orientation="Horizontal"
+                                                                       VerticalAlignment="Center"
+                                                                       Margin="10,0">
+                                                                <!-- Show status text when NOT completed -->
+                                                                <TextBlock Text="{Binding StatusDisplay}"
+                                                                          FontSize="11"
+                                                                          FontWeight="Bold"
+                                                                          Foreground="{Binding StatusColor}">
+                                                                    <TextBlock.Style>
+                                                                        <Style TargetType="TextBlock">
+                                                                            <Setter Property="Visibility" Value="Visible"/>
+                                                                            <Style.Triggers>
+                                                                                <DataTrigger Binding="{Binding Status}" Value="Completed">
+                                                                                    <Setter Property="Visibility" Value="Collapsed"/>
+                                                                                </DataTrigger>
+                                                                            </Style.Triggers>
+                                                                        </Style>
+                                                                    </TextBlock.Style>
+                                                                </TextBlock>
+
+                                                                <!-- Progress bar during processing -->
+                                                                <ProgressBar Value="{Binding Progress}"
+                                                                           Width="50"
+                                                                           Height="12"
+                                                                           Margin="5,0">
+                                                                    <ProgressBar.Style>
+                                                                        <Style TargetType="ProgressBar">
+                                                                            <Setter Property="Visibility" Value="Collapsed"/>
+                                                                            <Style.Triggers>
+                                                                                <DataTrigger Binding="{Binding Status}" Value="Processing">
+                                                                                    <Setter Property="Visibility" Value="Visible"/>
+                                                                                </DataTrigger>
+                                                                            </Style.Triggers>
+                                                                        </Style>
+                                                                    </ProgressBar.Style>
+                                                                </ProgressBar>
+
+                                                                <!-- Clickable thumbnail when completed -->
+                                                                <Button Command="{Binding OpenImageCommand}"
+                                                                       Background="Transparent"
+                                                                       BorderThickness="0"
+                                                                       Cursor="Hand"
+                                                                       ToolTip="Click to open image"
+                                                                       Padding="0">
+                                                                    <Button.Style>
+                                                                        <Style TargetType="Button">
+                                                                            <Setter Property="Visibility" Value="Collapsed"/>
+                                                                            <Style.Triggers>
+                                                                                <DataTrigger Binding="{Binding Status}" Value="Completed">
+                                                                                    <Setter Property="Visibility" Value="Visible"/>
+                                                                                </DataTrigger>
+                                                                            </Style.Triggers>
+                                                                        </Style>
+                                                                    </Button.Style>
+                                                                    <Image Source="{Binding ThumbnailImage}"
+                                                                          Height="50"
+                                                                          Stretch="Uniform"/>
+                                                                </Button>
+                                                            </StackPanel>
+
+                                                            <!-- Remove Button -->
+                                                            <Button Grid.Column="2"
+                                                                   Content="❌"
+                                                                   Command="{Binding DataContext.RemoveFromQueueCommand, RelativeSource={RelativeSource AncestorType=Window}}"
+                                                                   CommandParameter="{Binding}"
+                                                                   Background="Transparent"
+                                                                   BorderThickness="0"
+                                                                   Padding="5"
+                                                                   ToolTip="Remove from queue"
+                                                                   FontSize="12"
+                                                                   Cursor="Hand"/>
+                                                        </Grid>
+                                                    </Border>
+                                                </DataTemplate>
+                                            </ItemsControl.ItemTemplate>
+                                        </ItemsControl>
+                                    </ScrollViewer>
+                                </StackPanel>
+                            </Border>
+
+                            <!-- Queue Items List - Image Analysis Mode -->
+                            <Border x:Name="AnalyzerQueueBorder"
+                                    BorderBrush="#DEE2E6"
+                                    BorderThickness="2"
+                                    CornerRadius="8"
+                                    Background="White"
+                                    Margin="0,0,0,10"
+                                    Visibility="{Binding Analyzer.IsImageAnalysisMode, Converter={StaticResource BooleanToVisibilityConverter}}">
+                                <StackPanel>
+                                    <TextBlock Text="Queue Items" Style="{StaticResource HeaderTextStyle}" Foreground="#6366F1" Padding="15,15,15,0"/>
+
+                                    <ScrollViewer VerticalScrollBarVisibility="Auto" MaxHeight="250" Padding="15">
+                                        <ItemsControl ItemsSource="{Binding Analyzer.QueueItems}">
+                                            <ItemsControl.ItemTemplate>
+                                                <DataTemplate>
+                                                    <Border BorderBrush="#E9ECEF"
+                                                           BorderThickness="0,0,0,1"
+                                                           Padding="12"
+                                                           Background="White">
+                                                        <Grid>
+                                                            <Grid.ColumnDefinitions>
+                                                                <ColumnDefinition Width="Auto"/>
+                                                                <ColumnDefinition Width="*"/>
+                                                                <ColumnDefinition Width="Auto"/>
+                                                                <ColumnDefinition Width="Auto"/>
+                                                            </Grid.ColumnDefinitions>
+
+                                                            <!-- Workflow Badge -->
+                                                            <Border Grid.Column="0"
+                                                                    Background="{Binding WorkflowBadgeColor}"
+                                                                    CornerRadius="4"
+                                                                    Padding="6,4"
+                                                                    Margin="0,0,10,0"
+                                                                    VerticalAlignment="Top">
+                                                                <TextBlock Text="{Binding WorkflowBadge}"
+                                                                          FontWeight="Bold"
+                                                                          FontSize="10"
+                                                                          Foreground="White"/>
+                                                            </Border>
+
+                                                            <!-- Item Info -->
+                                                            <StackPanel Grid.Column="1">
+                                                                <TextBlock Text="{Binding DisplayPrompt}"
+                                                                          FontWeight="SemiBold"
+                                                                          FontSize="12"
+                                                                          TextTrimming="CharacterEllipsis"
+                                                                          MaxWidth="300"/>
+
+                                                                <StackPanel Orientation="Horizontal" Margin="0,4,0,0">
+                                                                    <TextBlock Text="{Binding StyleName}"
+                                                                              FontSize="10"
+                                                                              Foreground="#666"
+                                                                              Visibility="{Binding StyleNameVisibility}"/>
+
+                                                                    <TextBlock Text="{Binding AspectRatioDisplay}"
+                                                                              FontSize="10"
+                                                                              Foreground="#666"
+                                                                              Margin="5,0,0,0"/>
+                                                                </StackPanel>
+
+                                                                <!-- Output Image Thumbnail -->
+                                                                <Image Source="{Binding OutputImageThumbnail}"
+                                                                       Stretch="Uniform"
+                                                                       Height="50"
+                                                                       Margin="0,8,0,0"
+                                                                       HorizontalAlignment="Left"
+                                                                       Visibility="{Binding HasOutputImage, Converter={StaticResource BooleanToVisibilityConverter}}"/>
+                                                            </StackPanel>
+
+                                                            <!-- Status -->
+                                                            <StackPanel Grid.Column="2"
+                                                                       Orientation="Horizontal"
+                                                                       VerticalAlignment="Center"
+                                                                       Margin="10,0">
+                                                                <TextBlock Text="{Binding StatusDisplay}"
+                                                                          FontSize="11"
+                                                                          FontWeight="Bold"
+                                                                          Foreground="{Binding StatusColor}"/>
+
+                                                                <ProgressBar Value="{Binding Progress}"
+                                                                           Width="50"
+                                                                           Height="12"
+                                                                           Margin="5,0">
+                                                                    <ProgressBar.Style>
+                                                                        <Style TargetType="ProgressBar">
+                                                                            <Setter Property="Visibility" Value="Collapsed"/>
+                                                                            <Style.Triggers>
+                                                                                <DataTrigger Binding="{Binding Status}" Value="Processing">
+                                                                                    <Setter Property="Visibility" Value="Visible"/>
+                                                                                </DataTrigger>
+                                                                            </Style.Triggers>
+                                                                        </Style>
+                                                                    </ProgressBar.Style>
+                                                                </ProgressBar>
+                                                            </StackPanel>
+
+                                                            <!-- Remove Button -->
+                                                            <Button Grid.Column="3"
+                                                                   Content="❌"
+                                                                   Command="{Binding DataContext.Analyzer.RemoveFromQueueCommand, RelativeSource={RelativeSource AncestorType=Window}}"
+                                                                   CommandParameter="{Binding}"
+                                                                   Background="Transparent"
+                                                                   BorderThickness="0"
+                                                                   Padding="5"
+                                                                   ToolTip="Remove from queue"
+                                                                   FontSize="12"
+                                                                   Cursor="Hand">
+                                                                <Button.Style>
+                                                                    <Style TargetType="Button">
+                                                                        <Setter Property="Visibility" Value="Visible"/>
+                                                                        <Style.Triggers>
+                                                                            <DataTrigger Binding="{Binding Status}" Value="Processing">
+                                                                                <Setter Property="Visibility" Value="Collapsed"/>
+                                                                            </DataTrigger>
+                                                                        </Style.Triggers>
+                                                                    </Style>
+                                                                </Button.Style>
+                                                            </Button>
+                                                        </Grid>
+                                                    </Border>
+                                                </DataTemplate>
+                                            </ItemsControl.ItemTemplate>
+                                        </ItemsControl>
+                                    </ScrollViewer>
+                                </StackPanel>
+                            </Border>
+
+                            <!-- Queue Control Buttons - Text Prompt Mode -->
+                            <Border Style="{StaticResource SectionPanelStyle}" Visibility="{Binding Analyzer.IsTextPromptMode, Converter={StaticResource BooleanToVisibilityConverter}}">
+                                <StackPanel>
+                                    <TextBlock Text="Queue Controls" Style="{StaticResource HeaderTextStyle}" Foreground="#10B981"/>
+
+                                    <Grid>
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="*"/>
+                                            <ColumnDefinition Width="*"/>
+                                        </Grid.ColumnDefinitions>
+
+                                        <Button Grid.Column="0"
+                                               Content="Clear Queue"
+                                               Command="{Binding ClearQueueCommand}"
+                                               Margin="0,0,5,0"
+                                               Height="38">
+                                            <Button.Style>
+                                                <Style TargetType="Button" BasedOn="{StaticResource SecondaryButtonStyle}">
+                                                    <Setter Property="Background" Value="#DC3545"/>
+                                                    <Style.Triggers>
+                                                        <Trigger Property="IsMouseOver" Value="True">
+                                                            <Setter Property="Background" Value="#E55563"/>
+                                                        </Trigger>
+                                                    </Style.Triggers>
+                                                </Style>
+                                            </Button.Style>
+                                        </Button>
+
+                                        <Button Grid.Column="1"
+                                               Content="Open Folder"
+                                               Command="{Binding OpenResultFolderCommand}"
+                                               IsEnabled="{Binding HasResultImage}"
+                                               Margin="5,0,0,0"
+                                               Height="38"
+                                               Style="{StaticResource SecondaryButtonStyle}"/>
+                                    </Grid>
+                                </StackPanel>
+                            </Border>
+
+                            <!-- Queue Control Buttons - Image Analysis Mode -->
+                            <Border Style="{StaticResource SectionPanelStyle}" Visibility="{Binding Analyzer.IsImageAnalysisMode, Converter={StaticResource BooleanToVisibilityConverter}}">
+                                <StackPanel>
+                                    <TextBlock Text="Queue Controls" Style="{StaticResource HeaderTextStyle}" Foreground="#10B981"/>
+
+                                    <Grid>
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="*"/>
+                                            <ColumnDefinition Width="*"/>
+                                        </Grid.ColumnDefinitions>
+
+                                        <Button Grid.Column="0"
+                                               Content="Clear Queue"
+                                               Command="{Binding Analyzer.ClearQueueCommand}"
+                                               Margin="0,0,5,0"
+                                               Height="38">
+                                            <Button.Style>
+                                                <Style TargetType="Button" BasedOn="{StaticResource SecondaryButtonStyle}">
+                                                    <Setter Property="Background" Value="#DC3545"/>
+                                                    <Style.Triggers>
+                                                        <Trigger Property="IsMouseOver" Value="True">
+                                                            <Setter Property="Background" Value="#E55563"/>
+                                                        </Trigger>
+                                                    </Style.Triggers>
+                                                </Style>
+                                            </Button.Style>
+                                        </Button>
+
+                                        <Button Grid.Column="1"
+                                               Content="Open Folder"
+                                               Command="{Binding Analyzer.OpenResultFolderCommand}"
+                                               IsEnabled="{Binding Analyzer.HasResultImage}"
+                                               Margin="5,0,0,0"
+                                               Height="38"
+                                               Style="{StaticResource SecondaryButtonStyle}"/>
+                                    </Grid>
+                                </StackPanel>
+                            </Border>
+
+                            <!-- Result Preview - Text Prompt Mode -->
+                            <Border Style="{StaticResource SectionPanelStyle}" Visibility="{Binding Analyzer.IsTextPromptMode, Converter={StaticResource BooleanToVisibilityConverter}}">
+                                <StackPanel>
+                                    <TextBlock Text="Latest Result" Style="{StaticResource HeaderTextStyle}" Foreground="#10B981"/>
 
                                     <Border BorderBrush="#DEE2E6" BorderThickness="2"
-                                            Background="White" Height="280"
+                                            Background="White" Height="200"
                                             CornerRadius="5" Margin="0,0,0,8">
                                         <Grid>
-                                            <TextBlock Text="Generated image will appear here"
+                                            <TextBlock Text="Result will appear here"
+                                                      HorizontalAlignment="Center"
+                                                      VerticalAlignment="Center"
+                                                      Foreground="#999"
+                                                      FontStyle="Italic"
+                                                      FontSize="13">
+                                                <TextBlock.Style>
+                                                    <Style TargetType="TextBlock">
+                                                        <Setter Property="Visibility" Value="Collapsed"/>
+                                                        <Style.Triggers>
+                                                            <DataTrigger Binding="{Binding HasResultImage}" Value="False">
+                                                                <Setter Property="Visibility" Value="Visible"/>
+                                                            </DataTrigger>
+                                                        </Style.Triggers>
+                                                    </Style>
+                                                </TextBlock.Style>
+                                            </TextBlock>
+
+                                            <Image Source="{Binding ResultImageSource}"
+                                                   Stretch="Uniform"
+                                                   Margin="5"
+                                                   Visibility="{Binding HasResultImage, Converter={StaticResource BooleanToVisibilityConverter}}"/>
+                                        </Grid>
+                                    </Border>
+
+                                    <Grid>
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="*"/>
+                                            <ColumnDefinition Width="*"/>
+                                        </Grid.ColumnDefinitions>
+
+                                        <Button Grid.Column="0"
+                                               Content="🎥 Camera Edit"
+                                               Style="{StaticResource SecondaryButtonStyle}"
+                                               Command="{Binding SendToCameraEditCommand}"
+                                               IsEnabled="{Binding HasResultImage}"
+                                               Margin="0,0,5,0"/>
+
+                                        <Button Grid.Column="1"
+                                               Content="🎬 Video Generator"
+                                               Style="{StaticResource SecondaryButtonStyle}"
+                                               Command="{Binding SendToVideoGeneratorCommand}"
+                                               IsEnabled="{Binding HasResultImage}"
+                                               Margin="5,0,0,0"/>
+                                    </Grid>
+
+                                    <TextBlock Text="{Binding ImageInfo}"
+                                              FontStyle="Italic"
+                                              Foreground="#666"
+                                              FontSize="10"
+                                              Margin="0,8,0,0"
+                                              TextAlignment="Center"/>
+                                </StackPanel>
+                            </Border>
+
+                            <!-- Result Preview - Image Analysis Mode -->
+                            <Border Style="{StaticResource SectionPanelStyle}" Visibility="{Binding Analyzer.IsImageAnalysisMode, Converter={StaticResource BooleanToVisibilityConverter}}">
+                                <StackPanel>
+                                    <TextBlock Text="Latest Result" Style="{StaticResource HeaderTextStyle}" Foreground="#10B981"/>
+
+                                    <Border BorderBrush="#DEE2E6" BorderThickness="2"
+                                            Background="White" Height="200"
+                                            CornerRadius="5" Margin="0,0,0,8">
+                                        <Grid>
+                                            <TextBlock Text="Result will appear here"
                                                       HorizontalAlignment="Center"
                                                       VerticalAlignment="Center"
                                                       Foreground="#999"
@@ -1015,14 +1554,6 @@
                                         </Grid>
                                     </Border>
 
-                                    <Button Content="Open Output Folder"
-                                           Style="{StaticResource SecondaryButtonStyle}"
-                                           Command="{Binding Analyzer.OpenResultFolderCommand}"
-                                           IsEnabled="{Binding Analyzer.HasResultImage}"
-                                           HorizontalAlignment="Stretch"
-                                           Height="34"
-                                           Padding="12,6"/>
-
                                     <TextBlock Text="{Binding Analyzer.ImageInfo}"
                                               FontStyle="Italic"
                                               Foreground="#666"
@@ -1031,7 +1562,9 @@
                                               TextAlignment="Center"/>
                                 </StackPanel>
                             </Border>
+
                         </StackPanel>
+
                     </Grid>
                 </ScrollViewer>
             </TabItem>

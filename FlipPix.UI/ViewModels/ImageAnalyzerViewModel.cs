@@ -75,6 +75,9 @@ namespace FlipPix.UI.ViewModels
         private string _selectedLora = string.Empty;
         private bool _loraEnabled = false;
 
+        // Input mode
+        private bool _isImageAnalysisMode = false;
+
         // Queue system
         private ObservableCollection<ImageAnalyzerQueueItem> _queueItems = new();
         private bool _isProcessingQueue = false;
@@ -85,6 +88,7 @@ namespace FlipPix.UI.ViewModels
         private readonly ManualResetEventSlim _pauseEvent = new(true);
 
         public event PropertyChangedEventHandler? PropertyChanged;
+        public event Action? QueueItemAdded;
 
         public ImageAnalyzerViewModel(ComfyUIService comfyUIService, LMStudioService lmStudioService, IAppLogger logger, FlipPix.Core.Services.SettingsService settingsService, WorkflowQueueCoordinator workflowCoordinator)
         {
@@ -104,6 +108,11 @@ namespace FlipPix.UI.ViewModels
             RefreshLorasCommand = new RelayCommand(RefreshLoras, () => !IsAnalyzing && !IsGenerating);
             PauseQueueCommand = new RelayCommand(PauseQueue, () => IsProcessingQueue && !IsQueuePaused);
             ResumeQueueCommand = new RelayCommand(ResumeQueue, () => IsProcessingQueue && IsQueuePaused);
+            AddToQueueCommand = new RelayCommand(AddToQueue, () => !IsAnalyzing && !IsGenerating && !string.IsNullOrWhiteSpace(AnalysisText));
+            AddToQueueAndStartCommand = new RelayCommand(async () => await AddToQueueAndStart(), () => !IsAnalyzing && !IsGenerating && !string.IsNullOrWhiteSpace(AnalysisText));
+            RemoveFromQueueCommand = new RelayCommand<ImageAnalyzerQueueItem>(RemoveFromQueue);
+            ClearQueueCommand = new RelayCommand(ClearQueue, () => !IsProcessingQueue);
+            CancelProcessingCommand = new RelayCommand(CancelProcessing, () => IsProcessingQueue);
 
             // Load ComfyUI settings
             if (_settingsService.Settings != null)
@@ -450,6 +459,19 @@ namespace FlipPix.UI.ViewModels
 
         public bool ShowStyleOptions => SelectedWorkflow == TextGeneratorWorkflow.Zimage;
 
+        public int SelectedWorkflowIndex
+        {
+            get => (int)SelectedWorkflow;
+            set
+            {
+                if (SelectedWorkflow != (TextGeneratorWorkflow)value)
+                {
+                    SelectedWorkflow = (TextGeneratorWorkflow)value;
+                    OnPropertyChanged();
+                }
+            }
+        }
+
         public int SelectedStyleIndex
         {
             get => _selectedStyleIndex;
@@ -494,6 +516,22 @@ namespace FlipPix.UI.ViewModels
                 OnPropertyChanged();
             }
         }
+
+        public bool IsImageAnalysisMode
+        {
+            get => _isImageAnalysisMode;
+            set
+            {
+                if (_isImageAnalysisMode != value)
+                {
+                    _isImageAnalysisMode = value;
+                    OnPropertyChanged();
+                    OnPropertyChanged(nameof(IsTextPromptMode));
+                }
+            }
+        }
+
+        public bool IsTextPromptMode => !IsImageAnalysisMode;
 
         public string NegativePrompt
         {
@@ -615,6 +653,11 @@ namespace FlipPix.UI.ViewModels
         public ICommand TestLMStudioConnectionCommand { get; }
         public ICommand RefreshModelsCommand { get; }
         public ICommand RefreshLorasCommand { get; }
+        public ICommand AddToQueueCommand { get; }
+        public ICommand AddToQueueAndStartCommand { get; }
+        public ICommand RemoveFromQueueCommand { get; }
+        public ICommand ClearQueueCommand { get; }
+        public ICommand CancelProcessingCommand { get; }
 
         // Methods
         private async void InitializeLMStudio()
@@ -1152,7 +1195,7 @@ namespace FlipPix.UI.ViewModels
             if (!HasSourceImage) return;
 
             _cancellationTokenSource?.Dispose();
-            _cancellationTokenSource = new System.Threading.CancellationTokenSource();
+            _cancellationTokenSource = System.Threading.CancellationTokenSource.CreateLinkedTokenSource(App.ShutdownToken);
 
             try
             {
@@ -1317,7 +1360,11 @@ namespace FlipPix.UI.ViewModels
 
             QueueItems.Add(queueItem);
             SaveQueueToFile();
+            OnPropertyChanged(nameof(QueuedCount));
+            OnPropertyChanged(nameof(CompletedCount));
+            OnPropertyChanged(nameof(FailedCount));
             _logger.LogInfo($"Added item to queue: {queueItem.StyleName} - {queueItem.DisplayPrompt}");
+            QueueItemAdded?.Invoke();
 
             // Start processing if not already processing
             if (!IsProcessingQueue)
@@ -1333,13 +1380,14 @@ namespace FlipPix.UI.ViewModels
             if (IsProcessingQueue) return;
 
             _cancellationTokenSource?.Dispose();
-            _cancellationTokenSource = new System.Threading.CancellationTokenSource();
+            _cancellationTokenSource = System.Threading.CancellationTokenSource.CreateLinkedTokenSource(App.ShutdownToken);
 
             _logger.LogInfo("Waiting for other workflows to finish...");
 
+            WorkflowQueueCoordinator.WorkflowLease lease;
             try
             {
-                await _workflowCoordinator.AcquireAsync("ImageAnalyzer", _cancellationTokenSource.Token);
+                lease = await _workflowCoordinator.AcquireAsync("ImageAnalyzer", _cancellationTokenSource.Token);
             }
             catch (OperationCanceledException)
             {
@@ -1347,6 +1395,7 @@ namespace FlipPix.UI.ViewModels
                 return;
             }
 
+            using (lease)
             try
             {
                 IsProcessingQueue = true;
@@ -1414,7 +1463,6 @@ namespace FlipPix.UI.ViewModels
             }
             finally
             {
-                _workflowCoordinator.Release();
                 IsProcessingQueue = false;
                 IsQueuePaused = false;
                 _pauseEvent.Set();
@@ -1670,6 +1718,25 @@ namespace FlipPix.UI.ViewModels
                     _logger.LogInfo($"Output saved: {outputPath}");
 
                     item.OutputImagePath = outputPath;
+
+                    // Load thumbnail for queue item
+                    System.Windows.Application.Current.Dispatcher.Invoke(() =>
+                    {
+                        try
+                        {
+                            var bitmap = new BitmapImage();
+                            bitmap.BeginInit();
+                            bitmap.CacheOption = BitmapCacheOption.OnLoad;
+                            bitmap.UriSource = new Uri(outputPath, UriKind.Absolute);
+                            bitmap.EndInit();
+                            bitmap.Freeze();
+                            item.OutputImageThumbnail = bitmap;
+                        }
+                        catch (Exception ex)
+                        {
+                            _logger.LogError($"Error loading thumbnail for queue item: {ex.Message}");
+                        }
+                    });
 
                     // Only update the main result preview if this is the most recent item
                     if (item == CurrentQueueItem)
@@ -3249,6 +3316,9 @@ namespace FlipPix.UI.ViewModels
                         }
                         _queueItems.Add(item);
                     }
+                    OnPropertyChanged(nameof(QueuedCount));
+                    OnPropertyChanged(nameof(CompletedCount));
+                    OnPropertyChanged(nameof(FailedCount));
                     _logger.LogInfo($"Queue loaded from file: {_queueItems.Count} items");
                 }
             }
@@ -3256,6 +3326,98 @@ namespace FlipPix.UI.ViewModels
             {
                 _logger.LogError($"Error loading queue from file: {ex.Message}");
             }
+        }
+
+        private void AddToQueue()
+        {
+            // Create a new queue item from current settings
+            var queueItem = new ImageAnalyzerQueueItem
+            {
+                SourceImagePath = SourceImagePath,
+                Prompt = AnalysisText,
+                SelectedWorkflow = SelectedWorkflow,
+                SelectedStyleIndex = SelectedStyleIndex,
+                StyleName = SelectedStyle?.Name ?? "Unknown",
+                AspectRatioIndex = AspectRatioIndex,
+                Steps = Steps,
+                Cfg = Cfg,
+                Seed = Seed,
+                Denoise = Denoise,
+                LoraEnabled = LoraEnabled,
+                SelectedLora = SelectedLora,
+                NegativePrompt = NegativePrompt,
+                Width = _width,
+                Height = _height,
+                Status = "Queued"
+            };
+
+            QueueItems.Add(queueItem);
+            SaveQueueToFile();
+            OnPropertyChanged(nameof(QueuedCount));
+            OnPropertyChanged(nameof(CompletedCount));
+            OnPropertyChanged(nameof(FailedCount));
+            _logger.LogInfo($"Added item to queue: {queueItem.StyleName} - {queueItem.DisplayPrompt}");
+            QueueItemAdded?.Invoke();
+        }
+
+        private async Task AddToQueueAndStart()
+        {
+            AddToQueue();
+
+            // Start processing if not already processing
+            if (!IsProcessingQueue)
+            {
+                await Task.Run(() => ProcessQueueAsync());
+            }
+        }
+
+        private void RemoveFromQueue(ImageAnalyzerQueueItem? item)
+        {
+            if (item == null) return;
+
+            // Only allow removal if not currently processing
+            if (item.Status == "Processing")
+            {
+                _logger.LogWarning("Cannot remove item that is currently processing");
+                return;
+            }
+
+            QueueItems.Remove(item);
+            SaveQueueToFile();
+            OnPropertyChanged(nameof(QueuedCount));
+            OnPropertyChanged(nameof(CompletedCount));
+            OnPropertyChanged(nameof(FailedCount));
+            _logger.LogInfo($"Removed item from queue: {item.StyleName} - {item.DisplayPrompt}");
+        }
+
+        private void ClearQueue()
+        {
+            var result = System.Windows.MessageBox.Show(
+                "Are you sure you want to clear the queue? This will remove all non-processing items.",
+                "Clear Queue",
+                System.Windows.MessageBoxButton.YesNo,
+                System.Windows.MessageBoxImage.Question);
+
+            if (result == System.Windows.MessageBoxResult.Yes)
+            {
+                var itemsToRemove = QueueItems.Where(item => item.Status != "Processing").ToList();
+                foreach (var item in itemsToRemove)
+                {
+                    QueueItems.Remove(item);
+                }
+                SaveQueueToFile();
+                OnPropertyChanged(nameof(QueuedCount));
+                OnPropertyChanged(nameof(CompletedCount));
+                OnPropertyChanged(nameof(FailedCount));
+                _logger.LogInfo($"Queue cleared: {itemsToRemove.Count} items removed");
+            }
+        }
+
+        private void CancelProcessing()
+        {
+            _cancellationTokenSource?.Cancel();
+            _logger.LogInfo("Queue processing cancelled by user");
+            StatusBarMessage = "Cancelling queue processing...";
         }
 
         protected void OnPropertyChanged([CallerMemberName] string? propertyName = null)

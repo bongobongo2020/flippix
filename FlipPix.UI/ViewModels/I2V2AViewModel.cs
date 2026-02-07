@@ -360,7 +360,7 @@ namespace FlipPix.UI.ViewModels
                 LogOutput = string.Empty;
                 StatusBarMessage = "Starting video generation...";
 
-                _cancellationTokenSource = new System.Threading.CancellationTokenSource();
+                _cancellationTokenSource = System.Threading.CancellationTokenSource.CreateLinkedTokenSource(App.ShutdownToken);
 
                 LogMessage("Starting I2V2A generation process");
                 LogMessage($"Input image: {InputImagePath}");

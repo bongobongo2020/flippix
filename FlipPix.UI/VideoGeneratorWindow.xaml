@@ -767,7 +767,7 @@
                             Margin="0,8,0,0">
                         <ScrollViewer MaxHeight="150"
                                      VerticalScrollBarVisibility="Auto">
-                            <TextBox Text="{Binding LogOutput}"
+                            <TextBox Text="{Binding LogOutput, Mode=OneWay}"
                                     TextWrapping="Wrap"
                                     IsReadOnly="True"
                                     FontFamily="Consolas"
@@ -1202,7 +1202,7 @@
                                             Margin="0,8,0,0">
                                         <ScrollViewer MaxHeight="150"
                                                      VerticalScrollBarVisibility="Auto">
-                                            <TextBox Text="{Binding LogOutput}"
+                                            <TextBox Text="{Binding LogOutput, Mode=OneWay}"
                                                     TextWrapping="Wrap"
                                                     IsReadOnly="True"
                                                     FontFamily="Consolas"
@@ -1521,7 +1521,7 @@
                                             Margin="0,8,0,0">
                                         <ScrollViewer MaxHeight="150"
                                                      VerticalScrollBarVisibility="Auto">
-                                            <TextBox Text="{Binding LogOutput}"
+                                            <TextBox Text="{Binding LogOutput, Mode=OneWay}"
                                                     TextWrapping="Wrap"
                                                     IsReadOnly="True"
                                                     FontFamily="Consolas"
@@ -1733,7 +1733,7 @@
                                                               Margin="0,0,0,5"
                                                               TextAlignment="Center"
                                                               TextWrapping="Wrap"/>
-                                                    <ProgressBar Value="{Binding LTX2AudioProcessingProgress}"
+                                                    <ProgressBar Value="{Binding LTX2AudioProcessingProgress, Mode=OneWay}"
                                                                 Height="16"
                                                                 Foreground="#FF6B35"
                                                                 Margin="0,0,0,5"/>
@@ -1830,7 +1830,7 @@
                                             Margin="0,8,0,0">
                                         <ScrollViewer MaxHeight="150"
                                                      VerticalScrollBarVisibility="Auto">
-                                            <TextBox Text="{Binding LTX2AudioLogOutput}"
+                                            <TextBox Text="{Binding LTX2AudioLogOutput, Mode=OneWay}"
                                                     TextWrapping="Wrap"
                                                     IsReadOnly="True"
                                                     FontFamily="Consolas"
@@ -2004,7 +2004,7 @@
                                                 Command="{Binding GenerateMochaVideoCommand}"
                                                 IsEnabled="{Binding CanGenerateMochaVideo, Mode=OneWay}"/>
 
-                                        <ProgressBar Value="{Binding MochaProcessingProgress}"
+                                        <ProgressBar Value="{Binding MochaProcessingProgress, Mode=OneWay}"
                                                      Maximum="100"
                                                      Height="25"
                                                      Margin="0,15,0,0"
@@ -2079,7 +2079,7 @@
                                             Margin="0,8,0,0">
                                         <ScrollViewer MaxHeight="150"
                                                      VerticalScrollBarVisibility="Auto">
-                                            <TextBox Text="{Binding MochaLogOutput}"
+                                            <TextBox Text="{Binding MochaLogOutput, Mode=OneWay}"
                                                     TextWrapping="Wrap"
                                                     IsReadOnly="True"
                                                     FontFamily="Consolas"

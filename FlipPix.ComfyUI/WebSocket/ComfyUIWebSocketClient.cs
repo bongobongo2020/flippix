@@ -78,23 +78,34 @@ public class ComfyUIWebSocketClient : IDisposable
     private async Task ListenForMessagesAsync(CancellationToken cancellationToken)
     {
         var buffer = new byte[4096];
-        
+
         try
         {
             while (_webSocket?.State == WebSocketState.Open && !cancellationToken.IsCancellationRequested)
             {
-                var result = await _webSocket.ReceiveAsync(new ArraySegment<byte>(buffer), cancellationToken);
-                
+                using var ms = new MemoryStream();
+                WebSocketReceiveResult result;
+
+                do
+                {
+                    result = await _webSocket.ReceiveAsync(
+                        new ArraySegment<byte>(buffer), cancellationToken);
+
+                    if (result.MessageType == WebSocketMessageType.Close)
+                    {
+                        _logger.LogInfo("WebSocket closed by server");
+                        ConnectionStatusChanged?.Invoke(this, "Closed");
+                        return;
+                    }
+
+                    ms.Write(buffer, 0, result.Count);
+                }
+                while (!result.EndOfMessage);
+
                 if (result.MessageType == WebSocketMessageType.Text)
                 {
-                    var message = Encoding.UTF8.GetString(buffer, 0, result.Count);
+                    var message = Encoding.UTF8.GetString(ms.GetBuffer(), 0, (int)ms.Length);
                     ProcessMessage(message);
-                }
-                else if (result.MessageType == WebSocketMessageType.Close)
-                {
-                    _logger.LogInfo("WebSocket closed by server");
-                    ConnectionStatusChanged?.Invoke(this, "Closed");
-                    break;
                 }
             }
         }

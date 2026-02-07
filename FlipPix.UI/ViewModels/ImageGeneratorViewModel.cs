@@ -35,7 +35,7 @@ namespace FlipPix.UI.ViewModels
         private readonly IServiceProvider? _serviceProvider;
         private readonly WorkflowQueueCoordinator _workflowCoordinator;
 
-        private string _imagePrompt = "Latina female with thick wavy hair, harbor boats and pastel houses behind. Breezy seaside light, warm tones, cinematic close-up.";
+        private string _imagePrompt = string.Empty;
         private int _aspectRatioIndex = 0;
         private int _steps = 9;
         private double _cfg = 1.5;
@@ -83,6 +83,9 @@ namespace FlipPix.UI.ViewModels
             _settingsService = settingsService ?? throw new ArgumentNullException(nameof(settingsService));
             _serviceProvider = serviceProvider;
             _workflowCoordinator = serviceProvider?.GetRequiredService<WorkflowQueueCoordinator>() ?? throw new InvalidOperationException("WorkflowQueueCoordinator is required");
+
+            // Load default prompt from settings
+            _imagePrompt = settingsService.Settings.DefaultImagePrompt;
 
             // Initialize nested ViewModels
             var lmStudioService = serviceProvider?.GetRequiredService<LMStudioService>();
@@ -460,7 +463,7 @@ namespace FlipPix.UI.ViewModels
             if (!CanGenerate) return;
 
             _cancellationTokenSource?.Dispose();
-            _cancellationTokenSource = new System.Threading.CancellationTokenSource();
+            _cancellationTokenSource = System.Threading.CancellationTokenSource.CreateLinkedTokenSource(App.ShutdownToken);
 
             try
             {
@@ -2258,9 +2261,10 @@ namespace FlipPix.UI.ViewModels
             IsProcessingQueue = true;
             AddLog("Waiting for other workflows to finish...");
 
+            WorkflowQueueCoordinator.WorkflowLease lease;
             try
             {
-                await _workflowCoordinator.AcquireAsync("ImageGenerator", _cancellationTokenSource?.Token ?? CancellationToken.None);
+                lease = await _workflowCoordinator.AcquireAsync("ImageGenerator", _cancellationTokenSource?.Token ?? CancellationToken.None);
             }
             catch (OperationCanceledException)
             {
@@ -2271,6 +2275,7 @@ namespace FlipPix.UI.ViewModels
 
             AddLog("=== Starting queue processing ===");
 
+            using (lease)
             try
             {
                 var pendingItems = PromptQueue.Where(q => q.Status == "Pending").ToList();
@@ -2336,7 +2341,6 @@ namespace FlipPix.UI.ViewModels
             }
             finally
             {
-                _workflowCoordinator.Release();
                 IsProcessingQueue = false;
                 IsQueuePaused = false;
                 _pauseEvent.Set();
@@ -2346,7 +2350,7 @@ namespace FlipPix.UI.ViewModels
         private async Task ProcessQueueItemAsync(ImagePromptQueueItem queueItem)
         {
             _cancellationTokenSource?.Dispose();
-            _cancellationTokenSource = new System.Threading.CancellationTokenSource();
+            _cancellationTokenSource = System.Threading.CancellationTokenSource.CreateLinkedTokenSource(App.ShutdownToken);
 
             try
             {
