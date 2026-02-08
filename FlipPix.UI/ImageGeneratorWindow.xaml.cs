@@ -103,5 +103,23 @@ namespace FlipPix.UI
                     System.Windows.MessageBoxButton.OK, System.Windows.MessageBoxImage.Error);
             }
         }
+
+        protected override void OnClosed(EventArgs e)
+        {
+            // Unsubscribe from event
+            if (_viewModel?.Analyzer != null)
+            {
+                _viewModel.Analyzer.QueueItemAdded -= OnAnalyzerQueueItemAdded;
+            }
+
+            // Dispose the ViewModel if it implements IDisposable
+            if (_viewModel is IDisposable disposable)
+            {
+                disposable.Dispose();
+            }
+
+            DataContext = null;
+            base.OnClosed(e);
+        }
     }
 }

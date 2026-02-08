@@ -1,21 +1,20 @@
 using System;
 using System.Collections.Generic;
 using System.Collections.ObjectModel;
-using System.ComponentModel;
 using System.Diagnostics;
 using System.IO;
 using System.Linq;
-using System.Runtime.CompilerServices;
 using System.Text.Json;
 using System.Threading;
 using System.Threading.Tasks;
 using System.Windows.Input;
 using System.Windows.Media.Imaging;
+using CommunityToolkit.Mvvm.ComponentModel;
+using CommunityToolkit.Mvvm.Input;
 using FlipPix.ComfyUI.Services;
 using FlipPix.Core.Interfaces;
 using FlipPix.UI.Services;
 using FlipPix.UI.Models;
-using Microsoft.Win32;
 using YamlDotNet.Serialization;
 using ComfyUIService = FlipPix.ComfyUI.Services.ComfyUIService;
 
@@ -29,13 +28,15 @@ namespace FlipPix.UI.ViewModels
         public string NodeId { get; set; } = string.Empty;
     }
 
-    public class ImageAnalyzerViewModel : INotifyPropertyChanged
+    public partial class ImageAnalyzerViewModel : ObservableObject, IDisposable
     {
         private readonly ComfyUIService _comfyUIService;
         private readonly LMStudioService _lmStudioService;
         private readonly IAppLogger _logger;
         private readonly FlipPix.Core.Services.SettingsService _settingsService;
         private readonly WorkflowQueueCoordinator _workflowCoordinator;
+        private readonly IFileDialogService _fileDialogService;
+        private bool _disposed = false;
 
         private string _sourceImagePath = string.Empty;
         private BitmapImage? _sourceImageSource;
@@ -87,16 +88,16 @@ namespace FlipPix.UI.ViewModels
         private bool _isQueuePaused = false;
         private readonly ManualResetEventSlim _pauseEvent = new(true);
 
-        public event PropertyChangedEventHandler? PropertyChanged;
         public event Action? QueueItemAdded;
 
-        public ImageAnalyzerViewModel(ComfyUIService comfyUIService, LMStudioService lmStudioService, IAppLogger logger, FlipPix.Core.Services.SettingsService settingsService, WorkflowQueueCoordinator workflowCoordinator)
+        public ImageAnalyzerViewModel(ComfyUIService comfyUIService, LMStudioService lmStudioService, IAppLogger logger, FlipPix.Core.Services.SettingsService settingsService, WorkflowQueueCoordinator workflowCoordinator, IFileDialogService fileDialogService)
         {
             _workflowCoordinator = workflowCoordinator ?? throw new ArgumentNullException(nameof(workflowCoordinator));
             _comfyUIService = comfyUIService ?? throw new ArgumentNullException(nameof(comfyUIService));
             _lmStudioService = lmStudioService ?? throw new ArgumentNullException(nameof(lmStudioService));
             _logger = logger ?? throw new ArgumentNullException(nameof(logger));
             _settingsService = settingsService ?? throw new ArgumentNullException(nameof(settingsService));
+            _fileDialogService = fileDialogService ?? throw new ArgumentNullException(nameof(fileDialogService));
 
             // Initialize commands
             BrowseImageCommand = new RelayCommand(BrowseImage, () => !IsAnalyzing && !IsGenerating);
@@ -1153,21 +1154,19 @@ namespace FlipPix.UI.ViewModels
             }
         }
 
-        private void BrowseImage()
+        private async void BrowseImage()
         {
-            var openFileDialog = new Microsoft.Win32.OpenFileDialog
-            {
-                Filter = "Image Files|*.png;*.jpg;*.jpeg;*.bmp;*.gif;*.webp|All Files|*.*",
-                Title = "Select an Image to Analyze"
-            };
+            var filePath = await _fileDialogService.OpenFileDialogAsync(
+                "Select an Image to Analyze",
+                "Image Files|*.png;*.jpg;*.jpeg;*.bmp;*.gif;*.webp|All Files|*.*");
 
-            if (openFileDialog.ShowDialog() == true)
+            if (filePath != null)
             {
-                SourceImagePath = openFileDialog.FileName;
-                LoadSourceImagePreview(openFileDialog.FileName);
+                SourceImagePath = filePath;
+                LoadSourceImagePreview(filePath);
                 HasSourceImage = true;
-                StatusBarMessage = $"Loaded: {Path.GetFileName(openFileDialog.FileName)}";
-                _logger.LogInfo($"Image selected: {openFileDialog.FileName}");
+                StatusBarMessage = $"Loaded: {Path.GetFileName(filePath)}";
+                _logger.LogInfo($"Image selected: {filePath}");
             }
         }
 
@@ -3550,11 +3549,6 @@ namespace FlipPix.UI.ViewModels
             StatusBarMessage = "Cancelling queue processing...";
         }
 
-        protected void OnPropertyChanged([CallerMemberName] string? propertyName = null)
-        {
-            PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(propertyName));
-        }
-
         private bool IsRemoteUrl(string url)
         {
             try
@@ -3574,6 +3568,41 @@ namespace FlipPix.UI.ViewModels
             catch
             {
                 return false;
+            }
+        }
+
+        public void Dispose()
+        {
+            Dispose(true);
+            GC.SuppressFinalize(this);
+        }
+
+        protected virtual void Dispose(bool disposing)
+        {
+            if (!_disposed && disposing)
+            {
+                _cancellationTokenSource?.Cancel();
+                _cancellationTokenSource?.Dispose();
+                _pauseEvent?.Dispose();
+
+                // Clear collections
+                _availableLoras?.Clear();
+                _queueItems?.Clear();
+                _allStyles?.Clear();
+
+                // Clear string properties
+                _sourceImagePath = string.Empty;
+                _analysisText = string.Empty;
+                _processingStatus = string.Empty;
+                _comfyUIServer = string.Empty;
+                _comfyUIPort = string.Empty;
+                _statusBarMessage = string.Empty;
+                _resultImagePath = string.Empty;
+                _imageInfo = string.Empty;
+                _negativePrompt = string.Empty;
+                _selectedLora = string.Empty;
+
+                _disposed = true;
             }
         }
     }

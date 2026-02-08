@@ -504,8 +504,8 @@
                                                  BorderBrush="#CED4DA"
                                                  FontSize="11"
                                                  Height="30">
-                                            <ComboBoxItem Content="Landscape"/>
                                             <ComboBoxItem Content="Portrait"/>
+                                            <ComboBoxItem Content="Landscape"/>
                                             <ComboBoxItem Content="Square"/>
                                         </ComboBox>
                                     </StackPanel>
@@ -628,8 +628,8 @@
                                                  BorderBrush="#CED4DA"
                                                  FontSize="11"
                                                  Height="30">
-                                            <ComboBoxItem Content="Landscape"/>
                                             <ComboBoxItem Content="Portrait"/>
+                                            <ComboBoxItem Content="Landscape"/>
                                             <ComboBoxItem Content="Square"/>
                                         </ComboBox>
                                     </StackPanel>

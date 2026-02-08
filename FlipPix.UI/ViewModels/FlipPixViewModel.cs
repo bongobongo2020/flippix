@@ -1,32 +1,31 @@
 using System;
 using System.Collections.Generic;
 using System.Collections.ObjectModel;
-using System.ComponentModel;
 using System.Diagnostics;
 using System.IO;
 using System.Linq;
-using System.Runtime.CompilerServices;
 using System.Text.Json;
 using System.Threading.Tasks;
 using System.Windows;
 using System.Windows.Forms;
 using System.Windows.Input;
 using System.Windows.Media.Imaging;
-using Microsoft.Win32;
+using CommunityToolkit.Mvvm.Input;
 using FlipPix.ComfyUI.Services;
 using FlipPix.Core.Interfaces;
-using FlipPix.UI.Commands;
 using FlipPix.UI.Services;
 using FlipPix.UI.Models;
 
 namespace FlipPix.UI.ViewModels
 {
-    public class FlipPixViewModel : BasePromptViewModel
+    public partial class FlipPixViewModel : BasePromptViewModel, IDisposable
     {
+        private bool _disposed = false;
         private readonly FlipPix.ComfyUI.Services.ComfyUIService _comfyUIService;
         private new readonly IAppLogger _logger;
         private readonly FlipPix.Core.Services.SettingsService _settingsService;
         private readonly IServiceProvider? _serviceProvider;
+        private readonly IFileDialogService _fileDialogService;
 
         private string _imageFilePath = string.Empty;
         private BitmapImage? _imagePreviewSource;
@@ -64,13 +63,14 @@ namespace FlipPix.UI.ViewModels
         private double _denoise = 1.0;
         private int _aspectRatioIndex = 0;
 
-        public FlipPixViewModel(FlipPix.ComfyUI.Services.ComfyUIService comfyUIService, IAppLogger logger, FlipPix.Core.Services.SettingsService settingsService, IServiceProvider? serviceProvider = null, IPromptService? promptService = null)
+        public FlipPixViewModel(FlipPix.ComfyUI.Services.ComfyUIService comfyUIService, IAppLogger logger, FlipPix.Core.Services.SettingsService settingsService, IServiceProvider? serviceProvider = null, IPromptService? promptService = null, IFileDialogService? fileDialogService = null)
             : base(promptService ?? new PromptService(logger), logger, "CameraEdit")
         {
             _comfyUIService = comfyUIService ?? throw new ArgumentNullException(nameof(comfyUIService));
             _logger = logger ?? throw new ArgumentNullException(nameof(logger));
             _settingsService = settingsService ?? throw new ArgumentNullException(nameof(settingsService));
             _serviceProvider = serviceProvider;
+            _fileDialogService = fileDialogService ?? throw new ArgumentNullException(nameof(fileDialogService));
 
             // Initialize commands
             SelectImageCommand = new RelayCommand(SelectImage);
@@ -596,17 +596,15 @@ namespace FlipPix.UI.ViewModels
             }
         }
 
-        private void SelectImage()
+        private async void SelectImage()
         {
-            var dialog = new Microsoft.Win32.OpenFileDialog
-            {
-                Filter = "Image Files (*.jpg;*.jpeg;*.png;*.bmp)|*.jpg;*.jpeg;*.png;*.bmp|All Files (*.*)|*.*",
-                Title = "Select Input Image"
-            };
+            var filePath = await _fileDialogService.OpenFileDialogAsync(
+                "Select Input Image",
+                "Image Files (*.jpg;*.jpeg;*.png;*.bmp)|*.jpg;*.jpeg;*.png;*.bmp|All Files (*.*)|*.*");
 
-            if (dialog.ShowDialog() == true)
+            if (filePath != null)
             {
-                ImageFilePath = dialog.FileName;
+                ImageFilePath = filePath;
                 AddLog($"Selected image: {Path.GetFileName(ImageFilePath)}");
             }
         }
@@ -1427,14 +1425,6 @@ namespace FlipPix.UI.ViewModels
                 return;
             }
 
-            // Ask for a name for the prompt
-            var dialog = new Microsoft.Win32.SaveFileDialog
-            {
-                Title = "Save Camera Prompt",
-                Filter = "Name|*.name",
-                FileName = "MyPrompt"
-            };
-
             // Use a simpler input dialog approach
             var promptName = Microsoft.VisualBasic.Interaction.InputBox(
                 "Enter a name for this camera prompt:",
@@ -1895,6 +1885,32 @@ namespace FlipPix.UI.ViewModels
             AddLog($"Removed from queue: {item.CameraControl}");
             StatusBarMessage = $"Item removed from queue ({QueuedCount} queued)";
             CommandManager.InvalidateRequerySuggested();
+        }
+
+        public void Dispose()
+        {
+            Dispose(true);
+            GC.SuppressFinalize(this);
+        }
+
+        protected virtual void Dispose(bool disposing)
+        {
+            if (!_disposed && disposing)
+            {
+                _cancellationTokenSource?.Cancel();
+                _cancellationTokenSource?.Dispose();
+
+                // Clear collections
+                QueueItems.Clear();
+                CameraControlOptions.Clear();
+
+                // Clear string properties
+                _statusBarMessage = string.Empty;
+                _logOutput = string.Empty;
+                _processingStatus = string.Empty;
+
+                _disposed = true;
+            }
         }
     }
 

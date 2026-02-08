@@ -170,6 +170,7 @@ namespace FlipPix.UI
             services.AddSingleton<VideoAnalysisService>();
             services.AddSingleton<ImageAnalysisService>();
             services.AddHttpClient<OllamaService>();
+            services.AddSingleton<IFileDialogService, FileDialogService>();
 
             // LMStudioService with dynamic URL from SettingsService
             services.AddSingleton<LMStudioService>(provider =>
@@ -218,7 +219,8 @@ namespace FlipPix.UI
                 var logger = provider.GetRequiredService<IAppLogger>();
                 var settingsService = provider.GetRequiredService<SettingsService>();
                 var promptService = provider.GetRequiredService<IPromptService>();
-                return new FlipPixViewModel(comfyUIService, logger, settingsService, provider, promptService);
+                var fileDialogService = provider.GetRequiredService<IFileDialogService>();
+                return new FlipPixViewModel(comfyUIService, logger, settingsService, provider, promptService, fileDialogService);
             });
             services.AddTransient<VideoGeneratorViewModel>(provider =>
             {
@@ -226,7 +228,8 @@ namespace FlipPix.UI
                 var lmStudioService = provider.GetRequiredService<LMStudioService>();
                 var logger = provider.GetRequiredService<IAppLogger>();
                 var settingsService = provider.GetRequiredService<SettingsService>();
-                return new VideoGeneratorViewModel(comfyUIService, lmStudioService, logger, settingsService, provider);
+                var fileDialogService = provider.GetRequiredService<IFileDialogService>();
+                return new VideoGeneratorViewModel(comfyUIService, lmStudioService, logger, settingsService, provider, fileDialogService);
             });
             services.AddTransient<ImageGeneratorViewModel>(provider =>
             {
@@ -243,14 +246,16 @@ namespace FlipPix.UI
                 var logger = provider.GetRequiredService<IAppLogger>();
                 var settingsService = provider.GetRequiredService<SettingsService>();
                 var workflowCoordinator = provider.GetRequiredService<WorkflowQueueCoordinator>();
-                return new ImageAnalyzerViewModel(comfyUIService, lmStudioService, logger, settingsService, workflowCoordinator);
+                var fileDialogService = provider.GetRequiredService<IFileDialogService>();
+                return new ImageAnalyzerViewModel(comfyUIService, lmStudioService, logger, settingsService, workflowCoordinator, fileDialogService);
             });
             services.AddTransient<StoryVideoViewModel>(provider =>
             {
                 var comfyUIService = provider.GetRequiredService<FlipPix.ComfyUI.Services.ComfyUIService>();
                 var logger = provider.GetRequiredService<IAppLogger>();
                 var settingsService = provider.GetRequiredService<SettingsService>();
-                return new StoryVideoViewModel(comfyUIService, logger, settingsService);
+                var fileDialogService = provider.GetRequiredService<IFileDialogService>();
+                return new StoryVideoViewModel(comfyUIService, logger, settingsService, fileDialogService);
             });
             services.AddTransient<OllamaViewModel>(provider =>
             {
@@ -258,7 +263,20 @@ namespace FlipPix.UI
                 var logger = provider.GetRequiredService<IAppLogger>();
                 return new OllamaViewModel(ollamaService, logger, provider);
             });
-            services.AddTransient<ComfyUIFolderSetupViewModel>();
+            services.AddTransient<ComfyUIFolderSetupViewModel>(provider =>
+            {
+                var settingsService = provider.GetRequiredService<SettingsService>();
+                var fileDialogService = provider.GetRequiredService<IFileDialogService>();
+                return new ComfyUIFolderSetupViewModel(settingsService, fileDialogService);
+            });
+            services.AddTransient<I2V2AViewModel>(provider =>
+            {
+                var comfyUIService = provider.GetRequiredService<FlipPix.ComfyUI.Services.ComfyUIService>();
+                var logger = provider.GetRequiredService<IAppLogger>();
+                var settingsService = provider.GetRequiredService<SettingsService>();
+                var fileDialogService = provider.GetRequiredService<IFileDialogService>();
+                return new I2V2AViewModel(comfyUIService, logger, settingsService, provider, fileDialogService);
+            });
 
             // Views
             services.AddTransient<FlipPixWindow>();
@@ -273,6 +291,7 @@ namespace FlipPix.UI
             services.AddTransient<StoryVideoWindow>();
             services.AddTransient<OllamaWindow>();
             services.AddTransient<ComfyUIFolderSetupWindow>();
+            services.AddTransient<I2V2AWindow>();
         }
 
         private async Task CheckServerConnectivityAsync(SettingsService settingsService, IAppLogger logger)

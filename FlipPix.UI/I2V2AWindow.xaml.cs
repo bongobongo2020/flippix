@@ -233,6 +233,7 @@ namespace FlipPix.UI
             {
                 disposableViewModel.Dispose();
             }
+            DataContext = null;
             base.OnClosed(e);
         }
 

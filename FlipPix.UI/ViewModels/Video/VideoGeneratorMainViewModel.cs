@@ -12,7 +12,7 @@ using System.Windows.Input;
 using System.Windows.Media.Imaging;
 using FlipPix.ComfyUI.Services;
 using FlipPix.Core.Interfaces;
-using FlipPix.UI.Commands;
+using CommunityToolkit.Mvvm.Input;
 using FlipPix.UI.Models;
 using FlipPix.UI.Services;
 using Microsoft.Extensions.DependencyInjection;
@@ -24,9 +24,10 @@ namespace FlipPix.UI.ViewModels.Video
     /// Handles first/last frame selection, video settings, image analysis,
     /// prompt queue, story video queue, and workflow selection.
     /// </summary>
-    public class VideoGeneratorMainViewModel : VideoProcessingBaseViewModel
+    public partial class VideoGeneratorMainViewModel : VideoProcessingBaseViewModel
     {
         private readonly LMStudioService _lmStudioService;
+        private readonly IFileDialogService _fileDialogService;
 
         // Image properties
         private string _imageFilePath = string.Empty;
@@ -99,10 +100,12 @@ namespace FlipPix.UI.ViewModels.Video
             IAppLogger logger,
             FlipPix.Core.Services.SettingsService settingsService,
             IServiceProvider? serviceProvider,
-            WorkflowQueueCoordinator workflowCoordinator)
+            WorkflowQueueCoordinator workflowCoordinator,
+            IFileDialogService fileDialogService)
             : base(comfyUIService, logger, settingsService, serviceProvider, workflowCoordinator)
         {
             _lmStudioService = lmStudioService ?? throw new ArgumentNullException(nameof(lmStudioService));
+            _fileDialogService = fileDialogService ?? throw new ArgumentNullException(nameof(fileDialogService));
 
             // Load default prompts from settings
             _videoPrompt = settingsService.Settings.DefaultVideoPrompt;
@@ -824,7 +827,7 @@ namespace FlipPix.UI.ViewModels.Video
 
         #region Image Selection Methods
 
-        private void SelectImage()
+        private async void SelectImage()
         {
             var initialDirectory = _settingsService.Settings?.VideoGeneratorImageFolder;
             if (string.IsNullOrEmpty(initialDirectory) || !Directory.Exists(initialDirectory))
@@ -832,23 +835,20 @@ namespace FlipPix.UI.ViewModels.Video
                 initialDirectory = Environment.GetFolderPath(Environment.SpecialFolder.MyPictures);
             }
 
-            var openFileDialog = new Microsoft.Win32.OpenFileDialog
-            {
-                Title = "Select Input Image",
-                Filter = "Image Files|*.jpg;*.jpeg;*.png;*.bmp|All Files|*.*",
-                CheckFileExists = true,
-                InitialDirectory = initialDirectory
-            };
+            var filePath = await _fileDialogService.OpenFileDialogAsync(
+                "Select Input Image",
+                "Image Files|*.jpg;*.jpeg;*.png;*.bmp|All Files|*.*",
+                initialDirectory);
 
-            if (openFileDialog.ShowDialog() == true)
+            if (filePath != null)
             {
-                ImageFilePath = openFileDialog.FileName;
-                SaveImageFolder(openFileDialog.FileName);
+                ImageFilePath = filePath;
+                SaveImageFolder(filePath);
                 AddLog($"Selected image: {Path.GetFileName(ImageFilePath)}");
             }
         }
 
-        private void SelectFirstFrameImage()
+        private async void SelectFirstFrameImage()
         {
             var initialDirectory = _settingsService.Settings?.VideoGeneratorImageFolder;
             if (string.IsNullOrEmpty(initialDirectory) || !Directory.Exists(initialDirectory))
@@ -856,23 +856,20 @@ namespace FlipPix.UI.ViewModels.Video
                 initialDirectory = Environment.GetFolderPath(Environment.SpecialFolder.MyPictures);
             }
 
-            var openFileDialog = new Microsoft.Win32.OpenFileDialog
-            {
-                Title = "Select First Frame Image",
-                Filter = "Image Files|*.jpg;*.jpeg;*.png;*.bmp|All Files|*.*",
-                CheckFileExists = true,
-                InitialDirectory = initialDirectory
-            };
+            var filePath = await _fileDialogService.OpenFileDialogAsync(
+                "Select First Frame Image",
+                "Image Files|*.jpg;*.jpeg;*.png;*.bmp|All Files|*.*",
+                initialDirectory);
 
-            if (openFileDialog.ShowDialog() == true)
+            if (filePath != null)
             {
-                FirstFrameImagePath = openFileDialog.FileName;
-                SaveImageFolder(openFileDialog.FileName);
+                FirstFrameImagePath = filePath;
+                SaveImageFolder(filePath);
                 AddLog($"Selected first frame: {Path.GetFileName(FirstFrameImagePath)}");
             }
         }
 
-        private void SelectLastFrameImage()
+        private async void SelectLastFrameImage()
         {
             var initialDirectory = _settingsService.Settings?.VideoGeneratorImageFolder;
             if (string.IsNullOrEmpty(initialDirectory) || !Directory.Exists(initialDirectory))
@@ -880,18 +877,15 @@ namespace FlipPix.UI.ViewModels.Video
                 initialDirectory = Environment.GetFolderPath(Environment.SpecialFolder.MyPictures);
             }
 
-            var openFileDialog = new Microsoft.Win32.OpenFileDialog
-            {
-                Title = "Select Last Frame Image",
-                Filter = "Image Files|*.jpg;*.jpeg;*.png;*.bmp|All Files|*.*",
-                CheckFileExists = true,
-                InitialDirectory = initialDirectory
-            };
+            var filePath = await _fileDialogService.OpenFileDialogAsync(
+                "Select Last Frame Image",
+                "Image Files|*.jpg;*.jpeg;*.png;*.bmp|All Files|*.*",
+                initialDirectory);
 
-            if (openFileDialog.ShowDialog() == true)
+            if (filePath != null)
             {
-                LastFrameImagePath = openFileDialog.FileName;
-                SaveImageFolder(openFileDialog.FileName);
+                LastFrameImagePath = filePath;
+                SaveImageFolder(filePath);
                 AddLog($"Selected last frame: {Path.GetFileName(LastFrameImagePath)}");
             }
         }
@@ -1836,7 +1830,7 @@ namespace FlipPix.UI.ViewModels.Video
 
         #region Story Video Queue Methods
 
-        private void SelectStoryPromptJson()
+        private async void SelectStoryPromptJson()
         {
             var initialDirectory = _settingsService.Settings?.VideoGeneratorStoryPromptJsonFolder;
             if (string.IsNullOrEmpty(initialDirectory) || !Directory.Exists(initialDirectory))
@@ -1844,18 +1838,16 @@ namespace FlipPix.UI.ViewModels.Video
                 initialDirectory = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "prompts");
             }
 
-            var dialog = new Microsoft.Win32.OpenFileDialog
-            {
-                Title = "Select Story Prompts JSON File",
-                Filter = "JSON Files (*.json)|*.json|All Files (*.*)|*.*",
-                InitialDirectory = initialDirectory
-            };
+            var filePath = await _fileDialogService.OpenFileDialogAsync(
+                "Select Story Prompts JSON File",
+                "JSON Files (*.json)|*.json|All Files (*.*)|*.*",
+                initialDirectory);
 
-            if (dialog.ShowDialog() == true)
+            if (filePath != null)
             {
-                StoryPromptJsonPath = dialog.FileName;
+                StoryPromptJsonPath = filePath;
 
-                var folderPath = Path.GetDirectoryName(dialog.FileName);
+                var folderPath = Path.GetDirectoryName(filePath);
                 if (!string.IsNullOrEmpty(folderPath) && _settingsService.Settings != null)
                 {
                     _settingsService.Settings.VideoGeneratorStoryPromptJsonFolder = folderPath;
@@ -1866,31 +1858,26 @@ namespace FlipPix.UI.ViewModels.Video
             }
         }
 
-        private void SelectStoryImagesFolder()
+        private async void SelectStoryImagesFolder()
         {
-            using (var dialog = new System.Windows.Forms.FolderBrowserDialog())
+            var initialPath = _settingsService.Settings?.VideoGeneratorStoryImagesFolder;
+
+            var selectedPath = await _fileDialogService.OpenFolderDialogAsync(
+                "Select the folder containing the story images",
+                !string.IsNullOrEmpty(initialPath) && Directory.Exists(initialPath) ? initialPath : null,
+                false);
+
+            if (selectedPath != null)
             {
-                dialog.Description = "Select the folder containing the story images";
-                dialog.ShowNewFolderButton = false;
+                StoryImagesFolderPath = selectedPath;
 
-                var initialPath = _settingsService.Settings?.VideoGeneratorStoryImagesFolder;
-                if (!string.IsNullOrEmpty(initialPath) && Directory.Exists(initialPath))
+                if (_settingsService.Settings != null)
                 {
-                    dialog.SelectedPath = initialPath;
+                    _settingsService.Settings.VideoGeneratorStoryImagesFolder = selectedPath;
+                    _settingsService.SaveSettings(_settingsService.Settings);
                 }
 
-                if (dialog.ShowDialog() == System.Windows.Forms.DialogResult.OK)
-                {
-                    StoryImagesFolderPath = dialog.SelectedPath;
-
-                    if (_settingsService.Settings != null)
-                    {
-                        _settingsService.Settings.VideoGeneratorStoryImagesFolder = dialog.SelectedPath;
-                        _settingsService.SaveSettings(_settingsService.Settings);
-                    }
-
-                    AddLog($"Selected story images folder: {StoryImagesFolderPath}");
-                }
+                AddLog($"Selected story images folder: {StoryImagesFolderPath}");
             }
         }
 

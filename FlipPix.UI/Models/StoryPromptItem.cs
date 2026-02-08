@@ -6,7 +6,7 @@ using System.Runtime.CompilerServices;
 using System.Text.Json.Serialization;
 using System.Windows.Input;
 using System.Windows.Media.Imaging;
-using FlipPix.UI.Commands;
+using CommunityToolkit.Mvvm.Input;
 
 namespace FlipPix.UI.Models
 {

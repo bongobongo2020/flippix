@@ -1,10 +1,8 @@
 using System;
 using System.Collections.Generic;
-using System.ComponentModel;
 using System.Diagnostics;
 using System.IO;
 using System.Linq;
-using System.Runtime.CompilerServices;
 using System.Text.Json;
 using System.Threading;
 using System.Threading.Tasks;
@@ -12,7 +10,7 @@ using System.Windows;
 using System.Windows.Input;
 using FlipPix.ComfyUI.Services;
 using FlipPix.Core.Interfaces;
-using FlipPix.UI.Commands;
+using CommunityToolkit.Mvvm.ComponentModel;
 using FlipPix.UI.Services;
 
 namespace FlipPix.UI.ViewModels.Video
@@ -21,7 +19,7 @@ namespace FlipPix.UI.ViewModels.Video
     /// Base class for video processing ViewModels providing shared functionality
     /// for ComfyUI communication, progress tracking, and result handling.
     /// </summary>
-    public abstract class VideoProcessingBaseViewModel : INotifyPropertyChanged
+    public abstract class VideoProcessingBaseViewModel : ObservableObject
     {
         protected readonly ComfyUIService _comfyUIService;
         protected readonly IAppLogger _logger;
@@ -40,7 +38,6 @@ namespace FlipPix.UI.ViewModels.Video
         private string _resultVideoPath = string.Empty;
         private string _resultVideoInfo = string.Empty;
 
-        public event PropertyChangedEventHandler? PropertyChanged;
         public event EventHandler? PlayRequested;
 
         protected VideoProcessingBaseViewModel(
@@ -64,10 +61,8 @@ namespace FlipPix.UI.ViewModels.Video
             get => _isProcessing;
             set
             {
-                if (_isProcessing != value)
+                if (SetProperty(ref _isProcessing, value))
                 {
-                    _isProcessing = value;
-                    OnPropertyChanged();
                     OnCanExecuteChanged();
                 }
             }
@@ -76,14 +71,7 @@ namespace FlipPix.UI.ViewModels.Video
         public string ProcessingStatus
         {
             get => _processingStatus;
-            set
-            {
-                if (_processingStatus != value)
-                {
-                    _processingStatus = value;
-                    OnPropertyChanged();
-                }
-            }
+            set => SetProperty(ref _processingStatus, value);
         }
 
         public double ProcessingProgress
@@ -91,10 +79,8 @@ namespace FlipPix.UI.ViewModels.Video
             get => _processingProgress;
             set
             {
-                if (Math.Abs(_processingProgress - value) > 0.01)
+                if (SetProperty(ref _processingProgress, value) && Math.Abs(_processingProgress - value) > 0.01)
                 {
-                    _processingProgress = value;
-                    OnPropertyChanged();
                     OnPropertyChanged(nameof(ProgressPercentage));
                 }
             }
@@ -105,14 +91,7 @@ namespace FlipPix.UI.ViewModels.Video
         public string LogOutput
         {
             get => _logOutput;
-            set
-            {
-                if (_logOutput != value)
-                {
-                    _logOutput = value;
-                    OnPropertyChanged();
-                }
-            }
+            set => SetProperty(ref _logOutput, value);
         }
 
         public bool HasResult
@@ -120,10 +99,8 @@ namespace FlipPix.UI.ViewModels.Video
             get => _hasResult;
             set
             {
-                if (_hasResult != value)
+                if (SetProperty(ref _hasResult, value))
                 {
-                    _hasResult = value;
-                    OnPropertyChanged();
                     OnCanExecuteChanged();
                 }
             }
@@ -132,27 +109,13 @@ namespace FlipPix.UI.ViewModels.Video
         public string ResultVideoPath
         {
             get => _resultVideoPath;
-            set
-            {
-                if (_resultVideoPath != value)
-                {
-                    _resultVideoPath = value;
-                    OnPropertyChanged();
-                }
-            }
+            set => SetProperty(ref _resultVideoPath, value);
         }
 
         public string ResultVideoInfo
         {
             get => _resultVideoInfo;
-            set
-            {
-                if (_resultVideoInfo != value)
-                {
-                    _resultVideoInfo = value;
-                    OnPropertyChanged();
-                }
-            }
+            set => SetProperty(ref _resultVideoInfo, value);
         }
 
         #endregion
@@ -568,12 +531,7 @@ namespace FlipPix.UI.ViewModels.Video
 
         #endregion
 
-        #region INotifyPropertyChanged
-
-        protected void OnPropertyChanged([CallerMemberName] string? propertyName = null)
-        {
-            PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(propertyName));
-        }
+        #region Command Management
 
         protected virtual void OnCanExecuteChanged()
         {

@@ -56,13 +56,21 @@ namespace FlipPix.UI
             }
         }
 
-        protected override void OnClosed(System.EventArgs e)
+        protected override void OnClosed(EventArgs e)
         {
             if (VideoPlayer != null)
             {
                 VideoPlayer.Stop();
             }
             _viewModel.PlayRequested -= OnPlayRequested;
+
+            // Dispose the ViewModel if it implements IDisposable
+            if (_viewModel is IDisposable disposable)
+            {
+                disposable.Dispose();
+            }
+
+            DataContext = null;
             base.OnClosed(e);
         }
     }

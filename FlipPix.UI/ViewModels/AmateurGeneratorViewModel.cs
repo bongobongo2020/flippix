@@ -19,8 +19,9 @@ using YamlDotNet.Serialization;
 
 namespace FlipPix.UI.ViewModels
 {
-    public class AmateurGeneratorViewModel : BasePromptViewModel
+    public class AmateurGeneratorViewModel : BasePromptViewModel, IDisposable
     {
+        private bool _disposed = false;
         private readonly FlipPix.ComfyUI.Services.ComfyUIService _comfyUIService;
         private readonly FlipPix.Core.Services.SettingsService _settingsService;
 
@@ -1348,6 +1349,33 @@ namespace FlipPix.UI.ViewModels
             var timestamp = DateTime.Now.ToString("HH:mm:ss");
             LogOutput += $"[{timestamp}] {message}\n";
             _logger.LogInfo(message);
+        }
+
+        public void Dispose()
+        {
+            Dispose(true);
+            GC.SuppressFinalize(this);
+        }
+
+        protected virtual void Dispose(bool disposing)
+        {
+            if (!_disposed && disposing)
+            {
+                _cancellationTokenSource?.Cancel();
+                _cancellationTokenSource?.Dispose();
+
+                AvailableLoras.Clear();
+                Orientations.Clear();
+                Styles.Clear();
+
+                _additionalPrompt = string.Empty;
+                _processingStatus = string.Empty;
+                _logOutput = string.Empty;
+                _resultImagePath = string.Empty;
+                _imageInfo = string.Empty;
+
+                _disposed = true;
+            }
         }
 
         // RelayCommand class

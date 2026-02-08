@@ -1,11 +1,11 @@
 using System;
 using System.Collections.Generic;
 using System.Collections.ObjectModel;
-using System.ComponentModel;
 using System.Diagnostics;
 using System.IO;
 using System.Linq;
-using System.Runtime.CompilerServices;
+using CommunityToolkit.Mvvm.ComponentModel;
+using CommunityToolkit.Mvvm.Input;
 using System.Text.Json;
 using System.Text.RegularExpressions;
 using System.Threading.Tasks;
@@ -14,7 +14,7 @@ using System.Windows.Media.Imaging;
 using FlipPix.ComfyUI.Services;
 using FlipPix.Core.Interfaces;
 using FlipPix.UI.Models;
-using Microsoft.Win32;
+using FlipPix.UI.Services;
 
 namespace FlipPix.UI.ViewModels
 {
@@ -24,11 +24,13 @@ namespace FlipPix.UI.ViewModels
         public string WorkflowFile { get; set; } = string.Empty;
     }
 
-    public class StoryVideoViewModel : INotifyPropertyChanged
+    public partial class StoryVideoViewModel : ObservableObject, IDisposable
     {
         private readonly ComfyUIService _comfyUIService;
         private readonly IAppLogger _logger;
         private readonly FlipPix.Core.Services.SettingsService _settingsService;
+        private readonly IFileDialogService _fileDialogService;
+        private bool _disposed = false;
 
         private string _generatedPrompt1 = string.Empty;
         private string _generatedPrompt2 = string.Empty;
@@ -57,13 +59,12 @@ namespace FlipPix.UI.ViewModels
         private int _selectedWorkflowIndex = 0;
         private string _selectedWorkflowName = string.Empty;
 
-        public event PropertyChangedEventHandler? PropertyChanged;
-
-        public StoryVideoViewModel(ComfyUIService comfyUIService, IAppLogger logger, FlipPix.Core.Services.SettingsService settingsService)
+        public StoryVideoViewModel(ComfyUIService comfyUIService, IAppLogger logger, FlipPix.Core.Services.SettingsService settingsService, IFileDialogService fileDialogService)
         {
             _comfyUIService = comfyUIService ?? throw new ArgumentNullException(nameof(comfyUIService));
             _logger = logger ?? throw new ArgumentNullException(nameof(logger));
             _settingsService = settingsService ?? throw new ArgumentNullException(nameof(settingsService));
+            _fileDialogService = fileDialogService ?? throw new ArgumentNullException(nameof(fileDialogService));
 
             // Load persisted prompts folder path
             LoadPromptsFolderFromSettings();
@@ -1238,19 +1239,18 @@ namespace FlipPix.UI.ViewModels
             }
         }
 
-        private void SavePrompts()
+        private async void SavePrompts()
         {
             try
             {
-                var saveFileDialog = new Microsoft.Win32.SaveFileDialog
-                {
-                    Filter = "JSON Files|*.json|All Files|*.*",
-                    Title = "Save Generated Prompts",
-                    FileName = $"story-prompts_{DateTime.Now:yyyyMMdd_HHmmss}.json",
-                    InitialDirectory = PromptsFolderPath
-                };
+                var defaultFileName = $"story-prompts_{DateTime.Now:yyyyMMdd_HHmmss}.json";
+                var filePath = await _fileDialogService.SaveFileDialogAsync(
+                    "Save Generated Prompts",
+                    "JSON Files|*.json|All Files|*.*",
+                    defaultFileName,
+                    PromptsFolderPath);
 
-                if (saveFileDialog.ShowDialog() == true)
+                if (filePath != null)
                 {
                     var promptsData = new
                     {
@@ -1268,12 +1268,12 @@ namespace FlipPix.UI.ViewModels
                         WriteIndented = true
                     });
 
-                    File.WriteAllText(saveFileDialog.FileName, json);
-                    AddLog($"Prompts saved to: {Path.GetFileName(saveFileDialog.FileName)}");
+                    File.WriteAllText(filePath, json);
+                    AddLog($"Prompts saved to: {Path.GetFileName(filePath)}");
                     StatusBarMessage = "Prompts saved successfully";
 
                     // Update the prompts folder to the saved location
-                    PromptsFolderPath = Path.GetDirectoryName(saveFileDialog.FileName) ?? PromptsFolderPath;
+                    PromptsFolderPath = Path.GetDirectoryName(filePath) ?? PromptsFolderPath;
                 }
             }
             catch (Exception ex)
@@ -1287,20 +1287,18 @@ namespace FlipPix.UI.ViewModels
             }
         }
 
-        private void LoadPrompts()
+        private async void LoadPrompts()
         {
             try
             {
-                var openFileDialog = new Microsoft.Win32.OpenFileDialog
-                {
-                    Filter = "JSON Files|*.json|All Files|*.*",
-                    Title = "Load Generated Prompts",
-                    InitialDirectory = PromptsFolderPath
-                };
+                var filePath = await _fileDialogService.OpenFileDialogAsync(
+                    "Load Generated Prompts",
+                    "JSON Files|*.json|All Files|*.*",
+                    PromptsFolderPath);
 
-                if (openFileDialog.ShowDialog() == true)
+                if (filePath != null)
                 {
-                    var json = File.ReadAllText(openFileDialog.FileName);
+                    var json = File.ReadAllText(filePath);
                     var data = JsonSerializer.Deserialize<JsonElement>(json);
 
                     // Load the prompts (support both old and new formats)
@@ -1351,8 +1349,8 @@ namespace FlipPix.UI.ViewModels
                     }
 
                     HasGeneratedPrompts = true;
-                    _loadedPromptsJsonPath = openFileDialog.FileName;
-                    AddLog($"Loaded {promptCount} prompts from: {Path.GetFileName(openFileDialog.FileName)}");
+                    _loadedPromptsJsonPath = filePath;
+                    AddLog($"Loaded {promptCount} prompts from: {Path.GetFileName(filePath)}");
                     StatusBarMessage = $"{promptCount} prompts loaded successfully";
 
                     // Log the loaded prompts for verification
@@ -1372,7 +1370,7 @@ namespace FlipPix.UI.ViewModels
                     AddLog("*** LOAD COMPLETE ***\n");
 
                     // Update the prompts folder to the loaded location
-                    PromptsFolderPath = Path.GetDirectoryName(openFileDialog.FileName) ?? PromptsFolderPath;
+                    PromptsFolderPath = Path.GetDirectoryName(filePath) ?? PromptsFolderPath;
                 }
             }
             catch (Exception ex)
@@ -1415,9 +1413,44 @@ namespace FlipPix.UI.ViewModels
             return newFolderPath;
         }
 
-        protected void OnPropertyChanged([CallerMemberName] string? propertyName = null)
+        public void Dispose()
         {
-            PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(propertyName));
+            Dispose(true);
+            GC.SuppressFinalize(this);
+        }
+
+        protected virtual void Dispose(bool disposing)
+        {
+            if (!_disposed && disposing)
+            {
+                _cancellationTokenSource?.Cancel();
+                _cancellationTokenSource?.Dispose();
+
+                // Clear collections
+                WorkflowNames.Clear();
+                _allWorkflows.Clear();
+
+                // Clear string properties
+                _generatedPrompt1 = string.Empty;
+                _generatedPrompt2 = string.Empty;
+                _generatedPrompt3 = string.Empty;
+                _generatedPrompt4 = string.Empty;
+                _generatedPrompt5 = string.Empty;
+                _generatedPrompt6 = string.Empty;
+                _generatedPrompt7 = string.Empty;
+                _generatedPrompt8 = string.Empty;
+                _generatedPrompt9 = string.Empty;
+                _generatedPrompt10 = string.Empty;
+                _processingStatus = string.Empty;
+                _logOutput = string.Empty;
+                _statusBarMessage = string.Empty;
+                _resultVideoPath = string.Empty;
+                _promptsFolderPath = string.Empty;
+                _loadedPromptsJsonPath = string.Empty;
+                _selectedWorkflowName = string.Empty;
+
+                _disposed = true;
+            }
         }
     }
 }

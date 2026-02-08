@@ -1,10 +1,8 @@
 using System;
 using System.Collections.ObjectModel;
-using System.ComponentModel;
 using System.Diagnostics;
 using System.IO;
 using System.Linq;
-using System.Runtime.CompilerServices;
 using System.Text.Json;
 using System.Threading.Tasks;
 using System.Windows;
@@ -13,14 +11,19 @@ using System.Windows.Media.Imaging;
 using FlipPix.ComfyUI.Services;
 using FlipPix.Core.Interfaces;
 using FlipPix.UI.Models;
+using FlipPix.UI.Services;
+using CommunityToolkit.Mvvm.Input;
+using CommunityToolkit.Mvvm.ComponentModel;
 
 namespace FlipPix.UI.ViewModels
 {
-    public class CameraAngleViewModel : INotifyPropertyChanged
+    public partial class CameraAngleViewModel : ObservableObject, IDisposable
     {
         private readonly FlipPix.ComfyUI.Services.ComfyUIService _comfyUIService;
         private readonly IAppLogger _logger;
         private readonly FlipPix.Core.Services.SettingsService _settingsService;
+        private readonly IFileDialogService _fileDialogService;
+        private bool _disposed = false;
 
         private string _inputImagePath = string.Empty;
         private BitmapImage? _inputImagePreview;
@@ -36,18 +39,13 @@ namespace FlipPix.UI.ViewModels
         public CameraAngleViewModel(
             FlipPix.ComfyUI.Services.ComfyUIService comfyUIService,
             IAppLogger logger,
-            FlipPix.Core.Services.SettingsService settingsService)
+            FlipPix.Core.Services.SettingsService settingsService,
+            IFileDialogService fileDialogService)
         {
             _comfyUIService = comfyUIService ?? throw new ArgumentNullException(nameof(comfyUIService));
             _logger = logger ?? throw new ArgumentNullException(nameof(logger));
             _settingsService = settingsService ?? throw new ArgumentNullException(nameof(settingsService));
-
-            // Initialize commands
-            SelectInputImageCommand = new RelayCommand(SelectInputImage);
-            GenerateCameraAnglesCommand = new RelayCommand(async () => await GenerateCameraAnglesAsync(), () => CanGenerate);
-            CancelGenerationCommand = new RelayCommand(CancelGeneration, () => IsProcessing);
-            OpenOutputFolderCommand = new RelayCommand(OpenOutputFolder);
-            ClearOutputCommand = new RelayCommand(ClearOutput, () => OutputImages.Any());
+            _fileDialogService = fileDialogService ?? throw new ArgumentNullException(nameof(fileDialogService));
 
             AddLog("Camera Angle Generator initialized");
         }
@@ -58,10 +56,8 @@ namespace FlipPix.UI.ViewModels
             get => _inputImagePath;
             set
             {
-                if (_inputImagePath != value)
+                if (SetProperty(ref _inputImagePath, value))
                 {
-                    _inputImagePath = value;
-                    OnPropertyChanged();
                     OnPropertyChanged(nameof(CanGenerate));
                     LoadInputImagePreview();
                     CommandManager.InvalidateRequerySuggested();
@@ -72,40 +68,19 @@ namespace FlipPix.UI.ViewModels
         public BitmapImage? InputImagePreview
         {
             get => _inputImagePreview;
-            set
-            {
-                if (_inputImagePreview != value)
-                {
-                    _inputImagePreview = value;
-                    OnPropertyChanged();
-                }
-            }
+            set => SetProperty(ref _inputImagePreview, value);
         }
 
         public ObservableCollection<string> OutputImages
         {
             get => _outputImages;
-            set
-            {
-                if (_outputImages != value)
-                {
-                    _outputImages = value;
-                    OnPropertyChanged();
-                }
-            }
+            set => SetProperty(ref _outputImages, value);
         }
 
         public ObservableCollection<CameraAngleOutputItem> OutputItems
         {
             get => _outputItems;
-            set
-            {
-                if (_outputItems != value)
-                {
-                    _outputItems = value;
-                    OnPropertyChanged();
-                }
-            }
+            set => SetProperty(ref _outputItems, value);
         }
 
         public bool IsProcessing
@@ -113,10 +88,8 @@ namespace FlipPix.UI.ViewModels
             get => _isProcessing;
             set
             {
-                if (_isProcessing != value)
+                if (SetProperty(ref _isProcessing, value))
                 {
-                    _isProcessing = value;
-                    OnPropertyChanged();
                     OnPropertyChanged(nameof(CanGenerate));
                     CommandManager.InvalidateRequerySuggested();
                 }
@@ -126,14 +99,7 @@ namespace FlipPix.UI.ViewModels
         public string ProcessingStatus
         {
             get => _processingStatus;
-            set
-            {
-                if (_processingStatus != value)
-                {
-                    _processingStatus = value;
-                    OnPropertyChanged();
-                }
-            }
+            set => SetProperty(ref _processingStatus, value);
         }
 
         public double ProcessingProgress
@@ -141,10 +107,8 @@ namespace FlipPix.UI.ViewModels
             get => _processingProgress;
             set
             {
-                if (_processingProgress != value)
+                if (SetProperty(ref _processingProgress, value))
                 {
-                    _processingProgress = value;
-                    OnPropertyChanged();
                     OnPropertyChanged(nameof(ProgressPercentage));
                 }
             }
@@ -155,29 +119,16 @@ namespace FlipPix.UI.ViewModels
         public string LogOutput
         {
             get => _logOutput;
-            set
-            {
-                if (_logOutput != value)
-                {
-                    _logOutput = value;
-                    OnPropertyChanged();
-                }
-            }
+            set => SetProperty(ref _logOutput, value);
         }
 
         public bool CanGenerate => !string.IsNullOrEmpty(InputImagePath) &&
                                    File.Exists(InputImagePath) &&
                                    !IsProcessing;
 
-        // Commands
-        public ICommand SelectInputImageCommand { get; }
-        public ICommand GenerateCameraAnglesCommand { get; }
-        public ICommand CancelGenerationCommand { get; }
-        public ICommand OpenOutputFolderCommand { get; }
-        public ICommand ClearOutputCommand { get; }
-
         // Methods
-        private void SelectInputImage()
+        [RelayCommand]
+        private async Task SelectInputImageAsync()
         {
             var initialDirectory = _settingsService.Settings?.StoryGeneratorInputImageFolder;
 
@@ -186,19 +137,17 @@ namespace FlipPix.UI.ViewModels
                 initialDirectory = Environment.GetFolderPath(Environment.SpecialFolder.MyPictures);
             }
 
-            var dialog = new Microsoft.Win32.OpenFileDialog
-            {
-                Filter = "Image Files (*.jpg;*.jpeg;*.png;*.bmp)|*.jpg;*.jpeg;*.png;*.bmp|All Files (*.*)|*.*",
-                Title = "Select Input Image for Camera Angle Generation",
-                InitialDirectory = initialDirectory
-            };
+            var filePath = await _fileDialogService.OpenFileDialogAsync(
+                "Select Input Image for Camera Angle Generation",
+                "Image Files (*.jpg;*.jpeg;*.png;*.bmp)|*.jpg;*.jpeg;*.png;*.bmp|All Files (*.*)|*.*",
+                initialDirectory);
 
-            if (dialog.ShowDialog() == true)
+            if (filePath != null)
             {
-                InputImagePath = dialog.FileName;
+                InputImagePath = filePath;
 
                 // Save the folder location for next time
-                var folderPath = Path.GetDirectoryName(dialog.FileName);
+                var folderPath = Path.GetDirectoryName(filePath);
                 if (!string.IsNullOrEmpty(folderPath) && _settingsService.Settings != null)
                 {
                     _settingsService.Settings.StoryGeneratorInputImageFolder = folderPath;
@@ -256,6 +205,7 @@ namespace FlipPix.UI.ViewModels
             }
         }
 
+        [RelayCommand(CanExecute = nameof(CanGenerate))]
         private async Task GenerateCameraAnglesAsync()
         {
             if (!CanGenerate) return;
@@ -720,6 +670,7 @@ namespace FlipPix.UI.ViewModels
             }
         }
 
+        [RelayCommand(CanExecute = nameof(IsProcessing))]
         private void CancelGeneration()
         {
             if (_cancellationTokenSource != null && !_cancellationTokenSource.IsCancellationRequested)
@@ -730,6 +681,7 @@ namespace FlipPix.UI.ViewModels
             }
         }
 
+        [RelayCommand]
         private void OpenOutputFolder()
         {
             try
@@ -755,12 +707,15 @@ namespace FlipPix.UI.ViewModels
             }
         }
 
+        [RelayCommand(CanExecute = nameof(HasOutputImages))]
         private void ClearOutput()
         {
             OutputImages.Clear();
             OutputItems.Clear();
             AddLog("Cleared output images");
         }
+
+        private bool HasOutputImages() => OutputImages.Any();
 
         private void AddLog(string message)
         {
@@ -769,14 +724,6 @@ namespace FlipPix.UI.ViewModels
             _logger.LogInfo(message);
         }
 
-        public event PropertyChangedEventHandler? PropertyChanged;
-
-        protected void OnPropertyChanged([CallerMemberName] string? propertyName = null)
-        {
-            PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(propertyName));
-        }
-
-        // RelayCommand class
         public class CameraAngleOutputItem
         {
             public string FilePath { get; set; } = string.Empty;
@@ -785,26 +732,30 @@ namespace FlipPix.UI.ViewModels
             public string DisplayName => $"Angle {Index}";
         }
 
-        public class RelayCommand : ICommand
+        public void Dispose()
         {
-            private readonly Action _execute;
-            private readonly Func<bool>? _canExecute;
+            Dispose(true);
+            GC.SuppressFinalize(this);
+        }
 
-            public RelayCommand(Action execute, Func<bool>? canExecute = null)
+        protected virtual void Dispose(bool disposing)
+        {
+            if (!_disposed && disposing)
             {
-                _execute = execute ?? throw new ArgumentNullException(nameof(execute));
-                _canExecute = canExecute;
+                _cancellationTokenSource?.Cancel();
+                _cancellationTokenSource?.Dispose();
+
+                // Clear collections
+                OutputImages.Clear();
+                OutputItems.Clear();
+
+                // Clear string properties
+                _inputImagePath = string.Empty;
+                _processingStatus = string.Empty;
+                _logOutput = string.Empty;
+
+                _disposed = true;
             }
-
-            public event EventHandler? CanExecuteChanged
-            {
-                add => CommandManager.RequerySuggested += value;
-                remove => CommandManager.RequerySuggested -= value;
-            }
-
-            public bool CanExecute(object? parameter) => _canExecute?.Invoke() ?? true;
-
-            public void Execute(object? parameter) => _execute();
         }
     }
 }
