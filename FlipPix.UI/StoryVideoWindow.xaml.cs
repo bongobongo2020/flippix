@@ -43,5 +43,17 @@ namespace FlipPix.UI
                 this.DragMove();
             }
         }
+
+        protected override void OnClosed(EventArgs e)
+        {
+            // Dispose the ViewModel if it implements IDisposable
+            if (_viewModel is IDisposable disposable)
+            {
+                disposable.Dispose();
+            }
+
+            DataContext = null;
+            base.OnClosed(e);
+        }
     }
 }

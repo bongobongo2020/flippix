@@ -1,50 +1,26 @@
-# Correction Task: Fix Missing `</ComboBox>` Closing Tags in XAML
+# Task: Swap Landscape/Portrait Labels in ImageAnalyzerWindow.xaml
 
-## Found
-The previous task (Simplify Aspect Ratio Options) replaced ComboBox items but accidentally removed the `</ComboBox>` closing tags in two files, causing XML parse errors at build time:
+## 1. Context & Objective
+The aspect ratio combo box in the Image Analyzer window still has inverted labels. Index 0 maps to portrait resolution (1088x1600) but is labeled "Landscape", and index 1 maps to landscape resolution (1600x1088) but is labeled "Portrait". Only the labels need swapping.
 
-- `ImageAnalyzerWindow.xaml(432,35): error MC3000`
-- `ImageGeneratorWindow.xaml(735,35): error MC3000`
+## 2. Files to Modify
+- `FlipPix.UI/ImageAnalyzerWindow.xaml`: Swap the "Landscape" and "Portrait" labels in the aspect ratio combo box.
 
-Additionally, the Analyzer section ComboBox in `ImageGeneratorWindow.xaml` still has the old 7 items instead of the simplified 3.
+## 3. Implementation Steps
 
-## Fix Required
-
-### 1. `FlipPix.UI/ImageAnalyzerWindow.xaml` — Line 411
-Add `</ComboBox>` immediately after the last `<ComboBoxItem>` (line 411). The result should be:
+### Step 1: Swap labels in the aspect ratio ComboBox (line 409-410)
+Change:
 ```xml
-                                        <ComboBoxItem Content="Portrait 1632x2400"/>
-                                        <ComboBoxItem Content="Landscape 2400x1632"/>
-                                        <ComboBoxItem Content="Square 2400x2400"/>
-                                    </ComboBox>
+<ComboBoxItem Content="Landscape"/>
+<ComboBoxItem Content="Portrait"/>
 ```
-The `<Grid>` (Steps slider) that follows on line 412 stays where it is — it becomes a sibling of the ComboBox inside the Aspect Ratio StackPanel.
-
-### 2. `FlipPix.UI/ImageGeneratorWindow.xaml` — Lines 631-637
-Replace the 7 old ComboBoxItems with just the 3 new items, add `</ComboBox>`, and add `</StackPanel>` to close the Aspect Ratio section. Insert these between the last ComboBoxItem and the `<Expander>` on line 638.
-
-The result (replacing lines 631-637) should be:
+To:
 ```xml
-                                            <ComboBoxItem Content="Portrait 1632x2400"/>
-                                            <ComboBoxItem Content="Landscape 2400x1632"/>
-                                            <ComboBoxItem Content="Square 2400x2400"/>
-                                        </ComboBox>
-                                    </StackPanel>
+<ComboBoxItem Content="Portrait"/>
+<ComboBoxItem Content="Landscape"/>
 ```
 
-**DO NOT** remove the `</StackPanel>` at line 735. After this fix, it will correctly close the main `<StackPanel>` opened at line 604. The nesting becomes:
-- Line 604: `<StackPanel>` (main settings panel)
-  - Line 608: Workflow `<StackPanel>` ... `</StackPanel>` (line 620)
-  - Line 623: Aspect Ratio `<StackPanel>` ... `</StackPanel>` (NEW, after ComboBox close)
-  - Line 638: `<Expander>` ... `</Expander>` (line 734)
-- Line 735: `</StackPanel>` (closes main panel at 604)
-
-### 3. Verify Build
-After making both fixes, build the project:
-```
-dotnet build FlipPix.UI/FlipPix.UI.csproj
-```
-Fix any remaining XML errors if found.
+**Important:** Do NOT modify any workflow files, C# view models, or resolution mappings. Only swap the two label strings in the XAML file.
 
 ## 4. Completion Instructions
 Update this file with a "Changelog" section detailing your changes for my review.
@@ -53,29 +29,18 @@ Update this file with a "Changelog" section detailing your changes for my review
 
 ## Changelog
 
-### Fixed: Missing `</ComboBox>` Closing Tags in XAML
+### 2026-02-07 - Aspect Ratio Label Fix
 
-**File: `FlipPix.UI/ImageAnalyzerWindow.xaml`**
-- Added missing `</ComboBox>` closing tag after the last ComboBoxItem (line 411 → now line 412)
-- The Steps slider `<Grid>` is now correctly positioned as a sibling element within the Aspect Ratio StackPanel
-- Fixed MC3000 XML parse error at line 432
+**File Modified:** `FlipPix.UI/ImageAnalyzerWindow.xaml`
 
-**File: `FlipPix.UI/ImageGeneratorWindow.xaml`**
-- Replaced 7 old SDXL ComboBoxItems with 3 simplified aspect ratio options:
-  - `Portrait 1632x2400`
-  - `Landscape 2400x1632`
-  - `Square 2400x2400`
-- Added missing `</ComboBox>` closing tag after the last ComboBoxItem
-- Added missing `</StackPanel>` to close the Aspect Ratio section
-- The nesting structure is now correct:
-  - Main settings `<StackPanel>` (line 604) contains:
-    - Workflow `<StackPanel>` (closed at line 620)
-    - Aspect Ratio `<StackPanel>` (now properly closed at line 635)
-    - `<Expander>` for Advanced Settings (starts at line 636)
-  - Main settings panel closed by `</StackPanel>` at line 735
-- Fixed MC3000 XML parse error at line 735
+**Change:** Swapped "Landscape" and "Portrait" labels in the aspect ratio ComboBox (lines 409-410).
 
-**Build Verification:**
-- XAML syntax is now valid in both files
-- Proper nesting structure restored
-- Both ComboBox elements are now properly closed with matching tags
+**Before:**
+- Index 0: "Landscape" (incorrectly mapped)
+- Index 1: "Portrait" (incorrectly mapped)
+
+**After:**
+- Index 0: "Portrait" (now correctly maps to 1088x1600)
+- Index 1: "Landscape" (now correctly maps to 1600x1088)
+
+**Result:** Labels now correctly reflect the actual resolution dimensions.

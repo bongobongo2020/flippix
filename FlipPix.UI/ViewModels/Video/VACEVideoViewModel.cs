@@ -6,11 +6,10 @@ using System.Threading.Tasks;
 using System.Windows;
 using System.Windows.Input;
 using System.Windows.Media.Imaging;
+using CommunityToolkit.Mvvm.Input;
 using FlipPix.ComfyUI.Services;
 using FlipPix.Core.Interfaces;
-using FlipPix.UI.Commands;
 using FlipPix.UI.Services;
-using Microsoft.Win32;
 
 namespace FlipPix.UI.ViewModels.Video
 {
@@ -18,7 +17,7 @@ namespace FlipPix.UI.ViewModels.Video
     /// ViewModel for VACE (Video-to-Video with Control) video generation.
     /// Handles background/foreground images, input video, and VACE prompt.
     /// </summary>
-    public class VACEVideoViewModel : VideoProcessingBaseViewModel
+    public partial class VACEVideoViewModel : VideoProcessingBaseViewModel
     {
         // VACE-specific properties
         private string _prompt = string.Empty;
@@ -30,15 +29,18 @@ namespace FlipPix.UI.ViewModels.Video
         private string _foregroundImageInfo = string.Empty;
         private string _inputVideoPath = string.Empty;
         private string _inputVideoInfo = string.Empty;
+        private readonly IFileDialogService _fileDialogService;
 
         public VACEVideoViewModel(
             ComfyUIService comfyUIService,
             IAppLogger logger,
             FlipPix.Core.Services.SettingsService settingsService,
             IServiceProvider? serviceProvider,
-            WorkflowQueueCoordinator workflowCoordinator)
+            WorkflowQueueCoordinator workflowCoordinator,
+            IFileDialogService fileDialogService)
             : base(comfyUIService, logger, settingsService, serviceProvider, workflowCoordinator)
         {
+            _fileDialogService = fileDialogService ?? throw new ArgumentNullException(nameof(fileDialogService));
             // Initialize commands
             SelectBackgroundImageCommand = new RelayCommand(SelectBackgroundImage);
             SelectForegroundImageCommand = new RelayCommand(SelectForegroundImage);
@@ -201,7 +203,7 @@ namespace FlipPix.UI.ViewModels.Video
 
         #region File Selection Methods
 
-        private void SelectBackgroundImage()
+        private async void SelectBackgroundImage()
         {
             var initialDirectory = _settingsService.Settings?.VideoGeneratorImageFolder;
 
@@ -210,22 +212,19 @@ namespace FlipPix.UI.ViewModels.Video
                 initialDirectory = Environment.GetFolderPath(Environment.SpecialFolder.MyPictures);
             }
 
-            var dialog = new Microsoft.Win32.OpenFileDialog
-            {
-                Title = "Select Background Image",
-                Filter = "Image Files|*.jpg;*.jpeg;*.png;*.bmp|All Files|*.*",
-                CheckFileExists = true,
-                InitialDirectory = initialDirectory
-            };
+            var filePath = await _fileDialogService.OpenFileDialogAsync(
+                "Select Background Image",
+                "Image Files|*.jpg;*.jpeg;*.png;*.bmp|All Files|*.*",
+                initialDirectory);
 
-            if (dialog.ShowDialog() == true)
+            if (filePath != null)
             {
-                BackgroundImagePath = dialog.FileName;
+                BackgroundImagePath = filePath;
                 AddLog($"VACE: Selected background image: {Path.GetFileName(BackgroundImagePath)}");
             }
         }
 
-        private void SelectForegroundImage()
+        private async void SelectForegroundImage()
         {
             var initialDirectory = _settingsService.Settings?.VideoGeneratorImageFolder;
 
@@ -234,22 +233,19 @@ namespace FlipPix.UI.ViewModels.Video
                 initialDirectory = Environment.GetFolderPath(Environment.SpecialFolder.MyPictures);
             }
 
-            var dialog = new Microsoft.Win32.OpenFileDialog
-            {
-                Title = "Select Foreground Image",
-                Filter = "Image Files|*.jpg;*.jpeg;*.png;*.bmp|All Files|*.*",
-                CheckFileExists = true,
-                InitialDirectory = initialDirectory
-            };
+            var filePath = await _fileDialogService.OpenFileDialogAsync(
+                "Select Foreground Image",
+                "Image Files|*.jpg;*.jpeg;*.png;*.bmp|All Files|*.*",
+                initialDirectory);
 
-            if (dialog.ShowDialog() == true)
+            if (filePath != null)
             {
-                ForegroundImagePath = dialog.FileName;
+                ForegroundImagePath = filePath;
                 AddLog($"VACE: Selected foreground image: {Path.GetFileName(ForegroundImagePath)}");
             }
         }
 
-        private void SelectVideo()
+        private async void SelectVideo()
         {
             var initialDirectory = _settingsService.Settings?.VideoGeneratorImageFolder;
 
@@ -258,17 +254,14 @@ namespace FlipPix.UI.ViewModels.Video
                 initialDirectory = Environment.GetFolderPath(Environment.SpecialFolder.MyVideos);
             }
 
-            var dialog = new Microsoft.Win32.OpenFileDialog
-            {
-                Title = "Select Input Video",
-                Filter = "Video Files|*.mp4;*.avi;*.mov;*.mkv|All Files|*.*",
-                CheckFileExists = true,
-                InitialDirectory = initialDirectory
-            };
+            var filePath = await _fileDialogService.OpenFileDialogAsync(
+                "Select Input Video",
+                "Video Files|*.mp4;*.avi;*.mov;*.mkv|All Files|*.*",
+                initialDirectory);
 
-            if (dialog.ShowDialog() == true)
+            if (filePath != null)
             {
-                InputVideoPath = dialog.FileName;
+                InputVideoPath = filePath;
                 AddLog($"VACE: Selected video: {Path.GetFileName(InputVideoPath)}");
             }
         }

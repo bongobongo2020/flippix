@@ -1,9 +1,10 @@
 using System;
 using System.Collections.ObjectModel;
 using System.ComponentModel;
-using System.Runtime.CompilerServices;
 using System.Windows.Input;
 using System.Windows.Media.Imaging;
+using CommunityToolkit.Mvvm.ComponentModel;
+using CommunityToolkit.Mvvm.Input;
 using FlipPix.ComfyUI.Services;
 using FlipPix.Core.Interfaces;
 using FlipPix.UI.Models;
@@ -24,16 +25,17 @@ namespace FlipPix.UI.ViewModels
     /// This class provides backward-compatible property forwarding so existing
     /// XAML bindings continue to work without modification.
     /// </summary>
-    public class VideoGeneratorViewModel : INotifyPropertyChanged
+    public partial class VideoGeneratorViewModel : ObservableObject, IDisposable
     {
+        private bool _disposed = false;
         private readonly ComfyUIService _comfyUIService;
         private readonly LMStudioService _lmStudioService;
         private readonly IAppLogger _logger;
         private readonly FlipPix.Core.Services.SettingsService _settingsService;
         private readonly IServiceProvider? _serviceProvider;
         private readonly WorkflowQueueCoordinator _workflowCoordinator;
+        private readonly IFileDialogService _fileDialogService;
 
-        public event PropertyChangedEventHandler? PropertyChanged;
         public event EventHandler? PlayRequested;
 
         /// <summary>
@@ -65,7 +67,8 @@ namespace FlipPix.UI.ViewModels
             LMStudioService lmStudioService,
             IAppLogger logger,
             FlipPix.Core.Services.SettingsService settingsService,
-            IServiceProvider? serviceProvider = null)
+            IServiceProvider? serviceProvider = null,
+            IFileDialogService? fileDialogService = null)
         {
             _comfyUIService = comfyUIService ?? throw new ArgumentNullException(nameof(comfyUIService));
             _lmStudioService = lmStudioService ?? throw new ArgumentNullException(nameof(lmStudioService));
@@ -74,6 +77,8 @@ namespace FlipPix.UI.ViewModels
             _serviceProvider = serviceProvider;
             _workflowCoordinator = serviceProvider?.GetRequiredService<WorkflowQueueCoordinator>()
                 ?? throw new InvalidOperationException("WorkflowQueueCoordinator is required");
+            _fileDialogService = fileDialogService ?? serviceProvider?.GetRequiredService<IFileDialogService>()
+                ?? throw new InvalidOperationException("IFileDialogService is required");
 
             // Initialize sub-ViewModels
             MainVM = new VideoGeneratorMainViewModel(
@@ -82,28 +87,32 @@ namespace FlipPix.UI.ViewModels
                 logger,
                 settingsService,
                 serviceProvider,
-                _workflowCoordinator);
+                _workflowCoordinator,
+                _fileDialogService);
 
             VaceVM = new VACEVideoViewModel(
                 comfyUIService,
                 logger,
                 settingsService,
                 serviceProvider,
-                _workflowCoordinator);
+                _workflowCoordinator,
+                _fileDialogService);
 
             LTX2AudioVM = new LTX2AudioViewModel(
                 comfyUIService,
                 logger,
                 settingsService,
                 serviceProvider,
-                _workflowCoordinator);
+                _workflowCoordinator,
+                _fileDialogService);
 
             MochaVM = new MochaVideoViewModel(
                 comfyUIService,
                 logger,
                 settingsService,
                 serviceProvider,
-                _workflowCoordinator);
+                _workflowCoordinator,
+                _fileDialogService);
 
             // Forward PlayRequested events from sub-VMs
             MainVM.PlayRequested += (s, e) => PlayRequested?.Invoke(this, e);
@@ -353,9 +362,29 @@ namespace FlipPix.UI.ViewModels
 
         #endregion
 
-        protected void OnPropertyChanged([CallerMemberName] string? propertyName = null)
+        #region IDisposable
+
+        public void Dispose()
         {
-            PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(propertyName));
+            if (!_disposed)
+            {
+                // Unsubscribe from events
+                MainVM.PropertyChanged -= ForwardPropertyChanged;
+                VaceVM.PropertyChanged -= ForwardPropertyChanged;
+                LTX2AudioVM.PropertyChanged -= ForwardPropertyChanged;
+                MochaVM.PropertyChanged -= ForwardPropertyChanged;
+
+                // Dispose all sub-ViewModels
+                (MainVM as IDisposable)?.Dispose();
+                (VaceVM as IDisposable)?.Dispose();
+                (LTX2AudioVM as IDisposable)?.Dispose();
+                (MochaVM as IDisposable)?.Dispose();
+
+                _disposed = true;
+            }
         }
+
+        #endregion
+
     }
 }

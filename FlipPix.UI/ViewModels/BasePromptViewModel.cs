@@ -1,16 +1,16 @@
 using System;
 using System.Collections.Generic;
-using System.ComponentModel;
 using System.Linq;
-using System.Runtime.CompilerServices;
 using System.Windows.Input;
+using CommunityToolkit.Mvvm.Input;
+using CommunityToolkit.Mvvm.ComponentModel;
 using FlipPix.Core.Interfaces;
 using FlipPix.UI.Models;
 using FlipPix.UI.Services;
 
 namespace FlipPix.UI.ViewModels
 {
-    public abstract class BasePromptViewModel : INotifyPropertyChanged
+    public abstract class BasePromptViewModel : ObservableObject
     {
         protected readonly IPromptService _promptService;
         protected readonly IAppLogger _logger;
@@ -18,8 +18,6 @@ namespace FlipPix.UI.ViewModels
 
         private List<SavedPrompt> _savedPrompts = new();
         private SavedPrompt? _selectedSavedPrompt;
-
-        public event PropertyChangedEventHandler? PropertyChanged;
 
         protected BasePromptViewModel(IPromptService promptService, IAppLogger logger, string promptType)
         {
@@ -38,11 +36,7 @@ namespace FlipPix.UI.ViewModels
         public virtual List<SavedPrompt> SavedPrompts
         {
             get => _savedPrompts;
-            set
-            {
-                _savedPrompts = value ?? new List<SavedPrompt>();
-                OnPropertyChanged();
-            }
+            set => _savedPrompts = value ?? new List<SavedPrompt>();
         }
 
         public virtual SavedPrompt? SelectedSavedPrompt
@@ -50,15 +44,9 @@ namespace FlipPix.UI.ViewModels
             get => _selectedSavedPrompt;
             set
             {
-                if (_selectedSavedPrompt != value)
+                if (SetProperty(ref _selectedSavedPrompt, value) && value != null)
                 {
-                    _selectedSavedPrompt = value;
-                    OnPropertyChanged();
-
-                    if (value != null)
-                    {
-                        LoadPromptFromSaved(value);
-                    }
+                    LoadPromptFromSaved(value);
                 }
             }
         }
@@ -215,10 +203,5 @@ namespace FlipPix.UI.ViewModels
         protected abstract void OnPromptDeleted(string promptName);
         protected abstract void OnPromptLoaded(SavedPrompt savedPrompt);
         protected abstract void OnPromptError(string error);
-
-        protected void OnPropertyChanged([CallerMemberName] string? propertyName = null)
-        {
-            PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(propertyName));
-        }
     }
 }

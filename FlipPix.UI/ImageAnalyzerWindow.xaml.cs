@@ -1,3 +1,4 @@
+using System;
 using System.Windows;
 using System.Windows.Input;
 using System.Windows.Media.Animation;
@@ -35,6 +36,24 @@ namespace FlipPix.UI
             {
                 this.DragMove();
             }
+        }
+
+        protected override void OnClosed(EventArgs e)
+        {
+            // Unsubscribe from event
+            if (_viewModel != null)
+            {
+                _viewModel.QueueItemAdded -= OnQueueItemAdded;
+            }
+
+            // Dispose the ViewModel if it implements IDisposable
+            if (_viewModel is IDisposable disposable)
+            {
+                disposable.Dispose();
+            }
+
+            DataContext = null;
+            base.OnClosed(e);
         }
     }
 }

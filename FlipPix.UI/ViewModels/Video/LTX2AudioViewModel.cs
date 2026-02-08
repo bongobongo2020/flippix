@@ -8,11 +8,10 @@ using System.Threading.Tasks;
 using System.Windows;
 using System.Windows.Input;
 using System.Windows.Media.Imaging;
+using CommunityToolkit.Mvvm.Input;
 using FlipPix.ComfyUI.Services;
 using FlipPix.Core.Interfaces;
-using FlipPix.UI.Commands;
 using FlipPix.UI.Services;
-using Microsoft.Win32;
 
 namespace FlipPix.UI.ViewModels.Video
 {
@@ -20,7 +19,7 @@ namespace FlipPix.UI.ViewModels.Video
     /// ViewModel for LTX2 Audio-synchronized video generation.
     /// Handles image input, audio file, and generates video in chunks synced to audio.
     /// </summary>
-    public class LTX2AudioViewModel : VideoProcessingBaseViewModel
+    public partial class LTX2AudioViewModel : VideoProcessingBaseViewModel
     {
         // LTX2Audio-specific properties
         private string _imagePath = string.Empty;
@@ -33,15 +32,18 @@ namespace FlipPix.UI.ViewModels.Video
         private int _height = 768;
         private double _audioDuration = 0;
         private int _totalFrames = 0;
+        private readonly IFileDialogService _fileDialogService;
 
         public LTX2AudioViewModel(
             ComfyUIService comfyUIService,
             IAppLogger logger,
             FlipPix.Core.Services.SettingsService settingsService,
             IServiceProvider? serviceProvider,
-            WorkflowQueueCoordinator workflowCoordinator)
+            WorkflowQueueCoordinator workflowCoordinator,
+            IFileDialogService fileDialogService)
             : base(comfyUIService, logger, settingsService, serviceProvider, workflowCoordinator)
         {
+            _fileDialogService = fileDialogService ?? throw new ArgumentNullException(nameof(fileDialogService));
             // Initialize commands
             SelectImageCommand = new RelayCommand(SelectImage);
             SelectAudioCommand = new RelayCommand(SelectAudio);
@@ -219,7 +221,7 @@ namespace FlipPix.UI.ViewModels.Video
 
         #region File Selection Methods
 
-        private void SelectImage()
+        private async void SelectImage()
         {
             var initialDirectory = _settingsService.Settings?.VideoGeneratorImageFolder;
 
@@ -228,22 +230,19 @@ namespace FlipPix.UI.ViewModels.Video
                 initialDirectory = Environment.GetFolderPath(Environment.SpecialFolder.MyPictures);
             }
 
-            var dialog = new Microsoft.Win32.OpenFileDialog
-            {
-                Title = "Select Source Image",
-                Filter = "Image Files|*.jpg;*.jpeg;*.png;*.bmp|All Files|*.*",
-                CheckFileExists = true,
-                InitialDirectory = initialDirectory
-            };
+            var filePath = await _fileDialogService.OpenFileDialogAsync(
+                "Select Source Image",
+                "Image Files|*.jpg;*.jpeg;*.png;*.bmp|All Files|*.*",
+                initialDirectory);
 
-            if (dialog.ShowDialog() == true)
+            if (filePath != null)
             {
-                ImagePath = dialog.FileName;
+                ImagePath = filePath;
                 AddLog($"Selected image: {Path.GetFileName(ImagePath)}");
             }
         }
 
-        private void SelectAudio()
+        private async void SelectAudio()
         {
             var initialDirectory = _settingsService.Settings?.VideoGeneratorImageFolder;
 
@@ -252,17 +251,14 @@ namespace FlipPix.UI.ViewModels.Video
                 initialDirectory = Environment.GetFolderPath(Environment.SpecialFolder.MyMusic);
             }
 
-            var dialog = new Microsoft.Win32.OpenFileDialog
-            {
-                Title = "Select Audio File",
-                Filter = "Audio Files|*.mp3;*.wav;*.ogg;*.flac;*.m4a|All Files|*.*",
-                CheckFileExists = true,
-                InitialDirectory = initialDirectory
-            };
+            var filePath = await _fileDialogService.OpenFileDialogAsync(
+                "Select Audio File",
+                "Audio Files|*.mp3;*.wav;*.ogg;*.flac;*.m4a|All Files|*.*",
+                initialDirectory);
 
-            if (dialog.ShowDialog() == true)
+            if (filePath != null)
             {
-                AudioPath = dialog.FileName;
+                AudioPath = filePath;
                 AddLog($"Selected audio: {Path.GetFileName(AudioPath)}");
             }
         }

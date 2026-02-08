@@ -4,24 +4,27 @@ using System.ComponentModel;
 using System.Diagnostics;
 using System.IO;
 using System.Linq;
-using System.Runtime.CompilerServices;
 using System.Text.Json;
 using System.Threading.Tasks;
 using System.Windows.Input;
 using System.Windows.Media.Imaging;
+using CommunityToolkit.Mvvm.ComponentModel;
+using CommunityToolkit.Mvvm.Input;
 using FlipPix.ComfyUI.Services;
 using FlipPix.Core.Interfaces;
 using FlipPix.Core.Models;
-using FlipPix.UI.Commands;
+using FlipPix.UI.Services;
 
 namespace FlipPix.UI.ViewModels
 {
-    public class I2V2AViewModel : INotifyPropertyChanged
+    public partial class I2V2AViewModel : ObservableObject, IDisposable
     {
         private readonly ComfyUIService _comfyUIService;
         private readonly IAppLogger _logger;
         private readonly FlipPix.Core.Services.SettingsService _settingsService;
         private readonly IServiceProvider? _serviceProvider;
+        private readonly IFileDialogService _fileDialogService;
+        private bool _disposed = false;
 
         // Input Image
         private string _inputImagePath = string.Empty;
@@ -83,14 +86,13 @@ namespace FlipPix.UI.ViewModels
         private string _resultVideoPath = string.Empty;
         private System.Threading.CancellationTokenSource? _cancellationTokenSource;
 
-        public event PropertyChangedEventHandler? PropertyChanged;
-
-        public I2V2AViewModel(ComfyUIService comfyUIService, IAppLogger logger, FlipPix.Core.Services.SettingsService settingsService, IServiceProvider? serviceProvider = null)
+        public I2V2AViewModel(ComfyUIService comfyUIService, IAppLogger logger, FlipPix.Core.Services.SettingsService settingsService, IServiceProvider? serviceProvider = null, IFileDialogService? fileDialogService = null)
         {
             _comfyUIService = comfyUIService ?? throw new ArgumentNullException(nameof(comfyUIService));
             _logger = logger ?? throw new ArgumentNullException(nameof(logger));
             _settingsService = settingsService ?? throw new ArgumentNullException(nameof(settingsService));
             _serviceProvider = serviceProvider;
+            _fileDialogService = fileDialogService ?? throw new ArgumentNullException(nameof(fileDialogService));
 
             LoadSettings();
             InitializeCommands();
@@ -103,7 +105,7 @@ namespace FlipPix.UI.ViewModels
             get => _inputImagePath;
             set
             {
-                if (SetField(ref _inputImagePath, value))
+                if (SetProperty(ref _inputImagePath, value))
                 {
                     HasInputImage = !string.IsNullOrEmpty(value) && File.Exists(value);
                     if (HasInputImage)
@@ -117,109 +119,109 @@ namespace FlipPix.UI.ViewModels
         public BitmapImage? InputImageSource
         {
             get => _inputImageSource;
-            set => SetField(ref _inputImageSource, value);
+            set => SetProperty(ref _inputImageSource, value);
         }
 
         public bool HasInputImage
         {
             get => _hasInputImage;
-            set => SetField(ref _hasInputImage, value);
+            set => SetProperty(ref _hasInputImage, value);
         }
 
         public string VideoPrompt
         {
             get => _videoPrompt;
-            set => SetField(ref _videoPrompt, value);
+            set => SetProperty(ref _videoPrompt, value);
         }
 
         public string NegativePrompt
         {
             get => _negativePrompt;
-            set => SetField(ref _negativePrompt, value);
+            set => SetProperty(ref _negativePrompt, value);
         }
 
         public string AudioPrompt
         {
             get => _audioPrompt;
-            set => SetField(ref _audioPrompt, value);
+            set => SetProperty(ref _audioPrompt, value);
         }
 
         public string AudioNegativePrompt
         {
             get => _audioNegativePrompt;
-            set => SetField(ref _audioNegativePrompt, value);
+            set => SetProperty(ref _audioNegativePrompt, value);
         }
 
         public int VideoWidth
         {
             get => _videoWidth;
-            set => SetField(ref _videoWidth, value);
+            set => SetProperty(ref _videoWidth, value);
         }
 
         public int VideoHeight
         {
             get => _videoHeight;
-            set => SetField(ref _videoHeight, value);
+            set => SetProperty(ref _videoHeight, value);
         }
 
         public int TotalFrames
         {
             get => _totalFrames;
-            set => SetField(ref _totalFrames, value);
+            set => SetProperty(ref _totalFrames, value);
         }
 
         public int FPS
         {
             get => _fps;
-            set => SetField(ref _fps, value);
+            set => SetProperty(ref _fps, value);
         }
 
         public int Steps
         {
             get => _steps;
-            set => SetField(ref _steps, value);
+            set => SetProperty(ref _steps, value);
         }
 
         public int StepToSwap
         {
             get => _stepToSwap;
-            set => SetField(ref _stepToSwap, value);
+            set => SetProperty(ref _stepToSwap, value);
         }
 
         public double Cfg
         {
             get => _cfg;
-            set => SetField(ref _cfg, value);
+            set => SetProperty(ref _cfg, value);
         }
 
         public long Seed
         {
             get => _seed;
-            set => SetField(ref _seed, value);
+            set => SetProperty(ref _seed, value);
         }
 
         public int CRF
         {
             get => _crf;
-            set => SetField(ref _crf, value);
+            set => SetProperty(ref _crf, value);
         }
 
         public int AudioDuration
         {
             get => _audioDuration;
-            set => SetField(ref _audioDuration, value);
+            set => SetProperty(ref _audioDuration, value);
         }
 
         public double AudioCfg
         {
             get => _audioCfg;
-            set => SetField(ref _audioCfg, value);
+            set => SetProperty(ref _audioCfg, value);
         }
 
         public int AudioSteps
         {
             get => _audioSteps;
-            set => SetField(ref _audioSteps, value);
+            set => SetProperty(ref _audioSteps, value);
         }
 
         public Dictionary<string, (bool enabled, double strength, string model)> AvailableLoRAs
@@ -227,7 +229,7 @@ namespace FlipPix.UI.ViewModels
             get => _availableLoRAs;
             set
             {
-                if (SetField(ref _availableLoRAs, value))
+                if (SetProperty(ref _availableLoRAs, value))
                 {
                     OnPropertyChanged(nameof(LoRAItems));
                 }
@@ -240,55 +242,55 @@ namespace FlipPix.UI.ViewModels
         public bool IsProcessing
         {
             get => _isProcessing;
-            set => SetField(ref _isProcessing, value);
+            set => SetProperty(ref _isProcessing, value);
         }
 
         public string ProcessingStatus
         {
             get => _processingStatus;
-            set => SetField(ref _processingStatus, value);
+            set => SetProperty(ref _processingStatus, value);
         }
 
         public double ProcessingProgress
         {
             get => _processingProgress;
-            set => SetField(ref _processingProgress, value);
+            set => SetProperty(ref _processingProgress, value);
         }
 
         public string LogOutput
         {
             get => _logOutput;
-            set => SetField(ref _logOutput, value);
+            set => SetProperty(ref _logOutput, value);
         }
 
         public string ComfyUIServer
         {
             get => _comfyUIServer;
-            set => SetField(ref _comfyUIServer, value);
+            set => SetProperty(ref _comfyUIServer, value);
         }
 
         public string ComfyUIPort
         {
             get => _comfyUIPort;
-            set => SetField(ref _comfyUIPort, value);
+            set => SetProperty(ref _comfyUIPort, value);
         }
 
         public string StatusBarMessage
         {
             get => _statusBarMessage;
-            set => SetField(ref _statusBarMessage, value);
+            set => SetProperty(ref _statusBarMessage, value);
         }
 
         public bool HasResultVideo
         {
             get => _hasResultVideo;
-            set => SetField(ref _hasResultVideo, value);
+            set => SetProperty(ref _hasResultVideo, value);
         }
 
         public string ResultVideoPath
         {
             get => _resultVideoPath;
-            set => SetField(ref _resultVideoPath, value);
+            set => SetProperty(ref _resultVideoPath, value);
         }
 
         #endregion
@@ -309,28 +311,26 @@ namespace FlipPix.UI.ViewModels
 
         private void InitializeCommands()
         {
-            SelectInputImageCommand = new RelayCommand(SelectInputImage);
-            GenerateVideoCommand = new RelayCommand(GenerateVideo, () => HasInputImage && !IsProcessing);
-            CancelGenerationCommand = new RelayCommand(CancelGeneration, () => IsProcessing);
-            OpenResultFolderCommand = new RelayCommand(OpenResultFolder, () => HasResultVideo);
-            PlayResultVideoCommand = new RelayCommand(PlayResultVideo, () => HasResultVideo);
-            ClearLogsCommand = new RelayCommand(ClearLogs);
-            RefreshConnectionCommand = new RelayCommand(RefreshConnection);
+            SelectInputImageCommand = new CommunityToolkit.Mvvm.Input.RelayCommand(SelectInputImage);
+            GenerateVideoCommand = new CommunityToolkit.Mvvm.Input.RelayCommand(GenerateVideo, () => HasInputImage && !IsProcessing);
+            CancelGenerationCommand = new CommunityToolkit.Mvvm.Input.RelayCommand(CancelGeneration, () => IsProcessing);
+            OpenResultFolderCommand = new CommunityToolkit.Mvvm.Input.RelayCommand(OpenResultFolder, () => HasResultVideo);
+            PlayResultVideoCommand = new CommunityToolkit.Mvvm.Input.RelayCommand(PlayResultVideo, () => HasResultVideo);
+            ClearLogsCommand = new CommunityToolkit.Mvvm.Input.RelayCommand(ClearLogs);
+            RefreshConnectionCommand = new CommunityToolkit.Mvvm.Input.RelayCommand(RefreshConnection);
         }
 
-        private void SelectInputImage()
+        private async void SelectInputImage()
         {
             try
             {
-                var openFileDialog = new Microsoft.Win32.OpenFileDialog
-                {
-                    Filter = "Image Files (*.png;*.jpg;*.jpeg;*.bmp;*.tiff;*.webp)|*.png;*.jpg;*.jpeg;*.bmp;*.tiff;*.webp|All Files (*.*)|*.*",
-                    Title = "Select Input Image for Video Generation"
-                };
+                var filePath = await _fileDialogService.OpenFileDialogAsync(
+                    "Select Input Image for Video Generation",
+                    "Image Files (*.png;*.jpg;*.jpeg;*.bmp;*.tiff;*.webp)|*.png;*.jpg;*.jpeg;*.bmp;*.tiff;*.webp|All Files (*.*)|*.*");
 
-                if (openFileDialog.ShowDialog() == true)
+                if (filePath != null)
                 {
-                    InputImagePath = openFileDialog.FileName;
+                    InputImagePath = filePath;
                     StatusBarMessage = $"Image loaded: {Path.GetFileName(InputImagePath)}";
                     _logger.LogInfo($"Input image selected: {InputImagePath}");
                 }
@@ -851,22 +851,40 @@ namespace FlipPix.UI.ViewModels
             _logger.LogInfo($"I2V2A: {message}");
         }
 
-        protected bool SetField<T>(ref T field, T value, [CallerMemberName] string? propertyName = null)
-        {
-            if (EqualityComparer<T>.Default.Equals(field, value))
-                return false;
-
-            field = value;
-            OnPropertyChanged(propertyName);
-            return true;
-        }
-
-        protected virtual void OnPropertyChanged([CallerMemberName] string? propertyName = null)
-        {
-            PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(propertyName));
-        }
-
         #endregion
+
+        public void Dispose()
+        {
+            Dispose(true);
+            GC.SuppressFinalize(this);
+        }
+
+        protected virtual void Dispose(bool disposing)
+        {
+            if (!_disposed && disposing)
+            {
+                _cancellationTokenSource?.Cancel();
+                _cancellationTokenSource?.Dispose();
+
+                // Clear collections
+                AvailableLoRAs.Clear();
+
+                // Clear string properties
+                _inputImagePath = string.Empty;
+                _videoPrompt = string.Empty;
+                _negativePrompt = string.Empty;
+                _audioPrompt = string.Empty;
+                _audioNegativePrompt = string.Empty;
+                _processingStatus = string.Empty;
+                _logOutput = string.Empty;
+                _comfyUIServer = string.Empty;
+                _comfyUIPort = string.Empty;
+                _statusBarMessage = string.Empty;
+                _resultVideoPath = string.Empty;
+
+                _disposed = true;
+            }
+        }
     }
 
     public class LoRAItem

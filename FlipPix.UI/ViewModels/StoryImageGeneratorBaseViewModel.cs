@@ -1,11 +1,9 @@
 using System;
 using System.Collections.Generic;
 using System.Collections.ObjectModel;
-using System.ComponentModel;
 using System.Diagnostics;
 using System.IO;
 using System.Linq;
-using System.Runtime.CompilerServices;
 using System.Text.Json;
 using System.Threading;
 using System.Threading.Tasks;
@@ -14,19 +12,22 @@ using System.Windows.Input;
 using System.Windows.Media.Imaging;
 using FlipPix.ComfyUI.Services;
 using FlipPix.Core.Interfaces;
-using FlipPix.UI.Commands;
+using CommunityToolkit.Mvvm.Input;
+using CommunityToolkit.Mvvm.ComponentModel;
 using FlipPix.UI.Models;
 using FlipPix.UI.Services;
 using YamlDotNet.Serialization;
 
 namespace FlipPix.UI.ViewModels
 {
-    public abstract class StoryImageGeneratorBaseViewModel : INotifyPropertyChanged
+    public abstract class StoryImageGeneratorBaseViewModel : ObservableObject, IDisposable
     {
         protected readonly ComfyUIService _comfyUIService;
         protected readonly IAppLogger _logger;
         protected readonly FlipPix.Core.Services.SettingsService _settingsService;
         protected readonly WorkflowQueueCoordinator _workflowCoordinator;
+        protected readonly IFileDialogService _fileDialogService;
+        private bool _disposed = false;
 
         private string _promptJsonFilePath = string.Empty;
         private string _inputImagePath = string.Empty;
@@ -54,12 +55,14 @@ namespace FlipPix.UI.ViewModels
             ComfyUIService comfyUIService,
             IAppLogger logger,
             FlipPix.Core.Services.SettingsService settingsService,
-            WorkflowQueueCoordinator workflowCoordinator)
+            WorkflowQueueCoordinator workflowCoordinator,
+            IFileDialogService fileDialogService)
         {
             _comfyUIService = comfyUIService ?? throw new ArgumentNullException(nameof(comfyUIService));
             _logger = logger ?? throw new ArgumentNullException(nameof(logger));
             _settingsService = settingsService ?? throw new ArgumentNullException(nameof(settingsService));
             _workflowCoordinator = workflowCoordinator ?? throw new ArgumentNullException(nameof(workflowCoordinator));
+            _fileDialogService = fileDialogService ?? throw new ArgumentNullException(nameof(fileDialogService));
 
             // Set defaults from subclass
             _steps = DefaultSteps;
@@ -181,10 +184,8 @@ namespace FlipPix.UI.ViewModels
             get => _promptJsonFilePath;
             set
             {
-                if (_promptJsonFilePath != value)
+                if (SetProperty(ref _promptJsonFilePath, value))
                 {
-                    _promptJsonFilePath = value;
-                    OnPropertyChanged();
                     OnPropertyChanged(nameof(CanLoadPrompts));
                     CommandManager.InvalidateRequerySuggested();
                 }
@@ -196,10 +197,8 @@ namespace FlipPix.UI.ViewModels
             get => _inputImagePath;
             set
             {
-                if (_inputImagePath != value)
+                if (SetProperty(ref _inputImagePath, value))
                 {
-                    _inputImagePath = value;
-                    OnPropertyChanged();
                     OnPropertyChanged(nameof(CanLoadPrompts));
                     LoadInputImagePreview();
                     CommandManager.InvalidateRequerySuggested();
@@ -210,27 +209,13 @@ namespace FlipPix.UI.ViewModels
         public BitmapImage? InputImagePreview
         {
             get => _inputImagePreview;
-            set
-            {
-                if (_inputImagePreview != value)
-                {
-                    _inputImagePreview = value;
-                    OnPropertyChanged();
-                }
-            }
+            set => SetProperty(ref _inputImagePreview, value);
         }
 
         public ObservableCollection<StoryPromptItem> QueueItems
         {
             get => _queueItems;
-            set
-            {
-                if (_queueItems != value)
-                {
-                    _queueItems = value;
-                    OnPropertyChanged();
-                }
-            }
+            set => SetProperty(ref _queueItems, value);
         }
 
         public bool IsProcessingQueue
@@ -238,10 +223,8 @@ namespace FlipPix.UI.ViewModels
             get => _isProcessingQueue;
             set
             {
-                if (_isProcessingQueue != value)
+                if (SetProperty(ref _isProcessingQueue, value))
                 {
-                    _isProcessingQueue = value;
-                    OnPropertyChanged();
                     OnPropertyChanged(nameof(CanProcessQueue));
                     OnPropertyChanged(nameof(CanLoadPrompts));
                     CommandManager.InvalidateRequerySuggested();
@@ -254,10 +237,8 @@ namespace FlipPix.UI.ViewModels
             get => _isQueuePaused;
             set
             {
-                if (_isQueuePaused != value)
+                if (SetProperty(ref _isQueuePaused, value))
                 {
-                    _isQueuePaused = value;
-                    OnPropertyChanged();
                     CommandManager.InvalidateRequerySuggested();
                 }
             }
@@ -266,14 +247,7 @@ namespace FlipPix.UI.ViewModels
         public StoryPromptItem? CurrentQueueItem
         {
             get => _currentQueueItem;
-            set
-            {
-                if (_currentQueueItem != value)
-                {
-                    _currentQueueItem = value;
-                    OnPropertyChanged();
-                }
-            }
+            set => SetProperty(ref _currentQueueItem, value);
         }
 
         public int QueueProgress
@@ -281,10 +255,8 @@ namespace FlipPix.UI.ViewModels
             get => _queueProgress;
             set
             {
-                if (_queueProgress != value)
+                if (SetProperty(ref _queueProgress, value))
                 {
-                    _queueProgress = value;
-                    OnPropertyChanged();
                     OnPropertyChanged(nameof(QueueProgressText));
                 }
             }
@@ -295,10 +267,8 @@ namespace FlipPix.UI.ViewModels
             get => _queueTotal;
             set
             {
-                if (_queueTotal != value)
+                if (SetProperty(ref _queueTotal, value))
                 {
-                    _queueTotal = value;
-                    OnPropertyChanged();
                     OnPropertyChanged(nameof(QueueProgressText));
                 }
             }
@@ -330,40 +300,19 @@ namespace FlipPix.UI.ViewModels
         public string LogOutput
         {
             get => _logOutput;
-            set
-            {
-                if (_logOutput != value)
-                {
-                    _logOutput = value;
-                    OnPropertyChanged();
-                }
-            }
+            set => SetProperty(ref _logOutput, value);
         }
 
         public bool IsProcessing
         {
             get => _isProcessing;
-            set
-            {
-                if (_isProcessing != value)
-                {
-                    _isProcessing = value;
-                    OnPropertyChanged();
-                }
-            }
+            set => SetProperty(ref _isProcessing, value);
         }
 
         public string ProcessingStatus
         {
             get => _processingStatus;
-            set
-            {
-                if (_processingStatus != value)
-                {
-                    _processingStatus = value;
-                    OnPropertyChanged();
-                }
-            }
+            set => SetProperty(ref _processingStatus, value);
         }
 
         public double ProcessingProgress
@@ -371,10 +320,8 @@ namespace FlipPix.UI.ViewModels
             get => _processingProgress;
             set
             {
-                if (_processingProgress != value)
+                if (SetProperty(ref _processingProgress, value))
                 {
-                    _processingProgress = value;
-                    OnPropertyChanged();
                     OnPropertyChanged(nameof(ProgressPercentage));
                 }
             }
@@ -385,53 +332,25 @@ namespace FlipPix.UI.ViewModels
         public int Steps
         {
             get => _steps;
-            set
-            {
-                if (_steps != value)
-                {
-                    _steps = value;
-                    OnPropertyChanged();
-                }
-            }
+            set => SetProperty(ref _steps, value);
         }
 
         public double Cfg
         {
             get => _cfg;
-            set
-            {
-                if (_cfg != value)
-                {
-                    _cfg = value;
-                    OnPropertyChanged();
-                }
-            }
+            set => SetProperty(ref _cfg, value);
         }
 
         public double Denoise
         {
             get => _denoise;
-            set
-            {
-                if (_denoise != value)
-                {
-                    _denoise = value;
-                    OnPropertyChanged();
-                }
-            }
+            set => SetProperty(ref _denoise, value);
         }
 
         public string NegativePrompt
         {
             get => _negativePrompt;
-            set
-            {
-                if (_negativePrompt != value)
-                {
-                    _negativePrompt = value;
-                    OnPropertyChanged();
-                }
-            }
+            set => SetProperty(ref _negativePrompt, value);
         }
 
         // --- Commands ---
@@ -448,7 +367,7 @@ namespace FlipPix.UI.ViewModels
 
         // --- Shared methods ---
 
-        private void SelectPromptJson()
+        private async void SelectPromptJson()
         {
             var initialDirectory = GetPromptJsonInitialDirectory();
 
@@ -457,18 +376,16 @@ namespace FlipPix.UI.ViewModels
                 initialDirectory = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "prompts");
             }
 
-            var dialog = new Microsoft.Win32.OpenFileDialog
-            {
-                Filter = "JSON Files (*.json)|*.json|All Files (*.*)|*.*",
-                Title = "Select Story Prompts JSON File",
-                InitialDirectory = initialDirectory
-            };
+            var selectedFile = await _fileDialogService.OpenFileDialogAsync(
+                "Select Story Prompts JSON File",
+                "JSON Files (*.json)|*.json|All Files (*.*)|*.*",
+                initialDirectory);
 
-            if (dialog.ShowDialog() == true)
+            if (!string.IsNullOrEmpty(selectedFile))
             {
-                PromptJsonFilePath = dialog.FileName;
+                PromptJsonFilePath = selectedFile;
 
-                var folderPath = Path.GetDirectoryName(dialog.FileName);
+                var folderPath = Path.GetDirectoryName(selectedFile);
                 if (!string.IsNullOrEmpty(folderPath))
                 {
                     SavePromptJsonFolder(folderPath);
@@ -478,7 +395,7 @@ namespace FlipPix.UI.ViewModels
             }
         }
 
-        private void SelectInputImage()
+        private async void SelectInputImage()
         {
             var initialDirectory = GetInputImageInitialDirectory();
 
@@ -487,18 +404,16 @@ namespace FlipPix.UI.ViewModels
                 initialDirectory = Environment.GetFolderPath(Environment.SpecialFolder.MyPictures);
             }
 
-            var dialog = new Microsoft.Win32.OpenFileDialog
-            {
-                Filter = "Image Files (*.jpg;*.jpeg;*.png;*.bmp)|*.jpg;*.jpeg;*.png;*.bmp|All Files (*.*)|*.*",
-                Title = "Select Input Image",
-                InitialDirectory = initialDirectory
-            };
+            var selectedFile = await _fileDialogService.OpenFileDialogAsync(
+                "Select Input Image",
+                "Image Files (*.jpg;*.jpeg;*.png;*.bmp)|*.jpg;*.jpeg;*.png;*.bmp|All Files (*.*)|*.*",
+                initialDirectory);
 
-            if (dialog.ShowDialog() == true)
+            if (!string.IsNullOrEmpty(selectedFile))
             {
-                InputImagePath = dialog.FileName;
+                InputImagePath = selectedFile;
 
-                var folderPath = Path.GetDirectoryName(dialog.FileName);
+                var folderPath = Path.GetDirectoryName(selectedFile);
                 if (!string.IsNullOrEmpty(folderPath))
                 {
                     SaveInputImageFolder(folderPath);
@@ -1097,13 +1012,32 @@ namespace FlipPix.UI.ViewModels
             }
         }
 
-        // --- INotifyPropertyChanged ---
-
-        public event PropertyChangedEventHandler? PropertyChanged;
-
-        protected void OnPropertyChanged([CallerMemberName] string? propertyName = null)
+        public void Dispose()
         {
-            PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(propertyName));
+            Dispose(true);
+            GC.SuppressFinalize(this);
+        }
+
+        protected virtual void Dispose(bool disposing)
+        {
+            if (!_disposed && disposing)
+            {
+                _cancellationTokenSource?.Cancel();
+                _cancellationTokenSource?.Dispose();
+                _pauseEvent?.Dispose();
+
+                // Clear collections
+                QueueItems.Clear();
+
+                // Clear string properties
+                _promptJsonFilePath = string.Empty;
+                _inputImagePath = string.Empty;
+                _logOutput = string.Empty;
+                _processingStatus = string.Empty;
+                _negativePrompt = string.Empty;
+
+                _disposed = true;
+            }
         }
     }
 }

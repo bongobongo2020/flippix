@@ -1,8 +1,6 @@
 using System;
 using System.Collections.ObjectModel;
-using System.ComponentModel;
 using System.Linq;
-using System.Runtime.CompilerServices;
 using System.Threading;
 using System.Threading.Tasks;
 using System.Windows;
@@ -11,10 +9,12 @@ using FlipPix.Core.Interfaces;
 using FlipPix.UI.Models;
 using FlipPix.UI.Services;
 using Microsoft.Extensions.DependencyInjection;
+using CommunityToolkit.Mvvm.Input;
+using CommunityToolkit.Mvvm.ComponentModel;
 
 namespace FlipPix.UI.ViewModels
 {
-    public class OllamaViewModel : INotifyPropertyChanged, IDisposable
+    public partial class OllamaViewModel : ObservableObject, IDisposable
     {
         private readonly OllamaService _ollamaService;
         private readonly IAppLogger _logger;
@@ -40,10 +40,11 @@ namespace FlipPix.UI.ViewModels
             get => _userPrompt;
             set
             {
-                _userPrompt = value;
-                OnPropertyChanged();
-                OnPropertyChanged(nameof(CanEnhancePrompt));
-                CommandManager.InvalidateRequerySuggested();
+                if (SetProperty(ref _userPrompt, value))
+                {
+                    OnPropertyChanged(nameof(CanEnhancePrompt));
+                    CommandManager.InvalidateRequerySuggested();
+                }
             }
         }
 
@@ -52,20 +53,17 @@ namespace FlipPix.UI.ViewModels
             get => _enhancedPrompt;
             set
             {
-                _enhancedPrompt = value;
-                OnPropertyChanged();
-                OnPropertyChanged(nameof(CanSendToGenerator));
+                if (SetProperty(ref _enhancedPrompt, value))
+                {
+                    OnPropertyChanged(nameof(CanSendToGenerator));
+                }
             }
         }
 
         public string OllamaUrl
         {
             get => _ollamaUrl;
-            set
-            {
-                _ollamaUrl = value;
-                OnPropertyChanged();
-            }
+            set => SetProperty(ref _ollamaUrl, value);
         }
 
         public bool IsProcessing
@@ -73,12 +71,13 @@ namespace FlipPix.UI.ViewModels
             get => _isProcessing;
             set
             {
-                _isProcessing = value;
-                OnPropertyChanged();
-                OnPropertyChanged(nameof(CanConnect));
-                OnPropertyChanged(nameof(CanEnhancePrompt));
-                OnPropertyChanged(nameof(CanSendToGenerator));
-                CommandManager.InvalidateRequerySuggested();
+                if (SetProperty(ref _isProcessing, value))
+                {
+                    OnPropertyChanged(nameof(CanConnect));
+                    OnPropertyChanged(nameof(CanEnhancePrompt));
+                    OnPropertyChanged(nameof(CanSendToGenerator));
+                    CommandManager.InvalidateRequerySuggested();
+                }
             }
         }
 
@@ -87,21 +86,18 @@ namespace FlipPix.UI.ViewModels
             get => _isConnected;
             set
             {
-                _isConnected = value;
-                OnPropertyChanged();
-                OnPropertyChanged(nameof(CanEnhancePrompt));
-                CommandManager.InvalidateRequerySuggested();
+                if (SetProperty(ref _isConnected, value))
+                {
+                    OnPropertyChanged(nameof(CanEnhancePrompt));
+                    CommandManager.InvalidateRequerySuggested();
+                }
             }
         }
 
         public string StatusMessage
         {
             get => _statusMessage;
-            set
-            {
-                _statusMessage = value;
-                OnPropertyChanged();
-            }
+            set => SetProperty(ref _statusMessage, value);
         }
 
         public OllamaModel? SelectedModel
@@ -109,31 +105,24 @@ namespace FlipPix.UI.ViewModels
             get => _selectedModel;
             set
             {
-                _selectedModel = value;
-                OnPropertyChanged();
-                OnPropertyChanged(nameof(CanEnhancePrompt));
-                CommandManager.InvalidateRequerySuggested();
+                if (SetProperty(ref _selectedModel, value))
+                {
+                    OnPropertyChanged(nameof(CanEnhancePrompt));
+                    CommandManager.InvalidateRequerySuggested();
+                }
             }
         }
 
         public string SelectedEnhancementType
         {
             get => _selectedEnhancementType;
-            set
-            {
-                _selectedEnhancementType = value;
-                OnPropertyChanged();
-            }
+            set => SetProperty(ref _selectedEnhancementType, value);
         }
 
         public bool ShowEnhancedPrompt
         {
             get => _showEnhancedPrompt;
-            set
-            {
-                _showEnhancedPrompt = value;
-                OnPropertyChanged();
-            }
+            set => SetProperty(ref _showEnhancedPrompt, value);
         }
 
         public bool CanConnect => !IsProcessing && !string.IsNullOrEmpty(OllamaUrl);
@@ -428,13 +417,6 @@ namespace FlipPix.UI.ViewModels
                 _logger.LogError($"Error opening Video Generator: {ex.Message}");
                 System.Windows.MessageBox.Show($"Failed to open Video Generator: {ex.Message}", "Navigation Error", MessageBoxButton.OK, MessageBoxImage.Error);
             }
-        }
-
-        public event PropertyChangedEventHandler? PropertyChanged;
-
-        protected virtual void OnPropertyChanged([CallerMemberName] string? propertyName = null)
-        {
-            PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(propertyName));
         }
     }
 }

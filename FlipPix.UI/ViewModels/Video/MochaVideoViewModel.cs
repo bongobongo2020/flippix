@@ -10,9 +10,8 @@ using System.Windows.Input;
 using System.Windows.Media.Imaging;
 using FlipPix.ComfyUI.Services;
 using FlipPix.Core.Interfaces;
-using FlipPix.UI.Commands;
+using CommunityToolkit.Mvvm.Input;
 using FlipPix.UI.Services;
-using Microsoft.Win32;
 
 namespace FlipPix.UI.ViewModels.Video
 {
@@ -20,7 +19,7 @@ namespace FlipPix.UI.ViewModels.Video
     /// ViewModel for Mocha motion capture video generation.
     /// Handles source video, reference image, and generates video in 81-frame chunks.
     /// </summary>
-    public class MochaVideoViewModel : VideoProcessingBaseViewModel
+    public partial class MochaVideoViewModel : VideoProcessingBaseViewModel
     {
         private const int FramesPerChunk = 81;
 
@@ -32,15 +31,18 @@ namespace FlipPix.UI.ViewModels.Video
         private string _imageInfo = string.Empty;
         private string _prompt = string.Empty;
         private int _totalFrames = 0;
+        private readonly IFileDialogService _fileDialogService;
 
         public MochaVideoViewModel(
             ComfyUIService comfyUIService,
             IAppLogger logger,
             FlipPix.Core.Services.SettingsService settingsService,
             IServiceProvider? serviceProvider,
-            WorkflowQueueCoordinator workflowCoordinator)
+            WorkflowQueueCoordinator workflowCoordinator,
+            IFileDialogService fileDialogService)
             : base(comfyUIService, logger, settingsService, serviceProvider, workflowCoordinator)
         {
+            _fileDialogService = fileDialogService ?? throw new ArgumentNullException(nameof(fileDialogService));
             // Initialize commands
             SelectVideoCommand = new RelayCommand(SelectVideo);
             SelectImageCommand = new RelayCommand(SelectImage);
@@ -176,7 +178,7 @@ namespace FlipPix.UI.ViewModels.Video
 
         #region File Selection Methods
 
-        private void SelectVideo()
+        private async void SelectVideo()
         {
             var initialDirectory = _settingsService.Settings?.VideoGeneratorImageFolder;
 
@@ -185,20 +187,17 @@ namespace FlipPix.UI.ViewModels.Video
                 initialDirectory = Environment.GetFolderPath(Environment.SpecialFolder.MyVideos);
             }
 
-            var dialog = new Microsoft.Win32.OpenFileDialog
-            {
-                Title = "Select Input Video",
-                Filter = "Video Files|*.mp4;*.avi;*.mov;*.mkv;*.webm|All Files|*.*",
-                CheckFileExists = true,
-                InitialDirectory = initialDirectory
-            };
+            var filePath = await _fileDialogService.OpenFileDialogAsync(
+                "Select Input Video",
+                "Video Files|*.mp4;*.avi;*.mov;*.mkv;*.webm|All Files|*.*",
+                initialDirectory);
 
-            if (dialog.ShowDialog() == true)
+            if (filePath != null)
             {
-                VideoPath = dialog.FileName;
+                VideoPath = filePath;
 
                 // Save folder for next time
-                var folderPath = Path.GetDirectoryName(dialog.FileName);
+                var folderPath = Path.GetDirectoryName(filePath);
                 if (!string.IsNullOrEmpty(folderPath) && _settingsService.Settings != null)
                 {
                     _settingsService.Settings.VideoGeneratorImageFolder = folderPath;
@@ -209,7 +208,7 @@ namespace FlipPix.UI.ViewModels.Video
             }
         }
 
-        private void SelectImage()
+        private async void SelectImage()
         {
             var initialDirectory = _settingsService.Settings?.VideoGeneratorImageFolder;
 
@@ -218,17 +217,14 @@ namespace FlipPix.UI.ViewModels.Video
                 initialDirectory = Environment.GetFolderPath(Environment.SpecialFolder.MyPictures);
             }
 
-            var dialog = new Microsoft.Win32.OpenFileDialog
-            {
-                Title = "Select Reference Image",
-                Filter = "Image Files|*.jpg;*.jpeg;*.png;*.bmp|All Files|*.*",
-                CheckFileExists = true,
-                InitialDirectory = initialDirectory
-            };
+            var filePath = await _fileDialogService.OpenFileDialogAsync(
+                "Select Reference Image",
+                "Image Files|*.jpg;*.jpeg;*.png;*.bmp|All Files|*.*",
+                initialDirectory);
 
-            if (dialog.ShowDialog() == true)
+            if (filePath != null)
             {
-                ImagePath = dialog.FileName;
+                ImagePath = filePath;
                 AddLog($"Selected Mocha image: {Path.GetFileName(ImagePath)}");
             }
         }

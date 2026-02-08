@@ -7,15 +7,15 @@ using System.Text.Json;
 using System.Threading;
 using System.Threading.Tasks;
 using System.Windows.Input;
+using CommunityToolkit.Mvvm.Input;
 using FlipPix.ComfyUI.Services;
 using FlipPix.Core.Interfaces;
-using FlipPix.UI.Commands;
 using FlipPix.UI.Models;
 using FlipPix.UI.Services;
 
 namespace FlipPix.UI.ViewModels
 {
-    public class StoryImageGeneratorAmateurViewModel : StoryImageGeneratorBaseViewModel
+    public partial class StoryImageGeneratorAmateurViewModel : StoryImageGeneratorBaseViewModel
     {
         // Amateur LoRA is always enabled
         private const string AmateurLoraName = "amateur_photography_zimage_v1.safetensors";
@@ -35,8 +35,9 @@ namespace FlipPix.UI.ViewModels
             ComfyUIService comfyUIService,
             IAppLogger logger,
             FlipPix.Core.Services.SettingsService settingsService,
-            WorkflowQueueCoordinator workflowCoordinator)
-            : base(comfyUIService, logger, settingsService, workflowCoordinator)
+            WorkflowQueueCoordinator workflowCoordinator,
+            IFileDialogService fileDialogService)
+            : base(comfyUIService, logger, settingsService, workflowCoordinator, fileDialogService)
         {
         }
 
@@ -58,7 +59,7 @@ namespace FlipPix.UI.ViewModels
 
         protected override void InitializeVariant()
         {
-            RefreshLorasCommand = new RelayCommand(RefreshLoras);
+            RefreshLorasCommand = new CommunityToolkit.Mvvm.Input.RelayCommand(RefreshLoras);
             LoadAvailableCharacterLoras();
         }
 
@@ -649,5 +650,22 @@ namespace FlipPix.UI.ViewModels
 
             return images;
         }
+
+        protected override void Dispose(bool disposing)
+        {
+            if (!_disposed && disposing)
+            {
+                // Clear additional collections
+                AvailableCharacterLoras?.Clear();
+
+                // Clear additional string properties
+                _selectedCharacterLora = string.Empty;
+
+                _disposed = true;
+            }
+            base.Dispose(disposing);
+        }
+
+        private bool _disposed = false;
     }
 }

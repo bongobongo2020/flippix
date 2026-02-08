@@ -1,20 +1,21 @@
 using System;
-using System.ComponentModel;
 using System.IO;
 using System.Net.Http;
-using System.Runtime.CompilerServices;
 using System.Text.RegularExpressions;
 using System.Threading.Tasks;
-using System.Windows.Input;
 using FlipPix.Core.Services;
 using FlipPix.ComfyUI.Http;
-using Forms = System.Windows.Forms;
+using FlipPix.UI.Services;
+using CommunityToolkit.Mvvm.Input;
+using CommunityToolkit.Mvvm.ComponentModel;
 
 namespace FlipPix.UI.ViewModels
 {
-    public class ComfyUIFolderSetupViewModel : INotifyPropertyChanged
+    public partial class ComfyUIFolderSetupViewModel : ObservableObject, IDisposable
     {
         private readonly SettingsService _settingsService;
+        private readonly IFileDialogService _fileDialogService;
+        private bool _disposed = false;
         private string _folderPath = string.Empty;
         private string _serverUrl = "http://localhost:8188";
         private string _remoteOutputFolderPath = string.Empty;
@@ -28,19 +29,12 @@ namespace FlipPix.UI.ViewModels
         private bool _isServerConnected = false;
         private string _serverConnectionMessage = "Not tested";
 
-        public event PropertyChangedEventHandler? PropertyChanged;
         public event EventHandler<bool>? CloseRequested;
 
-        public ComfyUIFolderSetupViewModel(SettingsService settingsService)
+        public ComfyUIFolderSetupViewModel(SettingsService settingsService, IFileDialogService fileDialogService)
         {
             _settingsService = settingsService ?? throw new ArgumentNullException(nameof(settingsService));
-
-            BrowseFolderCommand = new DelegateCommand(BrowseFolder);
-            BrowseRemoteOutputFolderCommand = new DelegateCommand(BrowseRemoteOutputFolder);
-            BrowseRemoteLoraFolderCommand = new DelegateCommand(BrowseRemoteLoraFolder);
-            SaveCommand = new DelegateCommand(Save, () => CanSave);
-            CancelCommand = new DelegateCommand(Cancel);
-            TestConnectionCommand = new DelegateCommand(async () => await TestConnectionAsync(), () => !IsTestingConnection);
+            _fileDialogService = fileDialogService ?? throw new ArgumentNullException(nameof(fileDialogService));
 
             // Pre-fill with existing settings if available
             if (!string.IsNullOrEmpty(_settingsService.Settings.ComfyUIFolderPath))
@@ -69,10 +63,8 @@ namespace FlipPix.UI.ViewModels
             get => _folderPath;
             set
             {
-                if (_folderPath != value)
+                if (SetProperty(ref _folderPath, value))
                 {
-                    _folderPath = value;
-                    OnPropertyChanged();
                     ValidateFolderPath();
                 }
             }
@@ -83,10 +75,8 @@ namespace FlipPix.UI.ViewModels
             get => _serverUrl;
             set
             {
-                if (_serverUrl != value)
+                if (SetProperty(ref _serverUrl, value))
                 {
-                    _serverUrl = value;
-                    OnPropertyChanged();
                     ValidateFolderPath(); // This will detect remote/local and validate accordingly
                 }
             }
@@ -97,10 +87,8 @@ namespace FlipPix.UI.ViewModels
             get => _remoteOutputFolderPath;
             set
             {
-                if (_remoteOutputFolderPath != value)
+                if (SetProperty(ref _remoteOutputFolderPath, value))
                 {
-                    _remoteOutputFolderPath = value;
-                    OnPropertyChanged();
                     ValidateFolderPath(); // This will call the correct validation logic
                 }
             }
@@ -111,10 +99,8 @@ namespace FlipPix.UI.ViewModels
             get => _remoteLoraFolderPath;
             set
             {
-                if (_remoteLoraFolderPath != value)
+                if (SetProperty(ref _remoteLoraFolderPath, value))
                 {
-                    _remoteLoraFolderPath = value;
-                    OnPropertyChanged();
                     ValidateFolderPath(); // This will call the correct validation logic
                 }
             }
@@ -125,11 +111,9 @@ namespace FlipPix.UI.ViewModels
             get => _isTestingConnection;
             set
             {
-                if (_isTestingConnection != value)
+                if (SetProperty(ref _isTestingConnection, value))
                 {
-                    _isTestingConnection = value;
-                    OnPropertyChanged();
-                    CommandManager.InvalidateRequerySuggested();
+                    TestConnectionCommand.NotifyCanExecuteChanged();
                 }
             }
         }
@@ -139,10 +123,8 @@ namespace FlipPix.UI.ViewModels
             get => _isServerConnected;
             set
             {
-                if (_isServerConnected != value)
+                if (SetProperty(ref _isServerConnected, value))
                 {
-                    _isServerConnected = value;
-                    OnPropertyChanged();
                     ValidateFolderPath(); // Trigger validation when connection status changes
                 }
             }
@@ -151,34 +133,19 @@ namespace FlipPix.UI.ViewModels
         public string ServerConnectionMessage
         {
             get => _serverConnectionMessage;
-            set
-            {
-                if (_serverConnectionMessage != value)
-                {
-                    _serverConnectionMessage = value;
-                    OnPropertyChanged();
-                }
-            }
+            set => SetProperty(ref _serverConnectionMessage, value);
         }
 
         public string ValidationMessage
         {
             get => _validationMessage;
-            set
-            {
-                _validationMessage = value;
-                OnPropertyChanged();
-            }
+            set => SetProperty(ref _validationMessage, value);
         }
 
         public System.Windows.Media.Brush ValidationMessageColor
         {
             get => _validationMessageColor;
-            set
-            {
-                _validationMessageColor = value;
-                OnPropertyChanged();
-            }
+            set => SetProperty(ref _validationMessageColor, value);
         }
 
         public bool CanSave
@@ -186,93 +153,64 @@ namespace FlipPix.UI.ViewModels
             get => _canSave;
             set
             {
-                _canSave = value;
-                OnPropertyChanged();
-                CommandManager.InvalidateRequerySuggested();
+                if (SetProperty(ref _canSave, value))
+                {
+                    SaveCommand.NotifyCanExecuteChanged();
+                }
             }
         }
 
         public string OutputFolderInfo
         {
             get => _outputFolderInfo;
-            set
-            {
-                _outputFolderInfo = value;
-                OnPropertyChanged();
-            }
+            set => SetProperty(ref _outputFolderInfo, value);
         }
 
         public System.Windows.Visibility OutputFolderInfoVisibility
         {
             get => _outputFolderInfoVisibility;
-            set
+            set => SetProperty(ref _outputFolderInfoVisibility, value);
+        }
+
+        [RelayCommand]
+        private async Task BrowseFolderAsync()
+        {
+            var selectedPath = await _fileDialogService.OpenFolderDialogAsync(
+                "Select the root folder of your ComfyUI installation",
+                !string.IsNullOrEmpty(FolderPath) && Directory.Exists(FolderPath) ? FolderPath : null,
+                false);
+
+            if (selectedPath != null)
             {
-                _outputFolderInfoVisibility = value;
-                OnPropertyChanged();
+                FolderPath = selectedPath;
             }
         }
 
-        public ICommand BrowseFolderCommand { get; }
-        public ICommand BrowseRemoteOutputFolderCommand { get; }
-        public ICommand BrowseRemoteLoraFolderCommand { get; }
-        public ICommand SaveCommand { get; }
-        public ICommand CancelCommand { get; }
-        public ICommand TestConnectionCommand { get; }
-
-        private void BrowseFolder()
+        [RelayCommand]
+        private async Task BrowseRemoteOutputFolderAsync()
         {
-            using (var folderDialog = new Forms.FolderBrowserDialog())
+            var selectedPath = await _fileDialogService.OpenFolderDialogAsync(
+                "Select the network path to the remote ComfyUI output folder",
+                !string.IsNullOrEmpty(RemoteOutputFolderPath) && Directory.Exists(RemoteOutputFolderPath) ? RemoteOutputFolderPath : null,
+                false);
+
+            if (selectedPath != null)
             {
-                folderDialog.Description = "Select the root folder of your ComfyUI installation";
-                folderDialog.ShowNewFolderButton = false;
-
-                if (!string.IsNullOrEmpty(FolderPath) && Directory.Exists(FolderPath))
-                {
-                    folderDialog.SelectedPath = FolderPath;
-                }
-
-                if (folderDialog.ShowDialog() == Forms.DialogResult.OK)
-                {
-                    FolderPath = folderDialog.SelectedPath;
-                }
+                RemoteOutputFolderPath = selectedPath;
             }
         }
 
-        private void BrowseRemoteOutputFolder()
+        [RelayCommand]
+        private async Task BrowseRemoteLoraFolderAsync()
         {
-            using (var folderDialog = new Forms.FolderBrowserDialog())
+            var selectedPath = await _fileDialogService.OpenFolderDialogAsync(
+                "Select the network path to the remote ComfyUI LoRA folder (e.g., Y:\\ai-models\\loras\\zimage)",
+                !string.IsNullOrEmpty(RemoteLoraFolderPath) && Directory.Exists(RemoteLoraFolderPath) ? RemoteLoraFolderPath : null,
+                false);
+
+            if (selectedPath != null)
             {
-                folderDialog.Description = "Select the network path to the remote ComfyUI output folder";
-                folderDialog.ShowNewFolderButton = false;
-
-                if (!string.IsNullOrEmpty(RemoteOutputFolderPath) && Directory.Exists(RemoteOutputFolderPath))
-                {
-                    folderDialog.SelectedPath = RemoteOutputFolderPath;
-                }
-
-                if (folderDialog.ShowDialog() == Forms.DialogResult.OK)
-                {
-                    RemoteOutputFolderPath = folderDialog.SelectedPath;
-                }
-            }
-        }
-
-        private void BrowseRemoteLoraFolder()
-        {
-            using (var folderDialog = new Forms.FolderBrowserDialog())
-            {
-                folderDialog.Description = "Select the network path to the remote ComfyUI LoRA folder (e.g., Y:\\ai-models\\loras\\zimage)";
-                folderDialog.ShowNewFolderButton = false;
-
-                if (!string.IsNullOrEmpty(RemoteLoraFolderPath) && Directory.Exists(RemoteLoraFolderPath))
-                {
-                    folderDialog.SelectedPath = RemoteLoraFolderPath;
-                }
-
-                if (folderDialog.ShowDialog() == Forms.DialogResult.OK)
-                {
-                    RemoteLoraFolderPath = folderDialog.SelectedPath;
-                }
+                RemoteLoraFolderPath = selectedPath;
             }
         }
 
@@ -500,6 +438,7 @@ namespace FlipPix.UI.ViewModels
             return Regex.IsMatch(normalizedUrl, urlPattern, RegexOptions.IgnoreCase);
         }
 
+        [RelayCommand(CanExecute = nameof(CanTestConnection))]
         private async Task TestConnectionAsync()
         {
             if (!IsValidServerUrl(ServerUrl))
@@ -590,6 +529,9 @@ namespace FlipPix.UI.ViewModels
             }
         }
 
+        private bool CanTestConnection() => !IsTestingConnection;
+
+        [RelayCommand(CanExecute = nameof(CanSave))]
         private void Save()
         {
             try
@@ -639,37 +581,33 @@ namespace FlipPix.UI.ViewModels
             }
         }
 
+        [RelayCommand]
         private void Cancel()
         {
             CloseRequested?.Invoke(this, false);
         }
 
-        protected void OnPropertyChanged([CallerMemberName] string? propertyName = null)
+        public void Dispose()
         {
-            PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(propertyName));
-        }
-    }
-
-    // Simple command implementation to avoid conflicts with RelayCommand
-    public class DelegateCommand : ICommand
-    {
-        private readonly Action _execute;
-        private readonly Func<bool>? _canExecute;
-
-        public DelegateCommand(Action execute, Func<bool>? canExecute = null)
-        {
-            _execute = execute ?? throw new ArgumentNullException(nameof(execute));
-            _canExecute = canExecute;
+            Dispose(true);
+            GC.SuppressFinalize(this);
         }
 
-        public event EventHandler? CanExecuteChanged
+        protected virtual void Dispose(bool disposing)
         {
-            add => System.Windows.Input.CommandManager.RequerySuggested += value;
-            remove => System.Windows.Input.CommandManager.RequerySuggested -= value;
+            if (!_disposed && disposing)
+            {
+                // Clear string properties to free memory
+                _folderPath = string.Empty;
+                _serverUrl = string.Empty;
+                _remoteOutputFolderPath = string.Empty;
+                _remoteLoraFolderPath = string.Empty;
+                _validationMessage = string.Empty;
+                _outputFolderInfo = string.Empty;
+                _serverConnectionMessage = string.Empty;
+
+                _disposed = true;
+            }
         }
-
-        public bool CanExecute(object? parameter) => _canExecute?.Invoke() ?? true;
-
-        public void Execute(object? parameter) => _execute();
     }
 }

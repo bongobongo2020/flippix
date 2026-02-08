@@ -6,15 +6,15 @@ using System.Text.Json;
 using System.Threading;
 using System.Threading.Tasks;
 using System.Windows.Input;
+using CommunityToolkit.Mvvm.Input;
 using FlipPix.ComfyUI.Services;
 using FlipPix.Core.Interfaces;
-using FlipPix.UI.Commands;
 using FlipPix.UI.Models;
 using FlipPix.UI.Services;
 
 namespace FlipPix.UI.ViewModels
 {
-    public class StoryImageGeneratorFViewModel : StoryImageGeneratorBaseViewModel
+    public partial class StoryImageGeneratorFViewModel : StoryImageGeneratorBaseViewModel
     {
         // Image resolution constants
         private const string LandscapeResolution = "1344x768";
@@ -27,8 +27,9 @@ namespace FlipPix.UI.ViewModels
             ComfyUIService comfyUIService,
             IAppLogger logger,
             FlipPix.Core.Services.SettingsService settingsService,
-            WorkflowQueueCoordinator workflowCoordinator)
-            : base(comfyUIService, logger, settingsService, workflowCoordinator)
+            WorkflowQueueCoordinator workflowCoordinator,
+            IFileDialogService fileDialogService)
+            : base(comfyUIService, logger, settingsService, workflowCoordinator, fileDialogService)
         {
         }
 
@@ -50,7 +51,7 @@ namespace FlipPix.UI.ViewModels
 
         protected override void InitializeVariant()
         {
-            ToggleSettingsVisibilityCommand = new RelayCommand(ToggleSettingsVisibility);
+            ToggleSettingsVisibilityCommand = new CommunityToolkit.Mvvm.Input.RelayCommand(ToggleSettingsVisibility);
         }
 
         // --- Overrides for folder saving ---
@@ -491,5 +492,16 @@ namespace FlipPix.UI.ViewModels
 
             return images;
         }
+
+        protected override void Dispose(bool disposing)
+        {
+            if (!_disposed && disposing)
+            {
+                _disposed = true;
+            }
+            base.Dispose(disposing);
+        }
+
+        private bool _disposed = false;
     }
 }

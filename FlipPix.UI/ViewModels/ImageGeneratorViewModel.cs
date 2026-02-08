@@ -28,12 +28,13 @@ namespace FlipPix.UI.ViewModels
         Klien
     }
 
-    public class ImageGeneratorViewModel : BasePromptViewModel
+    public class ImageGeneratorViewModel : BasePromptViewModel, IDisposable
     {
         private readonly FlipPix.ComfyUI.Services.ComfyUIService _comfyUIService;
         private readonly FlipPix.Core.Services.SettingsService _settingsService;
         private readonly IServiceProvider? _serviceProvider;
         private readonly WorkflowQueueCoordinator _workflowCoordinator;
+        private bool _disposed = false;
 
         private string _imagePrompt = string.Empty;
         private int _aspectRatioIndex = 0;
@@ -87,16 +88,19 @@ namespace FlipPix.UI.ViewModels
             // Load default prompt from settings
             _imagePrompt = settingsService.Settings.DefaultImagePrompt;
 
+            // Get IFileDialogService from service provider
+            var fileDialogService = serviceProvider?.GetRequiredService<IFileDialogService>() ?? throw new InvalidOperationException("IFileDialogService is required");
+
             // Initialize nested ViewModels
             var lmStudioService = serviceProvider?.GetRequiredService<LMStudioService>();
-            _analyzer = new ImageAnalyzerViewModel(comfyUIService, lmStudioService ?? throw new InvalidOperationException("LMStudioService is required"), logger, settingsService, _workflowCoordinator);
-            _cameraEdit = new FlipPixViewModel(comfyUIService, logger, settingsService, serviceProvider);
-            _storyGenerator = new StoryImageGeneratorViewModel(comfyUIService, logger, settingsService, _workflowCoordinator);
-            _storyGeneratorQ = new StoryImageGeneratorQViewModel(comfyUIService, logger, settingsService, _workflowCoordinator);
-            _storyGeneratorF = new StoryImageGeneratorFViewModel(comfyUIService, logger, settingsService, _workflowCoordinator);
-            _storyGeneratorAmateur = new StoryImageGeneratorAmateurViewModel(comfyUIService, logger, settingsService, _workflowCoordinator);
+            _analyzer = new ImageAnalyzerViewModel(comfyUIService, lmStudioService ?? throw new InvalidOperationException("LMStudioService is required"), logger, settingsService, _workflowCoordinator, fileDialogService);
+            _cameraEdit = new FlipPixViewModel(comfyUIService, logger, settingsService, serviceProvider, promptService, fileDialogService);
+            _storyGenerator = new StoryImageGeneratorViewModel(comfyUIService, logger, settingsService, _workflowCoordinator, fileDialogService);
+            _storyGeneratorQ = new StoryImageGeneratorQViewModel(comfyUIService, logger, settingsService, _workflowCoordinator, fileDialogService);
+            _storyGeneratorF = new StoryImageGeneratorFViewModel(comfyUIService, logger, settingsService, _workflowCoordinator, fileDialogService);
+            _storyGeneratorAmateur = new StoryImageGeneratorAmateurViewModel(comfyUIService, logger, settingsService, _workflowCoordinator, fileDialogService);
             _amateurGenerator = new AmateurGeneratorViewModel(comfyUIService, logger, settingsService, promptService);
-            _cameraAngle = new CameraAngleViewModel(comfyUIService, logger, settingsService);
+            _cameraAngle = new CameraAngleViewModel(comfyUIService, logger, settingsService, fileDialogService);
 
             // Initialize commands
             GenerateImageCommand = new RelayCommand(async () => await GenerateImageAsync(), () => CanGenerate);
@@ -2530,6 +2534,49 @@ namespace FlipPix.UI.ViewModels
             catch
             {
                 return false;
+            }
+        }
+
+        public void Dispose()
+        {
+            Dispose(true);
+            GC.SuppressFinalize(this);
+        }
+
+        protected virtual void Dispose(bool disposing)
+        {
+            if (!_disposed && disposing)
+            {
+                _cancellationTokenSource?.Cancel();
+                _cancellationTokenSource?.Dispose();
+                _pauseEvent?.Dispose();
+
+                // Dispose nested ViewModels
+                _analyzer?.Dispose();
+                _cameraEdit?.Dispose();
+                _storyGenerator?.Dispose();
+                _storyGeneratorQ?.Dispose();
+                _storyGeneratorF?.Dispose();
+                _storyGeneratorAmateur?.Dispose();
+                _amateurGenerator?.Dispose();
+                _cameraAngle?.Dispose();
+
+                // Clear collections
+                _availableLoras?.Clear();
+                _promptQueue?.Clear();
+
+                // Clear string properties
+                _imagePrompt = string.Empty;
+                _processingStatus = string.Empty;
+                _logOutput = string.Empty;
+                _comfyUIServer = string.Empty;
+                _comfyUIPort = string.Empty;
+                _statusBarMessage = string.Empty;
+                _resultImagePath = string.Empty;
+                _imageInfo = string.Empty;
+                _selectedLora = string.Empty;
+
+                _disposed = true;
             }
         }
     }
