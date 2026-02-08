@@ -29,6 +29,8 @@ bld/
 
 # Exception for README assets
 !flippix.png
+!flippix.ico
+
 
 # Test videos
 *.mp4

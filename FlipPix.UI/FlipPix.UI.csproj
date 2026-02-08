@@ -25,7 +25,14 @@
     <UseWPF>true</UseWPF>
     <UseWindowsForms>true</UseWindowsForms>
     <EnableWindowsTargeting>true</EnableWindowsTargeting>
+    <ApplicationIcon>..\flippix.ico</ApplicationIcon>
   </PropertyGroup>
+
+  <ItemGroup>
+    <Resource Include="..\flippix.ico">
+      <Link>flippix.ico</Link>
+    </Resource>
+  </ItemGroup>
 
   <ItemGroup>
     <Content Include="..\workflow\**\*">
