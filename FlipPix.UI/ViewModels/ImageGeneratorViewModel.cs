@@ -12,6 +12,7 @@ using System.Threading.Tasks;
 using System.Windows;
 using System.Windows.Input;
 using System.Windows.Media.Imaging;
+using CommunityToolkit.Mvvm.Input;
 using FlipPix.ComfyUI.Services;
 using FlipPix.Core.Interfaces;
 using FlipPix.UI.Models;
@@ -76,7 +77,7 @@ namespace FlipPix.UI.ViewModels
         private AmateurGeneratorViewModel _amateurGenerator;
         private CameraAngleViewModel _cameraAngle;
 
-        
+
         public ImageGeneratorViewModel(FlipPix.ComfyUI.Services.ComfyUIService comfyUIService, IAppLogger logger, FlipPix.Core.Services.SettingsService settingsService, IServiceProvider? serviceProvider = null, IPromptService? promptService = null)
             : base(promptService ?? new PromptService(logger), logger, "ImageGenerator")
         {
@@ -88,19 +89,21 @@ namespace FlipPix.UI.ViewModels
             // Load default prompt from settings
             _imagePrompt = settingsService.Settings.DefaultImagePrompt;
 
-            // Get IFileDialogService from service provider
+            // Get IFileDialogService, LoraManager, and ComfyUIImageRetriever from service provider
             var fileDialogService = serviceProvider?.GetRequiredService<IFileDialogService>() ?? throw new InvalidOperationException("IFileDialogService is required");
+            var loraManager = serviceProvider?.GetRequiredService<LoraManager>() ?? throw new InvalidOperationException("LoraManager is required");
+            var imageRetriever = serviceProvider?.GetRequiredService<ComfyUIImageRetriever>() ?? throw new InvalidOperationException("ComfyUIImageRetriever is required");
 
             // Initialize nested ViewModels
             var lmStudioService = serviceProvider?.GetRequiredService<LMStudioService>();
             _analyzer = new ImageAnalyzerViewModel(comfyUIService, lmStudioService ?? throw new InvalidOperationException("LMStudioService is required"), logger, settingsService, _workflowCoordinator, fileDialogService);
             _cameraEdit = new FlipPixViewModel(comfyUIService, logger, settingsService, serviceProvider, promptService, fileDialogService);
-            _storyGenerator = new StoryImageGeneratorViewModel(comfyUIService, logger, settingsService, _workflowCoordinator, fileDialogService);
-            _storyGeneratorQ = new StoryImageGeneratorQViewModel(comfyUIService, logger, settingsService, _workflowCoordinator, fileDialogService);
-            _storyGeneratorF = new StoryImageGeneratorFViewModel(comfyUIService, logger, settingsService, _workflowCoordinator, fileDialogService);
-            _storyGeneratorAmateur = new StoryImageGeneratorAmateurViewModel(comfyUIService, logger, settingsService, _workflowCoordinator, fileDialogService);
-            _amateurGenerator = new AmateurGeneratorViewModel(comfyUIService, logger, settingsService, promptService);
-            _cameraAngle = new CameraAngleViewModel(comfyUIService, logger, settingsService, fileDialogService);
+            _storyGenerator = new StoryImageGeneratorViewModel(comfyUIService, logger, settingsService, _workflowCoordinator, fileDialogService, loraManager, imageRetriever);
+            _storyGeneratorQ = new StoryImageGeneratorQViewModel(comfyUIService, logger, settingsService, _workflowCoordinator, fileDialogService, loraManager, imageRetriever);
+            _storyGeneratorF = new StoryImageGeneratorFViewModel(comfyUIService, logger, settingsService, _workflowCoordinator, fileDialogService, loraManager, imageRetriever);
+            _storyGeneratorAmateur = new StoryImageGeneratorAmateurViewModel(comfyUIService, logger, settingsService, _workflowCoordinator, fileDialogService, loraManager, imageRetriever);
+            _amateurGenerator = new AmateurGeneratorViewModel(comfyUIService, logger, settingsService, promptService, loraManager, imageRetriever);
+            _cameraAngle = new CameraAngleViewModel(comfyUIService, logger, settingsService, fileDialogService, imageRetriever);
 
             // Initialize commands
             GenerateImageCommand = new RelayCommand(async () => await GenerateImageAsync(), () => CanGenerate);

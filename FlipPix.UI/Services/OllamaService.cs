@@ -195,10 +195,9 @@ namespace FlipPix.UI.Services
             var memoryMB = GC.GetTotalMemory(false) / 1024 / 1024;
             if (memoryMB > 500) // 500MB threshold
             {
-                _logger.LogInfo($"Memory usage is high ({memoryMB}MB), triggering garbage collection");
-                GC.Collect();
-                GC.WaitForPendingFinalizers();
-                GC.Collect();
+                _logger.LogInfo($"Memory usage is high ({memoryMB}MB)");
+                // Let the runtime manage garbage collection naturally
+                // Aggressive GC.Collect() has been removed to allow runtime optimization
             }
         }
 
@@ -212,7 +211,8 @@ namespace FlipPix.UI.Services
         {
             if (!_disposed && disposing)
             {
-                _httpClient?.Dispose();
+                // Do NOT dispose HttpClient as it comes from IHttpClientFactory
+                // _httpClient?.Dispose();  <-- Removed
                 _semaphore?.Dispose();
                 _disposed = true;
             }

@@ -4,17 +4,14 @@ using System.Text.Json;
 
 namespace FlipPix.UI.Models
 {
-    public class QueueItem : INotifyPropertyChanged
+    public class QueueItem : BaseQueueItem
     {
         private string _prompt = string.Empty;
-        private QueueItemStatus _status = QueueItemStatus.Pending;
         private string _videoPath = string.Empty;
         private string _imagePath = string.Empty;
         private string _firstFrameImagePath = string.Empty;
         private string _lastFrameImagePath = string.Empty;
         private long _seed = 0;
-
-        public string Id { get; set; } = Guid.NewGuid().ToString();
 
         public string Prompt
         {
@@ -25,6 +22,7 @@ namespace FlipPix.UI.Models
                 {
                     _prompt = value;
                     OnPropertyChanged(nameof(Prompt));
+                    OnPropertyChanged(nameof(DisplayText));
                 }
             }
         }
@@ -85,52 +83,6 @@ namespace FlipPix.UI.Models
             }
         }
 
-        public string DisplayText
-        {
-            get
-            {
-                var imageInfo = !string.IsNullOrEmpty(FirstFrameImagePath)
-                    ? $"🖼️ {Path.GetFileNameWithoutExtension(FirstFrameImagePath)}→{Path.GetFileNameWithoutExtension(LastFrameImagePath)}"
-                    : $"📎 {Path.GetFileName(ImagePath)}";
-
-                var seedInfo = Seed > 0 ? $" [Seed: {Seed}]" : "";
-                return $"{imageInfo}{seedInfo}: {Prompt}";
-            }
-        }
-
-        public QueueItemStatus Status
-        {
-            get => _status;
-            set
-            {
-                if (_status != value)
-                {
-                    _status = value;
-                    OnPropertyChanged(nameof(Status));
-                    OnPropertyChanged(nameof(StatusColor));
-                    OnPropertyChanged(nameof(StatusDisplay));
-                }
-            }
-        }
-
-        public string StatusDisplay => Status switch
-        {
-            QueueItemStatus.Pending => "⏳ Pending",
-            QueueItemStatus.Processing => "⚙️ Processing",
-            QueueItemStatus.Completed => "✅ Completed",
-            QueueItemStatus.Failed => "❌ Failed",
-            _ => Status.ToString()
-        };
-
-        public string StatusColor => Status switch
-        {
-            QueueItemStatus.Pending => "#6C757D",
-            QueueItemStatus.Processing => "#007BFF",
-            QueueItemStatus.Completed => "#28A745",
-            QueueItemStatus.Failed => "#DC3545",
-            _ => "#6C757D"
-        };
-
         public string VideoPath
         {
             get => _videoPath;
@@ -144,11 +96,38 @@ namespace FlipPix.UI.Models
             }
         }
 
-        public event PropertyChangedEventHandler? PropertyChanged;
-
-        protected virtual void OnPropertyChanged(string propertyName)
+        public string DisplayText
         {
-            PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(propertyName));
+            get
+            {
+                var imageInfo = !string.IsNullOrEmpty(FirstFrameImagePath)
+                    ? $"🖼️ {Path.GetFileNameWithoutExtension(FirstFrameImagePath)}→{Path.GetFileNameWithoutExtension(LastFrameImagePath)}"
+                    : $"📎 {Path.GetFileName(ImagePath)}";
+
+                var seedInfo = Seed > 0 ? $" [Seed: {Seed}]" : "";
+                return $"{imageInfo}{seedInfo}: {Prompt}";
+            }
+        }
+
+        // Map string Status to/from QueueItemStatus enum
+        public QueueItemStatus ItemStatus
+        {
+            get => Status switch
+            {
+                "Pending" => QueueItemStatus.Pending,
+                "Processing" => QueueItemStatus.Processing,
+                "Completed" => QueueItemStatus.Completed,
+                "Failed" => QueueItemStatus.Failed,
+                _ => QueueItemStatus.Pending
+            };
+            set => Status = value switch
+            {
+                QueueItemStatus.Pending => "Pending",
+                QueueItemStatus.Processing => "Processing",
+                QueueItemStatus.Completed => "Completed",
+                QueueItemStatus.Failed => "Failed",
+                _ => "Pending"
+            };
         }
     }
 

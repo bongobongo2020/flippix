@@ -117,7 +117,8 @@ namespace FlipPix.UI
             {
                 logger.LogInfo("Creating and showing Image Generator window as default");
                 var imageGeneratorViewModel = _serviceProvider.GetRequiredService<ImageGeneratorViewModel>();
-                var imageGeneratorWindow = new ImageGeneratorWindow(imageGeneratorViewModel, settingsService);
+                var windowPositionService = _serviceProvider.GetRequiredService<WindowPositionService>();
+                var imageGeneratorWindow = new ImageGeneratorWindow(imageGeneratorViewModel, settingsService, windowPositionService);
                 logger.LogInfo("ImageGeneratorWindow created successfully");
 
                 // Set shutdown mode to close when main window closes
@@ -171,6 +172,10 @@ namespace FlipPix.UI
             services.AddSingleton<ImageAnalysisService>();
             services.AddHttpClient<OllamaService>();
             services.AddSingleton<IFileDialogService, FileDialogService>();
+            services.AddSingleton<INavigationService, NavigationService>();
+            services.AddSingleton<WindowPositionService>();
+            services.AddSingleton<LoraManager>();
+            services.AddSingleton<ComfyUIImageRetriever>();
 
             // LMStudioService with dynamic URL from SettingsService
             services.AddSingleton<LMStudioService>(provider =>
@@ -279,19 +284,41 @@ namespace FlipPix.UI
             });
 
             // Views
-            services.AddTransient<FlipPixWindow>();
-            services.AddTransient<VideoGeneratorWindow>();
+            services.AddTransient<FlipPixWindow>(provider =>
+            {
+                var viewModel = provider.GetRequiredService<FlipPixViewModel>();
+                var windowPositionService = provider.GetRequiredService<WindowPositionService>();
+                return new FlipPixWindow(viewModel, windowPositionService);
+            });
+            services.AddTransient<VideoGeneratorWindow>(provider =>
+            {
+                var viewModel = provider.GetRequiredService<VideoGeneratorViewModel>();
+                var windowPositionService = provider.GetRequiredService<WindowPositionService>();
+                return new VideoGeneratorWindow(viewModel, windowPositionService);
+            });
             services.AddTransient<ImageGeneratorWindow>(provider =>
             {
                 var viewModel = provider.GetRequiredService<ImageGeneratorViewModel>();
                 var settingsService = provider.GetRequiredService<SettingsService>();
-                return new ImageGeneratorWindow(viewModel, settingsService);
+                var windowPositionService = provider.GetRequiredService<WindowPositionService>();
+                return new ImageGeneratorWindow(viewModel, settingsService, windowPositionService);
             });
             services.AddTransient<ImageAnalyzerWindow>();
-            services.AddTransient<StoryVideoWindow>();
+            services.AddTransient<StoryVideoWindow>(provider =>
+            {
+                var viewModel = provider.GetRequiredService<StoryVideoViewModel>();
+                var windowPositionService = provider.GetRequiredService<WindowPositionService>();
+                return new StoryVideoWindow(viewModel, windowPositionService);
+            });
             services.AddTransient<OllamaWindow>();
             services.AddTransient<ComfyUIFolderSetupWindow>();
-            services.AddTransient<I2V2AWindow>();
+            services.AddTransient<I2V2AWindow>(provider =>
+            {
+                var viewModel = provider.GetRequiredService<I2V2AViewModel>();
+                var navigationService = provider.GetRequiredService<INavigationService>();
+                var windowPositionService = provider.GetRequiredService<WindowPositionService>();
+                return new I2V2AWindow(viewModel, navigationService, windowPositionService);
+            });
         }
 
         private async Task CheckServerConnectivityAsync(SettingsService settingsService, IAppLogger logger)

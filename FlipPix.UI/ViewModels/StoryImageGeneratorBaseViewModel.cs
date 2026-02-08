@@ -16,7 +16,6 @@ using CommunityToolkit.Mvvm.Input;
 using CommunityToolkit.Mvvm.ComponentModel;
 using FlipPix.UI.Models;
 using FlipPix.UI.Services;
-using YamlDotNet.Serialization;
 
 namespace FlipPix.UI.ViewModels
 {
@@ -27,6 +26,8 @@ namespace FlipPix.UI.ViewModels
         protected readonly FlipPix.Core.Services.SettingsService _settingsService;
         protected readonly WorkflowQueueCoordinator _workflowCoordinator;
         protected readonly IFileDialogService _fileDialogService;
+        protected readonly LoraManager _loraManager;
+        protected readonly ComfyUIImageRetriever _imageRetriever;
         private bool _disposed = false;
 
         private string _promptJsonFilePath = string.Empty;
@@ -56,13 +57,17 @@ namespace FlipPix.UI.ViewModels
             IAppLogger logger,
             FlipPix.Core.Services.SettingsService settingsService,
             WorkflowQueueCoordinator workflowCoordinator,
-            IFileDialogService fileDialogService)
+            IFileDialogService fileDialogService,
+            LoraManager loraManager,
+            ComfyUIImageRetriever imageRetriever)
         {
             _comfyUIService = comfyUIService ?? throw new ArgumentNullException(nameof(comfyUIService));
             _logger = logger ?? throw new ArgumentNullException(nameof(logger));
             _settingsService = settingsService ?? throw new ArgumentNullException(nameof(settingsService));
             _workflowCoordinator = workflowCoordinator ?? throw new ArgumentNullException(nameof(workflowCoordinator));
             _fileDialogService = fileDialogService ?? throw new ArgumentNullException(nameof(fileDialogService));
+            _loraManager = loraManager ?? throw new ArgumentNullException(nameof(loraManager));
+            _imageRetriever = imageRetriever ?? throw new ArgumentNullException(nameof(imageRetriever));
 
             // Set defaults from subclass
             _steps = DefaultSteps;
@@ -840,176 +845,13 @@ namespace FlipPix.UI.ViewModels
             return newFolderPath;
         }
 
-        protected bool IsComfyUIRemote(string serverAddress)
-        {
-            try
-            {
-                if (serverAddress.Equals("127.0.0.1", StringComparison.OrdinalIgnoreCase) ||
-                    serverAddress.Equals("localhost", StringComparison.OrdinalIgnoreCase) ||
-                    serverAddress.Equals("0.0.0.0", StringComparison.OrdinalIgnoreCase))
-                {
-                    return false;
-                }
-
-                if (System.Net.IPAddress.TryParse(serverAddress, out var ip))
-                {
-                    var bytes = ip.GetAddressBytes();
-                    if (bytes.Length == 4)
-                    {
-                        if (bytes[0] == 192 && bytes[1] == 168) return true;
-                        if (bytes[0] == 10) return true;
-                        if (bytes[0] == 172 && bytes[1] >= 16 && bytes[1] <= 31) return true;
-                    }
-                }
-
-                return !string.IsNullOrEmpty(serverAddress) && serverAddress != ".";
-            }
-            catch
-            {
-                return true;
-            }
-        }
-
         /// <summary>
         /// Shared LoRA model path resolution from ComfyUI's extra_model_paths.yaml.
         /// Used by Z and Amateur variants.
         /// </summary>
         protected string? GetLoraModelPath()
         {
-            try
-            {
-                var comfyUIPath = _settingsService.Settings?.ComfyUIFolderPath;
-                if (string.IsNullOrEmpty(comfyUIPath))
-                {
-                    AddLog("ComfyUI installation path not configured");
-                    return null;
-                }
-
-                var extraModelPathsFile = Path.Combine(comfyUIPath, "extra_model_paths.yaml");
-                AddLog($"Looking for extra_model_paths.yaml at: {extraModelPathsFile}");
-
-                if (File.Exists(extraModelPathsFile))
-                {
-                    try
-                    {
-                        AddLog("Found extra_model_paths.yaml, reading content...");
-                        var yamlContent = File.ReadAllText(extraModelPathsFile);
-                        var deserializer = new DeserializerBuilder().Build();
-                        var yamlData = deserializer.Deserialize<Dictionary<string, object>>(yamlContent);
-
-                        AddLog($"YAML parsed successfully. Keys found: {string.Join(", ", yamlData.Keys)}");
-
-                        if (yamlData != null)
-                        {
-                            string basePath = string.Empty;
-                            string lorasRelativePath = string.Empty;
-
-                            if (yamlData.ContainsKey("comfyui"))
-                            {
-                                AddLog("Found 'comfyui' section in YAML");
-                                var comfyuiSectionObject = yamlData["comfyui"];
-                                var comfyuiSection = comfyuiSectionObject as Dictionary<object, object>;
-
-                                if (comfyuiSection != null)
-                                {
-                                    var comfyuiStringDict = new Dictionary<string, object>();
-                                    foreach (var kvp in comfyuiSection)
-                                    {
-                                        if (kvp.Key != null)
-                                        {
-                                            comfyuiStringDict[kvp.Key.ToString() ?? string.Empty] = kvp.Value;
-                                        }
-                                    }
-
-                                    AddLog($"ComfyUI section keys: {string.Join(", ", comfyuiStringDict.Keys)}");
-
-                                    if (comfyuiStringDict.ContainsKey("base_path"))
-                                    {
-                                        basePath = comfyuiStringDict["base_path"]?.ToString() ?? string.Empty;
-                                        AddLog($"Found base_path: {basePath}");
-                                    }
-
-                                    if (comfyuiStringDict.ContainsKey("loras"))
-                                    {
-                                        lorasRelativePath = comfyuiStringDict["loras"]?.ToString() ?? string.Empty;
-                                        AddLog($"Found loras path: {lorasRelativePath}");
-                                    }
-                                    else
-                                    {
-                                        AddLog("No 'loras' key found in comfyui section");
-                                    }
-                                }
-                            }
-                            else
-                            {
-                                AddLog("No 'comfyui' section found in YAML");
-
-                                if (yamlData.ContainsKey("loras"))
-                                {
-                                    lorasRelativePath = yamlData["loras"]?.ToString() ?? string.Empty;
-                                    AddLog($"Found direct loras path: {lorasRelativePath}");
-                                }
-                            }
-
-                            if (!string.IsNullOrEmpty(lorasRelativePath))
-                            {
-                                string fullLoraPath;
-                                if (!string.IsNullOrEmpty(basePath))
-                                {
-                                    fullLoraPath = Path.Combine(basePath, lorasRelativePath);
-                                    AddLog($"Combined base_path and loras: {basePath} + {lorasRelativePath} = {fullLoraPath}");
-                                }
-                                else
-                                {
-                                    fullLoraPath = lorasRelativePath;
-                                    AddLog($"Using loras path directly: {fullLoraPath}");
-                                }
-
-                                fullLoraPath = fullLoraPath.Replace('/', Path.DirectorySeparatorChar);
-
-                                AddLog($"Final LoRA path: {fullLoraPath}");
-
-                                if (Directory.Exists(fullLoraPath))
-                                {
-                                    AddLog($"SUCCESS: LoRA directory exists: {fullLoraPath}");
-                                    return fullLoraPath;
-                                }
-                                else
-                                {
-                                    AddLog($"ERROR: LoRA path from extra_model_paths.yaml exists but directory not found: {fullLoraPath}");
-                                }
-                            }
-                            else
-                            {
-                                AddLog("ERROR: No loras path found in YAML configuration");
-                            }
-                        }
-                    }
-                    catch (Exception ex)
-                    {
-                        AddLog($"ERROR reading extra_model_paths.yaml: {ex.Message}");
-                    }
-                }
-                else
-                {
-                    AddLog($"ERROR: extra_model_paths.yaml not found in ComfyUI directory: {extraModelPathsFile}");
-                }
-
-                var defaultLoraPath = Path.Combine(comfyUIPath, "models", "loras");
-                if (Directory.Exists(defaultLoraPath))
-                {
-                    AddLog($"Using default ComfyUI LoRA path: {defaultLoraPath}");
-                    return defaultLoraPath;
-                }
-
-                AddLog($"No LoRA directory found in: {comfyUIPath}");
-                return null;
-            }
-            catch (Exception ex)
-            {
-                AddLog($"Error getting LoRA model path: {ex.Message}");
-                return null;
-            }
+            return _loraManager.ResolveLoraPath();
         }
 
         public void Dispose()

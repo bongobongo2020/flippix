@@ -49,8 +49,10 @@ namespace FlipPix.UI.ViewModels
             IAppLogger logger,
             FlipPix.Core.Services.SettingsService settingsService,
             WorkflowQueueCoordinator workflowCoordinator,
-            IFileDialogService fileDialogService)
-            : base(comfyUIService, logger, settingsService, workflowCoordinator, fileDialogService)
+            IFileDialogService fileDialogService,
+            LoraManager loraManager,
+            ComfyUIImageRetriever imageRetriever)
+            : base(comfyUIService, logger, settingsService, workflowCoordinator, fileDialogService, loraManager, imageRetriever)
         {
         }
 
@@ -576,83 +578,41 @@ namespace FlipPix.UI.ViewModels
 
         private JsonElement UpdateWorkflowParameters(JsonElement workflow, StoryPromptItem item)
         {
-            var workflowDict = JsonSerializer.Deserialize<Dictionary<string, JsonElement>>(workflow.GetRawText());
-
-            if (workflowDict == null) return workflow;
+            var workflowJson = workflow.GetRawText();
 
             // 1. Update user prompt (node 385 - StringTrim)
-            if (workflowDict.ContainsKey("385"))
-            {
-                var node385 = JsonSerializer.Deserialize<Dictionary<string, object>>(workflowDict["385"].GetRawText());
-                if (node385 != null && node385.ContainsKey("inputs"))
-                {
-                    var inputs = JsonSerializer.Deserialize<Dictionary<string, object>>(
-                        JsonSerializer.Serialize(node385["inputs"]));
-                    if (inputs != null)
-                    {
-                        inputs["string"] = item.Prompt;
-                        node385["inputs"] = inputs;
-                        workflowDict["385"] = JsonSerializer.SerializeToElement(node385);
-                    }
-                }
-            }
+            WorkflowNodeUpdater.UpdateNodeInput(ref workflowJson, "385", "string", item.Prompt);
 
             // 2. Update negative prompt (node 60)
-            if (workflowDict.ContainsKey("60"))
-            {
-                var node60 = JsonSerializer.Deserialize<Dictionary<string, object>>(workflowDict["60"].GetRawText());
-                if (node60 != null && node60.ContainsKey("inputs"))
-                {
-                    var inputs = JsonSerializer.Deserialize<Dictionary<string, object>>(
-                        JsonSerializer.Serialize(node60["inputs"]));
-                    if (inputs != null)
-                    {
-                        inputs["text"] = item.NegativePrompt;
-                        node60["inputs"] = inputs;
-                        workflowDict["60"] = JsonSerializer.SerializeToElement(node60);
-                    }
-                }
-            }
+            WorkflowNodeUpdater.UpdateNodeInput(ref workflowJson, "60", "text", item.NegativePrompt);
 
             // 3. Update seed (node 307)
-            if (workflowDict.ContainsKey("307"))
-            {
-                var node307 = JsonSerializer.Deserialize<Dictionary<string, object>>(workflowDict["307"].GetRawText());
-                if (node307 != null && node307.ContainsKey("inputs"))
-                {
-                    var inputs = JsonSerializer.Deserialize<Dictionary<string, object>>(
-                        JsonSerializer.Serialize(node307["inputs"]));
-                    if (inputs != null)
-                    {
-                        var random = new Random();
-                        int seed = random.Next(1, int.MaxValue);
-                        inputs["value"] = seed;
-                        node307["inputs"] = inputs;
-                        workflowDict["307"] = JsonSerializer.SerializeToElement(node307);
-                    }
-                }
-            }
+            var random = new Random();
+            int seed = random.Next(1, int.MaxValue);
+            WorkflowNodeUpdater.UpdateNodeInput(ref workflowJson, "307", "value", seed);
 
             // 4. Update style template (node 125)
-            if (workflowDict.ContainsKey("125"))
-            {
-                var node125 = JsonSerializer.Deserialize<Dictionary<string, object>>(workflowDict["125"].GetRawText());
-                if (node125 != null && node125.ContainsKey("inputs"))
-                {
-                    var inputs = JsonSerializer.Deserialize<Dictionary<string, object>>(
-                        JsonSerializer.Serialize(node125["inputs"]));
-                    if (inputs != null)
-                    {
-                        var styleTemplate = GetStyleTemplateForWorkflow(item.SelectedStyle, item.SpicyContentEnabled);
-                        inputs["value"] = styleTemplate;
-                        node125["inputs"] = inputs;
-                        workflowDict["125"] = JsonSerializer.SerializeToElement(node125);
-                    }
-                }
-            }
+            var styleTemplate = GetStyleTemplateForWorkflow(item.SelectedStyle, item.SpicyContentEnabled);
+            WorkflowNodeUpdater.UpdateNodeInput(ref workflowJson, "125", "value", styleTemplate);
 
             // 5. Update LoRA settings - always process to disable hardcoded loras when not enabled
             AddLog($"Processing LoRA nodes - LoRA Enabled: {item.LoraEnabled}, Selected LoRA: {item.SelectedLora}");
+            workflowJson = UpdateLoraSettings(workflowJson, item);
+
+            // 6. Update output filename prefix with timestamp (node 9)
+            var timestamp = DateTime.Now.ToString("yyyy_MM_dd");
+            WorkflowNodeUpdater.UpdateNodeInput(ref workflowJson, "9", "filename_prefix", $"ZImage/{timestamp}/ZI");
+
+            // 7. Update resolution/orientation (nodes 56, 243, 248)
+            workflowJson = UpdateResolution(workflowJson, item.SelectedOrientation);
+
+            return JsonSerializer.Deserialize<JsonElement>(workflowJson);
+        }
+
+        private string UpdateLoraSettings(string workflowJson, StoryPromptItem item)
+        {
+            var workflowDict = JsonSerializer.Deserialize<Dictionary<string, JsonElement>>(workflowJson);
+            if (workflowDict == null) return workflowJson;
 
             foreach (var kvp in workflowDict)
             {
@@ -660,7 +620,7 @@ namespace FlipPix.UI.ViewModels
                 if (nodeElement.TryGetProperty("class_type", out var classTypeElement))
                 {
                     var classTypeStr = classTypeElement.GetString();
-                    if (classTypeStr == "Power Lora Loader (rgthree)" && nodeElement.TryGetProperty("inputs", out var loraInputsProp))
+                    if (classTypeStr == "Power Lora Loader (rgthree)" && nodeElement.TryGetProperty("inputs", out var _))
                     {
                         AddLog($"Found Power Lora Loader node {kvp.Key}");
 
@@ -744,31 +704,10 @@ namespace FlipPix.UI.ViewModels
                 }
             }
 
-            // 6. Update output filename prefix with timestamp (node 9)
-            if (workflowDict.ContainsKey("9"))
-            {
-                var node9 = JsonSerializer.Deserialize<Dictionary<string, object>>(workflowDict["9"].GetRawText());
-                if (node9 != null && node9.ContainsKey("inputs"))
-                {
-                    var inputs = JsonSerializer.Deserialize<Dictionary<string, object>>(
-                        JsonSerializer.Serialize(node9["inputs"]));
-                    if (inputs != null)
-                    {
-                        var timestamp = DateTime.Now.ToString("yyyy_MM_dd");
-                        inputs["filename_prefix"] = $"ZImage/{timestamp}/ZI";
-                        node9["inputs"] = inputs;
-                        workflowDict["9"] = JsonSerializer.SerializeToElement(node9);
-                    }
-                }
-            }
-
-            // 7. Update resolution/orientation (nodes 56, 243, 248)
-            UpdateResolution(workflowDict, item.SelectedOrientation);
-
-            return JsonSerializer.SerializeToElement(workflowDict);
+            return JsonSerializer.Serialize(workflowDict);
         }
 
-        private void UpdateResolution(Dictionary<string, JsonElement> workflowDict, string selectedOrientation)
+        private string UpdateResolution(string workflowJson, string selectedOrientation)
         {
             int width = 944;
             int height = 1408;
@@ -790,22 +729,11 @@ namespace FlipPix.UI.ViewModels
             }
 
             // Update EmptyLatentImage (node 56)
-            if (workflowDict.ContainsKey("56"))
+            WorkflowNodeUpdater.UpdateNodeInputMultiple(ref workflowJson, "56", new Dictionary<string, object>
             {
-                var node56 = JsonSerializer.Deserialize<Dictionary<string, object>>(workflowDict["56"].GetRawText());
-                if (node56 != null && node56.ContainsKey("inputs"))
-                {
-                    var inputs = JsonSerializer.Deserialize<Dictionary<string, object>>(
-                        JsonSerializer.Serialize(node56["inputs"]));
-                    if (inputs != null)
-                    {
-                        inputs["width"] = width;
-                        inputs["height"] = height;
-                        node56["inputs"] = inputs;
-                        workflowDict["56"] = JsonSerializer.SerializeToElement(node56);
-                    }
-                }
-            }
+                { "width", width },
+                { "height", height }
+            });
 
             int shortSide = 1088;
             int longSide = 1600;
@@ -829,40 +757,14 @@ namespace FlipPix.UI.ViewModels
             }
 
             // Update Short Side (node 243)
-            if (workflowDict.ContainsKey("243"))
-            {
-                var node243 = JsonSerializer.Deserialize<Dictionary<string, object>>(workflowDict["243"].GetRawText());
-                if (node243 != null && node243.ContainsKey("inputs"))
-                {
-                    var inputs = JsonSerializer.Deserialize<Dictionary<string, object>>(
-                        JsonSerializer.Serialize(node243["inputs"]));
-                    if (inputs != null)
-                    {
-                        inputs["value"] = widthSD3;
-                        node243["inputs"] = inputs;
-                        workflowDict["243"] = JsonSerializer.SerializeToElement(node243);
-                    }
-                }
-            }
+            WorkflowNodeUpdater.UpdateNodeInput(ref workflowJson, "243", "value", widthSD3);
 
             // Update Long Side (node 248)
-            if (workflowDict.ContainsKey("248"))
-            {
-                var node248 = JsonSerializer.Deserialize<Dictionary<string, object>>(workflowDict["248"].GetRawText());
-                if (node248 != null && node248.ContainsKey("inputs"))
-                {
-                    var inputs = JsonSerializer.Deserialize<Dictionary<string, object>>(
-                        JsonSerializer.Serialize(node248["inputs"]));
-                    if (inputs != null)
-                    {
-                        inputs["value"] = heightSD3;
-                        node248["inputs"] = inputs;
-                        workflowDict["248"] = JsonSerializer.SerializeToElement(node248);
-                    }
-                }
-            }
+            WorkflowNodeUpdater.UpdateNodeInput(ref workflowJson, "248", "value", heightSD3);
 
             AddLog($"Orientation: {selectedOrientation} -> Node56: {width}x{height}, SD3: {widthSD3}x{heightSD3}");
+
+            return workflowJson;
         }
 
         private string GetStyleTemplate(string selectedStyle)
@@ -917,7 +819,7 @@ namespace FlipPix.UI.ViewModels
                 var uri = new Uri(baseUrl);
                 var actualServer = uri.Host;
 
-                bool isRemoteComfyUI = IsComfyUIRemote(actualServer);
+                bool isRemoteComfyUI = _imageRetriever.IsComfyUIRemote(_settingsService);
 
                 AddLog($"ComfyUI server: {actualServer}");
                 AddLog($"Is remote ComfyUI: {isRemoteComfyUI}");

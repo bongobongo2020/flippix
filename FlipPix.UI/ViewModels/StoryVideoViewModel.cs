@@ -961,7 +961,7 @@ namespace FlipPix.UI.ViewModels
                             promptText = lines.FirstOrDefault()?.Trim() ?? section.Trim();
                         }
 
-                        var cleaned = CleanPrompt(promptText);
+                        var cleaned = PromptParser.CleanPrompt(promptText);
 
                         if (!string.IsNullOrWhiteSpace(cleaned) && cleaned.Length > 20)
                         {
@@ -983,8 +983,8 @@ namespace FlipPix.UI.ViewModels
 
                         foreach (Match match in matches.Take(10 - prompts.Count))
                         {
-                            var title = CleanPrompt(match.Groups[2].Value.Trim());
-                            var description = CleanPrompt(match.Groups[3].Value.Trim());
+                            var title = PromptParser.CleanPrompt(match.Groups[2].Value.Trim());
+                            var description = PromptParser.CleanPrompt(match.Groups[3].Value.Trim());
 
                             var fullPrompt = string.IsNullOrWhiteSpace(description) ? title : $"{title}. {description}";
 
@@ -1016,7 +1016,7 @@ namespace FlipPix.UI.ViewModels
 
                             if (!string.IsNullOrWhiteSpace(content) && content.Length > 20)
                             {
-                                var cleaned = CleanPrompt(content);
+                                var cleaned = PromptParser.CleanPrompt(content);
                                 prompts.Add(cleaned);
                                 AddLog($"  → Line prompt {prompts.Count}: {cleaned.Substring(0, Math.Min(60, cleaned.Length))}...");
                             }
@@ -1035,7 +1035,7 @@ namespace FlipPix.UI.ViewModels
                         AddLog($"Strategy 4: Found {matches.Count} numbered items");
                         foreach (Match match in matches.Take(10 - prompts.Count))
                         {
-                            var content = CleanPrompt(match.Groups[1].Value.Trim());
+                            var content = PromptParser.CleanPrompt(match.Groups[1].Value.Trim());
                             if (!string.IsNullOrWhiteSpace(content) && content.Length > 30)
                             {
                                 prompts.Add(content);
@@ -1061,7 +1061,7 @@ namespace FlipPix.UI.ViewModels
                     {
                         if (prompts.Count >= 10) break;
 
-                        var cleaned = CleanPrompt(sentence);
+                        var cleaned = PromptParser.CleanPrompt(sentence);
                         if (cleaned.Length > 40)
                         {
                             prompts.Add(cleaned);
@@ -1097,54 +1097,6 @@ namespace FlipPix.UI.ViewModels
             }
 
             return prompts;
-        }
-
-        private string CleanPrompt(string prompt)
-        {
-            if (string.IsNullOrWhiteSpace(prompt))
-                return string.Empty;
-
-            // Remove asterisks and markdown formatting
-            prompt = Regex.Replace(prompt, @"\*+", "");
-
-            // Remove markdown headers
-            prompt = Regex.Replace(prompt, @"^#{1,6}\s*", "", RegexOptions.Multiline);
-
-            // Remove time indicators like "(0-5s)"
-            prompt = Regex.Replace(prompt, @"\(?\d+[-–]?\d*\s*s\)?", "");
-            prompt = Regex.Replace(prompt, @"\*\d+\s+seconds?\*", "");
-
-            // Clean up dashes
-            prompt = prompt.Replace("—", " - ").Replace("–", " - ");
-
-            // Remove common prefixes - Add "Prompt #N:" pattern
-            prompt = Regex.Replace(prompt, @"^Prompt\s*#?\d+:\s*", "", RegexOptions.IgnoreCase | RegexOptions.Multiline);
-            prompt = Regex.Replace(prompt, @"^Video Clip #\d+:\s*", "", RegexOptions.IgnoreCase | RegexOptions.Multiline);
-            prompt = Regex.Replace(prompt, @"^\d+\.\s*", "", RegexOptions.Multiline);
-            prompt = Regex.Replace(prompt, @"^[🎬📖]\s*", "", RegexOptions.Multiline);
-
-            // Remove quotes
-            prompt = prompt.Replace("\"", "").Replace("'", "");
-
-            // Remove sound/camera indicators
-            prompt = Regex.Replace(prompt, @"SFX:[^.\n]*\.?", "");
-            prompt = Regex.Replace(prompt, @"\*[^*]*Sound[^*]*\*", "");
-            prompt = Regex.Replace(prompt, @"\*[^*]*Camera[^*]*\*", "");
-
-            // Remove meta-commentary
-            prompt = Regex.Replace(prompt, @"Absolutely - here are[^:]*:\s*", "", RegexOptions.IgnoreCase);
-            prompt = Regex.Replace(prompt, @"Here are[^:]*:\s*", "", RegexOptions.IgnoreCase);
-            prompt = Regex.Replace(prompt, @"Of course[^:]*:\s*", "", RegexOptions.IgnoreCase);
-
-            // Clean up whitespace
-            prompt = Regex.Replace(prompt, @"\s+", " ");
-            prompt = prompt.Trim();
-
-            // Remove trailing punctuation
-            if (prompt.EndsWith(":") || prompt.EndsWith("."))
-                prompt = prompt.TrimEnd(".:".ToCharArray());
-
-            return prompt;
         }
 
         private string GetOutputVideoFromComfyUI()

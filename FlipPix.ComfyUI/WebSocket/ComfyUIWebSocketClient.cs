@@ -104,7 +104,7 @@ public class ComfyUIWebSocketClient : IDisposable
 
                 if (result.MessageType == WebSocketMessageType.Text)
                 {
-                    var message = Encoding.UTF8.GetString(ms.GetBuffer(), 0, (int)ms.Length);
+                    var message = Encoding.UTF8.GetString(ms.ToArray(), 0, (int)ms.Length);
                     ProcessMessage(message);
                 }
             }

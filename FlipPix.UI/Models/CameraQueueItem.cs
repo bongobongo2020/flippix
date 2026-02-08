@@ -1,15 +1,7 @@
-using System;
-using System.ComponentModel;
-using System.Runtime.CompilerServices;
-
 namespace FlipPix.UI.Models
 {
-    public class CameraQueueItem : INotifyPropertyChanged
+    public class CameraQueueItem : BaseQueueItem
     {
-        private string _status = "Queued";
-        private double _progress = 0;
-
-        public string Id { get; set; } = Guid.NewGuid().ToString();
         public string ImageFilePath { get; set; } = string.Empty;
         public string CameraControl { get; set; } = string.Empty;
         public string Prompt { get; set; } = string.Empty;
@@ -20,43 +12,11 @@ namespace FlipPix.UI.Models
         public string SamplerName { get; set; } = "euler";
         public string Scheduler { get; set; } = "beta57";
 
-        public string Status
+        // ResultImagePath is unique to this model - maps to OutputImagePath in base
+        public string? ResultImagePath
         {
-            get => _status;
-            set
-            {
-                if (_status != value)
-                {
-                    _status = value;
-                    OnPropertyChanged();
-                }
-            }
-        }
-
-        public DateTime CreatedAt { get; set; } = DateTime.Now;
-        public DateTime? StartedAt { get; set; }
-        public DateTime? CompletedAt { get; set; }
-        public string? ResultImagePath { get; set; }
-        public string? ErrorMessage { get; set; }
-
-        public double Progress
-        {
-            get => _progress;
-            set
-            {
-                if (_progress != value)
-                {
-                    _progress = value;
-                    OnPropertyChanged();
-                }
-            }
-        }
-
-        public event PropertyChangedEventHandler? PropertyChanged;
-
-        protected void OnPropertyChanged([CallerMemberName] string? propertyName = null)
-        {
-            PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(propertyName));
+            get => OutputImagePath;
+            set => OutputImagePath = value;
         }
     }
 }

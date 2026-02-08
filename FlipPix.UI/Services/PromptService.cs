@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
@@ -21,7 +22,8 @@ namespace FlipPix.UI.Services
     public class PromptService : IPromptService
     {
         private readonly IAppLogger _logger;
-        private readonly Dictionary<string, List<SavedPrompt>> _promptCache = new();
+        private readonly ConcurrentDictionary<string, List<SavedPrompt>> _promptCache = new();
+        private readonly object _fileLock = new();
 
         public PromptService(IAppLogger logger)
         {
@@ -30,12 +32,11 @@ namespace FlipPix.UI.Services
 
         public List<SavedPrompt> LoadPrompts(string promptType)
         {
-            // Check cache first
-            if (_promptCache.ContainsKey(promptType))
-            {
-                return _promptCache[promptType];
-            }
+            return _promptCache.GetOrAdd(promptType, LoadFromFile);
+        }
 
+        private List<SavedPrompt> LoadFromFile(string promptType)
+        {
             try
             {
                 var promptHistoryPath = GetPromptHistoryPath(promptType);
@@ -47,24 +48,19 @@ namespace FlipPix.UI.Services
                     if (prompts != null)
                     {
                         var sortedPrompts = prompts.OrderByDescending(p => p.LastUsed).ToList();
-                        _promptCache[promptType] = sortedPrompts;
                         _logger.LogInfo($"Loaded {sortedPrompts.Count} saved prompts for {promptType}");
                         return sortedPrompts;
                     }
                 }
 
-                var emptyList = new List<SavedPrompt>();
-                _promptCache[promptType] = emptyList;
                 Directory.CreateDirectory(Path.GetDirectoryName(promptHistoryPath)!);
                 _logger.LogInfo($"Created new prompt history file for {promptType}");
-                return emptyList;
+                return new List<SavedPrompt>();
             }
             catch (Exception ex)
             {
                 _logger.LogError($"Error loading saved prompts for {promptType}: {ex.Message}");
-                var emptyList = new List<SavedPrompt>();
-                _promptCache[promptType] = emptyList;
-                return emptyList;
+                return new List<SavedPrompt>();
             }
         }
 
@@ -76,10 +72,15 @@ namespace FlipPix.UI.Services
                 Directory.CreateDirectory(Path.GetDirectoryName(promptHistoryPath)!);
 
                 var json = JsonSerializer.Serialize(prompts, new JsonSerializerOptions { WriteIndented = true });
-                File.WriteAllText(promptHistoryPath, json);
+
+                // Use lock to prevent concurrent file writes
+                lock (_fileLock)
+                {
+                    File.WriteAllText(promptHistoryPath, json);
+                }
 
                 // Update cache
-                _promptCache[promptType] = prompts;
+                _promptCache.AddOrUpdate(promptType, prompts, (key, old) => prompts);
                 _logger.LogInfo($"Saved {prompts.Count} prompts for {promptType}");
             }
             catch (Exception ex)

@@ -13,8 +13,6 @@
         ResizeMode="CanResize">
 
     <Window.Resources>
-        <BooleanToVisibilityConverter x:Key="BooleanToVisibilityConverter"/>
-
         <Style x:Key="HeaderTextStyle" TargetType="TextBlock">
             <Setter Property="FontSize" Value="14"/>
             <Setter Property="FontWeight" Value="Bold"/>
