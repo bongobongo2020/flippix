@@ -4,6 +4,9 @@ echo Publishing FlipPix Video Processor...
 REM Clean previous publish
 if exist publish rmdir /s /q publish
 
+REM Clean build artifacts to ensure all changes are compiled
+dotnet clean FlipPix.UI/FlipPix.UI.csproj -c Release >nul 2>&1
+
 REM Publish as self-contained Windows x64 application
 dotnet publish FlipPix.UI/FlipPix.UI.csproj ^
     -c Release ^

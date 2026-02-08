@@ -2235,8 +2235,8 @@ namespace FlipPix.UI.ViewModels
                             {
                                 var resolutions = new[]
                                 {
-                                    (1088, 1600), // Portrait
                                     (1600, 1088), // Landscape
+                                    (1088, 1600), // Portrait
                                     (1600, 1600), // Square
                                 };
                                 var (width, height) = resolutions[Math.Min(AspectRatioIndex, resolutions.Length - 1)];
@@ -2264,8 +2264,8 @@ namespace FlipPix.UI.ViewModels
 
                             var resolutions = new[]
                             {
-                                (1088, 1600), // Portrait
                                 (1600, 1088), // Landscape
+                                (1088, 1600), // Portrait
                                 (1600, 1600), // Square
                             };
                             var (width, height) = resolutions[Math.Min(AspectRatioIndex, resolutions.Length - 1)];
@@ -2713,8 +2713,8 @@ namespace FlipPix.UI.ViewModels
             // Z-Image recommended dimensions based on aspect ratios
             var dimensions = new[]
             {
-                (1088, 1600),  // 0: Portrait
-                (1600, 1088),  // 1: Landscape
+                (1600, 1088),  // 0: Landscape
+                (1088, 1600),  // 1: Portrait
                 (1600, 1600),  // 2: Square
             };
 

@@ -1156,8 +1156,8 @@ namespace FlipPix.UI.ViewModels
             // Get resolution from aspect ratio index
             var resolutions = new[]
             {
-                (1088, 1600), // Portrait
                 (1600, 1088), // Landscape
+                (1088, 1600), // Portrait
                 (1600, 1600), // Square
             };
             var (width, height) = resolutions[Math.Min(AspectRatioIndex, resolutions.Length - 1)];
@@ -1242,8 +1242,8 @@ namespace FlipPix.UI.ViewModels
             // Get resolution from aspect ratio index
             var resolutions = new[]
             {
-                (1088, 1600), // Portrait
                 (1600, 1088), // Landscape
+                (1088, 1600), // Portrait
                 (1600, 1600), // Square
             };
             var (width, height) = resolutions[Math.Min(AspectRatioIndex, resolutions.Length - 1)];
