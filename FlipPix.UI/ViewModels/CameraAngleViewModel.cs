@@ -23,6 +23,7 @@ namespace FlipPix.UI.ViewModels
         private readonly IAppLogger _logger;
         private readonly FlipPix.Core.Services.SettingsService _settingsService;
         private readonly IFileDialogService _fileDialogService;
+        private readonly ComfyUIImageRetriever _imageRetriever;
         private bool _disposed = false;
 
         private string _inputImagePath = string.Empty;
@@ -40,12 +41,14 @@ namespace FlipPix.UI.ViewModels
             FlipPix.ComfyUI.Services.ComfyUIService comfyUIService,
             IAppLogger logger,
             FlipPix.Core.Services.SettingsService settingsService,
-            IFileDialogService fileDialogService)
+            IFileDialogService fileDialogService,
+            ComfyUIImageRetriever? imageRetriever = null)
         {
             _comfyUIService = comfyUIService ?? throw new ArgumentNullException(nameof(comfyUIService));
             _logger = logger ?? throw new ArgumentNullException(nameof(logger));
             _settingsService = settingsService ?? throw new ArgumentNullException(nameof(settingsService));
             _fileDialogService = fileDialogService ?? throw new ArgumentNullException(nameof(fileDialogService));
+            _imageRetriever = imageRetriever ?? new ComfyUIImageRetriever();
 
             AddLog("Camera Angle Generator initialized");
         }
@@ -388,9 +391,7 @@ namespace FlipPix.UI.ViewModels
 
         private JsonElement UpdateWorkflowParameters(JsonElement workflow, string inputImageName)
         {
-            var workflowDict = JsonSerializer.Deserialize<Dictionary<string, JsonElement>>(workflow.GetRawText());
-
-            if (workflowDict == null) return workflow;
+            var workflowJson = workflow.GetRawText();
 
             // Get the input image filename without extension for the subfolder
             var inputImageFileName = Path.GetFileNameWithoutExtension(InputImagePath);
@@ -398,22 +399,8 @@ namespace FlipPix.UI.ViewModels
             var subfolderName = string.Join("_", inputImageFileName.Split(Path.GetInvalidFileNameChars()));
 
             // Update the input image (node 76 - LoadImage)
-            if (workflowDict.ContainsKey("76"))
-            {
-                var node76 = JsonSerializer.Deserialize<Dictionary<string, object>>(workflowDict["76"].GetRawText());
-                if (node76 != null && node76.ContainsKey("inputs"))
-                {
-                    var inputs = JsonSerializer.Deserialize<Dictionary<string, object>>(
-                        JsonSerializer.Serialize(node76["inputs"]));
-                    if (inputs != null)
-                    {
-                        inputs["image"] = inputImageName;
-                        node76["inputs"] = inputs;
-                        workflowDict["76"] = JsonSerializer.SerializeToElement(node76);
-                        AddLog("Updated input image in workflow");
-                    }
-                }
-            }
+            WorkflowNodeUpdater.UpdateNodeInput(ref workflowJson, "76", "image", inputImageName);
+            AddLog("Updated input image in workflow");
 
             // Update save nodes for models
             // The workflow has 3 save nodes: 112 (Flux2-Dev), 9 (Flux2-Klein-9B), 94 (Flux2-Klein-4B)
@@ -429,37 +416,20 @@ namespace FlipPix.UI.ViewModels
 
             AddLog($"Selected model: {SelectedModel}, using save node: {modelNodeId}");
 
-            if (workflowDict.ContainsKey(modelNodeId))
-            {
-                var node = JsonSerializer.Deserialize<Dictionary<string, object>>(workflowDict[modelNodeId].GetRawText());
-                if (node != null && node.ContainsKey("inputs"))
-                {
-                    var inputs = JsonSerializer.Deserialize<Dictionary<string, object>>(
-                        JsonSerializer.Serialize(node["inputs"]));
-                    if (inputs != null)
-                    {
-                        var timestamp = DateTime.Now.ToString("yyyyMMdd_HHmmss");
-                        inputs["filename_prefix"] = $"{SelectedModel.Replace("-", "")}-camera-angles-{timestamp}";
-                        // Add subfolder to organize outputs by input image name
-                        inputs["subfolder"] = subfolderName;
-                        node["inputs"] = inputs;
-                        workflowDict[modelNodeId] = JsonSerializer.SerializeToElement(node);
-                        AddLog($"Node {modelNodeId}: subfolder='{subfolderName}', prefix='{inputs["filename_prefix"]}'");
-                    }
-                }
-            }
-            else
-            {
-                AddLog($"WARNING: Save node {modelNodeId} not found in workflow!");
-            }
+            var timestamp = DateTime.Now.ToString("yyyyMMdd_HHmmss");
+            var filenamePrefix = $"{SelectedModel.Replace("-", "")}-camera-angles-{timestamp}";
 
+            WorkflowNodeUpdater.UpdateNodeInputMultiple(ref workflowJson, modelNodeId, new Dictionary<string, object>
+            {
+                { "filename_prefix", filenamePrefix },
+                { "subfolder", subfolderName }
+            });
+
+            AddLog($"Node {modelNodeId}: subfolder='{subfolderName}', prefix='{filenamePrefix}'");
             AddLog($"Updated workflow for model: {SelectedModel} (subfolder: {subfolderName})");
-
-            // Log the actual workflow JSON for debugging
-            var workflowJson = JsonSerializer.Serialize(workflowDict, new JsonSerializerOptions { WriteIndented = false });
             AddLog($"Workflow JSON length: {workflowJson.Length} characters");
 
-            return JsonSerializer.SerializeToElement(workflowDict);
+            return JsonSerializer.Deserialize<JsonElement>(workflowJson);
         }
 
         private async Task<List<byte[]>> GetOutputImagesFromComfyUI(string promptId)
@@ -472,7 +442,7 @@ namespace FlipPix.UI.ViewModels
                 var uri = new Uri(baseUrl);
                 var actualServer = uri.Host;
 
-                bool isRemoteComfyUI = IsComfyUIRemote(actualServer);
+                bool isRemoteComfyUI = _imageRetriever.IsComfyUIRemote(_settingsService);
 
                 AddLog($"ComfyUI server: {actualServer}");
                 AddLog($"Is remote ComfyUI: {isRemoteComfyUI}");
@@ -638,36 +608,6 @@ namespace FlipPix.UI.ViewModels
             }
 
             return images;
-        }
-
-        private bool IsComfyUIRemote(string serverAddress)
-        {
-            try
-            {
-                if (serverAddress.Equals("127.0.0.1", StringComparison.OrdinalIgnoreCase) ||
-                    serverAddress.Equals("localhost", StringComparison.OrdinalIgnoreCase) ||
-                    serverAddress.Equals("0.0.0.0", StringComparison.OrdinalIgnoreCase))
-                {
-                    return false;
-                }
-
-                if (System.Net.IPAddress.TryParse(serverAddress, out var ip))
-                {
-                    var bytes = ip.GetAddressBytes();
-                    if (bytes.Length == 4)
-                    {
-                        if (bytes[0] == 192 && bytes[1] == 168) return true;
-                        if (bytes[0] == 10) return true;
-                        if (bytes[0] == 172 && bytes[1] >= 16 && bytes[1] <= 31) return true;
-                    }
-                }
-
-                return !string.IsNullOrEmpty(serverAddress) && serverAddress != ".";
-            }
-            catch
-            {
-                return true;
-            }
         }
 
         [RelayCommand(CanExecute = nameof(IsProcessing))]

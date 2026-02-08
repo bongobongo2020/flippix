@@ -4,6 +4,7 @@ using System.IO;
 using System.Windows;
 using System.Windows.Input;
 using System.Windows.Media.Animation;
+using FlipPix.UI.Services;
 using FlipPix.UI.ViewModels;
 using FlipPix.Core.Services;
 
@@ -13,13 +14,15 @@ namespace FlipPix.UI
     {
         private readonly ImageGeneratorViewModel _viewModel;
         private readonly SettingsService _settingsService;
+        private readonly WindowPositionService _windowPositionService;
 
-        public ImageGeneratorWindow(ImageGeneratorViewModel viewModel, SettingsService settingsService)
+        public ImageGeneratorWindow(ImageGeneratorViewModel viewModel, SettingsService settingsService, WindowPositionService windowPositionService)
         {
             InitializeComponent();
             DataContext = viewModel;
             _viewModel = viewModel;
             _settingsService = settingsService;
+            _windowPositionService = windowPositionService ?? throw new ArgumentNullException(nameof(windowPositionService));
             Loaded += OnLoaded;
 
             // Subscribe to the Analyzer's QueueItemAdded event to trigger flash animation
@@ -32,7 +35,7 @@ namespace FlipPix.UI
         private void OnLoaded(object sender, RoutedEventArgs e)
         {
             // Ensure window is on screen and fully visible
-            EnsureWindowVisible();
+            _windowPositionService.EnsureWindowVisible(this);
         }
 
         private void OnAnalyzerQueueItemAdded()
@@ -43,19 +46,6 @@ namespace FlipPix.UI
                 var flashAnimation = FindResource("QueueFlashAnimation") as Storyboard;
                 flashAnimation?.Begin();
             });
-        }
-
-        private void EnsureWindowVisible()
-        {
-            var screenWidth = SystemParameters.PrimaryScreenWidth;
-            var screenHeight = SystemParameters.PrimaryScreenHeight;
-
-            // If window is off-screen, reposition it
-            if (Left < 0 || Top < 0 || Left + Width > screenWidth || Top + Height > screenHeight)
-            {
-                Left = (screenWidth - Width) / 2;
-                Top = (screenHeight - Height) / 2;
-            }
         }
 
         private void Header_MouseLeftButtonDown(object sender, MouseButtonEventArgs e)

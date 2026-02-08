@@ -545,10 +545,7 @@ namespace FlipPix.UI.ViewModels.Video
 
         private JsonElement UpdateWorkflowParameters(JsonElement workflow, string backgroundImageName, string foregroundImageName, string videoName)
         {
-            var workflowDict = JsonSerializer.Deserialize<Dictionary<string, JsonElement>>(workflow.GetRawText());
-
-            if (workflowDict == null) return workflow;
-
+            var workflowJson = workflow.GetRawText();
             AddLog("=== Updating VACE workflow parameters ===");
 
             // Calculate video dimensions based on foreground image aspect ratio
@@ -609,69 +606,49 @@ namespace FlipPix.UI.ViewModels.Video
             }
 
             // Update background image (node 25)
-            UpdateNodeInput(workflowDict, "25", "image", backgroundImageName, "LoadImage - Background image");
+            WorkflowNodeUpdater.UpdateNodeInput(ref workflowJson, "25", "image", backgroundImageName);
+            AddLog($"✓ Node 25 (LoadImage - Background image): image updated");
 
             // Update foreground image (node 24)
-            UpdateNodeInput(workflowDict, "24", "image", foregroundImageName, "LoadImage - Foreground image");
+            WorkflowNodeUpdater.UpdateNodeInput(ref workflowJson, "24", "image", foregroundImageName);
+            AddLog($"✓ Node 24 (LoadImage - Foreground image): image updated");
 
             // Update video input (node 14)
             var comfyUIInputPath = Path.Combine(_settingsService.Settings?.ComfyUIFolderPath ?? "", "input", videoName);
-            UpdateNodeInput(workflowDict, "14", "video", comfyUIInputPath, "LoadVideo - Video");
+            WorkflowNodeUpdater.UpdateNodeInput(ref workflowJson, "14", "video", comfyUIInputPath);
+            AddLog($"✓ Node 14 (LoadVideo - Video): video updated");
 
             // Update positive prompt (node 26)
-            UpdateNodeInput(workflowDict, "26", "string", Prompt, "StringConstantMultiline - Prompt");
+            WorkflowNodeUpdater.UpdateNodeInput(ref workflowJson, "26", "string", Prompt);
+            AddLog($"✓ Node 26 (StringConstantMultiline - Prompt): string updated");
 
             // Update image resize dimensions (node 22)
-            UpdateNodeDimensions(workflowDict, "22", imageWidth, imageHeight, "ImageResizeKJv2");
+            WorkflowNodeUpdater.UpdateNodeInputMultiple(ref workflowJson, "22", new Dictionary<string, object>
+            {
+                { "width", imageWidth },
+                { "height", imageHeight }
+            });
+            AddLog($"✓ Node 22 (ImageResizeKJv2): {imageWidth}x{imageHeight}");
 
             // Update VACE encode dimensions (node 38)
-            UpdateNodeDimensions(workflowDict, "38", videoWidth, videoHeight, "WanVideoVACEEncode");
+            WorkflowNodeUpdater.UpdateNodeInputMultiple(ref workflowJson, "38", new Dictionary<string, object>
+            {
+                { "width", videoWidth },
+                { "height", videoHeight }
+            });
+            AddLog($"✓ Node 38 (WanVideoVACEEncode): {videoWidth}x{videoHeight}");
 
             // Update VACE encode dimensions (node 48)
-            UpdateNodeDimensions(workflowDict, "48", videoWidth, videoHeight, "WanVideoVACEEncode");
+            WorkflowNodeUpdater.UpdateNodeInputMultiple(ref workflowJson, "48", new Dictionary<string, object>
+            {
+                { "width", videoWidth },
+                { "height", videoHeight }
+            });
+            AddLog($"✓ Node 48 (WanVideoVACEEncode): {videoWidth}x{videoHeight}");
 
             AddLog("=== VACE workflow parameters updated successfully ===");
 
-            return JsonSerializer.SerializeToElement(workflowDict);
-        }
-
-        private void UpdateNodeInput(Dictionary<string, JsonElement> workflowDict, string nodeId, string inputName, object value, string description)
-        {
-            if (!workflowDict.ContainsKey(nodeId)) return;
-
-            var node = JsonSerializer.Deserialize<Dictionary<string, object>>(workflowDict[nodeId].GetRawText());
-            if (node != null && node.ContainsKey("inputs"))
-            {
-                var inputs = JsonSerializer.Deserialize<Dictionary<string, object>>(
-                    JsonSerializer.Serialize(node["inputs"]));
-                if (inputs != null)
-                {
-                    inputs[inputName] = value;
-                    node["inputs"] = inputs;
-                    workflowDict[nodeId] = JsonSerializer.SerializeToElement(node);
-                    AddLog($"✓ Node {nodeId} ({description}): {inputName} updated");
-                }
-            }
-        }
-
-        private void UpdateNodeDimensions(Dictionary<string, JsonElement> workflowDict, string nodeId, int width, int height, string description)
-        {
-            if (!workflowDict.ContainsKey(nodeId)) return;
-
-            var node = JsonSerializer.Deserialize<Dictionary<string, object>>(workflowDict[nodeId].GetRawText());
-            if (node != null && node.ContainsKey("inputs"))
-            {
-                var inputs = JsonSerializer.Deserialize<Dictionary<string, object>>(
-                    JsonSerializer.Serialize(node["inputs"]));
-                if (inputs != null)
-                {
-                    inputs["width"] = width;
-                    inputs["height"] = height;
-                    node["inputs"] = inputs;
-                    workflowDict[nodeId] = JsonSerializer.SerializeToElement(node);
-                    AddLog($"✓ Node {nodeId} ({description}): {width}x{height}");
-                }
-            }
+            return JsonSerializer.Deserialize<JsonElement>(workflowJson);
         }
 
         #endregion

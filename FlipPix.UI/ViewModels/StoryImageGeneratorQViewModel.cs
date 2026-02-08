@@ -23,8 +23,10 @@ namespace FlipPix.UI.ViewModels
             IAppLogger logger,
             FlipPix.Core.Services.SettingsService settingsService,
             WorkflowQueueCoordinator workflowCoordinator,
-            IFileDialogService fileDialogService)
-            : base(comfyUIService, logger, settingsService, workflowCoordinator, fileDialogService)
+            IFileDialogService fileDialogService,
+            LoraManager loraManager,
+            ComfyUIImageRetriever imageRetriever)
+            : base(comfyUIService, logger, settingsService, workflowCoordinator, fileDialogService, loraManager, imageRetriever)
         {
         }
 
@@ -165,115 +167,32 @@ namespace FlipPix.UI.ViewModels
 
         private JsonElement UpdateWorkflowParameters(JsonElement workflow, string inputImageName, string promptText, int imageIndex, string jsonFileName)
         {
-            var workflowDict = JsonSerializer.Deserialize<Dictionary<string, JsonElement>>(workflow.GetRawText());
-
-            if (workflowDict == null) return workflow;
+            var workflowJson = workflow.GetRawText();
 
             // 1. Update the input image (node 213 - LoadImage)
-            if (workflowDict.ContainsKey("213"))
-            {
-                var node213 = JsonSerializer.Deserialize<Dictionary<string, object>>(workflowDict["213"].GetRawText());
-                if (node213 != null && node213.ContainsKey("inputs"))
-                {
-                    var inputs = JsonSerializer.Deserialize<Dictionary<string, object>>(
-                        JsonSerializer.Serialize(node213["inputs"]));
-                    if (inputs != null)
-                    {
-                        inputs["image"] = inputImageName;
-                        node213["inputs"] = inputs;
-                        workflowDict["213"] = JsonSerializer.SerializeToElement(node213);
-                    }
-                }
-            }
+            WorkflowNodeUpdater.UpdateNodeInput(ref workflowJson, "213", "image", inputImageName);
 
             // 2. Update the positive prompt (node 153 - TextEncodeQwenImageEditPlus)
-            if (workflowDict.ContainsKey("153"))
-            {
-                var node153 = JsonSerializer.Deserialize<Dictionary<string, object>>(workflowDict["153"].GetRawText());
-                if (node153 != null && node153.ContainsKey("inputs"))
-                {
-                    var inputs = JsonSerializer.Deserialize<Dictionary<string, object>>(
-                        JsonSerializer.Serialize(node153["inputs"]));
-                    if (inputs != null)
-                    {
-                        inputs["prompt"] = promptText;
-                        node153["inputs"] = inputs;
-                        workflowDict["153"] = JsonSerializer.SerializeToElement(node153);
-                    }
-                }
-            }
+            WorkflowNodeUpdater.UpdateNodeInput(ref workflowJson, "153", "prompt", promptText);
 
             // 3. Update the negative prompt (node 154 - TextEncodeQwenImageEditPlus)
-            if (workflowDict.ContainsKey("154"))
-            {
-                var node154 = JsonSerializer.Deserialize<Dictionary<string, object>>(workflowDict["154"].GetRawText());
-                if (node154 != null && node154.ContainsKey("inputs"))
-                {
-                    var inputs = JsonSerializer.Deserialize<Dictionary<string, object>>(
-                        JsonSerializer.Serialize(node154["inputs"]));
-                    if (inputs != null)
-                    {
-                        inputs["prompt"] = NegativePrompt;
-                        node154["inputs"] = inputs;
-                        workflowDict["154"] = JsonSerializer.SerializeToElement(node154);
-                    }
-                }
-            }
+            WorkflowNodeUpdater.UpdateNodeInput(ref workflowJson, "154", "prompt", NegativePrompt);
 
             // 4. Update KSampler settings (node 3)
-            if (workflowDict.ContainsKey("3"))
+            WorkflowNodeUpdater.UpdateNodeInputMultiple(ref workflowJson, "3", new Dictionary<string, object>
             {
-                var node3 = JsonSerializer.Deserialize<Dictionary<string, object>>(workflowDict["3"].GetRawText());
-                if (node3 != null && node3.ContainsKey("inputs"))
-                {
-                    var inputs = JsonSerializer.Deserialize<Dictionary<string, object>>(
-                        JsonSerializer.Serialize(node3["inputs"]));
-                    if (inputs != null)
-                    {
-                        inputs["steps"] = Steps;
-                        inputs["cfg"] = Cfg;
-                        inputs["denoise"] = Denoise;
-                        node3["inputs"] = inputs;
-                        workflowDict["3"] = JsonSerializer.SerializeToElement(node3);
-                    }
-                }
-            }
+                { "steps", Steps },
+                { "cfg", Cfg },
+                { "denoise", Denoise }
+            });
 
             // 5. Update ModelSamplingAuraFlow shift (node 145)
-            if (workflowDict.ContainsKey("145"))
-            {
-                var node145 = JsonSerializer.Deserialize<Dictionary<string, object>>(workflowDict["145"].GetRawText());
-                if (node145 != null && node145.ContainsKey("inputs"))
-                {
-                    var inputs = JsonSerializer.Deserialize<Dictionary<string, object>>(
-                        JsonSerializer.Serialize(node145["inputs"]));
-                    if (inputs != null)
-                    {
-                        inputs["shift"] = 3.1;
-                        node145["inputs"] = inputs;
-                        workflowDict["145"] = JsonSerializer.SerializeToElement(node145);
-                    }
-                }
-            }
+            WorkflowNodeUpdater.UpdateNodeInput(ref workflowJson, "145", "shift", 3.1);
 
             // 6. Update SaveImage filename prefix (node 218) to use single folder named after JSON file
-            if (workflowDict.ContainsKey("218"))
-            {
-                var node218 = JsonSerializer.Deserialize<Dictionary<string, object>>(workflowDict["218"].GetRawText());
-                if (node218 != null && node218.ContainsKey("inputs"))
-                {
-                    var inputs = JsonSerializer.Deserialize<Dictionary<string, object>>(
-                        JsonSerializer.Serialize(node218["inputs"]));
-                    if (inputs != null)
-                    {
-                        inputs["filename_prefix"] = $"{jsonFileName}/{jsonFileName}-{imageIndex}";
-                        node218["inputs"] = inputs;
-                        workflowDict["218"] = JsonSerializer.SerializeToElement(node218);
-                    }
-                }
-            }
+            WorkflowNodeUpdater.UpdateNodeInput(ref workflowJson, "218", "filename_prefix", $"{jsonFileName}/{jsonFileName}-{imageIndex}");
 
-            return JsonSerializer.SerializeToElement(workflowDict);
+            return JsonSerializer.Deserialize<JsonElement>(workflowJson);
         }
 
         private async Task<List<byte[]>> GetOutputImagesFromComfyUI(string promptId, string jsonFileName, int imageIndex)
@@ -286,7 +205,7 @@ namespace FlipPix.UI.ViewModels
                 var uri = new Uri(baseUrl);
                 var actualServer = uri.Host;
 
-                bool isRemoteComfyUI = IsComfyUIRemote(actualServer);
+                bool isRemoteComfyUI = _imageRetriever.IsComfyUIRemote(_settingsService);
 
                 AddLog($"ComfyUI server: {actualServer}");
                 AddLog($"Is remote ComfyUI: {isRemoteComfyUI}");

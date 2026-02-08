@@ -15,7 +15,6 @@ using FlipPix.ComfyUI.Services;
 using FlipPix.Core.Interfaces;
 using FlipPix.UI.Models;
 using FlipPix.UI.Services;
-using YamlDotNet.Serialization;
 
 namespace FlipPix.UI.ViewModels
 {
@@ -24,6 +23,8 @@ namespace FlipPix.UI.ViewModels
         private bool _disposed = false;
         private readonly FlipPix.ComfyUI.Services.ComfyUIService _comfyUIService;
         private readonly FlipPix.Core.Services.SettingsService _settingsService;
+        private readonly LoraManager _loraManager;
+        private readonly ComfyUIImageRetriever _imageRetriever;
 
         private string _additionalPrompt = string.Empty;
         private int _orientationIndex = 0; // 0 = Landscape, 1 = Portrait
@@ -60,11 +61,15 @@ namespace FlipPix.UI.ViewModels
             FlipPix.ComfyUI.Services.ComfyUIService comfyUIService,
             IAppLogger logger,
             FlipPix.Core.Services.SettingsService settingsService,
-            IPromptService? promptService = null)
+            IPromptService? promptService = null,
+            LoraManager? loraManager = null,
+            ComfyUIImageRetriever? imageRetriever = null)
             : base(promptService ?? new PromptService(logger), logger, "AmateurGenerator")
         {
             _comfyUIService = comfyUIService ?? throw new ArgumentNullException(nameof(comfyUIService));
             _settingsService = settingsService ?? throw new ArgumentNullException(nameof(settingsService));
+            _loraManager = loraManager ?? new LoraManager(_settingsService, logger);
+            _imageRetriever = imageRetriever ?? new ComfyUIImageRetriever();
 
             // Initialize commands
             GenerateImageCommand = new RelayCommand(async () => await GenerateImageAsync(), () => CanGenerate);
@@ -598,9 +603,7 @@ namespace FlipPix.UI.ViewModels
 
         private JsonElement UpdateWorkflowParameters(JsonElement workflow)
         {
-            var workflowDict = JsonSerializer.Deserialize<Dictionary<string, JsonElement>>(workflow.GetRawText());
-
-            if (workflowDict == null) return workflow;
+            var workflowJson = workflow.GetRawText();
 
             // Build the full prompt with photographer prefix (duplicated as requested)
             const string photographerPrefix = "A photo taken by the photographer Deedeemegadoodo, raw, unedited, ";
@@ -608,142 +611,61 @@ namespace FlipPix.UI.ViewModels
             string fullPrompt = photographerPrefix + photographerPrefix + AdditionalPrompt + styleSuffix;
 
             // 1. Update positive prompt (node 6)
-            if (workflowDict.ContainsKey("6"))
-            {
-                var node6 = JsonSerializer.Deserialize<Dictionary<string, object>>(workflowDict["6"].GetRawText());
-                if (node6 != null && node6.ContainsKey("inputs"))
-                {
-                    var inputs = JsonSerializer.Deserialize<Dictionary<string, object>>(
-                        JsonSerializer.Serialize(node6["inputs"]));
-                    if (inputs != null)
-                    {
-                        inputs["text"] = fullPrompt;
-                        node6["inputs"] = inputs;
-                        workflowDict["6"] = JsonSerializer.SerializeToElement(node6);
-                    }
-                }
-            }
+            WorkflowNodeUpdater.UpdateNodeInput(ref workflowJson, "6", "text", fullPrompt);
 
             // 2. Update negative prompt (node 7)
-            if (workflowDict.ContainsKey("7"))
-            {
-                var node7 = JsonSerializer.Deserialize<Dictionary<string, object>>(workflowDict["7"].GetRawText());
-                if (node7 != null && node7.ContainsKey("inputs"))
-                {
-                    var inputs = JsonSerializer.Deserialize<Dictionary<string, object>>(
-                        JsonSerializer.Serialize(node7["inputs"]));
-                    if (inputs != null)
-                    {
-                        inputs["text"] = "";
-                        node7["inputs"] = inputs;
-                        workflowDict["7"] = JsonSerializer.SerializeToElement(node7);
-                    }
-                }
-            }
+            WorkflowNodeUpdater.UpdateNodeInput(ref workflowJson, "7", "text", "");
 
             // 3. Update seed (node 28) - max value is 2^50 (1125899906842624)
-            if (workflowDict.ContainsKey("28"))
-            {
-                var node28 = JsonSerializer.Deserialize<Dictionary<string, object>>(workflowDict["28"].GetRawText());
-                if (node28 != null && node28.ContainsKey("inputs"))
-                {
-                    var inputs = JsonSerializer.Deserialize<Dictionary<string, object>>(
-                        JsonSerializer.Serialize(node28["inputs"]));
-                    if (inputs != null)
-                    {
-                        long maxSeed = 1125899906842624;
-                        var actualSeed = Seed == 0 ? new Random().NextInt64(0, maxSeed) : Seed;
-                        inputs["seed"] = actualSeed;
-                        node28["inputs"] = inputs;
-                        workflowDict["28"] = JsonSerializer.SerializeToElement(node28);
-                    }
-                }
-            }
+            long maxSeed = 1125899906842624;
+            var actualSeed = Seed == 0 ? new Random().NextInt64(0, maxSeed) : Seed;
+            WorkflowNodeUpdater.UpdateNodeInput(ref workflowJson, "28", "seed", actualSeed);
 
             // 4. Update ClownsharKSampler settings (node 582)
-            if (workflowDict.ContainsKey("582"))
+            WorkflowNodeUpdater.UpdateNodeInputMultiple(ref workflowJson, "582", new Dictionary<string, object>
             {
-                var node582 = JsonSerializer.Deserialize<Dictionary<string, object>>(workflowDict["582"].GetRawText());
-                if (node582 != null && node582.ContainsKey("inputs"))
-                {
-                    var inputs = JsonSerializer.Deserialize<Dictionary<string, object>>(
-                        JsonSerializer.Serialize(node582["inputs"]));
-                    if (inputs != null)
-                    {
-                        inputs["denoise"] = 0.5;
-                        inputs["steps"] = Steps;
-                        inputs["cfg"] = Cfg;
-                        node582["inputs"] = inputs;
-                        workflowDict["582"] = JsonSerializer.SerializeToElement(node582);
-                    }
-                }
-            }
+                { "denoise", 0.5 },
+                { "steps", Steps },
+                { "cfg", Cfg }
+            });
 
             // 5. Update second ClownsharKSampler settings (node 620)
-            if (workflowDict.ContainsKey("620"))
+            WorkflowNodeUpdater.UpdateNodeInputMultiple(ref workflowJson, "620", new Dictionary<string, object>
             {
-                var node620 = JsonSerializer.Deserialize<Dictionary<string, object>>(workflowDict["620"].GetRawText());
-                if (node620 != null && node620.ContainsKey("inputs"))
-                {
-                    var inputs = JsonSerializer.Deserialize<Dictionary<string, object>>(
-                        JsonSerializer.Serialize(node620["inputs"]));
-                    if (inputs != null)
-                    {
-                        inputs["denoise"] = 0.3;
-                        inputs["steps"] = Steps;
-                        inputs["cfg"] = Cfg;
-                        node620["inputs"] = inputs;
-                        workflowDict["620"] = JsonSerializer.SerializeToElement(node620);
-                    }
-                }
-            }
+                { "denoise", 0.3 },
+                { "steps", Steps },
+                { "cfg", Cfg }
+            });
 
             // 6. Update KSampler settings (node 754)
-            if (workflowDict.ContainsKey("754"))
+            WorkflowNodeUpdater.UpdateNodeInputMultiple(ref workflowJson, "754", new Dictionary<string, object>
             {
-                var node754 = JsonSerializer.Deserialize<Dictionary<string, object>>(workflowDict["754"].GetRawText());
-                if (node754 != null && node754.ContainsKey("inputs"))
-                {
-                    var inputs = JsonSerializer.Deserialize<Dictionary<string, object>>(
-                        JsonSerializer.Serialize(node754["inputs"]));
-                    if (inputs != null)
-                    {
-                        inputs["denoise"] = 0.9;
-                        inputs["steps"] = Steps;
-                        inputs["cfg"] = Cfg;
-                        node754["inputs"] = inputs;
-                        workflowDict["754"] = JsonSerializer.SerializeToElement(node754);
-                    }
-                }
-            }
+                { "denoise", 0.9 },
+                { "steps", Steps },
+                { "cfg", Cfg }
+            });
 
             // 7. Update KSampler settings (node 768)
-            if (workflowDict.ContainsKey("768"))
+            WorkflowNodeUpdater.UpdateNodeInputMultiple(ref workflowJson, "768", new Dictionary<string, object>
             {
-                var node768 = JsonSerializer.Deserialize<Dictionary<string, object>>(workflowDict["768"].GetRawText());
-                if (node768 != null && node768.ContainsKey("inputs"))
-                {
-                    var inputs = JsonSerializer.Deserialize<Dictionary<string, object>>(
-                        JsonSerializer.Serialize(node768["inputs"]));
-                    if (inputs != null)
-                    {
-                        inputs["denoise"] = 1.0;
-                        inputs["steps"] = Steps;
-                        inputs["cfg"] = Cfg;
-                        node768["inputs"] = inputs;
-                        workflowDict["768"] = JsonSerializer.SerializeToElement(node768);
-                    }
-                }
-            }
+                { "denoise", 1.0 },
+                { "steps", Steps },
+                { "cfg", Cfg }
+            });
 
             // 8. Update Amateur LoRA strengths (always applied)
-            UpdateLoraStrength(workflowDict, "105", AmateurLoraStrength1);
-            UpdateLoraStrength(workflowDict, "752", AmateurLoraStrength2);
+            WorkflowNodeUpdater.UpdateNodeInput(ref workflowJson, "105", "strength_model", AmateurLoraStrength1);
+            WorkflowNodeUpdater.UpdateNodeInput(ref workflowJson, "752", "strength_model", AmateurLoraStrength2);
 
             // 9. Update character LoRA if enabled (node 760)
             if (LoraEnabled && !string.IsNullOrEmpty(SelectedLora) && SelectedLora != "No LoRAs available")
             {
-                UpdateCharacterLora(workflowDict, "760", SelectedLora, LoraStrength);
+                var loraName = $"zimage\\{SelectedLora}.safetensors";
+                WorkflowNodeUpdater.UpdateNodeInputMultiple(ref workflowJson, "760", new Dictionary<string, object>
+                {
+                    { "lora_name", loraName },
+                    { "strength_model", LoraStrength }
+                });
             }
 
             // 10. Update latent image dimensions based on orientation
@@ -751,21 +673,21 @@ namespace FlipPix.UI.ViewModels
             if (isPortrait)
             {
                 // Portrait mode
-                UpdateLatentDimensions(workflowDict, "46", 416, 576);
-                UpdateLatentDimensions(workflowDict, "693", 208, 288);
-                UpdateLatentDimensions(workflowDict, "758", 288, 208);
-                UpdateLatentDimensions(workflowDict, "772", 1248, 1728);
+                WorkflowNodeUpdater.UpdateNodeInputMultiple(ref workflowJson, "46", new Dictionary<string, object> { { "width", 416 }, { "height", 576 } });
+                WorkflowNodeUpdater.UpdateNodeInputMultiple(ref workflowJson, "693", new Dictionary<string, object> { { "width", 208 }, { "height", 288 } });
+                WorkflowNodeUpdater.UpdateNodeInputMultiple(ref workflowJson, "758", new Dictionary<string, object> { { "width", 288 }, { "height", 208 } });
+                WorkflowNodeUpdater.UpdateNodeInputMultiple(ref workflowJson, "772", new Dictionary<string, object> { { "width", 1248 }, { "height", 1728 } });
             }
             else
             {
                 // Landscape mode
-                UpdateLatentDimensions(workflowDict, "46", 576, 416);
-                UpdateLatentDimensions(workflowDict, "693", 208, 288);
-                UpdateLatentDimensions(workflowDict, "758", 416, 576);
-                UpdateLatentDimensions(workflowDict, "772", 1728, 1248);
+                WorkflowNodeUpdater.UpdateNodeInputMultiple(ref workflowJson, "46", new Dictionary<string, object> { { "width", 576 }, { "height", 416 } });
+                WorkflowNodeUpdater.UpdateNodeInputMultiple(ref workflowJson, "693", new Dictionary<string, object> { { "width", 208 }, { "height", 288 } });
+                WorkflowNodeUpdater.UpdateNodeInputMultiple(ref workflowJson, "758", new Dictionary<string, object> { { "width", 416 }, { "height", 576 } });
+                WorkflowNodeUpdater.UpdateNodeInputMultiple(ref workflowJson, "772", new Dictionary<string, object> { { "width", 1728 }, { "height", 1248 } });
             }
 
-            return JsonSerializer.SerializeToElement(workflowDict);
+            return JsonSerializer.Deserialize<JsonElement>(workflowJson);
         }
 
         private string GetStyleSuffix()
@@ -781,65 +703,6 @@ namespace FlipPix.UI.ViewModels
             };
         }
 
-        private void UpdateLoraStrength(Dictionary<string, JsonElement> workflowDict, string nodeId, double strength)
-        {
-            if (workflowDict.ContainsKey(nodeId))
-            {
-                var node = JsonSerializer.Deserialize<Dictionary<string, object>>(workflowDict[nodeId].GetRawText());
-                if (node != null && node.ContainsKey("inputs"))
-                {
-                    var inputs = JsonSerializer.Deserialize<Dictionary<string, object>>(
-                        JsonSerializer.Serialize(node["inputs"]));
-                    if (inputs != null && inputs.ContainsKey("strength_model"))
-                    {
-                        inputs["strength_model"] = strength;
-                        node["inputs"] = inputs;
-                        workflowDict[nodeId] = JsonSerializer.SerializeToElement(node);
-                    }
-                }
-            }
-        }
-
-        private void UpdateCharacterLora(Dictionary<string, JsonElement> workflowDict, string nodeId, string loraName, double strength)
-        {
-            if (workflowDict.ContainsKey(nodeId))
-            {
-                var node = JsonSerializer.Deserialize<Dictionary<string, object>>(workflowDict[nodeId].GetRawText());
-                if (node != null && node.ContainsKey("inputs"))
-                {
-                    var inputs = JsonSerializer.Deserialize<Dictionary<string, object>>(
-                        JsonSerializer.Serialize(node["inputs"]));
-                    if (inputs != null)
-                    {
-                        inputs["lora_name"] = $"zimage\\{loraName}.safetensors";
-                        inputs["strength_model"] = strength;
-                        node["inputs"] = inputs;
-                        workflowDict[nodeId] = JsonSerializer.SerializeToElement(node);
-                    }
-                }
-            }
-        }
-
-        private void UpdateLatentDimensions(Dictionary<string, JsonElement> workflowDict, string nodeId, int width, int height)
-        {
-            if (workflowDict.ContainsKey(nodeId))
-            {
-                var node = JsonSerializer.Deserialize<Dictionary<string, object>>(workflowDict[nodeId].GetRawText());
-                if (node != null && node.ContainsKey("inputs"))
-                {
-                    var inputs = JsonSerializer.Deserialize<Dictionary<string, object>>(
-                        JsonSerializer.Serialize(node["inputs"]));
-                    if (inputs != null)
-                    {
-                        inputs["width"] = width;
-                        inputs["height"] = height;
-                        node["inputs"] = inputs;
-                        workflowDict[nodeId] = JsonSerializer.SerializeToElement(node);
-                    }
-                }
-            }
-        }
-
         private async Task<List<byte[]>> GetOutputImagesFromComfyUI(string promptId)
         {
             var images = new List<byte[]>();
@@ -850,7 +713,7 @@ namespace FlipPix.UI.ViewModels
                 var uri = new Uri(baseUrl);
                 var actualServer = uri.Host;
 
-                bool isRemoteComfyUI = IsComfyUIRemote(actualServer);
+                bool isRemoteComfyUI = _imageRetriever.IsComfyUIRemote(_settingsService);
 
                 AddLog($"ComfyUI server: {actualServer}");
                 AddLog($"Is remote ComfyUI: {isRemoteComfyUI}");
@@ -998,36 +861,6 @@ namespace FlipPix.UI.ViewModels
             return images;
         }
 
-        private bool IsComfyUIRemote(string serverAddress)
-        {
-            try
-            {
-                if (serverAddress.Equals("127.0.0.1", StringComparison.OrdinalIgnoreCase) ||
-                    serverAddress.Equals("localhost", StringComparison.OrdinalIgnoreCase) ||
-                    serverAddress.Equals("0.0.0.0", StringComparison.OrdinalIgnoreCase))
-                {
-                    return false;
-                }
-
-                if (System.Net.IPAddress.TryParse(serverAddress, out var ip))
-                {
-                    var bytes = ip.GetAddressBytes();
-                    if (bytes.Length == 4)
-                    {
-                        if (bytes[0] == 192 && bytes[1] == 168) return true;
-                        if (bytes[0] == 10) return true;
-                        if (bytes[0] == 172 && bytes[1] >= 16 && bytes[1] <= 31) return true;
-                    }
-                }
-
-                return !string.IsNullOrEmpty(serverAddress) && serverAddress != ".";
-            }
-            catch
-            {
-                return true;
-            }
-        }
-
         private void RefreshLoras()
         {
             LoadAvailableLoras();
@@ -1060,214 +893,51 @@ namespace FlipPix.UI.ViewModels
 
         private string? GetLoraModelPath()
         {
-            try
-            {
-                var comfyUIPath = _settingsService.Settings?.ComfyUIFolderPath;
-                if (string.IsNullOrEmpty(comfyUIPath))
-                {
-                    AddLog("ComfyUI installation path not configured");
-                    return null;
-                }
-
-                var extraModelPathsFile = Path.Combine(comfyUIPath, "extra_model_paths.yaml");
-                AddLog($"Looking for extra_model_paths.yaml at: {extraModelPathsFile}");
-
-                if (File.Exists(extraModelPathsFile))
-                {
-                    try
-                    {
-                        AddLog("Found extra_model_paths.yaml, reading content...");
-                        var yamlContent = File.ReadAllText(extraModelPathsFile);
-                        var deserializer = new DeserializerBuilder().Build();
-                        var yamlData = deserializer.Deserialize<Dictionary<string, object>>(yamlContent);
-
-                        AddLog($"YAML parsed successfully. Keys found: {string.Join(", ", yamlData.Keys)}");
-
-                        if (yamlData != null)
-                        {
-                            string basePath = string.Empty;
-                            string lorasRelativePath = string.Empty;
-
-                            if (yamlData.ContainsKey("comfyui"))
-                            {
-                                AddLog("Found 'comfyui' section in YAML");
-                                var comfyuiSectionObject = yamlData["comfyui"];
-                                var comfyuiSection = comfyuiSectionObject as Dictionary<object, object>;
-
-                                if (comfyuiSection != null)
-                                {
-                                    var comfyuiStringDict = new Dictionary<string, object>();
-                                    foreach (var kvp in comfyuiSection)
-                                    {
-                                        if (kvp.Key != null)
-                                        {
-                                            comfyuiStringDict[kvp.Key.ToString() ?? string.Empty] = kvp.Value;
-                                        }
-                                    }
-
-                                    AddLog($"ComfyUI section keys: {string.Join(", ", comfyuiStringDict.Keys)}");
-
-                                    if (comfyuiStringDict.ContainsKey("base_path"))
-                                    {
-                                        basePath = comfyuiStringDict["base_path"]?.ToString() ?? string.Empty;
-                                        AddLog($"Found base_path: {basePath}");
-                                    }
-
-                                    if (comfyuiStringDict.ContainsKey("loras"))
-                                    {
-                                        lorasRelativePath = comfyuiStringDict["loras"]?.ToString() ?? string.Empty;
-                                        AddLog($"Found loras path: {lorasRelativePath}");
-                                    }
-                                    else
-                                    {
-                                        AddLog("No 'loras' key found in comfyui section");
-                                    }
-                                }
-                            }
-                            else
-                            {
-                                AddLog("No 'comfyui' section found in YAML");
-
-                                if (yamlData.ContainsKey("loras"))
-                                {
-                                    lorasRelativePath = yamlData["loras"]?.ToString() ?? string.Empty;
-                                    AddLog($"Found direct loras path: {lorasRelativePath}");
-                                }
-                            }
-
-                            if (!string.IsNullOrEmpty(lorasRelativePath))
-                            {
-                                string fullLoraPath;
-                                if (!string.IsNullOrEmpty(basePath))
-                                {
-                                    fullLoraPath = Path.Combine(basePath, lorasRelativePath);
-                                    AddLog($"Combined base_path and loras: {basePath} + {lorasRelativePath} = {fullLoraPath}");
-                                }
-                                else
-                                {
-                                    fullLoraPath = lorasRelativePath;
-                                    AddLog($"Using loras path directly: {fullLoraPath}");
-                                }
-
-                                fullLoraPath = fullLoraPath.Replace('/', Path.DirectorySeparatorChar);
-
-                                AddLog($"Final LoRA path: {fullLoraPath}");
-
-                                if (Directory.Exists(fullLoraPath))
-                                {
-                                    AddLog($"SUCCESS: LoRA directory exists: {fullLoraPath}");
-                                    return fullLoraPath;
-                                }
-                                else
-                                {
-                                    AddLog($"ERROR: LoRA path from extra_model_paths.yaml exists but directory not found: {fullLoraPath}");
-                                }
-                            }
-                            else
-                            {
-                                AddLog("ERROR: No loras path found in YAML configuration");
-                            }
-                        }
-                    }
-                    catch (Exception ex)
-                    {
-                        AddLog($"ERROR reading extra_model_paths.yaml: {ex.Message}");
-                    }
-                }
-                else
-                {
-                    AddLog($"ERROR: extra_model_paths.yaml not found in ComfyUI directory: {extraModelPathsFile}");
-                }
-
-                var defaultLoraPath = Path.Combine(comfyUIPath, "models", "loras");
-                if (Directory.Exists(defaultLoraPath))
-                {
-                    AddLog($"Using default ComfyUI LoRA path: {defaultLoraPath}");
-                    return defaultLoraPath;
-                }
-
-                AddLog($"No LoRA directory found in: {comfyUIPath}");
-                return null;
-            }
-            catch (Exception ex)
-            {
-                AddLog($"Error getting LoRA model path: {ex.Message}");
-                return null;
-            }
+            return _loraManager.ResolveLoraPath();
         }
 
         private void LoadAvailableLoras()
         {
             try
             {
-                var loraBasePath = GetLoraModelPath();
-                if (!string.IsNullOrEmpty(loraBasePath))
-                {
-                    var zimageLoraPath = Path.Combine(loraBasePath, "zimage");
-                    if (Directory.Exists(zimageLoraPath))
-                    {
-                        LoadLorasFromDirectory(zimageLoraPath, "ComfyUI LoRA directory");
-                        return;
-                    }
-                    else
-                    {
-                        LoadLorasFromDirectory(loraBasePath, "ComfyUI LoRA directory");
-                        return;
-                    }
-                }
+                // Get available LoRAs from LoraManager
+                var allLoras = _loraManager.GetAvailableLoras();
 
-                var localLoraPath = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "loras", "zimage");
-                LoadLorasFromDirectory(localLoraPath, "local directory");
+                // Filter out amateur photography LoRA since it's always applied
+                var filteredLoras = allLoras
+                    .Where(name => !string.IsNullOrEmpty(name) &&
+                                   !name.Equals("amateur_photography_zimage_v1", StringComparison.OrdinalIgnoreCase))
+                    .OrderBy(name => name)
+                    .ToList();
+
+                AvailableLoras.Clear();
+
+                if (filteredLoras.Any())
+                {
+                    foreach (var lora in filteredLoras)
+                    {
+                        if (!string.IsNullOrEmpty(lora))
+                            AvailableLoras.Add(lora);
+                    }
+
+                    if (string.IsNullOrEmpty(SelectedLora) && AvailableLoras.Any())
+                    {
+                        SelectedLora = AvailableLoras.First();
+                    }
+
+                    AddLog($"Loaded {AvailableLoras.Count} LoRAs");
+                }
+                else
+                {
+                    AvailableLoras.Add("No LoRAs available");
+                    AddLog("No LoRA files found");
+                }
             }
             catch (Exception ex)
             {
                 AddLog($"Error loading LoRAs: {ex.Message}");
                 AvailableLoras.Clear();
                 AvailableLoras.Add("Error loading LoRAs");
-            }
-        }
-
-        private void LoadLorasFromDirectory(string loraPath, string pathDescription)
-        {
-            AddLog($"Looking for LoRAs in {pathDescription}: {loraPath}");
-
-            if (!Directory.Exists(loraPath))
-            {
-                AddLog($"LoRA directory not found: {loraPath}");
-                AvailableLoras.Clear();
-                AvailableLoras.Add("No LoRAs available");
-                return;
-            }
-
-            // Filter out amateur photography LoRA since it's always applied
-            var loraFiles = Directory.GetFiles(loraPath, "*.safetensors")
-                .Select(Path.GetFileNameWithoutExtension)
-                .Where(name => !string.IsNullOrEmpty(name) &&
-                               !name.Equals("amateur_photography_zimage_v1", StringComparison.OrdinalIgnoreCase))
-                .OrderBy(name => name)
-                .ToList();
-
-            AvailableLoras.Clear();
-
-            if (loraFiles.Any())
-            {
-                foreach (var lora in loraFiles)
-                {
-                    if (!string.IsNullOrEmpty(lora))
-                        AvailableLoras.Add(lora);
-                }
-
-                if (string.IsNullOrEmpty(SelectedLora) && AvailableLoras.Any())
-                {
-                    SelectedLora = AvailableLoras.First();
-                }
-
-                AddLog($"Loaded {AvailableLoras.Count} LoRAs from {loraPath}");
-            }
-            else
-            {
-                AvailableLoras.Add("No LoRAs available");
-                AddLog($"No LoRA files found in {pathDescription}");
             }
         }
 

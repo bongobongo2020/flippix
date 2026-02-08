@@ -36,8 +36,10 @@ namespace FlipPix.UI.ViewModels
             IAppLogger logger,
             FlipPix.Core.Services.SettingsService settingsService,
             WorkflowQueueCoordinator workflowCoordinator,
-            IFileDialogService fileDialogService)
-            : base(comfyUIService, logger, settingsService, workflowCoordinator, fileDialogService)
+            IFileDialogService fileDialogService,
+            LoraManager loraManager,
+            ComfyUIImageRetriever imageRetriever)
+            : base(comfyUIService, logger, settingsService, workflowCoordinator, fileDialogService, loraManager, imageRetriever)
         {
         }
 
@@ -272,225 +274,90 @@ namespace FlipPix.UI.ViewModels
 
         private JsonElement UpdateWorkflowParameters(JsonElement workflow, string promptText)
         {
-            var workflowDict = JsonSerializer.Deserialize<Dictionary<string, JsonElement>>(workflow.GetRawText());
-
-            if (workflowDict == null) return workflow;
+            var workflowJson = workflow.GetRawText();
 
             // Add the photographer prefix to all prompts
             const string promptPrefix = "A photo taken by the photographer Deedeemegadoodo, raw, unedited, ";
             string fullPrompt = promptPrefix + promptText;
 
             // 1. Update positive prompt (node 6)
-            if (workflowDict.ContainsKey("6"))
-            {
-                var node6 = JsonSerializer.Deserialize<Dictionary<string, object>>(workflowDict["6"].GetRawText());
-                if (node6 != null && node6.ContainsKey("inputs"))
-                {
-                    var inputs = JsonSerializer.Deserialize<Dictionary<string, object>>(
-                        JsonSerializer.Serialize(node6["inputs"]));
-                    if (inputs != null)
-                    {
-                        inputs["text"] = fullPrompt;
-                        node6["inputs"] = inputs;
-                        workflowDict["6"] = JsonSerializer.SerializeToElement(node6);
-                    }
-                }
-            }
+            WorkflowNodeUpdater.UpdateNodeInput(ref workflowJson, "6", "text", fullPrompt);
 
             // 2. Update negative prompt (node 7)
-            if (workflowDict.ContainsKey("7"))
-            {
-                var node7 = JsonSerializer.Deserialize<Dictionary<string, object>>(workflowDict["7"].GetRawText());
-                if (node7 != null && node7.ContainsKey("inputs"))
-                {
-                    var inputs = JsonSerializer.Deserialize<Dictionary<string, object>>(
-                        JsonSerializer.Serialize(node7["inputs"]));
-                    if (inputs != null)
-                    {
-                        inputs["text"] = NegativePrompt;
-                        node7["inputs"] = inputs;
-                        workflowDict["7"] = JsonSerializer.SerializeToElement(node7);
-                    }
-                }
-            }
+            WorkflowNodeUpdater.UpdateNodeInput(ref workflowJson, "7", "text", NegativePrompt);
 
             // 3. Update seed (node 28) - max value is 2^50 (1125899906842624)
-            if (workflowDict.ContainsKey("28"))
-            {
-                var node28 = JsonSerializer.Deserialize<Dictionary<string, object>>(workflowDict["28"].GetRawText());
-                if (node28 != null && node28.ContainsKey("inputs"))
-                {
-                    var inputs = JsonSerializer.Deserialize<Dictionary<string, object>>(
-                        JsonSerializer.Serialize(node28["inputs"]));
-                    if (inputs != null)
-                    {
-                        long maxSeed = 1125899906842624;
-                        var random = new Random();
-                        byte[] bytes = new byte[8];
-                        random.NextBytes(bytes);
-                        long seed = Math.Abs(BitConverter.ToInt64(bytes, 0) % maxSeed);
-                        inputs["seed"] = seed;
-                        node28["inputs"] = inputs;
-                        workflowDict["28"] = JsonSerializer.SerializeToElement(node28);
-                    }
-                }
-            }
+            long maxSeed = 1125899906842624;
+            var random = new Random();
+            byte[] bytes = new byte[8];
+            random.NextBytes(bytes);
+            long seed = Math.Abs(BitConverter.ToInt64(bytes, 0) % maxSeed);
+            WorkflowNodeUpdater.UpdateNodeInput(ref workflowJson, "28", "seed", seed);
 
             // 4. Update ClownsharKSampler settings (node 582)
-            if (workflowDict.ContainsKey("582"))
+            WorkflowNodeUpdater.UpdateNodeInputMultiple(ref workflowJson, "582", new Dictionary<string, object>
             {
-                var node582 = JsonSerializer.Deserialize<Dictionary<string, object>>(workflowDict["582"].GetRawText());
-                if (node582 != null && node582.ContainsKey("inputs"))
-                {
-                    var inputs = JsonSerializer.Deserialize<Dictionary<string, object>>(
-                        JsonSerializer.Serialize(node582["inputs"]));
-                    if (inputs != null)
-                    {
-                        inputs["denoise"] = Denoise;
-                        inputs["steps"] = Steps;
-                        inputs["cfg"] = Cfg;
-                        node582["inputs"] = inputs;
-                        workflowDict["582"] = JsonSerializer.SerializeToElement(node582);
-                    }
-                }
-            }
+                { "denoise", Denoise },
+                { "steps", Steps },
+                { "cfg", Cfg }
+            });
 
             // 5. Update second ClownsharKSampler settings (node 620)
-            if (workflowDict.ContainsKey("620"))
+            WorkflowNodeUpdater.UpdateNodeInputMultiple(ref workflowJson, "620", new Dictionary<string, object>
             {
-                var node620 = JsonSerializer.Deserialize<Dictionary<string, object>>(workflowDict["620"].GetRawText());
-                if (node620 != null && node620.ContainsKey("inputs"))
-                {
-                    var inputs = JsonSerializer.Deserialize<Dictionary<string, object>>(
-                        JsonSerializer.Serialize(node620["inputs"]));
-                    if (inputs != null)
-                    {
-                        inputs["denoise"] = Denoise2;
-                        inputs["steps"] = Steps;
-                        inputs["cfg"] = Cfg;
-                        node620["inputs"] = inputs;
-                        workflowDict["620"] = JsonSerializer.SerializeToElement(node620);
-                    }
-                }
-            }
+                { "denoise", Denoise2 },
+                { "steps", Steps },
+                { "cfg", Cfg }
+            });
 
             // 6. Update KSampler settings (node 754)
-            if (workflowDict.ContainsKey("754"))
+            WorkflowNodeUpdater.UpdateNodeInputMultiple(ref workflowJson, "754", new Dictionary<string, object>
             {
-                var node754 = JsonSerializer.Deserialize<Dictionary<string, object>>(workflowDict["754"].GetRawText());
-                if (node754 != null && node754.ContainsKey("inputs"))
-                {
-                    var inputs = JsonSerializer.Deserialize<Dictionary<string, object>>(
-                        JsonSerializer.Serialize(node754["inputs"]));
-                    if (inputs != null)
-                    {
-                        inputs["denoise"] = 0.9;
-                        inputs["steps"] = Steps;
-                        inputs["cfg"] = Cfg;
-                        node754["inputs"] = inputs;
-                        workflowDict["754"] = JsonSerializer.SerializeToElement(node754);
-                    }
-                }
-            }
+                { "denoise", 0.9 },
+                { "steps", Steps },
+                { "cfg", Cfg }
+            });
 
             // 7. Update KSampler settings (node 768)
-            if (workflowDict.ContainsKey("768"))
+            WorkflowNodeUpdater.UpdateNodeInputMultiple(ref workflowJson, "768", new Dictionary<string, object>
             {
-                var node768 = JsonSerializer.Deserialize<Dictionary<string, object>>(workflowDict["768"].GetRawText());
-                if (node768 != null && node768.ContainsKey("inputs"))
-                {
-                    var inputs = JsonSerializer.Deserialize<Dictionary<string, object>>(
-                        JsonSerializer.Serialize(node768["inputs"]));
-                    if (inputs != null)
-                    {
-                        inputs["denoise"] = 1.0;
-                        inputs["steps"] = Steps;
-                        inputs["cfg"] = Cfg;
-                        node768["inputs"] = inputs;
-                        workflowDict["768"] = JsonSerializer.SerializeToElement(node768);
-                    }
-                }
-            }
+                { "denoise", 1.0 },
+                { "steps", Steps },
+                { "cfg", Cfg }
+            });
 
             // 8. Update LoRA strengths
             // Node 105 - amateur photography LoRA (always applied)
-            UpdateLoraStrength(workflowDict, "105", AmateurLoraStrength1);
+            WorkflowNodeUpdater.UpdateNodeInput(ref workflowJson, "105", "strength_model", AmateurLoraStrength1);
             // Node 752 - amateur photography LoRA second instance (always applied)
-            UpdateLoraStrength(workflowDict, "752", AmateurLoraStrength2);
+            WorkflowNodeUpdater.UpdateNodeInput(ref workflowJson, "752", "strength_model", AmateurLoraStrength2);
 
             // 9. Update character LoRA if enabled (node 760 - currently gilliananderson)
             if (CharacterLoraEnabled && !string.IsNullOrEmpty(SelectedCharacterLora) && SelectedCharacterLora != "No LoRAs available")
             {
-                UpdateCharacterLora(workflowDict, "760", SelectedCharacterLora, CharacterLoraStrength);
+                WorkflowNodeUpdater.UpdateNodeInputMultiple(ref workflowJson, "760", new Dictionary<string, object>
+                {
+                    { "lora_name", $"zimage\\{SelectedCharacterLora}.safetensors" },
+                    { "strength_model", CharacterLoraStrength }
+                });
             }
 
             // 10. Update latent image dimensions
-            UpdateLatentDimensions(workflowDict, "46", 576, 416);
-            UpdateLatentDimensions(workflowDict, "693", 208, 288);
-            UpdateLatentDimensions(workflowDict, "758", 416, 576);
-            UpdateLatentDimensions(workflowDict, "772", 1248, 1728);
+            UpdateLatentDimensions(ref workflowJson, "46", 576, 416);
+            UpdateLatentDimensions(ref workflowJson, "693", 208, 288);
+            UpdateLatentDimensions(ref workflowJson, "758", 416, 576);
+            UpdateLatentDimensions(ref workflowJson, "772", 1248, 1728);
 
-            return JsonSerializer.SerializeToElement(workflowDict);
+            return JsonSerializer.Deserialize<JsonElement>(workflowJson);
         }
 
-        private void UpdateLoraStrength(Dictionary<string, JsonElement> workflowDict, string nodeId, double strength)
+        private void UpdateLatentDimensions(ref string workflowJson, string nodeId, int width, int height)
         {
-            if (workflowDict.ContainsKey(nodeId))
+            WorkflowNodeUpdater.UpdateNodeInputMultiple(ref workflowJson, nodeId, new Dictionary<string, object>
             {
-                var node = JsonSerializer.Deserialize<Dictionary<string, object>>(workflowDict[nodeId].GetRawText());
-                if (node != null && node.ContainsKey("inputs"))
-                {
-                    var inputs = JsonSerializer.Deserialize<Dictionary<string, object>>(
-                        JsonSerializer.Serialize(node["inputs"]));
-                    if (inputs != null && inputs.ContainsKey("strength_model"))
-                    {
-                        inputs["strength_model"] = strength;
-                        node["inputs"] = inputs;
-                        workflowDict[nodeId] = JsonSerializer.SerializeToElement(node);
-                    }
-                }
-            }
-        }
-
-        private void UpdateCharacterLora(Dictionary<string, JsonElement> workflowDict, string nodeId, string loraName, double strength)
-        {
-            if (workflowDict.ContainsKey(nodeId))
-            {
-                var node = JsonSerializer.Deserialize<Dictionary<string, object>>(workflowDict[nodeId].GetRawText());
-                if (node != null && node.ContainsKey("inputs"))
-                {
-                    var inputs = JsonSerializer.Deserialize<Dictionary<string, object>>(
-                        JsonSerializer.Serialize(node["inputs"]));
-                    if (inputs != null)
-                    {
-                        // Update both lora_name and strength_model
-                        inputs["lora_name"] = $"zimage\\{loraName}.safetensors";
-                        inputs["strength_model"] = strength;
-                        node["inputs"] = inputs;
-                        workflowDict[nodeId] = JsonSerializer.SerializeToElement(node);
-                    }
-                }
-            }
-        }
-
-        private void UpdateLatentDimensions(Dictionary<string, JsonElement> workflowDict, string nodeId, int width, int height)
-        {
-            if (workflowDict.ContainsKey(nodeId))
-            {
-                var node = JsonSerializer.Deserialize<Dictionary<string, object>>(workflowDict[nodeId].GetRawText());
-                if (node != null && node.ContainsKey("inputs"))
-                {
-                    var inputs = JsonSerializer.Deserialize<Dictionary<string, object>>(
-                        JsonSerializer.Serialize(node["inputs"]));
-                    if (inputs != null)
-                    {
-                        inputs["width"] = width;
-                        inputs["height"] = height;
-                        node["inputs"] = inputs;
-                        workflowDict[nodeId] = JsonSerializer.SerializeToElement(node);
-                    }
-                }
-            }
+                { "width", width },
+                { "height", height }
+            });
         }
 
         private async Task<List<byte[]>> GetOutputImagesFromComfyUI(string promptId)
@@ -503,7 +370,7 @@ namespace FlipPix.UI.ViewModels
                 var uri = new Uri(baseUrl);
                 var actualServer = uri.Host;
 
-                bool isRemoteComfyUI = IsComfyUIRemote(actualServer);
+                bool isRemoteComfyUI = _imageRetriever.IsComfyUIRemote(_settingsService);
 
                 AddLog($"ComfyUI server: {actualServer}");
                 AddLog($"Is remote ComfyUI: {isRemoteComfyUI}");

@@ -526,48 +526,21 @@ namespace FlipPix.UI.ViewModels.Video
 
         private JsonElement UpdateWorkflowParameters(JsonElement workflow, string videoName, string imageName, int startFrame, int frameCount)
         {
-            var workflowDict = JsonSerializer.Deserialize<Dictionary<string, JsonElement>>(workflow.GetRawText());
-            if (workflowDict == null) return workflow;
-
+            var workflowJson = workflow.GetRawText();
             AddLog($"Updating workflow: Start frame {startFrame}, Frame count {frameCount}");
 
             // Update video (node 128)
-            if (workflowDict.ContainsKey("128"))
+            WorkflowNodeUpdater.UpdateNodeInputMultiple(ref workflowJson, "128", new Dictionary<string, object>
             {
-                var node = JsonSerializer.Deserialize<Dictionary<string, object>>(workflowDict["128"].GetRawText());
-                if (node != null && node.ContainsKey("inputs"))
-                {
-                    var inputs = JsonSerializer.Deserialize<Dictionary<string, object>>(JsonSerializer.Serialize(node["inputs"]));
-                    if (inputs != null)
-                    {
-                        inputs["video"] = videoName;
-                        inputs["frame_load_cap"] = frameCount;
-                        inputs["skip_first_frames"] = startFrame;
-                        node["inputs"] = inputs;
-                        workflowDict["128"] = JsonSerializer.SerializeToElement(node);
-                        AddLog($"Node 128 (VHS_LoadVideo) updated");
-                    }
-                }
-            }
+                { "video", videoName },
+                { "frame_load_cap", frameCount },
+                { "skip_first_frames", startFrame }
+            });
 
             // Update image (node 212)
-            if (workflowDict.ContainsKey("212"))
-            {
-                var node = JsonSerializer.Deserialize<Dictionary<string, object>>(workflowDict["212"].GetRawText());
-                if (node != null && node.ContainsKey("inputs"))
-                {
-                    var inputs = JsonSerializer.Deserialize<Dictionary<string, object>>(JsonSerializer.Serialize(node["inputs"]));
-                    if (inputs != null)
-                    {
-                        inputs["image"] = imageName;
-                        node["inputs"] = inputs;
-                        workflowDict["212"] = JsonSerializer.SerializeToElement(node);
-                        AddLog($"Node 212 (LoadImage) updated");
-                    }
-                }
-            }
+            WorkflowNodeUpdater.UpdateNodeInput(ref workflowJson, "212", "image", imageName);
 
-            return JsonSerializer.SerializeToElement(workflowDict);
+            return JsonSerializer.Deserialize<JsonElement>(workflowJson);
         }
 
         private void MergeVideoChunksWithFFmpeg(List<string> chunkFiles, string outputPath)

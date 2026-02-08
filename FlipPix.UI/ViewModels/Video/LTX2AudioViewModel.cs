@@ -620,70 +620,35 @@ namespace FlipPix.UI.ViewModels.Video
 
         private JsonElement UpdateWorkflowParameters(JsonElement workflow, string imageName, string audioName, double startIndex, double duration, int frames)
         {
-            var workflowDict = JsonSerializer.Deserialize<Dictionary<string, JsonElement>>(workflow.GetRawText());
-            if (workflowDict == null) return workflow;
-
+            var workflowJson = workflow.GetRawText();
             AddLog($"Updating workflow: Start {startIndex:F2}s, Duration {duration:F2}s, Frames {frames}");
 
             // Update image (node 110)
-            UpdateNodeInput(workflowDict, "110", "image", imageName);
+            WorkflowNodeUpdater.UpdateNodeInput(ref workflowJson, "110", "image", imageName);
 
             // Update audio (node 12)
-            UpdateNodeInput(workflowDict, "12", "audio", audioName);
+            WorkflowNodeUpdater.UpdateNodeInput(ref workflowJson, "12", "audio", audioName);
 
             // Update prompt (node 85)
-            UpdateNodeInput(workflowDict, "85", "text", Prompt);
+            WorkflowNodeUpdater.UpdateNodeInput(ref workflowJson, "85", "text", Prompt);
 
             // Update video length/frames (node 81)
-            UpdateNodeInput(workflowDict, "81", "value", frames);
+            WorkflowNodeUpdater.UpdateNodeInput(ref workflowJson, "81", "value", frames);
 
             // Update width and height (node 68)
-            UpdateNodeInputMultiple(workflowDict, "68", new Dictionary<string, object> { { "width", Width }, { "height", Height } });
+            WorkflowNodeUpdater.UpdateNodeInputMultiple(ref workflowJson, "68", new Dictionary<string, object>
+            {
+                { "width", Width },
+                { "height", Height }
+            });
 
             // Update audio start index (node 101)
-            UpdateNodeInput(workflowDict, "101", "value", startIndex);
+            WorkflowNodeUpdater.UpdateNodeInput(ref workflowJson, "101", "value", startIndex);
 
             // Update audio duration (node 102)
-            UpdateNodeInput(workflowDict, "102", "value", duration);
+            WorkflowNodeUpdater.UpdateNodeInput(ref workflowJson, "102", "value", duration);
 
-            return JsonSerializer.SerializeToElement(workflowDict);
-        }
-
-        private void UpdateNodeInput(Dictionary<string, JsonElement> workflowDict, string nodeId, string inputName, object value)
-        {
-            if (!workflowDict.ContainsKey(nodeId)) return;
-
-            var node = JsonSerializer.Deserialize<Dictionary<string, object>>(workflowDict[nodeId].GetRawText());
-            if (node != null && node.ContainsKey("inputs"))
-            {
-                var inputs = JsonSerializer.Deserialize<Dictionary<string, object>>(JsonSerializer.Serialize(node["inputs"]));
-                if (inputs != null)
-                {
-                    inputs[inputName] = value;
-                    node["inputs"] = inputs;
-                    workflowDict[nodeId] = JsonSerializer.SerializeToElement(node);
-                }
-            }
-        }
-
-        private void UpdateNodeInputMultiple(Dictionary<string, JsonElement> workflowDict, string nodeId, Dictionary<string, object> values)
-        {
-            if (!workflowDict.ContainsKey(nodeId)) return;
-
-            var node = JsonSerializer.Deserialize<Dictionary<string, object>>(workflowDict[nodeId].GetRawText());
-            if (node != null && node.ContainsKey("inputs"))
-            {
-                var inputs = JsonSerializer.Deserialize<Dictionary<string, object>>(JsonSerializer.Serialize(node["inputs"]));
-                if (inputs != null)
-                {
-                    foreach (var kvp in values)
-                    {
-                        inputs[kvp.Key] = kvp.Value;
-                    }
-                    node["inputs"] = inputs;
-                    workflowDict[nodeId] = JsonSerializer.SerializeToElement(node);
-                }
-            }
+            return JsonSerializer.Deserialize<JsonElement>(workflowJson);
         }
 
         private void MergeVideoChunksWithFFmpeg(List<string> chunkFiles, string outputPath, string originalAudioPath)
