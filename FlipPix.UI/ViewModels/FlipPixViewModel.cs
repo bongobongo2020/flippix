@@ -1669,6 +1669,12 @@ namespace FlipPix.UI.ViewModels
             AddLog($"Added to queue: {SelectedCameraControl} - {Path.GetFileName(ImageFilePath)}");
             StatusBarMessage = $"Item added to queue ({QueuedCount} queued)";
             CommandManager.InvalidateRequerySuggested();
+
+            // Auto-start queue processing if not already processing
+            if (!IsProcessingQueue && QueueItems.Any(q => q.Status == "Queued"))
+            {
+                _ = ProcessQueueAsync();
+            }
         }
 
         private async Task ProcessQueueAsync()
@@ -1681,13 +1687,13 @@ namespace FlipPix.UI.ViewModels
             try
             {
                 IsProcessingQueue = true;
-                var queuedItems = QueueItems.Where(item => item.Status == "Queued").ToList();
-                QueueTotal = queuedItems.Count;
+                QueueTotal = QueueItems.Count(q => q.Status == "Queued");
                 QueueProgress = 0;
 
                 AddLog($"=== Starting queue processing ({QueueTotal} items) ===");
 
-                foreach (var item in queuedItems)
+                CameraQueueItem? item;
+                while ((item = QueueItems.FirstOrDefault(q => q.Status == "Queued")) != null)
                 {
                     if (_cancellationTokenSource.Token.IsCancellationRequested)
                     {

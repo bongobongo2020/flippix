@@ -223,6 +223,16 @@ namespace FlipPix.UI.ViewModels
         public string WorkflowIndicator => MainVM.WorkflowIndicator;
         public int SelectedWorkflowIndex { get => MainVM.SelectedWorkflowIndex; set => MainVM.SelectedWorkflowIndex = value; }
 
+        // Single Video Generator Workflow (Tab 1) - separate from Story Video (Tab 2)
+        public VideoGeneratorMainViewModel.SingleVideoWorkflow SelectedSingleWorkflow
+        {
+            get => MainVM.SelectedSingleWorkflow;
+            set => MainVM.SelectedSingleWorkflow = value;
+        }
+        public string SingleWorkflowDisplay => MainVM.SingleWorkflowDisplay;
+        public bool UseLTX2V => MainVM.UseLTX2V;
+        public bool UseWan22 => MainVM.UseWan22;
+
         // UI state
         public string ComfyUIServer { get => MainVM.ComfyUIServer; set => MainVM.ComfyUIServer = value; }
         public string ComfyUIPort { get => MainVM.ComfyUIPort; set => MainVM.ComfyUIPort = value; }
@@ -255,6 +265,7 @@ namespace FlipPix.UI.ViewModels
         public ICommand PauseStoryQueueCommand => MainVM.PauseStoryQueueCommand;
         public ICommand ResumeStoryQueueCommand => MainVM.ResumeStoryQueueCommand;
         public ICommand ToggleWorkflowCommand => MainVM.ToggleWorkflowCommand;
+        public ICommand ToggleSingleWorkflowCommand => MainVM.ToggleSingleWorkflowCommand;
 
         #endregion
 

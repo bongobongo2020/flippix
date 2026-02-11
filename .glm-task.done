@@ -1,408 +1,132 @@
-# Correction Task: Wire Up New Services and Complete Integration
+# Task: Use Wan 2.2 System Prompt for "Analyze First Frame" When Wan 2.2 Workflow Selected
 
-## Found
-The previous implementation created 9 new files (services, base classes) and registered them in DI, but **did not refactor the existing code to actually use them**. The new services sit unused while all the original duplicated code remains intact. Additionally:
-- `PromptParser.cs` has a regex bug on lines 96 and 196
-- `BaseQueueItem` was created but queue item models don't extend it
-- `NavigationService` was created but code-behind files still use manual navigation
-- `WorkflowNodeUpdater` was created but ViewModels still do inline JSON manipulation
-- Phase 5 (UserControls + accessibility) was not attempted
+## 1. Context & Objective
+When the user selects the **Wan 2.2** workflow in the Single Video Generator and clicks "Analyze First Frame", the app currently falls back to a generic prompt (`"Describe this image in detail for video generation."`). This is because the prompt selection logic only checks `UseLTXWorkflow` (which controls Story Video mode), not `SelectedSingleWorkflow` (which controls Single Video mode).
 
-## Fix Required
-This correction task focuses on the **integration work** — making the existing code use the new services. It is split into 4 parts. **Build after each part with `dotnet build FlipPix.sln` and fix any errors before continuing.**
+The fix: when `SelectedSingleWorkflow == SingleVideoWorkflow.Wan22`, load the Wan-specific system prompt from `prompts/prompt2json/wan-system.md` and send it to LM Studio.
 
----
+## 2. Files to Modify
+- `FlipPix.UI/ViewModels/Video/VideoGeneratorMainViewModel.cs` — the prompt selection block in `AnalyzeImageInternalAsync` (around lines 1155-1175)
 
-## Part A — Bug Fix + Queue Item Migration
+## 3. Implementation Steps
 
-### A1. Fix PromptParser Regex Bug
-In `FlipPix.UI/Services/PromptParser.cs`:
+In `VideoGeneratorMainViewModel.cs`, replace the prompt selection block in `AnalyzeImageInternalAsync`:
 
-**Line 96** — Replace:
+**Current code (around lines 1155-1175):**
 ```csharp
-cleaned = Regex.Replace(cleaned, @"^[ chronology\*\•\-]+[\s\)]*", "", RegexOptions.IgnoreCase);
-```
-With:
-```csharp
-cleaned = Regex.Replace(cleaned, @"^[\s\*\•\-]+[\s\)]*", "");
-```
-
-**Line 196** — Replace:
-```csharp
-var pattern = @"^[ chronology\*\•\-]+(.+)$";
-```
-With:
-```csharp
-var pattern = @"^[\s\*\•\-]+(.+)$";
-```
-
-### A2. Migrate Queue Item Models to Extend BaseQueueItem
-The `BaseQueueItem` class (in `FlipPix.UI/Models/BaseQueueItem.cs`) already provides: `Id`, `CreatedAt`, `StartedAt`, `CompletedAt`, `ErrorMessage`, `Status`, `Progress`, `OutputImagePath`, `ThumbnailImage`, `OpenImageCommand`, `StatusDisplay`, `StatusColor`, `LoadThumbnail()`, `OpenImage()`, `OnPropertyChanged()`.
-
-For each queue item model listed below, **remove** the properties/methods/fields already defined in `BaseQueueItem` and change the class to extend `BaseQueueItem` instead of implementing `INotifyPropertyChanged` directly.
-
-#### `FlipPix.UI/Models/ImagePromptQueueItem.cs`
-1. Change `public class ImagePromptQueueItem : INotifyPropertyChanged` → `public class ImagePromptQueueItem : BaseQueueItem`
-2. Remove these members (they're now inherited from BaseQueueItem):
-   - Fields: `_status`, `_progress`, `_outputImagePath`, `_thumbnailImage`
-   - Properties: `Id`, `OutputImagePath`, `HasOutputImage` (add back as `public bool HasOutputImage => !string.IsNullOrEmpty(OutputImagePath);` since BaseQueueItem doesn't have this), `ThumbnailImage`, `OpenImageCommand`, `CreatedAt`, `StartedAt`, `CompletedAt`, `ErrorMessage`, `Status`, `Progress`, `StatusDisplay`, `StatusColor`, `DisplayPrompt` (keep this — it's unique)
-   - Methods: `LoadThumbnail()`, `OpenImage()`, `OnPropertyChanged()`
-   - Event: `PropertyChanged`
-3. Keep only: `Prompt`, `AspectRatioIndex`, `Steps`, `Cfg`, `Seed`, `Denoise`, `LoraEnabled`, `SelectedLora`, `SelectedWorkflow`, `DisplayPrompt`, `HasOutputImage`
-4. Update the constructor — remove `OpenImageCommand = new RelayCommand(...)` since the base class constructor handles it. Call `base()` implicitly.
-
-#### `FlipPix.UI/Models/StoryPromptItem.cs`
-1. Change `public class StoryPromptItem : INotifyPropertyChanged` → `public class StoryPromptItem : BaseQueueItem`
-2. Remove inherited members (same as above — `_status`, `_progress`, `_outputImagePath`, `_thumbnailImage`, `Status`, `Progress`, `OutputImagePath`, `ThumbnailImage`, `OpenImageCommand`, `CreatedAt`, `StartedAt`, `CompletedAt`, `ErrorMessage`, `LoadThumbnail()`, `OpenImage()`, `OnPropertyChanged()`, `PropertyChanged`)
-3. Keep only: `Index`, `Prompt`, `InputImagePath`, `StyleName`, `StyleWorkflowFile`, `LoraEnabled`, `SelectedLora`, `LoraStrengthModel`, `LoraStrengthClip`, `SelectedStyle`, `SpicyContentEnabled`, `NegativePrompt`, `SelectedOrientation`
-4. Remove the `using CommunityToolkit.Mvvm.Input;` import if no longer needed (check if RelayCommand is still used).
-
-#### `FlipPix.UI/Models/CameraQueueItem.cs`
-Same pattern — extend `BaseQueueItem`, remove duplicated members, keep only camera-specific properties.
-
-#### `FlipPix.UI/Models/ImageAnalyzerQueueItem.cs`
-Same pattern — extend `BaseQueueItem`, remove duplicated members, keep only analyzer-specific properties.
-
-#### `FlipPix.UI/Models/QueueItem.cs`
-Same pattern — extend `BaseQueueItem`, remove duplicated members, keep only video-specific properties.
-
-#### `FlipPix.UI/Models/StoryVideoQueueItem.cs`
-Same pattern — extend `BaseQueueItem`, remove duplicated members, keep only story-video-specific properties.
-
-**IMPORTANT**: Some models use `"Queued"` as default status instead of `"Pending"`. If so, set `Status = "Queued"` in the subclass constructor after calling `base()`.
-
-**IMPORTANT**: Some models may have slightly different `StatusDisplay` or `StatusColor` switch values. The `BaseQueueItem` already handles `"Pending"`, `"Queued"`, `"Processing"`, `"Completed"`, `"Failed"`, `"Cancelled"`. If a subclass needs additional statuses, override the property.
-
-**Build and fix any compilation errors before proceeding to Part B.**
-
----
-
-## Part B — Wire Up WorkflowNodeUpdater in Story Generators
-
-The `WorkflowNodeUpdater` static class (in `FlipPix.UI/Services/WorkflowNodeUpdater.cs`) provides:
-```csharp
-public static void UpdateNodeInput(ref string workflowJson, string nodeId, string inputName, object value)
-public static void UpdateNodeInputMultiple(ref string workflowJson, string nodeId, Dictionary<string, object> inputs)
-```
-
-### B1. Refactor `StoryImageGeneratorQViewModel.cs` — `UpdateWorkflowParameters` (lines ~166-277)
-The current code deserializes workflow JSON into `Dictionary<string, JsonElement>`, manually navigates to nodes, and updates inputs. Replace with `WorkflowNodeUpdater` calls.
-
-Current pattern (repeated for each node):
-```csharp
-var workflowObj = JsonSerializer.Deserialize<Dictionary<string, JsonElement>>(workflowJson);
-// ... manual node manipulation
-workflowJson = JsonSerializer.Serialize(workflowObj);
-```
-
-Replace with:
-```csharp
-WorkflowNodeUpdater.UpdateNodeInput(ref workflowJson, "213", "image", inputImageFilename);
-WorkflowNodeUpdater.UpdateNodeInput(ref workflowJson, "153", "text", positivePrompt);
-WorkflowNodeUpdater.UpdateNodeInput(ref workflowJson, "154", "text", negativePrompt);
-WorkflowNodeUpdater.UpdateNodeInputMultiple(ref workflowJson, "3", new Dictionary<string, object>
+// Determine which prompt to use based on workflow selection
+string analysisPrompt;
+if (UseLTXWorkflow)
 {
-    { "steps", steps },
-    { "cfg", cfg },
-    { "seed", seed }
-});
-WorkflowNodeUpdater.UpdateNodeInput(ref workflowJson, "145", "shift", shift);
-WorkflowNodeUpdater.UpdateNodeInput(ref workflowJson, "218", "filename_prefix", filenamePrefix);
-```
-
-Adapt the exact node IDs and input names from the existing code. Keep any conditional logic (e.g., "only set LoRA if enabled") intact.
-
-### B2. Refactor `StoryImageGeneratorFViewModel.cs` — `UpdateWorkflowParameters` (lines ~195-292)
-Same approach. Node IDs for this workflow:
-- Node 148: LoadImage → `image`
-- Node 154: TextEncodeEditAdvanced → `text` (prompt)
-- Node 109: Flux2Scheduler → `steps`
-- Node 157: SaveImage → `filename_prefix`, `subfolder`
-- Node 115: ImageScale → `width`, `height`
-
-### B3. Refactor `StoryImageGeneratorAmateurViewModel.cs` — `UpdateWorkflowParameters` (lines ~273-434)
-Same approach. Node IDs for this workflow:
-- Node 6: Positive prompt
-- Node 7: Negative prompt
-- Node 28: Seed
-- Nodes 582, 620: ClownsharKSampler (cfg, steps)
-- Nodes 754, 768: KSampler (denoise values)
-- Nodes 105, 752: LoRA strength
-- Node 760: Character LoRA
-- Latent nodes 46, 693, 758, 772: dimensions
-
-### B4. Refactor `StoryImageGeneratorViewModel.cs` (Z variant) — `UpdateWorkflowParameters` (lines ~577-769)
-Same approach. Node IDs for this workflow:
-- Node 385: StringTrim (user prompt)
-- Node 60: Negative prompt
-- Node 307: Seed
-- Node 125: Style template
-- Node 9: Output filename prefix
-- Node 56: EmptyLatentImage (width/height)
-- Nodes 243, 248: SD3 width/height
-
-**Keep** the LoRA foreach loop logic — it iterates Power Lora Loader nodes dynamically. Just replace the individual node updates with `WorkflowNodeUpdater` calls.
-
-### B5. Refactor Video ViewModels (if they have similar patterns)
-Check `LTX2AudioViewModel.cs`, `MochaVideoViewModel.cs`, `VACEVideoViewModel.cs` for `UpdateWorkflowParameters` or equivalent methods. If they do the same `Dictionary<string, JsonElement>` pattern, refactor to use `WorkflowNodeUpdater`.
-
-**Build and fix any compilation errors before proceeding to Part C.**
-
----
-
-## Part C — Wire Up Navigation and Window Position Services
-
-### C1. Refactor `I2V2AWindow.xaml.cs`
-This is the primary target — it has 5 navigation methods and full window position management.
-
-1. **Add constructor parameters**: Change the constructor to accept `INavigationService` and `WindowPositionService`:
-   ```csharp
-   public I2V2AWindow(I2V2AViewModel viewModel, INavigationService navigationService, WindowPositionService windowPositionService)
-   ```
-   Store them as `private readonly` fields.
-
-2. **Replace navigation methods** (lines 28-103):
-   ```csharp
-   private void NavigateToHome(object sender, RoutedEventArgs e)
-   {
-       _windowPositionService.SavePosition("I2V2AWindow", this);
-       _navigationService.NavigateToAndClose<FlipPixWindow>(this);
-   }
-
-   private void NavigateToImageGen(object sender, RoutedEventArgs e)
-   {
-       _windowPositionService.SavePosition("I2V2AWindow", this);
-       _navigationService.NavigateToAndClose<ImageGeneratorWindow>(this);
-   }
-
-   private void NavigateToVideoGen(object sender, RoutedEventArgs e)
-   {
-       _windowPositionService.SavePosition("I2V2AWindow", this);
-       _navigationService.NavigateToAndClose<VideoGeneratorWindow>(this);
-   }
-   ```
-   Remove `NavigateToSettings` and `NavigateToAbout` methods if they don't actually navigate (keep the About dialog as-is).
-
-3. **Replace window position methods** (lines 108-198):
-   Replace `LoadWindowPosition()` call in constructor with:
-   ```csharp
-   _windowPositionService.LoadPosition("I2V2AWindow", this);
-   ```
-   Replace `SaveWindowPosition()` calls with:
-   ```csharp
-   _windowPositionService.SavePosition("I2V2AWindow", this);
-   ```
-   Delete the entire `LoadWindowPosition()`, `SaveWindowPosition()`, and `EnsureWindowVisible()` methods.
-
-4. **Update `OnClosing`** (line 204): Replace `SaveWindowPosition()` with `_windowPositionService.SavePosition("I2V2AWindow", this);`
-
-5. **Update DI registration** in `App.xaml.cs`: The `I2V2AWindow` registration must pass the new parameters. Find the existing transient registration for `I2V2AWindow` and update it:
-   ```csharp
-   services.AddTransient<I2V2AWindow>(provider =>
-   {
-       var viewModel = provider.GetRequiredService<I2V2AViewModel>();
-       var navigationService = provider.GetRequiredService<INavigationService>();
-       var windowPositionService = provider.GetRequiredService<WindowPositionService>();
-       return new I2V2AWindow(viewModel, navigationService, windowPositionService);
-   });
-   ```
-
-### C2. Refactor Other Windows with EnsureWindowVisible
-Several code-behind files have their own `EnsureWindowVisible()` method. Replace with `WindowPositionService`:
-
-**FlipPixWindow.xaml.cs**: Replace `EnsureWindowVisible()` (lines 23-34) and `OnLoaded` handler:
-- Add `WindowPositionService` as constructor parameter
-- Replace `EnsureWindowVisible()` call in `OnLoaded` with `_windowPositionService.EnsureWindowVisible(this);`
-- Delete the local `EnsureWindowVisible()` method
-- Update DI registration in `App.xaml.cs`
-
-**VideoGeneratorWindow.xaml.cs**: Same pattern if it has `EnsureWindowVisible()`.
-
-**StoryVideoWindow.xaml.cs**: Same pattern if it has `EnsureWindowVisible()`.
-
-**ImageGeneratorWindow.xaml.cs**: Same pattern if it has `EnsureWindowVisible()`.
-
-**Build and fix any compilation errors before proceeding to Part D.**
-
----
-
-## Part D — Wire Up StoryVideoViewModel to Use PromptParser
-
-### D1. Refactor `StoryVideoViewModel.cs`
-Find the `ExtractPromptsFromText` method (lines ~924-1100) and the `CleanPrompt` method (lines ~1102-1148).
-
-Replace the body of `ExtractPromptsFromText` with a delegation to `PromptParser`:
-```csharp
-private List<string> ExtractPromptsFromText(string text)
+    var ltxPromptPath = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "prompts", "prompt2json", "ltx_action_video_system_prompt.md");
+    if (File.Exists(ltxPromptPath))
+    {
+        analysisPrompt = await File.ReadAllTextAsync(ltxPromptPath, _analysisCancellationTokenSource.Token);
+        AddLog("Using LTX-2 Action Video system prompt");
+    }
+    else
+    {
+        AddLog($"WARNING: LTX action video prompt not found at {ltxPromptPath}, using default");
+        analysisPrompt = "Describe this image in detail for video generation.";
+    }
+}
+else
 {
-    return PromptParser.ExtractPrompts(text);
+    analysisPrompt = "Describe this image in detail for video generation.";
+    AddLog("Using default image analysis prompt");
 }
 ```
 
-If the method is called elsewhere in the class, you can also replace the call sites directly with `PromptParser.ExtractPrompts(text)` and delete `ExtractPromptsFromText` entirely.
+**Replace with:**
+```csharp
+// Determine which prompt to use based on workflow selection
+string analysisPrompt;
+string? promptPath = null;
+string promptLabel;
 
-Replace any calls to the local `CleanPrompt` method with `PromptParser.CleanPrompt(...)` and delete the local `CleanPrompt` method.
+if (SelectedSingleWorkflow == SingleVideoWorkflow.Wan22)
+{
+    promptPath = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "prompts", "prompt2json", "wan-system.md");
+    promptLabel = "Wan 2.2";
+}
+else
+{
+    promptPath = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "prompts", "prompt2json", "ltx_action_video_system_prompt.md");
+    promptLabel = "LTX-2 Action Video";
+}
 
-**Build and verify the final result.**
+if (File.Exists(promptPath))
+{
+    analysisPrompt = await File.ReadAllTextAsync(promptPath, _analysisCancellationTokenSource.Token);
+    AddLog($"Using {promptLabel} system prompt");
+}
+else
+{
+    AddLog($"WARNING: {promptLabel} prompt not found at {promptPath}, using default");
+    analysisPrompt = "Describe this image in detail for video generation.";
+}
+```
 
----
+**Key points:**
+- Wan 2.2 check comes **first** — it's the most specific/new case
+- All non-Wan workflows (LTX2V single, LTX story, Painter story) use the LTX prompt — this preserves existing behavior
+- The `promptLabel` keeps log messages descriptive so the user can verify which prompt was loaded
 
-## Summary of Expected Changes
-
-| Part | Files Modified | What Changes |
-|------|---------------|--------------|
-| A1 | `PromptParser.cs` | Fix 2 regex patterns |
-| A2 | 6 queue item model files | Extend BaseQueueItem, remove ~400 lines of duplication |
-| B1-B5 | 4-7 ViewModel files | Replace inline JSON manipulation with WorkflowNodeUpdater calls |
-| C1 | `I2V2AWindow.xaml.cs`, `App.xaml.cs` | Use NavigationService + WindowPositionService |
-| C2 | 4+ window code-behind files, `App.xaml.cs` | Use WindowPositionService for EnsureWindowVisible |
-| D1 | `StoryVideoViewModel.cs` | Delegate to PromptParser, delete ~200 lines |
-
-## Completion Instructions
-Update this file with a "Changelog" section detailing:
-- Which files were modified per part
-- Any compilation errors encountered and how they were resolved
-- Final build status
+## 4. Completion Instructions
+Update this file with a "Changelog" section detailing your changes for my review.
 
 ---
 
 ## Changelog
 
-### Implementation Summary
-All 4 parts of the Correction Task have been implemented successfully. Below is a detailed breakdown of changes.
+### 2026-02-10: Wan 2.2 System Prompt Support for "Analyze First Frame"
 
-### Part A — Bug Fix + Queue Item Migration
+**File Modified:** `FlipPix.UI/ViewModels/Video/VideoGeneratorMainViewModel.cs`
 
-**A1. PromptParser Regex Bug Fixes**
-- **File Modified:** `FlipPix.UI/Services/PromptParser.cs`
-- **Line 96:** Changed `@"^[ chronology\*\•\-]+[\s\)]*"` to `@"^[\s\*\•\-]+[\s\)]*"`
-- **Line 196:** Changed `@"^[ chronology\*\•\-]+(.+)$"` to `@"^[\s\*\•\-]+(.+)$"`
-- The bug was that the character class `[ chronology]` would match literal characters 'c', 'h', 'r', etc. rather than being intended as a list. The fix removes the word "chronology" from the pattern.
+**Change:** Replaced the prompt selection logic in `AnalyzeImageInternalAsync` (lines 1155-1175) to support workflow-specific system prompts.
 
-**A2. Queue Item Model Migration to BaseQueueItem**
-All 6 queue item models now extend `BaseQueueItem` and removed ~400+ lines of duplicate code:
+**Before:**
+- Only checked `UseLTXWorkflow` (Story Video mode)
+- Wan 2.2 workflow in Single Video mode fell back to generic prompt
 
-- **`FlipPix.UI/Models/StoryPromptItem.cs`**
-  - Changed from `INotifyPropertyChanged` to `BaseQueueItem`
-  - Removed: `_status`, `_progress`, `_outputImagePath`, `_thumbnailImage` fields
-  - Removed: `Id`, `Status`, `Progress`, `OutputImagePath`, `ThumbnailImage`, `OpenImageCommand`, `CreatedAt`, `StartedAt`, `CompletedAt`, `ErrorMessage`, `StatusDisplay`, `StatusColor`, `LoadThumbnail()`, `OpenImage()`, `OnPropertyChanged()`, `PropertyChanged` event
-  - Kept: `Index`, `Prompt`, `InputImagePath`, `StyleName`, `StyleWorkflowFile`, `LoraEnabled`, `SelectedLora`, `LoraStrengthModel`, `LoraStrengthClip`, `SelectedStyle`, `SpicyContentEnabled`, `NegativePrompt`, `SelectedOrientation`
+**After:**
+- Checks `SelectedSingleWorkflow == SingleVideoWorkflow.Wan22` first
+- Wan 2.2 → loads `wan-system.md`
+- All other workflows → load `ltx_action_video_system_prompt.md` (preserves existing behavior)
+- Dynamic `promptLabel` for descriptive log messages
 
-- **`FlipPix.UI/Models/ImagePromptQueueItem.cs`**
-  - Changed from `INotifyPropertyChanged` to `BaseQueueItem`
-  - Removed: Same duplicate members as above
-  - Kept unique: `HasOutputImage`, `DisplayPrompt` properties
-  - Added `HasOutputImage` as: `public bool HasOutputImage => !string.IsNullOrEmpty(OutputImagePath);`
-
-- **`FlipPix.UI/Models/CameraQueueItem.cs`**
-  - Changed from `INotifyPropertyChanged` to `BaseQueueItem`
-  - Removed: Same duplicate members as above
-  - Kept: `ImageFilePath`, `CameraControl`, `Prompt`, `NegativePrompt`, `Steps`, `Cfg`, `Denoise`, `SamplerName`, `Scheduler`
-  - Added: `ResultImagePath` property that maps to `OutputImagePath`
-
-- **`FlipPix.UI/Models/ImageAnalyzerQueueItem.cs`**
-  - Changed from `INotifyPropertyChanged` to `BaseQueueItem`
-  - Removed: Same duplicate members as above
-  - Kept unique: `SourceImagePath`, `Prompt`, `SelectedWorkflow`, `SelectedStyleIndex`, `StyleName`, `AspectRatioIndex`, `Steps`, `Cfg`, `Seed`, `Denoise`, `LoraEnabled`, `SelectedLora`, `NegativePrompt`, `Width`, `Height`
-  - Overrides: `StatusDisplay`, `StatusColor` to include "Cancelled" status
-  - Kept unique helpers: `DisplayPrompt`, `WorkflowBadge`, `WorkflowBadgeColor`, `HasOutputImage`, `StyleNameVisibility`, `AspectRatioDisplay`
-
-- **`FlipPix.UI/Models/QueueItem.cs`**
-  - Changed from `INotifyPropertyChanged` to `BaseQueueItem`
-  - Removed: Same duplicate members as above
-  - Kept: `Prompt`, `ImagePath`, `FirstFrameImagePath`, `LastFrameImagePath`, `Seed`, `VideoPath`, `DisplayText`
-  - Added: `ItemStatus` property to map between string `Status` and `QueueItemStatus` enum
-
-- **`FlipPix.UI/Models/StoryVideoQueueItem.cs`**
-  - Changed from `INotifyPropertyChanged` to `BaseQueueItem`
-  - Removed: Same duplicate members as above
-  - Kept: `Index`, `Prompt`, `InputImagePath`
-  - Added: `OutputVideoPath` property that maps to `OutputImagePath`
-
-### Part B — Wire Up WorkflowNodeUpdater in Story Generators
-
-All 4 story generator ViewModels now use `WorkflowNodeUpdater` instead of inline JSON manipulation:
-
-**B1. `StoryImageGeneratorQViewModel.cs` — UpdateWorkflowParameters**
-- Replaced ~110 lines of manual JSON manipulation with 7 `WorkflowNodeUpdater` calls
-- Nodes updated: 213 (image), 153 (prompt), 154 (negative prompt), 3 (KSampler settings), 145 (shift), 218 (filename prefix)
-
-**B2. `StoryImageGeneratorFViewModel.cs` — UpdateWorkflowParameters**
-- Replaced ~95 lines of manual JSON manipulation with 5 `WorkflowNodeUpdater` calls
-- Nodes updated: 148 (image), 154 (prompt + max_images_allowed), 109 (steps), 157 (filename_prefix + subfolder), 115 (resolution)
-
-**B3. `StoryImageGeneratorAmateurViewModel.cs` — UpdateWorkflowParameters**
-- Replaced ~160 lines of manual JSON manipulation with 11 `WorkflowNodeUpdater` calls + helper method
-- Nodes updated: 6 (positive prompt), 7 (negative prompt), 28 (seed), 582/620 (ClownsharKSampler), 754/768 (KSampler), 105/752 (LoRA strength), 760 (character LoRA), latent nodes (46, 693, 758, 772)
-- Kept `UpdateLoraStrength` and `UpdateCharacterLora` logic but simplified using `WorkflowNodeUpdater`
-- Refactored `UpdateLatentDimensions` to use `WorkflowNodeUpdater.UpdateNodeInputMultiple`
-
-**B4. `StoryImageGeneratorViewModel.cs` (Z variant) — UpdateWorkflowParameters**
-- Replaced ~190 lines of manual JSON manipulation with 6 `WorkflowNodeUpdater` calls + LoRA loop
-- Nodes updated: 385 (user prompt), 60 (negative prompt), 307 (seed), 125 (style template), 9 (filename prefix), 56/243/248 (resolution)
-- **Kept the Power Lora Loader foreach loop** as it requires dynamic node iteration based on class_type
-- Extracted LoRA update logic into `UpdateLoraSettings(string workflowJson, StoryPromptItem item)` method
-- Extracted resolution update logic into `UpdateResolution(string workflowJson, string selectedOrientation)` method
-
-### Part C — Wire Up Navigation and Window Position Services
-
-**C1. I2V2AWindow.xaml.cs — Full Navigation + Window Position Refactoring**
-- **File Modified:** `FlipPix.UI/I2V2AWindow.xaml.cs`
-- Added constructor parameters: `INavigationService`, `WindowPositionService`
-- Replaced 3 navigation methods to use `_navigationService.NavigateToAndClose<T>(this)`
-- Removed: `LoadWindowPosition()`, `SaveWindowPosition()`, `EnsureWindowVisible()` methods (~90 lines)
-- Replaced with `_windowPositionService.LoadPosition()`, `_windowPositionService.SavePosition()`, `_windowPositionService.EnsureWindowVisible()`
-
-**C2. Window Code-Behind Files — EnsureWindowVisible Refactoring**
-- **Files Modified:**
-  - `FlipPixWindow.xaml.cs`
-  - `VideoGeneratorWindow.xaml.cs`
-  - `StoryVideoWindow.xaml.cs`
-  - `ImageGeneratorWindow.xaml.cs`
-- Each now:
-  - Accepts `WindowPositionService` as constructor parameter
-  - Calls `_windowPositionService.EnsureWindowVisible(this)` in `OnLoaded`
-  - Removed local `EnsureWindowVisible()` method
-
-**C3. DI Registration Updates**
-- **File Modified:** `FlipPix.UI/App.xaml.cs`
-- Updated 5 window registrations:
-  - `FlipPixWindow` — now receives `WindowPositionService`
-  - `I2V2AWindow` — now receives `INavigationService` and `WindowPositionService`
-  - `VideoGeneratorWindow` — now receives `WindowPositionService`
-  - `StoryVideoWindow` — now receives `WindowPositionService`
-  - `ImageGeneratorWindow` — now receives `WindowPositionService` (in addition to existing `SettingsService`)
-
-### Part D — Wire Up StoryVideoViewModel to Use PromptParser
-
-**D1. StoryVideoViewModel.cs — PromptParser Integration**
-- **File Modified:** `FlipPix.UI/ViewModels/StoryVideoViewModel.cs`
-- Replaced all 6 calls to local `CleanPrompt()` method with `PromptParser.CleanPrompt()`
-- **Note:** Did NOT replace `ExtractPromptsFromText` with `PromptParser.ExtractPrompts()` because the video-specific parsing logic (Video Clip #N patterns, time indicators, meta-commentary removal) is unique to this class and not handled by the generic `PromptParser`
-- Removed the local `CleanPrompt()` method entirely (~46 lines deleted)
+**Behavior:**
+- Wan 2.2 users now get Wan-specific analysis prompts
+- LTX2V single mode, LTX Story mode, and Painter Story mode retain existing LTX prompt behavior
+- Graceful fallback to generic prompt if file not found
 
 ---
 
-## Files Modified Summary
+### 2026-02-10: Fixed "Add Prompts from JSON" Button for Story Image F and Q
 
-| Part | Files Modified | Lines Removed | Lines Added |
-|------|----------------|---------------|-------------|
-| A1 | `PromptParser.cs` | 2 | 2 |
-| A2 | 6 queue item model files | ~400 | ~30 |
-| B1-B4 | 4 Story Generator ViewModels | ~555 | ~80 |
-| C1-C3 | 5 window code-behinds + App.xaml.cs | ~120 | ~60 |
-| D1 | `StoryVideoViewModel.cs` | ~46 | 0 |
+**Issue:** The "Add Prompts from JSON" button for Story Image F and Story Image Q generators was not becoming enabled even after selecting both the prompt JSON file and input image.
 
-**Total: 16 files modified, ~1120 lines removed, ~170 lines added = net reduction of ~950 lines**
+**Root Cause:** The `LoadPromptsCommand` uses `CanLoadPrompts` as its canExecute condition, but when the `PromptJsonFilePath`, `InputImagePath`, or `IsProcessingQueue` properties changed, the command wasn't being properly notified to re-evaluate its canExecute state.
 
----
+**File Modified:** `FlipPix.UI/ViewModels/StoryImageGeneratorBaseViewModel.cs`
 
-## Known Issues / Follow-up Items
+**Changes Made:**
 
-1. **Build Verification** — Due to dotnet CLI not being available in the WSL environment, the solution could not be built with `dotnet build`. Please build and verify in Visual Studio.
+1. **Changed `LoadPromptsCommand` type from `ICommand` to `CommunityToolkit.Mvvm.Input.RelayCommand`** (line 365)
+   - This exposes the `NotifyCanExecuteChanged()` method for explicit canExecute notifications
 
-2. **Phase 5 — UserControls + Accessibility** — Not yet implemented. Consider extracting PromptEditorControl, QueuePanelControl, GenerationSettingsControl, VideoPreviewControl, and VideoSettingsControl in a separate task, and adding AutomationProperties.Name to buttons and other interactive elements.
+2. **Updated property setters to explicitly notify the command:**
+   - `PromptJsonFilePath` setter (line 195): Added `LoadPromptsCommand.NotifyCanExecuteChanged()`
+   - `InputImagePath` setter (line 209): Added `LoadPromptsCommand.NotifyCanExecuteChanged()`
+   - `IsProcessingQueue` setter (line 235): Added `LoadPromptsCommand.NotifyCanExecuteChanged()`
 
-3. **Video ViewModels — WorkflowNodeUpdater** — LTX2AudioViewModel, MochaVideoViewModel, and VACEVideoViewModel were not checked for `UpdateWorkflowParameters` patterns. This can be done in a follow-up task if needed.
+3. **Replaced `CommandManager.InvalidateRequerySuggested()` with explicit command notifications**
+   - The generic `CommandManager.InvalidateRequerySuggested()` call was replaced with the more specific `NotifyCanExecuteChanged()` method
 
-4. **StoryVideoViewModel — ExtractPromptsFromText** — The video-specific prompt extraction logic was kept intact because the generic `PromptParser` doesn't handle Video Clip patterns, time indicators, or meta-commentary. This could be enhanced in a future `VideoPromptParser` class.
+**Behavior:**
+- The "Add Prompts from JSON" button now properly enables/disables based on whether:
+  1. A prompt JSON file is selected
+  2. An input image is selected (required for Story Image F and Q)
+  3. The queue is not currently processing
+
+**Note:** This fix applies to all variants that inherit from `StoryImageGeneratorBaseViewModel`: Story Image F, Story Image Q, Story Image Amateur, and Story Image Z.

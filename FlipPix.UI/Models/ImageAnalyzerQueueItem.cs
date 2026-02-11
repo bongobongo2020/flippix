@@ -28,7 +28,7 @@ namespace FlipPix.UI.Models
         [JsonIgnore]
         public new string StatusDisplay => Status switch
         {
-            "Queued" => "⏳ Queued",
+            "Pending" => "⏳ Pending",
             "Processing" => "⚙️ Processing",
             "Completed" => "✅ Completed",
             "Failed" => "❌ Failed",
@@ -40,7 +40,7 @@ namespace FlipPix.UI.Models
         [JsonIgnore]
         public new string StatusColor => Status switch
         {
-            "Queued" => "#6C757D",
+            "Pending" => "#6C757D",
             "Processing" => "#FFA500",
             "Completed" => "#28A745",
             "Failed" => "#DC3545",
@@ -69,9 +69,6 @@ namespace FlipPix.UI.Models
             TextGeneratorWorkflow.Klien => "#F59E0B",
             _ => "#6C757D"
         };
-
-        [JsonIgnore]
-        public bool HasOutputImage => !string.IsNullOrEmpty(OutputImagePath);
 
         [JsonIgnore]
         public System.Windows.Visibility StyleNameVisibility =>

@@ -5,7 +5,16 @@ REM Clean previous publish
 if exist publish rmdir /s /q publish
 
 REM Clean build artifacts to ensure all changes are compiled
-dotnet clean FlipPix.UI/FlipPix.UI.csproj -c Release >nul 2>&1
+dotnet clean FlipPix.sln -c Release >nul 2>&1
+
+REM Delete bin/obj to force full recompilation (prevents stale XAML/BAML cache)
+echo Cleaning bin/obj directories...
+if exist FlipPix.Core\bin rmdir /s /q FlipPix.Core\bin
+if exist FlipPix.Core\obj rmdir /s /q FlipPix.Core\obj
+if exist FlipPix.ComfyUI\bin rmdir /s /q FlipPix.ComfyUI\bin
+if exist FlipPix.ComfyUI\obj rmdir /s /q FlipPix.ComfyUI\obj
+if exist FlipPix.UI\bin rmdir /s /q FlipPix.UI\bin
+if exist FlipPix.UI\obj rmdir /s /q FlipPix.UI\obj
 
 REM Publish as self-contained Windows x64 application
 dotnet publish FlipPix.UI/FlipPix.UI.csproj ^
@@ -28,13 +37,14 @@ if not exist "publish\prompts\prompt2json" mkdir "publish\prompts\prompt2json"
 REM Copy prompt2json system prompt files
 copy /Y "prompts\prompt2json\ltx_action_video_system_prompt.md" "publish\prompts\prompt2json\" >nul 2>&1
 copy /Y "prompts\prompt2json\ltxv2_system_prompt_addition.md" "publish\prompts\prompt2json\" >nul 2>&1
+copy /Y "prompts\prompt2json\wan-system.md" "publish\prompts\prompt2json\" >nul 2>&1
 copy /Y "prompts\prompt2json\.prompt2json_config.json" "publish\prompts\prompt2json\" >nul 2>&1
 copy /Y "prompts\prompt2json\README.md" "publish\prompts\prompt2json\" >nul 2>&1
 
 REM Copy workflow directory
 echo Copying workflow directory...
 if not exist "publish\workflow" mkdir "publish\workflow"
-xcopy /Y /Q "workflow\*.json" "publish\workflow\" >nul
+xcopy /Y /Q /S /E "workflow\*.json" "publish\workflow\" >nul
 
 echo.
 echo ============================================

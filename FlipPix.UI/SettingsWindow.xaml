@@ -72,7 +72,7 @@
                         <!-- Crash Detection & Auto-Restart Settings -->
                         <Separator Margin="0,0,0,15"/>
                         <TextBlock Text="Crash Detection &amp; Auto-Restart" FontWeight="SemiBold" FontSize="14" Margin="0,0,0,10" Foreground="#495057"/>
-                        <CheckBox x:Name="AutoRestartCheckBox" Content="Enable automatic ComfyUI restart on crash" IsChecked="{Binding AutoRestartComfyUI}" Margin="0,0,0,10"/>
+                        <CheckBox x:Name="AutoRestartCheckBox" Content="Auto-start ComfyUI on launch and restart on crash" IsChecked="{Binding AutoRestartComfyUI}" Margin="0,0,0,10"/>
 
                         <TextBlock Text="ComfyUI Restart Script (.bat):" FontWeight="SemiBold" FontSize="13" Margin="0,0,0,5" Foreground="#6C757D"/>
                         <TextBlock Text="Script to restart ComfyUI (e.g., run_nvidia_gpu.bat)" FontSize="11" Foreground="#868E96" Margin="0,0,0,5"/>

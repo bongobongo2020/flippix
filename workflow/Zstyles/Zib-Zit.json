@@ -130,7 +130,7 @@
   "530": {
     "inputs": {
       "filename": "%time_%basemodelname_%seed_blur",
-      "path": "Jib_Mix_Z-Image/%date/",
+      "path": "ZImage/%date/",
       "extension": "png",
       "steps": 18,
       "cfg": 4,

@@ -86,7 +86,9 @@ namespace FlipPix.UI.ViewModels
         private int _queueProgress = 0;
         private int _queueTotal = 0;
         private bool _isQueuePaused = false;
+        private bool _isWaitingForLease = false;
         private readonly ManualResetEventSlim _pauseEvent = new(true);
+        private System.Threading.CancellationTokenSource? _queueCancellationTokenSource;
 
         public event Action? QueueItemAdded;
 
@@ -100,21 +102,22 @@ namespace FlipPix.UI.ViewModels
             _fileDialogService = fileDialogService ?? throw new ArgumentNullException(nameof(fileDialogService));
 
             // Initialize commands
-            BrowseImageCommand = new RelayCommand(BrowseImage, () => !IsAnalyzing && !IsGenerating);
-            AnalyzeImageCommand = new RelayCommand(async () => await AnalyzeImageAsync(), () => HasSourceImage && !IsAnalyzing && !IsGenerating);
+            BrowseImageCommand = new RelayCommand(BrowseImage, () => !IsAnalyzing);
+            AnalyzeImageCommand = new RelayCommand(async () => await AnalyzeImageAsync(), () => HasSourceImage && !IsAnalyzing);
             GenerateImageCommand = new RelayCommand(async () => await GenerateImageAsync(), () => CanGenerate);
             OpenResultFolderCommand = new RelayCommand(OpenResultFolder, () => HasResultImage);
             OpenResultImageCommand = new RelayCommand(OpenResultImage, () => HasResultImage);
-            TestLMStudioConnectionCommand = new RelayCommand(async () => await TestLMStudioConnectionAsync(), () => !IsAnalyzing && !IsGenerating);
-            RefreshModelsCommand = new RelayCommand(async () => await RefreshModelsAsync(), () => !IsAnalyzing && !IsGenerating);
-            RefreshLorasCommand = new RelayCommand(RefreshLoras, () => !IsAnalyzing && !IsGenerating);
+            TestLMStudioConnectionCommand = new RelayCommand(async () => await TestLMStudioConnectionAsync(), () => !IsAnalyzing);
+            RefreshModelsCommand = new RelayCommand(async () => await RefreshModelsAsync(), () => !IsAnalyzing);
+            RefreshLorasCommand = new RelayCommand(RefreshLoras, () => !IsAnalyzing);
             PauseQueueCommand = new RelayCommand(PauseQueue, () => IsProcessingQueue && !IsQueuePaused);
             ResumeQueueCommand = new RelayCommand(ResumeQueue, () => IsProcessingQueue && IsQueuePaused);
-            AddToQueueCommand = new RelayCommand(AddToQueue, () => !IsAnalyzing && !IsGenerating && !string.IsNullOrWhiteSpace(AnalysisText));
-            AddToQueueAndStartCommand = new RelayCommand(async () => await AddToQueueAndStart(), () => !IsAnalyzing && !IsGenerating && !string.IsNullOrWhiteSpace(AnalysisText));
+            AddToQueueCommand = new RelayCommand(AddToQueue, () => !IsAnalyzing && !string.IsNullOrWhiteSpace(AnalysisText));
+            AddToQueueAndStartCommand = new RelayCommand(async () => await AddToQueueAndStart(), () => !IsAnalyzing && !string.IsNullOrWhiteSpace(AnalysisText));
             RemoveFromQueueCommand = new RelayCommand<ImageAnalyzerQueueItem>(RemoveFromQueue);
             ClearQueueCommand = new RelayCommand(ClearQueue, () => !IsProcessingQueue);
             CancelProcessingCommand = new RelayCommand(CancelProcessing, () => IsProcessingQueue);
+            ProcessQueueCommand = new RelayCommand(async () => await ProcessQueueAsync(), () => !IsProcessingQueue && QueueItems.Any(q => q.Status == "Pending"));
 
             // Load ComfyUI settings
             if (_settingsService.Settings != null)
@@ -133,6 +136,31 @@ namespace FlipPix.UI.ViewModels
             LoadQueueFromFile();
 
             _logger.LogInfo("Image Analyzer initialized");
+        }
+
+        private void NotifyAllCommands()
+        {
+            if (System.Windows.Application.Current?.Dispatcher?.CheckAccess() == false)
+            {
+                System.Windows.Application.Current.Dispatcher.Invoke(NotifyAllCommands);
+                return;
+            }
+            (BrowseImageCommand as RelayCommand)?.NotifyCanExecuteChanged();
+            (AnalyzeImageCommand as RelayCommand)?.NotifyCanExecuteChanged();
+            (GenerateImageCommand as RelayCommand)?.NotifyCanExecuteChanged();
+            (OpenResultFolderCommand as RelayCommand)?.NotifyCanExecuteChanged();
+            (OpenResultImageCommand as RelayCommand)?.NotifyCanExecuteChanged();
+            (TestLMStudioConnectionCommand as RelayCommand)?.NotifyCanExecuteChanged();
+            (RefreshModelsCommand as RelayCommand)?.NotifyCanExecuteChanged();
+            (RefreshLorasCommand as RelayCommand)?.NotifyCanExecuteChanged();
+            (PauseQueueCommand as RelayCommand)?.NotifyCanExecuteChanged();
+            (ResumeQueueCommand as RelayCommand)?.NotifyCanExecuteChanged();
+            (AddToQueueCommand as RelayCommand)?.NotifyCanExecuteChanged();
+            (AddToQueueAndStartCommand as RelayCommand)?.NotifyCanExecuteChanged();
+            (RemoveFromQueueCommand as RelayCommand)?.NotifyCanExecuteChanged();
+            (ClearQueueCommand as RelayCommand)?.NotifyCanExecuteChanged();
+            (CancelProcessingCommand as RelayCommand)?.NotifyCanExecuteChanged();
+            (ProcessQueueCommand as RelayCommand)?.NotifyCanExecuteChanged();
         }
 
         // Properties
@@ -163,7 +191,7 @@ namespace FlipPix.UI.ViewModels
             {
                 _hasSourceImage = value;
                 OnPropertyChanged();
-                System.Windows.Input.CommandManager.InvalidateRequerySuggested();
+                NotifyAllCommands();
             }
         }
 
@@ -175,7 +203,7 @@ namespace FlipPix.UI.ViewModels
                 _analysisText = value;
                 OnPropertyChanged();
                 OnPropertyChanged(nameof(CanGenerate));
-                System.Windows.Input.CommandManager.InvalidateRequerySuggested();
+                NotifyAllCommands();
             }
         }
 
@@ -186,7 +214,7 @@ namespace FlipPix.UI.ViewModels
             {
                 _isAnalyzing = value;
                 OnPropertyChanged();
-                System.Windows.Input.CommandManager.InvalidateRequerySuggested();
+                NotifyAllCommands();
             }
         }
 
@@ -199,7 +227,7 @@ namespace FlipPix.UI.ViewModels
                 OnPropertyChanged();
                 OnPropertyChanged(nameof(CanGenerate));
                 OnPropertyChanged(nameof(GenerateButtonText));
-                System.Windows.Input.CommandManager.InvalidateRequerySuggested();
+                NotifyAllCommands();
             }
         }
 
@@ -409,7 +437,7 @@ namespace FlipPix.UI.ViewModels
             {
                 _hasResultImage = value;
                 OnPropertyChanged();
-                System.Windows.Input.CommandManager.InvalidateRequerySuggested();
+                NotifyAllCommands();
             }
         }
 
@@ -578,7 +606,7 @@ namespace FlipPix.UI.ViewModels
                 {
                     _isProcessingQueue = value;
                     OnPropertyChanged();
-                    System.Windows.Input.CommandManager.InvalidateRequerySuggested();
+                    NotifyAllCommands();
                 }
             }
         }
@@ -592,7 +620,20 @@ namespace FlipPix.UI.ViewModels
                 {
                     _isQueuePaused = value;
                     OnPropertyChanged();
-                    System.Windows.Input.CommandManager.InvalidateRequerySuggested();
+                    NotifyAllCommands();
+                }
+            }
+        }
+
+        public bool IsWaitingForLease
+        {
+            get => _isWaitingForLease;
+            set
+            {
+                if (_isWaitingForLease != value)
+                {
+                    _isWaitingForLease = value;
+                    OnPropertyChanged();
                 }
             }
         }
@@ -643,7 +684,7 @@ namespace FlipPix.UI.ViewModels
 
         public string QueueProgressText => QueueTotal > 0 ? $"{QueueProgress}/{QueueTotal}" : "0/0";
 
-        public int QueuedCount => QueueItems.Count(item => item.Status == "Queued");
+        public int QueuedCount => QueueItems.Count(item => item.Status == "Pending");
         public int CompletedCount => QueueItems.Count(item => item.Status == "Completed");
         public int FailedCount => QueueItems.Count(item => item.Status == "Failed");
 
@@ -661,6 +702,7 @@ namespace FlipPix.UI.ViewModels
         public ICommand RemoveFromQueueCommand { get; }
         public ICommand ClearQueueCommand { get; }
         public ICommand CancelProcessingCommand { get; }
+        public ICommand ProcessQueueCommand { get; }
 
         // Methods
         private async void InitializeLMStudio()
@@ -1356,7 +1398,7 @@ namespace FlipPix.UI.ViewModels
                 NegativePrompt = NegativePrompt,
                 Width = _width,
                 Height = _height,
-                Status = "Queued"
+                Status = "Pending"
             };
 
             QueueItems.Add(queueItem);
@@ -1370,7 +1412,26 @@ namespace FlipPix.UI.ViewModels
             // Start processing if not already processing
             if (!IsProcessingQueue)
             {
-                _ = Task.Run(() => ProcessQueueAsync());
+                _ = Task.Run(async () =>
+                {
+                    try
+                    {
+                        await ProcessQueueAsync();
+                    }
+                    catch (Exception ex)
+                    {
+                        _logger.LogError($"Queue processing failed: {ex}");
+                        try
+                        {
+                            System.Windows.Application.Current.Dispatcher.Invoke(() =>
+                            {
+                                IsGenerating = false;
+                                StatusBarMessage = $"Queue error: {ex.Message}";
+                            });
+                        }
+                        catch { }
+                    }
+                });
             }
 
             return Task.CompletedTask;
@@ -1378,99 +1439,159 @@ namespace FlipPix.UI.ViewModels
 
         private async Task ProcessQueueAsync()
         {
+            // Thread-safe guard: only one invocation can proceed
             if (IsProcessingQueue) return;
+            if (!QueueItems.Any(q => q.Status == "Pending")) return;
 
-            _cancellationTokenSource?.Dispose();
-            _cancellationTokenSource = System.Threading.CancellationTokenSource.CreateLinkedTokenSource(App.ShutdownToken);
+            IsProcessingQueue = true;
 
-            _logger.LogInfo("Waiting for other workflows to finish...");
-
-            WorkflowQueueCoordinator.WorkflowLease lease;
             try
             {
-                lease = await _workflowCoordinator.AcquireAsync("ImageAnalyzer", _cancellationTokenSource.Token);
-            }
-            catch (OperationCanceledException)
-            {
-                _logger.LogInfo("Queue processing cancelled while waiting");
-                return;
-            }
+                // Create a queue-specific cancellation token source
+                _queueCancellationTokenSource?.Dispose();
+                _queueCancellationTokenSource = System.Threading.CancellationTokenSource.CreateLinkedTokenSource(App.ShutdownToken);
+                IsWaitingForLease = true;
+                _logger.LogInfo("Starting queue processing...");
+                _logger.LogInfo("Waiting for other workflows to finish...");
 
-            using (lease)
-            try
-            {
-                IsProcessingQueue = true;
-                var queuedItems = QueueItems.Where(item => item.Status == "Queued").ToList();
-                QueueTotal = queuedItems.Count;
-                QueueProgress = 0;
-
-                _logger.LogInfo($"=== Starting queue processing ({QueueTotal} items) ===");
-
-                foreach (var item in queuedItems)
+                WorkflowQueueCoordinator.WorkflowLease lease;
+                try
                 {
-                    if (_cancellationTokenSource.Token.IsCancellationRequested)
-                    {
-                        _logger.LogInfo("Queue processing cancelled");
-                        break;
-                    }
-
-                    // Wait if paused
-                    _pauseEvent.Wait(_cancellationTokenSource.Token);
-
-                    CurrentQueueItem = item;
-                    item.Status = "Processing";
-                    item.StartedAt = DateTime.Now;
-                    SaveQueueToFile();
-
-                    _logger.LogInfo($"Processing queue item {QueueProgress + 1}/{QueueTotal}: {item.StyleName}");
-
+                    lease = await _workflowCoordinator.AcquireAsync("ImageAnalyzer", _queueCancellationTokenSource.Token);
+                }
+                catch (OperationCanceledException)
+                {
+                    _logger.LogInfo("Queue processing cancelled while waiting for lease");
+                    return;
+                }
+                catch (Exception ex)
+                {
+                    _logger.LogError($"Error acquiring workflow lease: {ex.Message}");
                     try
                     {
-                        await ProcessQueueItemAsync(item, _cancellationTokenSource.Token);
-                        item.Status = "Completed";
-                        item.CompletedAt = DateTime.Now;
-                        item.Progress = 100;
-                        SaveQueueToFile();
-
-                        _logger.LogInfo($"Completed queue item {QueueProgress + 1}/{QueueTotal}: {item.StyleName}");
+                        System.Windows.Application.Current.Dispatcher.Invoke(() =>
+                        {
+                            StatusBarMessage = "Error: Unable to start queue processing";
+                        });
                     }
-                    catch (OperationCanceledException)
-                    {
-                        item.Status = "Cancelled";
-                        item.ErrorMessage = "Cancelled by user";
-                        SaveQueueToFile();
-                        _logger.LogInfo($"Queue item cancelled: {item.StyleName}");
-                        break;
-                    }
-                    catch (Exception ex)
-                    {
-                        item.Status = "Failed";
-                        item.ErrorMessage = ex.Message;
-                        item.Progress = 0;
-                        SaveQueueToFile();
-                        _logger.LogError($"Queue item failed: {item.StyleName} - {ex.Message}");
-                    }
-                    finally
-                    {
-                        QueueProgress++;
-                    }
+                    catch { }
+                    return;
                 }
 
-                _logger.LogInfo($"=== Queue processing completed ({CompletedCount} successful, {FailedCount} failed) ===");
+                _logger.LogInfo("=== Starting queue processing ===");
+                IsWaitingForLease = false;
+
+                using (lease)
+                try
+                {
+                    QueueTotal = QueueItems.Count(q => q.Status == "Pending");
+                    QueueProgress = 0;
+
+                    _logger.LogInfo($"=== Starting queue processing ({QueueTotal} items) ===");
+
+                    ImageAnalyzerQueueItem? item;
+                    while ((item = QueueItems.FirstOrDefault(q => q.Status == "Pending")) != null)
+                    {
+                        // Check for queue cancellation
+                        if (_queueCancellationTokenSource?.Token.IsCancellationRequested == true)
+                        {
+                            _logger.LogInfo("Queue processing cancelled");
+                            break;
+                        }
+
+                        // Wait if paused
+                        _pauseEvent.Wait(_queueCancellationTokenSource?.Token ?? CancellationToken.None);
+
+                        CurrentQueueItem = item;
+                        item.Status = "Processing";
+                        item.StartedAt = DateTime.Now;
+                        item.Progress = 0;
+                        SaveQueueToFile();
+
+                        _logger.LogInfo($"Processing queue item {QueueProgress + 1}/{QueueTotal}: {item.StyleName}");
+
+                        try
+                        {
+                            await ProcessQueueItemAsync(item, _queueCancellationTokenSource?.Token ?? CancellationToken.None);
+                            item.Status = "Completed";
+                            item.CompletedAt = DateTime.Now;
+                            item.Progress = 100;
+                            SaveQueueToFile();
+
+                            _logger.LogInfo($"Completed queue item {QueueProgress + 1}/{QueueTotal}: {item.StyleName}");
+                        }
+                        catch (OperationCanceledException)
+                        {
+                            item.Status = "Failed";
+                            item.ErrorMessage = "Cancelled";
+                            SaveQueueToFile();
+                            _logger.LogInfo($"Queue item cancelled: {item.StyleName}");
+                            break;
+                        }
+                        catch (Exception ex)
+                        {
+                            item.Status = "Failed";
+                            item.ErrorMessage = ex.Message;
+                            item.Progress = 0;
+                            SaveQueueToFile();
+                            _logger.LogError($"Queue item failed: {item.StyleName} - {ex.Message}");
+
+                            // Show error to user
+                            try
+                            {
+                                System.Windows.Application.Current.Dispatcher.Invoke(() =>
+                                {
+                                    StatusBarMessage = $"Error processing queue item: {ex.Message}";
+                                });
+                            }
+                            catch { }
+                        }
+                        finally
+                        {
+                            QueueProgress++;
+                        }
+                    }
+
+                    _logger.LogInfo($"=== Queue processing completed ({CompletedCount} successful, {FailedCount} failed) ===");
+                }
+                catch (Exception ex)
+                {
+                    _logger.LogError($"Error processing queue: {ex}");
+                    try
+                    {
+                        System.Windows.Application.Current.Dispatcher.Invoke(() =>
+                        {
+                            StatusBarMessage = $"Queue processing error: {ex.Message}";
+                        });
+                    }
+                    catch { }
+                }
             }
             catch (Exception ex)
             {
-                _logger.LogError($"Error processing queue: {ex}");
+                _logger.LogError($"Unhandled error in ProcessQueueAsync: {ex}");
             }
             finally
             {
+                // SAFETY NET: Always reset all flags regardless of how we got here
                 IsProcessingQueue = false;
+                IsWaitingForLease = false;
                 IsQueuePaused = false;
                 _pauseEvent.Set();
                 CurrentQueueItem = null;
                 QueueProgress = 0;
                 QueueTotal = 0;
-                System.Windows.Input.CommandManager.InvalidateRequerySuggested();
+                _queueCancellationTokenSource?.Dispose();
+                _queueCancellationTokenSource = null;
+                try
+                {
+                    System.Windows.Application.Current.Dispatcher.Invoke(() =>
+                    {
+                        IsGenerating = false;
+                    });
+                }
+                catch { /* app may be shutting down */ }
+                NotifyAllCommands();
             }
         }
 
@@ -1719,25 +1840,6 @@ namespace FlipPix.UI.ViewModels
                     _logger.LogInfo($"Output saved: {outputPath}");
 
                     item.OutputImagePath = outputPath;
-
-                    // Load thumbnail for queue item
-                    System.Windows.Application.Current.Dispatcher.Invoke(() =>
-                    {
-                        try
-                        {
-                            var bitmap = new BitmapImage();
-                            bitmap.BeginInit();
-                            bitmap.CacheOption = BitmapCacheOption.OnLoad;
-                            bitmap.UriSource = new Uri(outputPath, UriKind.Absolute);
-                            bitmap.EndInit();
-                            bitmap.Freeze();
-                            item.OutputImageThumbnail = bitmap;
-                        }
-                        catch (Exception ex)
-                        {
-                            _logger.LogError($"Error loading thumbnail for queue item: {ex.Message}");
-                        }
-                    });
 
                     // Only update the main result preview if this is the most recent item
                     if (item == CurrentQueueItem)
@@ -2486,10 +2588,10 @@ namespace FlipPix.UI.ViewModels
                             modifiedWorkflow[kvp.Key] = nodeValue;
                         }
                     }
-                    else if (LoraEnabled && classType == "Power Lora Loader (rgthree)" && nodeElement.TryGetProperty("inputs", out var loraInputsProp))
+                    else if (classType == "Power Lora Loader (rgthree)" && nodeElement.TryGetProperty("inputs", out var loraInputsProp))
                     {
-                        // Update LORA node with selected LORA
-                        _logger.LogInfo($"→ Found Power Lora Loader node {kvp.Key}, updating with selected LORA: {SelectedLora}");
+                        // Update LORA node — set selected LORA if enabled, or disable if not
+                        _logger.LogInfo($"→ Found Power Lora Loader node {kvp.Key}, LoraEnabled={LoraEnabled}, SelectedLora={SelectedLora}");
 
                         var nodeDict = JsonSerializer.Deserialize<Dictionary<string, object>>(nodeElement.GetRawText());
                         if (nodeDict != null && nodeDict.TryGetValue("inputs", out var loraInputsObj))
@@ -2524,15 +2626,25 @@ namespace FlipPix.UI.ViewModels
 
                                     if (lora1Dict != null)
                                     {
-                                        // Update lora filename
-                                        lora1Dict["lora"] = $"zimage\\{SelectedLora}.safetensors";
-                                        lora1Dict["on"] = true;
+                                        if (LoraEnabled && !string.IsNullOrEmpty(SelectedLora))
+                                        {
+                                            // Set selected LORA
+                                            lora1Dict["lora"] = $"zimage\\{SelectedLora}.safetensors";
+                                            lora1Dict["on"] = true;
+                                            _logger.LogInfo($"✓ Updated LORA node {kvp.Key} with {SelectedLora}.safetensors");
+                                        }
+                                        else
+                                        {
+                                            // Disable LORA — clear any hardcoded lora from the workflow file
+                                            lora1Dict["lora"] = "None";
+                                            lora1Dict["on"] = false;
+                                            _logger.LogInfo($"✓ Disabled LORA in node {kvp.Key}");
+                                        }
 
                                         loraInputs["lora_1"] = lora1Dict;
                                         nodeDict["inputs"] = loraInputs;
                                         modifiedWorkflow[kvp.Key] = nodeDict;
                                         updatedNodes++;
-                                        _logger.LogInfo($"✓ Updated LORA node {kvp.Key} with {SelectedLora}.safetensors");
                                     }
                                 }
                             }
@@ -2584,9 +2696,11 @@ namespace FlipPix.UI.ViewModels
                     {
                         // Update resolution for Zstyle workflows based on selected aspect ratio
                         var (selectedWidth, selectedHeight) = GetDimensionsForAspectRatio(AspectRatioIndex);
-                        // "Default Short Side" maps to WIDTH, "Default Long Side" maps to HEIGHT
-                        // This preserves orientation: Portrait W=1088,H=1600 vs Landscape W=1600,H=1088
-                        int targetValue = title == "Default Short Side" ? selectedWidth : selectedHeight;
+                        // "Default Short Side" = smaller dimension, "Default Long Side" = larger dimension
+                        // The workflow's internal switches handle routing to correct width/height
+                        int targetValue = title == "Default Short Side"
+                            ? Math.Min(selectedWidth, selectedHeight)
+                            : Math.Max(selectedWidth, selectedHeight);
 
                         var nodeDict = JsonSerializer.Deserialize<Dictionary<string, object>>(nodeElement.GetRawText());
                         if (nodeDict != null && nodeDict.TryGetValue("inputs", out var resInputsObj))
@@ -3438,6 +3552,12 @@ namespace FlipPix.UI.ViewModels
                     _queueItems.Clear();
                     foreach (var item in savedItems)
                     {
+                        // Convert legacy "Queued" status to "Pending" for consistency
+                        if (item.Status == "Queued")
+                        {
+                            item.Status = "Pending";
+                        }
+                        // Handle interrupted processing
                         if (item.Status == "Processing")
                         {
                             item.Status = "Failed";
@@ -3477,7 +3597,7 @@ namespace FlipPix.UI.ViewModels
                 NegativePrompt = NegativePrompt,
                 Width = _width,
                 Height = _height,
-                Status = "Queued"
+                Status = "Pending"
             };
 
             QueueItems.Add(queueItem);
@@ -3487,6 +3607,12 @@ namespace FlipPix.UI.ViewModels
             OnPropertyChanged(nameof(FailedCount));
             _logger.LogInfo($"Added item to queue: {queueItem.StyleName} - {queueItem.DisplayPrompt}");
             QueueItemAdded?.Invoke();
+
+            // Auto-start queue processing if not already processing
+            if (!IsProcessingQueue)
+            {
+                _ = ProcessQueueAsync();
+            }
         }
 
         private async Task AddToQueueAndStart()
@@ -3496,7 +3622,7 @@ namespace FlipPix.UI.ViewModels
             // Start processing if not already processing
             if (!IsProcessingQueue)
             {
-                await Task.Run(() => ProcessQueueAsync());
+                await ProcessQueueAsync();
             }
         }
 
@@ -3544,6 +3670,7 @@ namespace FlipPix.UI.ViewModels
 
         private void CancelProcessing()
         {
+            _queueCancellationTokenSource?.Cancel();
             _cancellationTokenSource?.Cancel();
             _logger.LogInfo("Queue processing cancelled by user");
             StatusBarMessage = "Cancelling queue processing...";
@@ -3581,6 +3708,8 @@ namespace FlipPix.UI.ViewModels
         {
             if (!_disposed && disposing)
             {
+                _queueCancellationTokenSource?.Cancel();
+                _queueCancellationTokenSource?.Dispose();
                 _cancellationTokenSource?.Cancel();
                 _cancellationTokenSource?.Dispose();
                 _pauseEvent?.Dispose();

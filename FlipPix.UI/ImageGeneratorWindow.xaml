@@ -256,6 +256,24 @@
                                                 BorderBrush="#CED4DA"
                                                 FontSize="12"/>
 
+                                        <!-- Validation hint -->
+                                        <TextBlock Text="Enter a prompt to enable generation"
+                                                   FontSize="10"
+                                                   Foreground="#DC3545"
+                                                   Margin="0,4,0,0"
+                                                   FontStyle="Italic">
+                                            <TextBlock.Style>
+                                                <Style TargetType="TextBlock">
+                                                    <Setter Property="Visibility" Value="Collapsed"/>
+                                                    <Style.Triggers>
+                                                        <DataTrigger Binding="{Binding CanGenerate}" Value="False">
+                                                            <Setter Property="Visibility" Value="Visible"/>
+                                                        </DataTrigger>
+                                                    </Style.Triggers>
+                                                </Style>
+                                            </TextBlock.Style>
+                                        </TextBlock>
+
                                         <TextBlock Text="Example prompts:" FontWeight="SemiBold" FontSize="11" Margin="0,8,0,5"/>
                                         <TextBlock FontSize="11" Foreground="#666" Margin="0,0,0,3">
                                             <Run Text="• "/>
@@ -395,6 +413,49 @@
                                         </ComboBox>
                                     </StackPanel>
 
+                                    <!-- Style Preset (only visible for Zimage) -->
+                                    <StackPanel Margin="0,0,0,12" Visibility="{Binding ShowStyleOptions, Converter={StaticResource BooleanToVisibilityConverter}}">
+                                        <TextBlock Text="Style Preset" FontWeight="SemiBold" FontSize="11" Margin="0,0,0,4"/>
+                                        <ComboBox SelectedIndex="{Binding SelectedStyleIndex, Mode=TwoWay}"
+                                                 ItemsSource="{Binding StyleNames}"
+                                                 Padding="8"
+                                                 Background="White"
+                                                 BorderBrush="#CED4DA"
+                                                 FontSize="11"
+                                                 Height="32"/>
+                                    </StackPanel>
+
+                                    <!-- LoRA -->
+                                    <StackPanel Margin="0,0,0,12" Visibility="{Binding ShowLoraOptions, Converter={StaticResource BooleanToVisibilityConverter}}">
+                                        <CheckBox Content="Enable LoRA"
+                                                 IsChecked="{Binding LoraEnabled, Mode=TwoWay}"
+                                                 FontWeight="SemiBold"
+                                                 FontSize="11"
+                                                 Margin="0,0,0,6"/>
+                                        <Grid Visibility="{Binding LoraEnabled, Converter={StaticResource BooleanToVisibilityConverter}}">
+                                            <Grid.ColumnDefinitions>
+                                                <ColumnDefinition Width="*"/>
+                                                <ColumnDefinition Width="Auto"/>
+                                            </Grid.ColumnDefinitions>
+                                            <ComboBox Grid.Column="0"
+                                                     ItemsSource="{Binding AvailableLoras}"
+                                                     SelectedItem="{Binding SelectedLora, Mode=TwoWay}"
+                                                     Padding="8"
+                                                     Background="White"
+                                                     BorderBrush="#CED4DA"
+                                                     FontSize="11"
+                                                     Height="32"
+                                                     Margin="0,0,6,0"/>
+                                            <Button Grid.Column="1"
+                                                   Content="Refresh"
+                                                   Command="{Binding RefreshLorasCommand}"
+                                                   Style="{StaticResource SecondaryButtonStyle}"
+                                                   Width="60"
+                                                   Height="32"
+                                                   Padding="10,5"/>
+                                        </Grid>
+                                    </StackPanel>
+
                                     <!-- Aspect Ratio -->
                                     <StackPanel Margin="0,0,0,12">
                                         <TextBlock Text="Aspect Ratio" FontWeight="SemiBold" FontSize="11" Margin="0,0,0,4"/>
@@ -408,6 +469,27 @@
                                             <ComboBoxItem Content="Portrait"/>
                                             <ComboBoxItem Content="Square"/>
                                         </ComboBox>
+                                    </StackPanel>
+
+                                    <!-- Actions -->
+                                    <StackPanel Margin="0,0,0,12">
+                                        <TextBlock Text="Actions" Style="{StaticResource HeaderTextStyle}" Foreground="#FF6B35"/>
+                                        <Button Content="Generate Image"
+                                               Style="{StaticResource PrimaryButtonStyle}"
+                                               Command="{Binding GenerateImageCommand}"
+                                               HorizontalAlignment="Stretch"
+                                               Height="42"
+                                               FontSize="14"
+                                               Margin="0,0,0,8"
+                                               ToolTip="Enter a prompt to generate an image"/>
+                                        <Button Content="Add to Queue"
+                                               Style="{StaticResource SecondaryButtonStyle}"
+                                               Command="{Binding AddToQueueCommand}"
+                                               HorizontalAlignment="Stretch"
+                                               Height="38"
+                                               FontSize="13"
+                                               Margin="0,0,0,8"
+                                               ToolTip="Enter a prompt to add to queue"/>
                                     </StackPanel>
 
                                     <!-- Advanced Settings Expander -->
@@ -462,38 +544,6 @@
                                                               FontSize="11"/>
                                                 </Grid>
                                             </StackPanel>
-
-                                            <!-- LoRA -->
-                                            <StackPanel Visibility="{Binding ShowLoraOptions, Converter={StaticResource BooleanToVisibilityConverter}}">
-                                                <TextBlock Text="LoRA Model" FontWeight="SemiBold" FontSize="11" Margin="0,0,0,4"/>
-                                                <CheckBox Content="Enable LoRA"
-                                                         IsChecked="{Binding LoraEnabled, Mode=TwoWay}"
-                                                         FontWeight="SemiBold"
-                                                         FontSize="11"
-                                                         Margin="0,0,0,6"/>
-                                                <Grid Visibility="{Binding LoraEnabled, Converter={StaticResource BooleanToVisibilityConverter}}">
-                                                    <Grid.ColumnDefinitions>
-                                                        <ColumnDefinition Width="*"/>
-                                                        <ColumnDefinition Width="Auto"/>
-                                                    </Grid.ColumnDefinitions>
-                                                    <ComboBox Grid.Column="0"
-                                                             ItemsSource="{Binding AvailableLoras}"
-                                                             SelectedItem="{Binding SelectedLora, Mode=TwoWay}"
-                                                             Padding="8"
-                                                             Background="White"
-                                                             BorderBrush="#CED4DA"
-                                                             FontSize="11"
-                                                             Height="32"
-                                                             Margin="0,0,6,0"/>
-                                                    <Button Grid.Column="1"
-                                                           Content="Refresh"
-                                                           Command="{Binding RefreshLorasCommand}"
-                                                           Style="{StaticResource SecondaryButtonStyle}"
-                                                           Width="60"
-                                                           Height="32"
-                                                           Padding="10,5"/>
-                                                </Grid>
-                                            </StackPanel>
                                         </StackPanel>
                                     </Expander>
                                 </StackPanel>
@@ -519,6 +569,49 @@
                                         </ComboBox>
                                     </StackPanel>
 
+                                    <!-- Style Preset (only visible for Zimage) -->
+                                    <StackPanel Margin="0,0,0,12" Visibility="{Binding Analyzer.ShowStyleOptions, Converter={StaticResource BooleanToVisibilityConverter}}">
+                                        <TextBlock Text="Style Preset" FontWeight="SemiBold" FontSize="11" Margin="0,0,0,4"/>
+                                        <ComboBox SelectedIndex="{Binding Analyzer.SelectedStyleIndex, Mode=TwoWay}"
+                                                 ItemsSource="{Binding Analyzer.StyleNames}"
+                                                 Padding="8"
+                                                 Background="White"
+                                                 BorderBrush="#CED4DA"
+                                                 FontSize="11"
+                                                 Height="32"/>
+                                    </StackPanel>
+
+                                    <!-- LoRA -->
+                                    <StackPanel Margin="0,0,0,12" Visibility="{Binding Analyzer.ShowLoraOptions, Converter={StaticResource BooleanToVisibilityConverter}}">
+                                        <CheckBox Content="Enable LoRA"
+                                                 IsChecked="{Binding Analyzer.LoraEnabled, Mode=TwoWay}"
+                                                 FontWeight="SemiBold"
+                                                 FontSize="11"
+                                                 Margin="0,0,0,6"/>
+                                        <Grid Visibility="{Binding Analyzer.LoraEnabled, Converter={StaticResource BooleanToVisibilityConverter}}">
+                                            <Grid.ColumnDefinitions>
+                                                <ColumnDefinition Width="*"/>
+                                                <ColumnDefinition Width="Auto"/>
+                                            </Grid.ColumnDefinitions>
+                                            <ComboBox Grid.Column="0"
+                                                     ItemsSource="{Binding Analyzer.AvailableLoras}"
+                                                     SelectedItem="{Binding Analyzer.SelectedLora, Mode=TwoWay}"
+                                                     Padding="8"
+                                                     Background="White"
+                                                     BorderBrush="#CED4DA"
+                                                     FontSize="11"
+                                                     Height="32"
+                                                     Margin="0,0,6,0"/>
+                                            <Button Grid.Column="1"
+                                                   Content="Refresh"
+                                                   Command="{Binding Analyzer.RefreshLorasCommand}"
+                                                   Style="{StaticResource SecondaryButtonStyle}"
+                                                   Width="60"
+                                                   Height="32"
+                                                   Padding="10,5"/>
+                                        </Grid>
+                                    </StackPanel>
+
                                     <!-- Aspect Ratio -->
                                     <StackPanel Margin="0,0,0,12">
                                         <TextBlock Text="Aspect Ratio" FontWeight="SemiBold" FontSize="11" Margin="0,0,0,4"/>
@@ -533,6 +626,28 @@
                                             <ComboBoxItem Content="Square"/>
                                         </ComboBox>
                                     </StackPanel>
+
+                                    <!-- Actions -->
+                                    <StackPanel Margin="0,0,0,12">
+                                        <TextBlock Text="Actions" Style="{StaticResource HeaderTextStyle}" Foreground="#6366F1"/>
+                                        <Button Content="Generate Image"
+                                               Style="{StaticResource PrimaryButtonStyle}"
+                                               Command="{Binding Analyzer.GenerateImageCommand}"
+                                               HorizontalAlignment="Stretch"
+                                               Height="42"
+                                               FontSize="14"
+                                               Margin="0,0,0,8"
+                                               Background="#6366F1"/>
+                                        <Button Content="Add to Queue"
+                                               Style="{StaticResource SecondaryButtonStyle}"
+                                               Command="{Binding Analyzer.AddToQueueCommand}"
+                                               HorizontalAlignment="Stretch"
+                                               Height="38"
+                                               FontSize="13"
+                                               Margin="0,0,0,8"/>
+                                    </StackPanel>
+
+                                    <!-- Advanced Settings Expander -->
                                     <Expander Header="⚙️ Advanced Settings" Margin="0,0,0,0" IsExpanded="False">
                                         <StackPanel Margin="0,10,0,0">
                                             <!-- Steps -->
@@ -584,115 +699,8 @@
                                                               FontSize="11"/>
                                                 </Grid>
                                             </StackPanel>
-
-                                            <!-- Style Preset - Only for Zimage -->
-                                            <StackPanel Margin="0,0,0,10" Visibility="{Binding Analyzer.ShowStyleOptions, Converter={StaticResource BooleanToVisibilityConverter}}">
-                                                <TextBlock Text="Style Preset" FontWeight="SemiBold" FontSize="11" Margin="0,0,0,4"/>
-                                                <ComboBox SelectedIndex="{Binding Analyzer.SelectedStyleIndex, Mode=TwoWay}"
-                                                         ItemsSource="{Binding Analyzer.StyleNames}"
-                                                         Padding="8"
-                                                         Background="White"
-                                                         BorderBrush="#CED4DA"
-                                                         FontSize="11"
-                                                         Height="32"/>
-                                            </StackPanel>
-
-                                            <!-- LoRA - Only for Zimage -->
-                                            <StackPanel Visibility="{Binding Analyzer.ShowLoraOptions, Converter={StaticResource BooleanToVisibilityConverter}}">
-                                                <TextBlock Text="LoRA Model" FontWeight="SemiBold" FontSize="11" Margin="0,0,0,4"/>
-                                                <CheckBox Content="Enable LoRA"
-                                                         IsChecked="{Binding Analyzer.LoraEnabled, Mode=TwoWay}"
-                                                         FontWeight="SemiBold"
-                                                         FontSize="11"
-                                                         Margin="0,0,0,6"/>
-                                                <Grid Visibility="{Binding Analyzer.LoraEnabled, Converter={StaticResource BooleanToVisibilityConverter}}">
-                                                    <Grid.ColumnDefinitions>
-                                                        <ColumnDefinition Width="*"/>
-                                                        <ColumnDefinition Width="Auto"/>
-                                                    </Grid.ColumnDefinitions>
-                                                    <ComboBox Grid.Column="0"
-                                                             ItemsSource="{Binding Analyzer.AvailableLoras}"
-                                                             SelectedItem="{Binding Analyzer.SelectedLora, Mode=TwoWay}"
-                                                             Padding="8"
-                                                             Background="White"
-                                                             BorderBrush="#CED4DA"
-                                                             FontSize="11"
-                                                             Height="32"
-                                                             Margin="0,0,6,0"/>
-                                                    <Button Grid.Column="1"
-                                                           Content="Refresh"
-                                                           Command="{Binding Analyzer.RefreshLorasCommand}"
-                                                           Style="{StaticResource SecondaryButtonStyle}"
-                                                           Width="60"
-                                                           Height="32"
-                                                           Padding="10,5"/>
-                                                </Grid>
-                                            </StackPanel>
                                         </StackPanel>
                                     </Expander>
-                                </StackPanel>
-                            </Border>
-
-                            <!-- Section C: Action Buttons (Text Prompt mode) -->
-                            <Border Style="{StaticResource SectionPanelStyle}" Visibility="{Binding Analyzer.IsTextPromptMode, Converter={StaticResource BooleanToVisibilityConverter}}">
-                                <StackPanel>
-                                    <TextBlock Text="Actions" Style="{StaticResource HeaderTextStyle}" Foreground="#FF6B35"/>
-
-                                    <Button Content="Generate Image"
-                                           Style="{StaticResource PrimaryButtonStyle}"
-                                           Command="{Binding GenerateImageCommand}"
-                                           HorizontalAlignment="Stretch"
-                                           Height="42"
-                                           FontSize="14"
-                                           Margin="0,0,0,8"/>
-
-                                    <Button Content="Add to Queue"
-                                           Style="{StaticResource SecondaryButtonStyle}"
-                                           Command="{Binding AddToQueueCommand}"
-                                           HorizontalAlignment="Stretch"
-                                           Height="38"
-                                           FontSize="13"
-                                           Margin="0,0,0,8"/>
-
-                                    <Button Content="Add to Queue &amp; Start"
-                                           Style="{StaticResource SecondaryButtonStyle}"
-                                           Command="{Binding ProcessQueueCommand}"
-                                           HorizontalAlignment="Stretch"
-                                           Height="38"
-                                           FontSize="13"
-                                           Background="#10B981"/>
-                                </StackPanel>
-                            </Border>
-
-                            <!-- Section C2: Action Buttons (Image Analysis mode) -->
-                            <Border Style="{StaticResource SectionPanelStyle}" Visibility="{Binding Analyzer.IsImageAnalysisMode, Converter={StaticResource BooleanToVisibilityConverter}}">
-                                <StackPanel>
-                                    <TextBlock Text="Actions" Style="{StaticResource HeaderTextStyle}" Foreground="#6366F1"/>
-
-                                    <Button Content="Generate Image"
-                                           Style="{StaticResource PrimaryButtonStyle}"
-                                           Command="{Binding Analyzer.GenerateImageCommand}"
-                                           HorizontalAlignment="Stretch"
-                                           Height="42"
-                                           FontSize="14"
-                                           Margin="0,0,0,8"
-                                           Background="#6366F1"/>
-
-                                    <Button Content="Add to Queue"
-                                           Style="{StaticResource SecondaryButtonStyle}"
-                                           Command="{Binding Analyzer.AddToQueueCommand}"
-                                           HorizontalAlignment="Stretch"
-                                           Height="38"
-                                           FontSize="13"
-                                           Margin="0,0,0,8"/>
-
-                                    <Button Content="Add to Queue &amp; Start"
-                                           Style="{StaticResource SecondaryButtonStyle}"
-                                           Command="{Binding Analyzer.AddToQueueAndStartCommand}"
-                                           HorizontalAlignment="Stretch"
-                                           Height="38"
-                                           FontSize="13"
-                                           Background="#10B981"/>
                                 </StackPanel>
                             </Border>
 
@@ -791,6 +799,26 @@
                                 <StackPanel>
                                     <TextBlock Text="Queue Status" Style="{StaticResource HeaderTextStyle}" Foreground="#EC4899"/>
 
+                                    <!-- Start Queue Button (visible when not processing) -->
+                                    <Button Content="▶ Start Queue"
+                                           Command="{Binding ProcessQueueCommand}"
+                                           HorizontalAlignment="Stretch"
+                                           Height="36"
+                                           FontSize="12"
+                                           Margin="0,0,0,8"
+                                           ToolTip="Start processing queued items">
+                                        <Button.Style>
+                                            <Style TargetType="Button" BasedOn="{StaticResource PrimaryButtonStyle}">
+                                                <Setter Property="Background" Value="#10B981"/>
+                                                <Style.Triggers>
+                                                    <DataTrigger Binding="{Binding IsProcessingQueue}" Value="True">
+                                                        <Setter Property="Visibility" Value="Collapsed"/>
+                                                    </DataTrigger>
+                                                </Style.Triggers>
+                                            </Style>
+                                        </Button.Style>
+                                    </Button>
+
                                     <!-- Processing Progress -->
                                     <Border Background="#FFF9F0"
                                             BorderBrush="#FFE0B0"
@@ -799,11 +827,32 @@
                                             Padding="12"
                                             Visibility="{Binding IsProcessingQueue, Converter={StaticResource BooleanToVisibilityConverter}}">
                                         <StackPanel>
+                                            <!-- Waiting for lease status -->
+                                            <TextBlock Text="⏳ Waiting for other workflows to finish..."
+                                                      FontWeight="SemiBold"
+                                                      FontSize="11"
+                                                      Margin="0,0,0,5"
+                                                      TextAlignment="Center"
+                                                      Foreground="#F59E0B"
+                                                      Visibility="{Binding IsWaitingForLease, Converter={StaticResource BooleanToVisibilityConverter}}"/>
+
+                                            <!-- Processing status -->
                                             <TextBlock Text="Processing queue..."
                                                       FontWeight="SemiBold"
                                                       FontSize="11"
                                                       Margin="0,0,0,5"
-                                                      TextAlignment="Center"/>
+                                                      TextAlignment="Center">
+                                                <TextBlock.Style>
+                                                    <Style TargetType="TextBlock">
+                                                        <Setter Property="Visibility" Value="Collapsed"/>
+                                                        <Style.Triggers>
+                                                            <DataTrigger Binding="{Binding IsWaitingForLease}" Value="False">
+                                                                <Setter Property="Visibility" Value="Visible"/>
+                                                            </DataTrigger>
+                                                        </Style.Triggers>
+                                                    </Style>
+                                                </TextBlock.Style>
+                                            </TextBlock>
 
                                             <!-- Pause/Resume/Cancel Buttons -->
                                             <Grid>
@@ -837,7 +886,7 @@
 
                                                 <Button Grid.Column="2"
                                                        Content="✖ Cancel"
-                                                       Command="{Binding CancelGenerationCommand}"
+                                                       Command="{Binding CancelQueueCommand}"
                                                        Width="70"
                                                        Height="28"
                                                        HorizontalAlignment="Center"
@@ -884,6 +933,26 @@
                             <Border Style="{StaticResource SectionPanelStyle}" Visibility="{Binding Analyzer.IsImageAnalysisMode, Converter={StaticResource BooleanToVisibilityConverter}}">
                                 <StackPanel>
                                     <TextBlock Text="Queue Status" Style="{StaticResource HeaderTextStyle}" Foreground="#EC4899"/>
+
+                                    <!-- Start Queue Button -->
+                                    <Button Content="▶ Start Queue"
+                                           Command="{Binding Analyzer.ProcessQueueCommand}"
+                                           HorizontalAlignment="Stretch"
+                                           Height="36"
+                                           FontSize="12"
+                                           Margin="0,0,0,8"
+                                           ToolTip="Start processing queued items">
+                                        <Button.Style>
+                                            <Style TargetType="Button" BasedOn="{StaticResource PrimaryButtonStyle}">
+                                                <Setter Property="Background" Value="#10B981"/>
+                                                <Style.Triggers>
+                                                    <DataTrigger Binding="{Binding Analyzer.IsProcessingQueue}" Value="True">
+                                                        <Setter Property="Visibility" Value="Collapsed"/>
+                                                    </DataTrigger>
+                                                </Style.Triggers>
+                                            </Style>
+                                        </Button.Style>
+                                    </Button>
 
                                     <Border Background="#F8F9FA"
                                             BorderBrush="#DEE2E6"
@@ -934,16 +1003,48 @@
                                             Margin="0,8,0,0"
                                             Visibility="{Binding Analyzer.IsProcessingQueue, Converter={StaticResource BooleanToVisibilityConverter}}">
                                         <StackPanel>
+                                            <!-- Waiting for lease status -->
+                                            <TextBlock Text="⏳ Waiting for other workflows to finish..."
+                                                      FontWeight="SemiBold"
+                                                      FontSize="11"
+                                                      Margin="0,0,0,5"
+                                                      TextAlignment="Center"
+                                                      Foreground="#F59E0B"
+                                                      Visibility="{Binding Analyzer.IsWaitingForLease, Converter={StaticResource BooleanToVisibilityConverter}}"/>
+
+                                            <!-- Processing status -->
                                             <TextBlock Text="{Binding Analyzer.QueueProgressText, StringFormat={}Processing: {0}}"
                                                       FontWeight="SemiBold"
                                                       FontSize="11"
                                                       Margin="0,0,0,5"
-                                                      TextAlignment="Center"/>
+                                                      TextAlignment="Center">
+                                                <TextBlock.Style>
+                                                    <Style TargetType="TextBlock">
+                                                        <Setter Property="Visibility" Value="Collapsed"/>
+                                                        <Style.Triggers>
+                                                            <DataTrigger Binding="{Binding Analyzer.IsWaitingForLease}" Value="False">
+                                                                <Setter Property="Visibility" Value="Visible"/>
+                                                            </DataTrigger>
+                                                        </Style.Triggers>
+                                                    </Style>
+                                                </TextBlock.Style>
+                                            </TextBlock>
                                             <ProgressBar Value="{Binding Analyzer.QueueProgress, Mode=OneWay}"
                                                         Maximum="{Binding Analyzer.QueueTotal, Mode=OneWay}"
                                                         Height="16"
                                                         Foreground="#FF6B35"
-                                                        Margin="0,0,0,5"/>
+                                                        Margin="0,0,0,5">
+                                                <ProgressBar.Style>
+                                                    <Style TargetType="ProgressBar">
+                                                        <Setter Property="Visibility" Value="Collapsed"/>
+                                                        <Style.Triggers>
+                                                            <DataTrigger Binding="{Binding Analyzer.IsWaitingForLease}" Value="False">
+                                                                <Setter Property="Visibility" Value="Visible"/>
+                                                            </DataTrigger>
+                                                        </Style.Triggers>
+                                                    </Style>
+                                                </ProgressBar.Style>
+                                            </ProgressBar>
 
                                             <!-- Pause/Resume/Cancel Buttons -->
                                             <Grid>
@@ -1040,27 +1141,48 @@
                                                            Background="White">
                                                         <Grid>
                                                             <Grid.ColumnDefinitions>
+                                                                <ColumnDefinition Width="Auto"/>
                                                                 <ColumnDefinition Width="*"/>
                                                                 <ColumnDefinition Width="Auto"/>
                                                                 <ColumnDefinition Width="Auto"/>
                                                             </Grid.ColumnDefinitions>
 
-                                                                <!-- Item Info -->
-                                                            <StackPanel Grid.Column="0">
-                                                                <TextBlock Text="{Binding Prompt}"
+                                                            <!-- Workflow Badge -->
+                                                            <Border Grid.Column="0"
+                                                                    Background="{Binding WorkflowBadgeColor}"
+                                                                    CornerRadius="4"
+                                                                    Padding="6,4"
+                                                                    Margin="0,0,10,0"
+                                                                    VerticalAlignment="Top">
+                                                                <TextBlock Text="{Binding WorkflowBadge}"
+                                                                          FontWeight="Bold"
+                                                                          FontSize="10"
+                                                                          Foreground="White"/>
+                                                            </Border>
+
+                                                            <!-- Item Info -->
+                                                            <StackPanel Grid.Column="1">
+                                                                <TextBlock Text="{Binding DisplayPrompt}"
                                                                           FontWeight="SemiBold"
                                                                           FontSize="12"
                                                                           TextTrimming="CharacterEllipsis"
                                                                           MaxWidth="300"/>
 
-                                                                <TextBlock Text="{Binding AspectRatioDisplay}"
-                                                                          FontSize="10"
-                                                                          Foreground="#666"
-                                                                          Margin="0,4,0,0"/>
+                                                                <StackPanel Orientation="Horizontal" Margin="0,4,0,0">
+                                                                    <TextBlock Text="{Binding StyleName}"
+                                                                              FontSize="10"
+                                                                              Foreground="#666"
+                                                                              Visibility="{Binding StyleNameVisibility}"/>
+
+                                                                    <TextBlock Text="{Binding AspectRatioDisplay}"
+                                                                              FontSize="10"
+                                                                              Foreground="#666"
+                                                                              Margin="5,0,0,0"/>
+                                                                </StackPanel>
                                                             </StackPanel>
 
                                                             <!-- Status / Thumbnail -->
-                                                            <StackPanel Grid.Column="1"
+                                                            <StackPanel Grid.Column="2"
                                                                        Orientation="Horizontal"
                                                                        VerticalAlignment="Center"
                                                                        Margin="10,0">
@@ -1122,7 +1244,7 @@
                                                             </StackPanel>
 
                                                             <!-- Remove Button -->
-                                                            <Button Grid.Column="2"
+                                                            <Button Grid.Column="3"
                                                                    Content="❌"
                                                                    Command="{Binding DataContext.RemoveFromQueueCommand, RelativeSource={RelativeSource AncestorType=Window}}"
                                                                    CommandParameter="{Binding}"
@@ -2072,7 +2194,7 @@
                                                                         <Style TargetType="TextBlock">
                                                                             <Setter Property="Foreground" Value="#6C757D"/>
                                                                             <Style.Triggers>
-                                                                                <DataTrigger Binding="{Binding Status}" Value="Queued">
+                                                                                <DataTrigger Binding="{Binding Status}" Value="Pending">
                                                                                     <Setter Property="Foreground" Value="#007BFF"/>
                                                                                 </DataTrigger>
                                                                                 <DataTrigger Binding="{Binding Status}" Value="Processing">

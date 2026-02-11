@@ -60,12 +60,18 @@ namespace FlipPix.UI.ViewModels
         private bool _loraEnabled = false;
         private TextGeneratorWorkflow _selectedWorkflow = TextGeneratorWorkflow.Zimage;
 
+        // Style fields (for Zimage ZStyles)
+        private List<StyleInfo> _allStyles = new List<StyleInfo>();
+        private int _selectedStyleIndex = 0;
+
         // Queue fields
         private ObservableCollection<ImagePromptQueueItem> _promptQueue = new();
         private ImagePromptQueueItem? _selectedQueueItem;
         private bool _isProcessingQueue = false;
         private bool _isQueuePaused = false;
+        private bool _isWaitingForLease = false;
         private readonly ManualResetEventSlim _pauseEvent = new(true);
+        private CancellationTokenSource? _queueCancellationTokenSource;
 
         // Nested ViewModels for tabs
         private ImageAnalyzerViewModel _analyzer;
@@ -122,16 +128,56 @@ namespace FlipPix.UI.ViewModels
             AddToQueueCommand = new RelayCommand(AddToQueue, () => CanAddToQueue);
             RemoveFromQueueCommand = new RelayCommand<ImagePromptQueueItem>(RemoveFromQueue, (item) => item != null);
             ClearQueueCommand = new RelayCommand(ClearQueue, () => CanClearQueue);
-            ProcessQueueCommand = new RelayCommand(async () => await ProcessQueueAsync(), () => CanProcessQueue);
+            ProcessQueueCommand = new RelayCommand(async () =>
+            {
+                try
+                {
+                    await ProcessQueueAsync();
+                }
+                catch (Exception ex)
+                {
+                    IsProcessingQueue = false;
+                    IsWaitingForLease = false;
+                    IsQueuePaused = false;
+                    _pauseEvent.Set();
+                    AddLog($"ERROR: Queue processing failed unexpectedly: {ex.Message}");
+                    NotifyActionCommands();
+                }
+            }, () => CanProcessQueue);
             PauseQueueCommand = new RelayCommand(PauseQueue, () => IsProcessingQueue && !IsQueuePaused);
             ResumeQueueCommand = new RelayCommand(ResumeQueue, () => IsProcessingQueue && IsQueuePaused);
+            CancelQueueCommand = new RelayCommand(CancelQueue, () => IsProcessingQueue);
 
             // Load available Loras
             LoadAvailableLoras();
 
+            // Load workflow styles
+            LoadWorkflowStyles();
+
             LoadQueueFromFile();
 
             AddLog("Image Generator initialized");
+
+            // Ensure commands are properly enabled on startup
+            System.Windows.Application.Current.Dispatcher.BeginInvoke(new Action(() =>
+            {
+                NotifyActionCommands();
+            }), System.Windows.Threading.DispatcherPriority.Loaded);
+        }
+
+        private void NotifyActionCommands()
+        {
+            if (System.Windows.Application.Current?.Dispatcher?.CheckAccess() == false)
+            {
+                System.Windows.Application.Current.Dispatcher.Invoke(NotifyActionCommands);
+                return;
+            }
+            GenerateImageCommand.NotifyCanExecuteChanged();
+            AddToQueueCommand.NotifyCanExecuteChanged();
+            ProcessQueueCommand.NotifyCanExecuteChanged();
+            (CancelQueueCommand as RelayCommand)?.NotifyCanExecuteChanged();
+            (PauseQueueCommand as RelayCommand)?.NotifyCanExecuteChanged();
+            (ResumeQueueCommand as RelayCommand)?.NotifyCanExecuteChanged();
         }
 
         // Properties
@@ -143,7 +189,8 @@ namespace FlipPix.UI.ViewModels
                 _imagePrompt = value;
                 OnPropertyChanged();
                 OnPropertyChanged(nameof(CanGenerate));
-                CommandManager.InvalidateRequerySuggested();
+                OnPropertyChanged(nameof(CanAddToQueue));
+                NotifyActionCommands();
             }
         }
 
@@ -186,7 +233,7 @@ namespace FlipPix.UI.ViewModels
                 OnPropertyChanged();
                 OnPropertyChanged(nameof(CanGenerate));
                 OnPropertyChanged(nameof(CanCancel));
-                CommandManager.InvalidateRequerySuggested();
+                NotifyActionCommands();
             }
         }
 
@@ -350,14 +397,34 @@ namespace FlipPix.UI.ViewModels
                     _selectedWorkflow = value;
                     OnPropertyChanged();
                     OnPropertyChanged(nameof(ShowLoraOptions));
+                    OnPropertyChanged(nameof(ShowStyleOptions));
                 }
             }
         }
 
         public bool ShowLoraOptions => SelectedWorkflow == TextGeneratorWorkflow.Zimage;
 
+        // Style properties (for Zimage ZStyles)
+        public bool ShowStyleOptions => SelectedWorkflow == TextGeneratorWorkflow.Zimage;
+
+        public int SelectedStyleIndex
+        {
+            get => _selectedStyleIndex;
+            set
+            {
+                _selectedStyleIndex = value;
+                OnPropertyChanged();
+            }
+        }
+
+        public string[] StyleNames => _allStyles.Select(s => s.Name).ToArray();
+
+        public StyleInfo? SelectedStyle => _allStyles.Count > 0
+            ? _allStyles[Math.Min(SelectedStyleIndex, _allStyles.Count - 1)]
+            : null;
+
         // Commands
-        public ICommand GenerateImageCommand { get; }
+        public RelayCommand GenerateImageCommand { get; }
         public ICommand CancelGenerationCommand { get; }
         public ICommand OpenResultFolderCommand { get; }
         public ICommand OpenResultImageCommand { get; }
@@ -370,10 +437,11 @@ namespace FlipPix.UI.ViewModels
         public ICommand RefreshLorasCommand { get; }
 
         // Queue commands
-        public ICommand AddToQueueCommand { get; }
+        public RelayCommand AddToQueueCommand { get; }
         public ICommand RemoveFromQueueCommand { get; }
         public ICommand ClearQueueCommand { get; }
-        public ICommand ProcessQueueCommand { get; }
+        public RelayCommand ProcessQueueCommand { get; }
+        public ICommand CancelQueueCommand { get; }
 
         // Queue properties
         public ObservableCollection<ImagePromptQueueItem> PromptQueue
@@ -406,7 +474,17 @@ namespace FlipPix.UI.ViewModels
             {
                 _isProcessingQueue = value;
                 OnPropertyChanged();
-                CommandManager.InvalidateRequerySuggested();
+                NotifyActionCommands();
+            }
+        }
+
+        public bool IsWaitingForLease
+        {
+            get => _isWaitingForLease;
+            set
+            {
+                _isWaitingForLease = value;
+                OnPropertyChanged();
             }
         }
 
@@ -464,7 +542,7 @@ namespace FlipPix.UI.ViewModels
                 // Auto-start queue processing if not already processing queue
                 if (!IsProcessingQueue && PromptQueue.Any(q => q.Status == "Pending"))
                 {
-                    _ = Task.Run(async () => await ProcessQueueAsync());
+                    _ = ProcessQueueAsync();
                 }
                 return;
             }
@@ -505,13 +583,34 @@ namespace FlipPix.UI.ViewModels
                 _cancellationTokenSource.Token.ThrowIfCancellationRequested();
 
                 // Load workflow based on selected workflow
-                var workflowFileName = SelectedWorkflow switch
+                string workflowPath;
+
+                switch (SelectedWorkflow)
                 {
-                    TextGeneratorWorkflow.Qwen2512 => "qwen2512API-text.json",
-                    TextGeneratorWorkflow.Klien => "Klien-Text-API.json",
-                    _ => "Zib-Zit.json"
-                };
-                var workflowPath = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "workflow", workflowFileName);
+                    case TextGeneratorWorkflow.Qwen2512:
+                        workflowPath = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "workflow", "qwen2512API-text.json");
+                        AddLog("Using Qwen2512 workflow");
+                        break;
+
+                    case TextGeneratorWorkflow.Klien:
+                        workflowPath = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "workflow", "Klien-Text-API.json");
+                        AddLog("Using Klien workflow");
+                        break;
+
+                    case TextGeneratorWorkflow.Zimage:
+                    default:
+                        if (SelectedStyle != null)
+                        {
+                            workflowPath = SelectedStyle.WorkflowFile;
+                            AddLog($"Using Zimage workflow with style: {SelectedStyle.Name}");
+                        }
+                        else
+                        {
+                            workflowPath = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "workflow", "Zstyles", "Zib-Zit.json");
+                            AddLog("No style selected, falling back to Zib-Zit.json");
+                        }
+                        break;
+                }
                 if (!File.Exists(workflowPath))
                 {
                     AddLog($"ERROR: Workflow file not found: {workflowPath}");
@@ -943,6 +1042,45 @@ namespace FlipPix.UI.ViewModels
             }
         }
 
+        private void LoadWorkflowStyles()
+        {
+            try
+            {
+                _allStyles.Clear();
+                var workflowDir = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "workflow", "ZStyles");
+
+                if (!Directory.Exists(workflowDir))
+                {
+                    AddLog($"ZStyles workflow directory not found at {workflowDir}");
+                    return;
+                }
+
+                var workflowFiles = Directory.GetFiles(workflowDir, "*.json");
+
+                foreach (var workflowFile in workflowFiles)
+                {
+                    var fileName = Path.GetFileNameWithoutExtension(workflowFile);
+                    var styleName = fileName.StartsWith("Z") ? fileName.Substring(1) : fileName;
+
+                    _allStyles.Add(new StyleInfo
+                    {
+                        Name = styleName,
+                        PromptTemplate = "",
+                        WorkflowFile = workflowFile,
+                        NodeId = ""
+                    });
+                }
+
+                _allStyles = _allStyles.OrderBy(s => s.Name).ToList();
+                OnPropertyChanged(nameof(StyleNames));
+                AddLog($"Loaded {_allStyles.Count} styles from ZStyles folder");
+            }
+            catch (Exception ex)
+            {
+                AddLog($"Error loading workflow styles: {ex.Message}");
+            }
+        }
+
         private JsonElement UpdateWorkflowParameters(JsonElement workflow)
         {
             var workflowDict = JsonSerializer.Deserialize<Dictionary<string, JsonElement>>(workflow.GetRawText());
@@ -968,43 +1106,53 @@ namespace FlipPix.UI.ViewModels
             // Handle LoRA: enable/disable lora_1 slot in the Power Lora Loader
             if (workflowDict.ContainsKey("583"))
             {
-                // Power Lora Loader exists - Zib-Zit workflow
+                // Verify this is actually a Power Lora Loader, not a repurposed node
                 var node583 = JsonSerializer.Deserialize<Dictionary<string, object>>(workflowDict["583"].GetRawText());
-                if (node583 != null && node583.ContainsKey("inputs"))
+                if (node583 != null)
                 {
-                    var inputs = JsonSerializer.Deserialize<Dictionary<string, object>>(
-                        JsonSerializer.Serialize(node583["inputs"]));
-                    if (inputs != null)
-                    {
-                        if (LoraEnabled && !string.IsNullOrEmpty(SelectedLora) && SelectedLora != "No Loras available")
-                        {
-                            // Enable lora_1 with the selected lora
-                            var lora1Config = new
-                            {
-                                on = true,
-                                lora = $"{SelectedLora}.safetensors",
-                                strength = 1.0
-                            };
-                            inputs["lora_1"] = JsonSerializer.Deserialize<object>(
-                                JsonSerializer.Serialize(lora1Config));
-                            AddLog($"LoRA enabled: {SelectedLora}.safetensors");
-                        }
-                        else
-                        {
-                            // Disable lora_1
-                            var lora1Config = new
-                            {
-                                on = false,
-                                lora = "",
-                                strength = 0.0
-                            };
-                            inputs["lora_1"] = JsonSerializer.Deserialize<object>(
-                                JsonSerializer.Serialize(lora1Config));
-                            AddLog("LoRA disabled");
-                        }
+                    var classType = node583.ContainsKey("class_type") ? node583["class_type"]?.ToString() ?? "" : "";
 
-                        node583["inputs"] = inputs;
-                        workflowDict["583"] = JsonSerializer.SerializeToElement(node583);
+                    if (classType.Contains("Lora", StringComparison.OrdinalIgnoreCase) && node583.ContainsKey("inputs"))
+                    {
+                        // Power Lora Loader exists - Zib-Zit workflow
+                        var inputs = JsonSerializer.Deserialize<Dictionary<string, object>>(
+                            JsonSerializer.Serialize(node583["inputs"]));
+                        if (inputs != null)
+                        {
+                            if (LoraEnabled && !string.IsNullOrEmpty(SelectedLora) && SelectedLora != "No Loras available")
+                            {
+                                // Enable lora_1 with the selected lora
+                                var lora1Config = new
+                                {
+                                    on = true,
+                                    lora = $"{SelectedLora}.safetensors",
+                                    strength = 1.0
+                                };
+                                inputs["lora_1"] = JsonSerializer.Deserialize<object>(
+                                    JsonSerializer.Serialize(lora1Config))!;
+                                AddLog($"LoRA enabled: {SelectedLora}.safetensors");
+                            }
+                            else
+                            {
+                                // Disable lora_1
+                                var lora1Config = new
+                                {
+                                    on = false,
+                                    lora = "",
+                                    strength = 0.0
+                                };
+                                inputs["lora_1"] = JsonSerializer.Deserialize<object>(
+                                    JsonSerializer.Serialize(lora1Config))!;
+                                AddLog("LoRA disabled");
+                            }
+
+                            node583["inputs"] = inputs;
+                            workflowDict["583"] = JsonSerializer.SerializeToElement(node583);
+                        }
+                    }
+                    else
+                    {
+                        AddLog($"Node 583 is {classType}, not a LoRA loader — skipping LoRA configuration");
                     }
                 }
             }
@@ -1058,30 +1206,95 @@ namespace FlipPix.UI.ViewModels
                 }
             }
 
+            // Detect workflow architecture and inject user prompt accordingly:
+            // 1. Zib-Zit: Node 443 is a "Textbox" → set inputs.text
+            // 2. ZStyle workflows: Node 385 is a "StringTrim" → set inputs.string
+            //    (Node 443 exists but is PrimitiveInt, NOT a prompt node)
+            // 3. amateurZimageAPI: Node 6 is "CLIPTextEncode" → set inputs.text
+            //    (Node 443 doesn't exist)
+
+            bool promptUpdated = false;
+
+            // Strategy 1: Check for node 385 (StringTrim) — ZStyle workflows
+            // Must check this BEFORE node 443, because ZStyle files also have node 443 as PrimitiveInt
+            if (workflowDict.ContainsKey("385"))
+            {
+                var node385 = JsonSerializer.Deserialize<Dictionary<string, object>>(workflowDict["385"].GetRawText());
+                if (node385 != null && node385.ContainsKey("inputs"))
+                {
+                    var inputs = JsonSerializer.Deserialize<Dictionary<string, object>>(
+                        JsonSerializer.Serialize(node385["inputs"]));
+                    if (inputs != null)
+                    {
+                        inputs["string"] = ImagePrompt;
+                        node385["inputs"] = inputs;
+                        workflowDict["385"] = JsonSerializer.SerializeToElement(node385);
+                        AddLog($"Updated positive prompt via StringTrim (node 385) for ZStyle workflow");
+                        promptUpdated = true;
+                    }
+                }
+            }
+
+            // Strategy 2: Check for node 443 (Textbox) — Zib-Zit workflow
+            // Only use this if node 385 wasn't found (to avoid overwriting PrimitiveInt in ZStyle files)
+            if (!promptUpdated && workflowDict.ContainsKey("443"))
+            {
+                // Verify node 443 is actually a Textbox (not PrimitiveInt)
+                var node443Raw = workflowDict["443"];
+                var node443 = JsonSerializer.Deserialize<Dictionary<string, object>>(node443Raw.GetRawText());
+                if (node443 != null)
+                {
+                    var classType = "";
+                    if (node443.ContainsKey("class_type"))
+                    {
+                        classType = node443["class_type"]?.ToString() ?? "";
+                    }
+
+                    if (classType == "Textbox" && node443.ContainsKey("inputs"))
+                    {
+                        var inputs = JsonSerializer.Deserialize<Dictionary<string, object>>(
+                            JsonSerializer.Serialize(node443["inputs"]));
+                        if (inputs != null)
+                        {
+                            inputs["text"] = ImagePrompt;
+                            node443["inputs"] = inputs;
+                            workflowDict["443"] = JsonSerializer.SerializeToElement(node443);
+                            AddLog($"Updated positive prompt via Textbox (node 443) for Zib-Zit workflow");
+                            promptUpdated = true;
+                        }
+                    }
+                }
+            }
+
+            // Strategy 3: Fallback to node 6 (CLIPTextEncode) — amateurZimageAPI
+            if (!promptUpdated && workflowDict.ContainsKey("6"))
+            {
+                var node6 = JsonSerializer.Deserialize<Dictionary<string, object>>(workflowDict["6"].GetRawText());
+                if (node6 != null && node6.ContainsKey("inputs"))
+                {
+                    var inputs = JsonSerializer.Deserialize<Dictionary<string, object>>(
+                        JsonSerializer.Serialize(node6["inputs"]));
+                    if (inputs != null)
+                    {
+                        inputs["text"] = ImagePrompt;
+                        node6["inputs"] = inputs;
+                        workflowDict["6"] = JsonSerializer.SerializeToElement(node6);
+                        AddLog($"Updated positive prompt via CLIPTextEncode (node 6) for amateur workflow");
+                        promptUpdated = true;
+                    }
+                }
+            }
+
+            if (!promptUpdated)
+            {
+                AddLog("WARNING: Could not find prompt node (checked nodes 385, 443, 6)");
+            }
+
             // Zib-Zit workflow uses different node IDs:
-            // Node 443: Textbox - Positive Prompt
             // Node 445: Textbox - Negative Prompt
             // Node 569: Seed String
             // Node 639: KSamplerAdvanced - Z-image (steps, cfg, denoise)
             // Node 176: CR Aspect Ratio
-
-            // Update positive prompt (node 443 - Textbox)
-            if (workflowDict.ContainsKey("443"))
-            {
-                var node443 = JsonSerializer.Deserialize<Dictionary<string, object>>(workflowDict["443"].GetRawText());
-                if (node443 != null && node443.ContainsKey("inputs"))
-                {
-                    var inputs = JsonSerializer.Deserialize<Dictionary<string, object>>(
-                        JsonSerializer.Serialize(node443["inputs"]));
-                    if (inputs != null)
-                    {
-                        inputs["text"] = ImagePrompt;
-                        node443["inputs"] = inputs;
-                        workflowDict["443"] = JsonSerializer.SerializeToElement(node443);
-                        AddLog($"Updated positive prompt (node 443)");
-                    }
-                }
-            }
 
             // Update seed (node 569 - Seed String)
             if (workflowDict.ContainsKey("569"))
@@ -1127,8 +1340,8 @@ namespace FlipPix.UI.ViewModels
             {
                 var aspectRatios = new[]
                 {
-                    "SDXL - 9:16 portrait 1088x1600",
                     "SDXL - 16:9 landscape 1600x1088",
+                    "SDXL - 9:16 portrait 1088x1600",
                     "SDXL - 1:1 square 1600x1600"
                 };
 
@@ -1385,7 +1598,7 @@ namespace FlipPix.UI.ViewModels
                             };
 
                             inputs["lora_1"] = JsonSerializer.Deserialize<object>(
-                                JsonSerializer.Serialize(lora1Config));
+                                JsonSerializer.Serialize(lora1Config))!;
 
                             node583["inputs"] = inputs;
                             workflowDict["583"] = JsonSerializer.SerializeToElement(node583);
@@ -1553,13 +1766,13 @@ namespace FlipPix.UI.ViewModels
                         return images;
                     }
 
-                    // For Zimage (Zib-Zit workflow), the output is in a subdirectory: Jib_Mix_Z-Image/%date/
+                    // For Zimage (Zib-Zit workflow), the output is in a subdirectory: ZImage/%date/
                     string searchDirectory;
                     if (SelectedWorkflow == TextGeneratorWorkflow.Zimage)
                     {
-                        // Look in Jib_Mix_Z-Image subdirectory with today's date
-                        var dateSubdir = DateTime.Now.ToString("yyyy-MM-dd");
-                        searchDirectory = Path.Combine(comfyUIOutputDir, "Jib_Mix_Z-Image", dateSubdir);
+                        // Look in ZImage subdirectory with today's date
+                        var dateSubdir = DateTime.Now.ToString("yyyy_MM_dd");
+                        searchDirectory = Path.Combine(comfyUIOutputDir, "ZImage", dateSubdir);
                         AddLog($"Zimage workflow: searching in {searchDirectory}");
                     }
                     else
@@ -1589,20 +1802,22 @@ namespace FlipPix.UI.ViewModels
                         else
                         {
                             AddLog($"Zimage output directory not found: {searchDirectory}");
-                            // Try to find the Jib_Mix_Z-Image directory and its subdirectories
-                            var zimageBaseDir = Path.Combine(comfyUIOutputDir, "Jib_Mix_Z-Image");
+                            // Try to find the ZImage directory and its subdirectories
+                            var zimageBaseDir = Path.Combine(comfyUIOutputDir, "ZImage");
                             if (Directory.Exists(zimageBaseDir))
                             {
-                                AddLog($"Found Jib_Mix_Z-Image directory, searching for recent files...");
+                                AddLog($"Found ZImage directory, searching for recent files...");
                                 imageFiles = Directory.GetFiles(zimageBaseDir, "*.png", SearchOption.AllDirectories)
                                     .OrderByDescending(f => File.GetLastWriteTime(f))
                                     .Take(20)
                                     .ToList();
-                                AddLog($"Found {imageFiles.Count} files in Jib_Mix_Z-Image directory tree");
+                                AddLog($"Found {imageFiles.Count} files in ZImage directory tree");
+                                // Update searchDirectory so downstream Directory.Exists check passes
+                                searchDirectory = zimageBaseDir;
                             }
                             else
                             {
-                                AddLog($"Jib_Mix_Z-Image directory not found at: {zimageBaseDir}");
+                                AddLog($"ZImage directory not found at: {zimageBaseDir}");
                                 imageFiles = new List<string>();
                             }
                         }
@@ -2010,6 +2225,16 @@ namespace FlipPix.UI.ViewModels
             AddLog("Queue resumed");
         }
 
+        private void CancelQueue()
+        {
+            _queueCancellationTokenSource?.Cancel();
+            _cancellationTokenSource?.Cancel();
+            // Unblock pause wait so cancellation can propagate
+            _pauseEvent.Set();
+            IsQueuePaused = false;
+            AddLog("Queue cancellation requested");
+        }
+
         private string QueueFilePath => Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "queue", "image_generator_queue.json");
 
         private void SaveQueueToFile()
@@ -2046,6 +2271,12 @@ namespace FlipPix.UI.ViewModels
                     _promptQueue.Clear();
                     foreach (var item in savedItems)
                     {
+                        // Convert legacy "Queued" status to "Pending" for consistency
+                        if (item.Status == "Queued")
+                        {
+                            item.Status = "Pending";
+                        }
+                        // Handle interrupted processing
                         if (item.Status == "Processing")
                         {
                             item.Status = "Failed";
@@ -2219,7 +2450,10 @@ namespace FlipPix.UI.ViewModels
                 Denoise = Denoise,
                 LoraEnabled = LoraEnabled,
                 SelectedLora = SelectedLora,
-                SelectedWorkflow = SelectedWorkflow
+                SelectedWorkflow = SelectedWorkflow,
+                // Style info capture
+                SelectedStyleIndex = SelectedStyleIndex,
+                StyleName = SelectedStyle?.Name ?? ""
             };
 
             PromptQueue.Add(queueItem);
@@ -2230,12 +2464,12 @@ namespace FlipPix.UI.ViewModels
             OnPropertyChanged(nameof(HasQueueItems));
             OnPropertyChanged(nameof(QueueCount));
             OnPropertyChanged(nameof(PendingQueueCount));
-            CommandManager.InvalidateRequerySuggested();
+            NotifyActionCommands();
 
             // Auto-start queue processing if not already processing queue and not processing single image
             if (!IsProcessingQueue && !IsProcessing && PromptQueue.Any(q => q.Status == "Pending"))
             {
-                _ = Task.Run(async () => await ProcessQueueAsync());
+                _ = ProcessQueueAsync();
             }
         }
 
@@ -2251,7 +2485,7 @@ namespace FlipPix.UI.ViewModels
             OnPropertyChanged(nameof(HasQueueItems));
             OnPropertyChanged(nameof(QueueCount));
             OnPropertyChanged(nameof(PendingQueueCount));
-            CommandManager.InvalidateRequerySuggested();
+            NotifyActionCommands();
         }
 
         private void ClearQueue()
@@ -2267,106 +2501,142 @@ namespace FlipPix.UI.ViewModels
             OnPropertyChanged(nameof(HasQueueItems));
             OnPropertyChanged(nameof(QueueCount));
             OnPropertyChanged(nameof(PendingQueueCount));
-            CommandManager.InvalidateRequerySuggested();
+            NotifyActionCommands();
         }
 
         private async Task ProcessQueueAsync()
         {
-            if (!CanProcessQueue) return;
+            // Thread-safe guard: only one invocation can proceed
+            if (IsProcessingQueue) return;
+            if (!_promptQueue.Any(q => q.Status == "Pending")) return;
 
             IsProcessingQueue = true;
-            AddLog("Waiting for other workflows to finish...");
 
-            WorkflowQueueCoordinator.WorkflowLease lease;
             try
             {
-                lease = await _workflowCoordinator.AcquireAsync("ImageGenerator", _cancellationTokenSource?.Token ?? CancellationToken.None);
-            }
-            catch (OperationCanceledException)
-            {
-                AddLog("Queue processing cancelled while waiting");
-                IsProcessingQueue = false;
-                return;
-            }
+                // Create a queue-specific cancellation token source
+                _queueCancellationTokenSource?.Dispose();
+                _queueCancellationTokenSource = CancellationTokenSource.CreateLinkedTokenSource(App.ShutdownToken);
+                IsWaitingForLease = true;
+                AddLog("Starting queue processing...");
+                AddLog("Waiting for other workflows to finish...");
 
-            AddLog("=== Starting queue processing ===");
-
-            using (lease)
-            try
-            {
-                var pendingItems = PromptQueue.Where(q => q.Status == "Pending").ToList();
-
-                foreach (var queueItem in pendingItems)
+                WorkflowQueueCoordinator.WorkflowLease lease;
+                try
                 {
-                    if (queueItem.Status == "Failed") continue;
-
-                    // Wait if paused
-                    _pauseEvent.Wait(_cancellationTokenSource?.Token ?? CancellationToken.None);
-
-                    try
-                    {
-                        queueItem.Status = "Processing";
-                        queueItem.StartedAt = DateTime.Now;
-                        queueItem.Progress = 0;
-                        SaveQueueToFile();
-                        OnPropertyChanged(nameof(PendingQueueCount));
-
-                        AddLog($"Processing queue item: {queueItem.DisplayPrompt}");
-
-                        ImagePrompt = queueItem.Prompt;
-                        AspectRatioIndex = queueItem.AspectRatioIndex;
-                        Steps = queueItem.Steps;
-                        Cfg = queueItem.Cfg;
-                        Seed = queueItem.Seed;
-                        Denoise = queueItem.Denoise;
-                        LoraEnabled = queueItem.LoraEnabled;
-                        SelectedLora = queueItem.SelectedLora;
-                        SelectedWorkflow = queueItem.SelectedWorkflow;
-
-                        await ProcessQueueItemAsync(queueItem);
-
-                        queueItem.Status = "Completed";
-                        queueItem.CompletedAt = DateTime.Now;
-                        queueItem.Progress = 100;
-                        SaveQueueToFile();
-                        AddLog($"Completed queue item: {queueItem.DisplayPrompt}");
-                    }
-                    catch (OperationCanceledException)
-                    {
-                        queueItem.Status = "Failed";
-                        queueItem.ErrorMessage = "Cancelled";
-                        SaveQueueToFile();
-                        AddLog($"Queue item cancelled: {queueItem.DisplayPrompt}");
-                        break;
-                    }
-                    catch (Exception ex)
-                    {
-                        queueItem.Status = "Failed";
-                        queueItem.ErrorMessage = ex.Message;
-                        SaveQueueToFile();
-                        AddLog($"ERROR processing queue item: {ex.Message}");
-                    }
-                    finally
-                    {
-                        OnPropertyChanged(nameof(CompletedQueueCount));
-                    }
+                    lease = await _workflowCoordinator.AcquireAsync("ImageGenerator", _queueCancellationTokenSource.Token);
+                }
+                catch (OperationCanceledException)
+                {
+                    AddLog("Queue processing cancelled while waiting for lease");
+                    return;
+                }
+                catch (Exception ex)
+                {
+                    AddLog($"Error acquiring workflow lease: {ex.Message}");
+                    return;
                 }
 
-                StatusBarMessage = $"Queue processing complete. {CompletedQueueCount}/{QueueCount} items completed.";
-                AddLog("=== Queue processing ended ===");
+                AddLog("=== Starting queue processing ===");
+                IsWaitingForLease = false;
+
+                using (lease)
+                try
+                {
+                    ImagePromptQueueItem? queueItem;
+                    while ((queueItem = PromptQueue.FirstOrDefault(q => q.Status == "Pending")) != null)
+                    {
+                        // Check for queue cancellation
+                        if (_queueCancellationTokenSource?.Token.IsCancellationRequested == true)
+                        {
+                            AddLog("Queue processing cancelled");
+                            break;
+                        }
+
+                        // Wait if paused
+                        _pauseEvent.Wait(_queueCancellationTokenSource?.Token ?? CancellationToken.None);
+
+                        try
+                        {
+                            queueItem.Status = "Processing";
+                            queueItem.StartedAt = DateTime.Now;
+                            queueItem.Progress = 0;
+                            SaveQueueToFile();
+                            OnPropertyChanged(nameof(PendingQueueCount));
+
+                            AddLog($"Processing queue item: {queueItem.DisplayPrompt}");
+
+                            ImagePrompt = queueItem.Prompt;
+                            AspectRatioIndex = queueItem.AspectRatioIndex;
+                            Steps = queueItem.Steps;
+                            Cfg = queueItem.Cfg;
+                            Seed = queueItem.Seed;
+                            Denoise = queueItem.Denoise;
+                            LoraEnabled = queueItem.LoraEnabled;
+                            SelectedLora = queueItem.SelectedLora;
+                            SelectedWorkflow = queueItem.SelectedWorkflow;
+
+                            await ProcessQueueItemAsync(queueItem);
+
+                            queueItem.Status = "Completed";
+                            queueItem.CompletedAt = DateTime.Now;
+                            queueItem.Progress = 100;
+                            SaveQueueToFile();
+                            AddLog($"Completed queue item: {queueItem.DisplayPrompt}");
+                        }
+                        catch (OperationCanceledException)
+                        {
+                            queueItem.Status = "Failed";
+                            queueItem.ErrorMessage = "Cancelled";
+                            SaveQueueToFile();
+                            AddLog($"Queue item cancelled: {queueItem.DisplayPrompt}");
+                            break;
+                        }
+                        catch (Exception ex)
+                        {
+                            queueItem.Status = "Failed";
+                            queueItem.ErrorMessage = ex.Message;
+                            SaveQueueToFile();
+                            AddLog($"ERROR processing queue item: {ex.Message}");
+                        }
+                        finally
+                        {
+                            OnPropertyChanged(nameof(CompletedQueueCount));
+                        }
+                    }
+
+                    StatusBarMessage = $"Queue processing complete. {CompletedQueueCount}/{QueueCount} items completed.";
+                    AddLog("=== Queue processing ended ===");
+                }
+                catch (Exception ex)
+                {
+                    AddLog($"Error in queue processing: {ex.Message}");
+                }
+            }
+            catch (Exception ex)
+            {
+                AddLog($"Unhandled error in queue processing: {ex.Message}");
+                _logger.LogError($"Unhandled error in ProcessQueueAsync: {ex}");
             }
             finally
             {
+                // SAFETY NET: Always reset all flags regardless of how we got here
                 IsProcessingQueue = false;
+                IsWaitingForLease = false;
                 IsQueuePaused = false;
                 _pauseEvent.Set();
+                _queueCancellationTokenSource?.Dispose();
+                _queueCancellationTokenSource = null;
+                NotifyActionCommands();
             }
         }
 
         private async Task ProcessQueueItemAsync(ImagePromptQueueItem queueItem)
         {
             _cancellationTokenSource?.Dispose();
-            _cancellationTokenSource = System.Threading.CancellationTokenSource.CreateLinkedTokenSource(App.ShutdownToken);
+            _cancellationTokenSource = _queueCancellationTokenSource != null
+                ? System.Threading.CancellationTokenSource.CreateLinkedTokenSource(App.ShutdownToken, _queueCancellationTokenSource.Token)
+                : System.Threading.CancellationTokenSource.CreateLinkedTokenSource(App.ShutdownToken);
 
             try
             {
@@ -2397,14 +2667,47 @@ namespace FlipPix.UI.ViewModels
 
                 _cancellationTokenSource.Token.ThrowIfCancellationRequested();
 
-                // Load workflow based on selected workflow
-                var workflowFileName = SelectedWorkflow switch
+                // Load workflow based on queue item's workflow selection (use item settings, not current UI)
+                string workflowPath;
+
+                switch (queueItem.SelectedWorkflow)
                 {
-                    TextGeneratorWorkflow.Qwen2512 => "qwen2512API-text.json",
-                    TextGeneratorWorkflow.Klien => "Klien-Text-API.json",
-                    _ => "Zib-Zit.json"
-                };
-                var workflowPath = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "workflow", workflowFileName);
+                    case TextGeneratorWorkflow.Qwen2512:
+                        workflowPath = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "workflow", "qwen2512API-text.json");
+                        AddLog("Using Qwen2512 workflow");
+                        break;
+
+                    case TextGeneratorWorkflow.Klien:
+                        workflowPath = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "workflow", "Klien-Text-API.json");
+                        AddLog("Using Klien workflow");
+                        break;
+
+                    case TextGeneratorWorkflow.Zimage:
+                    default:
+                        // Use ZStyle workflow file if a style was selected
+                        if (!string.IsNullOrEmpty(queueItem.StyleName))
+                        {
+                            var selectedStyle = _allStyles.FirstOrDefault(s => s.Name == queueItem.StyleName);
+                            if (selectedStyle != null)
+                            {
+                                workflowPath = selectedStyle.WorkflowFile;
+                                AddLog($"Using Zimage workflow with style: {selectedStyle.Name}");
+                            }
+                            else
+                            {
+                                // Fallback to default if style not found
+                                workflowPath = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "workflow", "Zstyles", "Zib-Zit.json");
+                                AddLog($"Style '{queueItem.StyleName}' not found, falling back to Zib-Zit.json");
+                            }
+                        }
+                        else
+                        {
+                            workflowPath = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "workflow", "Zstyles", "Zib-Zit.json");
+                            AddLog("Using default Zib-Zit workflow (no style selected)");
+                        }
+                        break;
+                }
+
                 if (!File.Exists(workflowPath))
                 {
                     AddLog($"ERROR: Workflow file not found: {workflowPath}");
@@ -2422,7 +2725,36 @@ namespace FlipPix.UI.ViewModels
                 ProcessingProgress = 10;
                 queueItem.Progress = 10;
 
+                // Before UpdateWorkflowParameters call, temporarily apply queue item settings
+                var originalPrompt = ImagePrompt;
+                var originalAspectRatio = AspectRatioIndex;
+                var originalSteps = Steps;
+                var originalCfg = Cfg;
+                var originalSeed = Seed;
+                var originalDenoise = Denoise;
+                var originalLoraEnabled = LoraEnabled;
+                var originalSelectedLora = SelectedLora;
+
+                ImagePrompt = queueItem.Prompt;
+                AspectRatioIndex = queueItem.AspectRatioIndex;
+                Steps = queueItem.Steps;
+                Cfg = queueItem.Cfg;
+                Seed = queueItem.Seed;
+                Denoise = queueItem.Denoise;
+                LoraEnabled = queueItem.LoraEnabled;
+                SelectedLora = queueItem.SelectedLora;
+
                 var updatedWorkflow = UpdateWorkflowParameters(workflow);
+
+                // Restore original properties
+                ImagePrompt = originalPrompt;
+                AspectRatioIndex = originalAspectRatio;
+                Steps = originalSteps;
+                Cfg = originalCfg;
+                Seed = originalSeed;
+                Denoise = originalDenoise;
+                LoraEnabled = originalLoraEnabled;
+                SelectedLora = originalSelectedLora;
 
                 // Execute workflow
                 ProcessingStatus = "Generating image...";
@@ -2550,6 +2882,8 @@ namespace FlipPix.UI.ViewModels
         {
             if (!_disposed && disposing)
             {
+                _queueCancellationTokenSource?.Cancel();
+                _queueCancellationTokenSource?.Dispose();
                 _cancellationTokenSource?.Cancel();
                 _cancellationTokenSource?.Dispose();
                 _pauseEvent?.Dispose();

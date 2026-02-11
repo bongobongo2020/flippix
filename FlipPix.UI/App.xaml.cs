@@ -323,79 +323,83 @@ namespace FlipPix.UI
 
         private async Task CheckServerConnectivityAsync(SettingsService settingsService, IAppLogger logger)
         {
+            var settings = settingsService.Settings;
+            var serverUrl = settings.BaseUrl;
+            bool isConnected = false;
+
             try
             {
-                var serverUrl = settingsService.Settings.BaseUrl;
                 logger.LogInfo($"Checking ComfyUI server connectivity at {serverUrl}");
-
                 using var httpClient = new HttpClient();
                 httpClient.Timeout = TimeSpan.FromSeconds(5);
-
                 var response = await httpClient.GetAsync($"{serverUrl}/system_stats");
+                isConnected = response.IsSuccessStatusCode;
 
-                if (response.IsSuccessStatusCode)
+                if (isConnected)
                 {
                     logger.LogInfo("ComfyUI server connection successful");
+                    return;
                 }
-                else
-                {
-                    logger.LogWarning($"ComfyUI server returned status {response.StatusCode}");
 
-                    // Show message to user that server is not accessible
-                    System.Windows.Application.Current.Dispatcher.Invoke(() =>
-                    {
-                        var result = System.Windows.MessageBox.Show(
-                            $"ComfyUI server is not accessible at {serverUrl}\n\n" +
-                            "Would you like to:\n" +
-                            "• Click 'Yes' to reconfigure the server settings\n" +
-                            "• Click 'No' to continue anyway (you may need to start ComfyUI manually)",
-                            "ComfyUI Server Connection Failed",
-                            System.Windows.MessageBoxButton.YesNo,
-                            System.Windows.MessageBoxImage.Warning);
-
-                        if (result == System.Windows.MessageBoxResult.Yes)
-                        {
-                            // Show server configuration dialog
-                            if (_serviceProvider != null)
-                            {
-                                var setupViewModel = _serviceProvider.GetRequiredService<ComfyUIFolderSetupViewModel>();
-                                var setupWindow = new ComfyUIFolderSetupWindow(setupViewModel);
-                                setupWindow.ShowDialog();
-                            }
-                        }
-                    });
-                }
+                logger.LogWarning($"ComfyUI server returned status {response.StatusCode}");
             }
             catch (Exception ex)
             {
                 logger.LogWarning($"Server connectivity check failed: {ex.Message}");
-
-                // Show message to user that server is not accessible
-                System.Windows.Application.Current.Dispatcher.Invoke(() =>
-                {
-                    var result = System.Windows.MessageBox.Show(
-                        $"Cannot connect to ComfyUI server at {settingsService.Settings.BaseUrl}\n\n" +
-                        "Please ensure:\n" +
-                        "• ComfyUI is running\n" +
-                        "• The server address is correct\n" +
-                        "• No firewall is blocking the connection\n\n" +
-                        "Would you like to reconfigure the server settings?",
-                        "ComfyUI Server Connection Failed",
-                        System.Windows.MessageBoxButton.YesNo,
-                        System.Windows.MessageBoxImage.Warning);
-
-                    if (result == System.Windows.MessageBoxResult.Yes)
-                    {
-                        // Show server configuration dialog
-                        if (_serviceProvider != null)
-                        {
-                            var setupViewModel = _serviceProvider.GetRequiredService<ComfyUIFolderSetupViewModel>();
-                            var setupWindow = new ComfyUIFolderSetupWindow(setupViewModel);
-                            setupWindow.ShowDialog();
-                        }
-                    }
-                });
             }
+
+            // Connection failed — attempt auto-start if configured
+            if (settings.AutoRestartComfyUI
+                && !string.IsNullOrEmpty(settings.ComfyUIRestartScriptPath)
+                && System.IO.File.Exists(settings.ComfyUIRestartScriptPath))
+            {
+                logger.LogInfo($"ComfyUI not running. Auto-starting using: {settings.ComfyUIRestartScriptPath}");
+
+                var processManager = new ComfyUIProcessManager(logger, settings);
+                try
+                {
+                    var started = await processManager.StartComfyUIAsync(
+                        status => logger.LogInfo($"[AutoStart] {status}"),
+                        _shutdownCts.Token);
+
+                    if (started)
+                    {
+                        logger.LogInfo("ComfyUI auto-started successfully");
+                        return;
+                    }
+
+                    logger.LogWarning("ComfyUI auto-start failed — falling back to manual dialog");
+                }
+                catch (Exception ex)
+                {
+                    logger.LogError(ex, "Error during ComfyUI auto-start");
+                }
+            }
+
+            // Auto-start not configured or failed — show dialog
+            System.Windows.Application.Current.Dispatcher.Invoke(() =>
+            {
+                var result = System.Windows.MessageBox.Show(
+                    $"Cannot connect to ComfyUI server at {serverUrl}\n\n" +
+                    "Please ensure:\n" +
+                    "• ComfyUI is running\n" +
+                    "• The server address is correct\n" +
+                    "• No firewall is blocking the connection\n\n" +
+                    "Would you like to reconfigure the server settings?",
+                    "ComfyUI Server Connection Failed",
+                    System.Windows.MessageBoxButton.YesNo,
+                    System.Windows.MessageBoxImage.Warning);
+
+                if (result == System.Windows.MessageBoxResult.Yes)
+                {
+                    if (_serviceProvider != null)
+                    {
+                        var setupViewModel = _serviceProvider.GetRequiredService<ComfyUIFolderSetupViewModel>();
+                        var setupWindow = new ComfyUIFolderSetupWindow(setupViewModel);
+                        setupWindow.ShowDialog();
+                    }
+                }
+            });
         }
 
         protected override void OnExit(ExitEventArgs e)

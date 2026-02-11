@@ -108,34 +108,5 @@ namespace FlipPix.UI.Models
                 return $"{imageInfo}{seedInfo}: {Prompt}";
             }
         }
-
-        // Map string Status to/from QueueItemStatus enum
-        public QueueItemStatus ItemStatus
-        {
-            get => Status switch
-            {
-                "Pending" => QueueItemStatus.Pending,
-                "Processing" => QueueItemStatus.Processing,
-                "Completed" => QueueItemStatus.Completed,
-                "Failed" => QueueItemStatus.Failed,
-                _ => QueueItemStatus.Pending
-            };
-            set => Status = value switch
-            {
-                QueueItemStatus.Pending => "Pending",
-                QueueItemStatus.Processing => "Processing",
-                QueueItemStatus.Completed => "Completed",
-                QueueItemStatus.Failed => "Failed",
-                _ => "Pending"
-            };
-        }
-    }
-
-    public enum QueueItemStatus
-    {
-        Pending,
-        Processing,
-        Completed,
-        Failed
     }
 }
