@@ -208,10 +208,20 @@ namespace FlipPix.UI.ViewModels
             }
         }
 
-        [RelayCommand(CanExecute = nameof(CanGenerate))]
+        [RelayCommand]
         private async Task GenerateCameraAnglesAsync()
         {
-            if (!CanGenerate) return;
+            // If no image selected or file doesn't exist, auto-open file dialog
+            if (string.IsNullOrEmpty(InputImagePath) || !File.Exists(InputImagePath))
+            {
+                await SelectInputImageAsync();
+                // If user cancelled the dialog, abort
+                if (string.IsNullOrEmpty(InputImagePath) || !File.Exists(InputImagePath))
+                    return;
+            }
+
+            // If already processing, don't start another
+            if (IsProcessing) return;
 
             _cancellationTokenSource?.Dispose();
             _cancellationTokenSource = System.Threading.CancellationTokenSource.CreateLinkedTokenSource(App.ShutdownToken);

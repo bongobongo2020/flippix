@@ -192,7 +192,7 @@ namespace FlipPix.UI.ViewModels
                 if (SetProperty(ref _promptJsonFilePath, value))
                 {
                     OnPropertyChanged(nameof(CanLoadPrompts));
-                    CommandManager.InvalidateRequerySuggested();
+                    LoadPromptsCommand.NotifyCanExecuteChanged();
                 }
             }
         }
@@ -206,7 +206,7 @@ namespace FlipPix.UI.ViewModels
                 {
                     OnPropertyChanged(nameof(CanLoadPrompts));
                     LoadInputImagePreview();
-                    CommandManager.InvalidateRequerySuggested();
+                    LoadPromptsCommand.NotifyCanExecuteChanged();
                 }
             }
         }
@@ -232,7 +232,7 @@ namespace FlipPix.UI.ViewModels
                 {
                     OnPropertyChanged(nameof(CanProcessQueue));
                     OnPropertyChanged(nameof(CanLoadPrompts));
-                    CommandManager.InvalidateRequerySuggested();
+                    LoadPromptsCommand.NotifyCanExecuteChanged();
                 }
             }
         }
@@ -362,7 +362,7 @@ namespace FlipPix.UI.ViewModels
 
         public ICommand SelectPromptJsonCommand { get; }
         public ICommand SelectInputImageCommand { get; }
-        public ICommand LoadPromptsCommand { get; }
+        public CommunityToolkit.Mvvm.Input.RelayCommand LoadPromptsCommand { get; }
         public ICommand ProcessQueueCommand { get; }
         public ICommand ClearQueueCommand { get; }
         public ICommand OpenOutputFolderCommand { get; }
@@ -484,8 +484,8 @@ namespace FlipPix.UI.ViewModels
                 SaveQueueToFile();
                 AddLog($"Added {storyData.Prompts.Count} prompts to queue (total: {QueueItems.Count})");
 
-                // Auto-start processing if enabled and not already processing
-                if (AutoStartProcessing && CanProcessQueue)
+                // Auto-start processing if not already processing
+                if (CanProcessQueue)
                 {
                     AddLog("Auto-starting queue processing...");
                     _ = ProcessQueueAsync(); // Fire and forget - don't await

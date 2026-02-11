@@ -422,7 +422,7 @@
                                                                 <Style TargetType="TextBlock">
                                                                     <Setter Property="Foreground" Value="#6C757D"/>
                                                                     <Style.Triggers>
-                                                                        <DataTrigger Binding="{Binding Status}" Value="Queued">
+                                                                        <DataTrigger Binding="{Binding Status}" Value="Pending">
                                                                             <Setter Property="Foreground" Value="#007BFF"/>
                                                                         </DataTrigger>
                                                                         <DataTrigger Binding="{Binding Status}" Value="Processing">

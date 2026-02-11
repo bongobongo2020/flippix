@@ -58,6 +58,83 @@
                     <TabItem Header="🎬 Single Video Generator">
                         <ScrollViewer VerticalScrollBarVisibility="Auto">
                             <StackPanel Margin="10">
+                                <!-- Workflow Selection for Single Video -->
+                                <Border Style="{StaticResource SectionPanelStyle}" Margin="0,0,0,15">
+                                    <StackPanel>
+                                        <TextBlock Text="🎬 Workflow Selection"
+                                                  FontSize="14"
+                                                  FontWeight="Bold"
+                                                  Foreground="#FF6B35"
+                                                  Margin="0,0,0,10"/>
+                                        <StackPanel Orientation="Horizontal">
+                                            <!-- LTX2V Workflow Toggle -->
+                                            <Border CornerRadius="5"
+                                                    Padding="10,8"
+                                                    BorderThickness="2"
+                                                    Margin="0,0,8,0"
+                                                    Cursor="Hand">
+                                                <Border.Style>
+                                                    <Style TargetType="Border">
+                                                        <Setter Property="Background" Value="White"/>
+                                                        <Setter Property="BorderBrush" Value="#DEE2E6"/>
+                                                        <Style.Triggers>
+                                                            <DataTrigger Binding="{Binding UseLTX2V}" Value="True">
+                                                                <Setter Property="BorderBrush" Value="#28A745"/>
+                                                                <Setter Property="Background" Value="#D4EDDA"/>
+                                                            </DataTrigger>
+                                                        </Style.Triggers>
+                                                    </Style>
+                                                </Border.Style>
+                                                <Border.InputBindings>
+                                                    <MouseBinding Command="{Binding ToggleSingleWorkflowCommand}" MouseAction="LeftClick"/>
+                                                </Border.InputBindings>
+                                                <StackPanel>
+                                                    <TextBlock Text="🟢 LTX2V"
+                                                              FontSize="13"
+                                                              FontWeight="Bold"
+                                                              Foreground="#212529"/>
+                                                    <TextBlock Text="LTXV-DoEverything-v2.json"
+                                                              FontSize="10"
+                                                              Foreground="#6C757D"
+                                                              Margin="0,2,0,0"/>
+                                                </StackPanel>
+                                            </Border>
+
+                                            <!-- Wan 2.2 Workflow Toggle -->
+                                            <Border CornerRadius="5"
+                                                    Padding="10,8"
+                                                    BorderThickness="2"
+                                                    Cursor="Hand">
+                                                <Border.Style>
+                                                    <Style TargetType="Border">
+                                                        <Setter Property="Background" Value="White"/>
+                                                        <Setter Property="BorderBrush" Value="#DEE2E6"/>
+                                                        <Style.Triggers>
+                                                            <DataTrigger Binding="{Binding UseWan22}" Value="True">
+                                                                <Setter Property="BorderBrush" Value="#007BFF"/>
+                                                                <Setter Property="Background" Value="#CCE5FF"/>
+                                                            </DataTrigger>
+                                                        </Style.Triggers>
+                                                    </Style>
+                                                </Border.Style>
+                                                <Border.InputBindings>
+                                                    <MouseBinding Command="{Binding ToggleSingleWorkflowCommand}" MouseAction="LeftClick"/>
+                                                </Border.InputBindings>
+                                                <StackPanel>
+                                                    <TextBlock Text="🔵 Wan 2.2"
+                                                              FontSize="13"
+                                                              FontWeight="Bold"
+                                                              Foreground="#212529"/>
+                                                    <TextBlock Text="LF-t2v-i2v-FFLF-Main v1.1API.json"
+                                                              FontSize="10"
+                                                              Foreground="#6C757D"
+                                                              Margin="0,2,0,0"/>
+                                                </StackPanel>
+                                            </Border>
+                                        </StackPanel>
+                                    </StackPanel>
+                                </Border>
+
                                 <!-- Dual Frame Input & Analysis Section -->
                                 <Border Style="{StaticResource SectionPanelStyle}" Padding="15">
                                     <Grid>

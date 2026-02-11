@@ -278,20 +278,17 @@ public class ComfyUIHttpClient : IDisposable
         {
             _logger.LogInfo("Submitting workflow for client: {ClientId}", clientId);
 
-            // Create extra_pnginfo with proper format (array format for ComfyUI)
-            var extraPnginfo = new List<Dictionary<string, object>>
-            {
-                new Dictionary<string, object>
-                {
-                    ["workflow"] = workflow
-                }
-            };
-
             var request = new PromptRequest
             {
                 Prompt = workflow,
                 ClientId = clientId,
-                ExtraPnginfo = extraPnginfo
+                ExtraData = new ExtraData
+                {
+                    ExtraPnginfo = new Dictionary<string, object>
+                    {
+                        ["workflow"] = workflow
+                    }
+                }
             };
 
             // Log the request JSON for debugging

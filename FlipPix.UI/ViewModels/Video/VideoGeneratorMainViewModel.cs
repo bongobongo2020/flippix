@@ -87,6 +87,18 @@ namespace FlipPix.UI.ViewModels.Video
         // Workflow selection
         private string _selectedWorkflow = "ltx2_i2v";
         private bool _useLTXWorkflow = true;
+        private SingleVideoWorkflow _selectedSingleWorkflow = SingleVideoWorkflow.LTX2V;
+        private bool _isStoryVideoMode = false;
+
+        /// <summary>
+        /// Workflow options for single video generation (Tab 1).
+        /// Story Video (Tab 2) uses UseLTXWorkflow separately.
+        /// </summary>
+        public enum SingleVideoWorkflow
+        {
+            LTX2V,
+            Wan22
+        }
 
         // UI state
         private string _comfyUIServer = "127.0.0.1";
@@ -147,12 +159,13 @@ namespace FlipPix.UI.ViewModels.Video
 
             // Workflow toggle command
             ToggleWorkflowCommand = new RelayCommand(ToggleWorkflow);
+            ToggleSingleWorkflowCommand = new RelayCommand(ToggleSingleWorkflow);
 
             // Subscribe to story video queue collection changes
             _storyVideoQueue.CollectionChanged += (s, e) =>
             {
                 OnPropertyChanged(nameof(CanProcessStoryQueue));
-                CommandManager.InvalidateRequerySuggested();
+                NotifyCommandsCanExecuteChanged();
             };
 
             AddLog("Video Generator initialized");
@@ -199,7 +212,7 @@ namespace FlipPix.UI.ViewModels.Video
                     OnPropertyChanged(nameof(CanAddToQueue));
                     OnPropertyChanged(nameof(CanProcessQueue));
                     LoadImagePreview();
-                    CommandManager.InvalidateRequerySuggested();
+                    NotifyCommandsCanExecuteChanged();
                 }
             }
         }
@@ -241,7 +254,7 @@ namespace FlipPix.UI.ViewModels.Video
                     OnPropertyChanged(nameof(CanAddToQueue));
                     OnPropertyChanged(nameof(CanProcessQueue));
                     OnPropertyChanged(nameof(CanGenerateVideo));
-                    CommandManager.InvalidateRequerySuggested();
+                    NotifyCommandsCanExecuteChanged();
                 }
             }
         }
@@ -289,7 +302,7 @@ namespace FlipPix.UI.ViewModels.Video
                     OnPropertyChanged(nameof(CanAddToQueue));
                     OnPropertyChanged(nameof(CanProcessQueue));
                     OnPropertyChanged(nameof(CanGenerateVideo));
-                    CommandManager.InvalidateRequerySuggested();
+                    NotifyCommandsCanExecuteChanged();
                 }
             }
         }
@@ -331,7 +344,7 @@ namespace FlipPix.UI.ViewModels.Video
                 _videoPrompt = value;
                 OnPropertyChanged();
                 OnPropertyChanged(nameof(CanGenerateVideo));
-                CommandManager.InvalidateRequerySuggested();
+                NotifyCommandsCanExecuteChanged();
             }
         }
 
@@ -420,7 +433,7 @@ namespace FlipPix.UI.ViewModels.Video
             }
         }
 
-        public bool CanGenerateVideo => HasFirstFrameImage && HasLastFrameImage &&
+        public bool CanGenerateVideo => HasFirstFrameImage &&
                                         (!string.IsNullOrWhiteSpace(VideoPrompt) || !string.IsNullOrWhiteSpace(ImageAnalysis)) &&
                                         !IsProcessing && !IsProcessingQueue;
 
@@ -435,7 +448,7 @@ namespace FlipPix.UI.ViewModels.Video
                     _isAnalyzing = value;
                     OnPropertyChanged();
                     OnPropertyChanged(nameof(CanGenerateVideo));
-                    CommandManager.InvalidateRequerySuggested();
+                    NotifyCommandsCanExecuteChanged();
                 }
             }
         }
@@ -477,7 +490,7 @@ namespace FlipPix.UI.ViewModels.Video
                     OnPropertyChanged();
                     OnPropertyChanged(nameof(HasAnalysis));
                     OnPropertyChanged(nameof(CanGenerateVideo));
-                    CommandManager.InvalidateRequerySuggested();
+                    NotifyCommandsCanExecuteChanged();
                 }
             }
         }
@@ -495,7 +508,7 @@ namespace FlipPix.UI.ViewModels.Video
                     _newQueuePrompt = value;
                     OnPropertyChanged();
                     OnPropertyChanged(nameof(CanAddToQueue));
-                    CommandManager.InvalidateRequerySuggested();
+                    NotifyCommandsCanExecuteChanged();
                 }
             }
         }
@@ -513,7 +526,7 @@ namespace FlipPix.UI.ViewModels.Video
                     OnPropertyChanged();
                     OnPropertyChanged(nameof(CanProcessQueue));
                     OnPropertyChanged(nameof(CanGenerateVideo));
-                    CommandManager.InvalidateRequerySuggested();
+                    NotifyCommandsCanExecuteChanged();
                 }
             }
         }
@@ -527,14 +540,14 @@ namespace FlipPix.UI.ViewModels.Video
                 {
                     _isQueuePaused = value;
                     OnPropertyChanged();
-                    CommandManager.InvalidateRequerySuggested();
+                    NotifyCommandsCanExecuteChanged();
                 }
             }
         }
 
-        public bool CanProcessQueue => PromptQueue.Any(x => x.Status == QueueItemStatus.Pending) && !IsProcessingQueue && !IsProcessing;
+        public bool CanProcessQueue => PromptQueue.Any(x => x.ItemStatus == QueueItemStatus.Pending) && !IsProcessingQueue && !IsProcessing;
         public bool CanAddToQueue => !string.IsNullOrWhiteSpace(NewQueuePrompt) && (HasImage || (HasFirstFrameImage && HasLastFrameImage));
-        public bool HasFailedItems => PromptQueue.Any(x => x.Status == QueueItemStatus.Failed);
+        public bool HasFailedItems => PromptQueue.Any(x => x.ItemStatus == QueueItemStatus.Failed);
 
         public string QueueStatus
         {
@@ -560,7 +573,7 @@ namespace FlipPix.UI.ViewModels.Video
                     _storyPromptJsonPath = value;
                     OnPropertyChanged();
                     OnPropertyChanged(nameof(CanLoadStoryQueue));
-                    CommandManager.InvalidateRequerySuggested();
+                    NotifyCommandsCanExecuteChanged();
                 }
             }
         }
@@ -575,7 +588,7 @@ namespace FlipPix.UI.ViewModels.Video
                     _storyImagesFolderPath = value;
                     OnPropertyChanged();
                     OnPropertyChanged(nameof(CanLoadStoryQueue));
-                    CommandManager.InvalidateRequerySuggested();
+                    NotifyCommandsCanExecuteChanged();
                 }
             }
         }
@@ -592,7 +605,7 @@ namespace FlipPix.UI.ViewModels.Video
                     _isProcessingStoryQueue = value;
                     OnPropertyChanged();
                     OnPropertyChanged(nameof(CanProcessStoryQueue));
-                    CommandManager.InvalidateRequerySuggested();
+                    NotifyCommandsCanExecuteChanged();
                 }
             }
         }
@@ -606,7 +619,7 @@ namespace FlipPix.UI.ViewModels.Video
                 {
                     _isStoryQueuePaused = value;
                     OnPropertyChanged();
-                    CommandManager.InvalidateRequerySuggested();
+                    NotifyCommandsCanExecuteChanged();
                 }
             }
         }
@@ -691,7 +704,7 @@ namespace FlipPix.UI.ViewModels.Video
                     OnPropertyChanged(nameof(WorkflowDisplay));
                     OnPropertyChanged(nameof(WorkflowIndicator));
                     OnPropertyChanged(nameof(SelectedWorkflowIndex));
-                    CommandManager.InvalidateRequerySuggested();
+                    NotifyCommandsCanExecuteChanged();
 
                     // Save to settings
                     var settings = _settingsService.Settings;
@@ -719,7 +732,7 @@ namespace FlipPix.UI.ViewModels.Video
                     OnPropertyChanged(nameof(WorkflowDisplay));
                     OnPropertyChanged(nameof(WorkflowIndicator));
                     OnPropertyChanged(nameof(SelectedWorkflowIndex));
-                    CommandManager.InvalidateRequerySuggested();
+                    NotifyCommandsCanExecuteChanged();
 
                     // Save to settings
                     var settings = _settingsService.Settings;
@@ -741,6 +754,33 @@ namespace FlipPix.UI.ViewModels.Video
             get => UseLTXWorkflow ? 0 : 1;
             set => UseLTXWorkflow = value == 0;
         }
+
+        // Single Video Generator Workflow (Tab 1) - separate from Story Video (Tab 2)
+        public SingleVideoWorkflow SelectedSingleWorkflow
+        {
+            get => _selectedSingleWorkflow;
+            set
+            {
+                if (_selectedSingleWorkflow != value)
+                {
+                    _selectedSingleWorkflow = value;
+                    OnPropertyChanged();
+                    OnPropertyChanged(nameof(SingleWorkflowDisplay));
+                    OnPropertyChanged(nameof(UseLTX2V));
+                    OnPropertyChanged(nameof(UseWan22));
+                    NotifyCommandsCanExecuteChanged();
+
+                    AddLog($"Single video workflow changed to: {SingleWorkflowDisplay}");
+                }
+            }
+        }
+
+        public string SingleWorkflowDisplay => SelectedSingleWorkflow == SingleVideoWorkflow.LTX2V
+            ? "LTX2V (LTXV-DoEverything-v2.json)"
+            : "Wan 2.2 (LF-t2v-i2v-FFLF-Main v1.1API.json)";
+
+        public bool UseLTX2V => SelectedSingleWorkflow == SingleVideoWorkflow.LTX2V;
+        public bool UseWan22 => SelectedSingleWorkflow == SingleVideoWorkflow.Wan22;
 
         // UI state
         public string ComfyUIServer
@@ -790,40 +830,61 @@ namespace FlipPix.UI.ViewModels.Video
         public ICommand SelectImageCommand { get; }
         public ICommand SelectFirstFrameImageCommand { get; }
         public ICommand SelectLastFrameImageCommand { get; }
-        public ICommand GenerateVideoCommand { get; }
-        public ICommand PlayVideoCommand { get; }
-        public ICommand OpenResultFolderCommand { get; }
-        public ICommand SendToEditCameraCommand { get; }
+        public RelayCommand GenerateVideoCommand { get; }
+        public RelayCommand PlayVideoCommand { get; }
+        public RelayCommand OpenResultFolderCommand { get; }
+        public RelayCommand SendToEditCameraCommand { get; }
 
         // Image analysis commands
         public ICommand AnalyzeImageCommand { get; }
         public ICommand AnalyzeFirstFrameImageCommand { get; }
-        public ICommand SendAnalysisToQueueCommand { get; }
+        public RelayCommand SendAnalysisToQueueCommand { get; }
         public ICommand OpenLMStudioSettingsCommand { get; }
-        public ICommand CopyAnalysisCommand { get; }
+        public RelayCommand CopyAnalysisCommand { get; }
 
         // Queue commands
-        public ICommand AddToQueueCommand { get; }
+        public RelayCommand AddToQueueCommand { get; }
         public ICommand RemoveFromQueueCommand { get; }
-        public ICommand ProcessQueueCommand { get; }
+        public RelayCommand ProcessQueueCommand { get; }
         public ICommand ReprocessItemCommand { get; }
-        public ICommand ReprocessAllFailedCommand { get; }
-        public ICommand PauseQueueCommand { get; }
-        public ICommand ResumeQueueCommand { get; }
+        public RelayCommand ReprocessAllFailedCommand { get; }
+        public RelayCommand PauseQueueCommand { get; }
+        public RelayCommand ResumeQueueCommand { get; }
 
         // Story Video Generator commands
         public ICommand SelectStoryPromptJsonCommand { get; }
         public ICommand SelectStoryImagesFolderCommand { get; }
-        public ICommand LoadStoryQueueCommand { get; }
-        public ICommand ProcessStoryQueueCommand { get; }
-        public ICommand ClearStoryQueueCommand { get; }
-        public ICommand PauseStoryQueueCommand { get; }
-        public ICommand ResumeStoryQueueCommand { get; }
+        public RelayCommand LoadStoryQueueCommand { get; }
+        public RelayCommand ProcessStoryQueueCommand { get; }
+        public RelayCommand ClearStoryQueueCommand { get; }
+        public RelayCommand PauseStoryQueueCommand { get; }
+        public RelayCommand ResumeStoryQueueCommand { get; }
 
         // Workflow toggle command
         public ICommand ToggleWorkflowCommand { get; }
+        public ICommand ToggleSingleWorkflowCommand { get; }
 
         #endregion
+
+        private void NotifyCommandsCanExecuteChanged()
+        {
+            GenerateVideoCommand.NotifyCanExecuteChanged();
+            SendAnalysisToQueueCommand.NotifyCanExecuteChanged();
+            CopyAnalysisCommand.NotifyCanExecuteChanged();
+            AddToQueueCommand.NotifyCanExecuteChanged();
+            ProcessQueueCommand.NotifyCanExecuteChanged();
+            ReprocessAllFailedCommand.NotifyCanExecuteChanged();
+            PauseQueueCommand.NotifyCanExecuteChanged();
+            ResumeQueueCommand.NotifyCanExecuteChanged();
+            PlayVideoCommand.NotifyCanExecuteChanged();
+            OpenResultFolderCommand.NotifyCanExecuteChanged();
+            SendToEditCameraCommand.NotifyCanExecuteChanged();
+            LoadStoryQueueCommand.NotifyCanExecuteChanged();
+            ProcessStoryQueueCommand.NotifyCanExecuteChanged();
+            ClearStoryQueueCommand.NotifyCanExecuteChanged();
+            PauseStoryQueueCommand.NotifyCanExecuteChanged();
+            ResumeStoryQueueCommand.NotifyCanExecuteChanged();
+        }
 
         #region Image Selection Methods
 
@@ -1012,6 +1073,14 @@ namespace FlipPix.UI.ViewModels.Video
             UseLTXWorkflow = !UseLTXWorkflow;
         }
 
+        private void ToggleSingleWorkflow()
+        {
+            // Cycle between LTX2V and Wan22 for single video generator
+            SelectedSingleWorkflow = SelectedSingleWorkflow == SingleVideoWorkflow.LTX2V
+                ? SingleVideoWorkflow.Wan22
+                : SingleVideoWorkflow.LTX2V;
+        }
+
         #endregion
 
         #region Image Analysis Methods
@@ -1085,24 +1154,29 @@ namespace FlipPix.UI.ViewModels.Video
 
                 // Determine which prompt to use based on workflow selection
                 string analysisPrompt;
-                if (UseLTXWorkflow)
+                string? promptPath = null;
+                string promptLabel;
+
+                if (SelectedSingleWorkflow == SingleVideoWorkflow.Wan22)
                 {
-                    var ltxPromptPath = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "prompts", "prompt2json", "ltx_action_video_system_prompt.md");
-                    if (File.Exists(ltxPromptPath))
-                    {
-                        analysisPrompt = await File.ReadAllTextAsync(ltxPromptPath, _analysisCancellationTokenSource.Token);
-                        AddLog("Using LTX-2 Action Video system prompt");
-                    }
-                    else
-                    {
-                        AddLog($"WARNING: LTX action video prompt not found at {ltxPromptPath}, using default");
-                        analysisPrompt = "Describe this image in detail for video generation.";
-                    }
+                    promptPath = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "prompts", "prompt2json", "wan-system.md");
+                    promptLabel = "Wan 2.2";
                 }
                 else
                 {
+                    promptPath = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "prompts", "prompt2json", "ltx_action_video_system_prompt.md");
+                    promptLabel = "LTX-2 Action Video";
+                }
+
+                if (File.Exists(promptPath))
+                {
+                    analysisPrompt = await File.ReadAllTextAsync(promptPath, _analysisCancellationTokenSource.Token);
+                    AddLog($"Using {promptLabel} system prompt");
+                }
+                else
+                {
+                    AddLog($"WARNING: {promptLabel} prompt not found at {promptPath}, using default");
                     analysisPrompt = "Describe this image in detail for video generation.";
-                    AddLog("Using default image analysis prompt");
                 }
 
                 var analysisResult = await _lmStudioService.AnalyzeImageAsync(
@@ -1145,7 +1219,7 @@ namespace FlipPix.UI.ViewModels.Video
             finally
             {
                 IsAnalyzing = false;
-                CommandManager.InvalidateRequerySuggested();
+                NotifyCommandsCanExecuteChanged();
             }
         }
 
@@ -1184,7 +1258,7 @@ namespace FlipPix.UI.ViewModels.Video
                     FirstFrameImagePath = FirstFrameImagePath,
                     LastFrameImagePath = LastFrameImagePath,
                     Seed = randomSeed,
-                    Status = QueueItemStatus.Pending
+                    ItemStatus = QueueItemStatus.Pending
                 };
 
                 PromptQueue.Add(queueItem);
@@ -1212,7 +1286,7 @@ namespace FlipPix.UI.ViewModels.Video
                     FirstFrameImagePath = FirstFrameImagePath,
                     LastFrameImagePath = LastFrameImagePath,
                     Seed = randomSeed,
-                    Status = QueueItemStatus.Pending
+                    ItemStatus = QueueItemStatus.Pending
                 };
 
                 PromptQueue.Add(queueItem);
@@ -1229,7 +1303,7 @@ namespace FlipPix.UI.ViewModels.Video
             var hasSameImages = PromptQueue.Any(item =>
                 item.FirstFrameImagePath == firstImagePath &&
                 item.LastFrameImagePath == lastImagePath &&
-                item.Status == QueueItemStatus.Pending);
+                item.ItemStatus == QueueItemStatus.Pending);
 
             if (hasSameImages || Seed == 0)
             {
@@ -1254,7 +1328,7 @@ namespace FlipPix.UI.ViewModels.Video
                     FirstFrameImagePath = FirstFrameImagePath,
                     LastFrameImagePath = LastFrameImagePath,
                     Seed = randomSeed,
-                    Status = QueueItemStatus.Pending
+                    ItemStatus = QueueItemStatus.Pending
                 };
 
                 PromptQueue.Add(queueItem);
@@ -1262,6 +1336,12 @@ namespace FlipPix.UI.ViewModels.Video
                 UpdateQueueStatus();
                 SaveQueueToFile();
                 AddLog($"Added to queue");
+
+                // Auto-start queue processing if not already processing
+                if (!IsProcessingQueue && PromptQueue.Any(q => q.ItemStatus == QueueItemStatus.Pending))
+                {
+                    _ = ProcessQueueAsync();
+                }
             }
         }
 
@@ -1286,7 +1366,7 @@ namespace FlipPix.UI.ViewModels.Video
             WorkflowQueueCoordinator.WorkflowLease lease;
             try
             {
-                lease = await _workflowCoordinator.AcquireAsync("VideoGenerator", CancellationToken.None);
+                lease = await _workflowCoordinator.AcquireAsync("VideoGenerator", App.ShutdownToken);
             }
             catch (OperationCanceledException)
             {
@@ -1301,17 +1381,16 @@ namespace FlipPix.UI.ViewModels.Video
             {
                 try
                 {
-                    var pendingItems = PromptQueue.Where(x => x.Status == QueueItemStatus.Pending).ToList();
-
-                    foreach (var item in pendingItems)
+                    QueueItem? item;
+                    while ((item = PromptQueue.FirstOrDefault(x => x.ItemStatus == QueueItemStatus.Pending)) != null)
                     {
                         if (IsProcessing) break;
 
-                        _pauseEvent.Wait(CancellationToken.None);
+                        _pauseEvent.Wait(App.ShutdownToken);
 
                         try
                         {
-                            item.Status = QueueItemStatus.Processing;
+                            item.ItemStatus = QueueItemStatus.Processing;
                             UpdateQueueStatus();
                             SaveQueueToFile();
                             AddLog($"Processing queue item...");
@@ -1321,13 +1400,13 @@ namespace FlipPix.UI.ViewModels.Video
 
                             if (HasResult)
                             {
-                                item.Status = QueueItemStatus.Completed;
+                                item.ItemStatus = QueueItemStatus.Completed;
                                 item.VideoPath = ResultVideoPath;
                                 AddLog($"Queue item completed");
                             }
                             else
                             {
-                                item.Status = QueueItemStatus.Failed;
+                                item.ItemStatus = QueueItemStatus.Failed;
                                 AddLog($"Queue item failed");
                             }
 
@@ -1338,7 +1417,7 @@ namespace FlipPix.UI.ViewModels.Video
                         }
                         catch (Exception ex)
                         {
-                            item.Status = QueueItemStatus.Failed;
+                            item.ItemStatus = QueueItemStatus.Failed;
                             UpdateQueueStatus();
                             SaveQueueToFile();
                             AddLog($"Error processing queue item: {ex.Message}");
@@ -1358,7 +1437,7 @@ namespace FlipPix.UI.ViewModels.Video
                     IsProcessingQueue = false;
                     IsQueuePaused = false;
                     _pauseEvent.Set();
-                    CommandManager.InvalidateRequerySuggested();
+                    NotifyCommandsCanExecuteChanged();
                 }
             }
         }
@@ -1435,7 +1514,14 @@ namespace FlipPix.UI.ViewModels.Video
                 ProcessingProgress = 0;
                 ProcessingStatus = "Preparing workflow...";
                 AddLog($"First frame: {Path.GetFileName(FirstFrameImagePath)}");
-                AddLog($"Last frame: {Path.GetFileName(LastFrameImagePath)}");
+                if (!string.IsNullOrEmpty(LastFrameImagePath))
+                {
+                    AddLog($"Last frame: {Path.GetFileName(LastFrameImagePath)}");
+                }
+                else
+                {
+                    AddLog("Last frame: None (single frame generation)");
+                }
                 AddLog($"Prompt: {VideoPrompt}");
                 AddLog($"Video settings: {VideoLength} frames @ {Fps} FPS");
 
@@ -1464,7 +1550,20 @@ namespace FlipPix.UI.ViewModels.Video
                 }
 
                 // Load workflow
-                var workflowFileName = UseLTXWorkflow ? "LTXV-DoEverything-v2.json" : "painteri2vAPI.json";
+                // Story video uses UseLTXWorkflow (LTXV or Painter)
+                // Single video uses SelectedSingleWorkflow (LTX2V or Wan22)
+                string workflowFileName;
+                if (_isStoryVideoMode)
+                {
+                    workflowFileName = UseLTXWorkflow ? "LTXV-DoEverything-v2.json" : "painteri2vAPI.json";
+                }
+                else
+                {
+                    // Single video generator
+                    workflowFileName = SelectedSingleWorkflow == SingleVideoWorkflow.LTX2V
+                        ? "LTXV-DoEverything-v2.json"
+                        : "LF-t2v-i2v-FFLF-Main v1.1API.json";
+                }
                 var workflowPath = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "workflow", workflowFileName);
 
                 AddLog($"Loading workflow: {workflowFileName}");
@@ -1491,14 +1590,23 @@ namespace FlipPix.UI.ViewModels.Video
                 }
                 AddLog($"First frame uploaded: {uploadedFirstFrameImageName}");
 
-                AddLog("Uploading last frame image to ComfyUI...");
-                var uploadedLastFrameImageName = await _comfyUIService.UploadImageAsync(LastFrameImagePath);
-                if (string.IsNullOrEmpty(uploadedLastFrameImageName))
+                // Upload last frame only if provided
+                string uploadedLastFrameImageName = string.Empty;
+                if (!string.IsNullOrEmpty(LastFrameImagePath))
                 {
-                    AddLog("ERROR: Last frame image upload failed");
-                    return;
+                    AddLog("Uploading last frame image to ComfyUI...");
+                    uploadedLastFrameImageName = await _comfyUIService.UploadImageAsync(LastFrameImagePath);
+                    if (string.IsNullOrEmpty(uploadedLastFrameImageName))
+                    {
+                        AddLog("ERROR: Last frame image upload failed");
+                        return;
+                    }
+                    AddLog($"Last frame uploaded: {uploadedLastFrameImageName}");
                 }
-                AddLog($"Last frame uploaded: {uploadedLastFrameImageName}");
+                else
+                {
+                    AddLog("Skipping last frame upload (not provided)");
+                }
 
                 // Update workflow parameters
                 ProcessingStatus = "Updating workflow parameters...";
@@ -1511,7 +1619,7 @@ namespace FlipPix.UI.ViewModels.Video
                 AddLog("Executing video generation workflow...");
 
                 // Record existing video files BEFORE execution
-                var existingFilesBeforeExecution = GetExistingVideoFiles("*.mp4", "testrun", "testrun/vid", "video");
+                var existingFilesBeforeExecution = GetExistingVideoFiles("*.mp4", "testrun", "testrun/vid", "video", "intpups", "intp", "ups");
                 AddLog($"Recording {existingFilesBeforeExecution.Count} existing video files before execution");
 
                 var progress = new Progress<FlipPix.ComfyUI.Models.ProgressMessage>(progressMsg =>
@@ -1540,7 +1648,7 @@ namespace FlipPix.UI.ViewModels.Video
                     "*.mp4",
                     TimeSpan.FromSeconds(60),
                     TimeSpan.FromSeconds(2),
-                    "testrun", "testrun/vid", "video");
+                    "testrun", "testrun/vid", "video", "intpups", "intp", "ups");
 
                 if (outputVideo != null && File.Exists(outputVideo))
                 {
@@ -1580,8 +1688,14 @@ namespace FlipPix.UI.ViewModels.Video
             var workflowDict = JsonSerializer.Deserialize<Dictionary<string, JsonElement>>(workflow.GetRawText());
             if (workflowDict == null) return workflow;
 
-            // Update first frame image (node 106 for LTXV-DoEverything-v2)
-            string[] firstFrameNodes = { "106" };
+            // Determine which workflow to use:
+            // - Story video: UseLTXWorkflow (LTXV or Painter)
+            // - Single video: SelectedSingleWorkflow (LTX2V or Wan22)
+            bool isLTXV = _isStoryVideoMode ? UseLTXWorkflow : SelectedSingleWorkflow == SingleVideoWorkflow.LTX2V;
+            bool isWan22 = !_isStoryVideoMode && SelectedSingleWorkflow == SingleVideoWorkflow.Wan22;
+
+            // Update first frame image - node IDs differ by workflow
+            string[] firstFrameNodes = isWan22 ? new[] { "55" } : new[] { "106" };
             foreach (var nodeId in firstFrameNodes)
             {
                 if (workflowDict.ContainsKey(nodeId))
@@ -1601,29 +1715,44 @@ namespace FlipPix.UI.ViewModels.Video
                 }
             }
 
-            // Update last frame image (node 35 for LTXV-DoEverything-v2)
-            string[] lastFrameNodes = { "35" };
-            foreach (var nodeId in lastFrameNodes)
+            // Update last frame image - node IDs differ by workflow
+            if (!string.IsNullOrEmpty(lastFrameImageName))
             {
-                if (workflowDict.ContainsKey(nodeId))
+                string[] lastFrameNodes = isWan22 ? new[] { "643" } : new[] { "35" };
+                foreach (var nodeId in lastFrameNodes)
                 {
-                    var node = JsonSerializer.Deserialize<Dictionary<string, object>>(workflowDict[nodeId].GetRawText());
-                    if (node != null && node.ContainsKey("inputs") && node.ContainsKey("class_type") && node["class_type"]?.ToString() == "LoadImage")
+                    if (workflowDict.ContainsKey(nodeId))
                     {
-                        var inputs = JsonSerializer.Deserialize<Dictionary<string, object>>(JsonSerializer.Serialize(node["inputs"]));
-                        if (inputs != null)
+                        var node = JsonSerializer.Deserialize<Dictionary<string, object>>(workflowDict[nodeId].GetRawText());
+                        if (node != null && node.ContainsKey("inputs") && node.ContainsKey("class_type") && node["class_type"]?.ToString() == "LoadImage")
                         {
-                            inputs["image"] = lastFrameImageName;
-                            node["inputs"] = inputs;
-                            workflowDict[nodeId] = JsonSerializer.SerializeToElement(node);
-                            AddLog($"✓ Node {nodeId} (Last Frame) - Image updated");
+                            var inputs = JsonSerializer.Deserialize<Dictionary<string, object>>(JsonSerializer.Serialize(node["inputs"]));
+                            if (inputs != null)
+                            {
+                                inputs["image"] = lastFrameImageName;
+                                node["inputs"] = inputs;
+                                workflowDict[nodeId] = JsonSerializer.SerializeToElement(node);
+                                AddLog($"✓ Node {nodeId} (Last Frame) - Image updated");
+                            }
                         }
                     }
                 }
             }
+            else
+            {
+                AddLog("Last frame not provided - skipping last frame node update");
+            }
 
-            // Update positive prompt (node 59 for LTXV-DoEverything-v2 uses "value" field)
-            string[] positivePromptNodes = UseLTXWorkflow ? new[] { "59", "121", "92:3" } : new[] { "93", "62", "6" };
+            // Update positive prompt - node IDs and field names differ by workflow
+            string[] positivePromptNodes;
+            if (isWan22)
+            {
+                positivePromptNodes = new[] { "89" }; // Wan 2.2 uses "value" field
+            }
+            else
+            {
+                positivePromptNodes = isLTXV ? new[] { "59", "121", "92:3" } : new[] { "93", "62", "6" };
+            }
             foreach (var nodeId in positivePromptNodes)
             {
                 if (workflowDict.ContainsKey(nodeId))
@@ -1646,8 +1775,8 @@ namespace FlipPix.UI.ViewModels.Video
                 }
             }
 
-            // Update negative prompt
-            string[] negativePromptNodes = { "89", "7" };
+            // Update negative prompt - node IDs differ by workflow
+            string[] negativePromptNodes = isWan22 ? new[] { "88" } : new[] { "89", "7" };
             foreach (var nodeId in negativePromptNodes)
             {
                 if (workflowDict.ContainsKey(nodeId))
@@ -1658,7 +1787,11 @@ namespace FlipPix.UI.ViewModels.Video
                         var inputs = JsonSerializer.Deserialize<Dictionary<string, object>>(JsonSerializer.Serialize(node["inputs"]));
                         if (inputs != null)
                         {
-                            inputs["text"] = NegativePrompt;
+                            // Wan 2.2 uses "value" field, LTXV/Painter use "text"
+                            if (inputs.ContainsKey("value"))
+                                inputs["value"] = NegativePrompt;
+                            else
+                                inputs["text"] = NegativePrompt;
                             node["inputs"] = inputs;
                             workflowDict[nodeId] = JsonSerializer.SerializeToElement(node);
                             AddLog($"✓ Node {nodeId} (Negative Prompt) - Updated");
@@ -1667,9 +1800,58 @@ namespace FlipPix.UI.ViewModels.Video
                 }
             }
 
-            // Update LTXV parameters (frame count, FPS, seed)
-            if (UseLTXWorkflow)
+            // Update workflow-specific parameters
+            if (isWan22)
             {
+                // Wan 2.2 parameters: duration (node 150) and seed (node 135)
+
+                // Duration (node 150) - uses Xi and Xf fields (both set to same value in seconds)
+                if (workflowDict.ContainsKey("150"))
+                {
+                    var durationSeconds = (double)VideoLength / Fps; // Convert frames to seconds
+                    var node = JsonSerializer.Deserialize<Dictionary<string, object>>(workflowDict["150"].GetRawText());
+                    if (node != null && node.ContainsKey("inputs"))
+                    {
+                        var inputs = JsonSerializer.Deserialize<Dictionary<string, object>>(JsonSerializer.Serialize(node["inputs"]));
+                        if (inputs != null)
+                        {
+                            // Set both Xi and Xf to the same duration value
+                            inputs["Xi"] = durationSeconds;
+                            inputs["Xf"] = durationSeconds;
+                            node["inputs"] = inputs;
+                            workflowDict["150"] = JsonSerializer.SerializeToElement(node);
+                            AddLog($"✓ Node 150 (Duration) - {durationSeconds:F1}s (Xi={durationSeconds:F1}, Xf={durationSeconds:F1})");
+                        }
+                    }
+                }
+
+                // Seed (node 135) - uses "seed" field
+                if (workflowDict.ContainsKey("135"))
+                {
+                    const long maxRgthreeSeed = 1125899906842624;
+                    var seedValue = Seed > 0 ? Seed : ((long)new Random().Next() << 32) | (uint)new Random().Next();
+                    // Clamp to rgthree max value
+                    seedValue = Math.Min(seedValue, maxRgthreeSeed);
+                    // Also ensure non-negative
+                    if (seedValue < 0) seedValue = Math.Abs(seedValue) % maxRgthreeSeed;
+                    var node = JsonSerializer.Deserialize<Dictionary<string, object>>(workflowDict["135"].GetRawText());
+                    if (node != null && node.ContainsKey("inputs"))
+                    {
+                        var inputs = JsonSerializer.Deserialize<Dictionary<string, object>>(JsonSerializer.Serialize(node["inputs"]));
+                        if (inputs != null)
+                        {
+                            inputs["seed"] = seedValue;
+                            node["inputs"] = inputs;
+                            workflowDict["135"] = JsonSerializer.SerializeToElement(node);
+                            AddLog($"✓ Node 135 (Seed) - {seedValue}");
+                        }
+                    }
+                }
+            }
+            else if (isLTXV)
+            {
+                // LTXV parameters: frame count, FPS, seed
+
                 // Frame count (node 54)
                 if (workflowDict.ContainsKey("54"))
                 {
@@ -1730,9 +1912,9 @@ namespace FlipPix.UI.ViewModels.Video
         private void UpdateQueueStatus()
         {
             var totalCount = PromptQueue.Count;
-            var pendingCount = PromptQueue.Count(x => x.Status == QueueItemStatus.Pending);
-            var completedCount = PromptQueue.Count(x => x.Status == QueueItemStatus.Completed);
-            var failedCount = PromptQueue.Count(x => x.Status == QueueItemStatus.Failed);
+            var pendingCount = PromptQueue.Count(x => x.ItemStatus == QueueItemStatus.Pending);
+            var completedCount = PromptQueue.Count(x => x.ItemStatus == QueueItemStatus.Completed);
+            var failedCount = PromptQueue.Count(x => x.ItemStatus == QueueItemStatus.Failed);
 
             if (totalCount == 0)
             {
@@ -1749,7 +1931,7 @@ namespace FlipPix.UI.ViewModels.Video
 
             OnPropertyChanged(nameof(HasFailedItems));
             OnPropertyChanged(nameof(CanProcessQueue));
-            CommandManager.InvalidateRequerySuggested();
+            NotifyCommandsCanExecuteChanged();
         }
 
         private async Task ReprocessItemAsync(QueueItem? item)
@@ -1757,7 +1939,7 @@ namespace FlipPix.UI.ViewModels.Video
             if (item == null) return;
 
             AddLog($"Reprocessing failed item...");
-            item.Status = QueueItemStatus.Processing;
+            item.ItemStatus = QueueItemStatus.Processing;
             UpdateQueueStatus();
             SaveQueueToFile();
 
@@ -1765,13 +1947,13 @@ namespace FlipPix.UI.ViewModels.Video
 
             if (HasResult)
             {
-                item.Status = QueueItemStatus.Completed;
+                item.ItemStatus = QueueItemStatus.Completed;
                 item.VideoPath = ResultVideoPath;
                 AddLog($"Item reprocessed successfully");
             }
             else
             {
-                item.Status = QueueItemStatus.Failed;
+                item.ItemStatus = QueueItemStatus.Failed;
                 AddLog($"Item reprocessing failed");
             }
 
@@ -1782,7 +1964,7 @@ namespace FlipPix.UI.ViewModels.Video
 
         private async Task ReprocessAllFailedAsync()
         {
-            var failedItems = PromptQueue.Where(x => x.Status == QueueItemStatus.Failed).ToList();
+            var failedItems = PromptQueue.Where(x => x.ItemStatus == QueueItemStatus.Failed).ToList();
 
             if (!failedItems.Any())
             {
@@ -1802,7 +1984,7 @@ namespace FlipPix.UI.ViewModels.Video
 
             foreach (var item in failedItems)
             {
-                if (item.Status == QueueItemStatus.Failed)
+                if (item.ItemStatus == QueueItemStatus.Failed)
                 {
                     await ReprocessItemAsync(item);
                     await Task.Delay(1000);
@@ -1922,7 +2104,7 @@ namespace FlipPix.UI.ViewModels.Video
                         if (e.PropertyName == nameof(StoryVideoQueueItem.Status))
                         {
                             OnPropertyChanged(nameof(CanProcessStoryQueue));
-                            CommandManager.InvalidateRequerySuggested();
+                            NotifyCommandsCanExecuteChanged();
                         }
                     };
 
@@ -1950,7 +2132,7 @@ namespace FlipPix.UI.ViewModels.Video
             WorkflowQueueCoordinator.WorkflowLease lease;
             try
             {
-                lease = await _workflowCoordinator.AcquireAsync("StoryVideo", CancellationToken.None);
+                lease = await _workflowCoordinator.AcquireAsync("StoryVideo", App.ShutdownToken);
             }
             catch (OperationCanceledException)
             {
@@ -1971,7 +2153,7 @@ namespace FlipPix.UI.ViewModels.Video
 
                     foreach (var item in pendingItems)
                     {
-                        _storyPauseEvent.Wait(CancellationToken.None);
+                        _storyPauseEvent.Wait(App.ShutdownToken);
 
                         CurrentStoryQueueItem = item;
                         item.Status = "Processing";
@@ -2034,7 +2216,7 @@ namespace FlipPix.UI.ViewModels.Video
                     IsStoryQueuePaused = false;
                     _storyPauseEvent.Set();
                     CurrentStoryQueueItem = null;
-                    CommandManager.InvalidateRequerySuggested();
+                    NotifyCommandsCanExecuteChanged();
                 }
             }
         }
@@ -2048,6 +2230,9 @@ namespace FlipPix.UI.ViewModels.Video
 
             try
             {
+                // Set story video mode flag so GenerateVideoAsyncInternal knows to use UseLTXWorkflow
+                _isStoryVideoMode = true;
+
                 // Set the prompt from queue item
                 VideoPrompt = item.Prompt;
 
@@ -2064,6 +2249,9 @@ namespace FlipPix.UI.ViewModels.Video
             }
             finally
             {
+                // Reset story video mode flag
+                _isStoryVideoMode = false;
+
                 // Restore original values
                 VideoPrompt = originalPrompt;
                 FirstFrameImagePath = originalFirstFramePath;
@@ -2092,7 +2280,7 @@ namespace FlipPix.UI.ViewModels.Video
             }
 
             OnPropertyChanged(nameof(CanProcessStoryQueue));
-            CommandManager.InvalidateRequerySuggested();
+            NotifyCommandsCanExecuteChanged();
         }
 
         private void ClearStoryQueue()
@@ -2168,9 +2356,9 @@ namespace FlipPix.UI.ViewModels.Video
                     _promptQueue.Clear();
                     foreach (var item in savedItems)
                     {
-                        if (item.Status == QueueItemStatus.Processing)
+                        if (item.ItemStatus == QueueItemStatus.Processing)
                         {
-                            item.Status = QueueItemStatus.Failed;
+                            item.ItemStatus = QueueItemStatus.Failed;
                         }
                         _promptQueue.Add(item);
                     }

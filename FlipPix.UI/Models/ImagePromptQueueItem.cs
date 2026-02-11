@@ -18,11 +18,47 @@ namespace FlipPix.UI.Models
         public string SelectedLora { get; set; } = string.Empty;
         public TextGeneratorWorkflow SelectedWorkflow { get; set; } = TextGeneratorWorkflow.Zimage;
 
-        // HasOutputImage is unique to this model
-        [JsonIgnore]
-        public bool HasOutputImage => !string.IsNullOrEmpty(OutputImagePath);
+        // Style tracking (for Zimage ZStyle workflows)
+        public int SelectedStyleIndex { get; set; } = 0;
+        public string StyleName { get; set; } = string.Empty;
 
         [JsonIgnore]
         public string DisplayPrompt => Prompt.Length > 50 ? Prompt.Substring(0, 47) + "..." : Prompt;
+
+        // Workflow badge (Z/Q/K) — matches ImageAnalyzerQueueItem pattern
+        [JsonIgnore]
+        public string WorkflowBadge => SelectedWorkflow switch
+        {
+            TextGeneratorWorkflow.Zimage => "Z",
+            TextGeneratorWorkflow.Qwen2512 => "Q",
+            TextGeneratorWorkflow.Klien => "K",
+            _ => "?"
+        };
+
+        [JsonIgnore]
+        public string WorkflowBadgeColor => SelectedWorkflow switch
+        {
+            TextGeneratorWorkflow.Zimage => "#6366F1",    // Purple
+            TextGeneratorWorkflow.Qwen2512 => "#10B981",  // Green
+            TextGeneratorWorkflow.Klien => "#F59E0B",     // Orange
+            _ => "#6C757D"
+        };
+
+        // Aspect ratio display
+        [JsonIgnore]
+        public string AspectRatioDisplay => AspectRatioIndex switch
+        {
+            0 => "Landscape",
+            1 => "Portrait",
+            2 => "Square",
+            _ => "?"
+        };
+
+        // Style name visibility (only show for Zimage)
+        [JsonIgnore]
+        public System.Windows.Visibility StyleNameVisibility =>
+            SelectedWorkflow == TextGeneratorWorkflow.Zimage
+                ? System.Windows.Visibility.Visible
+                : System.Windows.Visibility.Collapsed;
     }
 }

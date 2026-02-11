@@ -10,6 +10,12 @@ public class PromptRequest
     [JsonPropertyName("client_id")]
     public string ClientId { get; set; } = string.Empty;
 
+    [JsonPropertyName("extra_data")]
+    public ExtraData? ExtraData { get; set; }
+}
+
+public class ExtraData
+{
     [JsonPropertyName("extra_pnginfo")]
-    public object? ExtraPnginfo { get; set; }
+    public Dictionary<string, object>? ExtraPnginfo { get; set; }
 }

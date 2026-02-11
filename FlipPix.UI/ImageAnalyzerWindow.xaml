@@ -344,58 +344,81 @@
                         </StackPanel>
                     </Border>
 
-                    <!-- Section C: Generation Settings (Collapsible) -->
-                    <Expander Header="⚙️ Generation Settings" Margin="0,0,0,10" IsExpanded="True">
+                    <!-- Section C: Style Preset (extracted from Generation Settings Expander) -->
+                    <Border Style="{StaticResource SectionPanelStyle}" Visibility="{Binding ShowStyleOptions, Converter={StaticResource BooleanToVisibilityConverter}}">
+                        <StackPanel>
+                            <TextBlock Text="Style Preset" Style="{StaticResource HeaderTextStyle}" Foreground="#8B5CF6"/>
+                            <ComboBox SelectedIndex="{Binding SelectedStyleIndex, Mode=TwoWay}"
+                                     ItemsSource="{Binding StyleNames}"
+                                     Padding="8"
+                                     Background="White"
+                                     BorderBrush="#CED4DA"
+                                     FontSize="11"
+                                     Height="32"
+                                     Margin="0,4,0,0"/>
+                        </StackPanel>
+                    </Border>
+
+                    <!-- Section D: LoRA (extracted from Generation Settings Expander) -->
+                    <Border Style="{StaticResource SectionPanelStyle}" Visibility="{Binding ShowLoraOptions, Converter={StaticResource BooleanToVisibilityConverter}}">
+                        <StackPanel>
+                            <TextBlock Text="LoRA Model" Style="{StaticResource HeaderTextStyle}" Foreground="#8B5CF6"/>
+                            <CheckBox Content="Enable LoRA"
+                                     IsChecked="{Binding LoraEnabled, Mode=TwoWay}"
+                                     FontWeight="SemiBold"
+                                     FontSize="11"
+                                     Margin="0,4,0,6"/>
+                            <Grid Visibility="{Binding LoraEnabled, Converter={StaticResource BooleanToVisibilityConverter}}">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*"/>
+                                    <ColumnDefinition Width="Auto"/>
+                                </Grid.ColumnDefinitions>
+                                <ComboBox Grid.Column="0"
+                                         ItemsSource="{Binding AvailableLoras}"
+                                         SelectedItem="{Binding SelectedLora, Mode=TwoWay}"
+                                         Padding="8"
+                                         Background="White"
+                                         BorderBrush="#CED4DA"
+                                         FontSize="11"
+                                         Height="32"
+                                         Margin="0,0,6,0"/>
+                                <Button Grid.Column="1"
+                                       Content="Refresh"
+                                       Command="{Binding RefreshLorasCommand}"
+                                       Style="{StaticResource SecondaryButtonStyle}"
+                                       Width="60"
+                                       Height="32"
+                                       Padding="10,5"/>
+                            </Grid>
+                        </StackPanel>
+                    </Border>
+
+                    <!-- Section E: Queue Actions (moved up from bottom) -->
+                    <Border Style="{StaticResource SectionPanelStyle}">
+                        <StackPanel>
+                            <TextBlock Text="Queue Actions" Style="{StaticResource HeaderTextStyle}" Foreground="#10B981"/>
+
+                            <Button Content="Add to Queue"
+                                   Style="{StaticResource PrimaryButtonStyle}"
+                                   Command="{Binding AddToQueueCommand}"
+                                   HorizontalAlignment="Stretch"
+                                   Height="42"
+                                   FontSize="14"
+                                   Margin="0,0,0,8"/>
+
+                            <Button Content="Add to Queue &amp; Start"
+                                   Style="{StaticResource SecondaryButtonStyle}"
+                                   Command="{Binding AddToQueueAndStartCommand}"
+                                   HorizontalAlignment="Stretch"
+                                   Height="42"
+                                   FontSize="14"/>
+                        </StackPanel>
+                    </Border>
+
+                    <!-- Section F: Advanced Settings (Collapsible, reduced content) -->
+                    <Expander Header="⚙️ Advanced Settings" Margin="0,0,0,10" IsExpanded="True">
                         <Border Style="{StaticResource SectionPanelStyle}" Margin="0,8,0,0">
                             <StackPanel>
-                                <!-- Style Preset (only visible for Zimage) -->
-                                <StackPanel Margin="0,0,0,10" Visibility="{Binding ShowStyleOptions, Converter={StaticResource BooleanToVisibilityConverter}}">
-                                    <TextBlock Text="Style Preset" FontWeight="SemiBold" FontSize="11" Margin="0,0,0,4"/>
-                                    <ComboBox SelectedIndex="{Binding SelectedStyleIndex, Mode=TwoWay}"
-                                             ItemsSource="{Binding StyleNames}"
-                                             Padding="8"
-                                             Background="White"
-                                             BorderBrush="#CED4DA"
-                                             FontSize="11"
-                                             Height="32"/>
-                                </StackPanel>
-
-                                <!-- LoRA (only visible for Zimage) -->
-                                <StackPanel Margin="0,0,0,10" Visibility="{Binding ShowLoraOptions, Converter={StaticResource BooleanToVisibilityConverter}}">
-                                    <TextBlock Text="LoRA Model" FontWeight="SemiBold" FontSize="11" Margin="0,0,0,4"/>
-
-                                    <CheckBox Content="Enable LoRA"
-                                             IsChecked="{Binding LoraEnabled, Mode=TwoWay}"
-                                             FontWeight="SemiBold"
-                                             FontSize="11"
-                                             Margin="0,0,0,6"/>
-
-                                    <Grid Visibility="{Binding LoraEnabled, Converter={StaticResource BooleanToVisibilityConverter}}">
-                                        <Grid.ColumnDefinitions>
-                                            <ColumnDefinition Width="*"/>
-                                            <ColumnDefinition Width="Auto"/>
-                                        </Grid.ColumnDefinitions>
-
-                                        <ComboBox Grid.Column="0"
-                                                 ItemsSource="{Binding AvailableLoras}"
-                                                 SelectedItem="{Binding SelectedLora, Mode=TwoWay}"
-                                                 Padding="8"
-                                                 Background="White"
-                                                 BorderBrush="#CED4DA"
-                                                 FontSize="11"
-                                                 Height="32"
-                                                 Margin="0,0,6,0"/>
-
-                                        <Button Grid.Column="1"
-                                               Content="Refresh"
-                                               Command="{Binding RefreshLorasCommand}"
-                                               Style="{StaticResource SecondaryButtonStyle}"
-                                               Width="60"
-                                               Height="32"
-                                               Padding="10,5"/>
-                                    </Grid>
-                                </StackPanel>
-
                                 <!-- Aspect Ratio -->
                                 <StackPanel Margin="0,0,0,10">
                                     <TextBlock Text="Aspect Ratio" FontWeight="SemiBold" FontSize="11" Margin="0,0,0,4"/>
@@ -409,6 +432,11 @@
                                         <ComboBoxItem Content="Portrait"/>
                                         <ComboBoxItem Content="Square"/>
                                     </ComboBox>
+                                </StackPanel>
+
+                                <!-- Steps -->
+                                <StackPanel Margin="0,0,0,10">
+                                    <TextBlock Text="Steps" FontWeight="SemiBold" FontSize="11" Margin="0,0,0,4"/>
                                     <Grid>
                                         <Grid.ColumnDefinitions>
                                             <ColumnDefinition Width="*"/>
@@ -538,28 +566,6 @@
                             </StackPanel>
                         </Border>
                     </Expander>
-
-                    <!-- Section D: Add to Queue Buttons -->
-                    <Border Style="{StaticResource SectionPanelStyle}">
-                        <StackPanel>
-                            <TextBlock Text="Queue Actions" Style="{StaticResource HeaderTextStyle}" Foreground="#10B981"/>
-
-                            <Button Content="Add to Queue"
-                                   Style="{StaticResource PrimaryButtonStyle}"
-                                   Command="{Binding AddToQueueCommand}"
-                                   HorizontalAlignment="Stretch"
-                                   Height="42"
-                                   FontSize="14"
-                                   Margin="0,0,0,8"/>
-
-                            <Button Content="Add to Queue &amp; Start"
-                                   Style="{StaticResource SecondaryButtonStyle}"
-                                   Command="{Binding AddToQueueAndStartCommand}"
-                                   HorizontalAlignment="Stretch"
-                                   Height="42"
-                                   FontSize="14"/>
-                        </StackPanel>
-                    </Border>
 
                 </StackPanel>
 

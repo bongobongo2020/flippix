@@ -10,6 +10,14 @@ using CommunityToolkit.Mvvm.Input;
 
 namespace FlipPix.UI.Models
 {
+    public enum QueueItemStatus
+    {
+        Pending,
+        Processing,
+        Completed,
+        Failed
+    }
+
     /// <summary>
     /// Base class for all queue item models with shared properties and functionality
     /// </summary>
@@ -59,8 +67,33 @@ namespace FlipPix.UI.Models
                     OnPropertyChanged();
                     OnPropertyChanged(nameof(StatusDisplay));
                     OnPropertyChanged(nameof(StatusColor));
+                    OnPropertyChanged(nameof(ItemStatus));
                 }
             }
+        }
+
+        /// <summary>
+        /// Map string Status to/from QueueItemStatus enum
+        /// </summary>
+        [JsonIgnore]
+        public QueueItemStatus ItemStatus
+        {
+            get => Status switch
+            {
+                "Pending" => QueueItemStatus.Pending,
+                "Processing" => QueueItemStatus.Processing,
+                "Completed" => QueueItemStatus.Completed,
+                "Failed" => QueueItemStatus.Failed,
+                _ => QueueItemStatus.Pending
+            };
+            set => Status = value switch
+            {
+                QueueItemStatus.Pending => "Pending",
+                QueueItemStatus.Processing => "Processing",
+                QueueItemStatus.Completed => "Completed",
+                QueueItemStatus.Failed => "Failed",
+                _ => "Pending"
+            };
         }
 
         /// <summary>
@@ -91,9 +124,21 @@ namespace FlipPix.UI.Models
                 {
                     _outputImagePath = value;
                     OnPropertyChanged();
-                    LoadThumbnail();
-                    // Update command can execute state
-                    (OpenImageCommand as RelayCommand)?.NotifyCanExecuteChanged();
+                    OnPropertyChanged(nameof(HasOutputImage));
+                    // Thumbnail and command updates must happen on the UI thread
+                    if (System.Windows.Application.Current?.Dispatcher?.CheckAccess() == false)
+                    {
+                        System.Windows.Application.Current.Dispatcher.Invoke(() =>
+                        {
+                            LoadThumbnail();
+                            (OpenImageCommand as RelayCommand)?.NotifyCanExecuteChanged();
+                        });
+                    }
+                    else
+                    {
+                        LoadThumbnail();
+                        (OpenImageCommand as RelayCommand)?.NotifyCanExecuteChanged();
+                    }
                 }
             }
         }
@@ -109,8 +154,21 @@ namespace FlipPix.UI.Models
             {
                 _thumbnailImage = value;
                 OnPropertyChanged();
+                OnPropertyChanged(nameof(OutputImageThumbnail));
             }
         }
+
+        /// <summary>
+        /// Alias for OutputImageThumbnail (for XAML binding compatibility)
+        /// </summary>
+        [JsonIgnore]
+        public BitmapImage? OutputImageThumbnail => ThumbnailImage;
+
+        /// <summary>
+        /// Whether an output image exists for this item
+        /// </summary>
+        [JsonIgnore]
+        public bool HasOutputImage => !string.IsNullOrEmpty(OutputImagePath);
 
         /// <summary>
         /// Command to open the output image

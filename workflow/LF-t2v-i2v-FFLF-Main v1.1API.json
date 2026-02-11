@@ -1,0 +1,1755 @@
+{
+  "10": {
+    "inputs": {
+      "sage_attention": "sageattn_qk_int8_pv_fp16_triton",
+      "allow_compile": false,
+      "model": [
+        "67",
+        0
+      ]
+    },
+    "class_type": "PathchSageAttentionKJ",
+    "_meta": {
+      "title": "🚨Sage Attention High"
+    }
+  },
+  "11": {
+    "inputs": {
+      "sage_attention": "sageattn_qk_int8_pv_fp16_triton",
+      "allow_compile": false,
+      "model": [
+        "70",
+        0
+      ]
+    },
+    "class_type": "PathchSageAttentionKJ",
+    "_meta": {
+      "title": "🚨Sage Attention Low"
+    }
+  },
+  "27": {
+    "inputs": {
+      "model": [
+        "11",
+        0
+      ]
+    },
+    "class_type": "ModelPassThrough",
+    "_meta": {
+      "title": "ModelPass"
+    }
+  },
+  "28": {
+    "inputs": {
+      "model": [
+        "10",
+        0
+      ]
+    },
+    "class_type": "ModelPassThrough",
+    "_meta": {
+      "title": "ModelPass"
+    }
+  },
+  "32": {
+    "inputs": {
+      "shift": [
+        "517",
+        0
+      ],
+      "model": [
+        "584",
+        0
+      ]
+    },
+    "class_type": "ModelSamplingSD3",
+    "_meta": {
+      "title": "Shift - Low"
+    }
+  },
+  "33": {
+    "inputs": {
+      "shift": [
+        "516",
+        0
+      ],
+      "model": [
+        "585",
+        0
+      ]
+    },
+    "class_type": "ModelSamplingSD3",
+    "_meta": {
+      "title": "Shift - High"
+    }
+  },
+  "55": {
+    "inputs": {
+      "image": "Flux2Klein9B-camera-angles-20260209_230821_00001_.png"
+    },
+    "class_type": "LoadImage",
+    "_meta": {
+      "title": "🖼️First Image"
+    }
+  },
+  "56": {
+    "inputs": {
+      "upscale_method": "lanczos",
+      "megapixels": 0.5,
+      "resolution_steps": 1,
+      "image": [
+        "55",
+        0
+      ]
+    },
+    "class_type": "ImageScaleToTotalPixels",
+    "_meta": {
+      "title": "📏Manual Scale Image to MegaPixels"
+    }
+  },
+  "67": {
+    "inputs": {
+      "PowerLoraLoaderHeaderWidget": {
+        "type": "PowerLoraLoaderHeaderWidget"
+      },
+      "lora_1": {
+        "on": false,
+        "lora": "WAN\\chars\\wan_rashidajones_v1.safetensors",
+        "strength": 1
+      },
+      "➕ Add Lora": "",
+      "model": [
+        "370",
+        0
+      ]
+    },
+    "class_type": "Power Lora Loader (rgthree)",
+    "_meta": {
+      "title": "✨Lora Stack - High"
+    }
+  },
+  "70": {
+    "inputs": {
+      "PowerLoraLoaderHeaderWidget": {
+        "type": "PowerLoraLoaderHeaderWidget"
+      },
+      "lora_1": {
+        "on": false,
+        "lora": "WAN\\wan_rashidajones_v1.safetensors",
+        "strength": 1
+      },
+      "➕ Add Lora": "",
+      "model": [
+        "372",
+        0
+      ]
+    },
+    "class_type": "Power Lora Loader (rgthree)",
+    "_meta": {
+      "title": "✨Lora Stack - Low"
+    }
+  },
+  "88": {
+    "inputs": {
+      "value": "overexposed,  subtitles, style, artwork, painting, picture, overall gray, worst quality, low quality, JPEG compression residue, incomplete, extra fingers, poorly drawn hands, deformed, disfigured, malformed limbs, fused fingers, three legs, missing fingers,four fingers,bad hands, \n\ntalking, bad anatomy, downsampling, aliasing, jpeg artifacts, compression artifacts, poorly drawn, low-resolution, bad, distortion, slow motion, slow movements, slow mo, bullet time, small movements,watermark, text, "
+    },
+    "class_type": "PrimitiveStringMultiline",
+    "_meta": {
+      "title": "🍎Negative Prompt"
+    }
+  },
+  "89": {
+    "inputs": {
+      "value": "INT. BATHROOM – DUSK – ACTION. A close-up establishes the tense moment: water droplets bead across her skin, slicking her dark hair back from her face as she grips a pistol with both hands, fingers curled tight around the grip, knuckles white-knuckled. Her expression is locked in lethal focus—eyes narrowed to slits, brow furrowed, jaw clenched so tightly veins pulse visible beneath her skin—no emotion beyond the physical tension of imminent action. Behind her, a showerhead drips rhythmically, casting cold reflections on wet tiles as she shifts slightly, aiming straight ahead with calculated precision. The camera pushes in relentlessly, capturing the sweat glistening under harsh, flickering overhead light that creates sharp rim highlights around her shoulders and arms, while handheld motion shakes subtly with each heartbeat of the impending trigger pull. Her breath is shallow, ragged—visible mist curling from her lips—as she pulls the trigger, the sound echoing through the confined space as a single gunshot shatters the silence, sending water spraying outward in an arc that arcs toward the unseen target beyond the frame."
+    },
+    "class_type": "PrimitiveStringMultiline",
+    "_meta": {
+      "title": "🍏Positive Prompt"
+    }
+  },
+  "90": {
+    "inputs": {
+      "text": [
+        "89",
+        0
+      ],
+      "clip": [
+        "1:38",
+        0
+      ]
+    },
+    "class_type": "CLIPTextEncode",
+    "_meta": {
+      "title": "🍏Positive Prompt"
+    }
+  },
+  "91": {
+    "inputs": {
+      "text": [
+        "88",
+        0
+      ],
+      "clip": [
+        "1:38",
+        0
+      ]
+    },
+    "class_type": "CLIPTextEncode",
+    "_meta": {
+      "title": "🍎Negative Prompt"
+    }
+  },
+  "135": {
+    "inputs": {
+      "seed": -1
+    },
+    "class_type": "Seed (rgthree)",
+    "_meta": {
+      "title": "🎲Seed"
+    }
+  },
+  "139": {
+    "inputs": {
+      "Xi": 1,
+      "Xf": 1,
+      "isfloatX": 1
+    },
+    "class_type": "mxSlider",
+    "_meta": {
+      "title": "🏵️High CFG"
+    }
+  },
+  "140": {
+    "inputs": {
+      "Xi": 1,
+      "Xf": 1,
+      "isfloatX": 1
+    },
+    "class_type": "mxSlider",
+    "_meta": {
+      "title": "🏵️Low CFG"
+    }
+  },
+  "150": {
+    "inputs": {
+      "Xi": 5,
+      "Xf": 5,
+      "isfloatX": 1
+    },
+    "class_type": "mxSlider",
+    "_meta": {
+      "title": "⌚Duration (Seconds)"
+    }
+  },
+  "151": {
+    "inputs": {
+      "Xi": 3,
+      "Xf": 3,
+      "isfloatX": 0
+    },
+    "class_type": "mxSlider",
+    "_meta": {
+      "title": "👞Split Steps at"
+    }
+  },
+  "152": {
+    "inputs": {
+      "Xi": 6,
+      "Xf": 6,
+      "isfloatX": 0
+    },
+    "class_type": "mxSlider",
+    "_meta": {
+      "title": "🚶‍➡️Total Steps"
+    }
+  },
+  "153": {
+    "inputs": {
+      "Xi": 8,
+      "Xf": 8,
+      "isfloatX": 1
+    },
+    "class_type": "mxSlider",
+    "_meta": {
+      "title": "🌊Shift - High"
+    }
+  },
+  "159": {
+    "inputs": {
+      "samples": [
+        "615:617",
+        0
+      ],
+      "vae": [
+        "1:39",
+        0
+      ]
+    },
+    "class_type": "VAEDecode",
+    "_meta": {
+      "title": "🧬VAE Decode"
+    }
+  },
+  "162": {
+    "inputs": {
+      "frame_rate": [
+        "394",
+        0
+      ],
+      "loop_count": 0,
+      "filename_prefix": [
+        "225",
+        0
+      ],
+      "format": "video/h264-mp4",
+      "pix_fmt": "yuv420p",
+      "crf": 19,
+      "save_metadata": true,
+      "trim_to_audio": false,
+      "pingpong": false,
+      "save_output": true,
+      "images": [
+        "448",
+        0
+      ]
+    },
+    "class_type": "VHS_VideoCombine",
+    "_meta": {
+      "title": "🎥🎞️📐🔸"
+    }
+  },
+  "168": {
+    "inputs": {
+      "Xi": 8,
+      "Xf": 8,
+      "isfloatX": 1
+    },
+    "class_type": "mxSlider",
+    "_meta": {
+      "title": "🌊Shift - Low"
+    }
+  },
+  "179": {
+    "inputs": {
+      "value": 3
+    },
+    "class_type": "INTConstant",
+    "_meta": {
+      "title": "🎞️📐Intrpol+Upscl"
+    }
+  },
+  "181": {
+    "inputs": {
+      "any_04": [
+        "179",
+        0
+      ]
+    },
+    "class_type": "Any Switch (rgthree)",
+    "_meta": {
+      "title": "Final View Switch"
+    }
+  },
+  "206": {
+    "inputs": {
+      "boolean": [
+        "526",
+        0
+      ],
+      "on_true": [
+        "678",
+        0
+      ],
+      "on_false": [
+        "245",
+        0
+      ]
+    },
+    "class_type": "easy ifElse",
+    "_meta": {
+      "title": "If else"
+    }
+  },
+  "208": {
+    "inputs": {
+      "Xi": 3,
+      "Xf": 3,
+      "isfloatX": 0
+    },
+    "class_type": "mxSlider",
+    "_meta": {
+      "title": "🎞️InterpolMultiplier🔸"
+    }
+  },
+  "217": {
+    "inputs": {
+      "value": [
+        "39:590",
+        0
+      ]
+    },
+    "class_type": "easy string",
+    "_meta": {
+      "title": "Prev"
+    }
+  },
+  "218": {
+    "inputs": {
+      "value": [
+        "39:588",
+        0
+      ]
+    },
+    "class_type": "easy string",
+    "_meta": {
+      "title": "Intp"
+    }
+  },
+  "221": {
+    "inputs": {
+      "value": [
+        "39:591",
+        0
+      ]
+    },
+    "class_type": "easy string",
+    "_meta": {
+      "title": "Ups"
+    }
+  },
+  "222": {
+    "inputs": {
+      "value": [
+        "39:589",
+        0
+      ]
+    },
+    "class_type": "easy string",
+    "_meta": {
+      "title": "intpUps"
+    }
+  },
+  "225": {
+    "inputs": {
+      "index": [
+        "181",
+        0
+      ],
+      "value0": [
+        "217",
+        0
+      ],
+      "value1": [
+        "218",
+        0
+      ],
+      "value2": [
+        "221",
+        0
+      ],
+      "value3": [
+        "222",
+        0
+      ]
+    },
+    "class_type": "easy anythingIndexSwitch",
+    "_meta": {
+      "title": "FilePath Output Index"
+    }
+  },
+  "228": {
+    "inputs": {
+      "string": [
+        "667",
+        0
+      ],
+      "regex_pattern": "(?<=\\\\)([^\\\\]+)(?=\\.)",
+      "mode": "First Match",
+      "case_insensitive": true,
+      "multiline": false,
+      "dotall": false,
+      "group_index": 1
+    },
+    "class_type": "RegexExtract",
+    "_meta": {
+      "title": "Regex Extract"
+    }
+  },
+  "230": {
+    "inputs": {
+      "output": "",
+      "source": [
+        "228",
+        0
+      ]
+    },
+    "class_type": "Display Any (rgthree)",
+    "_meta": {
+      "title": "🗂️ Filename"
+    }
+  },
+  "237": {
+    "inputs": {
+      "image": [
+        "448",
+        0
+      ]
+    },
+    "class_type": "GetImageSize+",
+    "_meta": {
+      "title": "Get Image Size"
+    }
+  },
+  "245": {
+    "inputs": {
+      "boolean": [
+        "661",
+        0
+      ],
+      "on_true": [
+        "689:689",
+        0
+      ],
+      "on_false": [
+        "619",
+        0
+      ]
+    },
+    "class_type": "easy ifElse",
+    "_meta": {
+      "title": "If else"
+    }
+  },
+  "265": {
+    "inputs": {
+      "index": [
+        "181",
+        0
+      ],
+      "value0": [
+        "522",
+        0
+      ],
+      "value1": [
+        "523",
+        0
+      ],
+      "value2": [
+        "522",
+        0
+      ],
+      "value3": [
+        "523",
+        0
+      ]
+    },
+    "class_type": "easy anythingIndexSwitch",
+    "_meta": {
+      "title": "Fps Output Index"
+    }
+  },
+  "284": {
+    "inputs": {
+      "Xi": 1,
+      "Xf": 1,
+      "isfloatX": 1
+    },
+    "class_type": "mxSlider",
+    "_meta": {
+      "title": "☄️Speed (1)🔸"
+    }
+  },
+  "286": {
+    "inputs": {
+      "output": "",
+      "source": [
+        "660",
+        0
+      ]
+    },
+    "class_type": "Display Any (rgthree)",
+    "_meta": {
+      "title": "📏Dimension Used - t2v - i2v (Updare After Generation)"
+    }
+  },
+  "318": {
+    "inputs": {
+      "Xi": 0,
+      "Xf": 0,
+      "isfloatX": 0
+    },
+    "class_type": "mxSlider",
+    "_meta": {
+      "title": "✂️Skip Initial Frames🔸"
+    }
+  },
+  "319": {
+    "inputs": {
+      "output": "",
+      "source": [
+        "659",
+        0
+      ]
+    },
+    "class_type": "Display Any (rgthree)",
+    "_meta": {
+      "title": "📏Final Dimension🎬Frames⌚Duration📹FPS🎞️Total Frames"
+    }
+  },
+  "350": {
+    "inputs": {
+      "image": [
+        "159",
+        0
+      ]
+    },
+    "class_type": "GetImageSize+",
+    "_meta": {
+      "title": "Get Image Size"
+    }
+  },
+  "370": {
+    "inputs": {
+      "boolean": [
+        "375",
+        0
+      ],
+      "on_true": [
+        "1:1336",
+        0
+      ],
+      "on_false": [
+        "1:1338",
+        0
+      ]
+    },
+    "class_type": "easy ifElse",
+    "_meta": {
+      "title": "If else"
+    }
+  },
+  "372": {
+    "inputs": {
+      "boolean": [
+        "375",
+        0
+      ],
+      "on_true": [
+        "1:1337",
+        0
+      ],
+      "on_false": [
+        "1:1339",
+        0
+      ]
+    },
+    "class_type": "easy ifElse",
+    "_meta": {
+      "title": "If else"
+    }
+  },
+  "373": {
+    "inputs": {
+      "value": true
+    },
+    "class_type": "easy boolean",
+    "_meta": {
+      "title": "True"
+    }
+  },
+  "375": {
+    "inputs": {
+      "any_01": [
+        "373",
+        0
+      ]
+    },
+    "class_type": "Any Switch (rgthree)",
+    "_meta": {
+      "title": "Boolean Switch"
+    }
+  },
+  "387": {
+    "inputs": {
+      "any_02": [
+        "738:120",
+        2
+      ]
+    },
+    "class_type": "Any Switch (rgthree)",
+    "_meta": {
+      "title": "Latent Switch"
+    }
+  },
+  "388": {
+    "inputs": {
+      "any_01": [
+        "738:120",
+        1
+      ],
+      "any_02": [
+        "91",
+        0
+      ]
+    },
+    "class_type": "Any Switch (rgthree)",
+    "_meta": {
+      "title": "Neg Switch"
+    }
+  },
+  "389": {
+    "inputs": {
+      "any_01": [
+        "738:120",
+        0
+      ],
+      "any_02": [
+        "90",
+        0
+      ]
+    },
+    "class_type": "Any Switch (rgthree)",
+    "_meta": {
+      "title": "Pos Switch"
+    }
+  },
+  "394": {
+    "inputs": {
+      "any_02": [
+        "521",
+        0
+      ]
+    },
+    "class_type": "Any Switch (rgthree)",
+    "_meta": {
+      "title": "fps Switch"
+    }
+  },
+  "448": {
+    "inputs": {
+      "any_02": [
+        "206",
+        0
+      ]
+    },
+    "class_type": "Any Switch (rgthree)",
+    "_meta": {
+      "title": "Bypass Switch"
+    }
+  },
+  "514": {
+    "inputs": {
+      "output_type": "float",
+      "*": [
+        "139",
+        0
+      ]
+    },
+    "class_type": "easy convertAnything",
+    "_meta": {
+      "title": "Convert Any"
+    }
+  },
+  "515": {
+    "inputs": {
+      "output_type": "float",
+      "*": [
+        "140",
+        0
+      ]
+    },
+    "class_type": "easy convertAnything",
+    "_meta": {
+      "title": "Convert Any"
+    }
+  },
+  "516": {
+    "inputs": {
+      "output_type": "float",
+      "*": [
+        "153",
+        0
+      ]
+    },
+    "class_type": "easy convertAnything",
+    "_meta": {
+      "title": "Convert Any"
+    }
+  },
+  "517": {
+    "inputs": {
+      "output_type": "float",
+      "*": [
+        "168",
+        0
+      ]
+    },
+    "class_type": "easy convertAnything",
+    "_meta": {
+      "title": "Convert Any"
+    }
+  },
+  "518": {
+    "inputs": {
+      "output_type": "float",
+      "*": [
+        "284",
+        0
+      ]
+    },
+    "class_type": "easy convertAnything",
+    "_meta": {
+      "title": "Convert Any"
+    }
+  },
+  "520": {
+    "inputs": {
+      "outputs": {
+        "outputs": [
+          "INT"
+        ]
+      },
+      "code": "(a*16)+1",
+      "a": [
+        "527",
+        0
+      ]
+    },
+    "class_type": "Power Puter (rgthree)",
+    "_meta": {
+      "title": "Math"
+    }
+  },
+  "521": {
+    "inputs": {
+      "output_type": "float",
+      "*": [
+        "265",
+        0
+      ]
+    },
+    "class_type": "easy convertAnything",
+    "_meta": {
+      "title": "Convert Any"
+    }
+  },
+  "522": {
+    "inputs": {
+      "outputs": {
+        "outputs": [
+          "INT"
+        ]
+      },
+      "code": "floor(16*a)",
+      "a": [
+        "518",
+        0
+      ]
+    },
+    "class_type": "Power Puter (rgthree)",
+    "_meta": {
+      "title": "Math"
+    }
+  },
+  "523": {
+    "inputs": {
+      "outputs": {
+        "outputs": [
+          "INT"
+        ]
+      },
+      "code": "a*b",
+      "a": [
+        "208",
+        0
+      ],
+      "b": [
+        "522",
+        0
+      ]
+    },
+    "class_type": "Power Puter (rgthree)",
+    "_meta": {
+      "title": "Math"
+    }
+  },
+  "526": {
+    "inputs": {
+      "outputs": {
+        "outputs": [
+          "BOOLEAN"
+        ]
+      },
+      "code": "indexOpt = round(((a/2-floor(a/2))),2);\n\nif (indexOpt > 0):\n    return True\nelse:\n    return False",
+      "a": [
+        "181",
+        0
+      ]
+    },
+    "class_type": "Power Puter (rgthree)",
+    "_meta": {
+      "title": "Code"
+    }
+  },
+  "527": {
+    "inputs": {
+      "output_type": "float",
+      "*": [
+        "150",
+        0
+      ]
+    },
+    "class_type": "easy convertAnything",
+    "_meta": {
+      "title": "Convert Any"
+    }
+  },
+  "540": {
+    "inputs": {
+      "anything": [
+        "245",
+        0
+      ]
+    },
+    "class_type": "easy cleanGpuUsed",
+    "_meta": {
+      "title": "Clean VRAM Used"
+    }
+  },
+  "580": {
+    "inputs": {
+      "anything": [
+        "159",
+        0
+      ]
+    },
+    "class_type": "easy cleanGpuUsed",
+    "_meta": {
+      "title": "Clean VRAM Used"
+    }
+  },
+  "584": {
+    "inputs": {
+      "nag_scale": 11,
+      "nag_alpha": 0.25,
+      "nag_tau": [
+        "598",
+        0
+      ],
+      "input_type": "default",
+      "model": [
+        "27",
+        0
+      ],
+      "conditioning": [
+        "91",
+        0
+      ]
+    },
+    "class_type": "WanVideoNAG",
+    "_meta": {
+      "title": "🔮NAG Low"
+    }
+  },
+  "585": {
+    "inputs": {
+      "nag_scale": 11,
+      "nag_alpha": 0.25,
+      "nag_tau": [
+        "598",
+        0
+      ],
+      "input_type": "default",
+      "model": [
+        "28",
+        0
+      ],
+      "conditioning": [
+        "91",
+        0
+      ]
+    },
+    "class_type": "WanVideoNAG",
+    "_meta": {
+      "title": "🔮NAG High"
+    }
+  },
+  "592": {
+    "inputs": {
+      "Xi": 1,
+      "Xf": 1.5,
+      "isfloatX": 1
+    },
+    "class_type": "mxSlider",
+    "_meta": {
+      "title": "📐Upscale Multiplier🔸"
+    }
+  },
+  "598": {
+    "inputs": {
+      "output_type": "float",
+      "*": [
+        "600",
+        0
+      ]
+    },
+    "class_type": "easy convertAnything",
+    "_meta": {
+      "title": "Convert Any"
+    }
+  },
+  "600": {
+    "inputs": {
+      "Xi": 2,
+      "Xf": 2.5,
+      "isfloatX": 1
+    },
+    "class_type": "mxSlider",
+    "_meta": {
+      "title": "🌀nag_tau"
+    }
+  },
+  "603": {
+    "inputs": {
+      "Xi": 720,
+      "Xf": 720,
+      "Yi": 960,
+      "Yf": 960,
+      "isfloatX": 0,
+      "isfloatY": 0
+    },
+    "class_type": "mxSlider2D",
+    "_meta": {
+      "title": "📺 t2v Dimention"
+    }
+  },
+  "619": {
+    "inputs": {
+      "any_02": [
+        "693",
+        2
+      ]
+    },
+    "class_type": "Any Switch (rgthree)",
+    "_meta": {
+      "title": "Bypass Switch"
+    }
+  },
+  "643": {
+    "inputs": {
+      "image": "Flux2Klein9B-camera-angles-20260209_230821_00011_.png"
+    },
+    "class_type": "LoadImage",
+    "_meta": {
+      "title": "🌆Last Image"
+    }
+  },
+  "652": {
+    "inputs": {
+      "width": [
+        "740",
+        0
+      ],
+      "height": [
+        "739",
+        0
+      ],
+      "upscale_method": "lanczos",
+      "keep_proportion": "stretch",
+      "pad_color": "0, 0, 0",
+      "crop_position": "center",
+      "divisible_by": 1,
+      "device": "cpu",
+      "image": [
+        "643",
+        0
+      ]
+    },
+    "class_type": "ImageResizeKJv2",
+    "_meta": {
+      "title": "📏Resize Image"
+    }
+  },
+  "659": {
+    "inputs": {
+      "outputs": {
+        "outputs": [
+          "STRING"
+        ]
+      },
+      "code": "seconds = round(c/d,2);\ntrimmedFrame = a-b;\n\nreturn (str(f)+ \" w x \"+ str(e) +\" h / \" + str(trimmedFrame) + \" Frames / \" + str(seconds) + \" Seconds / \" + str(int(d)) + \"fps / \" + str(c)+ \" Total Frames / \" +str(round(g,2))+ \"x Speed\"+ str(h) + str(i));\n\n",
+      "a": [
+        "520",
+        0
+      ],
+      "b": [
+        "318",
+        0
+      ],
+      "c": [
+        "237",
+        2
+      ],
+      "d": [
+        "394",
+        0
+      ],
+      "e": [
+        "237",
+        1
+      ],
+      "f": [
+        "237",
+        0
+      ],
+      "g": [
+        "518",
+        0
+      ],
+      "h": [
+        "711",
+        0
+      ],
+      "i": [
+        "713",
+        0
+      ]
+    },
+    "class_type": "Power Puter (rgthree)",
+    "_meta": {
+      "title": "String"
+    }
+  },
+  "660": {
+    "inputs": {
+      "outputs": {
+        "outputs": [
+          "STRING"
+        ]
+      },
+      "code": "return (str(a)+\" width x \"+str(b)+\" height\");",
+      "a": [
+        "350",
+        0
+      ],
+      "b": [
+        "350",
+        1
+      ]
+    },
+    "class_type": "Power Puter (rgthree)",
+    "_meta": {
+      "title": "String"
+    }
+  },
+  "661": {
+    "inputs": {
+      "outputs": {
+        "outputs": [
+          "BOOLEAN"
+        ]
+      },
+      "code": "if (a > 1):\n    return True\nelse:\n    return False",
+      "a": [
+        "181",
+        0
+      ]
+    },
+    "class_type": "Power Puter (rgthree)",
+    "_meta": {
+      "title": "Code"
+    }
+  },
+  "667": {
+    "inputs": {
+      "outputs": {
+        "outputs": [
+          "STRING"
+        ]
+      },
+      "code": "return a",
+      "a": [
+        "162",
+        0
+      ]
+    },
+    "class_type": "Power Puter (rgthree)",
+    "_meta": {
+      "title": "String"
+    }
+  },
+  "678": {
+    "inputs": {
+      "ckpt_name": "rife47.pth",
+      "clear_cache_after_n_frames": 32,
+      "multiplier": [
+        "208",
+        0
+      ],
+      "fast_mode": true,
+      "ensemble": true,
+      "scale_factor": 1,
+      "frames": [
+        "245",
+        0
+      ]
+    },
+    "class_type": "RIFE VFI",
+    "_meta": {
+      "title": "🎞️RIFE VFI"
+    }
+  },
+  "681": {
+    "inputs": {
+      "output_type": "float",
+      "*": [
+        "592",
+        0
+      ]
+    },
+    "class_type": "easy convertAnything",
+    "_meta": {
+      "title": "Convert Any"
+    }
+  },
+  "682": {
+    "inputs": {
+      "upscale_model": [
+        "1:272",
+        0
+      ],
+      "image": [
+        "619",
+        0
+      ]
+    },
+    "class_type": "ImageUpscaleWithModel",
+    "_meta": {
+      "title": "📐Upscaler w/ Mode"
+    }
+  },
+  "693": {
+    "inputs": {
+      "split_index": [
+        "318",
+        0
+      ],
+      "images": [
+        "159",
+        0
+      ]
+    },
+    "class_type": "VHS_SplitImages",
+    "_meta": {
+      "title": "✂️Trim Frames"
+    }
+  },
+  "711": {
+    "inputs": {
+      "outputs": {
+        "outputs": [
+          "STRING"
+        ]
+      },
+      "code": "if (b == True):\n    return \" / \"+str(round(a,2))+\"x Upscaled\"\nelse:\n    return \" \";",
+      "a": [
+        "681",
+        0
+      ],
+      "b": [
+        "661",
+        0
+      ]
+    },
+    "class_type": "Power Puter (rgthree)",
+    "_meta": {
+      "title": "String"
+    }
+  },
+  "713": {
+    "inputs": {
+      "outputs": {
+        "outputs": [
+          "STRING"
+        ]
+      },
+      "code": "if (b == True):\n    return \" / \"+str(a)+\"x Interpolated\"\nelse:\n    return \" \";",
+      "a": [
+        "208",
+        0
+      ],
+      "b": [
+        "526",
+        0
+      ]
+    },
+    "class_type": "Power Puter (rgthree)",
+    "_meta": {
+      "title": "String"
+    }
+  },
+  "732": {
+    "inputs": {
+      "any_01": [
+        "56",
+        0
+      ],
+      "any_02": [
+        "55",
+        0
+      ]
+    },
+    "class_type": "Any Switch (rgthree)",
+    "_meta": {
+      "title": "Bypass Switch"
+    }
+  },
+  "734": {
+    "inputs": {
+      "image": [
+        "732",
+        0
+      ]
+    },
+    "class_type": "GetImageSize+",
+    "_meta": {
+      "title": "Get Image Size"
+    }
+  },
+  "739": {
+    "inputs": {
+      "value": "round(a/16)*16",
+      "a": [
+        "734",
+        1
+      ]
+    },
+    "class_type": "SimpleMath+",
+    "_meta": {
+      "title": "Height/16"
+    }
+  },
+  "740": {
+    "inputs": {
+      "value": "round(a/16)*16",
+      "a": [
+        "734",
+        0
+      ]
+    },
+    "class_type": "SimpleMath+",
+    "_meta": {
+      "title": "Width/16"
+    }
+  },
+  "39:590": {
+    "inputs": {
+      "value": "prev/wan22_prev"
+    },
+    "class_type": "easy string",
+    "_meta": {
+      "title": "🎥Preview Filename"
+    }
+  },
+  "39:588": {
+    "inputs": {
+      "value": "intp/wan22_intp"
+    },
+    "class_type": "easy string",
+    "_meta": {
+      "title": "🎞️Interpolation Filename"
+    }
+  },
+  "39:591": {
+    "inputs": {
+      "value": "ups/wan22_ups"
+    },
+    "class_type": "easy string",
+    "_meta": {
+      "title": "📐Upscaled Filename"
+    }
+  },
+  "39:589": {
+    "inputs": {
+      "value": "intpups/wan22_intpups"
+    },
+    "class_type": "easy string",
+    "_meta": {
+      "title": "🎞️📐Interpol+Ups  Filename"
+    }
+  },
+  "39:804": {
+    "inputs": {
+      "value": "lastFrame/wan22_LastFrame"
+    },
+    "class_type": "easy string",
+    "_meta": {
+      "title": "📸Save Last Frame Filename"
+    }
+  },
+  "1:39": {
+    "inputs": {
+      "vae_name": "wan_2.1_vae.safetensors"
+    },
+    "class_type": "VAELoader",
+    "_meta": {
+      "title": "🌸Load VAE"
+    }
+  },
+  "1:272": {
+    "inputs": {
+      "model_name": "RealESRGAN_x2plus.pth"
+    },
+    "class_type": "UpscaleModelLoader",
+    "_meta": {
+      "title": "📐Load Upscale Model"
+    }
+  },
+  "1:1359": {
+    "inputs": {
+      "unet_name": "wan\\wan2.2_i2v_low_noise_14B_Q8_0.gguf"
+    },
+    "class_type": "UnetLoaderGGUF",
+    "_meta": {
+      "title": "📉Low Noise GGUF Model i2v"
+    }
+  },
+  "1:1361": {
+    "inputs": {
+      "unet_name": "Wan2.2-T2V-A14B-HighNoise-Q6_K.gguf"
+    },
+    "class_type": "UnetLoaderGGUF",
+    "_meta": {
+      "title": "📈High Noise GGUF Model t2v"
+    }
+  },
+  "1:1360": {
+    "inputs": {
+      "unet_name": "Wan2.2-T2V-A14B-LowNoise-Q6_K.gguf"
+    },
+    "class_type": "UnetLoaderGGUF",
+    "_meta": {
+      "title": "📉Low Noise GGUF Model t2v"
+    }
+  },
+  "1:1358": {
+    "inputs": {
+      "unet_name": "wan\\wan2.2_i2v_high_noise_14B_Q8_0.gguf"
+    },
+    "class_type": "UnetLoaderGGUF",
+    "_meta": {
+      "title": "📈High Noise GGUF Model i2v"
+    }
+  },
+  "1:38": {
+    "inputs": {
+      "clip_name": "umt5_xxl_fp8_e4m3fn_scaled.safetensors",
+      "type": "wan",
+      "device": "default"
+    },
+    "class_type": "CLIPLoader",
+    "_meta": {
+      "title": "🧷Load CLIP"
+    }
+  },
+  "1:1336": {
+    "inputs": {
+      "lora_name": "WAN\\wan2.2_i2v_A14b_high_noise_lora_rank64_lightx2v_4step_1022.safetensors",
+      "strength_model": 1,
+      "model": [
+        "1:1358",
+        0
+      ]
+    },
+    "class_type": "LoraLoaderModelOnly",
+    "_meta": {
+      "title": "⚡️Lightx2v Distilled Lightning Lora - High"
+    }
+  },
+  "1:1337": {
+    "inputs": {
+      "lora_name": "WAN\\wan2.2_i2v_A14b_low_noise_lora_rank64_lightx2v_4step_1022.safetensors",
+      "strength_model": 1,
+      "model": [
+        "1:1359",
+        0
+      ]
+    },
+    "class_type": "LoraLoaderModelOnly",
+    "_meta": {
+      "title": "⚡️Lightx2v Distilled Lightning Lora - Low"
+    }
+  },
+  "1:1338": {
+    "inputs": {
+      "lora_name": "WAN\\wan2.2_t2v_A14b_high_noise_lora_rank64_lightx2v_4step_1217.safetensors",
+      "strength_model": 1,
+      "model": [
+        "1:1361",
+        0
+      ]
+    },
+    "class_type": "LoraLoaderModelOnly",
+    "_meta": {
+      "title": "⚡️Lightx2v Distilled Lightning Lora - High"
+    }
+  },
+  "1:1339": {
+    "inputs": {
+      "lora_name": "WAN\\wan2.2_t2v_A14b_low_noise_lora_rank64_lightx2v_4step_1217.safetensors",
+      "strength_model": 1,
+      "model": [
+        "1:1360",
+        0
+      ]
+    },
+    "class_type": "LoraLoaderModelOnly",
+    "_meta": {
+      "title": "⚡️Lightx2v Distilled Lightning Lora - Low"
+    }
+  },
+  "615:617": {
+    "inputs": {
+      "add_noise": "disable",
+      "noise_seed": 0,
+      "steps": [
+        "152",
+        0
+      ],
+      "cfg": [
+        "515",
+        0
+      ],
+      "sampler_name": "euler",
+      "scheduler": "simple",
+      "start_at_step": [
+        "151",
+        0
+      ],
+      "end_at_step": 10000,
+      "return_with_leftover_noise": "disable",
+      "model": [
+        "32",
+        0
+      ],
+      "positive": [
+        "389",
+        0
+      ],
+      "negative": [
+        "388",
+        0
+      ],
+      "latent_image": [
+        "615:618",
+        0
+      ]
+    },
+    "class_type": "KSamplerAdvanced",
+    "_meta": {
+      "title": "📉KSampler (Advanced) - Low"
+    }
+  },
+  "615:618": {
+    "inputs": {
+      "add_noise": "enable",
+      "noise_seed": [
+        "135",
+        0
+      ],
+      "steps": [
+        "152",
+        0
+      ],
+      "cfg": [
+        "514",
+        0
+      ],
+      "sampler_name": "euler",
+      "scheduler": "simple",
+      "start_at_step": 0,
+      "end_at_step": [
+        "151",
+        0
+      ],
+      "return_with_leftover_noise": "enable",
+      "model": [
+        "33",
+        0
+      ],
+      "positive": [
+        "389",
+        0
+      ],
+      "negative": [
+        "388",
+        0
+      ],
+      "latent_image": [
+        "387",
+        0
+      ]
+    },
+    "class_type": "KSamplerAdvanced",
+    "_meta": {
+      "title": "📈KSampler (Advanced) - High"
+    }
+  },
+  "615:619": {
+    "inputs": {
+      "anything": [
+        "615:618",
+        0
+      ]
+    },
+    "class_type": "easy cleanGpuUsed",
+    "_meta": {
+      "title": "Clean VRAM Used"
+    }
+  },
+  "689:689": {
+    "inputs": {
+      "boolean": [
+        "689:685",
+        2
+      ],
+      "on_true": [
+        "689:683",
+        0
+      ],
+      "on_false": [
+        "682",
+        0
+      ]
+    },
+    "class_type": "easy ifElse",
+    "_meta": {
+      "title": "If else"
+    }
+  },
+  "689:683": {
+    "inputs": {
+      "width": [
+        "689:685",
+        0
+      ],
+      "height": [
+        "689:685",
+        1
+      ],
+      "upscale_method": "lanczos",
+      "keep_proportion": "resize",
+      "pad_color": "0, 0, 0",
+      "crop_position": "center",
+      "divisible_by": 2,
+      "device": "cpu",
+      "image": [
+        "682",
+        0
+      ]
+    },
+    "class_type": "ImageResizeKJv2",
+    "_meta": {
+      "title": "📏Resize Image"
+    }
+  },
+  "689:685": {
+    "inputs": {
+      "outputs": {
+        "outputs": [
+          "INT",
+          "INT",
+          "BOOLEAN"
+        ]
+      },
+      "code": "scaledW = b*a\nscaledH = c*a\n(batch, height, width, aplha) = d.shape\n\n\nif (scaledH != height):\n    return (scaledW, scaledH, True)\nelse:\n    return (scaledW, scaledH, False)\n\n",
+      "a": [
+        "681",
+        0
+      ],
+      "b": [
+        "350",
+        0
+      ],
+      "c": [
+        "350",
+        1
+      ],
+      "d": [
+        "682",
+        0
+      ]
+    },
+    "class_type": "Power Puter (rgthree)",
+    "_meta": {
+      "title": "Upscaled Multiplier"
+    }
+  },
+  "738:120": {
+    "inputs": {
+      "width": [
+        "738:123",
+        1
+      ],
+      "height": [
+        "738:123",
+        2
+      ],
+      "length": [
+        "520",
+        0
+      ],
+      "batch_size": 1,
+      "positive": [
+        "90",
+        0
+      ],
+      "negative": [
+        "91",
+        0
+      ],
+      "vae": [
+        "1:39",
+        0
+      ],
+      "start_image": [
+        "738:123",
+        0
+      ],
+      "end_image": [
+        "652",
+        0
+      ]
+    },
+    "class_type": "WanFirstLastFrameToVideo",
+    "_meta": {
+      "title": "🪄WanFirstLastFrameToVideo"
+    }
+  },
+  "738:123": {
+    "inputs": {
+      "width": [
+        "740",
+        0
+      ],
+      "height": [
+        "739",
+        0
+      ],
+      "upscale_method": "lanczos",
+      "keep_proportion": "stretch",
+      "pad_color": "0, 0, 0",
+      "crop_position": "center",
+      "divisible_by": 1,
+      "device": "cpu",
+      "image": [
+        "55",
+        0
+      ]
+    },
+    "class_type": "ImageResizeKJv2",
+    "_meta": {
+      "title": "📏Resize Image"
+    }
+  }
+}
