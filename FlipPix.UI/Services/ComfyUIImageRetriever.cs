@@ -112,19 +112,54 @@ namespace FlipPix.UI.Services
                     {
                         Log("Detected remote ComfyUI server, downloading generated image...");
 
-                        var outputFiles = await httpClient.GetOutputFilesAsync();
-                        Log($"Found {outputFiles.Count} potential output files");
+                        List<string> imageFiles = new();
 
-                        var imageFiles = outputFiles.Where(f =>
-                            f.EndsWith(".png") &&
-                            (string.IsNullOrEmpty(expectedPattern) || f.Contains(expectedPattern)))
-                            .ToList();
-
-                        if (!string.IsNullOrEmpty(expectedPattern))
+                        // Strategy 1: Use prompt-specific history lookup (most reliable)
+                        if (!string.IsNullOrEmpty(promptId))
                         {
-                            Log($"Looking for pattern: {expectedPattern}");
+                            var promptOutputFiles = await httpClient.GetOutputFilesForPromptAsync(promptId, ct);
+                            imageFiles = promptOutputFiles.Where(f =>
+                                f.EndsWith(".png") &&
+                                (string.IsNullOrEmpty(expectedPattern) || f.Contains(expectedPattern)))
+                                .ToList();
+
+                            if (imageFiles.Any())
+                            {
+                                Log($"Found {imageFiles.Count} output file(s) for prompt {promptId}");
+                                if (!string.IsNullOrEmpty(expectedPattern))
+                                {
+                                    Log($"Filtered by pattern: {expectedPattern}");
+                                }
+                            }
+                            else
+                            {
+                                Log($"No output files found in history for prompt {promptId} yet");
+                            }
                         }
 
+                        // Strategy 2: Fall back to scanning recent history with pattern matching
+                        if (!imageFiles.Any())
+                        {
+                            var outputFiles = await httpClient.GetOutputFilesAsync();
+                            Log($"Found {outputFiles.Count} potential output files in recent history");
+
+                            imageFiles = outputFiles.Where(f =>
+                                f.EndsWith(".png") &&
+                                (string.IsNullOrEmpty(expectedPattern) || f.Contains(expectedPattern)))
+                                .ToList();
+
+                            if (!string.IsNullOrEmpty(expectedPattern))
+                            {
+                                Log($"Looking for pattern: {expectedPattern}");
+                            }
+
+                            if (!imageFiles.Any())
+                            {
+                                Log($"No matching files found. Available files: {string.Join(", ", outputFiles.Take(5))}");
+                            }
+                        }
+
+                        // Download the image
                         if (imageFiles.Any())
                         {
                             var filename = imageFiles.Last();
@@ -135,19 +170,6 @@ namespace FlipPix.UI.Services
                             {
                                 images.Add(imageData);
                                 Log($"Successfully downloaded image ({imageData.Length} bytes)");
-                            }
-                        }
-                        else
-                        {
-                            Log($"No matching files found. Available files: {string.Join(", ", outputFiles.Take(5))}");
-                            if (!string.IsNullOrEmpty(promptId))
-                            {
-                                var fallbackImage = await httpClient.TryDownloadRecentOutputAsync(promptId);
-                                if (fallbackImage != null)
-                                {
-                                    images.Add(fallbackImage);
-                                    Log($"Successfully downloaded image via fallback method ({fallbackImage.Length} bytes)");
-                                }
                             }
                         }
                     }
