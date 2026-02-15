@@ -816,6 +816,7 @@ namespace FlipPix.UI.ViewModels
                     var outputPath = Path.Combine(outputDir, $"camera_{timestamp}.png");
 
                     await File.WriteAllBytesAsync(outputPath, outputImage);
+                    await LocalCopyService.CopyImageAsync(outputPath);
                     AddLog($"Output saved: {outputPath}");
 
                     ResultImagePath = outputPath;
@@ -1839,6 +1840,7 @@ namespace FlipPix.UI.ViewModels
                     var outputPath = Path.Combine(outputDir, $"camera_queue_{item.Id}_{timestamp}.png");
 
                     await File.WriteAllBytesAsync(outputPath, outputImage);
+                    await LocalCopyService.CopyImageAsync(outputPath);
                     item.ResultImagePath = outputPath;
 
                     // If this is the current item, also update the main result

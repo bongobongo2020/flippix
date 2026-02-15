@@ -268,6 +268,7 @@ namespace FlipPix.UI.ViewModels
             var outputPath = Path.Combine(outputDir, $"story_amateur_{item.Index:D2}_{timestamp}.png");
 
             await File.WriteAllBytesAsync(outputPath, outputImage);
+            await LocalCopyService.CopyImageAsync(outputPath);
             AddLog($"Story image #{item.Index} saved: {outputPath} ({outputImage.Length} bytes)");
             return outputPath;
         }

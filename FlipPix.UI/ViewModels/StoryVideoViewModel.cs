@@ -714,6 +714,7 @@ namespace FlipPix.UI.ViewModels
                         // Generate sequential filename: jsonfilename-1.mp4, jsonfilename-2.mp4, etc.
                         var destPath = Path.Combine(sessionOutputDir, $"{jsonFileName}-{i + 1}.mp4");
                         File.Copy(generatedVideos[i], destPath, true);
+                        await LocalCopyService.CopyVideoAsync(destPath);
                         copiedVideos.Add(destPath);
                         AddLog($"✓ Copied clip {i + 1} to: {destPath}");
                     }
@@ -1149,6 +1150,7 @@ namespace FlipPix.UI.ViewModels
                         var outputPath = Path.Combine(outputDir, $"story-video_{timestamp}.mp4");
 
                         File.Copy(latestFile, outputPath, true);
+                        await LocalCopyService.CopyVideoAsync(outputPath);
                         AddLog($"Video copied to: {outputPath}");
 
                         return outputPath;

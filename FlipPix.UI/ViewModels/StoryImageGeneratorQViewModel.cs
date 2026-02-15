@@ -334,6 +334,7 @@ namespace FlipPix.UI.ViewModels
             var outputPath = Path.Combine(baseOutputDir, $"{jsonFileName}-{item.Index}.png");
 
             await File.WriteAllBytesAsync(outputPath, outputImage);
+            await LocalCopyService.CopyImageAsync(outputPath);
             AddLog($"Story Q image #{item.Index} saved: {outputPath} ({outputImage.Length} bytes)");
             return outputPath;
         }

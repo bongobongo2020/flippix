@@ -1,227 +1,198 @@
-# Task: Skip Local Process Management for Remote ComfyUI Servers
+# Task: Auto-Copy Generated Images and Videos to Local User Folders
 
 ## 1. Context & Objective
 
-**Problem:** When `BaseUrl` points to a remote ComfyUI server (not localhost), the video generator fails to send jobs. The WebSocket test button passes because it creates a standalone connection. But the actual job flow goes through `ComfyUIService.ConnectAsync()` and `DetectAndRestartIfCrashedAsync()`, both of which call `ComfyUIProcessManager` — which:
+After generating images or videos, the app currently saves them to `{AppBaseDir}/output/{subfolder}/` or ComfyUI output folders. The user wants each generated file to **also** be automatically copied to a well-known local folder for easy access:
 
-1. Checks `/system_stats` and `/object_info` with a **5-second timeout** — may time out over network
-2. If `/object_info` times out, it thinks ComfyUI crashed and tries to **start it as a local process**
-3. Starting locally fails (no local install) → throws exception → job never submitted
+- **Images** → `C:\Users\x2\Pictures\flippix-images\`
+- **Videos** → `C:\Users\x2\Videos\flippix-vids\`
 
-**The flow that fails (video generator single mode):**
-- `VideoGeneratorMainViewModel.cs` line 1533: calls `DetectAndRestartIfCrashedAsync()` → tries local restart → returns false
-- Line 1536-1539: Returns early with "ERROR: ComfyUI is not running"
-- Even if that passed, line 1549: `ConnectAsync()` also goes through process management
+If these folders don't exist, they should be created automatically.
 
-**Fix:** Add remote server detection to `ComfyUIService`. For remote servers, skip all process management and only validate HTTP + WebSocket connectivity.
+## 2. Approach: Centralized Helper Service
 
-## 2. Files to Modify
+Create a single static helper class that all ViewModels call after saving a file. This avoids scattering duplicate copy logic across 15+ locations.
 
-### `FlipPix.ComfyUI/Services/ComfyUIService.cs`
+## 3. Files to Create
 
-This is the **only file** that needs changes.
+### `FlipPix.UI/Services/LocalCopyService.cs`
 
-## 3. Implementation Steps
-
-### Step 1: Add `IsRemoteServer()` helper method
-
-Add this private method to the `ComfyUIService` class (place it after the constructor, before `ConnectAsync`):
+Create a new static utility class:
 
 ```csharp
+using System;
+using System.IO;
+using System.Threading.Tasks;
+
+namespace FlipPix.UI.Services;
+
 /// <summary>
-/// Determines if the configured ComfyUI server is remote (not localhost).
-/// Remote servers skip local process management (start/restart/crash detection).
+/// Copies generated images and videos to well-known local user folders.
 /// </summary>
-private bool IsRemoteServer()
+public static class LocalCopyService
 {
-    try
+    private static readonly string ImageDestination = Path.Combine(
+        Environment.GetFolderPath(Environment.SpecialFolder.MyPictures), "flippix-images");
+
+    private static readonly string VideoDestination = Path.Combine(
+        Environment.GetFolderPath(Environment.SpecialFolder.MyVideos), "flippix-vids");
+
+    /// <summary>
+    /// Copies a generated image file to the local pictures folder.
+    /// </summary>
+    public static async Task CopyImageAsync(string sourcePath)
     {
-        var uri = new Uri(_settings.BaseUrl);
-        var host = uri.Host;
-
-        if (host.Equals("127.0.0.1", StringComparison.OrdinalIgnoreCase) ||
-            host.Equals("localhost", StringComparison.OrdinalIgnoreCase) ||
-            host.Equals("0.0.0.0", StringComparison.OrdinalIgnoreCase))
-        {
-            return false;
-        }
-
-        return true;
-    }
-    catch
-    {
-        return false; // Default to local behavior if URL parsing fails
-    }
-}
-```
-
-### Step 2: Modify `ConnectAsync()` (currently starts at line 43)
-
-Wrap the entire process manager block (lines 50-88) in `if (!IsRemoteServer())`, and add an else branch that just logs:
-
-**Replace the current method body** so it becomes:
-
-```csharp
-public async Task<bool> ConnectAsync(CancellationToken cancellationToken = default)
-{
-    try
-    {
-        _logger.LogInfo("Connecting to ComfyUI service");
-
-        if (IsRemoteServer())
-        {
-            _logger.LogInfo($"Remote ComfyUI server detected ({_settings.BaseUrl}), skipping local process management");
-        }
-        else
-        {
-            // Check if ComfyUI is running, and start it if not
-            var isRunning = await _processManager.IsComfyUIRunningAsync(cancellationToken);
-            if (!isRunning)
-            {
-                _logger.LogWarning("ComfyUI is not running. Attempting to start it automatically...");
-                var started = await _processManager.StartComfyUIAsync(
-                    status => _logger.LogInfo(status),
-                    cancellationToken);
-
-                if (!started)
-                {
-                    throw new ComfyUIConnectionException("Failed to start ComfyUI automatically. Please start ComfyUI manually.");
-                }
-
-                _logger.LogInfo("ComfyUI started successfully");
-            }
-            else
-            {
-                // Even if ComfyUI is "running", verify it's actually ready (not crashed/hung)
-                _logger.LogInfo("ComfyUI is running, verifying it's ready...");
-                var isReady = await _processManager.IsComfyUIReadyAsync(cancellationToken);
-
-                if (!isReady)
-                {
-                    _logger.LogWarning("ComfyUI is running but not ready - may have crashed. Attempting restart...");
-                    var started = await _processManager.StartComfyUIAsync(
-                        status => _logger.LogInfo(status),
-                        cancellationToken);
-
-                    if (!started)
-                    {
-                        throw new ComfyUIConnectionException("ComfyUI is running but not ready. Failed to restart. Please restart ComfyUI manually.");
-                    }
-
-                    _logger.LogInfo("ComfyUI restarted successfully");
-                }
-                else
-                {
-                    _logger.LogInfo("ComfyUI verified to be ready");
-                }
-            }
-        }
-
-        // Test HTTP connection first
-        var httpConnected = await RetryAsync(
-            () => _httpClient.TestConnectionAsync(cancellationToken),
-            _settings.MaxRetries,
-            TimeSpan.FromMilliseconds(_settings.RetryDelayMilliseconds),
-            cancellationToken);
-
-        if (!httpConnected)
-        {
-            throw new ComfyUIConnectionException("Failed to establish HTTP connection to ComfyUI");
-        }
-
-        // Connect WebSocket
-        await RetryAsync(
-            () => _webSocketClient.ConnectAsync(_clientId, cancellationToken),
-            _settings.MaxRetries,
-            TimeSpan.FromMilliseconds(_settings.RetryDelayMilliseconds),
-            cancellationToken);
-
-        _logger.LogInfo("ComfyUI service connected successfully");
-        return true;
-    }
-    catch (Exception ex)
-    {
-        _logger.LogError(ex, "Failed to connect to ComfyUI service");
-        throw;
-    }
-}
-```
-
-### Step 3: Modify `DetectAndRestartIfCrashedAsync()` (currently at line 145)
-
-Replace the current method with remote-aware version:
-
-```csharp
-public async Task<bool> DetectAndRestartIfCrashedAsync(Action<string>? statusCallback = null, CancellationToken cancellationToken = default)
-{
-    if (IsRemoteServer())
-    {
-        _logger.LogInfo("Remote server detected, checking HTTP connectivity only...");
-        statusCallback?.Invoke("Checking remote ComfyUI connectivity...");
         try
         {
-            var connected = await _httpClient.TestConnectionAsync(cancellationToken);
-            if (connected)
-            {
-                _logger.LogInfo("Remote ComfyUI is reachable");
-                statusCallback?.Invoke("Remote ComfyUI is reachable");
-                return true;
-            }
-            else
-            {
-                _logger.LogWarning("Cannot reach remote ComfyUI server");
-                statusCallback?.Invoke("Cannot reach remote ComfyUI server. Please check the server is running.");
-                return false;
-            }
+            Directory.CreateDirectory(ImageDestination);
+            var destPath = Path.Combine(ImageDestination, Path.GetFileName(sourcePath));
+            destPath = GetUniqueFilePath(destPath);
+            File.Copy(sourcePath, destPath, true);
         }
-        catch (Exception ex)
+        catch
         {
-            _logger.LogError(ex, "Failed to reach remote ComfyUI");
-            statusCallback?.Invoke($"Cannot reach remote ComfyUI: {ex.Message}");
-            return false;
+            // Silently fail — copying to local is a convenience, not critical
         }
     }
 
-    return await _processManager.DetectAndRestartComfyUIAsync(statusCallback, cancellationToken);
+    /// <summary>
+    /// Writes image bytes to the local pictures folder.
+    /// </summary>
+    public static async Task CopyImageAsync(byte[] imageData, string fileName)
+    {
+        try
+        {
+            Directory.CreateDirectory(ImageDestination);
+            var destPath = Path.Combine(ImageDestination, fileName);
+            destPath = GetUniqueFilePath(destPath);
+            await File.WriteAllBytesAsync(destPath, imageData);
+        }
+        catch
+        {
+            // Silently fail
+        }
+    }
+
+    /// <summary>
+    /// Copies a generated video file to the local videos folder.
+    /// </summary>
+    public static async Task CopyVideoAsync(string sourcePath)
+    {
+        try
+        {
+            Directory.CreateDirectory(VideoDestination);
+            var destPath = Path.Combine(VideoDestination, Path.GetFileName(sourcePath));
+            destPath = GetUniqueFilePath(destPath);
+            File.Copy(sourcePath, destPath, true);
+        }
+        catch
+        {
+            // Silently fail
+        }
+    }
+
+    /// <summary>
+    /// If a file already exists at the path, appends a numeric suffix to avoid overwriting.
+    /// </summary>
+    private static string GetUniqueFilePath(string path)
+    {
+        if (!File.Exists(path)) return path;
+
+        var dir = Path.GetDirectoryName(path)!;
+        var name = Path.GetFileNameWithoutExtension(path);
+        var ext = Path.GetExtension(path);
+        int counter = 1;
+
+        string candidate;
+        do
+        {
+            candidate = Path.Combine(dir, $"{name}_{counter}{ext}");
+            counter++;
+        } while (File.Exists(candidate));
+
+        return candidate;
+    }
 }
 ```
 
-## 4. Completion Instructions
+## 4. Files to Modify
+
+Add a call to `LocalCopyService` immediately after each image/video is saved. The pattern is simple — after the existing `File.WriteAllBytesAsync` or `File.Copy`, add one line.
+
+### Image Save Points — Add `await LocalCopyService.CopyImageAsync(outputPath);`
+
+Add `using FlipPix.UI.Services;` to each file if not already present, then add the copy call right after the existing save line:
+
+| File | After Line | Existing Code | Add After |
+|------|-----------|---------------|-----------|
+| `ViewModels/ImageGeneratorViewModel.cs` | ~703 | `await File.WriteAllBytesAsync(outputPath, outputImage);` | `await LocalCopyService.CopyImageAsync(outputPath);` |
+| `ViewModels/ImageGeneratorViewModel.cs` | ~2838 | `await File.WriteAllBytesAsync(outputPath, outputImage);` | `await LocalCopyService.CopyImageAsync(outputPath);` |
+| `ViewModels/StoryImageGeneratorViewModel.cs` | ~574 | `await File.WriteAllBytesAsync(outputPath, outputImage);` | `await LocalCopyService.CopyImageAsync(outputPath);` |
+| `ViewModels/StoryImageGeneratorFViewModel.cs` | ~372 | `await File.WriteAllBytesAsync(outputPath, outputImage);` | `await LocalCopyService.CopyImageAsync(outputPath);` |
+| `ViewModels/StoryImageGeneratorQViewModel.cs` | ~336 | `await File.WriteAllBytesAsync(outputPath, outputImage);` | `await LocalCopyService.CopyImageAsync(outputPath);` |
+| `ViewModels/StoryImageGeneratorAmateurViewModel.cs` | ~270 | `await File.WriteAllBytesAsync(outputPath, outputImage);` | `await LocalCopyService.CopyImageAsync(outputPath);` |
+| `ViewModels/AmateurGeneratorViewModel.cs` | ~553 | `await File.WriteAllBytesAsync(outputPath, outputImage);` | `await LocalCopyService.CopyImageAsync(outputPath);` |
+| `ViewModels/CameraAngleViewModel.cs` | ~337 | `await File.WriteAllBytesAsync(outputPath, outputImage);` | `await LocalCopyService.CopyImageAsync(outputPath);` |
+| `ViewModels/FlipPixViewModel.cs` | ~818 | `await File.WriteAllBytesAsync(outputPath, outputImage);` | `await LocalCopyService.CopyImageAsync(outputPath);` |
+| `ViewModels/FlipPixViewModel.cs` | ~1841 | `await File.WriteAllBytesAsync(outputPath, outputImage);` | `await LocalCopyService.CopyImageAsync(outputPath);` |
+| `ViewModels/ImageAnalyzerViewModel.cs` | ~1929 | `await File.WriteAllBytesAsync(outputPath, outputImage);` | `await LocalCopyService.CopyImageAsync(outputPath);` |
+
+### Video Save Points — Add `await LocalCopyService.CopyVideoAsync(...)`
+
+| File | After Line | Context | Add After |
+|------|-----------|---------|-----------|
+| `ViewModels/Video/LTX2AudioViewModel.cs` | ~590 | After `ResultVideoPath = finalOutputPath;` | `await LocalCopyService.CopyVideoAsync(finalOutputPath);` |
+| `ViewModels/Video/MochaVideoViewModel.cs` | ~496 | After `ResultVideoPath = finalOutputPath;` | `await LocalCopyService.CopyVideoAsync(finalOutputPath);` |
+| `ViewModels/Video/VACEVideoViewModel.cs` | ~515 | After `ResultVideoPath = outputVideo;` | `await LocalCopyService.CopyVideoAsync(outputVideo);` |
+| `ViewModels/Video/VideoProcessingBaseViewModel.cs` | ~352 | After `File.Copy(latestVideo, outputPath, true);` | `await LocalCopyService.CopyVideoAsync(outputPath);` |
+| `ViewModels/StoryVideoViewModel.cs` | ~716 | After `File.Copy(generatedVideos[i], destPath, true);` | `await LocalCopyService.CopyVideoAsync(destPath);` |
+| `ViewModels/StoryVideoViewModel.cs` | ~1151 | After `File.Copy(latestFile, outputPath, true);` | `await LocalCopyService.CopyVideoAsync(outputPath);` |
+
+### Important Notes for Implementation
+
+1. **Do NOT modify `.bak` files** — skip `VideoGeneratorViewModel.cs.bak`.
+2. The `using FlipPix.UI.Services;` may already exist in some files. Only add it if missing.
+3. The copy calls should be fire-and-forget safe — the `try/catch` in `LocalCopyService` ensures failures don't break the main flow.
+4. Use `Environment.SpecialFolder.MyPictures` and `Environment.SpecialFolder.MyVideos` to resolve paths dynamically (works for any Windows user, not just `x2`).
+
+## 5. Completion Instructions
 Update this file with a "Changelog" section detailing your changes for my review.
 
 ---
 
 ## Changelog
 
-### Changes Made
+### Files Created
+- `FlipPix.UI/Services/LocalCopyService.cs` - New static utility class that copies generated images and videos to well-known local user folders (Pictures/flippix-images and Videos/flippix-vids). Includes automatic folder creation and unique filename handling.
 
-**File: `FlipPix.ComfyUI/Services/ComfyUIService.cs`**
+### Image Generator ViewModels Modified (11 locations)
+All files already had `using FlipPix.UI.Services;` - added `await LocalCopyService.CopyImageAsync(outputPath);` after each save:
 
-#### Step 1: Added `IsRemoteServer()` helper method (lines 44-67)
-- Determines if the configured ComfyUI server is remote (not localhost)
-- Checks host against `127.0.0.1`, `localhost`, and `0.0.0.0`
-- Returns `false` (local behavior) on URL parsing failures
+| File | Line(s) | Context |
+|------|---------|---------|
+| `ImageGeneratorViewModel.cs` | 703, 2838 | Regular and queue-based image generation |
+| `StoryImageGeneratorViewModel.cs` | 574 | Story image generation |
+| `StoryImageGeneratorFViewModel.cs` | 372 | Story F image generation |
+| `StoryImageGeneratorQViewModel.cs` | 336 | Story Q image generation |
+| `StoryImageGeneratorAmateurViewModel.cs` | 270 | Story amateur image generation |
+| `AmateurGeneratorViewModel.cs` | 553 | Amateur image generation |
+| `CameraAngleViewModel.cs` | 337 (inside loop) | Camera angle batch generation |
+| `FlipPixViewModel.cs` | 818, 1841 | Camera control and queue processing |
+| `ImageAnalyzerViewModel.cs` | 1929 | Image analyzer queue processing |
 
-#### Step 2: Modified `ConnectAsync()` method (lines 69-148)
-- Added `if (IsRemoteServer())` check before process management logic
-- For remote servers: logs skip message and bypasses all `ComfyUIProcessManager` calls
-- For local servers: retains original process management behavior
-- HTTP and WebSocket connectivity testing remains unchanged for both cases
+### Video Generator ViewModels Modified (6 locations)
+All files already had `using FlipPix.UI.Services;` - added `await LocalCopyService.CopyVideoAsync(...)` after each save:
 
-#### Step 3: Modified `DetectAndRestartIfCrashedAsync()` method (lines 178-223)
-- Added remote server check at method entry
-- For remote servers: only validates HTTP connectivity via `_httpClient.TestConnectionAsync()`
-  - Returns `true` if reachable
-  - Returns `false` with appropriate status callback messages if unreachable
-- For local servers: delegates to `_processManager.DetectAndRestartComfyUIAsync()` as before
+| File | Line(s) | Context |
+|------|---------|---------|
+| `LTX2AudioViewModel.cs` | 590 | After setting ResultVideoPath |
+| `MochaVideoViewModel.cs` | 496 | After setting ResultVideoPath |
+| `VACEVideoViewModel.cs` | 515 | After setting ResultVideoPath |
+| `VideoProcessingBaseViewModel.cs` | 352 | After File.Copy of latest video |
+| `StoryVideoViewModel.cs` | 716 (inside loop) | Batch video copying |
+| `StoryVideoViewModel.cs` | 1151 | Single video copy from LTX-2 output |
 
-### Behavior Changes
-- Remote ComfyUI servers now skip local process start/restart/crash detection
-- Remote servers only require HTTP/WebSocket connectivity to function
-- Local servers retain full process management capabilities
-
----
-
-## Status: COMPLETED
-
-**Build Status:** Succeeded (pre-existing warnings unrelated to this change)
+### Notes
+- All modified files already had the required `using FlipPix.UI.Services;` statement
+- No `.bak` files were modified
+- Copy operations are wrapped in try/catch in LocalCopyService to prevent any failures from affecting main application flow
