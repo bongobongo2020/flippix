@@ -486,39 +486,51 @@ namespace FlipPix.UI.ViewModels
                     {
                         AddLog("Detected remote ComfyUI server, downloading generated images...");
 
-                        // Get the subfolder name based on input image filename
-                        var inputImageFileName = Path.GetFileNameWithoutExtension(InputImagePath);
-                        var subfolderName = string.Join("_", inputImageFileName.Split(Path.GetInvalidFileNameChars()));
+                        List<string> imageFiles = new();
 
-                        var outputFiles = await _comfyUIService.HttpClient.GetOutputFilesAsync();
-                        AddLog($"Found {outputFiles.Count} potential output files");
+                        // Strategy 1: Use prompt-specific history lookup (most reliable)
+                        var promptOutputFiles = await _comfyUIService.HttpClient.GetOutputFilesForPromptAsync(promptId);
+                        imageFiles = promptOutputFiles.Where(f => f.EndsWith(".png")).ToList();
 
-                        // Look for camera-angle files in the subfolder
-                        var cameraAngleFiles = outputFiles
-                            .Where(f => f.Contains("camera-angles") && f.EndsWith(".png"))
-                            .ToList();
-
-                        // Also try to find files that include the subfolder name
-                        var subfolderFiles = outputFiles
-                            .Where(f => f.Contains(subfolderName) && f.EndsWith(".png"))
-                            .ToList();
-
-                        if (subfolderFiles.Any())
+                        if (imageFiles.Any())
                         {
-                            AddLog($"Found {subfolderFiles.Count} files in subfolder '{subfolderName}'");
-                            foreach (var filename in subfolderFiles)
+                            AddLog($"Found {imageFiles.Count} output file(s) for prompt {promptId}");
+                        }
+                        else
+                        {
+                            // Strategy 2: Fall back to scanning recent history with pattern matching
+                            AddLog($"No output files in history for prompt {promptId} yet, trying pattern match...");
+
+                            var outputFiles = await _comfyUIService.HttpClient.GetOutputFilesAsync();
+                            AddLog($"Found {outputFiles.Count} potential output files in recent history");
+
+                            // Match both "camera-angles" and "character-angles" naming conventions
+                            imageFiles = outputFiles
+                                .Where(f => f.EndsWith(".png") && (f.Contains("camera-angles") || f.Contains("character-angles")))
+                                .ToList();
+
+                            if (!imageFiles.Any())
                             {
-                                AddLog($"Downloading: {filename}");
-                                var imageData = await _comfyUIService.HttpClient.DownloadOutputImageAsync(filename);
-                                if (imageData != null)
-                                {
-                                    images.Add(imageData);
-                                }
+                                // Also try subfolder name match
+                                var inputImageFileName = Path.GetFileNameWithoutExtension(InputImagePath);
+                                var subfolderName = string.Join("_", inputImageFileName.Split(Path.GetInvalidFileNameChars()));
+
+                                imageFiles = outputFiles
+                                    .Where(f => f.EndsWith(".png") && f.Contains(subfolderName))
+                                    .ToList();
+                            }
+
+                            if (!imageFiles.Any())
+                            {
+                                AddLog($"No matching files found. Available files: {string.Join(", ", outputFiles.Take(10))}");
                             }
                         }
-                        else if (cameraAngleFiles.Any())
+
+                        // Download ALL matching images
+                        if (imageFiles.Any())
                         {
-                            foreach (var filename in cameraAngleFiles)
+                            AddLog($"Downloading {imageFiles.Count} image(s)...");
+                            foreach (var filename in imageFiles)
                             {
                                 AddLog($"Downloading: {filename}");
                                 var imageData = await _comfyUIService.HttpClient.DownloadOutputImageAsync(filename);
@@ -527,6 +539,7 @@ namespace FlipPix.UI.ViewModels
                                     images.Add(imageData);
                                 }
                             }
+                            AddLog($"Successfully downloaded {images.Count}/{imageFiles.Count} images");
                         }
                         else
                         {
