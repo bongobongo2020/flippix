@@ -1150,7 +1150,7 @@ namespace FlipPix.UI.ViewModels
                         var outputPath = Path.Combine(outputDir, $"story-video_{timestamp}.mp4");
 
                         File.Copy(latestFile, outputPath, true);
-                        await LocalCopyService.CopyVideoAsync(outputPath);
+                        _ = LocalCopyService.CopyVideoAsync(outputPath);
                         AddLog($"Video copied to: {outputPath}");
 
                         return outputPath;

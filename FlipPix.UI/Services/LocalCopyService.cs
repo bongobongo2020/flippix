@@ -25,7 +25,7 @@ public static class LocalCopyService
             Directory.CreateDirectory(ImageDestination);
             var destPath = Path.Combine(ImageDestination, Path.GetFileName(sourcePath));
             destPath = GetUniqueFilePath(destPath);
-            File.Copy(sourcePath, destPath, true);
+            await Task.Run(() => File.Copy(sourcePath, destPath, true));
         }
         catch
         {
@@ -61,7 +61,7 @@ public static class LocalCopyService
             Directory.CreateDirectory(VideoDestination);
             var destPath = Path.Combine(VideoDestination, Path.GetFileName(sourcePath));
             destPath = GetUniqueFilePath(destPath);
-            File.Copy(sourcePath, destPath, true);
+            await Task.Run(() => File.Copy(sourcePath, destPath, true));
         }
         catch
         {

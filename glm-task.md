@@ -1,198 +1,187 @@
-# Task: Auto-Copy Generated Images and Videos to Local User Folders
+# Task: Fix Remote Image Retrieval — Use Prompt-Specific History Lookup
 
 ## 1. Context & Objective
 
-After generating images or videos, the app currently saves them to `{AppBaseDir}/output/{subfolder}/` or ComfyUI output folders. The user wants each generated file to **also** be automatically copied to a well-known local folder for easy access:
+**Bug:** When generating batches of story images on a remote ComfyUI server, only some images are retrieved. The rest fail with "No matching files found" even though ComfyUI generated them all successfully.
 
-- **Images** → `C:\Users\x2\Pictures\flippix-images\`
-- **Videos** → `C:\Users\x2\Videos\flippix-vids\`
+**Root Cause:** Both `ComfyUIImageRetriever.GetOutputImagesAsync()` and `StoryImageGeneratorFViewModel.GetOutputImagesFromComfyUI()` use `GetOutputFilesAsync()` for remote retrieval, which scans only the **last 5** history entries (sorted by key). In a batch of 10+ prompts, earlier prompts' entries get pushed out of that window, or unrelated workflow entries (e.g. camera-angles) sort higher, causing pattern matches to fail.
 
-If these folders don't exist, they should be created automatically.
+**Fix:** A method `GetOutputFilesForPromptAsync(promptId)` already exists in `ComfyUIHttpClient.cs` (line 651) — it queries `/history` and looks up the **specific prompt ID** to extract exact output filenames. Both callers should use this method first, falling back to the generic scan only if needed.
 
-## 2. Approach: Centralized Helper Service
+## 2. Files to Modify
 
-Create a single static helper class that all ViewModels call after saving a file. This avoids scattering duplicate copy logic across 15+ locations.
+### `FlipPix.UI/Services/ComfyUIImageRetriever.cs` — Remote branch (lines ~111-152)
 
-## 3. Files to Create
+Replace the remote retrieval logic inside the `while` loop. **When `promptId` is available**, try `GetOutputFilesForPromptAsync(promptId)` first. Only fall back to the generic `GetOutputFilesAsync()` + pattern matching if `promptId` is null/empty.
 
-### `FlipPix.UI/Services/LocalCopyService.cs`
-
-Create a new static utility class:
+**Replace lines ~111-152** (the `if (isRemoteComfyUI)` block) with:
 
 ```csharp
-using System;
-using System.IO;
-using System.Threading.Tasks;
-
-namespace FlipPix.UI.Services;
-
-/// <summary>
-/// Copies generated images and videos to well-known local user folders.
-/// </summary>
-public static class LocalCopyService
+if (isRemoteComfyUI)
 {
-    private static readonly string ImageDestination = Path.Combine(
-        Environment.GetFolderPath(Environment.SpecialFolder.MyPictures), "flippix-images");
+    Log("Detected remote ComfyUI server, downloading generated image...");
 
-    private static readonly string VideoDestination = Path.Combine(
-        Environment.GetFolderPath(Environment.SpecialFolder.MyVideos), "flippix-vids");
+    List<string> imageFiles = new();
 
-    /// <summary>
-    /// Copies a generated image file to the local pictures folder.
-    /// </summary>
-    public static async Task CopyImageAsync(string sourcePath)
+    // Strategy 1: Use prompt-specific history lookup (most reliable)
+    if (!string.IsNullOrEmpty(promptId))
     {
-        try
+        var promptOutputFiles = await httpClient.GetOutputFilesForPromptAsync(promptId, ct);
+        imageFiles = promptOutputFiles.Where(f => f.EndsWith(".png")).ToList();
+
+        if (imageFiles.Any())
         {
-            Directory.CreateDirectory(ImageDestination);
-            var destPath = Path.Combine(ImageDestination, Path.GetFileName(sourcePath));
-            destPath = GetUniqueFilePath(destPath);
-            File.Copy(sourcePath, destPath, true);
+            Log($"Found {imageFiles.Count} output file(s) for prompt {promptId}");
         }
-        catch
+        else
         {
-            // Silently fail — copying to local is a convenience, not critical
+            Log($"No output files found in history for prompt {promptId} yet");
         }
     }
 
-    /// <summary>
-    /// Writes image bytes to the local pictures folder.
-    /// </summary>
-    public static async Task CopyImageAsync(byte[] imageData, string fileName)
+    // Strategy 2: Fall back to scanning recent history with pattern matching
+    if (!imageFiles.Any())
     {
-        try
+        var outputFiles = await httpClient.GetOutputFilesAsync();
+        Log($"Found {outputFiles.Count} potential output files in recent history");
+
+        imageFiles = outputFiles.Where(f =>
+            f.EndsWith(".png") &&
+            (string.IsNullOrEmpty(expectedPattern) || f.Contains(expectedPattern)))
+            .ToList();
+
+        if (!string.IsNullOrEmpty(expectedPattern))
         {
-            Directory.CreateDirectory(ImageDestination);
-            var destPath = Path.Combine(ImageDestination, fileName);
-            destPath = GetUniqueFilePath(destPath);
-            await File.WriteAllBytesAsync(destPath, imageData);
+            Log($"Looking for pattern: {expectedPattern}");
         }
-        catch
+
+        if (!imageFiles.Any())
         {
-            // Silently fail
+            Log($"No matching files found. Available files: {string.Join(", ", outputFiles.Take(5))}");
         }
     }
 
-    /// <summary>
-    /// Copies a generated video file to the local videos folder.
-    /// </summary>
-    public static async Task CopyVideoAsync(string sourcePath)
+    // Download the image
+    if (imageFiles.Any())
     {
-        try
+        var filename = imageFiles.Last();
+        Log($"Downloading generated image: {filename}");
+
+        var imageData = await httpClient.DownloadOutputImageAsync(filename);
+        if (imageData != null)
         {
-            Directory.CreateDirectory(VideoDestination);
-            var destPath = Path.Combine(VideoDestination, Path.GetFileName(sourcePath));
-            destPath = GetUniqueFilePath(destPath);
-            File.Copy(sourcePath, destPath, true);
+            images.Add(imageData);
+            Log($"Successfully downloaded image ({imageData.Length} bytes)");
         }
-        catch
-        {
-            // Silently fail
-        }
-    }
-
-    /// <summary>
-    /// If a file already exists at the path, appends a numeric suffix to avoid overwriting.
-    /// </summary>
-    private static string GetUniqueFilePath(string path)
-    {
-        if (!File.Exists(path)) return path;
-
-        var dir = Path.GetDirectoryName(path)!;
-        var name = Path.GetFileNameWithoutExtension(path);
-        var ext = Path.GetExtension(path);
-        int counter = 1;
-
-        string candidate;
-        do
-        {
-            candidate = Path.Combine(dir, $"{name}_{counter}{ext}");
-            counter++;
-        } while (File.Exists(candidate));
-
-        return candidate;
     }
 }
 ```
 
-## 4. Files to Modify
+### `FlipPix.UI/ViewModels/StoryImageGeneratorFViewModel.cs` — Remote branch (lines ~470-509)
 
-Add a call to `LocalCopyService` immediately after each image/video is saved. The pattern is simple — after the existing `File.WriteAllBytesAsync` or `File.Copy`, add one line.
+Same fix. Replace the `if (isRemoteComfyUI)` block with prompt-specific lookup first:
 
-### Image Save Points — Add `await LocalCopyService.CopyImageAsync(outputPath);`
+**Replace lines ~470-509** with:
 
-Add `using FlipPix.UI.Services;` to each file if not already present, then add the copy call right after the existing save line:
+```csharp
+if (isRemoteComfyUI)
+{
+    AddLog("Detected remote ComfyUI server, downloading generated image...");
 
-| File | After Line | Existing Code | Add After |
-|------|-----------|---------------|-----------|
-| `ViewModels/ImageGeneratorViewModel.cs` | ~703 | `await File.WriteAllBytesAsync(outputPath, outputImage);` | `await LocalCopyService.CopyImageAsync(outputPath);` |
-| `ViewModels/ImageGeneratorViewModel.cs` | ~2838 | `await File.WriteAllBytesAsync(outputPath, outputImage);` | `await LocalCopyService.CopyImageAsync(outputPath);` |
-| `ViewModels/StoryImageGeneratorViewModel.cs` | ~574 | `await File.WriteAllBytesAsync(outputPath, outputImage);` | `await LocalCopyService.CopyImageAsync(outputPath);` |
-| `ViewModels/StoryImageGeneratorFViewModel.cs` | ~372 | `await File.WriteAllBytesAsync(outputPath, outputImage);` | `await LocalCopyService.CopyImageAsync(outputPath);` |
-| `ViewModels/StoryImageGeneratorQViewModel.cs` | ~336 | `await File.WriteAllBytesAsync(outputPath, outputImage);` | `await LocalCopyService.CopyImageAsync(outputPath);` |
-| `ViewModels/StoryImageGeneratorAmateurViewModel.cs` | ~270 | `await File.WriteAllBytesAsync(outputPath, outputImage);` | `await LocalCopyService.CopyImageAsync(outputPath);` |
-| `ViewModels/AmateurGeneratorViewModel.cs` | ~553 | `await File.WriteAllBytesAsync(outputPath, outputImage);` | `await LocalCopyService.CopyImageAsync(outputPath);` |
-| `ViewModels/CameraAngleViewModel.cs` | ~337 | `await File.WriteAllBytesAsync(outputPath, outputImage);` | `await LocalCopyService.CopyImageAsync(outputPath);` |
-| `ViewModels/FlipPixViewModel.cs` | ~818 | `await File.WriteAllBytesAsync(outputPath, outputImage);` | `await LocalCopyService.CopyImageAsync(outputPath);` |
-| `ViewModels/FlipPixViewModel.cs` | ~1841 | `await File.WriteAllBytesAsync(outputPath, outputImage);` | `await LocalCopyService.CopyImageAsync(outputPath);` |
-| `ViewModels/ImageAnalyzerViewModel.cs` | ~1929 | `await File.WriteAllBytesAsync(outputPath, outputImage);` | `await LocalCopyService.CopyImageAsync(outputPath);` |
+    List<string> imageFiles = new();
 
-### Video Save Points — Add `await LocalCopyService.CopyVideoAsync(...)`
+    // Strategy 1: Use prompt-specific history lookup (most reliable)
+    var promptOutputFiles = await _comfyUIService.HttpClient.GetOutputFilesForPromptAsync(promptId);
+    imageFiles = promptOutputFiles.Where(f => f.EndsWith(".png")).ToList();
 
-| File | After Line | Context | Add After |
-|------|-----------|---------|-----------|
-| `ViewModels/Video/LTX2AudioViewModel.cs` | ~590 | After `ResultVideoPath = finalOutputPath;` | `await LocalCopyService.CopyVideoAsync(finalOutputPath);` |
-| `ViewModels/Video/MochaVideoViewModel.cs` | ~496 | After `ResultVideoPath = finalOutputPath;` | `await LocalCopyService.CopyVideoAsync(finalOutputPath);` |
-| `ViewModels/Video/VACEVideoViewModel.cs` | ~515 | After `ResultVideoPath = outputVideo;` | `await LocalCopyService.CopyVideoAsync(outputVideo);` |
-| `ViewModels/Video/VideoProcessingBaseViewModel.cs` | ~352 | After `File.Copy(latestVideo, outputPath, true);` | `await LocalCopyService.CopyVideoAsync(outputPath);` |
-| `ViewModels/StoryVideoViewModel.cs` | ~716 | After `File.Copy(generatedVideos[i], destPath, true);` | `await LocalCopyService.CopyVideoAsync(destPath);` |
-| `ViewModels/StoryVideoViewModel.cs` | ~1151 | After `File.Copy(latestFile, outputPath, true);` | `await LocalCopyService.CopyVideoAsync(outputPath);` |
+    if (imageFiles.Any())
+    {
+        AddLog($"Found {imageFiles.Count} output file(s) for prompt {promptId}");
+    }
+    else
+    {
+        // Strategy 2: Fall back to scanning recent history with pattern matching
+        AddLog($"No output files in history for prompt {promptId} yet, trying pattern match...");
 
-### Important Notes for Implementation
+        var outputFiles = await _comfyUIService.HttpClient.GetOutputFilesAsync();
+        AddLog($"Found {outputFiles.Count} potential output files in recent history");
 
-1. **Do NOT modify `.bak` files** — skip `VideoGeneratorViewModel.cs.bak`.
-2. The `using FlipPix.UI.Services;` may already exist in some files. Only add it if missing.
-3. The copy calls should be fire-and-forget safe — the `try/catch` in `LocalCopyService` ensures failures don't break the main flow.
-4. Use `Environment.SpecialFolder.MyPictures` and `Environment.SpecialFolder.MyVideos` to resolve paths dynamically (works for any Windows user, not just `x2`).
+        var expectedPattern = $"{jsonFileName}-{imageIndex}_";
+        imageFiles = outputFiles.Where(f =>
+            f.EndsWith(".png") &&
+            (f.Contains(expectedPattern) || f.Contains($"{jsonFileName}/{expectedPattern}")))
+            .ToList();
 
-## 5. Completion Instructions
+        AddLog($"Looking for pattern: {expectedPattern} (with or without subfolder prefix)");
+
+        if (!imageFiles.Any())
+        {
+            AddLog($"No matching files found. Available files: {string.Join(", ", outputFiles.Take(5))}");
+        }
+    }
+
+    // Download the image
+    if (imageFiles.Any())
+    {
+        var filename = imageFiles.Last();
+        AddLog($"Downloading generated image: {filename}");
+
+        var imageData = await _comfyUIService.HttpClient.DownloadOutputImageAsync(filename);
+        if (imageData != null)
+        {
+            images.Add(imageData);
+            AddLog($"Successfully downloaded image ({imageData.Length} bytes)");
+        }
+    }
+}
+```
+
+### Important Notes
+
+1. The `GetOutputFilesForPromptAsync` method already exists in `ComfyUIHttpClient.cs` (line 651) — do NOT create it, just call it.
+2. The prompt's history entry may not appear immediately after execution completes (ComfyUI writes it asynchronously). The existing retry loop (20 retries × 5 seconds) handles this — on each retry, it will re-query the history.
+3. Keep the pattern-matching fallback as Strategy 2 — it helps when `promptId` is null or the history entry is delayed.
+4. Do NOT remove the `TryDownloadRecentOutputAsync` fallback from `ComfyUIImageRetriever` — remove only from the `StoryImageGeneratorFViewModel` since we now have the better prompt-specific lookup.
+
+## 3. Completion Instructions
 Update this file with a "Changelog" section detailing your changes for my review.
 
 ---
 
 ## Changelog
 
-### Files Created
-- `FlipPix.UI/Services/LocalCopyService.cs` - New static utility class that copies generated images and videos to well-known local user folders (Pictures/flippix-images and Videos/flippix-vids). Includes automatic folder creation and unique filename handling.
+### Changes Implemented
 
-### Image Generator ViewModels Modified (11 locations)
-All files already had `using FlipPix.UI.Services;` - added `await LocalCopyService.CopyImageAsync(outputPath);` after each save:
+#### 1. `FlipPix.UI/Services/ComfyUIImageRetriever.cs` (lines 111-152)
+- **Modified**: Remote ComfyUI image retrieval logic in the retry loop
+- **Change**: Now uses `GetOutputFilesForPromptAsync(promptId)` first (Strategy 1) for prompt-specific history lookup
+- **Fallback**: If prompt-specific lookup returns no results, falls back to generic `GetOutputFilesAsync()` with pattern matching (Strategy 2)
+- **Note**: Kept the existing retry loop mechanism — each retry will re-query the history for the prompt ID
 
-| File | Line(s) | Context |
-|------|---------|---------|
-| `ImageGeneratorViewModel.cs` | 703, 2838 | Regular and queue-based image generation |
-| `StoryImageGeneratorViewModel.cs` | 574 | Story image generation |
-| `StoryImageGeneratorFViewModel.cs` | 372 | Story F image generation |
-| `StoryImageGeneratorQViewModel.cs` | 336 | Story Q image generation |
-| `StoryImageGeneratorAmateurViewModel.cs` | 270 | Story amateur image generation |
-| `AmateurGeneratorViewModel.cs` | 553 | Amateur image generation |
-| `CameraAngleViewModel.cs` | 337 (inside loop) | Camera angle batch generation |
-| `FlipPixViewModel.cs` | 818, 1841 | Camera control and queue processing |
-| `ImageAnalyzerViewModel.cs` | 1929 | Image analyzer queue processing |
+#### 2. `FlipPix.UI/ViewModels/StoryImageGeneratorFViewModel.cs` (lines 470-509)
+- **Modified**: Remote ComfyUI image retrieval logic in `GetOutputImagesFromComfyUI()`
+- **Change**: Now uses `GetOutputFilesForPromptAsync(promptId)` first (Strategy 1) for prompt-specific history lookup
+- **Fallback**: If prompt-specific lookup returns no results, falls back to generic `GetOutputFilesAsync()` with pattern matching (Strategy 2)
+- **Removed**: The `TryDownloadRecentOutputAsync()` fallback is no longer needed since we now have the more reliable prompt-specific lookup
 
-### Video Generator ViewModels Modified (6 locations)
-All files already had `using FlipPix.UI.Services;` - added `await LocalCopyService.CopyVideoAsync(...)` after each save:
+### Expected Behavior
+- Batch generation of 10+ prompts should now reliably retrieve all images
+- Earlier prompts' history entries will be found via prompt ID lookup, not pushed out of the "last 5" window
+- The existing retry mechanism (20 retries × 5 seconds) continues to handle asynchronous history entry writing by ComfyUI
 
-| File | Line(s) | Context |
-|------|---------|---------|
-| `LTX2AudioViewModel.cs` | 590 | After setting ResultVideoPath |
-| `MochaVideoViewModel.cs` | 496 | After setting ResultVideoPath |
-| `VACEVideoViewModel.cs` | 515 | After setting ResultVideoPath |
-| `VideoProcessingBaseViewModel.cs` | 352 | After File.Copy of latest video |
-| `StoryVideoViewModel.cs` | 716 (inside loop) | Batch video copying |
-| `StoryVideoViewModel.cs` | 1151 | Single video copy from LTX-2 output |
+---
 
-### Notes
-- All modified files already had the required `using FlipPix.UI.Services;` statement
-- No `.bak` files were modified
-- Copy operations are wrapped in try/catch in LocalCopyService to prevent any failures from affecting main application flow
+### Additional Fix (Hotfix)
+
+**Problem**: The prompt-specific lookup was returning all PNG files from that prompt (including temp files, previews), and `.Last()` was selecting the wrong file (e.g., `ComfyUI_temp_ecnpk_00013_.png` instead of `1770791534553914-kleinvl-1_00001_.png`).
+
+**Solution**: Filter the prompt-specific results by the expected pattern as well.
+
+#### Updated `ComfyUIImageRetriever.cs` (line 117-131)
+- Added pattern filtering to Strategy 1: `f.EndsWith(".png") && (string.IsNullOrEmpty(expectedPattern) || f.Contains(expectedPattern))`
+- Added logging to show the pattern being filtered
+
+#### Updated `StoryImageGeneratorFViewModel.cs` (line 476-496)
+- Moved `expectedPattern` declaration before Strategy 1
+- Added pattern filtering to Strategy 1: `f.Contains(expectedPattern) || f.Contains($"{jsonFileName}/{expectedPattern}")`
+- Enhanced logging to show the matching pattern
