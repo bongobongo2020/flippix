@@ -413,7 +413,17 @@ namespace FlipPix.UI.ViewModels
 
             try
             {
-                var baseUrl = _settingsService.Settings?.BaseUrl ?? "http://127.0.0.1:8188";
+                var baseUrl = _settingsService.Settings?.BaseUrl;
+                if (string.IsNullOrEmpty(baseUrl))
+                {
+                    _logger.LogWarning("Settings BaseUrl is null or empty, reloading settings");
+                    baseUrl = _settingsService.LoadSettings().BaseUrl;
+                    if (string.IsNullOrEmpty(baseUrl))
+                    {
+                        _logger.LogWarning("Failed to load BaseUrl from settings, using default");
+                        baseUrl = "http://127.0.0.1:8188";
+                    }
+                }
                 var uri = new Uri(baseUrl);
                 var actualServer = uri.Host;
 

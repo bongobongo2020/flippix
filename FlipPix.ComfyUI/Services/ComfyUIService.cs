@@ -227,6 +227,13 @@ public class ComfyUIService : IDisposable
         {
             _logger.LogInfo("Queueing prompt to ComfyUI");
 
+            // Ensure WebSocket is connected before submitting workflow
+            if (!_webSocketClient.IsConnected)
+            {
+                _logger.LogWarning("WebSocket not connected, attempting reconnection before queueing prompt");
+                await _webSocketClient.EnsureConnectedAsync(cancellationToken);
+            }
+
             var promptId = await RetryAsync(
                 () => _httpClient.SubmitPromptAsync(workflow, _clientId, cancellationToken),
                 _settings.MaxRetries,
@@ -290,13 +297,20 @@ public class ComfyUIService : IDisposable
     }
 
     public async Task<string> ExecuteWorkflowAsync(
-        object workflow, 
+        object workflow,
         IProgress<ProgressMessage>? progress = null,
         CancellationToken cancellationToken = default)
     {
         try
         {
             _logger.LogInfo("Executing workflow");
+
+            // Ensure WebSocket is connected before executing workflow
+            if (!_webSocketClient.IsConnected)
+            {
+                _logger.LogWarning("WebSocket not connected, attempting reconnection before workflow execution");
+                await _webSocketClient.EnsureConnectedAsync(cancellationToken);
+            }
 
             // Submit workflow
             var promptId = await RetryAsync(

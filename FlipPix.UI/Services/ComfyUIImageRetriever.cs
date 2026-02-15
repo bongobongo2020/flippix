@@ -53,7 +53,17 @@ namespace FlipPix.UI.Services
 
             try
             {
-                var baseUrl = settingsService.Settings?.BaseUrl ?? "http://127.0.0.1:8188";
+                var baseUrl = settingsService.Settings?.BaseUrl;
+                if (string.IsNullOrEmpty(baseUrl))
+                {
+                    logger.LogWarning("Settings BaseUrl is null or empty, reloading settings");
+                    baseUrl = settingsService.LoadSettings().BaseUrl;
+                    if (string.IsNullOrEmpty(baseUrl))
+                    {
+                        logger.LogWarning("Failed to load BaseUrl from settings, using default");
+                        baseUrl = "http://127.0.0.1:8188";
+                    }
+                }
                 var uri = new Uri(baseUrl);
                 var actualServer = uri.Host;
 
@@ -271,7 +281,16 @@ namespace FlipPix.UI.Services
         {
             try
             {
-                var baseUrl = settingsService.Settings?.BaseUrl ?? "http://127.0.0.1:8188";
+                var baseUrl = settingsService.Settings?.BaseUrl;
+                if (string.IsNullOrEmpty(baseUrl))
+                {
+                    // Try to reload settings from file
+                    baseUrl = settingsService.LoadSettings().BaseUrl;
+                    if (string.IsNullOrEmpty(baseUrl))
+                    {
+                        baseUrl = "http://127.0.0.1:8188";
+                    }
+                }
                 var uri = new Uri(baseUrl);
                 var serverAddress = uri.Host;
 
