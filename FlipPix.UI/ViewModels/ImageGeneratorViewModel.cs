@@ -1684,7 +1684,17 @@ namespace FlipPix.UI.ViewModels
             try
             {
                 // Get the actual ComfyUI server settings
-                var baseUrl = _settingsService.Settings?.BaseUrl ?? "http://127.0.0.1:8188";
+                var baseUrl = _settingsService.Settings?.BaseUrl;
+                if (string.IsNullOrEmpty(baseUrl))
+                {
+                    _logger.LogWarning("Settings BaseUrl is null or empty, reloading settings");
+                    baseUrl = _settingsService.LoadSettings().BaseUrl;
+                    if (string.IsNullOrEmpty(baseUrl))
+                    {
+                        _logger.LogWarning("Failed to load BaseUrl from settings, using default");
+                        baseUrl = "http://127.0.0.1:8188";
+                    }
+                }
 
                 // Parse the URL to get server and port
                 var uri = new Uri(baseUrl);

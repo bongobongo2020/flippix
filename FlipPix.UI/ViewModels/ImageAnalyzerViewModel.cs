@@ -1378,7 +1378,17 @@ namespace FlipPix.UI.ViewModels
                 await Task.Delay(3000);
 
                 // Try to get output from history API using HttpClient directly
-                var baseUrl = _settingsService.Settings?.BaseUrl ?? "http://127.0.0.1:8188";
+                var baseUrl = _settingsService.Settings?.BaseUrl;
+                if (string.IsNullOrEmpty(baseUrl))
+                {
+                    _logger.LogWarning("Settings BaseUrl is null or empty, reloading settings");
+                    baseUrl = _settingsService.LoadSettings().BaseUrl;
+                    if (string.IsNullOrEmpty(baseUrl))
+                    {
+                        _logger.LogWarning("Failed to load BaseUrl from settings, using default");
+                        baseUrl = "http://127.0.0.1:8188";
+                    }
+                }
                 var historyUrl = $"{baseUrl}/history/{promptId}";
 
                 _logger.LogInfo($"Fetching analysis output from: {historyUrl}");
@@ -2921,7 +2931,17 @@ namespace FlipPix.UI.ViewModels
 
             try
             {
-                var baseUrl = _settingsService.Settings?.BaseUrl ?? "http://127.0.0.1:8188";
+                var baseUrl = _settingsService.Settings?.BaseUrl;
+                if (string.IsNullOrEmpty(baseUrl))
+                {
+                    _logger.LogWarning("Settings BaseUrl is null or empty, reloading settings");
+                    baseUrl = _settingsService.LoadSettings().BaseUrl;
+                    if (string.IsNullOrEmpty(baseUrl))
+                    {
+                        _logger.LogWarning("Failed to load BaseUrl from settings, using default");
+                        baseUrl = "http://127.0.0.1:8188";
+                    }
+                }
                 _logger.LogInfo($"Querying history for prompt ID: {promptId}");
 
                 using var httpClient = new System.Net.Http.HttpClient();
@@ -3038,7 +3058,17 @@ namespace FlipPix.UI.ViewModels
 
             try
             {
-                var baseUrl = _settingsService.Settings?.BaseUrl ?? "http://127.0.0.1:8188";
+                var baseUrl = _settingsService.Settings?.BaseUrl;
+                if (string.IsNullOrEmpty(baseUrl))
+                {
+                    _logger.LogWarning("Settings BaseUrl is null or empty, reloading settings");
+                    baseUrl = _settingsService.LoadSettings().BaseUrl;
+                    if (string.IsNullOrEmpty(baseUrl))
+                    {
+                        _logger.LogWarning("Failed to load BaseUrl from settings, using default");
+                        baseUrl = "http://127.0.0.1:8188";
+                    }
+                }
                 var uri = new Uri(baseUrl);
                 var actualServer = uri.Host;
 
@@ -3192,7 +3222,17 @@ namespace FlipPix.UI.ViewModels
                         await Task.Delay(2000); // Wait 2 seconds between retries
                     }
 
-                    var baseUrl = _settingsService.Settings?.BaseUrl ?? "http://127.0.0.1:8188";
+                    var baseUrl = _settingsService.Settings?.BaseUrl;
+                    if (string.IsNullOrEmpty(baseUrl))
+                    {
+                        _logger.LogWarning("Settings BaseUrl is null or empty, reloading settings");
+                        baseUrl = _settingsService.LoadSettings().BaseUrl;
+                        if (string.IsNullOrEmpty(baseUrl))
+                        {
+                            _logger.LogWarning("Failed to load BaseUrl from settings, using default");
+                            baseUrl = "http://127.0.0.1:8188";
+                        }
+                    }
                     var historyUrl = $"{baseUrl}/history/{promptId}";
 
                     using var httpClient = new System.Net.Http.HttpClient();
@@ -3283,7 +3323,17 @@ namespace FlipPix.UI.ViewModels
 
             try
             {
-                var baseUrl = _settingsService.Settings?.BaseUrl ?? "http://127.0.0.1:8188";
+                var baseUrl = _settingsService.Settings?.BaseUrl;
+                if (string.IsNullOrEmpty(baseUrl))
+                {
+                    _logger.LogWarning("Settings BaseUrl is null or empty, reloading settings");
+                    baseUrl = _settingsService.LoadSettings().BaseUrl;
+                    if (string.IsNullOrEmpty(baseUrl))
+                    {
+                        _logger.LogWarning("Failed to load BaseUrl from settings, using default");
+                        baseUrl = "http://127.0.0.1:8188";
+                    }
+                }
                 var uri = new Uri(baseUrl);
                 var actualServer = uri.Host;
 
