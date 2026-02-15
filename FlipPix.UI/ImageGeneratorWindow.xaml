@@ -379,6 +379,50 @@
                                             </StackPanel>
                                         </Border>
 
+                                        <!-- Saved Prompts Section -->
+                                        <Border Background="#FFF8DC" BorderBrush="#DEB887" BorderThickness="1" CornerRadius="5" Padding="10" Margin="0,10,0,10">
+                                            <StackPanel>
+                                                <TextBlock Text="&#x1F4DD; Saved Prompts" FontWeight="Bold" FontSize="13" Foreground="#8B4513" Margin="0,0,0,8"/>
+                                                <Grid>
+                                                    <Grid.ColumnDefinitions>
+                                                        <ColumnDefinition Width="*"/>
+                                                        <ColumnDefinition Width="Auto"/>
+                                                        <ColumnDefinition Width="Auto"/>
+                                                    </Grid.ColumnDefinitions>
+
+                                                    <TextBlock Grid.Column="0" Text="Select a saved prompt or save current:" FontWeight="SemiBold" FontSize="12" VerticalAlignment="Center"/>
+                                                    <Button Grid.Column="1" Content="&#x1F4BE; Save" Style="{StaticResource SecondaryButtonStyle}"
+                                                            Command="{Binding Analyzer.SavePromptCommand}" Padding="10,5" Margin="5,0,5,0"
+                                                            ToolTip="Save current prompt settings"
+                                                            Background="#4CAF50"/>
+                                                    <Button Grid.Column="2" Content="&#x1F5D1;&#xFE0F; Delete" Style="{StaticResource SecondaryButtonStyle}"
+                                                            Command="{Binding Analyzer.DeletePromptCommand}" Padding="10,5" Margin="0,0,0,0"
+                                                            ToolTip="Delete selected saved prompt"
+                                                            Background="#F44336"/>
+                                                </Grid>
+
+                                                <ComboBox ItemsSource="{Binding Analyzer.SavedPrompts}"
+                                                          SelectedItem="{Binding Analyzer.SelectedSavedPrompt, Mode=TwoWay}"
+                                                          SelectedValuePath="Id"
+                                                          Padding="10"
+                                                          Background="White"
+                                                          BorderBrush="#CED4DA"
+                                                          FontSize="12"
+                                                          Margin="0,5,0,10"
+                                                          Height="40">
+                                                    <ComboBox.ItemTemplate>
+                                                        <DataTemplate>
+                                                            <StackPanel>
+                                                                <TextBlock Text="{Binding Name}" FontWeight="SemiBold" FontSize="12"/>
+                                                                <TextBlock Text="{Binding LastUsed, StringFormat='Last used: {0:yyyy-MM-dd HH:mm}'}"
+                                                                           FontSize="10" Foreground="#666"/>
+                                                            </StackPanel>
+                                                        </DataTemplate>
+                                                    </ComboBox.ItemTemplate>
+                                                </ComboBox>
+                                            </StackPanel>
+                                        </Border>
+
                                         <TextBlock Text="Prompt" FontWeight="SemiBold" FontSize="11" Margin="0,8,0,4"/>
                                         <TextBox Text="{Binding Analyzer.AnalysisText, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
                                                 TextWrapping="Wrap"
@@ -2473,44 +2517,12 @@
                                                Foreground="#374151"
                                                Margin="0,0,0,15"/>
 
-                                    <!-- Prompt JSON File -->
-                                    <TextBlock Text="Prompts JSON File"
-                                               FontSize="12"
-                                               Foreground="#6B7280"
-                                               Margin="0,0,0,6"/>
-                                    <Grid Margin="0,0,0,15">
-                                        <Grid.ColumnDefinitions>
-                                            <ColumnDefinition Width="*"/>
-                                            <ColumnDefinition Width="Auto"/>
-                                        </Grid.ColumnDefinitions>
-                                        <TextBox Grid.Column="0"
-                                               Text="{Binding StoryGeneratorQ.PromptJsonFilePath, Mode=TwoWay}"
-                                               IsReadOnly="True"
-                                               Padding="10"
-                                               Background="#F9FAFB"
-                                               BorderBrush="#E5E7EB"
-                                               VerticalContentAlignment="Center"
-                                               FontSize="11"
-                                               Height="38"/>
-                                        <Button Grid.Column="1"
-                                               Content="Browse"
-                                               Command="{Binding StoryGeneratorQ.SelectPromptJsonCommand}"
-                                               Margin="8,0,0,0"
-                                               Width="80"
-                                               Height="38"
-                                               Background="#F3F4F6"
-                                               Foreground="#374151"
-                                               BorderThickness="0"
-                                               FontSize="12"
-                                               Style="{StaticResource SecondaryButtonStyle}"/>
-                                    </Grid>
-
-                                    <!-- Input Image Selection -->
+                                    <!-- Input Image Selection (moved up) -->
                                     <TextBlock Text="Input Image"
                                                FontSize="12"
                                                Foreground="#6B7280"
                                                Margin="0,0,0,6"/>
-                                    <Grid Margin="0,0,0,15">
+                                    <Grid Margin="0,0,0,10">
                                         <Grid.ColumnDefinitions>
                                             <ColumnDefinition Width="*"/>
                                             <ColumnDefinition Width="Auto"/>
@@ -2537,7 +2549,97 @@
                                                Style="{StaticResource SecondaryButtonStyle}"/>
                                     </Grid>
 
-                                    <!-- Add Prompts Button -->
+                                    <!-- Analyze Image with Qwen VL Button (NEW) -->
+                                    <Button Content="🔍 Analyze Image with Qwen VL"
+                                           Command="{Binding StoryGeneratorQ.AnalyzeImageWithQwenVLCommand}"
+                                           HorizontalAlignment="Stretch"
+                                           Height="44"
+                                           Foreground="White"
+                                           BorderThickness="0"
+                                           FontSize="13"
+                                           FontWeight="SemiBold"
+                                           Margin="0,0,0,5">
+                                        <Button.Style>
+                                            <Style TargetType="Button">
+                                                <Setter Property="Background" Value="#F59E0B"/>
+                                                <Setter Property="Template">
+                                                    <Setter.Value>
+                                                        <ControlTemplate TargetType="Button">
+                                                            <Border Background="{TemplateBinding Background}"
+                                                                   CornerRadius="8"
+                                                                   Padding="{TemplateBinding Padding}">
+                                                                <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                                                            </Border>
+                                                        </ControlTemplate>
+                                                    </Setter.Value>
+                                                </Setter>
+                                                <Style.Triggers>
+                                                    <Trigger Property="IsMouseOver" Value="True">
+                                                        <Setter Property="Background" Value="#D97706"/>
+                                                    </Trigger>
+                                                    <Trigger Property="IsEnabled" Value="False">
+                                                        <Setter Property="Background" Value="#CBD5E1"/>
+                                                        <Setter Property="Cursor" Value="Arrow"/>
+                                                    </Trigger>
+                                                </Style.Triggers>
+                                            </Style>
+                                        </Button.Style>
+                                    </Button>
+
+                                    <!-- Analysis Progress (shown when analyzing) -->
+                                    <Border Background="#FEF3C7"
+                                            BorderBrush="#FCD34D"
+                                            BorderThickness="2"
+                                            CornerRadius="6"
+                                            Padding="12"
+                                            Margin="0,0,0,10"
+                                            Visibility="{Binding StoryGeneratorQ.IsAnalyzingImage, Converter={StaticResource BooleanToVisibilityConverter}}">
+                                        <StackPanel>
+                                            <TextBlock Text="{Binding StoryGeneratorQ.AnalysisStatus}"
+                                                      FontWeight="Bold"
+                                                      FontSize="11"
+                                                      Margin="0,0,0,6"
+                                                      TextAlignment="Center"
+                                                      Foreground="#92400E"/>
+                                            <ProgressBar IsIndeterminate="True"
+                                                        Height="18"
+                                                        Foreground="#F59E0B"/>
+                                        </StackPanel>
+                                    </Border>
+
+                                    <!-- Prompt JSON File (moved below analyze button) -->
+                                    <TextBlock Text="Prompts JSON File"
+                                               FontSize="12"
+                                               Foreground="#6B7280"
+                                               Margin="0,0,0,6"/>
+                                    <Grid Margin="0,0,0,10">
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="*"/>
+                                            <ColumnDefinition Width="Auto"/>
+                                        </Grid.ColumnDefinitions>
+                                        <TextBox Grid.Column="0"
+                                               Text="{Binding StoryGeneratorQ.PromptJsonFilePath, Mode=TwoWay}"
+                                               IsReadOnly="True"
+                                               Padding="10"
+                                               Background="#F9FAFB"
+                                               BorderBrush="#E5E7EB"
+                                               VerticalContentAlignment="Center"
+                                               FontSize="11"
+                                               Height="38"/>
+                                        <Button Grid.Column="1"
+                                               Content="Browse"
+                                               Command="{Binding StoryGeneratorQ.SelectPromptJsonCommand}"
+                                               Margin="8,0,0,0"
+                                               Width="80"
+                                               Height="38"
+                                               Background="#F3F4F6"
+                                               Foreground="#374151"
+                                               BorderThickness="0"
+                                               FontSize="12"
+                                               Style="{StaticResource SecondaryButtonStyle}"/>
+                                    </Grid>
+
+                                    <!-- Add Prompts from JSON Button -->
                                     <Button Content="📥 Add Prompts from JSON"
                                            Command="{Binding StoryGeneratorQ.LoadPromptsCommand}"
                                            HorizontalAlignment="Stretch"
@@ -3111,44 +3213,12 @@
                                                Foreground="#374151"
                                                Margin="0,0,0,15"/>
 
-                                    <!-- Prompt JSON File -->
-                                    <TextBlock Text="Prompts JSON File"
-                                               FontSize="12"
-                                               Foreground="#6B7280"
-                                               Margin="0,0,0,6"/>
-                                    <Grid Margin="0,0,0,15">
-                                        <Grid.ColumnDefinitions>
-                                            <ColumnDefinition Width="*"/>
-                                            <ColumnDefinition Width="Auto"/>
-                                        </Grid.ColumnDefinitions>
-                                        <TextBox Grid.Column="0"
-                                               Text="{Binding StoryGeneratorF.PromptJsonFilePath, Mode=TwoWay}"
-                                               IsReadOnly="True"
-                                               Padding="10"
-                                               Background="#F9FAFB"
-                                               BorderBrush="#E5E7EB"
-                                               VerticalContentAlignment="Center"
-                                               FontSize="11"
-                                               Height="38"/>
-                                        <Button Grid.Column="1"
-                                               Content="Browse"
-                                               Command="{Binding StoryGeneratorF.SelectPromptJsonCommand}"
-                                               Margin="8,0,0,0"
-                                               Width="80"
-                                               Height="38"
-                                               Background="#F3F4F6"
-                                               Foreground="#374151"
-                                               BorderThickness="0"
-                                               FontSize="12"
-                                               Style="{StaticResource SecondaryButtonStyle}"/>
-                                    </Grid>
-
-                                    <!-- Input Image Selection -->
+                                    <!-- Input Image Selection (moved up - matches Q layout) -->
                                     <TextBlock Text="Input Image"
                                                FontSize="12"
                                                Foreground="#6B7280"
                                                Margin="0,0,0,6"/>
-                                    <Grid Margin="0,0,0,15">
+                                    <Grid Margin="0,0,0,10">
                                         <Grid.ColumnDefinitions>
                                             <ColumnDefinition Width="*"/>
                                             <ColumnDefinition Width="Auto"/>
@@ -3175,7 +3245,97 @@
                                                Style="{StaticResource SecondaryButtonStyle}"/>
                                     </Grid>
 
-                                    <!-- Add Prompts Button -->
+                                    <!-- Analyze Image with Qwen VL Button -->
+                                    <Button Content="🔍 Analyze Image with Qwen VL"
+                                           Command="{Binding StoryGeneratorF.AnalyzeImageWithQwenVLCommand}"
+                                           HorizontalAlignment="Stretch"
+                                           Height="44"
+                                           Foreground="White"
+                                           BorderThickness="0"
+                                           FontSize="13"
+                                           FontWeight="SemiBold"
+                                           Margin="0,0,0,5">
+                                        <Button.Style>
+                                            <Style TargetType="Button">
+                                                <Setter Property="Background" Value="#F59E0B"/>
+                                                <Setter Property="Template">
+                                                    <Setter.Value>
+                                                        <ControlTemplate TargetType="Button">
+                                                            <Border Background="{TemplateBinding Background}"
+                                                                   CornerRadius="8"
+                                                                   Padding="{TemplateBinding Padding}">
+                                                                <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                                                            </Border>
+                                                        </ControlTemplate>
+                                                    </Setter.Value>
+                                                </Setter>
+                                                <Style.Triggers>
+                                                    <Trigger Property="IsMouseOver" Value="True">
+                                                        <Setter Property="Background" Value="#D97706"/>
+                                                    </Trigger>
+                                                    <Trigger Property="IsEnabled" Value="False">
+                                                        <Setter Property="Background" Value="#CBD5E1"/>
+                                                        <Setter Property="Cursor" Value="Arrow"/>
+                                                    </Trigger>
+                                                </Style.Triggers>
+                                            </Style>
+                                        </Button.Style>
+                                    </Button>
+
+                                    <!-- Analysis Progress (shown when analyzing) -->
+                                    <Border Background="#FEF3C7"
+                                            BorderBrush="#FCD34D"
+                                            BorderThickness="2"
+                                            CornerRadius="6"
+                                            Padding="12"
+                                            Margin="0,0,0,10"
+                                            Visibility="{Binding StoryGeneratorF.IsAnalyzingImage, Converter={StaticResource BooleanToVisibilityConverter}}">
+                                        <StackPanel>
+                                            <TextBlock Text="{Binding StoryGeneratorF.AnalysisStatus}"
+                                                      FontWeight="Bold"
+                                                      FontSize="11"
+                                                      Margin="0,0,0,6"
+                                                      TextAlignment="Center"
+                                                      Foreground="#92400E"/>
+                                            <ProgressBar IsIndeterminate="True"
+                                                        Height="18"
+                                                        Foreground="#F59E0B"/>
+                                        </StackPanel>
+                                    </Border>
+
+                                    <!-- Prompt JSON File (moved below analyze button - matches Q layout) -->
+                                    <TextBlock Text="Prompts JSON File"
+                                               FontSize="12"
+                                               Foreground="#6B7280"
+                                               Margin="0,0,0,6"/>
+                                    <Grid Margin="0,0,0,10">
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="*"/>
+                                            <ColumnDefinition Width="Auto"/>
+                                        </Grid.ColumnDefinitions>
+                                        <TextBox Grid.Column="0"
+                                               Text="{Binding StoryGeneratorF.PromptJsonFilePath, Mode=TwoWay}"
+                                               IsReadOnly="True"
+                                               Padding="10"
+                                               Background="#F9FAFB"
+                                               BorderBrush="#E5E7EB"
+                                               VerticalContentAlignment="Center"
+                                               FontSize="11"
+                                               Height="38"/>
+                                        <Button Grid.Column="1"
+                                               Content="Browse"
+                                               Command="{Binding StoryGeneratorF.SelectPromptJsonCommand}"
+                                               Margin="8,0,0,0"
+                                               Width="80"
+                                               Height="38"
+                                               Background="#F3F4F6"
+                                               Foreground="#374151"
+                                               BorderThickness="0"
+                                               FontSize="12"
+                                               Style="{StaticResource SecondaryButtonStyle}"/>
+                                    </Grid>
+
+                                    <!-- Add Prompts from JSON Button -->
                                     <Button Content="📥 Add Prompts from JSON"
                                            Command="{Binding StoryGeneratorF.LoadPromptsCommand}"
                                            HorizontalAlignment="Stretch"

@@ -595,14 +595,13 @@ namespace FlipPix.UI.ViewModels
                     CurrentQueueItem = item;
                     item.Status = "Processing";
                     item.StartedAt = DateTime.Now;
-                    item.InputImagePath = InputImagePath;
                     SaveQueueToFile();
 
                     AddLog($"Processing story image {QueueProgress + 1}/{QueueTotal}");
 
                     try
                     {
-                        var outputPath = await ProcessQueueItemAsync(item, InputImagePath, sessionOutputDir, jsonFileName, _cancellationTokenSource.Token);
+                        var outputPath = await ProcessQueueItemAsync(item, item.InputImagePath, sessionOutputDir, jsonFileName, _cancellationTokenSource.Token);
                         item.OutputImagePath = outputPath;
                         item.Status = "Completed";
                         item.CompletedAt = DateTime.Now;

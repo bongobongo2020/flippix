@@ -38,6 +38,8 @@ REM Copy prompt2json system prompt files
 copy /Y "prompts\prompt2json\ltx_action_video_system_prompt.md" "publish\prompts\prompt2json\" >nul 2>&1
 copy /Y "prompts\prompt2json\ltxv2_system_prompt_addition.md" "publish\prompts\prompt2json\" >nul 2>&1
 copy /Y "prompts\prompt2json\wan-system.md" "publish\prompts\prompt2json\" >nul 2>&1
+copy /Y "prompts\prompt2json\qwen2512.md" "publish\prompts\prompt2json\" >nul 2>&1
+copy /Y "prompts\prompt2json\klien-story-10.md" "publish\prompts\prompt2json\" >nul 2>&1
 copy /Y "prompts\prompt2json\.prompt2json_config.json" "publish\prompts\prompt2json\" >nul 2>&1
 copy /Y "prompts\prompt2json\README.md" "publish\prompts\prompt2json\" >nul 2>&1
 

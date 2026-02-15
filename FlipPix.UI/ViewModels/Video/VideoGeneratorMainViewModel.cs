@@ -1307,8 +1307,9 @@ namespace FlipPix.UI.ViewModels.Video
 
             if (hasSameImages || Seed == 0)
             {
+                const long maxRgthreeSeed = 1125899906842624;
                 var random = new Random();
-                return (long)(random.NextDouble() * long.MaxValue);
+                return (long)(random.NextDouble() * maxRgthreeSeed);
             }
 
             return Seed;
@@ -1829,7 +1830,7 @@ namespace FlipPix.UI.ViewModels.Video
                 if (workflowDict.ContainsKey("135"))
                 {
                     const long maxRgthreeSeed = 1125899906842624;
-                    var seedValue = Seed > 0 ? Seed : ((long)new Random().Next() << 32) | (uint)new Random().Next();
+                    var seedValue = Seed > 0 ? Seed : (long)(new Random().NextDouble() * maxRgthreeSeed);
                     // Clamp to rgthree max value
                     seedValue = Math.Min(seedValue, maxRgthreeSeed);
                     // Also ensure non-negative

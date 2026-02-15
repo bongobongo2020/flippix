@@ -252,7 +252,8 @@ namespace FlipPix.UI
                 var settingsService = provider.GetRequiredService<SettingsService>();
                 var workflowCoordinator = provider.GetRequiredService<WorkflowQueueCoordinator>();
                 var fileDialogService = provider.GetRequiredService<IFileDialogService>();
-                return new ImageAnalyzerViewModel(comfyUIService, lmStudioService, logger, settingsService, workflowCoordinator, fileDialogService);
+                var promptService = provider.GetRequiredService<IPromptService>();
+                return new ImageAnalyzerViewModel(comfyUIService, lmStudioService, logger, settingsService, workflowCoordinator, fileDialogService, promptService);
             });
             services.AddTransient<StoryVideoViewModel>(provider =>
             {
