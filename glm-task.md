@@ -1,146 +1,227 @@
-# Task: Fix Remote Connection & WebSocket Reconnection
+# Task: Skip Local Process Management for Remote ComfyUI Servers
 
 ## 1. Context & Objective
-Two critical issues when using FlipPix with a remote ComfyUI server:
 
-**Problem A:** Network settings in the Settings window show wrong values when connecting from a remote machine. Multiple fallback references to `localhost`/`127.0.0.1` scattered across the codebase mean that if settings fail to load or any property is null, the app silently uses localhost instead of the configured remote server.
+**Problem:** When `BaseUrl` points to a remote ComfyUI server (not localhost), the video generator fails to send jobs. The WebSocket test button passes because it creates a standalone connection. But the actual job flow goes through `ComfyUIService.ConnectAsync()` and `DetectAndRestartIfCrashedAsync()`, both of which call `ComfyUIProcessManager` — which:
 
-**Problem B:** Video generation works once then stops. The WebSocket client (`ComfyUIWebSocketClient.cs`) has **zero reconnection logic**. When the WebSocket drops after the first job completes (common over remote networks), subsequent jobs submit via HTTP fine, but the app never receives the `execution_complete` event. It hangs until the 10-minute fallback timer fires.
+1. Checks `/system_stats` and `/object_info` with a **5-second timeout** — may time out over network
+2. If `/object_info` times out, it thinks ComfyUI crashed and tries to **start it as a local process**
+3. Starting locally fails (no local install) → throws exception → job never submitted
+
+**The flow that fails (video generator single mode):**
+- `VideoGeneratorMainViewModel.cs` line 1533: calls `DetectAndRestartIfCrashedAsync()` → tries local restart → returns false
+- Line 1536-1539: Returns early with "ERROR: ComfyUI is not running"
+- Even if that passed, line 1549: `ConnectAsync()` also goes through process management
+
+**Fix:** Add remote server detection to `ComfyUIService`. For remote servers, skip all process management and only validate HTTP + WebSocket connectivity.
 
 ## 2. Files to Modify
 
-### File 1: `FlipPix.ComfyUI/WebSocket/ComfyUIWebSocketClient.cs`
-**Add automatic WebSocket reconnection with exponential backoff.**
+### `FlipPix.ComfyUI/Services/ComfyUIService.cs`
 
-Changes needed:
-- Add fields: `_clientId` (string), `_maxReconnectAttempts` (int, default 10), `_reconnectDelayMs` (int, default 2000), `_isReconnecting` (bool)
-- In `ConnectAsync`: Store `clientId` in `_clientId` for reconnection use
-- Add a new method `ReconnectAsync()` that:
-  - Sets `_isReconnecting = true`
-  - Fires `ConnectionStatusChanged` with "Reconnecting"
-  - Attempts to create a new `ClientWebSocket`, connect, and restart listening
-  - Uses exponential backoff: `delay = _reconnectDelayMs * 2^attempt` capped at 30 seconds
-  - On success: fires `ConnectionStatusChanged` with "Reconnected", sets `_isReconnecting = false`
-  - On failure after all attempts: fires `ConnectionStatusChanged` with "Failed", sets `_isReconnecting = false`
-- Modify `ListenForMessagesAsync`:
-  - **Line 96-98 (server close)**: Instead of just returning, call `_ = Task.Run(() => ReconnectAsync())` and then return
-  - **Lines 117-120 (exception handler)**: Instead of just logging error, call `_ = Task.Run(() => ReconnectAsync())` and then return (but NOT on `OperationCanceledException` — that should remain as-is since it means intentional disconnect)
-- Add a `EnsureConnectedAsync()` public method that checks `IsConnected` and if not, attempts reconnection. This can be called before submitting new workflows.
-
-### File 2: `FlipPix.ComfyUI/Services/ComfyUIService.cs`
-**Use reconnection before workflow execution.**
-
-Changes needed:
-- In `ExecuteWorkflowAsync` (line ~297), before submitting the workflow, add a WebSocket health check:
-  ```csharp
-  // Ensure WebSocket is connected before executing workflow
-  if (!_webSocketClient.IsConnected)
-  {
-      _logger.LogWarning("WebSocket not connected, attempting reconnection before workflow execution");
-      await _webSocketClient.EnsureConnectedAsync(cancellationToken);
-  }
-  ```
-- In `QueuePromptAsync`, add the same WebSocket health check before submitting.
-
-### File 3: `FlipPix.Core/Models/ComfyUISettings.cs`
-**No changes needed** — the defaults here are fine as initial defaults. The real issue is the fallback pattern in ViewModels.
-
-### File 4: All ViewModels with `?? "http://127.0.0.1:8188"` fallback pattern
-**Search and fix all instances.** These are in various ViewModels throughout `FlipPix.UI/ViewModels/`.
-
-For each instance, change the fallback pattern from:
-```csharp
-var baseUrl = _settingsService.Settings?.BaseUrl ?? "http://127.0.0.1:8188";
-```
-to:
-```csharp
-var baseUrl = _settingsService.Settings?.BaseUrl ?? _settingsService.LoadSettings().BaseUrl;
-```
-
-This ensures the fallback re-reads from the saved settings file rather than defaulting to localhost. If you cannot do this cleanly (e.g., circular dependency), then at minimum log a warning when the fallback is triggered so the user/developer can see that settings weren't loaded properly.
-
-**Search pattern to find all instances:** `grep -rn "127.0.0.1:8188" FlipPix.UI/` and `grep -rn "localhost:8188" FlipPix.UI/`
-
-### File 5: `FlipPix.UI/Services/ComfyUIImageRetriever.cs`
-**Lines 274**: Same fallback fix as above — the `?? "http://127.0.0.1:8188"` at line 274 should use the settings-based fallback instead of hardcoded localhost.
+This is the **only file** that needs changes.
 
 ## 3. Implementation Steps
 
-1. **Implement WebSocket reconnection** in `ComfyUIWebSocketClient.cs` (File 1) — this is the most critical fix
-2. **Add pre-execution WebSocket health check** in `ComfyUIService.cs` (File 2)
-3. **Fix all localhost fallback patterns** across ViewModels and services (Files 4 & 5) — search comprehensively with grep
-4. **Test compilation** — ensure all changes compile cleanly
+### Step 1: Add `IsRemoteServer()` helper method
 
-## 4. Priority
-The WebSocket reconnection (steps 1-2) is the highest priority — it directly fixes the "video works once then stops" issue. The fallback fixes (steps 3-4) fix the settings display issue.
+Add this private method to the `ComfyUIService` class (place it after the constructor, before `ConnectAsync`):
 
-## 5. Changelog
+```csharp
+/// <summary>
+/// Determines if the configured ComfyUI server is remote (not localhost).
+/// Remote servers skip local process management (start/restart/crash detection).
+/// </summary>
+private bool IsRemoteServer()
+{
+    try
+    {
+        var uri = new Uri(_settings.BaseUrl);
+        var host = uri.Host;
 
-### Changes Implemented:
+        if (host.Equals("127.0.0.1", StringComparison.OrdinalIgnoreCase) ||
+            host.Equals("localhost", StringComparison.OrdinalIgnoreCase) ||
+            host.Equals("0.0.0.0", StringComparison.OrdinalIgnoreCase))
+        {
+            return false;
+        }
 
-#### File 1: `FlipPix.ComfyUI/WebSocket/ComfyUIWebSocketClient.cs`
-- Added fields: `_clientId` (string), `_maxReconnectAttempts` (const int = 10), `_reconnectDelayMs` (const int = 2000), `_isReconnecting` (bool)
-- Modified `ConnectAsync` to store `clientId` in `_clientId` field
-- Added `ReconnectAsync()` method with:
-  - Exponential backoff (delay = 2000ms * 2^(attempt-1), capped at 30 seconds)
-  - Automatic cleanup and recreation of WebSocket connection
-  - Status events for "Reconnecting", "Reconnected", and "Failed"
-- Added `EnsureConnectedAsync()` public method for manual health checks
-- Modified `ListenForMessagesAsync`:
-  - Server close (line 186-190): Now triggers `ReconnectAsync()` before returning
-  - Exception handler (line 208-213): Now triggers `ReconnectAsync()` before returning (except for `OperationCanceledException`)
+        return true;
+    }
+    catch
+    {
+        return false; // Default to local behavior if URL parsing fails
+    }
+}
+```
 
-#### File 2: `FlipPix.ComfyUI/Services/ComfyUIService.cs`
-- Added WebSocket health check in `ExecuteWorkflowAsync` before workflow submission
-- Added WebSocket health check in `QueuePromptAsync` before prompt submission
-- Both checks log a warning and call `EnsureConnectedAsync()` when disconnected
+### Step 2: Modify `ConnectAsync()` (currently starts at line 43)
 
-#### File 3: `FlipPix.UI/ViewModels/Video/VideoProcessingBaseViewModel.cs`
-- Updated `GetComfyUIBaseUrl()` method to use settings-based fallback with logging
+Wrap the entire process manager block (lines 50-88) in `if (!IsRemoteServer())`, and add an else branch that just logs:
 
-#### File 4: Multiple ViewModels (localhost fallback fixes)
-All ViewModels that used `?? "http://127.0.0.1:8188"` pattern now:
-1. First check `_settingsService.Settings?.BaseUrl`
-2. If null/empty, reload settings via `_settingsService.LoadSettings().BaseUrl`
-3. If still null/empty, log warning and use default `http://127.0.0.1:8188`
+**Replace the current method body** so it becomes:
 
-Files modified:
-- `FlipPix.UI/ViewModels/AmateurGeneratorViewModel.cs`
-- `FlipPix.UI/ViewModels/CameraAngleViewModel.cs`
-- `FlipPix.UI/ViewModels/FlipPixViewModel.cs`
-- `FlipPix.UI/ViewModels/ImageAnalyzerViewModel.cs` (5 instances)
-- `FlipPix.UI/ViewModels/ImageGeneratorViewModel.cs`
-- `FlipPix.UI/ViewModels/StoryImageGeneratorAmateurViewModel.cs`
-- `FlipPix.UI/ViewModels/StoryImageGeneratorFViewModel.cs`
-- `FlipPix.UI/ViewModels/StoryImageGeneratorQViewModel.cs`
-- `FlipPix.UI/ViewModels/StoryImageGeneratorViewModel.cs`
-- `FlipPix.UI/ViewModels/StoryVideoViewModel.cs`
+```csharp
+public async Task<bool> ConnectAsync(CancellationToken cancellationToken = default)
+{
+    try
+    {
+        _logger.LogInfo("Connecting to ComfyUI service");
 
-#### File 5: `FlipPix.UI/Services/ComfyUIImageRetriever.cs`
-- Fixed 2 instances of localhost fallback in `GetOutputImagesAsync` method
-- Fixed `IsComfyUIRemote` method to reload settings instead of defaulting to localhost
+        if (IsRemoteServer())
+        {
+            _logger.LogInfo($"Remote ComfyUI server detected ({_settings.BaseUrl}), skipping local process management");
+        }
+        else
+        {
+            // Check if ComfyUI is running, and start it if not
+            var isRunning = await _processManager.IsComfyUIRunningAsync(cancellationToken);
+            if (!isRunning)
+            {
+                _logger.LogWarning("ComfyUI is not running. Attempting to start it automatically...");
+                var started = await _processManager.StartComfyUIAsync(
+                    status => _logger.LogInfo(status),
+                    cancellationToken);
 
-### Build Status:
-- Compilation successful (1 pre-existing warning unrelated to these changes)
+                if (!started)
+                {
+                    throw new ComfyUIConnectionException("Failed to start ComfyUI automatically. Please start ComfyUI manually.");
+                }
 
-### Summary:
-Both critical issues are now addressed:
-1. **Problem A (Remote connection settings)**: Fixed by replacing hardcoded localhost fallbacks with settings-based fallbacks that reload from the saved settings file
-2. **Problem B (Video works once then stops)**: Fixed by adding automatic WebSocket reconnection with exponential backoff and pre-execution health checks
+                _logger.LogInfo("ComfyUI started successfully");
+            }
+            else
+            {
+                // Even if ComfyUI is "running", verify it's actually ready (not crashed/hung)
+                _logger.LogInfo("ComfyUI is running, verifying it's ready...");
+                var isReady = await _processManager.IsComfyUIReadyAsync(cancellationToken);
+
+                if (!isReady)
+                {
+                    _logger.LogWarning("ComfyUI is running but not ready - may have crashed. Attempting restart...");
+                    var started = await _processManager.StartComfyUIAsync(
+                        status => _logger.LogInfo(status),
+                        cancellationToken);
+
+                    if (!started)
+                    {
+                        throw new ComfyUIConnectionException("ComfyUI is running but not ready. Failed to restart. Please restart ComfyUI manually.");
+                    }
+
+                    _logger.LogInfo("ComfyUI restarted successfully");
+                }
+                else
+                {
+                    _logger.LogInfo("ComfyUI verified to be ready");
+                }
+            }
+        }
+
+        // Test HTTP connection first
+        var httpConnected = await RetryAsync(
+            () => _httpClient.TestConnectionAsync(cancellationToken),
+            _settings.MaxRetries,
+            TimeSpan.FromMilliseconds(_settings.RetryDelayMilliseconds),
+            cancellationToken);
+
+        if (!httpConnected)
+        {
+            throw new ComfyUIConnectionException("Failed to establish HTTP connection to ComfyUI");
+        }
+
+        // Connect WebSocket
+        await RetryAsync(
+            () => _webSocketClient.ConnectAsync(_clientId, cancellationToken),
+            _settings.MaxRetries,
+            TimeSpan.FromMilliseconds(_settings.RetryDelayMilliseconds),
+            cancellationToken);
+
+        _logger.LogInfo("ComfyUI service connected successfully");
+        return true;
+    }
+    catch (Exception ex)
+    {
+        _logger.LogError(ex, "Failed to connect to ComfyUI service");
+        throw;
+    }
+}
+```
+
+### Step 3: Modify `DetectAndRestartIfCrashedAsync()` (currently at line 145)
+
+Replace the current method with remote-aware version:
+
+```csharp
+public async Task<bool> DetectAndRestartIfCrashedAsync(Action<string>? statusCallback = null, CancellationToken cancellationToken = default)
+{
+    if (IsRemoteServer())
+    {
+        _logger.LogInfo("Remote server detected, checking HTTP connectivity only...");
+        statusCallback?.Invoke("Checking remote ComfyUI connectivity...");
+        try
+        {
+            var connected = await _httpClient.TestConnectionAsync(cancellationToken);
+            if (connected)
+            {
+                _logger.LogInfo("Remote ComfyUI is reachable");
+                statusCallback?.Invoke("Remote ComfyUI is reachable");
+                return true;
+            }
+            else
+            {
+                _logger.LogWarning("Cannot reach remote ComfyUI server");
+                statusCallback?.Invoke("Cannot reach remote ComfyUI server. Please check the server is running.");
+                return false;
+            }
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Failed to reach remote ComfyUI");
+            statusCallback?.Invoke($"Cannot reach remote ComfyUI: {ex.Message}");
+            return false;
+        }
+    }
+
+    return await _processManager.DetectAndRestartComfyUIAsync(statusCallback, cancellationToken);
+}
+```
+
+## 4. Completion Instructions
+Update this file with a "Changelog" section detailing your changes for my review.
 
 ---
 
-### Additional Changes (2026-02-15):
+## Changelog
 
-#### File 6: `FlipPix.UI/SettingsWindow.xaml`
-- Added "Test WebSocket" button next to "Test Connection" button
+### Changes Made
 
-#### File 7: `FlipPix.UI/SettingsWindow.xaml.cs`
-- Added `TestWebSocket_Click()` method that performs comprehensive WebSocket testing:
-  - Validates WebSocket URL format
-  - Tests TCP connectivity to the WebSocket port
-  - Attempts WebSocket handshake with detailed error reporting
-  - Provides troubleshooting suggestions for common issues
-  - Reports on ComfyUI --listen flag requirements
+**File: `FlipPix.ComfyUI/Services/ComfyUIService.cs`**
 
-This addition helps diagnose WebSocket-specific connectivity issues, which is particularly useful for remote ComfyUI setups where HTTP may work but WebSocket fails.
+#### Step 1: Added `IsRemoteServer()` helper method (lines 44-67)
+- Determines if the configured ComfyUI server is remote (not localhost)
+- Checks host against `127.0.0.1`, `localhost`, and `0.0.0.0`
+- Returns `false` (local behavior) on URL parsing failures
+
+#### Step 2: Modified `ConnectAsync()` method (lines 69-148)
+- Added `if (IsRemoteServer())` check before process management logic
+- For remote servers: logs skip message and bypasses all `ComfyUIProcessManager` calls
+- For local servers: retains original process management behavior
+- HTTP and WebSocket connectivity testing remains unchanged for both cases
+
+#### Step 3: Modified `DetectAndRestartIfCrashedAsync()` method (lines 178-223)
+- Added remote server check at method entry
+- For remote servers: only validates HTTP connectivity via `_httpClient.TestConnectionAsync()`
+  - Returns `true` if reachable
+  - Returns `false` with appropriate status callback messages if unreachable
+- For local servers: delegates to `_processManager.DetectAndRestartComfyUIAsync()` as before
+
+### Behavior Changes
+- Remote ComfyUI servers now skip local process start/restart/crash detection
+- Remote servers only require HTTP/WebSocket connectivity to function
+- Local servers retain full process management capabilities
+
+---
+
+## Status: COMPLETED
+
+**Build Status:** Succeeded (pre-existing warnings unrelated to this change)
