@@ -238,6 +238,165 @@ namespace FlipPix.UI
             }
         }
 
+        private async void TestWebSocket_Click(object sender, RoutedEventArgs e)
+        {
+            if (sender is not Button button) return;
+
+            var results = new System.Text.StringBuilder();
+            var serverUrl = ServerUrlTextBox.Text.Trim();
+
+            try
+            {
+                var originalText = button.Content;
+                button.Content = "Testing...";
+                button.IsEnabled = false;
+
+                results.AppendLine($"WebSocket Connection Test");
+                results.AppendLine($"========================");
+                results.AppendLine();
+                results.AppendLine($"Server URL: {serverUrl}");
+                results.AppendLine();
+
+                // Convert HTTP URL to WebSocket URL
+                var wsUrl = serverUrl.Replace("http://", "ws://").Replace("https://", "wss://");
+                var wsEndpoint = $"{wsUrl}/ws";
+
+                results.AppendLine($"WebSocket Endpoint: {wsEndpoint}");
+                results.AppendLine();
+
+                // Test 1: Validate URL format
+                results.AppendLine("1. Validating URL format...");
+                if (!Uri.TryCreate(wsEndpoint, UriKind.Absolute, out var wsUri))
+                {
+                    results.AppendLine("   ❌ Invalid WebSocket URL format");
+                    MessageBox.Show(results.ToString(), "WebSocket Test Failed",
+                        MessageBoxButton.OK, MessageBoxImage.Error);
+                    return;
+                }
+                results.AppendLine($"   ✅ Valid WebSocket URL");
+                results.AppendLine();
+
+                // Test 2: Basic TCP connectivity to the WebSocket port
+                results.AppendLine("2. Testing TCP connectivity to WebSocket port...");
+                try
+                {
+                    var port = wsUri.Port > 0 ? wsUri.Port : 80;
+                    using var tcpClient = new System.Net.Sockets.TcpClient();
+                    var connectTask = tcpClient.ConnectAsync(wsUri.DnsSafeHost, port);
+                    var timeoutTask = Task.Delay(5000);
+
+                    var completedTask = await Task.WhenAny(connectTask, timeoutTask);
+                    if (completedTask == connectTask)
+                    {
+                        results.AppendLine($"   ✅ TCP connection successful to {wsUri.DnsSafeHost}:{port}");
+                    }
+                    else
+                    {
+                        results.AppendLine($"   ❌ TCP connection timeout to {wsUri.DnsSafeHost}:{port}");
+                        results.AppendLine("   ℹ️  The server may be blocking connections on this port");
+                        MessageBox.Show(results.ToString(), "WebSocket Test Failed",
+                            MessageBoxButton.OK, MessageBoxImage.Warning);
+                        return;
+                    }
+                }
+                catch (Exception ex)
+                {
+                    results.AppendLine($"   ❌ TCP connection failed: {ex.Message}");
+                    MessageBox.Show(results.ToString(), "WebSocket Test Failed",
+                        MessageBoxButton.OK, MessageBoxImage.Error);
+                    return;
+                }
+                results.AppendLine();
+
+                // Test 3: WebSocket handshake attempt
+                results.AppendLine("3. Testing WebSocket handshake...");
+                try
+                {
+                    using var ws = new System.Net.WebSockets.ClientWebSocket();
+                    var clientId = Guid.NewGuid().ToString();
+                    var testUri = new Uri($"{wsEndpoint}?clientId={clientId}");
+
+                    var connectTask = ws.ConnectAsync(testUri, CancellationToken.None);
+                    var timeoutTask = Task.Delay(10000); // 10 second timeout for WebSocket
+
+                    var completedTask = await Task.WhenAny(connectTask, timeoutTask);
+
+                    if (completedTask == connectTask && ws.State == System.Net.WebSockets.WebSocketState.Open)
+                    {
+                        results.AppendLine("   ✅ WebSocket handshake successful!");
+                        results.AppendLine($"   ✅ WebSocket state: {ws.State}");
+                        results.AppendLine($"   ✅ Client ID: {clientId}");
+
+                        // Close the test connection
+                        await ws.CloseAsync(
+                            System.Net.WebSockets.WebSocketCloseStatus.NormalClosure,
+                            "Test complete",
+                            CancellationToken.None);
+
+                        results.AppendLine();
+                        results.AppendLine("================================");
+                        results.AppendLine("✅ WebSocket connection test PASSED");
+                        results.AppendLine("================================");
+                        results.AppendLine();
+                        results.AppendLine("Your ComfyUI server's WebSocket is working correctly!");
+
+                        MessageBox.Show(results.ToString(), "WebSocket Test Successful",
+                            MessageBoxButton.OK, MessageBoxImage.Information);
+                    }
+                    else if (completedTask == timeoutTask)
+                    {
+                        results.AppendLine("   ❌ WebSocket handshake timed out");
+                        results.AppendLine();
+                        results.AppendLine("   This usually means:");
+                        results.AppendLine("   • ComfyUI is not running with --listen flag");
+                        results.AppendLine("   • A firewall is blocking WebSocket connections");
+                        results.AppendLine("   • ComfyUI is overloaded or hanging");
+                        MessageBox.Show(results.ToString(), "WebSocket Test Failed",
+                            MessageBoxButton.OK, MessageBoxImage.Warning);
+                    }
+                    else
+                    {
+                        results.AppendLine($"   ❌ WebSocket handshake failed");
+                        results.AppendLine($"   ❌ WebSocket state: {ws.State}");
+                        MessageBox.Show(results.ToString(), "WebSocket Test Failed",
+                            MessageBoxButton.OK, MessageBoxImage.Warning);
+                    }
+                }
+                catch (System.Net.WebSockets.WebSocketException wsEx)
+                {
+                    results.AppendLine($"   ❌ WebSocket error: {wsEx.WebSocketErrorCode}");
+                    results.AppendLine($"   ❌ Message: {wsEx.Message}");
+                    results.AppendLine();
+                    results.AppendLine("Common causes:");
+                    results.AppendLine("• ComfyUI not started with --listen 0.0.0.0");
+                    results.AppendLine("• Firewall blocking WebSocket traffic");
+                    results.AppendLine("• Reverse proxy not configured for WebSocket");
+                    results.AppendLine();
+                    results.AppendLine("To fix, start ComfyUI with:");
+                    results.AppendLine($"python main.py --listen 0.0.0.0 --port {wsUri.Port}");
+                    MessageBox.Show(results.ToString(), "WebSocket Test Failed",
+                        MessageBoxButton.OK, MessageBoxImage.Error);
+                }
+                catch (Exception ex)
+                {
+                    results.AppendLine($"   ❌ Unexpected error: {ex.GetType().Name}");
+                    results.AppendLine($"   ❌ Message: {ex.Message}");
+                    MessageBox.Show(results.ToString(), "WebSocket Test Failed",
+                        MessageBoxButton.OK, MessageBoxImage.Error);
+                }
+            }
+            catch (Exception ex)
+            {
+                MessageBox.Show($"Error running WebSocket test: {ex.Message}", "Test Error",
+                    MessageBoxButton.OK, MessageBoxImage.Error);
+            }
+            finally
+            {
+                button.Content = "Test WebSocket";
+                button.IsEnabled = true;
+            }
+        }
+
         private async void TestLMStudioConnection_Click(object sender, RoutedEventArgs e)
         {
             try
