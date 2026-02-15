@@ -335,6 +335,7 @@ namespace FlipPix.UI.ViewModels
                     {
                         var outputPath = Path.Combine(outputDir, $"camera-angle_{index + 1}.png");
                         await File.WriteAllBytesAsync(outputPath, outputImage);
+                        await LocalCopyService.CopyImageAsync(outputPath);
                         OutputImages.Add(outputPath);
                         AddLog($"Output saved: {outputPath}");
 

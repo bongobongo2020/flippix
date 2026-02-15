@@ -350,6 +350,7 @@ namespace FlipPix.UI.ViewModels.Video
                     var outputPath = Path.Combine(outputDir, localFileName);
 
                     File.Copy(latestVideo, outputPath, true);
+                    await LocalCopyService.CopyVideoAsync(outputPath);
                     AddLog($"Video copied to: {outputPath}");
 
                     return outputPath;

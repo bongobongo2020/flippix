@@ -494,6 +494,7 @@ namespace FlipPix.UI.ViewModels.Video
                     }
 
                     ResultVideoPath = finalOutputPath;
+                    await LocalCopyService.CopyVideoAsync(finalOutputPath);
                     HasResult = true;
 
                     var fileInfo = new FileInfo(finalOutputPath);
