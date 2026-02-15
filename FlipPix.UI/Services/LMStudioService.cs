@@ -219,6 +219,124 @@ namespace FlipPix.UI.Services
             }
         }
 
+        public async Task<string> AnalyzeImageWithSystemPromptAsync(string modelName, string imagePath, string userPrompt, string systemPrompt, int maxTokens = 36000, CancellationToken cancellationToken = default)
+        {
+            await _semaphore.WaitAsync(cancellationToken);
+            try
+            {
+                if (!File.Exists(imagePath))
+                {
+                    throw new FileNotFoundException($"Image file not found: {imagePath}");
+                }
+
+                // Send original image without resizing - Qwen-VL handles image processing
+                var imageBytes = await File.ReadAllBytesAsync(imagePath, cancellationToken);
+                var base64Image = Convert.ToBase64String(imageBytes);
+                var imageFormat = Path.GetExtension(imagePath).TrimStart('.').ToLower();
+                if (imageFormat == "jpg") imageFormat = "jpeg";
+                var dataUrl = $"data:image/{imageFormat};base64,{base64Image}";
+
+                _logger.LogInfo($"Sending original image for LM Studio analysis with system prompt: {imageBytes.Length} bytes ({imageFormat}), max_tokens: {maxTokens}");
+
+                // Create the request with vision and system prompt
+                var requestBody = new
+                {
+                    model = modelName,
+                    messages = new object[]
+                    {
+                        new
+                        {
+                            role = "system",
+                            content = systemPrompt
+                        },
+                        new
+                        {
+                            role = "user",
+                            content = new object[]
+                            {
+                                new
+                                {
+                                    type = "text",
+                                    text = userPrompt
+                                },
+                                new
+                                {
+                                    type = "image_url",
+                                    image_url = new
+                                    {
+                                        url = dataUrl
+                                    }
+                                }
+                            }
+                        }
+                    },
+                    max_tokens = maxTokens,
+                    temperature = 0.7,
+                    stream = false
+                };
+
+                var json = JsonSerializer.Serialize(requestBody, new JsonSerializerOptions
+                {
+                    PropertyNamingPolicy = JsonNamingPolicy.CamelCase
+                });
+
+                _logger.LogInfo($"Sending image analysis request to LM Studio for model: {modelName}");
+                _logger.LogInfo($"Image: {Path.GetFileName(imagePath)}, Size: {imageBytes.Length} bytes");
+
+                var fullUrl = $"{_baseUrl.TrimEnd('/')}/v1/chat/completions";
+                using var content = new StringContent(json, Encoding.UTF8, "application/json");
+                using var response = await _httpClient.PostAsync(fullUrl, content, cancellationToken);
+
+                if (!response.IsSuccessStatusCode)
+                {
+                    var errorContent = await response.Content.ReadAsStringAsync(cancellationToken);
+                    _logger.LogError($"LM Studio API returned {response.StatusCode}: {errorContent}");
+                    throw new Exception($"LM Studio API error: {response.StatusCode} - {errorContent}");
+                }
+
+                await using var stream = await response.Content.ReadAsStreamAsync(cancellationToken);
+                var result = await JsonSerializer.DeserializeAsync<LMStudioChatResponse>(stream, new JsonSerializerOptions
+                {
+                    PropertyNameCaseInsensitive = true
+                }, cancellationToken);
+
+                if (result?.Choices?.Count > 0)
+                {
+                    var analysis = result.Choices[0].Message?.Content?.Trim() ?? string.Empty;
+
+                    // Log only a preview of the analysis to avoid memory issues
+                    var preview = analysis.Length > 200 ? analysis.Substring(0, 200) + "..." : analysis;
+                    _logger.LogInfo($"Image analysis completed (length: {analysis.Length}): {preview}");
+
+                    return analysis;
+                }
+                else
+                {
+                    _logger.LogError("No choices in LM Studio API response");
+                    throw new Exception("Invalid response format from LM Studio API");
+                }
+            }
+            catch (OperationCanceledException)
+            {
+                _logger.LogInfo("Image analysis was cancelled");
+                throw;
+            }
+            catch (HttpRequestException ex)
+            {
+                _logger.LogError($"Failed to connect to LM Studio: {ex.Message}");
+                throw new Exception($"Failed to connect to LM Studio. Please ensure LM Studio is running on {_baseUrl}. Error: {ex.Message}", ex);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError($"Error in LM Studio API call: {ex.Message}");
+                throw new Exception($"Error analyzing image: {ex.Message}", ex);
+            }
+            finally
+            {
+                _semaphore.Release();
+            }
+        }
+
         public async Task<string> GenerateEnhancedPromptAsync(string modelName, string userPrompt, string enhancementType, CancellationToken cancellationToken = default)
         {
             await _semaphore.WaitAsync(cancellationToken);

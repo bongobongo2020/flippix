@@ -2,9 +2,11 @@ using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
+using System.Text.RegularExpressions;
 using System.Text.Json;
 using System.Threading;
 using System.Threading.Tasks;
+using System.Windows;
 using System.Windows.Input;
 using CommunityToolkit.Mvvm.Input;
 using FlipPix.ComfyUI.Services;
@@ -16,6 +18,7 @@ namespace FlipPix.UI.ViewModels
 {
     public partial class StoryImageGeneratorQViewModel : StoryImageGeneratorBaseViewModel
     {
+        private readonly LMStudioService _lmStudioService;
         private bool _settingsVisible = false;
 
         public StoryImageGeneratorQViewModel(
@@ -25,9 +28,20 @@ namespace FlipPix.UI.ViewModels
             WorkflowQueueCoordinator workflowCoordinator,
             IFileDialogService fileDialogService,
             LoraManager loraManager,
-            ComfyUIImageRetriever imageRetriever)
+            ComfyUIImageRetriever imageRetriever,
+            LMStudioService lmStudioService)
             : base(comfyUIService, logger, settingsService, workflowCoordinator, fileDialogService, loraManager, imageRetriever)
         {
+            _lmStudioService = lmStudioService ?? throw new ArgumentNullException(nameof(lmStudioService));
+
+            // Re-evaluate AnalyzeImageWithQwenVLCommand when InputImagePath changes
+            PropertyChanged += (s, e) =>
+            {
+                if (e.PropertyName == nameof(InputImagePath))
+                {
+                    (AnalyzeImageWithQwenVLCommand as CommunityToolkit.Mvvm.Input.RelayCommand)?.NotifyCanExecuteChanged();
+                }
+            };
         }
 
         // --- Abstract member implementations ---
@@ -45,6 +59,9 @@ namespace FlipPix.UI.ViewModels
         protected override void InitializeVariant()
         {
             ToggleSettingsVisibilityCommand = new CommunityToolkit.Mvvm.Input.RelayCommand(ToggleSettingsVisibility);
+            AnalyzeImageWithQwenVLCommand = new CommunityToolkit.Mvvm.Input.RelayCommand(
+                async () => await AnalyzeImageWithQwenVLAsync(),
+                () => !string.IsNullOrEmpty(InputImagePath) && File.Exists(InputImagePath) && !IsAnalyzingImage);
         }
 
         // --- Overrides for folder saving ---
@@ -99,10 +116,166 @@ namespace FlipPix.UI.ViewModels
         }
 
         public ICommand ToggleSettingsVisibilityCommand { get; private set; } = null!;
+        public ICommand AnalyzeImageWithQwenVLCommand { get; private set; } = null!;
+
+        private bool _isAnalyzingImage = false;
+        public bool IsAnalyzingImage
+        {
+            get => _isAnalyzingImage;
+            set
+            {
+                if (SetProperty(ref _isAnalyzingImage, value))
+                {
+                    CommandManager.InvalidateRequerySuggested();
+                }
+            }
+        }
+
+        private string _analysisStatus = string.Empty;
+        public string AnalysisStatus
+        {
+            get => _analysisStatus;
+            set => SetProperty(ref _analysisStatus, value);
+        }
 
         private void ToggleSettingsVisibility()
         {
             SettingsVisible = !SettingsVisible;
+        }
+
+        // --- Qwen VL Analysis ---
+
+        private async Task AnalyzeImageWithQwenVLAsync()
+        {
+            try
+            {
+                IsAnalyzingImage = true;
+                AnalysisStatus = "Analyzing image with Qwen VL...";
+                AddLog("Starting image analysis with Qwen VL...");
+
+                // Read system prompt from file
+                var systemPromptPath = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "prompts", "prompt2json", "qwen2512.md");
+                if (!File.Exists(systemPromptPath))
+                {
+                    throw new FileNotFoundException($"System prompt file not found: {systemPromptPath}");
+                }
+                var systemPrompt = await File.ReadAllTextAsync(systemPromptPath);
+
+                // Get model name from settings
+                var modelName = _settingsService.Settings?.LMStudioSettings?.SelectedModel ?? string.Empty;
+                if (string.IsNullOrEmpty(modelName))
+                {
+                    System.Windows.MessageBox.Show(
+                        "No LM Studio model selected. Please configure LM Studio in the Image Analyzer tab first.",
+                        "Model Not Configured", MessageBoxButton.OK, MessageBoxImage.Warning);
+                    return;
+                }
+
+                // Call LM Studio with system prompt
+                var userPrompt = "Analyze this character image and generate 10 sequential martial arts action story prompts following the template in the system instructions.";
+
+                var analysisResult = await _lmStudioService.AnalyzeImageWithSystemPromptAsync(
+                    modelName,
+                    InputImagePath,
+                    userPrompt,
+                    systemPrompt,
+                    maxTokens: 36000,
+                    CancellationToken.None);
+
+                if (string.IsNullOrEmpty(analysisResult))
+                {
+                    AddLog("ERROR: No response from Qwen VL");
+                    System.Windows.MessageBox.Show("No response received from Qwen VL.", "Error",
+                        MessageBoxButton.OK, MessageBoxImage.Error);
+                    return;
+                }
+
+                AddLog($"Received Qwen VL response ({analysisResult.Length} chars)");
+
+                // Parse the 10 prompts from the response
+                var prompts = ParsePromptsFromAnalysis(analysisResult);
+
+                if (prompts.Count == 0)
+                {
+                    AddLog("ERROR: Could not parse any prompts from Qwen VL response");
+                    AddLog($"Raw response preview: {analysisResult.Substring(0, Math.Min(500, analysisResult.Length))}");
+                    System.Windows.MessageBox.Show(
+                        "Could not parse prompts from Qwen VL response. Check the activity log for details.",
+                        "Parse Error", MessageBoxButton.OK, MessageBoxImage.Warning);
+                    return;
+                }
+
+                // Add prompts to queue (same as LoadPromptsAsync)
+                var startIndex = QueueItems.Any() ? QueueItems.Max(q => q.Index) + 1 : 1;
+                for (int i = 0; i < prompts.Count; i++)
+                {
+                    QueueItems.Add(CreateQueueItem(startIndex + i, prompts[i], InputImagePath));
+                }
+
+                // Set a default PromptJsonFilePath-based name for output folders/filenames
+                // when prompts come from Qwen VL analysis instead of a JSON file
+                if (string.IsNullOrEmpty(PromptJsonFilePath))
+                {
+                    // Use input image filename as the session name (e.g. "character1" from "character1.png")
+                    var imageName = Path.GetFileNameWithoutExtension(InputImagePath);
+                    PromptJsonFilePath = Path.Combine(
+                        Path.GetDirectoryName(InputImagePath) ?? AppDomain.CurrentDomain.BaseDirectory,
+                        $"{imageName}-qwenvl.json");
+                }
+
+                UpdateQueueCountNotifications();
+                SaveQueueToFile();
+                CommandManager.InvalidateRequerySuggested();
+                AnalysisStatus = $"Added {prompts.Count} prompts to queue";
+                AddLog($"Added {prompts.Count} prompts from Qwen VL analysis to queue (total: {QueueItems.Count})");
+
+                // Auto-start processing if not already processing (same as LoadPromptsAsync)
+                if (CanProcessQueue)
+                {
+                    AddLog("Auto-starting queue processing...");
+                    _ = ProcessQueueAsync(); // Fire and forget
+                }
+            }
+            catch (Exception ex)
+            {
+                AddLog($"ERROR analyzing image: {ex.Message}");
+                _logger.LogError($"Error analyzing image with Qwen VL: {ex}");
+                AnalysisStatus = "Analysis failed";
+
+                var lmStudioUrl = _settingsService.Settings?.LMStudioSettings?.BaseUrl ?? "http://localhost:1234";
+                System.Windows.MessageBox.Show(
+                    $"Error analyzing image:\n\n{ex.Message}\n\nPlease ensure LM Studio is running at {lmStudioUrl} with a Qwen VL model loaded.",
+                    "Error", MessageBoxButton.OK, MessageBoxImage.Error);
+            }
+            finally
+            {
+                IsAnalyzingImage = false;
+            }
+        }
+
+        private List<string> ParsePromptsFromAnalysis(string analysisText)
+        {
+            var prompts = new List<string>();
+
+            // Split by "Prompt #N:" or "Prompt N:" pattern
+            var pattern = @"Prompt\s*#?\s*(\d+)\s*:\s*";
+            var matches = Regex.Matches(analysisText, pattern, RegexOptions.IgnoreCase);
+
+            for (int i = 0; i < matches.Count; i++)
+            {
+                var startPos = matches[i].Index + matches[i].Length;
+                var endPos = (i + 1 < matches.Count) ? matches[i + 1].Index : analysisText.Length;
+
+                var promptText = analysisText.Substring(startPos, endPos - startPos).Trim();
+
+                if (!string.IsNullOrWhiteSpace(promptText))
+                {
+                    prompts.Add(promptText);
+                }
+            }
+
+            AddLog($"Parsed {prompts.Count} prompts from Qwen VL response");
+            return prompts;
         }
 
         // --- Core processing logic ---

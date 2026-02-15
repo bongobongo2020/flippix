@@ -28,11 +28,10 @@ namespace FlipPix.UI.ViewModels
         public string NodeId { get; set; } = string.Empty;
     }
 
-    public partial class ImageAnalyzerViewModel : ObservableObject, IDisposable
+    public partial class ImageAnalyzerViewModel : BasePromptViewModel, IDisposable
     {
         private readonly ComfyUIService _comfyUIService;
         private readonly LMStudioService _lmStudioService;
-        private readonly IAppLogger _logger;
         private readonly FlipPix.Core.Services.SettingsService _settingsService;
         private readonly WorkflowQueueCoordinator _workflowCoordinator;
         private readonly IFileDialogService _fileDialogService;
@@ -92,12 +91,12 @@ namespace FlipPix.UI.ViewModels
 
         public event Action? QueueItemAdded;
 
-        public ImageAnalyzerViewModel(ComfyUIService comfyUIService, LMStudioService lmStudioService, IAppLogger logger, FlipPix.Core.Services.SettingsService settingsService, WorkflowQueueCoordinator workflowCoordinator, IFileDialogService fileDialogService)
+        public ImageAnalyzerViewModel(ComfyUIService comfyUIService, LMStudioService lmStudioService, IAppLogger logger, FlipPix.Core.Services.SettingsService settingsService, WorkflowQueueCoordinator workflowCoordinator, IFileDialogService fileDialogService, IPromptService promptService)
+            : base(promptService, logger, "ImageGenerator")
         {
             _workflowCoordinator = workflowCoordinator ?? throw new ArgumentNullException(nameof(workflowCoordinator));
             _comfyUIService = comfyUIService ?? throw new ArgumentNullException(nameof(comfyUIService));
             _lmStudioService = lmStudioService ?? throw new ArgumentNullException(nameof(lmStudioService));
-            _logger = logger ?? throw new ArgumentNullException(nameof(logger));
             _settingsService = settingsService ?? throw new ArgumentNullException(nameof(settingsService));
             _fileDialogService = fileDialogService ?? throw new ArgumentNullException(nameof(fileDialogService));
 
@@ -257,7 +256,7 @@ namespace FlipPix.UI.ViewModels
 
         public string ProgressPercentage => $"{ProcessingProgress:F0}%";
 
-        public int AspectRatioIndex
+        public override int AspectRatioIndex
         {
             get => _aspectRatioIndex;
             set
@@ -267,7 +266,7 @@ namespace FlipPix.UI.ViewModels
             }
         }
 
-        public int Steps
+        public override int Steps
         {
             get => _steps;
             set
@@ -277,7 +276,7 @@ namespace FlipPix.UI.ViewModels
             }
         }
 
-        public double Cfg
+        public override double Cfg
         {
             get => _cfg;
             set
@@ -287,7 +286,7 @@ namespace FlipPix.UI.ViewModels
             }
         }
 
-        public long Seed
+        public override long Seed
         {
             get => _seed;
             set
@@ -573,13 +572,94 @@ namespace FlipPix.UI.ViewModels
             }
         }
 
-        public double Denoise
+        public override double Denoise
         {
             get => _denoise;
             set
             {
                 _denoise = value;
                 OnPropertyChanged();
+            }
+        }
+
+        // BasePromptViewModel abstract property
+        public override string CurrentPromptText => AnalysisText;
+
+        // BasePromptViewModel abstract callback methods
+        protected override void OnPromptSaved(string promptName)
+        {
+            StatusBarMessage = $"Prompt saved: {promptName}";
+        }
+
+        protected override void OnPromptDeleted(string promptName)
+        {
+            StatusBarMessage = $"Prompt deleted: {promptName}";
+        }
+
+        protected override void OnPromptLoaded(SavedPrompt savedPrompt)
+        {
+            AnalysisText = savedPrompt.Prompt;
+            AspectRatioIndex = savedPrompt.AspectRatioIndex;
+            Steps = savedPrompt.Steps;
+            Cfg = savedPrompt.Cfg;
+            Seed = savedPrompt.Seed;
+            Denoise = savedPrompt.Denoise;
+
+            // Restore additional data (workflow, LoRA settings)
+            if (savedPrompt.AdditionalData is Dictionary<string, object> additionalData)
+            {
+                LoadAdditionalPromptData(additionalData);
+            }
+
+            StatusBarMessage = $"Prompt loaded: {savedPrompt.Name}";
+        }
+
+        protected override void OnPromptError(string error)
+        {
+            StatusBarMessage = error;
+        }
+
+        // Override for additional prompt data
+        public override Dictionary<string, object> GetAdditionalPromptData()
+        {
+            return new Dictionary<string, object>
+            {
+                { "SelectedWorkflow", (int)SelectedWorkflow },
+                { "LoraEnabled", LoraEnabled },
+                { "SelectedLora", SelectedLora ?? "" },
+                { "StyleIndex", SelectedStyleIndex }
+            };
+        }
+
+        public override void LoadAdditionalPromptData(Dictionary<string, object> data)
+        {
+            if (data.TryGetValue("SelectedWorkflow", out var wf))
+            {
+                if (wf is JsonElement je && je.ValueKind == JsonValueKind.Number)
+                    SelectedWorkflowIndex = je.GetInt32();
+                else if (wf is int wfInt)
+                    SelectedWorkflowIndex = wfInt;
+            }
+            if (data.TryGetValue("LoraEnabled", out var le))
+            {
+                if (le is JsonElement je)
+                    LoraEnabled = je.GetBoolean();
+                else if (le is bool leBool)
+                    LoraEnabled = leBool;
+            }
+            if (data.TryGetValue("SelectedLora", out var sl))
+            {
+                if (sl is JsonElement je)
+                    SelectedLora = je.GetString() ?? "";
+                else if (sl is string slStr)
+                    SelectedLora = slStr;
+            }
+            if (data.TryGetValue("StyleIndex", out var si))
+            {
+                if (si is JsonElement je && je.ValueKind == JsonValueKind.Number)
+                    SelectedStyleIndex = je.GetInt32();
+                else if (si is int siInt)
+                    SelectedStyleIndex = siInt;
             }
         }
 

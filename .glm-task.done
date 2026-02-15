@@ -1,76 +1,78 @@
-# Task: Use Wan 2.2 System Prompt for "Analyze First Frame" When Wan 2.2 Workflow Selected
+# Task: Fix Prompt Parsing for Story Image F Qwen VL Analysis
 
 ## 1. Context & Objective
-When the user selects the **Wan 2.2** workflow in the Single Video Generator and clicks "Analyze First Frame", the app currently falls back to a generic prompt (`"Describe this image in detail for video generation."`). This is because the prompt selection logic only checks `UseLTXWorkflow` (which controls Story Video mode), not `SelectedSingleWorkflow` (which controls Single Video mode).
+The Qwen VL analysis in Story Image F returns prompts in numbered list format (`1.`, `2.`, etc.) but the parser only recognizes `Prompt #N:` format. The response looks like:
 
-The fix: when `SelectedSingleWorkflow == SingleVideoWorkflow.Wan22`, load the Wan-specific system prompt from `prompts/prompt2json/wan-system.md` and send it to LM Studio.
+```
+1. A woman with long dark hair... Style: gritty realism meets action cinema. Mood: ...
+2. The same woman pivots...
+```
+
+But the regex expects: `Prompt #1: ...`, `Prompt #2: ...`
+
+We need to fix both the system prompt (to request the right format) AND the parser (to handle multiple formats defensively).
 
 ## 2. Files to Modify
-- `FlipPix.UI/ViewModels/Video/VideoGeneratorMainViewModel.cs` — the prompt selection block in `AnalyzeImageInternalAsync` (around lines 1155-1175)
+- `prompts/prompt2json/klien-story-10.md`: Add output format instruction
+- `FlipPix.UI/ViewModels/StoryImageGeneratorFViewModel.cs`: Update `ParsePromptsFromAnalysis` to handle multiple numbering formats
 
 ## 3. Implementation Steps
 
-In `VideoGeneratorMainViewModel.cs`, replace the prompt selection block in `AnalyzeImageInternalAsync`:
+### Step 1: Update `prompts/prompt2json/klien-story-10.md`
 
-**Current code (around lines 1155-1175):**
+Replace the last line (line 115):
+```
+**When you receive a user's image,analyze and enhance it following all these guidelines and output ONLY the enhanced prompts, ready for FLUX.2 [klein].**
+```
+
+With:
+```
+**When you receive a user's image, analyze and enhance it following all these guidelines. Output exactly 10 prompts, each labeled as "Prompt #1:", "Prompt #2:", etc. Output ONLY the labeled prompts, ready for FLUX.2 [klein].**
+```
+
+### Step 2: Update `ParsePromptsFromAnalysis` in `StoryImageGeneratorFViewModel.cs`
+
+Replace the entire `ParsePromptsFromAnalysis` method (approximately lines 280-302) with:
+
 ```csharp
-// Determine which prompt to use based on workflow selection
-string analysisPrompt;
-if (UseLTXWorkflow)
+private List<string> ParsePromptsFromAnalysis(string analysisText)
 {
-    var ltxPromptPath = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "prompts", "prompt2json", "ltx_action_video_system_prompt.md");
-    if (File.Exists(ltxPromptPath))
+    var prompts = new List<string>();
+
+    // Try "Prompt #N:" format first (preferred)
+    var pattern = @"Prompt\s*#?\s*(\d+)\s*:\s*";
+    var matches = Regex.Matches(analysisText, pattern, RegexOptions.IgnoreCase);
+
+    if (matches.Count == 0)
     {
-        analysisPrompt = await File.ReadAllTextAsync(ltxPromptPath, _analysisCancellationTokenSource.Token);
-        AddLog("Using LTX-2 Action Video system prompt");
+        // Fallback: try numbered list format "1.", "2.", etc. at start of line
+        pattern = @"(?:^|\n)\s*(\d{1,2})\.\s+";
+        matches = Regex.Matches(analysisText, pattern);
+        AddLog($"Using numbered list fallback parser (found {matches.Count} matches)");
     }
-    else
+
+    for (int i = 0; i < matches.Count; i++)
     {
-        AddLog($"WARNING: LTX action video prompt not found at {ltxPromptPath}, using default");
-        analysisPrompt = "Describe this image in detail for video generation.";
+        var startPos = matches[i].Index + matches[i].Length;
+        var endPos = (i + 1 < matches.Count) ? matches[i + 1].Index : analysisText.Length;
+
+        var promptText = analysisText.Substring(startPos, endPos - startPos).Trim();
+
+        if (!string.IsNullOrWhiteSpace(promptText))
+        {
+            prompts.Add(promptText);
+        }
     }
-}
-else
-{
-    analysisPrompt = "Describe this image in detail for video generation.";
-    AddLog("Using default image analysis prompt");
+
+    AddLog($"Parsed {prompts.Count} prompts from Qwen VL response");
+    return prompts;
 }
 ```
 
-**Replace with:**
-```csharp
-// Determine which prompt to use based on workflow selection
-string analysisPrompt;
-string? promptPath = null;
-string promptLabel;
-
-if (SelectedSingleWorkflow == SingleVideoWorkflow.Wan22)
-{
-    promptPath = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "prompts", "prompt2json", "wan-system.md");
-    promptLabel = "Wan 2.2";
-}
-else
-{
-    promptPath = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "prompts", "prompt2json", "ltx_action_video_system_prompt.md");
-    promptLabel = "LTX-2 Action Video";
-}
-
-if (File.Exists(promptPath))
-{
-    analysisPrompt = await File.ReadAllTextAsync(promptPath, _analysisCancellationTokenSource.Token);
-    AddLog($"Using {promptLabel} system prompt");
-}
-else
-{
-    AddLog($"WARNING: {promptLabel} prompt not found at {promptPath}, using default");
-    analysisPrompt = "Describe this image in detail for video generation.";
-}
-```
-
-**Key points:**
-- Wan 2.2 check comes **first** — it's the most specific/new case
-- All non-Wan workflows (LTX2V single, LTX story, Painter story) use the LTX prompt — this preserves existing behavior
-- The `promptLabel` keeps log messages descriptive so the user can verify which prompt was loaded
+Key changes:
+- First tries `Prompt #N:` format (preferred, matches Q's parser)
+- If zero matches found, falls back to numbered list format `1.`, `2.` at line beginnings
+- Logs which parser was used for debugging
 
 ## 4. Completion Instructions
 Update this file with a "Changelog" section detailing your changes for my review.
@@ -79,54 +81,27 @@ Update this file with a "Changelog" section detailing your changes for my review
 
 ## Changelog
 
-### 2026-02-10: Wan 2.2 System Prompt Support for "Analyze First Frame"
+### 2026-02-14 - Fix Prompt Parsing for Story Image F Qwen VL Analysis
 
-**File Modified:** `FlipPix.UI/ViewModels/Video/VideoGeneratorMainViewModel.cs`
+**Modified Files:**
+1. `prompts/prompt2json/klien-story-10.md` (line 115)
+2. `FlipPix.UI/ViewModels/StoryImageGeneratorFViewModel.cs` (lines 280-302)
 
-**Change:** Replaced the prompt selection logic in `AnalyzeImageInternalAsync` (lines 1155-1175) to support workflow-specific system prompts.
+**Changes:**
 
-**Before:**
-- Only checked `UseLTXWorkflow` (Story Video mode)
-- Wan 2.2 workflow in Single Video mode fell back to generic prompt
+**1. System Prompt Update (`klien-story-10.md`)**
+- Updated output format instruction to explicitly request "Prompt #N:" labeling format
+- Changed from generic instruction to specific format requirement: "Prompt #1:", "Prompt #2:", etc.
+- Ensures Qwen VL output matches parser expectations
 
-**After:**
-- Checks `SelectedSingleWorkflow == SingleVideoWorkflow.Wan22` first
-- Wan 2.2 → loads `wan-system.md`
-- All other workflows → load `ltx_action_video_system_prompt.md` (preserves existing behavior)
-- Dynamic `promptLabel` for descriptive log messages
+**2. Parser Enhancement (`StoryImageGeneratorFViewModel.cs`)**
+- Added defensive multi-format parsing to `ParsePromptsFromAnalysis` method
+- Primary: Attempts `Prompt #N:` format first (matches updated system prompt)
+- Fallback: If zero matches, tries numbered list format `1.`, `2.` at line beginnings
+- Added logging to indicate which parser mode was used for debugging
+- Handles both current (numbered list) and future (Prompt #N:) Qwen VL responses
 
-**Behavior:**
-- Wan 2.2 users now get Wan-specific analysis prompts
-- LTX2V single mode, LTX Story mode, and Painter Story mode retain existing LTX prompt behavior
-- Graceful fallback to generic prompt if file not found
-
----
-
-### 2026-02-10: Fixed "Add Prompts from JSON" Button for Story Image F and Q
-
-**Issue:** The "Add Prompts from JSON" button for Story Image F and Story Image Q generators was not becoming enabled even after selecting both the prompt JSON file and input image.
-
-**Root Cause:** The `LoadPromptsCommand` uses `CanLoadPrompts` as its canExecute condition, but when the `PromptJsonFilePath`, `InputImagePath`, or `IsProcessingQueue` properties changed, the command wasn't being properly notified to re-evaluate its canExecute state.
-
-**File Modified:** `FlipPix.UI/ViewModels/StoryImageGeneratorBaseViewModel.cs`
-
-**Changes Made:**
-
-1. **Changed `LoadPromptsCommand` type from `ICommand` to `CommunityToolkit.Mvvm.Input.RelayCommand`** (line 365)
-   - This exposes the `NotifyCanExecuteChanged()` method for explicit canExecute notifications
-
-2. **Updated property setters to explicitly notify the command:**
-   - `PromptJsonFilePath` setter (line 195): Added `LoadPromptsCommand.NotifyCanExecuteChanged()`
-   - `InputImagePath` setter (line 209): Added `LoadPromptsCommand.NotifyCanExecuteChanged()`
-   - `IsProcessingQueue` setter (line 235): Added `LoadPromptsCommand.NotifyCanExecuteChanged()`
-
-3. **Replaced `CommandManager.InvalidateRequerySuggested()` with explicit command notifications**
-   - The generic `CommandManager.InvalidateRequerySuggested()` call was replaced with the more specific `NotifyCanExecuteChanged()` method
-
-**Behavior:**
-- The "Add Prompts from JSON" button now properly enables/disables based on whether:
-  1. A prompt JSON file is selected
-  2. An input image is selected (required for Story Image F and Q)
-  3. The queue is not currently processing
-
-**Note:** This fix applies to all variants that inherit from `StoryImageGeneratorBaseViewModel`: Story Image F, Story Image Q, Story Image Amateur, and Story Image Z.
+**Rationale:**
+The Qwen VL model was returning prompts in numbered list format (`1.`, `2.`) but the parser only recognized `Prompt #N:` format. This fix addresses both sides:
+- System prompt now explicitly requests the preferred format
+- Parser defensively handles both formats for robustness
