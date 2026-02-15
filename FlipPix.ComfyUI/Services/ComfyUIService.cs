@@ -40,14 +40,46 @@ public class ComfyUIService : IDisposable
         _webSocketClient.ConnectionStatusChanged += OnConnectionStatusChanged;
     }
 
+    /// <summary>
+    /// Determines if the configured ComfyUI server is remote (not localhost).
+    /// Remote servers skip local process management (start/restart/crash detection).
+    /// </summary>
+    private bool IsRemoteServer()
+    {
+        try
+        {
+            var uri = new Uri(_settings.BaseUrl);
+            var host = uri.Host;
+
+            if (host.Equals("127.0.0.1", StringComparison.OrdinalIgnoreCase) ||
+                host.Equals("localhost", StringComparison.OrdinalIgnoreCase) ||
+                host.Equals("0.0.0.0", StringComparison.OrdinalIgnoreCase))
+            {
+                return false;
+            }
+
+            return true;
+        }
+        catch
+        {
+            return false; // Default to local behavior if URL parsing fails
+        }
+    }
+
     public async Task<bool> ConnectAsync(CancellationToken cancellationToken = default)
     {
         try
         {
             _logger.LogInfo("Connecting to ComfyUI service");
 
-            // Check if ComfyUI is running, and start it if not
-            var isRunning = await _processManager.IsComfyUIRunningAsync(cancellationToken);
+            if (IsRemoteServer())
+            {
+                _logger.LogInfo($"Remote ComfyUI server detected ({_settings.BaseUrl}), skipping local process management");
+            }
+            else
+            {
+                // Check if ComfyUI is running, and start it if not
+                var isRunning = await _processManager.IsComfyUIRunningAsync(cancellationToken);
             if (!isRunning)
             {
                 _logger.LogWarning("ComfyUI is not running. Attempting to start it automatically...");
@@ -86,6 +118,7 @@ public class ComfyUIService : IDisposable
                 {
                     _logger.LogInfo("ComfyUI verified to be ready");
                 }
+            }
             }
 
             // Test HTTP connection first
@@ -144,6 +177,34 @@ public class ComfyUIService : IDisposable
     /// </summary>
     public async Task<bool> DetectAndRestartIfCrashedAsync(Action<string>? statusCallback = null, CancellationToken cancellationToken = default)
     {
+        if (IsRemoteServer())
+        {
+            _logger.LogInfo("Remote server detected, checking HTTP connectivity only...");
+            statusCallback?.Invoke("Checking remote ComfyUI connectivity...");
+            try
+            {
+                var connected = await _httpClient.TestConnectionAsync(cancellationToken);
+                if (connected)
+                {
+                    _logger.LogInfo("Remote ComfyUI is reachable");
+                    statusCallback?.Invoke("Remote ComfyUI is reachable");
+                    return true;
+                }
+                else
+                {
+                    _logger.LogWarning("Cannot reach remote ComfyUI server");
+                    statusCallback?.Invoke("Cannot reach remote ComfyUI server. Please check the server is running.");
+                    return false;
+                }
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Failed to reach remote ComfyUI");
+                statusCallback?.Invoke($"Cannot reach remote ComfyUI: {ex.Message}");
+                return false;
+            }
+        }
+
         return await _processManager.DetectAndRestartComfyUIAsync(statusCallback, cancellationToken);
     }
 
