@@ -182,6 +182,7 @@
         <!-- Buttons -->
         <StackPanel Grid.Row="2" Orientation="Horizontal" HorizontalAlignment="Right" Margin="0,20,0,0">
             <Button Content="Test Connection" Click="TestConnection_Click" Margin="0,0,10,0" Padding="20,10" Background="#28A745" Foreground="White" BorderThickness="0"/>
+            <Button Content="Test WebSocket" Click="TestWebSocket_Click" Margin="0,0,10,0" Padding="20,10" Background="#17A2B8" Foreground="White" BorderThickness="0"/>
             <Button Content="Cancel" Click="Cancel_Click" Margin="0,0,10,0" Padding="20,10"/>
             <Button Content="Save" Click="Save_Click" Padding="20,10" Background="#FF6B35" Foreground="White" BorderThickness="0" FontWeight="Bold"/>
         </StackPanel>

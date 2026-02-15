@@ -127,3 +127,20 @@ Files modified:
 Both critical issues are now addressed:
 1. **Problem A (Remote connection settings)**: Fixed by replacing hardcoded localhost fallbacks with settings-based fallbacks that reload from the saved settings file
 2. **Problem B (Video works once then stops)**: Fixed by adding automatic WebSocket reconnection with exponential backoff and pre-execution health checks
+
+---
+
+### Additional Changes (2026-02-15):
+
+#### File 6: `FlipPix.UI/SettingsWindow.xaml`
+- Added "Test WebSocket" button next to "Test Connection" button
+
+#### File 7: `FlipPix.UI/SettingsWindow.xaml.cs`
+- Added `TestWebSocket_Click()` method that performs comprehensive WebSocket testing:
+  - Validates WebSocket URL format
+  - Tests TCP connectivity to the WebSocket port
+  - Attempts WebSocket handshake with detailed error reporting
+  - Provides troubleshooting suggestions for common issues
+  - Reports on ComfyUI --listen flag requirements
+
+This addition helps diagnose WebSocket-specific connectivity issues, which is particularly useful for remote ComfyUI setups where HTTP may work but WebSocket fails.
