@@ -350,6 +350,16 @@ public class ComfyUIHttpClient : IDisposable
         {
             _logger.LogInfo($"Downloading output image: {filename}");
 
+            // If filename contains a path separator and no explicit subfolder was provided,
+            // split it into subfolder + filename for ComfyUI's /view endpoint
+            if (string.IsNullOrEmpty(subfolder) && filename.Contains('/'))
+            {
+                var lastSlash = filename.LastIndexOf('/');
+                subfolder = filename.Substring(0, lastSlash);
+                filename = filename.Substring(lastSlash + 1);
+                _logger.LogInfo($"Split path into subfolder='{subfolder}', filename='{filename}'");
+            }
+
             // Build the URL with query parameters
             var url = $"/view?filename={Uri.EscapeDataString(filename)}";
             if (!string.IsNullOrEmpty(subfolder))
