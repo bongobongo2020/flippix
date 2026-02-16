@@ -82,6 +82,7 @@ namespace FlipPix.UI.ViewModels
             ClearQueueCommand = new RelayCommand(ClearQueue, () => QueueItems.Any());
             OpenOutputFolderCommand = new RelayCommand(OpenOutputFolder);
             CancelProcessingCommand = new RelayCommand(CancelProcessing, () => IsProcessing);
+            ForceCancelQueueCommand = new RelayCommand(ForceCancelQueue, () => IsProcessingQueue || QueueItems.Any(i => i.Status == "Queued" || i.Status == "Processing"));
             PauseQueueCommand = new RelayCommand(PauseQueue, () => IsProcessingQueue && !IsQueuePaused);
             ResumeQueueCommand = new RelayCommand(ResumeQueue, () => IsProcessingQueue && IsQueuePaused);
 
@@ -367,6 +368,7 @@ namespace FlipPix.UI.ViewModels
         public ICommand ClearQueueCommand { get; }
         public ICommand OpenOutputFolderCommand { get; }
         public ICommand CancelProcessingCommand { get; }
+        public ICommand ForceCancelQueueCommand { get; }
         public ICommand PauseQueueCommand { get; }
         public ICommand ResumeQueueCommand { get; }
 
@@ -676,6 +678,7 @@ namespace FlipPix.UI.ViewModels
             OnPropertyChanged(nameof(CompletedCount));
             OnPropertyChanged(nameof(FailedCount));
             OnPropertyChanged(nameof(QueueProgressText));
+            (ForceCancelQueueCommand as RelayCommand)?.NotifyCanExecuteChanged();
         }
 
         /// <summary>
@@ -764,7 +767,42 @@ namespace FlipPix.UI.ViewModels
             AddLog("Queue resumed");
         }
 
-        private string QueueFilePath => Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "queue", QueuePersistenceFileName);
+        private void ForceCancelQueue()
+        {
+            AddLog("Force cancelling queue...");
+
+            // Cancel the cancellation token
+            if (_cancellationTokenSource != null && !_cancellationTokenSource.IsCancellationRequested)
+            {
+                _cancellationTokenSource.Cancel();
+            }
+
+            // Force reset the queue state
+            IsProcessingQueue = false;
+            IsQueuePaused = false;
+            _pauseEvent.Set();
+            CurrentQueueItem = null;
+            QueueProgress = 0;
+            QueueTotal = 0;
+            IsProcessing = false;
+            ProcessingStatus = string.Empty;
+            ProcessingProgress = 0;
+
+            // Mark any "Processing" items as "Failed"
+            foreach (var item in QueueItems.Where(i => i.Status == "Processing"))
+            {
+                item.Status = "Failed";
+                item.ErrorMessage = "Force cancelled by user";
+            }
+
+            SaveQueueToFile();
+            UpdateQueueCountNotifications();
+            CommandManager.InvalidateRequerySuggested();
+
+            AddLog("Queue force cancelled. You can now restart processing.");
+        }
+
+        private string QueueFilePath => Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData), "FlipPix", "queue", QueuePersistenceFileName);
 
         protected void SaveQueueToFile()
         {
