@@ -434,18 +434,51 @@ namespace FlipPix.UI.ViewModels
                     {
                         AddLog("Detected remote ComfyUI server, downloading generated image...");
 
-                        var outputFiles = await _comfyUIService.HttpClient.GetOutputFilesAsync();
-                        AddLog($"Found {outputFiles.Count} potential output files");
+                        List<string> imageFiles = new();
+                        var expectedPattern = $"{jsonFileName}-{imageIndex}_";
 
-                        // Look for specific filename pattern: jsonfilename/jsonfilename-{index}_00001.png
-                        var expectedPattern = $"{jsonFileName}/{jsonFileName}-{imageIndex}_";
-                        var imageFiles = outputFiles.Where(f =>
+                        // Strategy 1: Use prompt-specific history lookup (most reliable)
+                        var promptOutputFiles = await _comfyUIService.HttpClient.GetOutputFilesForPromptAsync(promptId);
+                        imageFiles = promptOutputFiles.Where(f =>
                             f.EndsWith(".png") &&
-                            (f.StartsWith(expectedPattern) || f.Contains($"{jsonFileName}-{imageIndex}")))
+                            (f.Contains(expectedPattern) || f.Contains($"{jsonFileName}/{expectedPattern}")))
                             .ToList();
 
-                        AddLog($"Looking for pattern: {expectedPattern}");
+                        if (imageFiles.Any())
+                        {
+                            AddLog($"Found {imageFiles.Count} output file(s) for prompt {promptId} matching pattern {expectedPattern}");
+                        }
+                        else
+                        {
+                            // Strategy 2: Try prompt-specific history without pattern filter (just get any png output from this prompt)
+                            imageFiles = promptOutputFiles.Where(f => f.EndsWith(".png")).ToList();
+                            if (imageFiles.Any())
+                            {
+                                AddLog($"Found {imageFiles.Count} output file(s) for prompt {promptId} (no pattern filter)");
+                            }
+                            else
+                            {
+                                // Strategy 3: Fall back to scanning recent history with pattern matching
+                                AddLog($"No output files in history for prompt {promptId}, trying general pattern match...");
 
+                                var outputFiles = await _comfyUIService.HttpClient.GetOutputFilesAsync();
+                                AddLog($"Found {outputFiles.Count} potential output files in recent history");
+
+                                imageFiles = outputFiles.Where(f =>
+                                    f.EndsWith(".png") &&
+                                    (f.Contains(expectedPattern) || f.Contains($"{jsonFileName}/{expectedPattern}")))
+                                    .ToList();
+
+                                AddLog($"Looking for pattern: {expectedPattern} (with or without subfolder prefix)");
+
+                                if (!imageFiles.Any())
+                                {
+                                    AddLog($"No matching files found. Available files: {string.Join(", ", outputFiles.Take(5))}");
+                                }
+                            }
+                        }
+
+                        // Download the image
                         if (imageFiles.Any())
                         {
                             var filename = imageFiles.Last();
@@ -456,16 +489,6 @@ namespace FlipPix.UI.ViewModels
                             {
                                 images.Add(imageData);
                                 AddLog($"Successfully downloaded image ({imageData.Length} bytes)");
-                            }
-                        }
-                        else
-                        {
-                            AddLog($"No matching files found. Available files: {string.Join(", ", outputFiles.Take(5))}");
-                            var fallbackImage = await _comfyUIService.HttpClient.TryDownloadRecentOutputAsync(promptId);
-                            if (fallbackImage != null)
-                            {
-                                images.Add(fallbackImage);
-                                AddLog($"Successfully downloaded image via fallback method ({fallbackImage.Length} bytes)");
                             }
                         }
                     }
