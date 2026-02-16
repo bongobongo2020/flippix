@@ -1,27 +1,30 @@
-# Task: Add Local Video Copy to VideoGeneratorMainViewModel (Single Mode)
+# Task: Add Force Cancel Queue Button for Story Image Generators
 
 ## 1. Context & Objective
-The single video generation flow in `VideoGeneratorMainViewModel` does not copy generated videos to the local machine (`%USERPROFILE%\Videos\flippix-vids`). All other video view models (VACE, Mocha, LTX2Audio, StoryVideo) already call `LocalCopyService.CopyVideoAsync()` after generation. This task adds the missing call to maintain consistency.
+The Story Image Q and F queue processing can freeze, and there is no way for users to cancel a stuck queue and restart processing. The existing `CancelProcessingCommand` is tied to the `IsProcessing` property which is never set during queue processing (only `IsProcessingQueue` is set).
+
+**Goal:** Add a Force Cancel Queue button that allows users to forcefully cancel stuck queues and reset the state so processing can be restarted.
 
 ## 2. Files to Modify
-- `FlipPix.UI/ViewModels/Video/VideoGeneratorMainViewModel.cs`
+- `FlipPix.UI/ViewModels/StoryImageGeneratorBaseViewModel.cs`: Add ForceCancelQueueCommand and implementation
+- `FlipPix.UI/ImageGeneratorWindow.xaml`: Add Force Cancel buttons to StoryGenerator Q and F UIs
 
 ## 3. Implementation Steps
-1. In `GenerateVideoAsyncInternal()`, locate the block where `ResultVideoPath` is set after successful video generation (around line 1654-1668). The code looks like:
-   ```csharp
-   if (outputVideo != null && File.Exists(outputVideo))
-   {
-       ResultVideoPath = outputVideo;
-       HasResult = true;
-       ...
-   }
-   ```
-2. Add `await LocalCopyService.CopyVideoAsync(outputVideo);` **after** `ResultVideoPath = outputVideo;` and **before** `HasResult = true;`. This matches the exact pattern used in:
-   - `VACEVideoViewModel.cs` (line 516)
-   - `MochaVideoViewModel.cs` (line 497)
-   - `LTX2AudioViewModel.cs` (line 591)
 
-3. Verify that `LocalCopyService` is already injected/available in `VideoGeneratorMainViewModel` (it should be, since the base class `VideoProcessingBaseViewModel` uses it).
+1. In `StoryImageGeneratorBaseViewModel.cs`:
+   - Add `ForceCancelQueueCommand` property
+   - Initialize the command with `ForceCancelQueue` method
+   - Enable when `IsProcessingQueue` is true OR there are queued/processing items
+   - Implement `ForceCancelQueue()` method that:
+     - Cancels the cancellation token
+     - Resets all queue state (IsProcessingQueue, IsQueuePaused, progress, etc.)
+     - Marks "Processing" items as "Failed"
+     - Saves queue state
+   - Update `UpdateQueueCountNotifications()` to notify command state changes
+
+2. In `ImageGeneratorWindow.xaml`:
+   - Add "⛔ Force Cancel" button to StoryGenerator queue controls (alongside Pause/Resume)
+   - Add "⛔ Force Cancel" button to StoryGeneratorF queue controls
 
 ## 4. Completion Instructions
 Update this file with a "Changelog" section detailing your changes for my review.
@@ -30,32 +33,34 @@ Update this file with a "Changelog" section detailing your changes for my review
 
 ## Changelog
 
-### 2026-02-15 - Add Local Video Copy to VideoGeneratorMainViewModel (Single Mode)
+### Date: 2026-02-16
 
-**File Modified:** `FlipPix.UI/ViewModels/Video/VideoGeneratorMainViewModel.cs`
+### Changes Implemented
 
-**Line Changed:** 1656-1657 (in `GenerateVideoAsyncInternal()`)
+| File | Change |
+|------|--------|
+| `FlipPix.UI/ViewModels/StoryImageGeneratorBaseViewModel.cs` | Added ForceCancelQueueCommand and ForceCancelQueue() method |
+| `FlipPix.UI/ImageGeneratorWindow.xaml` | Added Force Cancel buttons to StoryGenerator Q and F UIs |
 
-**Changes Made:**
-1. Added `await LocalCopyService.CopyVideoAsync(outputVideo);` call after `ResultVideoPath = outputVideo;`
-2. Placement: Between setting `ResultVideoPath` and setting `HasResult = true`
+### Technical Details
 
-**Code Change:**
-```csharp
-// Before:
-ResultVideoPath = outputVideo;
-HasResult = true;
+**ViewModel Changes (`StoryImageGeneratorBaseViewModel.cs`):**
+- Added `ForceCancelQueueCommand` ICommand property
+- Command enabled when: `IsProcessingQueue == true OR QueueItems.Any(i => i.Status == "Queued" || i.Status == "Processing")`
+- `ForceCancelQueue()` method implementation:
+  - Cancels `_cancellationTokenSource`
+  - Resets: `IsProcessingQueue`, `IsQueuePaused`, `CurrentQueueItem`, `QueueProgress`, `QueueTotal`, `IsProcessing`, `ProcessingStatus`, `ProcessingProgress`
+  - Marks any "Processing" items as "Failed" with error message "Force cancelled by user"
+  - Calls `SaveQueueToFile()` and updates notifications
+- `UpdateQueueCountNotifications()` now calls `ForceCancelQueueCommand.NotifyCanExecuteChanged()`
 
-// After:
-ResultVideoPath = outputVideo;
-await LocalCopyService.CopyVideoAsync(outputVideo);
-HasResult = true;
-```
+**UI Changes (`ImageGeneratorWindow.xaml`):**
+- StoryGenerator Q section: Added `<Button Content="⛔ Force Cancel" Width="120" ... Command="{Binding StoryGenerator.ForceCancelQueueCommand}"`
+- StoryGenerator F section: Added `<Button Content="⛔ Force Cancel" Width="120" ... Command="{Binding StoryGeneratorF.ForceCancelQueueCommand}"`
+- Both buttons styled with red background (`#DC3545`) and appear alongside Pause/Resume buttons
 
-**Behavior Change:**
-- Before: Videos generated in single mode were not copied to `%USERPROFILE%\Videos\flippix-vids`
-- After: Videos are now automatically copied to the local user's Videos folder, matching the behavior of VACE, Mocha, and LTX2Audio video generators
-
-**Technical Notes:**
-- `LocalCopyService` is inherited from `VideoProcessingBaseViewModel` base class
-- This change maintains consistency across all video generation workflows
+### User Impact
+- Users can now force-cancel stuck queues with a single button click
+- Queue state is fully reset, allowing immediate restart of processing
+- Stuck items are marked as "Failed" so they can be identified and retried
+- Button is visible during queue processing and when there are queued/processing items

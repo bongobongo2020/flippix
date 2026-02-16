@@ -281,17 +281,9 @@ namespace FlipPix.UI.ViewModels
         {
             var prompts = new List<string>();
 
-            // Try "Prompt #N:" format first (preferred)
+            // Strategy 1: Split by "Prompt #N:" or "Prompt N:" pattern
             var pattern = @"Prompt\s*#?\s*(\d+)\s*:\s*";
             var matches = Regex.Matches(analysisText, pattern, RegexOptions.IgnoreCase);
-
-            if (matches.Count == 0)
-            {
-                // Fallback: try numbered list format "1.", "2.", etc. at start of line
-                pattern = @"(?:^|\n)\s*(\d{1,2})\.\s+";
-                matches = Regex.Matches(analysisText, pattern);
-                AddLog($"Using numbered list fallback parser (found {matches.Count} matches)");
-            }
 
             for (int i = 0; i < matches.Count; i++)
             {
@@ -304,6 +296,30 @@ namespace FlipPix.UI.ViewModels
                 {
                     prompts.Add(promptText);
                 }
+            }
+
+            // Strategy 2 (Fallback): Split by "Subject:" occurrences if no "Prompt #N:" found
+            if (prompts.Count == 0)
+            {
+                AddLog("No 'Prompt #N:' labels found, falling back to 'Subject:' delimiter parsing...");
+                var subjectPattern = @"(?=Subject\s*:)";
+                var segments = Regex.Split(analysisText, subjectPattern, RegexOptions.IgnoreCase);
+
+                foreach (var segment in segments)
+                {
+                    var trimmed = segment.Trim();
+                    if (!string.IsNullOrWhiteSpace(trimmed) && trimmed.StartsWith("Subject", StringComparison.OrdinalIgnoreCase))
+                    {
+                        prompts.Add(trimmed);
+                    }
+                }
+            }
+
+            // Strategy 3 (Last resort): Use PromptParser.ExtractPrompts for generic parsing
+            if (prompts.Count == 0)
+            {
+                AddLog("Fallback: Using generic PromptParser.ExtractPrompts...");
+                prompts = PromptParser.ExtractPrompts(analysisText);
             }
 
             AddLog($"Parsed {prompts.Count} prompts from Qwen VL response");

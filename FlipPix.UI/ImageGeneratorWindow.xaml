@@ -2059,7 +2059,7 @@
                                     </Button>
                                 </Grid>
 
-                                <!-- Pause/Resume Controls -->
+                                <!-- Pause/Resume/Force Cancel Controls -->
                                 <StackPanel Orientation="Horizontal" Margin="0,0,0,10"
                                             Visibility="{Binding StoryGenerator.IsProcessingQueue, Converter={StaticResource BooleanToVisibilityConverter}}">
                                     <Button Content="⏸ Pause" Width="100" Height="32" Margin="0,0,8,0"
@@ -2068,6 +2068,9 @@
                                     <Button Content="▶ Resume" Width="100" Height="32" Margin="0,0,8,0"
                                             Command="{Binding StoryGenerator.ResumeQueueCommand}"
                                             Background="#10B981" Foreground="White" BorderThickness="0" FontWeight="SemiBold"/>
+                                    <Button Content="⛔ Force Cancel" Width="120" Height="32" Margin="0,0,8,0"
+                                            Command="{Binding StoryGenerator.ForceCancelQueueCommand}"
+                                            Background="#DC3545" Foreground="White" BorderThickness="0" FontWeight="SemiBold"/>
                                 </StackPanel>
 
                                 <!-- Queue Status -->
@@ -3458,7 +3461,7 @@
                                     </Button>
                                 </Grid>
 
-                                <!-- Pause/Resume Controls (F) -->
+                                <!-- Pause/Resume/Force Cancel Controls (F) -->
                                 <StackPanel Orientation="Horizontal" Margin="0,0,0,10"
                                             Visibility="{Binding StoryGeneratorF.IsProcessingQueue, Converter={StaticResource BooleanToVisibilityConverter}}">
                                     <Button Content="⏸ Pause" Width="100" Height="32" Margin="0,0,8,0"
@@ -3467,6 +3470,9 @@
                                     <Button Content="▶ Resume" Width="100" Height="32" Margin="0,0,8,0"
                                             Command="{Binding StoryGeneratorF.ResumeQueueCommand}"
                                             Background="#10B981" Foreground="White" BorderThickness="0" FontWeight="SemiBold"/>
+                                    <Button Content="⛔ Force Cancel" Width="120" Height="32" Margin="0,0,8,0"
+                                            Command="{Binding StoryGeneratorF.ForceCancelQueueCommand}"
+                                            Background="#DC3545" Foreground="White" BorderThickness="0" FontWeight="SemiBold"/>
                                 </StackPanel>
 
                                 <!-- Queue Status -->

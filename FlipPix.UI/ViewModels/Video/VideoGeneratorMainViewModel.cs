@@ -2292,7 +2292,7 @@ namespace FlipPix.UI.ViewModels.Video
             AddLog("Story queue cleared");
 
             // Delete the saved queue file
-            var queueFilePath = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "queue", "story_video_queue.json");
+            var queueFilePath = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData), "FlipPix", "queue", "story_video_queue.json");
             if (File.Exists(queueFilePath))
             {
                 File.Delete(queueFilePath);
@@ -2317,8 +2317,8 @@ namespace FlipPix.UI.ViewModels.Video
 
         #region Queue Persistence
 
-        private string QueueFilePath => Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "queue", "video_queue.json");
-        private string StoryQueueFilePath => Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "queue", "story_video_queue.json");
+        private string QueueFilePath => Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData), "FlipPix", "queue", "video_queue.json");
+        private string StoryQueueFilePath => Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData), "FlipPix", "queue", "story_video_queue.json");
 
         private void SaveQueueToFile()
         {
