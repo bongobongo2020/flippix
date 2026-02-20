@@ -1,165 +1,163 @@
-# Task: Fix VACE and MoCha Tab — Broken Upload and Disabled Generate Button
+# Task: Fix Generate Video Button Never Enabled — VACE, LTX2Audio, Mocha
 
 ## 1. Context & Objective
 
-Two bugs break the VACE and MoCha tabs in the Video Generator window:
+The Generate Video button in the VideoGeneratorWindow is permanently disabled for three tabs:
+VACE, LTX Audio, and Mocha. Even after uploading all required files and entering a prompt,
+the button never enables.
 
-**Bug 1 — File dialogs do nothing (affects VACE and MoCha):**
-`FileDialogService.OpenFileDialogAsync` (and the other three dialog methods) call `Task.Run()` to execute `ShowDialog()` on a thread-pool thread. Thread-pool threads are MTA, but WPF file dialogs require an STA thread. The dialog throws `System.Threading.ThreadStateException` which propagates through the `async void` command handlers and is swallowed — so clicking Browse does nothing.
+**Root Cause (Confirmed after deep code analysis):**
 
-**Bug 2 — Mocha Generate button never enables:**
-`VideoGeneratorViewModel.ForwardPropertyChanged` re-fires `PropertyChanged` from sub-ViewModels using the original property name. When `MochaVM.CanGenerateVideo` changes, it fires `PropertyChanged("CanGenerateVideo")` on the parent VM — but the Mocha Generate button's `IsEnabled` is bound to `CanGenerateMochaVideo`. The binding never receives a notification, so the button stays permanently disabled.
+The project uses **CommunityToolkit.Mvvm v8.2.2**. In this version, `RelayCommand.CanExecuteChanged`
+is a plain `EventHandler?` event. It is **NOT** backed by `CommandManager.RequerySuggested`.
+
+The base `VideoProcessingBaseViewModel.OnCanExecuteChanged()` calls:
+```csharp
+CommandManager.InvalidateRequerySuggested();
+```
+This fires `CommandManager.RequerySuggested`, but CommunityToolkit v8 RelayCommand does NOT
+listen to that event. As a result, `CanExecuteChanged` on the command NEVER fires, and WPF's
+`ButtonBase` never calls `UpdateCanExecute()`. The button's internal `_canExecute` field is set
+to `false` at initial binding and **never updated again** — so the button stays permanently disabled.
+
+**Why the main tab's Generate button works but the sub-tabs don't:**
+`VideoGeneratorMainViewModel` already uses the correct pattern:
+- Commands are stored as `RelayCommand` (not `ICommand`)
+- It has `NotifyCommandsCanExecuteChanged()` which calls `NotifyCanExecuteChanged()` on each command
+- This is called from every relevant property setter
+
+The three broken sub-VMs (`VACEVideoViewModel`, `LTX2AudioViewModel`, `MochaVideoViewModel`)
+are missing this exact pattern. They declare commands as `ICommand` and only rely on
+`CommandManager.InvalidateRequerySuggested()` which doesn't work with CommunityToolkit v8.
 
 ## 2. Files to Modify
 
-- `FlipPix.UI/Services/FileDialogService.cs`
-- `FlipPix.UI/ViewModels/VideoGeneratorViewModel.cs`
+- `FlipPix.UI/ViewModels/Video/VACEVideoViewModel.cs`
+- `FlipPix.UI/ViewModels/Video/LTX2AudioViewModel.cs`
+- `FlipPix.UI/ViewModels/Video/MochaVideoViewModel.cs`
+
+**Do NOT modify:** `VideoProcessingBaseViewModel.cs` or `VideoGeneratorViewModel.cs`
 
 ## 3. Implementation Steps
 
-### Step 1 — Fix `FileDialogService.cs`
-
-Add `using System.Windows;` at the top if not already present.
-
-Replace all four dialog method bodies. Instead of `Task.Run(...)`, use `Application.Current.Dispatcher.InvokeAsync(...)` so the dialog runs on the WPF UI thread (which is STA).
-
-**`OpenFileDialogAsync`** — replace body with:
-```csharp
-public Task<string?> OpenFileDialogAsync(string title, string filter, string? initialDirectory = null)
-{
-    return Application.Current.Dispatcher.InvokeAsync(() =>
-    {
-        var dialog = new Microsoft.Win32.OpenFileDialog
-        {
-            Title = title,
-            Filter = filter,
-            CheckFileExists = true,
-            CheckPathExists = true
-        };
-
-        if (!string.IsNullOrEmpty(initialDirectory) && System.IO.Directory.Exists(initialDirectory))
-            dialog.InitialDirectory = initialDirectory;
-
-        return dialog.ShowDialog() == true ? dialog.FileName : null;
-    }).Task;
-}
-```
-
-**`OpenFilesDialogAsync`** — replace body with:
-```csharp
-public Task<string[]> OpenFilesDialogAsync(string title, string filter, string? initialDirectory = null)
-{
-    return Application.Current.Dispatcher.InvokeAsync(() =>
-    {
-        var dialog = new Microsoft.Win32.OpenFileDialog
-        {
-            Title = title,
-            Filter = filter,
-            CheckFileExists = true,
-            CheckPathExists = true,
-            Multiselect = true
-        };
-
-        if (!string.IsNullOrEmpty(initialDirectory) && System.IO.Directory.Exists(initialDirectory))
-            dialog.InitialDirectory = initialDirectory;
-
-        return dialog.ShowDialog() == true ? dialog.FileNames : Array.Empty<string>();
-    }).Task;
-}
-```
-
-**`SaveFileDialogAsync`** — replace body with:
-```csharp
-public Task<string?> SaveFileDialogAsync(string title, string filter, string defaultFileName, string? initialDirectory = null)
-{
-    return Application.Current.Dispatcher.InvokeAsync(() =>
-    {
-        var dialog = new Microsoft.Win32.SaveFileDialog
-        {
-            Title = title,
-            Filter = filter,
-            FileName = defaultFileName,
-            CheckPathExists = true
-        };
-
-        if (!string.IsNullOrEmpty(initialDirectory) && System.IO.Directory.Exists(initialDirectory))
-            dialog.InitialDirectory = initialDirectory;
-
-        return dialog.ShowDialog() == true ? dialog.FileName : null;
-    }).Task;
-}
-```
-
-**`OpenFolderDialogAsync`** — replace body with:
-```csharp
-public Task<string?> OpenFolderDialogAsync(string title, string? initialDirectory = null, bool showNewFolderButton = false)
-{
-    return Application.Current.Dispatcher.InvokeAsync(() =>
-    {
-        using var dialog = new Forms.FolderBrowserDialog
-        {
-            Description = title,
-            ShowNewFolderButton = showNewFolderButton
-        };
-
-        if (!string.IsNullOrEmpty(initialDirectory) && System.IO.Directory.Exists(initialDirectory))
-            dialog.SelectedPath = initialDirectory;
-
-        return dialog.ShowDialog() == Forms.DialogResult.OK ? dialog.SelectedPath : null;
-    }).Task;
-}
-```
+Apply the same two changes to all three files.
 
 ---
 
-### Step 2 — Fix `VideoGeneratorViewModel.cs`
+### Step A — Change command property types from `ICommand` to `RelayCommand`
 
-Replace the existing `ForwardPropertyChanged` method with a version that is aware of which sub-VM sent the event and fires additional aliased property change notifications:
+In each file, in the `#region Commands` section, change these four declarations:
 
 ```csharp
-private void ForwardPropertyChanged(object? sender, PropertyChangedEventArgs e)
+// BEFORE (in all three sub-VMs):
+public ICommand GenerateVideoCommand { get; }
+public ICommand PlayVideoCommand { get; }
+public ICommand OpenResultFolderCommand { get; }
+public ICommand SendToEditCameraCommand { get; }
+```
+
+```csharp
+// AFTER:
+public RelayCommand GenerateVideoCommand { get; }
+public RelayCommand PlayVideoCommand { get; }
+public RelayCommand OpenResultFolderCommand { get; }
+public RelayCommand SendToEditCameraCommand { get; }
+```
+
+> The `Select*` commands (`SelectBackgroundImageCommand`, `SelectForegroundImageCommand`,
+> `SelectVideoCommand`, `SelectImageCommand`, `SelectAudioCommand`) have NO `CanExecute`
+> predicates, so leave them as `ICommand`.
+
+---
+
+### Step B — Add `NotifyCommandsCanExecuteChanged()` and override `OnCanExecuteChanged()`
+
+In each sub-VM, add these two methods. Place them near the end of the class (before the closing
+`}`), following the same pattern used in `VideoGeneratorMainViewModel`.
+
+**For `VACEVideoViewModel.cs`** — add:
+```csharp
+private void NotifyCommandsCanExecuteChanged()
 {
-    if (e.PropertyName == null) return;
+    GenerateVideoCommand.NotifyCanExecuteChanged();
+    PlayVideoCommand.NotifyCanExecuteChanged();
+    OpenResultFolderCommand.NotifyCanExecuteChanged();
+    SendToEditCameraCommand.NotifyCanExecuteChanged();
+}
 
-    OnPropertyChanged(e.PropertyName);
-
-    // When a sub-VM's CanGenerateVideo changes, also fire the parent VM's
-    // correctly-named alias so XAML bindings like IsEnabled="{Binding CanGenerateMochaVideo}" update.
-    if (e.PropertyName == "CanGenerateVideo")
-    {
-        if (sender == VaceVM)
-            OnPropertyChanged(nameof(CanGenerateVACEVideo));
-        else if (sender == MochaVM)
-            OnPropertyChanged(nameof(CanGenerateMochaVideo));
-        else if (sender == LTX2AudioVM)
-            OnPropertyChanged(nameof(CanGenerateLTX2AudioVideo));
-    }
+protected override void OnCanExecuteChanged()
+{
+    base.OnCanExecuteChanged();
+    NotifyCommandsCanExecuteChanged();
 }
 ```
 
-## 4. Completion Instructions
+**For `LTX2AudioViewModel.cs`** — add the same two methods (identical code, same four commands).
 
-Update this file with a "Changelog" section detailing your changes for review.
+**For `MochaVideoViewModel.cs`** — add the same two methods (identical code, same four commands).
+
+---
+
+## 4. Verification
+
+After building and running:
+
+1. **VACE tab**: Upload background image + foreground image + input video + type a prompt
+   → "Generate VACE Video" button must become enabled
+2. **LTX Audio tab**: Upload image + audio file + type a prompt
+   → "Generate Video" button must become enabled
+3. **Mocha tab**: Upload source video + reference image + type a prompt
+   → "Generate" button must become enabled
+4. When generation starts (`IsProcessing = true`), the button must re-disable
+5. After generation finishes, the button must re-enable (if files still present)
+
+## 5. Completion Instructions
+
+Update this file with a "Changelog" section detailing all changes made for review.
 
 ---
 
 ## Changelog
 
-### 2026-02-20
+### Summary
+Fixed the Generate Video button permanently disabled issue in VACE, LTX2Audio, and Mocha video generation tabs by changing command types from `ICommand` to `RelayCommand` and adding proper command notification methods.
 
-#### `FlipPix.UI/Services/FileDialogService.cs`
-- Added `using System.Windows;` import for Dispatcher access
-- Replaced `Task.Run()` with `Application.Current.Dispatcher.InvokeAsync()` in all four dialog methods:
-  - `OpenFileDialogAsync`
-  - `OpenFilesDialogAsync`
-  - `SaveFileDialogAsync`
-  - `OpenFolderDialogAsync`
-- **Fix:** Dialogs now run on the WPF UI thread (STA) instead of thread-pool threads (MTA), preventing `ThreadStateException` that caused Browse buttons to silently fail
+### Files Modified
 
-#### `FlipPix.UI/ViewModels/VideoGeneratorViewModel.cs`
-- Enhanced `ForwardPropertyChanged` method to handle property name aliasing
-- **Fix:** When sub-ViewModels fire `CanGenerateVideo` changed, the parent now correctly fires:
-  - `CanGenerateVACEVideo` for VaceVM
-  - `CanGenerateMochaVideo` for MochaVM
-  - `CanGenerateLTX2AudioVideo` for LTX2AudioVM
-- This ensures XAML bindings like `IsEnabled="{Binding CanGenerateMochaVideo}"` update correctly
+1. **FlipPix.UI/ViewModels/Video/VACEVideoViewModel.cs**
+   - Changed 4 command declarations from `ICommand` to `RelayCommand`:
+     - `GenerateVideoCommand`
+     - `PlayVideoCommand`
+     - `OpenResultFolderCommand`
+     - `SendToEditCameraCommand`
+   - Added `NotifyCommandsCanExecuteChanged()` method to notify each command when CanExecute state changes
+   - Added `OnCanExecuteChanged()` override to call `NotifyCommandsCanExecuteChanged()`
+
+2. **FlipPix.UI/ViewModels/Video/LTX2AudioViewModel.cs**
+   - Changed 4 command declarations from `ICommand` to `RelayCommand`:
+     - `GenerateVideoCommand`
+     - `PlayVideoCommand`
+     - `OpenResultFolderCommand`
+     - `SendToEditCameraCommand`
+   - Added `NotifyCommandsCanExecuteChanged()` method to notify each command when CanExecute state changes
+   - Added `OnCanExecuteChanged()` override to call `NotifyCommandsCanExecuteChanged()`
+
+3. **FlipPix.UI/ViewModels/Video/MochaVideoViewModel.cs**
+   - Changed 4 command declarations from `ICommand` to `RelayCommand`:
+     - `GenerateVideoCommand`
+     - `PlayVideoCommand`
+     - `OpenResultFolderCommand`
+     - `SendToEditCameraCommand`
+   - Added `NotifyCommandsCanExecuteChanged()` method to notify each command when CanExecute state changes
+   - Added `OnCanExecuteChanged()` override to call `NotifyCommandsCanExecuteChanged()`
+
+### Technical Details
+- **Root Cause**: CommunityToolkit.Mvvm v8.2.2's `RelayCommand.CanExecuteChanged` is a plain `EventHandler?` not backed by `CommandManager.RequerySuggested`. The base class's `OnCanExecuteChanged()` calling `CommandManager.InvalidateRequerySuggested()` had no effect.
+- **Solution**: Store commands as `RelayCommand` type (not `ICommand`) and explicitly call `NotifyCanExecuteChanged()` on each command when properties change.
+- **Pattern Applied**: Matches the working implementation in `VideoGeneratorMainViewModel`.
+
+### Testing Required
+1. VACE tab: Upload background image + foreground image + input video + prompt → button should enable
+2. LTX Audio tab: Upload image + audio + prompt → button should enable
+3. Mocha tab: Upload source video + reference image + prompt → button should enable
+4. Button should disable during processing and re-enable after completion

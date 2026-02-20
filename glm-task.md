@@ -1,99 +1,163 @@
-# Task: Fix Sub-VM Property Forwarding — Image Preview & Generate Button
+# Task: Fix Generate Video Button Never Enabled — VACE, LTX2Audio, Mocha
 
 ## 1. Context & Objective
 
-There are two related runtime bugs in the Video Generator window:
+The Generate Video button in the VideoGeneratorWindow is permanently disabled for three tabs:
+VACE, LTX Audio, and Mocha. Even after uploading all required files and entering a prompt,
+the button never enables.
 
-**Bug 1 — Image preview never appears (VACE, Mocha, LTX2Audio tabs):**
-The parent `VideoGeneratorViewModel` has aliased pass-through properties like:
+**Root Cause (Confirmed after deep code analysis):**
+
+The project uses **CommunityToolkit.Mvvm v8.2.2**. In this version, `RelayCommand.CanExecuteChanged`
+is a plain `EventHandler?` event. It is **NOT** backed by `CommandManager.RequerySuggested`.
+
+The base `VideoProcessingBaseViewModel.OnCanExecuteChanged()` calls:
 ```csharp
-public BitmapImage? VaceBackgroundImagePreview { get => VaceVM.BackgroundImagePreview; ... }
-public BitmapImage? MochaImagePreview           { get => MochaVM.ImagePreview; ... }
+CommandManager.InvalidateRequerySuggested();
 ```
-When sub-VMs fire `PropertyChanged("BackgroundImagePreview")` or `PropertyChanged("ImagePreview")`,
-`ForwardPropertyChanged` re-fires the **same name** on the parent. But XAML binds to the **aliased names**
-(`VaceBackgroundImagePreview`, `MochaImagePreview`, etc.) — so those bindings never get a change notification
-and the UI never refreshes.
+This fires `CommandManager.RequerySuggested`, but CommunityToolkit v8 RelayCommand does NOT
+listen to that event. As a result, `CanExecuteChanged` on the command NEVER fires, and WPF's
+`ButtonBase` never calls `UpdateCanExecute()`. The button's internal `_canExecute` field is set
+to `false` at initial binding and **never updated again** — so the button stays permanently disabled.
 
-This affects every pass-through property where the parent renames the sub-VM property with a prefix:
-`VaceBackground*`, `VaceForeground*`, `MochaImage*`, `LTX2AudioImage*`, `HasVACE*`, `HasMocha*`,
-`IsProcessingVACE`, `IsProcessingMocha`, `IsProcessingLTX2Audio`, progress/log/result properties, etc.
+**Why the main tab's Generate button works but the sub-tabs don't:**
+`VideoGeneratorMainViewModel` already uses the correct pattern:
+- Commands are stored as `RelayCommand` (not `ICommand`)
+- It has `NotifyCommandsCanExecuteChanged()` which calls `NotifyCanExecuteChanged()` on each command
+- This is called from every relevant property setter
 
-**Bug 2 — Generate button stays disabled (same root cause):**
-`CanGenerateMochaVideo`, `CanGenerateVACEVideo`, and `CanGenerateLTX2AudioVideo` bindings on the
-generate buttons are also pass-through aliases. They suffer the same notification gap.
+The three broken sub-VMs (`VACEVideoViewModel`, `LTX2AudioViewModel`, `MochaVideoViewModel`)
+are missing this exact pattern. They declare commands as `ICommand` and only rely on
+`CommandManager.InvalidateRequerySuggested()` which doesn't work with CommunityToolkit v8.
 
 ## 2. Files to Modify
 
-- `FlipPix.UI/ViewModels/VideoGeneratorViewModel.cs`
+- `FlipPix.UI/ViewModels/Video/VACEVideoViewModel.cs`
+- `FlipPix.UI/ViewModels/Video/LTX2AudioViewModel.cs`
+- `FlipPix.UI/ViewModels/Video/MochaVideoViewModel.cs`
+
+**Do NOT modify:** `VideoProcessingBaseViewModel.cs` or `VideoGeneratorViewModel.cs`
 
 ## 3. Implementation Steps
 
-### Step 1 — Replace `ForwardPropertyChanged`
+Apply the same two changes to all three files.
 
-Find the current `ForwardPropertyChanged` method:
+---
+
+### Step A — Change command property types from `ICommand` to `RelayCommand`
+
+In each file, in the `#region Commands` section, change these four declarations:
 
 ```csharp
-private void ForwardPropertyChanged(object? sender, PropertyChangedEventArgs e)
+// BEFORE (in all three sub-VMs):
+public ICommand GenerateVideoCommand { get; }
+public ICommand PlayVideoCommand { get; }
+public ICommand OpenResultFolderCommand { get; }
+public ICommand SendToEditCameraCommand { get; }
+```
+
+```csharp
+// AFTER:
+public RelayCommand GenerateVideoCommand { get; }
+public RelayCommand PlayVideoCommand { get; }
+public RelayCommand OpenResultFolderCommand { get; }
+public RelayCommand SendToEditCameraCommand { get; }
+```
+
+> The `Select*` commands (`SelectBackgroundImageCommand`, `SelectForegroundImageCommand`,
+> `SelectVideoCommand`, `SelectImageCommand`, `SelectAudioCommand`) have NO `CanExecute`
+> predicates, so leave them as `ICommand`.
+
+---
+
+### Step B — Add `NotifyCommandsCanExecuteChanged()` and override `OnCanExecuteChanged()`
+
+In each sub-VM, add these two methods. Place them near the end of the class (before the closing
+`}`), following the same pattern used in `VideoGeneratorMainViewModel`.
+
+**For `VACEVideoViewModel.cs`** — add:
+```csharp
+private void NotifyCommandsCanExecuteChanged()
 {
-    if (e.PropertyName == null) return;
+    GenerateVideoCommand.NotifyCanExecuteChanged();
+    PlayVideoCommand.NotifyCanExecuteChanged();
+    OpenResultFolderCommand.NotifyCanExecuteChanged();
+    SendToEditCameraCommand.NotifyCanExecuteChanged();
+}
 
-    OnPropertyChanged(e.PropertyName);
-
-    // When a sub-VM's CanGenerateVideo changes, also fire the parent VM's
-    // correctly-named alias so XAML bindings like IsEnabled="{Binding CanGenerateMochaVideo}" update.
-    if (e.PropertyName == "CanGenerateVideo")
-    {
-        if (sender == VaceVM)
-            OnPropertyChanged(nameof(CanGenerateVACEVideo));
-        else if (sender == MochaVM)
-            OnPropertyChanged(nameof(CanGenerateMochaVideo));
-        else if (sender == LTX2AudioVM)
-            OnPropertyChanged(nameof(CanGenerateLTX2AudioVideo));
-    }
+protected override void OnCanExecuteChanged()
+{
+    base.OnCanExecuteChanged();
+    NotifyCommandsCanExecuteChanged();
 }
 ```
 
-Replace it with:
+**For `LTX2AudioViewModel.cs`** — add the same two methods (identical code, same four commands).
 
-```csharp
-private void ForwardPropertyChanged(object? sender, PropertyChangedEventArgs e)
-{
-    if (e.PropertyName == null) return;
+**For `MochaVideoViewModel.cs`** — add the same two methods (identical code, same four commands).
 
-    // Re-fire with the original property name (handles any direct-name bindings).
-    OnPropertyChanged(e.PropertyName);
+---
 
-    // Re-fire with empty string to refresh ALL bindings on this DataContext.
-    // This is required because the parent VM exposes aliased pass-through properties
-    // (e.g. VaceBackgroundImagePreview → VaceVM.BackgroundImagePreview). When the
-    // sub-VM fires PropertyChanged("BackgroundImagePreview"), the XAML binding on
-    // VaceBackgroundImagePreview would otherwise never see the notification.
-    OnPropertyChanged(string.Empty);
-}
-```
+## 4. Verification
 
-That's the entire change. The `OnPropertyChanged(string.Empty)` call (equivalent to passing `null`)
-tells WPF to re-evaluate every binding on this DataContext, so all aliased properties
-(`VaceBackgroundImagePreview`, `MochaImagePreview`, `CanGenerateMochaVideo`, etc.) update correctly.
+After building and running:
 
-## 4. Completion Instructions
+1. **VACE tab**: Upload background image + foreground image + input video + type a prompt
+   → "Generate VACE Video" button must become enabled
+2. **LTX Audio tab**: Upload image + audio file + type a prompt
+   → "Generate Video" button must become enabled
+3. **Mocha tab**: Upload source video + reference image + type a prompt
+   → "Generate" button must become enabled
+4. When generation starts (`IsProcessing = true`), the button must re-disable
+5. After generation finishes, the button must re-enable (if files still present)
 
-Update this file with a "Changelog" section detailing the change.
+## 5. Completion Instructions
+
+Update this file with a "Changelog" section detailing all changes made for review.
 
 ---
 
 ## Changelog
 
-### 2026-02-20
+### Summary
+Fixed the Generate Video button permanently disabled issue in VACE, LTX2Audio, and Mocha video generation tabs by changing command types from `ICommand` to `RelayCommand` and adding proper command notification methods.
 
-**Fixed:** Sub-VM property forwarding causing image previews and generate buttons to not update
+### Files Modified
 
-**Root Cause:** The `ForwardPropertyChanged` method only re-fired property change notifications with the original property name from sub-VMs. Since the parent `VideoGeneratorViewModel` exposes aliased pass-through properties (e.g., `VaceBackgroundImagePreview` → `VaceVM.BackgroundImagePreview`), XAML bindings to the aliased names never received notifications.
+1. **FlipPix.UI/ViewModels/Video/VACEVideoViewModel.cs**
+   - Changed 4 command declarations from `ICommand` to `RelayCommand`:
+     - `GenerateVideoCommand`
+     - `PlayVideoCommand`
+     - `OpenResultFolderCommand`
+     - `SendToEditCameraCommand`
+   - Added `NotifyCommandsCanExecuteChanged()` method to notify each command when CanExecute state changes
+   - Added `OnCanExecuteChanged()` override to call `NotifyCommandsCanExecuteChanged()`
 
-**Solution:** Modified `ForwardPropertyChanged` to also call `OnPropertyChanged(string.Empty)`, which tells WPF to re-evaluate ALL bindings on the DataContext.
+2. **FlipPix.UI/ViewModels/Video/LTX2AudioViewModel.cs**
+   - Changed 4 command declarations from `ICommand` to `RelayCommand`:
+     - `GenerateVideoCommand`
+     - `PlayVideoCommand`
+     - `OpenResultFolderCommand`
+     - `SendToEditCameraCommand`
+   - Added `NotifyCommandsCanExecuteChanged()` method to notify each command when CanExecute state changes
+   - Added `OnCanExecuteChanged()` override to call `NotifyCommandsCanExecuteChanged()`
 
-**Impact:** This fixes:
-- Image previews not appearing in VACE, Mocha, and LTX2Audio tabs
-- Generate buttons staying disabled when they should be enabled
-- All other aliased pass-through properties (`HasVACE*`, `HasMocha*`, `IsProcessing*`, progress/log/result properties)
+3. **FlipPix.UI/ViewModels/Video/MochaVideoViewModel.cs**
+   - Changed 4 command declarations from `ICommand` to `RelayCommand`:
+     - `GenerateVideoCommand`
+     - `PlayVideoCommand`
+     - `OpenResultFolderCommand`
+     - `SendToEditCameraCommand`
+   - Added `NotifyCommandsCanExecuteChanged()` method to notify each command when CanExecute state changes
+   - Added `OnCanExecuteChanged()` override to call `NotifyCommandsCanExecuteChanged()`
+
+### Technical Details
+- **Root Cause**: CommunityToolkit.Mvvm v8.2.2's `RelayCommand.CanExecuteChanged` is a plain `EventHandler?` not backed by `CommandManager.RequerySuggested`. The base class's `OnCanExecuteChanged()` calling `CommandManager.InvalidateRequerySuggested()` had no effect.
+- **Solution**: Store commands as `RelayCommand` type (not `ICommand`) and explicitly call `NotifyCanExecuteChanged()` on each command when properties change.
+- **Pattern Applied**: Matches the working implementation in `VideoGeneratorMainViewModel`.
+
+### Testing Required
+1. VACE tab: Upload background image + foreground image + input video + prompt → button should enable
+2. LTX Audio tab: Upload image + audio + prompt → button should enable
+3. Mocha tab: Upload source video + reference image + prompt → button should enable
+4. Button should disable during processing and re-enable after completion

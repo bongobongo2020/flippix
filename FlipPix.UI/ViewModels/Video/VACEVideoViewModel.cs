@@ -58,10 +58,10 @@ namespace FlipPix.UI.ViewModels.Video
         public ICommand SelectBackgroundImageCommand { get; }
         public ICommand SelectForegroundImageCommand { get; }
         public ICommand SelectVideoCommand { get; }
-        public ICommand GenerateVideoCommand { get; }
-        public ICommand PlayVideoCommand { get; }
-        public ICommand OpenResultFolderCommand { get; }
-        public ICommand SendToEditCameraCommand { get; }
+        public RelayCommand GenerateVideoCommand { get; }
+        public RelayCommand PlayVideoCommand { get; }
+        public RelayCommand OpenResultFolderCommand { get; }
+        public RelayCommand SendToEditCameraCommand { get; }
 
         #endregion
 
@@ -653,5 +653,19 @@ namespace FlipPix.UI.ViewModels.Video
         }
 
         #endregion
+
+        private void NotifyCommandsCanExecuteChanged()
+        {
+            GenerateVideoCommand.NotifyCanExecuteChanged();
+            PlayVideoCommand.NotifyCanExecuteChanged();
+            OpenResultFolderCommand.NotifyCanExecuteChanged();
+            SendToEditCameraCommand.NotifyCanExecuteChanged();
+        }
+
+        protected override void OnCanExecuteChanged()
+        {
+            base.OnCanExecuteChanged();
+            NotifyCommandsCanExecuteChanged();
+        }
     }
 }
