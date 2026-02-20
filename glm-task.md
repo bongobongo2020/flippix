@@ -1,77 +1,99 @@
-# Correction Task: DownloadOutputImageAsync Fails When Filename Contains Subfolder Path
+# Task: Fix Sub-VM Property Forwarding — Image Preview & Generate Button
 
-## Found
-The previous fix correctly finds the file via `GetOutputFilesForPromptAsync`, but the download silently fails (returns null) every retry. The file path returned is `subfolder/filename.png` (e.g. `flux2-klein_.../flux2-klein_...-21_00001_.png`), but `DownloadOutputImageAsync` passes the entire path as the `filename` query parameter:
+## 1. Context & Objective
 
+There are two related runtime bugs in the Video Generator window:
+
+**Bug 1 — Image preview never appears (VACE, Mocha, LTX2Audio tabs):**
+The parent `VideoGeneratorViewModel` has aliased pass-through properties like:
+```csharp
+public BitmapImage? VaceBackgroundImagePreview { get => VaceVM.BackgroundImagePreview; ... }
+public BitmapImage? MochaImagePreview           { get => MochaVM.ImagePreview; ... }
 ```
-/view?filename=flux2-klein_20260215_100729-kleinvl-15-qwenvl%2Fflux2-klein_20260215_100729-kleinvl-15-qwenvl-21_00001_.png
-```
+When sub-VMs fire `PropertyChanged("BackgroundImagePreview")` or `PropertyChanged("ImagePreview")`,
+`ForwardPropertyChanged` re-fires the **same name** on the parent. But XAML binds to the **aliased names**
+(`VaceBackgroundImagePreview`, `MochaImagePreview`, etc.) — so those bindings never get a change notification
+and the UI never refreshes.
 
-ComfyUI's `/view` endpoint expects **separate** `filename` and `subfolder` parameters:
-```
-/view?filename=flux2-klein_20260215_100729-kleinvl-15-qwenvl-21_00001_.png&subfolder=flux2-klein_20260215_100729-kleinvl-15-qwenvl
-```
+This affects every pass-through property where the parent renames the sub-VM property with a prefix:
+`VaceBackground*`, `VaceForeground*`, `MochaImage*`, `LTX2AudioImage*`, `HasVACE*`, `HasMocha*`,
+`IsProcessingVACE`, `IsProcessingMocha`, `IsProcessingLTX2Audio`, progress/log/result properties, etc.
 
-**Root cause:** The Q ViewModel sets `filename_prefix` to `{jsonFileName}/{jsonFileName}-{imageIndex}` (line 391 of StoryImageGeneratorQViewModel.cs), which creates output files in a subfolder. When `GetOutputFilesForPromptAsync` constructs the path as `subfolder/filename`, `DownloadOutputImageAsync` doesn't split this into separate parameters.
+**Bug 2 — Generate button stays disabled (same root cause):**
+`CanGenerateMochaVideo`, `CanGenerateVACEVideo`, and `CanGenerateLTX2AudioVideo` bindings on the
+generate buttons are also pass-through aliases. They suffer the same notification gap.
 
-Note: The F ViewModel doesn't have this issue because its `filename_prefix` is flat (`{jsonFileName}-{imageIndex}`, no `/`).
+## 2. Files to Modify
 
-## Fix Required
+- `FlipPix.UI/ViewModels/VideoGeneratorViewModel.cs`
 
-**File:** `FlipPix.ComfyUI/Http/ComfyUIHttpClient.cs` — method `DownloadOutputImageAsync` (line ~347)
+## 3. Implementation Steps
 
-At the **beginning** of the method (after the try/log line), add logic to detect and split paths containing `/`:
+### Step 1 — Replace `ForwardPropertyChanged`
+
+Find the current `ForwardPropertyChanged` method:
 
 ```csharp
-public async Task<byte[]?> DownloadOutputImageAsync(string filename, string subfolder = "", CancellationToken cancellationToken = default)
+private void ForwardPropertyChanged(object? sender, PropertyChangedEventArgs e)
 {
-    try
+    if (e.PropertyName == null) return;
+
+    OnPropertyChanged(e.PropertyName);
+
+    // When a sub-VM's CanGenerateVideo changes, also fire the parent VM's
+    // correctly-named alias so XAML bindings like IsEnabled="{Binding CanGenerateMochaVideo}" update.
+    if (e.PropertyName == "CanGenerateVideo")
     {
-        _logger.LogInfo($"Downloading output image: {filename}");
-
-        // If filename contains a path separator and no explicit subfolder was provided,
-        // split it into subfolder + filename for ComfyUI's /view endpoint
-        if (string.IsNullOrEmpty(subfolder) && filename.Contains('/'))
-        {
-            var lastSlash = filename.LastIndexOf('/');
-            subfolder = filename.Substring(0, lastSlash);
-            filename = filename.Substring(lastSlash + 1);
-            _logger.LogInfo($"Split path into subfolder='{subfolder}', filename='{filename}'");
-        }
-
-        // Build the URL with query parameters
-        var url = $"/view?filename={Uri.EscapeDataString(filename)}";
-        // ... rest of method stays the same
+        if (sender == VaceVM)
+            OnPropertyChanged(nameof(CanGenerateVACEVideo));
+        else if (sender == MochaVM)
+            OnPropertyChanged(nameof(CanGenerateMochaVideo));
+        else if (sender == LTX2AudioVM)
+            OnPropertyChanged(nameof(CanGenerateLTX2AudioVideo));
+    }
+}
 ```
 
-This is a safe, centralized fix — it will also handle any other callers that pass `subfolder/filename` paths.
+Replace it with:
 
-## Completion Instructions
-Update this file with a "Changelog" section detailing your changes for my review.
+```csharp
+private void ForwardPropertyChanged(object? sender, PropertyChangedEventArgs e)
+{
+    if (e.PropertyName == null) return;
+
+    // Re-fire with the original property name (handles any direct-name bindings).
+    OnPropertyChanged(e.PropertyName);
+
+    // Re-fire with empty string to refresh ALL bindings on this DataContext.
+    // This is required because the parent VM exposes aliased pass-through properties
+    // (e.g. VaceBackgroundImagePreview → VaceVM.BackgroundImagePreview). When the
+    // sub-VM fires PropertyChanged("BackgroundImagePreview"), the XAML binding on
+    // VaceBackgroundImagePreview would otherwise never see the notification.
+    OnPropertyChanged(string.Empty);
+}
+```
+
+That's the entire change. The `OnPropertyChanged(string.Empty)` call (equivalent to passing `null`)
+tells WPF to re-evaluate every binding on this DataContext, so all aliased properties
+(`VaceBackgroundImagePreview`, `MochaImagePreview`, `CanGenerateMochaVideo`, etc.) update correctly.
+
+## 4. Completion Instructions
+
+Update this file with a "Changelog" section detailing the change.
 
 ---
 
 ## Changelog
 
-### 2026-02-16 - Fix for DownloadOutputImageAsync Subfolder Path Handling
+### 2026-02-20
 
-**File Modified:** `FlipPix.ComfyUI/Http/ComfyUIHttpClient.cs`
+**Fixed:** Sub-VM property forwarding causing image previews and generate buttons to not update
 
-**Issue:** The `DownloadOutputImageAsync` method failed to download images when the filename contained a subfolder path (e.g., `flux2-klein_.../filename.png`). The entire path was passed as the `filename` query parameter, but ComfyUI's `/view` endpoint expects separate `filename` and `subfolder` parameters.
+**Root Cause:** The `ForwardPropertyChanged` method only re-fired property change notifications with the original property name from sub-VMs. Since the parent `VideoGeneratorViewModel` exposes aliased pass-through properties (e.g., `VaceBackgroundImagePreview` → `VaceVM.BackgroundImagePreview`), XAML bindings to the aliased names never received notifications.
 
-**Fix Applied:** Added path-splitting logic at the beginning of `DownloadOutputImageAsync` (after the try/log line) to detect filenames containing `/` and split them into separate `subfolder` and `filename` components when no explicit subfolder was provided.
+**Solution:** Modified `ForwardPropertyChanged` to also call `OnPropertyChanged(string.Empty)`, which tells WPF to re-evaluate ALL bindings on the DataContext.
 
-**Code Added (lines 351-358):**
-```csharp
-// If filename contains a path separator and no explicit subfolder was provided,
-// split it into subfolder + filename for ComfyUI's /view endpoint
-if (string.IsNullOrEmpty(subfolder) && filename.Contains('/'))
-{
-    var lastSlash = filename.LastIndexOf('/');
-    subfolder = filename.Substring(0, lastSlash);
-    filename = filename.Substring(lastSlash + 1);
-    _logger.LogInfo($"Split path into subfolder='{subfolder}', filename='{filename}'");
-}
-```
-
-**Impact:** This is a centralized, safe fix that will handle any callers passing `subfolder/filename` paths, not just the Q ViewModel's specific case. The F ViewModel is unaffected as it uses flat filename prefixes.
+**Impact:** This fixes:
+- Image previews not appearing in VACE, Mocha, and LTX2Audio tabs
+- Generate buttons staying disabled when they should be enabled
+- All other aliased pass-through properties (`HasVACE*`, `HasMocha*`, `IsProcessing*`, progress/log/result properties)
