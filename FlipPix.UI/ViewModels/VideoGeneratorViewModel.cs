@@ -131,10 +131,17 @@ namespace FlipPix.UI.ViewModels
 
         private void ForwardPropertyChanged(object? sender, PropertyChangedEventArgs e)
         {
-            if (e.PropertyName != null)
-            {
-                OnPropertyChanged(e.PropertyName);
-            }
+            if (e.PropertyName == null) return;
+
+            // Re-fire with the original property name (handles any direct-name bindings).
+            OnPropertyChanged(e.PropertyName);
+
+            // Re-fire with empty string to refresh ALL bindings on this DataContext.
+            // This is required because the parent VM exposes aliased pass-through properties
+            // (e.g. VaceBackgroundImagePreview → VaceVM.BackgroundImagePreview). When the
+            // sub-VM fires PropertyChanged("BackgroundImagePreview"), the XAML binding on
+            // VaceBackgroundImagePreview would otherwise never see the notification.
+            OnPropertyChanged(string.Empty);
         }
 
         #region MainVM Backward Compatibility Properties
