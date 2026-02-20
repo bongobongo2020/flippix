@@ -21,9 +21,11 @@ public class ComfyUIHttpClient : IDisposable
         _httpClient = httpClient;
         _logger = logger;
         _settings = settings;
-        
+
         _httpClient.BaseAddress = new Uri(_settings.BaseUrl);
-        _httpClient.Timeout = TimeSpan.FromMilliseconds(_settings.ConnectionTimeout);
+        // Use infinite timeout globally; upload methods apply per-request timeouts via CancellationToken.
+        // Connection-check methods (TestConnectionAsync, IsComfyUIReadyAsync) apply their own short timeouts.
+        _httpClient.Timeout = System.Threading.Timeout.InfiniteTimeSpan;
     }
 
     public async Task<bool> TestConnectionAsync(CancellationToken cancellationToken = default)
@@ -33,7 +35,9 @@ public class ComfyUIHttpClient : IDisposable
             var stopwatch = System.Diagnostics.Stopwatch.StartNew();
             _logger.LogInfo("Testing connection to ComfyUI at {BaseUrl}", _settings.BaseUrl);
 
-            var response = await _httpClient.GetAsync("/system_stats", cancellationToken);
+            using var cts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+            cts.CancelAfter(_settings.ConnectionTimeout);
+            var response = await _httpClient.GetAsync("/system_stats", cts.Token);
             stopwatch.Stop();
 
             if (response.IsSuccessStatusCode)
@@ -66,7 +70,9 @@ public class ComfyUIHttpClient : IDisposable
 
             // The /object_info endpoint requires all nodes to be loaded
             // This ensures ComfyUI is not just HTTP-responsive, but actually ready to process workflows
-            var response = await _httpClient.GetAsync("/object_info", cancellationToken);
+            using var cts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+            cts.CancelAfter(_settings.ConnectionTimeout);
+            var response = await _httpClient.GetAsync("/object_info", cts.Token);
 
             if (response.IsSuccessStatusCode)
             {
@@ -108,7 +114,9 @@ public class ComfyUIHttpClient : IDisposable
             content.Add(new StringContent(type), "type");
 
             var stopwatch = System.Diagnostics.Stopwatch.StartNew();
-            var response = await _httpClient.PostAsync("/upload/image", content, cancellationToken);
+            using var uploadCts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+            uploadCts.CancelAfter(_settings.UploadTimeoutMilliseconds);
+            var response = await _httpClient.PostAsync("/upload/image", content, uploadCts.Token);
             stopwatch.Stop();
 
             if (response.IsSuccessStatusCode)
@@ -166,22 +174,50 @@ public class ComfyUIHttpClient : IDisposable
             content.Add(new StringContent(type), "type");
 
             var stopwatch = System.Diagnostics.Stopwatch.StartNew();
-            
-            // Try video-specific upload endpoint first, fallback to image endpoint
+
+            // Try video-specific endpoint first, with upload timeout
+            using var uploadCts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+            uploadCts.CancelAfter(_settings.UploadTimeoutMilliseconds);
+
             HttpResponseMessage response;
+            bool triedVideoEndpoint = false;
             try
             {
-                response = await _httpClient.PostAsync("/upload/video", content, cancellationToken);
-                if (!response.IsSuccessStatusCode)
+                triedVideoEndpoint = true;
+                response = await _httpClient.PostAsync("/upload/video", content, uploadCts.Token);
+                if (response.IsSuccessStatusCode)
                 {
-                    // Fallback to image endpoint
-                    response = await _httpClient.PostAsync("/upload/image", content, cancellationToken);
+                    // Video endpoint worked, use this response
+                }
+                else
+                {
+                    // Video endpoint returned error — rebuild content and try image endpoint
+                    content.Dispose();
+                    // Rebuild multipart content from scratch (original stream is consumed)
+                    using var content2 = new MultipartFormDataContent();
+                    using var fileStream2 = File.OpenRead(filePath);
+                    using var fileContent2 = new StreamContent(fileStream2);
+                    fileContent2.Headers.ContentType = new System.Net.Http.Headers.MediaTypeHeaderValue(contentType);
+                    content2.Add(fileContent2, "image", Path.GetFileName(filePath));
+                    content2.Add(new StringContent(type), "type");
+                    using var uploadCts2 = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+                    uploadCts2.CancelAfter(_settings.UploadTimeoutMilliseconds);
+                    response = await _httpClient.PostAsync("/upload/image", content2, uploadCts2.Token);
                 }
             }
-            catch
+            catch (Exception) when (triedVideoEndpoint)
             {
-                // Fallback to image endpoint if video endpoint doesn't exist
-                response = await _httpClient.PostAsync("/upload/image", content, cancellationToken);
+                // Video endpoint doesn't exist or failed — rebuild content and try image endpoint
+                // IMPORTANT: cannot reuse content/fileStream here as they may be partially consumed
+                using var content3 = new MultipartFormDataContent();
+                using var fileStream3 = File.OpenRead(filePath);
+                using var fileContent3 = new StreamContent(fileStream3);
+                fileContent3.Headers.ContentType = new System.Net.Http.Headers.MediaTypeHeaderValue(contentType);
+                content3.Add(fileContent3, "image", Path.GetFileName(filePath));
+                content3.Add(new StringContent(type), "type");
+                using var uploadCts3 = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+                uploadCts3.CancelAfter(_settings.UploadTimeoutMilliseconds);
+                response = await _httpClient.PostAsync("/upload/image", content3, uploadCts3.Token);
             }
             
             stopwatch.Stop();
@@ -246,7 +282,9 @@ public class ComfyUIHttpClient : IDisposable
             content.Add(new StringContent(type), "type");
 
             var stopwatch = System.Diagnostics.Stopwatch.StartNew();
-            var response = await _httpClient.PostAsync("/upload/image", content, cancellationToken);
+            using var uploadCts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+            uploadCts.CancelAfter(_settings.UploadTimeoutMilliseconds);
+            var response = await _httpClient.PostAsync("/upload/image", content, uploadCts.Token);
             stopwatch.Stop();
 
             if (response.IsSuccessStatusCode)
@@ -295,7 +333,9 @@ public class ComfyUIHttpClient : IDisposable
             var requestJson = JsonSerializer.Serialize(request, new JsonSerializerOptions { WriteIndented = false });
             _logger.LogInfo("Sending prompt request: {RequestJson}", requestJson.Substring(0, Math.Min(500, requestJson.Length)));
 
-            var response = await _httpClient.PostAsJsonAsync("/prompt", request, cancellationToken);
+            using var promptCts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+            promptCts.CancelAfter(_settings.ConnectionTimeout);
+            var response = await _httpClient.PostAsJsonAsync("/prompt", request, promptCts.Token);
 
             if (response.IsSuccessStatusCode)
             {

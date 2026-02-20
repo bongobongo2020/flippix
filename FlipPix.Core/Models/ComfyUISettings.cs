@@ -7,6 +7,7 @@ public class ComfyUISettings
 {
     public string BaseUrl { get; set; } = "http://localhost:8188";
     public int ConnectionTimeout { get; set; } = 10000; // 10 seconds
+    public int UploadTimeoutMilliseconds { get; set; } = 600000; // 10 minutes for large file uploads
     public int MaxRetries { get; set; } = 3;
     public int RetryDelayMilliseconds { get; set; } = 2000;
     public string ComfyUIFolderPath { get; set; } = string.Empty;
