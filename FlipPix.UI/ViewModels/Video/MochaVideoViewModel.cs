@@ -435,11 +435,13 @@ namespace FlipPix.UI.ViewModels.Video
                             }
                         });
 
+                        // Capture existing files BEFORE executing workflow so new output can be detected
+                        var existingFiles = GetExistingVideoFiles("*.mp4");
+
                         var promptId = await _comfyUIService.ExecuteWorkflowAsync(updatedWorkflow, progress);
                         AddLog($"Chunk {chunkIndex + 1} workflow completed, prompt ID: {promptId}");
 
                         // Wait for output video
-                        var existingFiles = GetExistingVideoFiles("*.mp4");
                         var outputVideo = await WaitForNewVideoAsync(
                             existingFiles,
                             "*.mp4",

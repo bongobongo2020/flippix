@@ -1,163 +1,66 @@
-# Task: Fix Generate Video Button Never Enabled — VACE, LTX2Audio, Mocha
+# Task: Fix Mocha Video — Pre-capture Race Condition
 
 ## 1. Context & Objective
 
-The Generate Video button in the VideoGeneratorWindow is permanently disabled for three tabs:
-VACE, LTX Audio, and Mocha. Even after uploading all required files and entering a prompt,
-the button never enables.
-
-**Root Cause (Confirmed after deep code analysis):**
-
-The project uses **CommunityToolkit.Mvvm v8.2.2**. In this version, `RelayCommand.CanExecuteChanged`
-is a plain `EventHandler?` event. It is **NOT** backed by `CommandManager.RequerySuggested`.
-
-The base `VideoProcessingBaseViewModel.OnCanExecuteChanged()` calls:
-```csharp
-CommandManager.InvalidateRequerySuggested();
-```
-This fires `CommandManager.RequerySuggested`, but CommunityToolkit v8 RelayCommand does NOT
-listen to that event. As a result, `CanExecuteChanged` on the command NEVER fires, and WPF's
-`ButtonBase` never calls `UpdateCanExecute()`. The button's internal `_canExecute` field is set
-to `false` at initial binding and **never updated again** — so the button stays permanently disabled.
-
-**Why the main tab's Generate button works but the sub-tabs don't:**
-`VideoGeneratorMainViewModel` already uses the correct pattern:
-- Commands are stored as `RelayCommand` (not `ICommand`)
-- It has `NotifyCommandsCanExecuteChanged()` which calls `NotifyCanExecuteChanged()` on each command
-- This is called from every relevant property setter
-
-The three broken sub-VMs (`VACEVideoViewModel`, `LTX2AudioViewModel`, `MochaVideoViewModel`)
-are missing this exact pattern. They declare commands as `ICommand` and only rely on
-`CommandManager.InvalidateRequerySuggested()` which doesn't work with CommunityToolkit v8.
+In `MochaVideoViewModel.cs`, the chunk loop captures the "existing files" snapshot **after** `ExecuteWorkflowAsync` returns. Since `ExecuteWorkflowAsync` waits for ComfyUI to finish, the new video is already on disk when the snapshot is taken. `WaitForNewVideoAsync` then compares against a set that already contains the new video, so it never detects anything as "new" and spins for the full 15-minute timeout.
 
 ## 2. Files to Modify
 
-- `FlipPix.UI/ViewModels/Video/VACEVideoViewModel.cs`
-- `FlipPix.UI/ViewModels/Video/LTX2AudioViewModel.cs`
 - `FlipPix.UI/ViewModels/Video/MochaVideoViewModel.cs`
-
-**Do NOT modify:** `VideoProcessingBaseViewModel.cs` or `VideoGeneratorViewModel.cs`
 
 ## 3. Implementation Steps
 
-Apply the same two changes to all three files.
+Inside `GenerateVideoAsyncInternal()`, in the `for (int chunkIndex ...)` loop, move the `GetExistingVideoFiles` call to **before** `ExecuteWorkflowAsync`.
 
----
-
-### Step A — Change command property types from `ICommand` to `RelayCommand`
-
-In each file, in the `#region Commands` section, change these four declarations:
-
+**Current (broken) order — around lines 438–447:**
 ```csharp
-// BEFORE (in all three sub-VMs):
-public ICommand GenerateVideoCommand { get; }
-public ICommand PlayVideoCommand { get; }
-public ICommand OpenResultFolderCommand { get; }
-public ICommand SendToEditCameraCommand { get; }
+var promptId = await _comfyUIService.ExecuteWorkflowAsync(updatedWorkflow, progress);
+AddLog($"Chunk {chunkIndex + 1} workflow completed, prompt ID: {promptId}");
+
+// Wait for output video
+var existingFiles = GetExistingVideoFiles("*.mp4");
+var outputVideo = await WaitForNewVideoAsync(
+    existingFiles,
+    "*.mp4",
+    TimeSpan.FromMinutes(15),
+    TimeSpan.FromSeconds(5));
 ```
 
+**Fixed order:**
 ```csharp
-// AFTER:
-public RelayCommand GenerateVideoCommand { get; }
-public RelayCommand PlayVideoCommand { get; }
-public RelayCommand OpenResultFolderCommand { get; }
-public RelayCommand SendToEditCameraCommand { get; }
+// Capture existing files BEFORE executing workflow so new output can be detected
+var existingFiles = GetExistingVideoFiles("*.mp4");
+
+var promptId = await _comfyUIService.ExecuteWorkflowAsync(updatedWorkflow, progress);
+AddLog($"Chunk {chunkIndex + 1} workflow completed, prompt ID: {promptId}");
+
+// Wait for output video
+var outputVideo = await WaitForNewVideoAsync(
+    existingFiles,
+    "*.mp4",
+    TimeSpan.FromMinutes(15),
+    TimeSpan.FromSeconds(5));
 ```
 
-> The `Select*` commands (`SelectBackgroundImageCommand`, `SelectForegroundImageCommand`,
-> `SelectVideoCommand`, `SelectImageCommand`, `SelectAudioCommand`) have NO `CanExecute`
-> predicates, so leave them as `ICommand`.
+That is the only change — two lines reordered, one comment added. No other modifications.
 
----
+## 4. Completion Instructions
 
-### Step B — Add `NotifyCommandsCanExecuteChanged()` and override `OnCanExecuteChanged()`
-
-In each sub-VM, add these two methods. Place them near the end of the class (before the closing
-`}`), following the same pattern used in `VideoGeneratorMainViewModel`.
-
-**For `VACEVideoViewModel.cs`** — add:
-```csharp
-private void NotifyCommandsCanExecuteChanged()
-{
-    GenerateVideoCommand.NotifyCanExecuteChanged();
-    PlayVideoCommand.NotifyCanExecuteChanged();
-    OpenResultFolderCommand.NotifyCanExecuteChanged();
-    SendToEditCameraCommand.NotifyCanExecuteChanged();
-}
-
-protected override void OnCanExecuteChanged()
-{
-    base.OnCanExecuteChanged();
-    NotifyCommandsCanExecuteChanged();
-}
-```
-
-**For `LTX2AudioViewModel.cs`** — add the same two methods (identical code, same four commands).
-
-**For `MochaVideoViewModel.cs`** — add the same two methods (identical code, same four commands).
-
----
-
-## 4. Verification
-
-After building and running:
-
-1. **VACE tab**: Upload background image + foreground image + input video + type a prompt
-   → "Generate VACE Video" button must become enabled
-2. **LTX Audio tab**: Upload image + audio file + type a prompt
-   → "Generate Video" button must become enabled
-3. **Mocha tab**: Upload source video + reference image + type a prompt
-   → "Generate" button must become enabled
-4. When generation starts (`IsProcessing = true`), the button must re-disable
-5. After generation finishes, the button must re-enable (if files still present)
-
-## 5. Completion Instructions
-
-Update this file with a "Changelog" section detailing all changes made for review.
-
----
+Update this file with a "Changelog" section detailing your changes for my review.
 
 ## Changelog
 
-### Summary
-Fixed the Generate Video button permanently disabled issue in VACE, LTX2Audio, and Mocha video generation tabs by changing command types from `ICommand` to `RelayCommand` and adding proper command notification methods.
+### MochaVideoViewModel.cs — Pre-capture Race Condition Fix
 
-### Files Modified
+**Issue:** `GetExistingVideoFiles()` was called after `ExecuteWorkflowAsync()`, causing the snapshot to include the newly generated video. This prevented `WaitForNewVideoAsync()` from detecting any new files, resulting in unnecessary 15-minute timeouts.
 
-1. **FlipPix.UI/ViewModels/Video/VACEVideoViewModel.cs**
-   - Changed 4 command declarations from `ICommand` to `RelayCommand`:
-     - `GenerateVideoCommand`
-     - `PlayVideoCommand`
-     - `OpenResultFolderCommand`
-     - `SendToEditCameraCommand`
-   - Added `NotifyCommandsCanExecuteChanged()` method to notify each command when CanExecute state changes
-   - Added `OnCanExecuteChanged()` override to call `NotifyCommandsCanExecuteChanged()`
+**Fix:** Moved `GetExistingVideoFiles("*.mp4")` call to execute **before** `ExecuteWorkflowAsync()`, ensuring the baseline snapshot is taken before the new video is created.
 
-2. **FlipPix.UI/ViewModels/Video/LTX2AudioViewModel.cs**
-   - Changed 4 command declarations from `ICommand` to `RelayCommand`:
-     - `GenerateVideoCommand`
-     - `PlayVideoCommand`
-     - `OpenResultFolderCommand`
-     - `SendToEditCameraCommand`
-   - Added `NotifyCommandsCanExecuteChanged()` method to notify each command when CanExecute state changes
-   - Added `OnCanExecuteChanged()` override to call `NotifyCommandsCanExecuteChanged()`
+**Lines Modified:** 438-447
 
-3. **FlipPix.UI/ViewModels/Video/MochaVideoViewModel.cs**
-   - Changed 4 command declarations from `ICommand` to `RelayCommand`:
-     - `GenerateVideoCommand`
-     - `PlayVideoCommand`
-     - `OpenResultFolderCommand`
-     - `SendToEditCameraCommand`
-   - Added `NotifyCommandsCanExecuteChanged()` method to notify each command when CanExecute state changes
-   - Added `OnCanExecuteChanged()` override to call `NotifyCommandsCanExecuteChanged()`
+**Changes:**
+1. Added comment explaining the pre-capture requirement
+2. Moved `var existingFiles = GetExistingVideoFiles("*.mp4");` from after `ExecuteWorkflowAsync` to before it
+3. Adjusted spacing to maintain readability
 
-### Technical Details
-- **Root Cause**: CommunityToolkit.Mvvm v8.2.2's `RelayCommand.CanExecuteChanged` is a plain `EventHandler?` not backed by `CommandManager.RequerySuggested`. The base class's `OnCanExecuteChanged()` calling `CommandManager.InvalidateRequerySuggested()` had no effect.
-- **Solution**: Store commands as `RelayCommand` type (not `ICommand`) and explicitly call `NotifyCanExecuteChanged()` on each command when properties change.
-- **Pattern Applied**: Matches the working implementation in `VideoGeneratorMainViewModel`.
-
-### Testing Required
-1. VACE tab: Upload background image + foreground image + input video + prompt → button should enable
-2. LTX Audio tab: Upload image + audio + prompt → button should enable
-3. Mocha tab: Upload source video + reference image + prompt → button should enable
-4. Button should disable during processing and re-enable after completion
+**Result:** `WaitForNewVideoAsync()` now correctly compares against a pre-workflow snapshot and will immediately detect the newly generated video file.
