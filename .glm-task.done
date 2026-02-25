@@ -1,3 +1,28 @@
+# Task: Fix VACE Remote Video Path Bug
+
+## Changelog
+
+### 2026-02-25 - Fix VACE Remote Video Path Bug
+
+**File Modified:** `FlipPix.UI/ViewModels/Video/VACEVideoViewModel.cs`
+
+**Change:** Removed local Windows path construction for video input (node 14). Now passes just the uploaded filename directly to the workflow, matching the pattern already used for background/foreground images (nodes 24, 25).
+
+**Before:**
+```csharp
+var comfyUIInputPath = Path.Combine(_settingsService.Settings?.ComfyUIFolderPath ?? "", "input", videoName);
+WorkflowNodeUpdater.UpdateNodeInput(ref workflowJson, "14", "video", comfyUIInputPath);
+```
+
+**After:**
+```csharp
+WorkflowNodeUpdater.UpdateNodeInput(ref workflowJson, "14", "video", videoName);
+```
+
+**Fix:** `VHS_LoadVideoPath` node now receives just the filename instead of a Windows-local path, resolving the "Invalid file path: input\filename.mp4" error on remote ComfyUI servers.
+
+---
+
 # Task: Fix Generate Video Button Never Enabled — VACE, LTX2Audio, Mocha
 
 ## 1. Context & Objective

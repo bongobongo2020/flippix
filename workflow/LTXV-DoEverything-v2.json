@@ -193,7 +193,7 @@
   },
   "35": {
     "inputs": {
-      "image": "Flux2Klein9B-camera-angles-20260201_070827_00006_.png"
+      "image": "Flux2Klein9B-camera-angles-20260222_174639_00006_.png"
     },
     "class_type": "LoadImage",
     "_meta": {
@@ -276,7 +276,7 @@
   },
   "59": {
     "inputs": {
-      "value": "INT. WOOD-FLOORED GYM – DAY – ACTION. A low-angle wide shot captures a young woman in her twenties, athletic and lean with long dark wavy hair, mid-kick as she extends her right leg high in a powerful strike, left fist clenched and raised for defense; she wears a tight blue t-shirt, black shorts, and a black wristband, revealing toned muscles and a faint tattoo on her inner thigh. The gym’s ceiling beams and fluorescent lights cast warm, even illumination across the wood-paneled walls, with dust motes swirling in the air as she moves — sweat glistens along her neck and arms from exertion. Her expression is focused and unyielding, eyes locked forward, jaw clenched slightly, showing determination through physical tension rather than emotion. The camera pushes in to frame her mid-motion, then pulls back subtly to reveal the gym’s empty space as she lands the kick with a sharp impact on an unseen pad, her body absorbing the force before springing into a defensive stance — the sound of her breath is heavy and rapid, echoing off the wooden walls as ambient gym noise fades behind."
+      "value": "EXT. DESERT DUNES – DAY – ACTION. A wide establishing shot captures two fighters locked in brutal combat across a vast, windswept expanse of shifting sand dunes under an overcast sky, with muted ochre tones and gritty textures dominating the scene; dust particles swirl chaotically around their feet as they move, backlighting from above casts soft shadows that emphasize muscle definition and sweat glistening on skin. The muscular, bearded man—bare-chested, wearing a leather belt, armored gauntlets, and knee-high boots with blood smears across his torso and limbs—lunges forward with a thunderous right jab, his veins bulging under the strain, while the woman—lean but powerful, in a beige sports bra and red wrap skirt, her dark hair whipping behind her as she braces for impact—deflects the blow with a sharp counter-strike to his forearm. The camera pushes in rapidly on their intertwined fists, capturing the moment of contact as both fighters stagger backward, sand exploding beneath them; their breaths are heavy, ragged, and visible in the cold air, with grunts echoing through the emptiness. The whip-pan reveals a distant horizon where sparse desert shrubs stand against the gray sky, as the man’s follow-up kick connects with her thigh, sending her stumbling forward before she recovers with a flurry of punches with blood spurting from his face; the sound design layers crashing sand, bone-jarring impacts, and the low rumble of wind howling through dunes."
     },
     "class_type": "PrimitiveStringMultiline",
     "_meta": {
@@ -439,7 +439,7 @@
   },
   "106": {
     "inputs": {
-      "image": "qwen2512_00003_ (2).png"
+      "image": "Flux2Klein9B-camera-angles-20260222_174639_00001_.png"
     },
     "class_type": "LoadImage",
     "_meta": {
@@ -582,7 +582,7 @@
   },
   "128": {
     "inputs": {
-      "value": 92168049166240
+      "value": 959352589640030
     },
     "class_type": "PrimitiveInt",
     "_meta": {
