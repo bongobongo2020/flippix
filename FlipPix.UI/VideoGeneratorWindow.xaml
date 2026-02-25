@@ -1209,7 +1209,7 @@
                                     <StackPanel>
                                         <TextBlock Text="🎬 VACE Video Inputs" Style="{StaticResource HeaderTextStyle}" Foreground="#FF6B35"/>
 
-                                        <!-- Background Image -->
+                                        <!-- Reference Image -->
                                         <Border BorderBrush="#DEE2E6" BorderThickness="1" Background="White" CornerRadius="5" Padding="15" Margin="0,0,0,15">
                                             <StackPanel>
                                                 <Grid>
@@ -1219,58 +1219,7 @@
                                                         <ColumnDefinition Width="Auto"/>
                                                     </Grid.ColumnDefinitions>
 
-                                                    <TextBlock Grid.Column="0" Text="Background:" FontWeight="SemiBold" FontSize="12" VerticalAlignment="Center"/>
-                                                    <Border Grid.Column="1"
-                                                            BorderBrush="#DEE2E6" BorderThickness="1"
-                                                            Background="White" Height="80"
-                                                            CornerRadius="3" Margin="0,0,10,0">
-                                                        <Grid>
-                                                            <TextBlock Text="No background image selected"
-                                                                      HorizontalAlignment="Center"
-                                                                      VerticalAlignment="Center"
-                                                                      Foreground="#999"
-                                                                      FontStyle="Italic">
-                                                                <TextBlock.Style>
-                                                                    <Style TargetType="TextBlock">
-                                                                        <Setter Property="Visibility" Value="Collapsed"/>
-                                                                        <Style.Triggers>
-                                                                            <DataTrigger Binding="{Binding VaceBackgroundImagePreview}" Value="{x:Null}">
-                                                                                <Setter Property="Visibility" Value="Visible"/>
-                                                                            </DataTrigger>
-                                                                        </Style.Triggers>
-                                                                    </Style>
-                                                                </TextBlock.Style>
-                                                            </TextBlock>
-                                                            <Image Source="{Binding VaceBackgroundImagePreview}"
-                                                                   Stretch="Uniform"/>
-                                                        </Grid>
-                                                    </Border>
-                                                    <Button Grid.Column="2"
-                                                           Content="Browse..."
-                                                           Style="{StaticResource SecondaryButtonStyle}"
-                                                           Command="{Binding SelectVACEBackgroundImageCommand}"
-                                                           Height="35"
-                                                           Width="100"/>
-                                                </Grid>
-                                                <TextBlock Text="{Binding VaceBackgroundImageInfo}"
-                                                          FontStyle="Italic"
-                                                          Foreground="#666"
-                                                          FontSize="10"
-                                                          Margin="0,8,0,0"/>
-                                            </StackPanel>
-                                        </Border>
-
-                                        <!-- Foreground Image -->
-                                        <Border BorderBrush="#DEE2E6" BorderThickness="1" Background="White" CornerRadius="5" Padding="15" Margin="0,0,0,15">
-                                            <StackPanel>
-                                                <Grid>
-                                                    <Grid.ColumnDefinitions>
-                                                        <ColumnDefinition Width="120"/>
-                                                        <ColumnDefinition Width="*"/>
-                                                        <ColumnDefinition Width="Auto"/>
-                                                    </Grid.ColumnDefinitions>
-
-                                                    <TextBlock Grid.Column="0" Text="Foreground:" FontWeight="SemiBold" FontSize="12" VerticalAlignment="Center"/>
+                                                    <TextBlock Grid.Column="0" Text="Reference:" FontWeight="SemiBold" FontSize="12" VerticalAlignment="Center"/>
                                                     <Border Grid.Column="1"
                                                             BorderBrush="#DEE2E6" BorderThickness="1"
                                                             Background="White" Height="80"
@@ -1377,7 +1326,7 @@
                                         <!-- Instructions -->
                                         <StackPanel Grid.Column="0" Margin="0,0,20,0">
                                             <TextBlock Text="ℹ️ VACE (Video-to-Video with Control)" Style="{StaticResource HeaderTextStyle}" Foreground="#FF6B35"/>
-                                            <TextBlock Text="This workflow combines a background image, foreground reference image, and input video to create a processed video using the Wan VACE model." FontSize="11" TextWrapping="Wrap" Foreground="#666" Margin="0,5,0,10"/>
+                                            <TextBlock Text="This workflow uses a reference image and input video to create a processed video using the Wan VACE V2V model." FontSize="11" TextWrapping="Wrap" Foreground="#666" Margin="0,5,0,10"/>
                                             <TextBlock Text="The model will use pose estimation from the input video and reference images to guide the video generation." FontSize="11" TextWrapping="Wrap" Foreground="#666"/>
                                         </StackPanel>
 

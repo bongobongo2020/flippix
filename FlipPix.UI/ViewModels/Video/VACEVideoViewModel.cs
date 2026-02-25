@@ -15,20 +15,21 @@ namespace FlipPix.UI.ViewModels.Video
 {
     /// <summary>
     /// ViewModel for VACE (Video-to-Video with Control) video generation.
-    /// Handles background/foreground images, input video, and VACE prompt.
+    /// Handles a reference image and input video, processed in 81-frame chunks.
+    /// Uses Wan-VACE_V2V_MasterAPI.json workflow.
     /// </summary>
     public partial class VACEVideoViewModel : VideoProcessingBaseViewModel
     {
-        // VACE-specific properties
+        private const int FramesPerChunk = 81;
+        private const string OutputSubfolder = "wan_vace";
+
         private string _prompt = string.Empty;
-        private string _backgroundImagePath = string.Empty;
-        private BitmapImage? _backgroundImagePreview;
-        private string _backgroundImageInfo = string.Empty;
         private string _foregroundImagePath = string.Empty;
         private BitmapImage? _foregroundImagePreview;
         private string _foregroundImageInfo = string.Empty;
         private string _inputVideoPath = string.Empty;
         private string _inputVideoInfo = string.Empty;
+        private int _totalFrames;
         private readonly IFileDialogService _fileDialogService;
 
         public VACEVideoViewModel(
@@ -41,8 +42,6 @@ namespace FlipPix.UI.ViewModels.Video
             : base(comfyUIService, logger, settingsService, serviceProvider, workflowCoordinator)
         {
             _fileDialogService = fileDialogService ?? throw new ArgumentNullException(nameof(fileDialogService));
-            // Initialize commands
-            SelectBackgroundImageCommand = new RelayCommand(SelectBackgroundImage);
             SelectForegroundImageCommand = new RelayCommand(SelectForegroundImage);
             SelectVideoCommand = new RelayCommand(SelectVideo);
             GenerateVideoCommand = new RelayCommand(async () => await GenerateVideoAsync(), () => CanGenerateVideo);
@@ -55,7 +54,6 @@ namespace FlipPix.UI.ViewModels.Video
 
         #region Commands
 
-        public ICommand SelectBackgroundImageCommand { get; }
         public ICommand SelectForegroundImageCommand { get; }
         public ICommand SelectVideoCommand { get; }
         public RelayCommand GenerateVideoCommand { get; }
@@ -82,46 +80,6 @@ namespace FlipPix.UI.ViewModels.Video
             }
         }
 
-        public string BackgroundImagePath
-        {
-            get => _backgroundImagePath;
-            set
-            {
-                if (_backgroundImagePath != value)
-                {
-                    _backgroundImagePath = value;
-                    OnPropertyChanged();
-                    OnPropertyChanged(nameof(HasBackgroundImage));
-                    OnPropertyChanged(nameof(CanGenerateVideo));
-                    LoadBackgroundImagePreview();
-                    OnCanExecuteChanged();
-                }
-            }
-        }
-
-        public BitmapImage? BackgroundImagePreview
-        {
-            get => _backgroundImagePreview;
-            set
-            {
-                _backgroundImagePreview = value;
-                OnPropertyChanged();
-            }
-        }
-
-        public string BackgroundImageInfo
-        {
-            get => _backgroundImageInfo;
-            set
-            {
-                if (_backgroundImageInfo != value)
-                {
-                    _backgroundImageInfo = value;
-                    OnPropertyChanged();
-                }
-            }
-        }
-
         public string ForegroundImagePath
         {
             get => _foregroundImagePath;
@@ -142,24 +100,13 @@ namespace FlipPix.UI.ViewModels.Video
         public BitmapImage? ForegroundImagePreview
         {
             get => _foregroundImagePreview;
-            set
-            {
-                _foregroundImagePreview = value;
-                OnPropertyChanged();
-            }
+            set { _foregroundImagePreview = value; OnPropertyChanged(); }
         }
 
         public string ForegroundImageInfo
         {
             get => _foregroundImageInfo;
-            set
-            {
-                if (_foregroundImageInfo != value)
-                {
-                    _foregroundImageInfo = value;
-                    OnPropertyChanged();
-                }
-            }
+            set { if (_foregroundImageInfo != value) { _foregroundImageInfo = value; OnPropertyChanged(); } }
         }
 
         public string InputVideoPath
@@ -182,77 +129,56 @@ namespace FlipPix.UI.ViewModels.Video
         public string InputVideoInfo
         {
             get => _inputVideoInfo;
+            set { if (_inputVideoInfo != value) { _inputVideoInfo = value; OnPropertyChanged(); } }
+        }
+
+        public int TotalFrames
+        {
+            get => _totalFrames;
             set
             {
-                if (_inputVideoInfo != value)
+                if (_totalFrames != value)
                 {
-                    _inputVideoInfo = value;
+                    _totalFrames = value;
                     OnPropertyChanged();
+                    OnPropertyChanged(nameof(TotalChunks));
                 }
             }
         }
 
-        public bool HasBackgroundImage => !string.IsNullOrEmpty(BackgroundImagePath) && File.Exists(BackgroundImagePath);
+        public int TotalChunks => TotalFrames > 0 ? (int)Math.Ceiling((double)TotalFrames / FramesPerChunk) : 0;
+
         public bool HasForegroundImage => !string.IsNullOrEmpty(ForegroundImagePath) && File.Exists(ForegroundImagePath);
         public bool HasInputVideo => !string.IsNullOrEmpty(InputVideoPath) && File.Exists(InputVideoPath);
-
-        public bool CanGenerateVideo => HasBackgroundImage && HasForegroundImage && HasInputVideo &&
-                                        !string.IsNullOrWhiteSpace(Prompt) && !IsProcessing;
+        public bool CanGenerateVideo => HasForegroundImage && HasInputVideo && !string.IsNullOrWhiteSpace(Prompt) && !IsProcessing;
 
         #endregion
 
-        #region File Selection Methods
-
-        private async void SelectBackgroundImage()
-        {
-            var initialDirectory = _settingsService.Settings?.VideoGeneratorImageFolder;
-
-            if (string.IsNullOrEmpty(initialDirectory) || !Directory.Exists(initialDirectory))
-            {
-                initialDirectory = Environment.GetFolderPath(Environment.SpecialFolder.MyPictures);
-            }
-
-            var filePath = await _fileDialogService.OpenFileDialogAsync(
-                "Select Background Image",
-                "Image Files|*.jpg;*.jpeg;*.png;*.bmp|All Files|*.*",
-                initialDirectory);
-
-            if (filePath != null)
-            {
-                BackgroundImagePath = filePath;
-                AddLog($"VACE: Selected background image: {Path.GetFileName(BackgroundImagePath)}");
-            }
-        }
+        #region File Selection
 
         private async void SelectForegroundImage()
         {
             var initialDirectory = _settingsService.Settings?.VideoGeneratorImageFolder;
-
             if (string.IsNullOrEmpty(initialDirectory) || !Directory.Exists(initialDirectory))
-            {
                 initialDirectory = Environment.GetFolderPath(Environment.SpecialFolder.MyPictures);
-            }
 
             var filePath = await _fileDialogService.OpenFileDialogAsync(
-                "Select Foreground Image",
+                "Select Reference Image",
                 "Image Files|*.jpg;*.jpeg;*.png;*.bmp|All Files|*.*",
                 initialDirectory);
 
             if (filePath != null)
             {
                 ForegroundImagePath = filePath;
-                AddLog($"VACE: Selected foreground image: {Path.GetFileName(ForegroundImagePath)}");
+                AddLog($"VACE: Selected reference image: {Path.GetFileName(ForegroundImagePath)}");
             }
         }
 
         private async void SelectVideo()
         {
             var initialDirectory = _settingsService.Settings?.VideoGeneratorImageFolder;
-
             if (string.IsNullOrEmpty(initialDirectory) || !Directory.Exists(initialDirectory))
-            {
                 initialDirectory = Environment.GetFolderPath(Environment.SpecialFolder.MyVideos);
-            }
 
             var filePath = await _fileDialogService.OpenFileDialogAsync(
                 "Select Input Video",
@@ -268,37 +194,7 @@ namespace FlipPix.UI.ViewModels.Video
 
         #endregion
 
-        #region Preview Loading Methods
-
-        private void LoadBackgroundImagePreview()
-        {
-            if (string.IsNullOrEmpty(BackgroundImagePath) || !File.Exists(BackgroundImagePath))
-            {
-                BackgroundImagePreview = null;
-                BackgroundImageInfo = string.Empty;
-                return;
-            }
-
-            try
-            {
-                var bitmap = new BitmapImage();
-                bitmap.BeginInit();
-                bitmap.CacheOption = BitmapCacheOption.OnLoad;
-                bitmap.UriSource = new Uri(BackgroundImagePath, UriKind.Absolute);
-                bitmap.EndInit();
-                bitmap.Freeze();
-
-                BackgroundImagePreview = bitmap;
-
-                var fileInfo = new FileInfo(BackgroundImagePath);
-                BackgroundImageInfo = $"{bitmap.PixelWidth}x{bitmap.PixelHeight} • {fileInfo.Length / 1024}KB";
-            }
-            catch (Exception ex)
-            {
-                AddLog($"Error loading background image preview: {ex.Message}");
-                BackgroundImageInfo = "Error loading image";
-            }
-        }
+        #region Preview Loading
 
         private void LoadForegroundImagePreview()
         {
@@ -319,13 +215,12 @@ namespace FlipPix.UI.ViewModels.Video
                 bitmap.Freeze();
 
                 ForegroundImagePreview = bitmap;
-
                 var fileInfo = new FileInfo(ForegroundImagePath);
                 ForegroundImageInfo = $"{bitmap.PixelWidth}x{bitmap.PixelHeight} • {fileInfo.Length / 1024}KB";
             }
             catch (Exception ex)
             {
-                AddLog($"Error loading foreground image preview: {ex.Message}");
+                AddLog($"Error loading image preview: {ex.Message}");
                 ForegroundImageInfo = "Error loading image";
             }
         }
@@ -376,56 +271,49 @@ namespace FlipPix.UI.ViewModels.Video
                 AddLog("=== Starting VACE video generation ===");
                 IsProcessing = true;
 
-                // Clear previous result
                 HasResult = false;
                 ResultVideoPath = string.Empty;
                 ResultVideoInfo = string.Empty;
-
                 ProcessingProgress = 0;
                 ProcessingStatus = "Preparing VACE workflow...";
-                AddLog($"Background image: {Path.GetFileName(BackgroundImagePath)}");
-                AddLog($"Foreground image: {Path.GetFileName(ForegroundImagePath)}");
+
+                AddLog($"Reference image: {Path.GetFileName(ForegroundImagePath)}");
                 AddLog($"Input video: {Path.GetFileName(InputVideoPath)}");
                 AddLog($"Prompt: {Prompt}");
 
-                // Check if ComfyUI has crashed and restart if needed
-                ProcessingStatus = "Checking ComfyUI status...";
-                AddLog("Checking if ComfyUI is running...");
+                // Get frame count
+                ProcessingStatus = "Analysing input video...";
+                TotalFrames = GetVideoFrameCount(InputVideoPath);
+                if (TotalFrames <= 0)
+                {
+                    AddLog("WARNING: Could not determine frame count; defaulting to 1 chunk");
+                    TotalFrames = FramesPerChunk;
+                }
+                AddLog($"Total frames: {TotalFrames} → {TotalChunks} chunk(s) of {FramesPerChunk}");
 
+                // ComfyUI health check
+                ProcessingStatus = "Checking ComfyUI status...";
                 var comfyUIOk = await _comfyUIService.DetectAndRestartIfCrashedAsync(
                     status => AddLog($"[Auto-Restart] {status}"));
 
                 if (!comfyUIOk)
                 {
-                    AddLog("ERROR: ComfyUI is not running and auto-restart failed or is disabled");
+                    AddLog("ERROR: ComfyUI is not running");
                     System.Windows.MessageBox.Show(
                         "ComfyUI is not running. Please start ComfyUI manually or configure auto-restart in settings.",
-                        "ComfyUI Not Running",
-                        MessageBoxButton.OK,
-                        MessageBoxImage.Warning);
+                        "ComfyUI Not Running", MessageBoxButton.OK, MessageBoxImage.Warning);
                     return;
                 }
 
-                AddLog("ComfyUI is running and responsive");
-
-                // Ensure ComfyUI is connected
                 if (!_comfyUIService.IsConnected)
                 {
                     ProcessingStatus = "Connecting to ComfyUI...";
-                    AddLog("Connecting to ComfyUI WebSocket...");
                     await _comfyUIService.ConnectAsync();
                     AddLog("Connected to ComfyUI");
                 }
-                else
-                {
-                    AddLog("ComfyUI already connected");
-                }
 
-                // Load VACE workflow
-                var workflowPath = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "workflow", "step1-chunkcreatorAPI.json");
-
-                AddLog($"Loading VACE workflow: step1-chunkcreatorAPI.json");
-
+                // Load workflow
+                var workflowPath = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "workflow", "Wan-VACE_V2V_MasterAPI.json");
                 if (!File.Exists(workflowPath))
                 {
                     AddLog($"ERROR: Workflow file not found: {workflowPath}");
@@ -436,30 +324,21 @@ namespace FlipPix.UI.ViewModels.Video
                 var workflowJson = await File.ReadAllTextAsync(workflowPath);
                 var workflow = JsonSerializer.Deserialize<JsonElement>(workflowJson);
 
-                // Upload images and video
+                // Upload assets
                 ProcessingStatus = "Uploading assets to ComfyUI...";
                 ProcessingProgress = 10;
-                AddLog("Uploading background image to ComfyUI...");
-                var uploadedBgImageName = await _comfyUIService.UploadImageAsync(BackgroundImagePath);
-                if (string.IsNullOrEmpty(uploadedBgImageName))
+
+                AddLog("Uploading reference image...");
+                var uploadedImageName = await _comfyUIService.UploadImageAsync(ForegroundImagePath);
+                if (string.IsNullOrEmpty(uploadedImageName))
                 {
-                    AddLog("ERROR: Background image upload failed");
-                    System.Windows.MessageBox.Show("Failed to upload background image to ComfyUI.", "Upload Failed", MessageBoxButton.OK, MessageBoxImage.Error);
+                    AddLog("ERROR: Reference image upload failed");
+                    System.Windows.MessageBox.Show("Failed to upload reference image to ComfyUI.", "Upload Failed", MessageBoxButton.OK, MessageBoxImage.Error);
                     return;
                 }
-                AddLog($"Background image uploaded: {uploadedBgImageName}");
+                AddLog($"Reference image uploaded: {uploadedImageName}");
 
-                AddLog("Uploading foreground image to ComfyUI...");
-                var uploadedFgImageName = await _comfyUIService.UploadImageAsync(ForegroundImagePath);
-                if (string.IsNullOrEmpty(uploadedFgImageName))
-                {
-                    AddLog("ERROR: Foreground image upload failed");
-                    System.Windows.MessageBox.Show("Failed to upload foreground image to ComfyUI.", "Upload Failed", MessageBoxButton.OK, MessageBoxImage.Error);
-                    return;
-                }
-                AddLog($"Foreground image uploaded: {uploadedFgImageName}");
-
-                AddLog("Uploading video to ComfyUI...");
+                AddLog("Uploading video...");
                 var uploadedVideoName = await _comfyUIService.UploadVideoAsync(InputVideoPath);
                 if (string.IsNullOrEmpty(uploadedVideoName))
                 {
@@ -469,65 +348,134 @@ namespace FlipPix.UI.ViewModels.Video
                 }
                 AddLog($"Video uploaded: {uploadedVideoName}");
 
-                // Update workflow parameters
-                ProcessingStatus = "Updating workflow parameters...";
-                ProcessingProgress = 20;
-                var updatedWorkflow = UpdateWorkflowParameters(workflow, uploadedBgImageName, uploadedFgImageName, uploadedVideoName);
-
-                // Execute workflow
-                ProcessingStatus = "Generating VACE video...";
-                ProcessingProgress = 30;
-                AddLog("Executing VACE video generation workflow...");
-
-                var progress = new Progress<FlipPix.ComfyUI.Models.ProgressMessage>(progressMsg =>
+                // Calculate output dimensions from reference image
+                int outputWidth = 576, outputHeight = 1024;
+                try
                 {
-                    if (progressMsg.Data?.Value != null && progressMsg.Data?.Max != null)
+                    var bitmap = new BitmapImage();
+                    bitmap.BeginInit();
+                    bitmap.CacheOption = BitmapCacheOption.OnLoad;
+                    bitmap.UriSource = new Uri(ForegroundImagePath, UriKind.Absolute);
+                    bitmap.EndInit();
+                    bitmap.Freeze();
+
+                    double ar = (double)bitmap.PixelWidth / bitmap.PixelHeight;
+                    if (ar > 1.2) { outputWidth = 1024; outputHeight = 576; }
+                    else if (ar >= 0.85) { outputWidth = 720; outputHeight = 720; }
+                    else { outputWidth = 576; outputHeight = 1024; }
+                    AddLog($"Output dimensions: {outputWidth}x{outputHeight} (AR: {ar:F2})");
+                }
+                catch (Exception ex)
+                {
+                    AddLog($"Warning: Could not read image dimensions, using defaults: {ex.Message}");
+                }
+
+                // Chunk loop
+                var totalChunks = TotalChunks;
+                var chunkFiles = new List<string>();
+                AddLog($"=== Processing {totalChunks} chunk(s) of {FramesPerChunk} frames ===");
+
+                for (int chunkIndex = 0; chunkIndex < totalChunks; chunkIndex++)
+                {
+                    try
                     {
-                        var percent = (double)progressMsg.Data.Value / progressMsg.Data.Max * 100;
-                        System.Windows.Application.Current.Dispatcher.Invoke(() =>
+                        var startFrame = chunkIndex * FramesPerChunk;
+                        var framesInChunk = Math.Min(FramesPerChunk, TotalFrames - startFrame);
+
+                        AddLog($"=== Chunk {chunkIndex + 1}/{totalChunks}: frames {startFrame}–{startFrame + framesInChunk - 1} ===");
+                        ProcessingStatus = $"Processing chunk {chunkIndex + 1}/{totalChunks}";
+                        var baseProgress = 20.0 + chunkIndex * 60.0 / totalChunks;
+
+                        if (chunkIndex > 0 && !_comfyUIService.IsConnected)
                         {
-                            ProcessingProgress = 30 + (percent * 0.6);
-                            ProcessingStatus = $"Generating VACE video: {progressMsg.Data.Value}/{progressMsg.Data.Max}";
+                            AddLog("Reconnecting to ComfyUI...");
+                            await _comfyUIService.ConnectAsync();
+                        }
+
+                        var updatedWorkflow = UpdateWorkflowParameters(workflow, uploadedImageName, uploadedVideoName,
+                            startFrame, framesInChunk, outputWidth, outputHeight);
+
+                        var progress = new Progress<FlipPix.ComfyUI.Models.ProgressMessage>(progressMsg =>
+                        {
+                            if (progressMsg.Data?.Value != null && progressMsg.Data?.Max != null)
+                            {
+                                var percent = (double)progressMsg.Data.Value / progressMsg.Data.Max * 100;
+                                System.Windows.Application.Current.Dispatcher.Invoke(() =>
+                                {
+                                    ProcessingProgress = baseProgress + percent * 0.6 / totalChunks;
+                                    ProcessingStatus = $"Chunk {chunkIndex + 1}/{totalChunks}: {progressMsg.Data.Value}/{progressMsg.Data.Max}";
+                                });
+                            }
                         });
+
+                        var existingFiles = GetExistingVideoFiles("*.mp4", OutputSubfolder);
+                        var promptId = await _comfyUIService.ExecuteWorkflowAsync(updatedWorkflow, progress);
+                        AddLog($"Chunk {chunkIndex + 1} completed, prompt ID: {promptId}");
+
+                        var outputVideo = await WaitForNewVideoAsync(
+                            existingFiles, "*.mp4",
+                            TimeSpan.FromMinutes(15),
+                            TimeSpan.FromSeconds(5),
+                            OutputSubfolder);
+
+                        if (outputVideo != null && File.Exists(outputVideo))
+                        {
+                            var chunkFile = Path.Combine(Path.GetTempPath(), $"vace_chunk_{chunkIndex:D3}_{Path.GetFileName(outputVideo)}");
+                            File.Copy(outputVideo, chunkFile, true);
+                            chunkFiles.Add(chunkFile);
+                            AddLog($"Chunk {chunkIndex + 1}/{totalChunks} saved: {Path.GetFileName(chunkFile)}");
+                        }
+                        else
+                        {
+                            AddLog($"WARNING: No output video for chunk {chunkIndex + 1}");
+                        }
                     }
-                });
+                    catch (Exception ex)
+                    {
+                        AddLog($"ERROR processing chunk {chunkIndex + 1}: {ex.Message}");
+                    }
+                }
 
-                var promptId = await _comfyUIService.ExecuteWorkflowAsync(updatedWorkflow, progress);
+                // Merge / finalise
+                ProcessingProgress = 85;
+                ProcessingStatus = "Merging video chunks...";
+                AddLog("=== Merging chunks ===");
 
-                System.Windows.Application.Current.Dispatcher.Invoke(() =>
+                if (chunkFiles.Count > 0)
                 {
-                    ProcessingProgress = 90;
-                    ProcessingStatus = "VACE workflow completed, retrieving video...";
-                });
+                    var outputDir = Path.Combine(
+                        _settingsService.Settings?.OutputFolderPath ?? Path.GetTempPath(),
+                        "VACE");
+                    Directory.CreateDirectory(outputDir);
 
-                AddLog($"VACE workflow execution completed with prompt ID: {promptId}");
+                    var finalPath = Path.Combine(outputDir, $"VACE_{DateTime.Now:yyyyMMdd_HHmmss}.mp4");
 
-                // Wait and retrieve the output video
-                ProcessingStatus = "Retrieving output video...";
-                ProcessingProgress = 95;
-                AddLog("Looking for generated VACE video...");
+                    if (chunkFiles.Count == 1)
+                    {
+                        File.Copy(chunkFiles[0], finalPath, true);
+                        AddLog($"Single chunk copied to: {finalPath}");
+                    }
+                    else
+                    {
+                        MergeVideoChunksWithFFmpeg(chunkFiles, finalPath);
+                    }
 
-                var existingFiles = GetExistingVideoFiles();
-                var outputVideo = await WaitForNewVideoAsync(existingFiles, "*.mp4", TimeSpan.FromSeconds(120));
+                    foreach (var f in chunkFiles)
+                        try { File.Delete(f); } catch { }
 
-                if (outputVideo != null && File.Exists(outputVideo))
-                {
-                    ResultVideoPath = outputVideo;
-                    await LocalCopyService.CopyVideoAsync(outputVideo);
+                    ResultVideoPath = finalPath;
+                    await LocalCopyService.CopyVideoAsync(finalPath);
                     HasResult = true;
 
-                    var fileInfo = new FileInfo(outputVideo);
-                    ResultVideoInfo = $"VACE Video • {fileInfo.Length / 1024}KB";
-
+                    var fi = new FileInfo(finalPath);
+                    ResultVideoInfo = $"VACE Video • {fi.Length / 1024 / 1024:F1}MB";
                     ProcessingProgress = 100;
                     ProcessingStatus = "VACE Complete!";
-
-                    AddLog($"=== VACE video generation completed successfully ===");
-                    AddLog($"Video saved to: {outputVideo}");
+                    AddLog($"=== VACE generation complete: {finalPath} ===");
                 }
                 else
                 {
-                    AddLog("WARNING: No output video found after VACE generation");
+                    AddLog("ERROR: No video chunks were generated");
                     ProcessingStatus = "No output generated";
                 }
             }
@@ -544,111 +492,79 @@ namespace FlipPix.UI.ViewModels.Video
             }
         }
 
-        private JsonElement UpdateWorkflowParameters(JsonElement workflow, string backgroundImageName, string foregroundImageName, string videoName)
+        private JsonElement UpdateWorkflowParameters(
+            JsonElement workflow,
+            string imageName,
+            string videoName,
+            int startFrame,
+            int framesInChunk,
+            int outputWidth,
+            int outputHeight)
         {
             var workflowJson = workflow.GetRawText();
-            AddLog("=== Updating VACE workflow parameters ===");
+            AddLog($"Updating workflow: start={startFrame}, frames={framesInChunk}, size={outputWidth}x{outputHeight}");
 
-            // Calculate video dimensions based on foreground image aspect ratio
-            int videoWidth = 832;
-            int videoHeight = 480;
-            int imageWidth = 480;
-            int imageHeight = 832;
-
-            try
+            // Node 10: video input — override frame_load_cap and skip_first_frames
+            WorkflowNodeUpdater.UpdateNodeInputMultiple(ref workflowJson, "10", new Dictionary<string, object>
             {
-                var imagePath = ForegroundImagePath;
-                if (!string.IsNullOrEmpty(imagePath) && File.Exists(imagePath))
-                {
-                    var bitmap = new BitmapImage();
-                    bitmap.BeginInit();
-                    bitmap.CacheOption = BitmapCacheOption.OnLoad;
-                    bitmap.UriSource = new Uri(imagePath, UriKind.Absolute);
-                    bitmap.EndInit();
-                    bitmap.Freeze();
-
-                    int originalWidth = bitmap.PixelWidth;
-                    int originalHeight = bitmap.PixelHeight;
-                    double aspectRatio = (double)originalWidth / originalHeight;
-
-                    AddLog($"Image dimensions: {originalWidth}x{originalHeight} (AR: {aspectRatio:F2})");
-
-                    const int maxDimension = 832;
-                    const int minDimension = 480;
-
-                    if (aspectRatio > 1) // Landscape
-                    {
-                        videoWidth = maxDimension;
-                        videoHeight = (int)(maxDimension / aspectRatio);
-                        imageWidth = minDimension;
-                        imageHeight = (int)(minDimension / aspectRatio);
-                    }
-                    else // Portrait or square
-                    {
-                        videoWidth = (int)(minDimension * aspectRatio);
-                        videoHeight = minDimension;
-                        imageWidth = (int)(minDimension * aspectRatio);
-                        imageHeight = maxDimension;
-                    }
-
-                    // Ensure even numbers
-                    videoWidth = videoWidth % 2 == 0 ? videoWidth : videoWidth + 1;
-                    videoHeight = videoHeight % 2 == 0 ? videoHeight : videoHeight + 1;
-                    imageWidth = imageWidth % 2 == 0 ? imageWidth : imageWidth + 1;
-                    imageHeight = imageHeight % 2 == 0 ? imageHeight : imageHeight + 1;
-
-                    AddLog($"Calculated video dimensions: {videoWidth}x{videoHeight}");
-                    AddLog($"Calculated image dimensions: {imageWidth}x{imageHeight}");
-                }
-            }
-            catch (Exception ex)
-            {
-                AddLog($"Warning: Could not read image dimensions, using defaults: {ex.Message}");
-            }
-
-            // Update background image (node 25)
-            WorkflowNodeUpdater.UpdateNodeInput(ref workflowJson, "25", "image", backgroundImageName);
-            AddLog($"✓ Node 25 (LoadImage - Background image): image updated");
-
-            // Update foreground image (node 24)
-            WorkflowNodeUpdater.UpdateNodeInput(ref workflowJson, "24", "image", foregroundImageName);
-            AddLog($"✓ Node 24 (LoadImage - Foreground image): image updated");
-
-            // Update video input (node 14)
-            WorkflowNodeUpdater.UpdateNodeInput(ref workflowJson, "14", "video", videoName);
-            AddLog($"✓ Node 14 (LoadVideo - Video): video updated");
-
-            // Update positive prompt (node 26)
-            WorkflowNodeUpdater.UpdateNodeInput(ref workflowJson, "26", "string", Prompt);
-            AddLog($"✓ Node 26 (StringConstantMultiline - Prompt): string updated");
-
-            // Update image resize dimensions (node 22)
-            WorkflowNodeUpdater.UpdateNodeInputMultiple(ref workflowJson, "22", new Dictionary<string, object>
-            {
-                { "width", imageWidth },
-                { "height", imageHeight }
+                { "video", videoName },
+                { "frame_load_cap", framesInChunk },
+                { "skip_first_frames", startFrame }
             });
-            AddLog($"✓ Node 22 (ImageResizeKJv2): {imageWidth}x{imageHeight}");
 
-            // Update VACE encode dimensions (node 38)
-            WorkflowNodeUpdater.UpdateNodeInputMultiple(ref workflowJson, "38", new Dictionary<string, object>
-            {
-                { "width", videoWidth },
-                { "height", videoHeight }
-            });
-            AddLog($"✓ Node 38 (WanVideoVACEEncode): {videoWidth}x{videoHeight}");
+            // Node 148: reference image
+            WorkflowNodeUpdater.UpdateNodeInput(ref workflowJson, "148", "image", imageName);
 
-            // Update VACE encode dimensions (node 48)
-            WorkflowNodeUpdater.UpdateNodeInputMultiple(ref workflowJson, "48", new Dictionary<string, object>
-            {
-                { "width", videoWidth },
-                { "height", videoHeight }
-            });
-            AddLog($"✓ Node 48 (WanVideoVACEEncode): {videoWidth}x{videoHeight}");
+            // Node 31: prompt
+            WorkflowNodeUpdater.UpdateNodeInput(ref workflowJson, "31", "string", Prompt);
 
-            AddLog("=== VACE workflow parameters updated successfully ===");
+            // Nodes 19/20/21: frames / height / width (INTConstant)
+            WorkflowNodeUpdater.UpdateNodeInput(ref workflowJson, "19", "value", framesInChunk);
+            WorkflowNodeUpdater.UpdateNodeInput(ref workflowJson, "20", "value", outputHeight);
+            WorkflowNodeUpdater.UpdateNodeInput(ref workflowJson, "21", "value", outputWidth);
 
+            AddLog($"✓ Nodes updated");
             return JsonSerializer.Deserialize<JsonElement>(workflowJson);
+        }
+
+        private void MergeVideoChunksWithFFmpeg(List<string> chunkFiles, string outputPath)
+        {
+            var ffmpegPath = FindFFmpeg();
+            if (string.IsNullOrEmpty(ffmpegPath))
+            {
+                AddLog("ERROR: ffmpeg not found. Cannot merge video chunks.");
+                throw new InvalidOperationException("ffmpeg is required to merge video chunks.");
+            }
+
+            var listFile = Path.Combine(Path.GetTempPath(), $"ffmpeg_vace_{Guid.NewGuid()}.txt");
+            using (var writer = new StreamWriter(listFile))
+            {
+                foreach (var f in chunkFiles)
+                    writer.WriteLine($"file '{f.Replace("\\", "/")}'");
+            }
+
+            AddLog($"Merging {chunkFiles.Count} chunks with ffmpeg...");
+
+            var startInfo = new System.Diagnostics.ProcessStartInfo
+            {
+                FileName = ffmpegPath,
+                Arguments = $"-f concat -safe 0 -i \"{listFile}\" -c copy \"{outputPath}\"",
+                RedirectStandardOutput = true,
+                RedirectStandardError = true,
+                UseShellExecute = false,
+                CreateNoWindow = true
+            };
+
+            using var process = System.Diagnostics.Process.Start(startInfo);
+            if (process == null) throw new InvalidOperationException("Failed to start ffmpeg.");
+
+            process.WaitForExit(120000);
+            try { File.Delete(listFile); } catch { }
+
+            if (!File.Exists(outputPath))
+                throw new InvalidOperationException($"ffmpeg merge failed. Output not found: {outputPath}");
+
+            AddLog($"Merge complete: {Path.GetFileName(outputPath)}");
         }
 
         #endregion
