@@ -615,8 +615,7 @@ namespace FlipPix.UI.ViewModels.Video
             AddLog($"✓ Node 24 (LoadImage - Foreground image): image updated");
 
             // Update video input (node 14)
-            var comfyUIInputPath = Path.Combine(_settingsService.Settings?.ComfyUIFolderPath ?? "", "input", videoName);
-            WorkflowNodeUpdater.UpdateNodeInput(ref workflowJson, "14", "video", comfyUIInputPath);
+            WorkflowNodeUpdater.UpdateNodeInput(ref workflowJson, "14", "video", videoName);
             AddLog($"✓ Node 14 (LoadVideo - Video): video updated");
 
             // Update positive prompt (node 26)
