@@ -42,9 +42,9 @@
       "select_every_nth": 1,
       "format": "Wan"
     },
-    "class_type": "VHS_LoadVideoPath",
+    "class_type": "VHS_LoadVideo",
     "_meta": {
-      "title": "Load Video (Path) 🎥🅥🅗🅢"
+      "title": "Load Video 🎥🅥🅗🅢"
     }
   },
   "21": {

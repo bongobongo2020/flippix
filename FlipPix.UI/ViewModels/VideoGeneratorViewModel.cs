@@ -45,7 +45,7 @@ namespace FlipPix.UI.ViewModels
         public VideoGeneratorMainViewModel MainVM { get; }
 
         /// <summary>
-        /// VACE extended video generation ViewModel - handles background/foreground
+        /// VACE extended video generation ViewModel - handles reference image and input video
         /// image composition with video output.
         /// </summary>
         public VACEVideoViewModel VaceVM { get; }
@@ -279,10 +279,6 @@ namespace FlipPix.UI.ViewModels
         #region VaceVM Backward Compatibility Properties
 
         public string VacePrompt { get => VaceVM.Prompt; set => VaceVM.Prompt = value; }
-        public string VaceBackgroundImagePath { get => VaceVM.BackgroundImagePath; set => VaceVM.BackgroundImagePath = value; }
-        public BitmapImage? VaceBackgroundImagePreview { get => VaceVM.BackgroundImagePreview; set => VaceVM.BackgroundImagePreview = value; }
-        public string VaceBackgroundImageInfo { get => VaceVM.BackgroundImageInfo; set => VaceVM.BackgroundImageInfo = value; }
-        public bool HasVACEBackgroundImage => VaceVM.HasBackgroundImage;
         public string VaceForegroundImagePath { get => VaceVM.ForegroundImagePath; set => VaceVM.ForegroundImagePath = value; }
         public BitmapImage? VaceForegroundImagePreview { get => VaceVM.ForegroundImagePreview; set => VaceVM.ForegroundImagePreview = value; }
         public string VaceForegroundImageInfo { get => VaceVM.ForegroundImageInfo; set => VaceVM.ForegroundImageInfo = value; }
@@ -299,7 +295,6 @@ namespace FlipPix.UI.ViewModels
         public bool CanGenerateVACEVideo => VaceVM.CanGenerateVideo;
 
         // VaceVM Commands
-        public ICommand SelectVACEBackgroundImageCommand => VaceVM.SelectBackgroundImageCommand;
         public ICommand SelectVACEForegroundImageCommand => VaceVM.SelectForegroundImageCommand;
         public ICommand SelectVACEVideoCommand => VaceVM.SelectVideoCommand;
         public ICommand GenerateVACEVideoCommand => VaceVM.GenerateVideoCommand;
