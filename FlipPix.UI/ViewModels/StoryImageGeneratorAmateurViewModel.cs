@@ -333,17 +333,32 @@ namespace FlipPix.UI.ViewModels
             // Node 752 - amateur photography LoRA second instance (always applied)
             WorkflowNodeUpdater.UpdateNodeInput(ref workflowJson, "752", "strength_model", AmateurLoraStrength2);
 
-            // 9. Update character LoRA if enabled (node 760 - currently gilliananderson)
+            // 9. Update character LoRA (node 760) - always set a valid LoRA to avoid validation errors
             if (CharacterLoraEnabled && !string.IsNullOrEmpty(SelectedCharacterLora) && SelectedCharacterLora != "No LoRAs available")
             {
+                AddLog($"Setting character LoRA: zimage\\{SelectedCharacterLora}.safetensors with strength {CharacterLoraStrength}");
                 WorkflowNodeUpdater.UpdateNodeInputMultiple(ref workflowJson, "760", new Dictionary<string, object>
                 {
                     { "lora_name", $"zimage\\{SelectedCharacterLora}.safetensors" },
                     { "strength_model", CharacterLoraStrength }
                 });
             }
+            else
+            {
+                // Use amateur LoRA with minimal strength as fallback (prevents invalid LoRA errors)
+                AddLog($"Using fallback LoRA: zimage\\{AmateurLoraName} with strength 0.0");
+                WorkflowNodeUpdater.UpdateNodeInputMultiple(ref workflowJson, "760", new Dictionary<string, object>
+                {
+                    { "lora_name", $"zimage\\{AmateurLoraName}" },
+                    { "strength_model", 0.0 }
+                });
+            }
 
-            // 10. Update latent image dimensions
+            // 10. Remove problematic metadata/watermark nodes that reference non-existent image (nodes 107, 109, 747, 748, 749, 751)
+            AddLog("Removing metadata and watermark nodes to prevent file loading errors");
+            RemoveNodesFromWorkflow(ref workflowJson, new[] { "107", "109", "747", "748", "749", "751" });
+
+            // 11. Update latent image dimensions
             UpdateLatentDimensions(ref workflowJson, "46", 576, 416);
             UpdateLatentDimensions(ref workflowJson, "693", 208, 288);
             UpdateLatentDimensions(ref workflowJson, "758", 416, 576);
@@ -359,6 +374,30 @@ namespace FlipPix.UI.ViewModels
                 { "width", width },
                 { "height", height }
             });
+        }
+
+        private void RemoveNodesFromWorkflow(ref string workflowJson, string[] nodeIds)
+        {
+            try
+            {
+                var workflow = JsonSerializer.Deserialize<Dictionary<string, JsonElement>>(workflowJson);
+                if (workflow != null)
+                {
+                    foreach (var nodeId in nodeIds)
+                    {
+                        if (workflow.ContainsKey(nodeId))
+                        {
+                            workflow.Remove(nodeId);
+                            AddLog($"Removed node {nodeId} from workflow");
+                        }
+                    }
+                    workflowJson = JsonSerializer.Serialize(workflow, new JsonSerializerOptions { WriteIndented = false });
+                }
+            }
+            catch (Exception ex)
+            {
+                AddLog($"ERROR removing nodes from workflow: {ex.Message}");
+            }
         }
 
         private async Task<List<byte[]>> GetOutputImagesFromComfyUI(string promptId)
@@ -447,30 +486,43 @@ namespace FlipPix.UI.ViewModels
                             return images;
                         }
 
-                        var searchDirs = new List<string> { comfyUIOutputDir };
+                        // The workflow saves to ZImage folder with "AmateurImage" prefix
+                        var searchDirs = new List<string>();
 
+                        // Prioritize ZImage folder
                         var zimageDir = Path.Combine(comfyUIOutputDir, "ZImage");
                         if (Directory.Exists(zimageDir))
                         {
                             searchDirs.Add(zimageDir);
-                            try
-                            {
-                                var dateDirs = Directory.GetDirectories(zimageDir)
-                                    .OrderByDescending(d => Directory.GetLastWriteTime(d))
-                                    .Take(3);
-                                foreach (var dateDir in dateDirs)
-                                {
-                                    searchDirs.Add(dateDir);
-                                }
-                            }
-                            catch { }
+                            AddLog("Added ZImage folder to search directories");
                         }
+
+                        // Also check main output folder as fallback
+                        searchDirs.Add(comfyUIOutputDir);
+
+                        // Also check date folders as fallback
+                        try
+                        {
+                            var dateFolders = Directory.GetDirectories(comfyUIOutputDir)
+                                .OrderByDescending(d => Directory.GetLastWriteTime(d))
+                                .Take(3);
+
+                            foreach (var dateDir in dateFolders)
+                            {
+                                searchDirs.Add(dateDir);
+                            }
+                        }
+                        catch { }
 
                         AddLog($"Searching in {searchDirs.Count} directories for output images");
 
                         foreach (var searchDir in searchDirs)
                         {
-                            var recentFiles = Directory.GetFiles(searchDir, "*.png")
+                            var dirName = Path.GetFileName(searchDir);
+                            // Look for AmateurImage pattern in ZImage folder, or any recent PNG elsewhere
+                            var pattern = dirName.Equals("ZImage", StringComparison.OrdinalIgnoreCase) ? "AmateurImage*.png" : "*.png";
+
+                            var recentFiles = Directory.GetFiles(searchDir, pattern)
                                 .Select(f => new FileInfo(f))
                                 .Where(f => (DateTime.Now - f.LastWriteTime).TotalMinutes < 2)
                                 .OrderByDescending(f => f.LastWriteTime)
@@ -478,7 +530,7 @@ namespace FlipPix.UI.ViewModels
 
                             if (recentFiles.Any())
                             {
-                                AddLog($"Found {recentFiles.Count} recent PNG files in: {Path.GetFileName(searchDir)}");
+                                AddLog($"Found {recentFiles.Count} recent PNG files in: {dirName}");
                                 var latestFile = recentFiles.First();
                                 AddLog($"Using latest file: {latestFile.Name} (modified: {latestFile.LastWriteTime})");
                                 images.Add(await File.ReadAllBytesAsync(latestFile.FullName));
@@ -494,7 +546,10 @@ namespace FlipPix.UI.ViewModels
                             {
                                 foreach (var searchDir in searchDirs)
                                 {
-                                    var olderFiles = Directory.GetFiles(searchDir, "*.png")
+                                    var dirName = Path.GetFileName(searchDir);
+                                    var pattern = dirName.Equals("ZImage", StringComparison.OrdinalIgnoreCase) ? "AmateurImage*.png" : "*.png";
+
+                                    var olderFiles = Directory.GetFiles(searchDir, pattern)
                                         .Select(f => new FileInfo(f))
                                         .Where(f => (DateTime.Now - f.LastWriteTime).TotalMinutes < 10)
                                         .OrderByDescending(f => f.LastWriteTime)
@@ -502,7 +557,7 @@ namespace FlipPix.UI.ViewModels
 
                                     if (olderFiles.Any())
                                     {
-                                        AddLog($"Fallback: Found {olderFiles.Count} PNG files in last 10 minutes in: {Path.GetFileName(searchDir)}");
+                                        AddLog($"Fallback: Found {olderFiles.Count} PNG files in last 10 minutes in: {dirName}");
                                         var latestFile = olderFiles.First();
                                         AddLog($"Using fallback file: {latestFile.Name} (modified: {latestFile.LastWriteTime})");
                                         images.Add(await File.ReadAllBytesAsync(latestFile.FullName));

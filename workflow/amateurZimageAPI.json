@@ -71,9 +71,9 @@
   },
   "107": {
     "inputs": {
-      "image": "z-image_00110_.png",
-      "emoji_in_readable_text": true,
-      "show_info": "both"
+      "image": "",
+      "emoji_in_readable_text": false,
+      "show_info": "disabled"
     },
     "class_type": "SimpleReadableMetadataSG",
     "_meta": {
@@ -501,7 +501,7 @@
   },
   "651": {
     "inputs": {
-      "filename_prefix": "2025-12-31/ComfyUI_Image",
+      "filename_prefix": "ZImage/AmateurImage",
       "images": [
         "650",
         0
@@ -625,7 +625,7 @@
   },
   "751": {
     "inputs": {
-      "filename_prefix": "ComfyUI",
+      "filename_prefix": "ZImage/AmateurWatermark",
       "images": [
         "749",
         0
@@ -737,8 +737,8 @@
   },
   "760": {
     "inputs": {
-      "lora_name": "WAN\\wan_gilliananderson_v1.safetensors",
-      "strength_model": 0.8,
+      "lora_name": "zimage\\amateur_photography_zimage_v1.safetensors",
+      "strength_model": 0.0,
       "model": [
         "507",
         0

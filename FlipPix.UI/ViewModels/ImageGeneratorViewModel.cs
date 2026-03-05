@@ -59,6 +59,7 @@ namespace FlipPix.UI.ViewModels
         private string _selectedLora = string.Empty;
         private bool _loraEnabled = false;
         private TextGeneratorWorkflow _selectedWorkflow = TextGeneratorWorkflow.Zimage;
+        private JsonElement _lastWorkflow;
 
         // Style fields (for Zimage ZStyles)
         private List<StyleInfo> _allStyles = new List<StyleInfo>();
@@ -629,6 +630,7 @@ namespace FlipPix.UI.ViewModels
                 ProcessingProgress = 10;
 
                 var updatedWorkflow = UpdateWorkflowParameters(workflow);
+                _lastWorkflow = updatedWorkflow; // Store for later use in image retrieval
 
                 // Execute workflow
                 ProcessingStatus = "Generating image...";
@@ -1365,6 +1367,81 @@ namespace FlipPix.UI.ViewModels
                 }
             }
 
+            // amateurZimageAPI-specific fixes: Handle problematic nodes
+            // Check if this is amateurZimageAPI by looking for node 760 (character LoRA) or node 107 (metadata)
+            if (workflowDict.ContainsKey("760"))
+            {
+                // Node 760: LoraLoaderModelOnly - has hardcoded invalid LoRA
+                var node760 = JsonSerializer.Deserialize<Dictionary<string, object>>(workflowDict["760"].GetRawText());
+                if (node760 != null && node760.ContainsKey("inputs"))
+                {
+                    var inputs = JsonSerializer.Deserialize<Dictionary<string, object>>(
+                        JsonSerializer.Serialize(node760["inputs"]));
+                    if (inputs != null)
+                    {
+                        // Use amateur photography LoRA with minimal strength as fallback
+                        inputs["lora_name"] = "zimage\\amateur_photography_zimage_v1.safetensors";
+                        inputs["strength_model"] = 0.0;
+                        node760["inputs"] = inputs;
+                        workflowDict["760"] = JsonSerializer.SerializeToElement(node760);
+                        AddLog("Fixed node 760: using amateur LoRA with 0.0 strength");
+                    }
+                }
+            }
+
+            // Remove problematic metadata nodes entirely (107, 109) to prevent file loading errors
+            // These nodes are for watermarking/metadata display and aren't essential for generation
+            if (workflowDict.ContainsKey("107"))
+            {
+                workflowDict.Remove("107");
+                AddLog("Removed node 107 (metadata) to prevent file loading errors");
+            }
+            if (workflowDict.ContainsKey("109"))
+            {
+                workflowDict.Remove("109");
+                AddLog("Removed node 109 (metadata viewer) to prevent errors");
+            }
+            // Also remove watermark nodes that depend on node 107 (747, 748, 749, 751)
+            if (workflowDict.ContainsKey("747"))
+            {
+                workflowDict.Remove("747");
+                AddLog("Removed node 747 (watermark label)");
+            }
+            if (workflowDict.ContainsKey("748"))
+            {
+                workflowDict.Remove("748");
+                AddLog("Removed node 748 (watermark label)");
+            }
+            if (workflowDict.ContainsKey("749"))
+            {
+                workflowDict.Remove("749");
+                AddLog("Removed node 749 (image concatenation)");
+            }
+            if (workflowDict.ContainsKey("751"))
+            {
+                workflowDict.Remove("751");
+                AddLog("Removed node 751 (watermark save)");
+            }
+
+            // amateurZimageAPI uses node 28 for seed (not node 569)
+            if (workflowDict.ContainsKey("28"))
+            {
+                var node28 = JsonSerializer.Deserialize<Dictionary<string, object>>(workflowDict["28"].GetRawText());
+                if (node28 != null && node28.ContainsKey("inputs"))
+                {
+                    var inputs = JsonSerializer.Deserialize<Dictionary<string, object>>(
+                        JsonSerializer.Serialize(node28["inputs"]));
+                    if (inputs != null)
+                    {
+                        var actualSeed = Seed == 0 ? new Random().NextInt64(0, 999999999999999) : Seed;
+                        inputs["seed"] = (long)actualSeed;
+                        node28["inputs"] = inputs;
+                        workflowDict["28"] = JsonSerializer.SerializeToElement(node28);
+                        AddLog($"Updated seed: {actualSeed}");
+                    }
+                }
+            }
+
             return JsonSerializer.SerializeToElement(workflowDict);
         }
 
@@ -1777,14 +1854,24 @@ namespace FlipPix.UI.ViewModels
                         return images;
                     }
 
+                    // Check if workflow is amateurZimageAPI (has node 760 or 107)
+                    var workflowDict = JsonSerializer.Deserialize<Dictionary<string, JsonElement>>(_lastWorkflow.GetRawText());
+                    bool isAmateurZimageApi = workflowDict != null && (workflowDict.ContainsKey("760") || workflowDict.ContainsKey("107"));
+
                     // For Zimage (Zib-Zit workflow), the output is in a subdirectory: ZImage/%date/
                     string searchDirectory;
-                    if (SelectedWorkflow == TextGeneratorWorkflow.Zimage)
+                    if (SelectedWorkflow == TextGeneratorWorkflow.Zimage && !isAmateurZimageApi)
                     {
-                        // Look in ZImage subdirectory with today's date
+                        // Look in ZImage subdirectory with today's date (for Zib-Zit workflow)
                         var dateSubdir = DateTime.Now.ToString("yyyy_MM_dd");
                         searchDirectory = Path.Combine(comfyUIOutputDir, "ZImage", dateSubdir);
                         AddLog($"Zimage workflow: searching in {searchDirectory}");
+                    }
+                    else if (isAmateurZimageApi)
+                    {
+                        // amateurZimageAPI: search directly in ZImage folder for AmateurImage files
+                        searchDirectory = Path.Combine(comfyUIOutputDir, "ZImage");
+                        AddLog($"amateurZimageAPI workflow: searching in {searchDirectory}");
                     }
                     else
                     {
@@ -1800,7 +1887,24 @@ namespace FlipPix.UI.ViewModels
 
                     // Look for files based on the selected workflow
                     List<string> imageFiles;
-                    if (SelectedWorkflow == TextGeneratorWorkflow.Zimage)
+                    if (isAmateurZimageApi)
+                    {
+                        // amateurZimageAPI workflow: files are named "AmateurImage_00001.png"
+                        // Look for AmateurImage*.png pattern in the ZImage folder
+                        AddLog("Searching for AmateurImage*.png pattern...");
+                        if (Directory.Exists(searchDirectory))
+                        {
+                            imageFiles = Directory.GetFiles(searchDirectory, "AmateurImage*.png")
+                                .OrderByDescending(f => File.GetLastWriteTime(f))
+                                .ToList();
+                        }
+                        else
+                        {
+                            AddLog($"ZImage output directory not found: {searchDirectory}");
+                            imageFiles = new List<string>();
+                        }
+                    }
+                    else if (SelectedWorkflow == TextGeneratorWorkflow.Zimage)
                     {
                         // Zib-Zit workflow: files are named like "False__0_blur_02.png"
                         // Just look for all PNG files in the subdirectory and sort by modification time

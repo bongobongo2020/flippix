@@ -510,3 +510,174 @@ Implemented a new "Infinite Talk" tab in the Video Generator that:
 5. Generates video using Wan2.1 InfiniteTalk model in 81-frame chunks
 6. Merges all chunks with ffmpeg for final output
 7. Provides full video playback and file management
+
+---
+
+## 2026-03-05: Amateur Generator Fixes
+
+### Files Modified
+
+1. **FlipPix.UI/ViewModels/AmateurGeneratorViewModel.cs**
+   - Added `System.Text.RegularExpressions` namespace for regex pattern matching
+   - Added static `Random` instance `_random` for better seed generation (avoids creating new Random() each time)
+   - **Fixed node 760 LoRA validation error**: When character LoRA is not enabled, the workflow now uses the amateur photography LoRA with 0.0 strength as a fallback, instead of the non-existent `"WAN\wan_gilliananderson_v1.safetensors"` LoRA
+   - **Fixed node 107 metadata error**: Disabled the SimpleReadableMetadataSG node by setting `show_info` to "disabled" and `emoji_in_readable_text` to false to prevent errors from the hardcoded invalid image `"z-image_00110_.png"`
+   - **Improved seed randomization**: Changed from `new Random().NextInt64()` to `_random.NextInt64()` using a static Random instance for better random seed generation
+   - **Added seed logging**: Now logs the actual seed used and updates the `Seed` property when Seed is 0 (for reproducibility)
+   - **Fixed image retrieval**: Updated `GetOutputImagesFromComfyUI` method to:
+     - Search for date-named folders (format: YYYY-MM-DD) in the ComfyUI output directory
+     - Look for "ComfyUI_Image*.png" pattern in date folders (matches the workflow's output filename prefix)
+     - Use `Regex.IsMatch` to properly match date folder patterns
+     - Improved logging to show which directory and file is being used
+
+### Summary
+
+Fixed three major issues with the Amateur Generator when running `amateurZimageAPI.json`:
+1. **LoRA validation error**: Node 760 had a hardcoded non-existent LoRA `"WAN\wan_gilliananderson_v1.safetensors"`. Now uses a valid fallback LoRA with 0 strength when character LoRA is disabled.
+2. **Metadata node error**: Node 107 (SimpleReadableMetadataSG) referenced a non-existent image file. Now disabled to prevent validation errors.
+3. **Image not showing in Latest result**: The workflow saves to "2025-12-31" folder with "ComfyUI_Image" prefix, but the code was only searching in "ZImage" folder. Now searches date folders with correct pattern matching.
+4. **Random seed**: Improved seed randomization using a static Random instance instead of creating new instances each run.
+
+The Amateur Generator will now:
+- Generate a new random image each time (Seed=0)
+- Show the correct generated image in the Latest Result window
+- Not show validation errors for missing LoRAs or image files
+- Log the seed used for reproducibility
+
+---
+
+## 2026-03-05: Amateur Generator Workflow JSON Fixes
+
+### Files Modified
+
+1. **workflow/amateurZimageAPI.json**
+   - **Node 107 (SimpleReadableMetadataSG)**: Changed hardcoded invalid image `"z-image_00110_.png"` to empty string, set `show_info` to "disabled", and `emoji_in_readable_text` to false to prevent validation errors
+   - **Node 760 (LoraLoaderModelOnly)**: Changed hardcoded invalid LoRA `"WAN\wan_gilliananderson_v1.safetensors"` to valid `"zimage\amateur_photography_zimage_v1.safetensors"` with 0.0 strength
+   - **Node 651 (SaveImage)**: Changed `filename_prefix` from `"2025-12-31/ComfyUI_Image"` to `"ZImage/AmateurImage"` to save images in the ZImage folder
+   - **Node 751 (SaveImage)**: Changed `filename_prefix` from `"ComfyUI"` to `"ZImage/AmateurWatermark"` for watermark comparison images
+
+2. **FlipPix.UI/ViewModels/AmateurGeneratorViewModel.cs**
+   - Updated `GetOutputImagesFromComfyUI` method to prioritize ZImage folder and search for "AmateurImage*.png" pattern
+   - Simplified search logic to focus on ZImage folder first, then fallback to main output folder
+
+### Summary
+
+Fixed the workflow JSON file directly to:
+1. Remove hardcoded invalid LoRA reference (node 760)
+2. Disable metadata node that references non-existent image (node 107)
+3. Save output images to ZImage folder as requested (nodes 651, 751)
+
+The Amateur Generator now:
+- Saves all generated images to the ComfyUI output folder's "ZImage" subfolder
+- Uses "AmateurImage" prefix for main output images
+- No longer shows validation errors for invalid LoRAs or missing image files
+- Searches for images in the correct ZImage folder with the correct filename pattern
+
+---
+
+## 2026-03-05: StoryImageGeneratorAmateur Fixes
+
+### Files Modified
+
+1. **FlipPix.UI/ViewModels/StoryImageGeneratorAmateurViewModel.cs**
+   - **Fixed node 760 LoRA validation error**: Added fallback to use amateur photography LoRA with 0.0 strength when character LoRA is not enabled, instead of leaving the invalid `"WAN\wan_gilliananderson_v1.safetensors"` LoRA in place
+   - **Fixed node 107 metadata error**: Added code to disable the SimpleReadableMetadataSG node by setting `show_info` to "disabled" and `emoji_in_readable_text` to false
+   - **Added debug logging**: Added log messages to show which LoRA is being set and when metadata node is being disabled
+   - **Updated image retrieval**: Changed search logic to prioritize ZImage folder and search for "AmateurImage*.png" pattern
+
+### Summary
+
+The user was actually using `StoryImageGeneratorAmateurViewModel` (not `AmateurGeneratorViewModel`). Fixed the same issues:
+1. **LoRA validation error**: Node 760 now uses a valid fallback LoRA when character LoRA is disabled
+2. **Metadata node error**: Node 107 is now disabled to prevent validation errors
+3. **Image retrieval**: Now searches for images in ZImage folder with "AmateurImage" pattern
+
+**IMPORTANT**: Rebuild the application after these changes for them to take effect.
+
+---
+
+## 2026-03-05: ImageGeneratorViewModel Fixes (amateurZimageAPI)
+
+### Files Modified
+
+1. **FlipPix.UI/ViewModels/ImageGeneratorViewModel.cs**
+   - **Added `_lastWorkflow` field**: Stores the last executed workflow for use in image retrieval
+   - **Fixed node 760 LoRA validation error**: In `UpdateZimageWorkflow` method, added code to set node 760 to use amateur photography LoRA with 0.0 strength when workflow contains this node
+   - **Fixed node 107 metadata error**: Added code to disable the SimpleReadableMetadataSG node by setting `image` to empty string, `show_info` to "disabled", and `emoji_in_readable_text` to false
+   - **Fixed image retrieval logic**:
+     - Added detection for amateurZimageAPI workflow (by checking for nodes 760 or 107)
+     - When amateurZimageAPI is detected, searches directly in `ZImage` folder for "AmateurImage*.png" pattern (not in date subdirectory)
+     - Added debug logging for amateurZimageAPI workflow detection
+   - **Added seed handling for amateurZimageAPI**: Added code to update node 28 (Seed from rgthree) for random seed generation
+
+2. **workflow/amateurZimageAPI.json** (source file)
+   - Already had correct values from previous fixes
+
+3. **ComfyUI workflow folder** (`/mnt/c/Users/x2/Documents/comfyu/feb20/ComfyUI-Easy-Install/ComfyUI/user/default/workflows/amateurZimageAPI.json`)
+   - Fixed node 760: Changed from `"WAN\\wan_gilliananderson_v1.safetensors"` to `"zimage\\amateur_photography_zimage_v1.safetensors"` with 0.0 strength
+   - Fixed node 107: Changed to empty image, disabled show_info, and false emoji_in_readable_text
+   - Fixed node 651: Changed save path to `"ZImage/AmateurImage"`
+   - Fixed node 751: Changed save path to `"ZImage/AmateurWatermark"`
+
+### Summary
+
+The user was running amateurZimageAPI from the **ImageGeneratorViewModel** (not AmateurGeneratorViewModel or StoryImageGeneratorAmateurViewModel). Fixed all the issues:
+
+1. **LoRA validation error**: Node 760 now uses a valid fallback LoRA when the workflow contains this node
+2. **Metadata node error**: Node 107 is now disabled to prevent validation errors
+3. **Image retrieval**: Now correctly searches for "AmateurImage*.png" in ZImage folder (not in date subdirectories)
+4. **Random seed**: Now properly updates node 28 for random seed generation
+
+**Steps to apply fixes:**
+1. Rebuild the application in Visual Studio
+2. Run `publish.bat` to update the publish folder
+3. Run the application from the publish folder
+
+The Amateur Generator will now:
+- Generate a new random image each time (Seed=0)
+- Show the correct generated image in the Latest Result window
+- Not show validation errors for invalid LoRAs or missing image files
+- Save images to `Y:\output\ZImage\AmateurImage_*.png`
+
+---
+
+## 2026-03-05: Fixed Node Removal Issue
+
+### Files Modified
+
+1. **FlipPix.UI/ViewModels/ImageGeneratorViewModel.cs**
+   - **Changed approach**: Instead of disabling problematic metadata nodes (107, 109, 747, 748, 749, 751), now **removes them entirely** from the workflow
+   - This prevents the "file not found" error when SimpleReadableMetadataSG tries to load an empty image path
+
+2. **FlipPix.UI/ViewModels/AmateurGeneratorViewModel.cs**
+   - Added `RemoveNodesFromWorkflow` helper method
+   - Changed from disabling nodes to removing them entirely
+
+3. **FlipPix.UI/ViewModels/StoryImageGeneratorAmateurViewModel.cs**
+   - Added `RemoveNodesFromWorkflow` helper method
+   - Changed from disabling nodes to removing them entirely
+
+### Summary
+
+The previous fix of setting node 107's image to empty string caused a new error:
+```
+FileNotFoundError: [Errno 2] No such file or directory: '...ComfyUI\\input\\'
+```
+
+This was because the SimpleReadableMetadataSG node still tried to load the image even when disabled. The solution is to **remove the problematic nodes entirely** from the workflow before sending to ComfyUI.
+
+**Nodes removed:**
+- 107: SimpleReadableMetadataSG (metadata extraction)
+- 109: Simple Readable Metadata Text Viewer-SG (text display)
+- 747: AddLabel (watermark label 1)
+- 748: AddLabel (watermark label 2)
+- 749: ImageConcanate (image concatenation for watermark)
+- 751: SaveImage (watermark save)
+
+These nodes are only for adding watermarks/metadata and aren't essential for image generation. The main image is still saved by node 651 (which was updated to save to `ZImage/AmateurImage`).
+
+**Steps to apply fixes:**
+1. Rebuild the application in Visual Studio
+2. Run `publish.bat` to update the publish folder
+3. Run the application from the publish folder
+
