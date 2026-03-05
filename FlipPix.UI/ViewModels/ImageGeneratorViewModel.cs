@@ -1382,6 +1382,89 @@ namespace FlipPix.UI.ViewModels
                 }
             }
 
+            // Node 57: CR Aspect Ratio (main Zimage workflow / image_z_image-TEXTAPI)
+            if (workflowDict.ContainsKey("57"))
+            {
+                var aspectRatios = new[]
+                {
+                    "SDXL - 16:9 landscape 1344x768",
+                    "SDXL - 9:16 portrait 768x1344",
+                    "SDXL - 1:1 square 1024x1024"
+                };
+                var selectedRatio = aspectRatios[Math.Min(AspectRatioIndex, aspectRatios.Length - 1)];
+                var node57 = JsonSerializer.Deserialize<Dictionary<string, object>>(workflowDict["57"].GetRawText());
+                if (node57 != null && node57.ContainsKey("inputs"))
+                {
+                    var inputs = JsonSerializer.Deserialize<Dictionary<string, object>>(
+                        JsonSerializer.Serialize(node57["inputs"]));
+                    if (inputs != null)
+                    {
+                        inputs["aspect_ratio"] = selectedRatio;
+                        inputs["swap_dimensions"] = "Off";
+                        node57["inputs"] = inputs;
+                        workflowDict["57"] = JsonSerializer.SerializeToElement(node57);
+                        AddLog($"Updated node 57 aspect ratio: {selectedRatio}");
+                    }
+                }
+            }
+
+            // Node 56: EmptyLatentImage (Zstyle workflows)
+            if (workflowDict.ContainsKey("56") &&
+                workflowDict["56"].TryGetProperty("class_type", out var node56Class) &&
+                node56Class.GetString() == "EmptyLatentImage")
+            {
+                var resolutions = new[]
+                {
+                    (1408, 944),   // Landscape
+                    (944, 1408),   // Portrait
+                    (1120, 1120)   // Square
+                };
+                var (w56, h56) = resolutions[Math.Min(AspectRatioIndex, resolutions.Length - 1)];
+                var node56 = JsonSerializer.Deserialize<Dictionary<string, object>>(workflowDict["56"].GetRawText());
+                if (node56 != null && node56.ContainsKey("inputs"))
+                {
+                    var inputs = JsonSerializer.Deserialize<Dictionary<string, object>>(
+                        JsonSerializer.Serialize(node56["inputs"]));
+                    if (inputs != null)
+                    {
+                        inputs["width"] = w56;
+                        inputs["height"] = h56;
+                        node56["inputs"] = inputs;
+                        workflowDict["56"] = JsonSerializer.SerializeToElement(node56);
+                        AddLog($"Updated node 56 (EmptyLatentImage) resolution: {w56}x{h56}");
+                    }
+                }
+            }
+
+            // Node 9: SaveImage — update filename_prefix date so output lands in today's folder
+            if (workflowDict.ContainsKey("9"))
+            {
+                var node9 = JsonSerializer.Deserialize<Dictionary<string, object>>(workflowDict["9"].GetRawText());
+                if (node9 != null && node9.ContainsKey("inputs"))
+                {
+                    var inputs = JsonSerializer.Deserialize<Dictionary<string, object>>(
+                        JsonSerializer.Serialize(node9["inputs"]));
+                    if (inputs != null && inputs.TryGetValue("filename_prefix", out var prefixVal))
+                    {
+                        var prefix = prefixVal?.ToString() ?? string.Empty;
+                        if (prefix.StartsWith("ZImage/", StringComparison.OrdinalIgnoreCase))
+                        {
+                            var dateStr = DateTime.Now.ToString("yyyy_MM_dd");
+                            var parts = prefix.Split('/');
+                            // Replace the date segment (index 1) with today's date
+                            if (parts.Length >= 2)
+                            {
+                                parts[1] = dateStr;
+                                inputs["filename_prefix"] = string.Join("/", parts);
+                                node9["inputs"] = inputs;
+                                workflowDict["9"] = JsonSerializer.SerializeToElement(node9);
+                                AddLog($"Updated filename_prefix to {inputs["filename_prefix"]}");
+                            }
+                        }
+                    }
+                }
+            }
+
             // amateurZimageAPI-specific fixes: Handle problematic nodes
             // Check if this is amateurZimageAPI by looking for node 760 (character LoRA) or node 107 (metadata)
             if (workflowDict.ContainsKey("760"))
@@ -1438,6 +1521,25 @@ namespace FlipPix.UI.ViewModels
                 AddLog("Removed node 751 (watermark save)");
             }
 
+            // Fix node 651 (main SaveImage for amateurZimageAPI): redirect output to ZImage folder
+            // so the image retrieval search finds it in the expected location
+            if (workflowDict.ContainsKey("651"))
+            {
+                var node651 = JsonSerializer.Deserialize<Dictionary<string, object>>(workflowDict["651"].GetRawText());
+                if (node651 != null && node651.ContainsKey("inputs"))
+                {
+                    var inputs = JsonSerializer.Deserialize<Dictionary<string, object>>(
+                        JsonSerializer.Serialize(node651["inputs"]));
+                    if (inputs != null)
+                    {
+                        inputs["filename_prefix"] = "ZImage/AmateurImage";
+                        node651["inputs"] = inputs;
+                        workflowDict["651"] = JsonSerializer.SerializeToElement(node651);
+                        AddLog("Fixed node 651: output redirected to ZImage/AmateurImage");
+                    }
+                }
+            }
+
             // amateurZimageAPI uses node 28 for seed (not node 569)
             if (workflowDict.ContainsKey("28"))
             {
@@ -1458,7 +1560,9 @@ namespace FlipPix.UI.ViewModels
             }
 
             // amateurZimageAPI: Update aspect ratio on node 46 (EmptySD3LatentImage)
-            if (workflowDict.ContainsKey("46"))
+            if (workflowDict.ContainsKey("46") &&
+                workflowDict["46"].TryGetProperty("class_type", out var node46Class) &&
+                node46Class.GetString() == "EmptySD3LatentImage")
             {
                 var resolutions = new[]
                 {
