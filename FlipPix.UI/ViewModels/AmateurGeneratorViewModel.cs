@@ -7,6 +7,7 @@ using System.IO;
 using System.Linq;
 using System.Runtime.CompilerServices;
 using System.Text.Json;
+using System.Text.RegularExpressions;
 using System.Threading.Tasks;
 using System.Windows;
 using System.Windows.Input;
@@ -41,6 +42,9 @@ namespace FlipPix.UI.ViewModels
         private BitmapImage? _resultImageSource;
         private string _imageInfo = string.Empty;
         private System.Threading.CancellationTokenSource? _cancellationTokenSource;
+
+        // Static random for seed generation (better than creating new Random() each time)
+        private static readonly Random _random = new Random();
 
         // Amateur LoRA is always enabled
         private const string AmateurLoraName = "amateur_photography_zimage_v1.safetensors";
@@ -619,8 +623,16 @@ namespace FlipPix.UI.ViewModels
 
             // 3. Update seed (node 28) - max value is 2^50 (1125899906842624)
             long maxSeed = 1125899906842624;
-            var actualSeed = Seed == 0 ? new Random().NextInt64(0, maxSeed) : Seed;
+            var actualSeed = Seed == 0 ? _random.NextInt64(0, maxSeed) : Seed;
             WorkflowNodeUpdater.UpdateNodeInput(ref workflowJson, "28", "seed", actualSeed);
+
+            // Update the Seed property so user can see what seed was actually used (for reproducibility)
+            if (Seed == 0)
+            {
+                Seed = actualSeed;
+            }
+
+            AddLog($"Using seed: {actualSeed}");
 
             // 4. Update ClownsharKSampler settings (node 582)
             WorkflowNodeUpdater.UpdateNodeInputMultiple(ref workflowJson, "582", new Dictionary<string, object>
@@ -658,18 +670,34 @@ namespace FlipPix.UI.ViewModels
             WorkflowNodeUpdater.UpdateNodeInput(ref workflowJson, "105", "strength_model", AmateurLoraStrength1);
             WorkflowNodeUpdater.UpdateNodeInput(ref workflowJson, "752", "strength_model", AmateurLoraStrength2);
 
-            // 9. Update character LoRA if enabled (node 760)
+            // 9. Update character LoRA (node 760) - always set a valid LoRA to avoid validation errors
             if (LoraEnabled && !string.IsNullOrEmpty(SelectedLora) && SelectedLora != "No LoRAs available")
             {
                 var loraName = $"zimage\\{SelectedLora}.safetensors";
+                AddLog($"Setting character LoRA: {loraName} with strength {LoraStrength}");
                 WorkflowNodeUpdater.UpdateNodeInputMultiple(ref workflowJson, "760", new Dictionary<string, object>
                 {
                     { "lora_name", loraName },
                     { "strength_model", LoraStrength }
                 });
             }
+            else
+            {
+                // Use amateur LoRA with minimal strength as fallback (prevents invalid LoRA errors)
+                AddLog($"Using fallback LoRA: zimage\\{AmateurLoraName} with strength 0.0");
+                WorkflowNodeUpdater.UpdateNodeInputMultiple(ref workflowJson, "760", new Dictionary<string, object>
+                {
+                    { "lora_name", $"zimage\\{AmateurLoraName}" },
+                    { "strength_model", 0.0 }
+                });
+            }
 
-            // 10. Update latent image dimensions based on orientation
+            // 10. Remove problematic metadata/watermark nodes that reference non-existent image (nodes 107, 109, 747, 748, 749, 751)
+            // These nodes cause file loading errors and aren't essential for image generation
+            AddLog("Removing metadata and watermark nodes to prevent file loading errors");
+            RemoveNodesFromWorkflow(ref workflowJson, new[] { "107", "109", "747", "748", "749", "751" });
+
+            // 11. Update latent image dimensions based on orientation
             bool isPortrait = OrientationIndex == 1;
             if (isPortrait)
             {
@@ -790,30 +818,44 @@ namespace FlipPix.UI.ViewModels
                             return images;
                         }
 
-                        var searchDirs = new List<string> { comfyUIOutputDir };
+                        // The workflow saves to ZImage folder with "AmateurImage" prefix
+                        var searchDirs = new List<string>();
 
+                        // Prioritize ZImage folder
                         var zimageDir = Path.Combine(comfyUIOutputDir, "ZImage");
                         if (Directory.Exists(zimageDir))
                         {
                             searchDirs.Add(zimageDir);
-                            try
-                            {
-                                var dateDirs = Directory.GetDirectories(zimageDir)
-                                    .OrderByDescending(d => Directory.GetLastWriteTime(d))
-                                    .Take(3);
-                                foreach (var dateDir in dateDirs)
-                                {
-                                    searchDirs.Add(dateDir);
-                                }
-                            }
-                            catch { }
+                            AddLog("Added ZImage folder to search directories");
                         }
+
+                        // Also check main output folder as fallback
+                        searchDirs.Add(comfyUIOutputDir);
+
+                        // Also check date folders as fallback
+                        try
+                        {
+                            var dateFolders = Directory.GetDirectories(comfyUIOutputDir)
+                                .Where(d => Regex.IsMatch(Path.GetFileName(d), @"^\d{4}-\d{2}-\d{2}$"))
+                                .OrderByDescending(d => Directory.GetLastWriteTime(d))
+                                .Take(3);
+
+                            foreach (var dateDir in dateFolders)
+                            {
+                                searchDirs.Add(dateDir);
+                            }
+                        }
+                        catch { }
 
                         AddLog($"Searching in {searchDirs.Count} directories for output images");
 
                         foreach (var searchDir in searchDirs)
                         {
-                            var recentFiles = Directory.GetFiles(searchDir, "*.png")
+                            var dirName = Path.GetFileName(searchDir);
+                            // Look for AmateurImage pattern in ZImage folder, or any recent PNG elsewhere
+                            var pattern = dirName.Equals("ZImage", StringComparison.OrdinalIgnoreCase) ? "AmateurImage*.png" : "*.png";
+
+                            var recentFiles = Directory.GetFiles(searchDir, pattern)
                                 .Select(f => new FileInfo(f))
                                 .Where(f => (DateTime.Now - f.LastWriteTime).TotalMinutes < 2)
                                 .OrderByDescending(f => f.LastWriteTime)
@@ -821,7 +863,7 @@ namespace FlipPix.UI.ViewModels
 
                             if (recentFiles.Any())
                             {
-                                AddLog($"Found {recentFiles.Count} recent PNG files in: {Path.GetFileName(searchDir)}");
+                                AddLog($"Found {recentFiles.Count} recent PNG files in: {dirName}");
                                 var latestFile = recentFiles.First();
                                 AddLog($"Using latest file: {latestFile.Name} (modified: {latestFile.LastWriteTime})");
                                 images.Add(await File.ReadAllBytesAsync(latestFile.FullName));
@@ -837,7 +879,10 @@ namespace FlipPix.UI.ViewModels
                             {
                                 foreach (var searchDir in searchDirs)
                                 {
-                                    var olderFiles = Directory.GetFiles(searchDir, "*.png")
+                                    var dirName = Path.GetFileName(searchDir);
+                                    var pattern = dirName.Equals("ZImage", StringComparison.OrdinalIgnoreCase) ? "AmateurImage*.png" : "*.png";
+
+                                    var olderFiles = Directory.GetFiles(searchDir, pattern)
                                         .Select(f => new FileInfo(f))
                                         .Where(f => (DateTime.Now - f.LastWriteTime).TotalMinutes < 10)
                                         .OrderByDescending(f => f.LastWriteTime)
@@ -845,7 +890,7 @@ namespace FlipPix.UI.ViewModels
 
                                     if (olderFiles.Any())
                                     {
-                                        AddLog($"Fallback: Found {olderFiles.Count} PNG files in last 10 minutes in: {Path.GetFileName(searchDir)}");
+                                        AddLog($"Fallback: Found {olderFiles.Count} PNG files in last 10 minutes in: {dirName}");
                                         var latestFile = olderFiles.First();
                                         AddLog($"Using fallback file: {latestFile.Name} (modified: {latestFile.LastWriteTime})");
                                         images.Add(await File.ReadAllBytesAsync(latestFile.FullName));
@@ -876,6 +921,30 @@ namespace FlipPix.UI.ViewModels
         {
             LoadAvailableLoras();
             AddLog("Refreshed LoRA list");
+        }
+
+        private void RemoveNodesFromWorkflow(ref string workflowJson, string[] nodeIds)
+        {
+            try
+            {
+                var workflow = JsonSerializer.Deserialize<Dictionary<string, JsonElement>>(workflowJson);
+                if (workflow != null)
+                {
+                    foreach (var nodeId in nodeIds)
+                    {
+                        if (workflow.ContainsKey(nodeId))
+                        {
+                            workflow.Remove(nodeId);
+                            AddLog($"Removed node {nodeId} from workflow");
+                        }
+                    }
+                    workflowJson = JsonSerializer.Serialize(workflow, new JsonSerializerOptions { WriteIndented = false });
+                }
+            }
+            catch (Exception ex)
+            {
+                AddLog($"ERROR removing nodes from workflow: {ex.Message}");
+            }
         }
 
         private void PasteFromClipboard()
