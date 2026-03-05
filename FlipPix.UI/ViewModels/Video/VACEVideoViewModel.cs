@@ -31,9 +31,12 @@ namespace FlipPix.UI.ViewModels.Video
         private string _inputVideoInfo = string.Empty;
         private int _totalFrames;
         private readonly IFileDialogService _fileDialogService;
+        private readonly LMStudioService _lmStudioService;
+        private bool _isAnalyzing = false;
 
         public VACEVideoViewModel(
             ComfyUIService comfyUIService,
+            LMStudioService lmStudioService,
             IAppLogger logger,
             FlipPix.Core.Services.SettingsService settingsService,
             IServiceProvider? serviceProvider,
@@ -42,12 +45,14 @@ namespace FlipPix.UI.ViewModels.Video
             : base(comfyUIService, logger, settingsService, serviceProvider, workflowCoordinator)
         {
             _fileDialogService = fileDialogService ?? throw new ArgumentNullException(nameof(fileDialogService));
+            _lmStudioService = lmStudioService ?? throw new ArgumentNullException(nameof(lmStudioService));
             SelectForegroundImageCommand = new RelayCommand(SelectForegroundImage);
             SelectVideoCommand = new RelayCommand(SelectVideo);
             GenerateVideoCommand = new RelayCommand(async () => await GenerateVideoAsync(), () => CanGenerateVideo);
             PlayVideoCommand = new RelayCommand(PlayVideo, () => HasResult);
             OpenResultFolderCommand = new RelayCommand(OpenResultFolder, () => HasResult);
             SendToEditCameraCommand = new RelayCommand(SendToEditCamera, () => HasResult);
+            AnalyzeImageCommand = new RelayCommand(async () => await AnalyzeImageAsync(), () => CanAnalyzeImage);
 
             AddLog("VACE Video Generator initialized");
         }
@@ -60,6 +65,7 @@ namespace FlipPix.UI.ViewModels.Video
         public RelayCommand PlayVideoCommand { get; }
         public RelayCommand OpenResultFolderCommand { get; }
         public RelayCommand SendToEditCameraCommand { get; }
+        public RelayCommand AnalyzeImageCommand { get; }
 
         #endregion
 
@@ -152,6 +158,23 @@ namespace FlipPix.UI.ViewModels.Video
         public bool HasInputVideo => !string.IsNullOrEmpty(InputVideoPath) && File.Exists(InputVideoPath);
         public bool CanGenerateVideo => HasForegroundImage && HasInputVideo && !string.IsNullOrWhiteSpace(Prompt) && !IsProcessing;
 
+        public bool IsAnalyzing
+        {
+            get => _isAnalyzing;
+            set
+            {
+                if (_isAnalyzing != value)
+                {
+                    _isAnalyzing = value;
+                    OnPropertyChanged();
+                    OnPropertyChanged(nameof(CanAnalyzeImage));
+                    OnCanExecuteChanged();
+                }
+            }
+        }
+
+        public bool CanAnalyzeImage => HasForegroundImage && !IsAnalyzing && !IsProcessing;
+
         #endregion
 
         #region File Selection
@@ -189,6 +212,73 @@ namespace FlipPix.UI.ViewModels.Video
             {
                 InputVideoPath = filePath;
                 AddLog($"VACE: Selected video: {Path.GetFileName(InputVideoPath)}");
+            }
+        }
+
+        private async Task AnalyzeImageAsync()
+        {
+            if (!CanAnalyzeImage) return;
+            try
+            {
+                IsAnalyzing = true;
+                AddLog("=== Analyzing reference image with LM Studio ===");
+
+                // Load the VACE system prompt file
+                var systemPromptPath = Path.Combine(
+                    AppDomain.CurrentDomain.BaseDirectory,
+                    "prompts", "prompt2json", "vace-system-prompt.md");
+
+                if (!File.Exists(systemPromptPath))
+                {
+                    AddLog($"ERROR: System prompt file not found: {systemPromptPath}");
+                    System.Windows.MessageBox.Show(
+                        $"VACE system prompt file not found:\n{systemPromptPath}",
+                        "Error", System.Windows.MessageBoxButton.OK, System.Windows.MessageBoxImage.Error);
+                    return;
+                }
+
+                var systemPrompt = await File.ReadAllTextAsync(systemPromptPath);
+                AddLog($"System prompt loaded ({systemPrompt.Length} chars)");
+
+                // Resolve model from settings
+                var models = await _lmStudioService.GetAvailableModelsAsync();
+                string selectedModel = _settingsService.Settings?.LMStudioSettings?.SelectedModel ?? string.Empty;
+
+                if (string.IsNullOrEmpty(selectedModel) && models.Count > 0)
+                {
+                    var m = models.First();
+                    selectedModel = !string.IsNullOrEmpty(m.Name) ? m.Name : m.Id;
+                }
+
+                if (string.IsNullOrEmpty(selectedModel))
+                {
+                    AddLog("ERROR: No LM Studio model available");
+                    System.Windows.MessageBox.Show(
+                        "No LM Studio model available. Please ensure LM Studio is running and a model is loaded.",
+                        "LM Studio Unavailable", System.Windows.MessageBoxButton.OK, System.Windows.MessageBoxImage.Warning);
+                    return;
+                }
+
+                AddLog($"Sending image to LM Studio (model: {selectedModel})...");
+                var result = await _lmStudioService.AnalyzeImageWithSystemPromptAsync(
+                    selectedModel,
+                    ForegroundImagePath,
+                    "Analyze this image.",
+                    systemPrompt);
+
+                Prompt = result;
+                AddLog("Image analysis complete. Vace prompt updated.");
+            }
+            catch (Exception ex)
+            {
+                AddLog($"ERROR during image analysis: {ex.Message}");
+                System.Windows.MessageBox.Show(
+                    $"Image analysis failed:\n{ex.Message}",
+                    "Error", System.Windows.MessageBoxButton.OK, System.Windows.MessageBoxImage.Error);
+            }
+            finally
+            {
+                IsAnalyzing = false;
             }
         }
 
@@ -575,6 +665,7 @@ namespace FlipPix.UI.ViewModels.Video
             PlayVideoCommand.NotifyCanExecuteChanged();
             OpenResultFolderCommand.NotifyCanExecuteChanged();
             SendToEditCameraCommand.NotifyCanExecuteChanged();
+            AnalyzeImageCommand.NotifyCanExecuteChanged();
         }
 
         protected override void OnCanExecuteChanged()

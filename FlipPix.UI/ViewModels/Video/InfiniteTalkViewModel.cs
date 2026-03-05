@@ -16,28 +16,31 @@ using FlipPix.UI.Services;
 namespace FlipPix.UI.ViewModels.Video
 {
     /// <summary>
-    /// ViewModel for LTX2 Audio-synchronized video generation.
-    /// Handles image input, audio file, and generates video in chunks synced to audio.
+    /// ViewModel for Wan InfiniteTalk video generation.
+    /// Handles image input, audio file, and generates video in 81-frame chunks synced to audio.
     /// </summary>
-    public partial class LTX2AudioViewModel : VideoProcessingBaseViewModel
+    public partial class InfiniteTalkViewModel : VideoProcessingBaseViewModel
     {
-        // LTX2Audio-specific properties
+        // InfiniteTalk-specific properties
         private string _imagePath = string.Empty;
         private BitmapImage? _imagePreview;
         private string _imageInfo = string.Empty;
         private string _audioPath = string.Empty;
         private string _audioInfo = string.Empty;
         private string _prompt = string.Empty;
-        private int _width = 1152;
-        private int _height = 768;
+        private int _width = 640;
+        private int _height = 640;
         private double _audioDuration = 0;
         private int _totalFrames = 0;
+        private int _totalChunks = 0;
         private readonly IFileDialogService _fileDialogService;
         private readonly LMStudioService _lmStudioService;
         private bool _isAnalyzing = false;
         private string _analysisResult = string.Empty;
+        private const int CHUNK_FRAMES = 81;
+        private const int FPS = 25;
 
-        public LTX2AudioViewModel(
+        public InfiniteTalkViewModel(
             ComfyUIService comfyUIService,
             IAppLogger logger,
             LMStudioService lmStudioService,
@@ -58,7 +61,7 @@ namespace FlipPix.UI.ViewModels.Video
             SendToEditCameraCommand = new RelayCommand(SendToEditCamera, () => HasResult);
             AnalyzeImageCommand  = new RelayCommand(async () => await AnalyzeImageWithLMStudioAsync(),  () => CanAnalyzeImage);
             EnhancePromptCommand = new RelayCommand(async () => await EnhancePromptWithLMStudioAsync(), () => CanEnhancePrompt);
-            AddLog("LTX2 Audio Video Generator initialized");
+            AddLog("InfiniteTalk Video Generator initialized");
         }
 
         #region Commands
@@ -216,8 +219,21 @@ namespace FlipPix.UI.ViewModels.Video
             }
         }
 
+        public int TotalChunks
+        {
+            get => _totalChunks;
+            set
+            {
+                if (_totalChunks != value)
+                {
+                    _totalChunks = value;
+                    OnPropertyChanged();
+                }
+            }
+        }
+
         public string EstimatedDuration => AudioDuration > 0
-            ? $"{AudioDuration:F1} seconds ({TotalFrames} frames at 24 FPS)"
+            ? $"{AudioDuration:F1} seconds ({TotalFrames} frames at {FPS} FPS)"
             : "No audio loaded";
 
         public bool HasImage => !string.IsNullOrEmpty(ImagePath) && File.Exists(ImagePath);
@@ -422,8 +438,9 @@ namespace FlipPix.UI.ViewModels.Video
 
         private void CalculateTotalFrames()
         {
-            const int fps = 24;
-            TotalFrames = (int)(AudioDuration * fps);
+            TotalFrames = (int)(AudioDuration * FPS);
+            TotalChunks = (int)Math.Ceiling((double)TotalFrames / CHUNK_FRAMES);
+            AddLog($"Total frames: {TotalFrames}, Chunks: {TotalChunks}");
         }
 
         #endregion
@@ -441,7 +458,7 @@ namespace FlipPix.UI.ViewModels.Video
             catch (Exception ex)
             {
                 AddLog($"ERROR: {ex.Message}");
-                System.Windows.MessageBox.Show($"An error occurred during LTX2 Audio video generation:\n{ex.Message}", "Error", MessageBoxButton.OK, MessageBoxImage.Error);
+                System.Windows.MessageBox.Show($"An error occurred during InfiniteTalk video generation:\n{ex.Message}", "Error", MessageBoxButton.OK, MessageBoxImage.Error);
             }
         }
 
@@ -449,7 +466,7 @@ namespace FlipPix.UI.ViewModels.Video
         {
             try
             {
-                AddLog("=== Starting LTX2 Audio video generation ===");
+                AddLog("=== Starting InfiniteTalk video generation ===");
                 IsProcessing = true;
 
                 // Clear previous result
@@ -462,7 +479,8 @@ namespace FlipPix.UI.ViewModels.Video
                 AddLog($"Source image: {Path.GetFileName(ImagePath)}");
                 AddLog($"Audio file: {Path.GetFileName(AudioPath)}");
                 AddLog($"Prompt: {Prompt}");
-                AddLog($"Total frames: {TotalFrames} ({AudioDuration:F1} seconds at 24 FPS)");
+                AddLog($"Total frames: {TotalFrames} ({AudioDuration:F1} seconds at {FPS} FPS)");
+                AddLog($"InfiniteTalk mode will process in {CHUNK_FRAMES}-frame windows internally");
 
                 // Check if ComfyUI has crashed and restart if needed
                 ProcessingStatus = "Checking ComfyUI status...";
@@ -493,15 +511,15 @@ namespace FlipPix.UI.ViewModels.Video
                     AddLog("Connected to ComfyUI");
                 }
 
-                // Load LTX2 Audio workflow
-                var workflowPath = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "workflow", "video_ltx2_ai2v_03API.json");
+                // Load InfiniteTalk workflow
+                var workflowPath = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "workflow", "wanvideo_2_1_14B_I2V_InfiniteTalk_example_03API.json");
 
-                AddLog($"Loading LTX2 Audio workflow");
+                AddLog($"Loading InfiniteTalk workflow");
 
                 if (!File.Exists(workflowPath))
                 {
                     AddLog($"ERROR: Workflow file not found: {workflowPath}");
-                    System.Windows.MessageBox.Show($"LTX2 Audio workflow file not found:\n{workflowPath}", "Error", MessageBoxButton.OK, MessageBoxImage.Error);
+                    System.Windows.MessageBox.Show($"InfiniteTalk workflow file not found:\n{workflowPath}", "Error", MessageBoxButton.OK, MessageBoxImage.Error);
                     return;
                 }
 
@@ -510,7 +528,7 @@ namespace FlipPix.UI.ViewModels.Video
 
                 // Upload image and audio
                 ProcessingStatus = "Uploading assets to ComfyUI...";
-                ProcessingProgress = 10;
+                ProcessingProgress = 5;
                 AddLog("Uploading image to ComfyUI...");
                 var uploadedImageName = await _comfyUIService.UploadImageAsync(ImagePath);
                 if (string.IsNullOrEmpty(uploadedImageName))
@@ -531,13 +549,12 @@ namespace FlipPix.UI.ViewModels.Video
                 }
                 AddLog($"Audio uploaded: {uploadedAudioName}");
 
-                // With LoadAudio, we process the entire audio in one go
-                // Note: For very long audio files, this may cause memory issues
-                AddLog($"Total duration: {AudioDuration:F1}s ({TotalFrames} frames at 24 FPS)");
-                AddLog($"=== Generating LTX2 Audio video ===");
+                // Update workflow with total frames (InfiniteTalk handles chunking internally)
+                AddLog($"=== Generating video with {TotalFrames} total frames ===");
+                ProcessingStatus = "Generating video...";
+                ProcessingProgress = 10;
 
-                // Update workflow parameters with full audio duration
-                var updatedWorkflow = UpdateWorkflowParameters(workflow, uploadedImageName, uploadedAudioName, 0, AudioDuration, TotalFrames);
+                var updatedWorkflow = UpdateWorkflowParameters(workflow, uploadedImageName, uploadedAudioName, TotalFrames);
 
                 // Execute workflow
                 var progress = new Progress<FlipPix.ComfyUI.Models.ProgressMessage>(progressMsg =>
@@ -547,7 +564,7 @@ namespace FlipPix.UI.ViewModels.Video
                         var percent = (double)progressMsg.Data.Value / progressMsg.Data.Max * 100;
                         System.Windows.Application.Current.Dispatcher.Invoke(() =>
                         {
-                            ProcessingProgress = 20 + (percent * 0.75);
+                            ProcessingProgress = 10 + (percent * 0.85);
                             ProcessingStatus = $"Processing: {progressMsg.Data.Value}/{progressMsg.Data.Max}";
                         });
                     }
@@ -559,20 +576,20 @@ namespace FlipPix.UI.ViewModels.Video
                 // Wait for output video
                 ProcessingProgress = 95;
                 ProcessingStatus = "Waiting for output video...";
-                var existingFiles = GetExistingVideoFiles("LTX2-AI2V_*.mp4");
+                var existingFiles = GetExistingVideoFiles("WanVideo2_1_InfiniteTalk_*.mp4");
                 var outputVideo = await WaitForNewVideoAsync(
                     existingFiles,
-                    "LTX2-AI2V_*.mp4",
-                    TimeSpan.FromMinutes(15),
+                    "WanVideo2_1_InfiniteTalk_*.mp4",
+                    TimeSpan.FromMinutes(30),
                     TimeSpan.FromSeconds(5));
 
                 if (outputVideo != null && File.Exists(outputVideo))
                 {
                     // Save the output video
-                    var outputPath = Path.Combine(_settingsService.Settings?.OutputFolderPath ?? Path.GetTempPath(), "LTX2Audio");
+                    var outputPath = Path.Combine(_settingsService.Settings?.OutputFolderPath ?? Path.GetTempPath(), "InfiniteTalk");
                     Directory.CreateDirectory(outputPath);
 
-                    var outputFileName = $"LTX2Audio_{DateTime.Now:yyyyMMdd_HHmmss}.mp4";
+                    var outputFileName = $"InfiniteTalk_{DateTime.Now:yyyyMMdd_HHmmss}.mp4";
                     var finalOutputPath = Path.Combine(outputPath, outputFileName);
 
                     File.Copy(outputVideo, finalOutputPath, true);
@@ -583,12 +600,12 @@ namespace FlipPix.UI.ViewModels.Video
                     HasResult = true;
 
                     var fileInfo = new FileInfo(finalOutputPath);
-                    ResultVideoInfo = $"LTX2 Audio Video • {fileInfo.Length / 1024 / 1024:F1}MB";
+                    ResultVideoInfo = $"InfiniteTalk Video • {fileInfo.Length / 1024 / 1024:F1}MB";
 
                     ProcessingProgress = 100;
                     ProcessingStatus = "Complete!";
 
-                    AddLog($"=== LTX2 Audio video generation completed ===");
+                    AddLog($"=== InfiniteTalk video generation completed ===");
                 }
                 else
                 {
@@ -609,38 +626,20 @@ namespace FlipPix.UI.ViewModels.Video
             }
         }
 
-        private JsonElement UpdateWorkflowParameters(JsonElement workflow, string imageName, string audioName, double startIndex, double duration, int frames)
+        private JsonElement UpdateWorkflowParameters(JsonElement workflow, string imageName, string audioName, int totalFrames)
         {
             var workflowJson = workflow.GetRawText();
-            AddLog($"Updating workflow: Start {startIndex:F2}s, Duration {duration:F2}s, Frames {frames}");
-            AddLog($"Audio name: {audioName}");
+            AddLog($"Updating workflow: Total frames {totalFrames}");
 
-            // Update image (node 180)
-            WorkflowNodeUpdater.UpdateNodeInput(ref workflowJson, "180", "image", imageName);
+            // Update image (node 284)
+            WorkflowNodeUpdater.UpdateNodeInput(ref workflowJson, "284", "image", imageName);
 
-            // Update prompt (node 133)
-            WorkflowNodeUpdater.UpdateNodeInput(ref workflowJson, "133", "text", Prompt);
-
-            // Update video length/frames (node 139)
-            WorkflowNodeUpdater.UpdateNodeInput(ref workflowJson, "139", "value", frames);
-
-            // Update width and height (node 186)
-            WorkflowNodeUpdater.UpdateNodeInputMultiple(ref workflowJson, "186", new Dictionary<string, object>
-            {
-                { "width", Width },
-                { "height", Height }
-            });
-
-            // Replace VHS_LoadAudio with LoadAudio for uploaded file compatibility
-            // Note: LoadAudio doesn't support seek/duration, so chunking is done via frames only
-            AddLog($"Replacing VHS_LoadAudio node 199 with LoadAudio for uploaded file support");
-
+            // Update audio (node 125)
             try
             {
                 var workflowObj = JsonSerializer.Deserialize<Dictionary<string, JsonElement>>(workflowJson);
-                if (workflowObj != null && workflowObj.ContainsKey("199"))
+                if (workflowObj != null && workflowObj.ContainsKey("125"))
                 {
-                    // Create a simple LoadAudio node
                     var loadAudioNode = new
                     {
                         inputs = new
@@ -655,76 +654,30 @@ namespace FlipPix.UI.ViewModels.Video
                         }
                     };
 
-                    workflowObj["199"] = JsonSerializer.SerializeToElement(loadAudioNode);
+                    workflowObj["125"] = JsonSerializer.SerializeToElement(loadAudioNode);
                     workflowJson = JsonSerializer.Serialize(workflowObj);
-                    AddLog($"Node 199 replaced with LoadAudio: {audioName}");
+                    AddLog($"Node 125 (LoadAudio) updated: {audioName}");
                 }
             }
             catch (Exception ex)
             {
-                AddLog($"ERROR updating node 199: {ex.Message}");
+                AddLog($"ERROR updating node 125: {ex.Message}");
             }
+
+            // Update prompt (node 241)
+            WorkflowNodeUpdater.UpdateNodeInput(ref workflowJson, "241", "positive_prompt", Prompt);
+
+            // Update max frames (node 270) - InfiniteTalk mode handles chunking internally with frame_window_size
+            WorkflowNodeUpdater.UpdateNodeInput(ref workflowJson, "270", "value", totalFrames);
+            AddLog($"Node 270 (Max frames) set to: {totalFrames}");
+
+            // Update width (node 245)
+            WorkflowNodeUpdater.UpdateNodeInput(ref workflowJson, "245", "value", Width);
+
+            // Update height (node 246)
+            WorkflowNodeUpdater.UpdateNodeInput(ref workflowJson, "246", "value", Height);
 
             return JsonSerializer.Deserialize<JsonElement>(workflowJson);
-        }
-
-        private void MergeVideoChunksWithFFmpeg(List<string> chunkFiles, string outputPath, string originalAudioPath)
-        {
-            var ffmpegPath = FindFFmpeg();
-            if (string.IsNullOrEmpty(ffmpegPath))
-            {
-                AddLog("ERROR: ffmpeg not found. Cannot merge video chunks.");
-                throw new InvalidOperationException("ffmpeg is required to merge video chunks.");
-            }
-
-            // Create a temporary file list for ffmpeg
-            var listFile = Path.Combine(Path.GetTempPath(), $"ffmpeg_list_{Guid.NewGuid()}.txt");
-            using (var writer = new StreamWriter(listFile))
-            {
-                foreach (var chunkFile in chunkFiles)
-                {
-                    writer.WriteLine($"file '{chunkFile.Replace("\\", "/")}'");
-                }
-            }
-
-            AddLog($"Merging {chunkFiles.Count} video chunks...");
-
-            // Concatenate chunks
-            RunFFmpegCommand(ffmpegPath, $"-f concat -safe 0 -i \"{listFile}\" -c copy \"{outputPath}\"");
-
-            try { File.Delete(listFile); } catch { }
-
-            // Replace audio with original for perfect sync
-            AddLog("Replacing audio with original for perfect sync...");
-            var tempOutput = outputPath + ".temp.mp4";
-
-            RunFFmpegCommand(ffmpegPath, $"-i \"{outputPath}\" -i \"{originalAudioPath}\" -c:v copy -c:a aac -map 0:v:0 -map 1:a:0 -shortest \"{tempOutput}\"");
-
-            File.Delete(outputPath);
-            File.Move(tempOutput, outputPath);
-
-            AddLog($"Video merged successfully: {outputPath}");
-        }
-
-        private void RunFFmpegCommand(string ffmpegPath, string arguments)
-        {
-            var startInfo = new ProcessStartInfo
-            {
-                FileName = ffmpegPath,
-                Arguments = arguments,
-                RedirectStandardOutput = true,
-                RedirectStandardError = true,
-                UseShellExecute = false,
-                CreateNoWindow = true
-            };
-
-            using var process = Process.Start(startInfo);
-            if (process != null)
-            {
-                process.StandardOutput.ReadToEnd();
-                process.StandardError.ReadToEnd();
-                process.WaitForExit();
-            }
         }
 
         #endregion
@@ -792,7 +745,7 @@ namespace FlipPix.UI.ViewModels.Video
             try
             {
                 IsAnalyzing = true;
-                AddLog("=== Enhancing prompt with LMStudio (LTX2 Audio) ===");
+                AddLog("=== Enhancing prompt with LMStudio (InfiniteTalk) ===");
 
                 var baseUrl = _settingsService.Settings?.LMStudioSettings?.BaseUrl ?? "http://localhost:1234";
                 await _lmStudioService.SetBaseUrlAsync(baseUrl);

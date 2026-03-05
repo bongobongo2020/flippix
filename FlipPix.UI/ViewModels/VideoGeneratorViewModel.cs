@@ -62,6 +62,12 @@ namespace FlipPix.UI.ViewModels
         /// </summary>
         public MochaVideoViewModel MochaVM { get; }
 
+        /// <summary>
+        /// InfiniteTalk video generation ViewModel - handles Wan2.1 InfiniteTalk
+        /// video generation with audio-driven 81-frame chunk processing.
+        /// </summary>
+        public InfiniteTalkViewModel InfiniteTalkVM { get; }
+
         public VideoGeneratorViewModel(
             ComfyUIService comfyUIService,
             LMStudioService lmStudioService,
@@ -92,6 +98,7 @@ namespace FlipPix.UI.ViewModels
 
             VaceVM = new VACEVideoViewModel(
                 comfyUIService,
+                lmStudioService,
                 logger,
                 settingsService,
                 serviceProvider,
@@ -101,6 +108,7 @@ namespace FlipPix.UI.ViewModels
             LTX2AudioVM = new LTX2AudioViewModel(
                 comfyUIService,
                 logger,
+                lmStudioService,
                 settingsService,
                 serviceProvider,
                 _workflowCoordinator,
@@ -114,17 +122,28 @@ namespace FlipPix.UI.ViewModels
                 _workflowCoordinator,
                 _fileDialogService);
 
+            InfiniteTalkVM = new InfiniteTalkViewModel(
+                comfyUIService,
+                logger,
+                lmStudioService,
+                settingsService,
+                serviceProvider,
+                _workflowCoordinator,
+                _fileDialogService);
+
             // Forward PlayRequested events from sub-VMs
             MainVM.PlayRequested += (s, e) => PlayRequested?.Invoke(this, e);
             VaceVM.PlayRequested += (s, e) => PlayRequested?.Invoke(this, e);
             LTX2AudioVM.PlayRequested += (s, e) => PlayRequested?.Invoke(this, e);
             MochaVM.PlayRequested += (s, e) => PlayRequested?.Invoke(this, e);
+            InfiniteTalkVM.PlayRequested += (s, e) => PlayRequested?.Invoke(this, e);
 
             // Forward PropertyChanged events from all sub-VMs for backward compatibility
             MainVM.PropertyChanged += ForwardPropertyChanged;
             VaceVM.PropertyChanged += ForwardPropertyChanged;
             LTX2AudioVM.PropertyChanged += ForwardPropertyChanged;
             MochaVM.PropertyChanged += ForwardPropertyChanged;
+            InfiniteTalkVM.PropertyChanged += ForwardPropertyChanged;
 
             _logger.LogInfo("VideoGeneratorViewModel initialized with sub-ViewModels");
         }
@@ -293,6 +312,12 @@ namespace FlipPix.UI.ViewModels
         public bool HasVACEResult => VaceVM.HasResult;
         public string VaceResultPath => VaceVM.ResultVideoPath;
         public bool CanGenerateVACEVideo => VaceVM.CanGenerateVideo;
+        public bool IsAnalyzingVACE => VaceVM.IsAnalyzing;
+        public int VaceTotalFrames => VaceVM.TotalFrames;
+        public int VaceTotalChunks => VaceVM.TotalChunks;
+        public string VaceProgressPercentage => VaceVM.ProgressPercentage;
+        public string VaceResultVideoInfo => VaceVM.ResultVideoInfo;
+        public ICommand AnalyzeVACEImageCommand => VaceVM.AnalyzeImageCommand;
 
         // VaceVM Commands
         public ICommand SelectVACEForegroundImageCommand => VaceVM.SelectForegroundImageCommand;
@@ -332,6 +357,18 @@ namespace FlipPix.UI.ViewModels
         public ICommand OpenLTX2AudioResultFolderCommand => LTX2AudioVM.OpenResultFolderCommand;
         public ICommand SendLTX2AudioToEditCameraCommand => LTX2AudioVM.SendToEditCameraCommand;
 
+        // LMStudio AI analysis properties
+        public bool LTX2AudioIsAnalyzing   => LTX2AudioVM.IsAnalyzing;
+        public bool CanLTX2AnalyzeImage    => LTX2AudioVM.CanAnalyzeImage;
+        public bool CanLTX2EnhancePrompt   => LTX2AudioVM.CanEnhancePrompt;
+        public bool ShowLTX2AudioVideoPrompt => LTX2AudioVM.ShowVideoPrompt;
+        public string LTX2AudioAnalysisResult => LTX2AudioVM.AnalysisResult;
+        public bool HasLTX2AudioAnalysis => LTX2AudioVM.HasAnalysis;
+
+        // LMStudio AI analysis commands
+        public ICommand AnalyzeLTX2AudioImageCommand  => LTX2AudioVM.AnalyzeImageCommand;
+        public ICommand EnhanceLTX2AudioPromptCommand => LTX2AudioVM.EnhancePromptCommand;
+
         #endregion
 
         #region MochaVM Backward Compatibility Properties
@@ -363,6 +400,52 @@ namespace FlipPix.UI.ViewModels
 
         #endregion
 
+        #region InfiniteTalkVM Backward Compatibility Properties
+
+        public string InfiniteTalkImagePath { get => InfiniteTalkVM.ImagePath; set => InfiniteTalkVM.ImagePath = value; }
+        public BitmapImage? InfiniteTalkImagePreview { get => InfiniteTalkVM.ImagePreview; set => InfiniteTalkVM.ImagePreview = value; }
+        public string InfiniteTalkImageInfo { get => InfiniteTalkVM.ImageInfo; set => InfiniteTalkVM.ImageInfo = value; }
+        public string InfiniteTalkAudioPath { get => InfiniteTalkVM.AudioPath; set => InfiniteTalkVM.AudioPath = value; }
+        public string InfiniteTalkAudioInfo { get => InfiniteTalkVM.AudioInfo; set => InfiniteTalkVM.AudioInfo = value; }
+        public string InfiniteTalkPrompt { get => InfiniteTalkVM.Prompt; set => InfiniteTalkVM.Prompt = value; }
+        public int InfiniteTalkWidth { get => InfiniteTalkVM.Width; set => InfiniteTalkVM.Width = value; }
+        public int InfiniteTalkHeight { get => InfiniteTalkVM.Height; set => InfiniteTalkVM.Height = value; }
+        public bool IsProcessingInfiniteTalk { get => InfiniteTalkVM.IsProcessing; set => InfiniteTalkVM.IsProcessing = value; }
+        public string InfiniteTalkProcessingStatus => InfiniteTalkVM.ProcessingStatus;
+        public double InfiniteTalkProcessingProgress => InfiniteTalkVM.ProcessingProgress;
+        public string InfiniteTalkLogOutput => InfiniteTalkVM.LogOutput;
+        public bool HasInfiniteTalkResult => InfiniteTalkVM.HasResult;
+        public string InfiniteTalkResultPath => InfiniteTalkVM.ResultVideoPath;
+        public string InfiniteTalkVideoInfo => InfiniteTalkVM.ResultVideoInfo;
+        public double InfiniteTalkAudioDuration => InfiniteTalkVM.AudioDuration;
+        public int InfiniteTalkTotalFrames => InfiniteTalkVM.TotalFrames;
+        public int InfiniteTalkTotalChunks => InfiniteTalkVM.TotalChunks;
+        public bool CanGenerateInfiniteTalkVideo => InfiniteTalkVM.CanGenerateVideo;
+        public string InfiniteTalkEstimatedDuration => InfiniteTalkVM.EstimatedDuration;
+        public string InfiniteTalkProgressPercentage => InfiniteTalkVM.ProgressPercentage;
+
+        // InfiniteTalkVM Commands
+        public ICommand SelectInfiniteTalkImageCommand => InfiniteTalkVM.SelectImageCommand;
+        public ICommand SelectInfiniteTalkAudioCommand => InfiniteTalkVM.SelectAudioCommand;
+        public ICommand GenerateInfiniteTalkVideoCommand => InfiniteTalkVM.GenerateVideoCommand;
+        public ICommand PlayInfiniteTalkVideoCommand => InfiniteTalkVM.PlayVideoCommand;
+        public ICommand OpenInfiniteTalkResultFolderCommand => InfiniteTalkVM.OpenResultFolderCommand;
+        public ICommand SendInfiniteTalkToEditCameraCommand => InfiniteTalkVM.SendToEditCameraCommand;
+
+        // LMStudio AI analysis properties
+        public bool InfiniteTalkIsAnalyzing   => InfiniteTalkVM.IsAnalyzing;
+        public bool CanInfiniteTalkAnalyzeImage    => InfiniteTalkVM.CanAnalyzeImage;
+        public bool CanInfiniteTalkEnhancePrompt   => InfiniteTalkVM.CanEnhancePrompt;
+        public bool ShowInfiniteTalkVideoPrompt => InfiniteTalkVM.ShowVideoPrompt;
+        public string InfiniteTalkAnalysisResult => InfiniteTalkVM.AnalysisResult;
+        public bool HasInfiniteTalkAnalysis => InfiniteTalkVM.HasAnalysis;
+
+        // LMStudio AI analysis commands
+        public ICommand AnalyzeInfiniteTalkImageCommand  => InfiniteTalkVM.AnalyzeImageCommand;
+        public ICommand EnhanceInfiniteTalkPromptCommand => InfiniteTalkVM.EnhancePromptCommand;
+
+        #endregion
+
         #region Public Methods
 
         /// <summary>
@@ -386,12 +469,14 @@ namespace FlipPix.UI.ViewModels
                 VaceVM.PropertyChanged -= ForwardPropertyChanged;
                 LTX2AudioVM.PropertyChanged -= ForwardPropertyChanged;
                 MochaVM.PropertyChanged -= ForwardPropertyChanged;
+                InfiniteTalkVM.PropertyChanged -= ForwardPropertyChanged;
 
                 // Dispose all sub-ViewModels
                 (MainVM as IDisposable)?.Dispose();
                 (VaceVM as IDisposable)?.Dispose();
                 (LTX2AudioVM as IDisposable)?.Dispose();
                 (MochaVM as IDisposable)?.Dispose();
+                (InfiniteTalkVM as IDisposable)?.Dispose();
 
                 _disposed = true;
             }

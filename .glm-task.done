@@ -1,188 +1,134 @@
-# Task: Fix VACE Remote Video Path Bug
-
-## Changelog
-
-### 2026-02-25 - Fix VACE Remote Video Path Bug
-
-**File Modified:** `FlipPix.UI/ViewModels/Video/VACEVideoViewModel.cs`
-
-**Change:** Removed local Windows path construction for video input (node 14). Now passes just the uploaded filename directly to the workflow, matching the pattern already used for background/foreground images (nodes 24, 25).
-
-**Before:**
-```csharp
-var comfyUIInputPath = Path.Combine(_settingsService.Settings?.ComfyUIFolderPath ?? "", "input", videoName);
-WorkflowNodeUpdater.UpdateNodeInput(ref workflowJson, "14", "video", comfyUIInputPath);
-```
-
-**After:**
-```csharp
-WorkflowNodeUpdater.UpdateNodeInput(ref workflowJson, "14", "video", videoName);
-```
-
-**Fix:** `VHS_LoadVideoPath` node now receives just the filename instead of a Windows-local path, resolving the "Invalid file path: input\filename.mp4" error on remote ComfyUI servers.
-
----
-
-# Task: Fix Generate Video Button Never Enabled — VACE, LTX2Audio, Mocha
+# Task: Fix VACE Tab UI — Wrong Bindings & Missing Chunk Progress
 
 ## 1. Context & Objective
 
-The Generate Video button in the VideoGeneratorWindow is permanently disabled for three tabs:
-VACE, LTX Audio, and Mocha. Even after uploading all required files and entering a prompt,
-the button never enables.
+The Video Generator window VACE tab shows stale MainVM log data ("Video Generator initialized / Workflow changed to: Painter...") instead of VACE processing output. The progress bar and status text also don't update during chunk generation because the XAML binds to generic `ProcessingStatus`/`ProcessingProgress`/`LogOutput` aliases that resolve to `MainVM`, not `VaceVM`.
 
-**Root Cause (Confirmed after deep code analysis):**
+Additionally, the VACE tab has no chunk counter UI (unlike the Mocha tab which correctly shows "X chunks"), and several result-section bindings (video player, buttons, info text) also point to MainVM properties.
 
-The project uses **CommunityToolkit.Mvvm v8.2.2**. In this version, `RelayCommand.CanExecuteChanged`
-is a plain `EventHandler?` event. It is **NOT** backed by `CommandManager.RequerySuggested`.
+**Two files need changes:**
+1. `FlipPix.UI/ViewModels/VideoGeneratorViewModel.cs` — add missing pass-through properties
+2. `FlipPix.UI/VideoGeneratorWindow.xaml` — fix all wrong bindings and add chunk counter
 
-The base `VideoProcessingBaseViewModel.OnCanExecuteChanged()` calls:
-```csharp
-CommandManager.InvalidateRequerySuggested();
-```
-This fires `CommandManager.RequerySuggested`, but CommunityToolkit v8 RelayCommand does NOT
-listen to that event. As a result, `CanExecuteChanged` on the command NEVER fires, and WPF's
-`ButtonBase` never calls `UpdateCanExecute()`. The button's internal `_canExecute` field is set
-to `false` at initial binding and **never updated again** — so the button stays permanently disabled.
-
-**Why the main tab's Generate button works but the sub-tabs don't:**
-`VideoGeneratorMainViewModel` already uses the correct pattern:
-- Commands are stored as `RelayCommand` (not `ICommand`)
-- It has `NotifyCommandsCanExecuteChanged()` which calls `NotifyCanExecuteChanged()` on each command
-- This is called from every relevant property setter
-
-The three broken sub-VMs (`VACEVideoViewModel`, `LTX2AudioViewModel`, `MochaVideoViewModel`)
-are missing this exact pattern. They declare commands as `ICommand` and only rely on
-`CommandManager.InvalidateRequerySuggested()` which doesn't work with CommunityToolkit v8.
+---
 
 ## 2. Files to Modify
 
-- `FlipPix.UI/ViewModels/Video/VACEVideoViewModel.cs`
-- `FlipPix.UI/ViewModels/Video/LTX2AudioViewModel.cs`
-- `FlipPix.UI/ViewModels/Video/MochaVideoViewModel.cs`
+### File A: `FlipPix.UI/ViewModels/VideoGeneratorViewModel.cs`
 
-**Do NOT modify:** `VideoProcessingBaseViewModel.cs` or `VideoGeneratorViewModel.cs`
+In the `#region VaceVM Backward Compatibility Properties` section (around line 280), add these **missing** pass-through properties (do not change existing ones):
+
+```csharp
+public int VaceTotalFrames => VaceVM.TotalFrames;
+public int VaceTotalChunks => VaceVM.TotalChunks;
+public string VaceProgressPercentage => VaceVM.ProgressPercentage;
+public string VaceResultVideoInfo => VaceVM.ResultVideoInfo;
+```
+
+### File B: `FlipPix.UI/VideoGeneratorWindow.xaml`
+
+#### Fix 1 — Processing status block (around lines 1369–1383)
+
+Replace the three bindings inside the `IsProcessingVACE` Border:
+
+| Old binding | New binding |
+|---|---|
+| `{Binding ProcessingStatus}` | `{Binding VaceProcessingStatus}` |
+| `{Binding ProcessingProgress}` | `{Binding VaceProcessingProgress}` |
+| `{Binding ProgressPercentage}` | `{Binding VaceProgressPercentage}` |
+
+Also add a chunk-counter TextBlock **before** the progress bar (modelled on the Mocha tab, which uses `MochaTotalChunks`):
+
+```xml
+<TextBlock HorizontalAlignment="Center"
+           FontSize="11"
+           Foreground="#FF6B35"
+           Margin="0,0,0,5">
+    <Run Text="Chunks: "/>
+    <Run Text="{Binding VaceTotalChunks, Mode=OneWay}" FontWeight="SemiBold"/>
+    <Run Text=" × 81 frames"/>
+</TextBlock>
+```
+
+Place it between the status TextBlock and the ProgressBar.
+
+#### Fix 2 — Result video section (around lines 1395–1458)
+
+| Old binding | New binding |
+|---|---|
+| `{Binding HasResultVideo}` (DataTrigger, line ~1408) | `{Binding HasVACEResult}` |
+| `{Binding HasResultVideo}` (MediaElement Visibility, line ~1422) | `{Binding HasVACEResult}` |
+| `{Binding ResultVideoPath}` (MediaElement Source, line ~1418) | `{Binding VaceResultPath}` |
+| `IsEnabled="{Binding HasResultVideo}"` (Play button, ~1437) | `IsEnabled="{Binding HasVACEResult}"` |
+| `Command="{Binding PlayVideoCommand}"` (~1436) | `Command="{Binding PlayVACEVideoCommand}"` |
+| `IsEnabled="{Binding HasResultVideo}"` (Open Folder button, ~1444) | `IsEnabled="{Binding HasVACEResult}"` |
+| `Command="{Binding OpenResultFolderCommand}"` (~1443) | `Command="{Binding OpenVACEResultFolderCommand}"` |
+| `IsEnabled="{Binding HasResultVideo}"` (Send to Edit Camera, ~1451) | `IsEnabled="{Binding HasVACEResult}"` |
+| `{Binding VideoInfo}` (info text, ~1454) | `{Binding VaceResultVideoInfo}` |
+
+#### Fix 3 — Log section (around line 1472)
+
+| Old binding | New binding |
+|---|---|
+| `{Binding LogOutput, Mode=OneWay}` | `{Binding VaceLogOutput, Mode=OneWay}` |
+
+---
 
 ## 3. Implementation Steps
 
-Apply the same two changes to all three files.
+1. Open `VideoGeneratorViewModel.cs`, locate `#region VaceVM Backward Compatibility Properties`, add the 4 new pass-through properties after the existing `IsAnalyzingVACE` line.
+2. Open `VideoGeneratorWindow.xaml`:
+   a. Find the `IsProcessingVACE` Border block and replace the 3 bindings + insert the chunk counter TextBlock.
+   b. Find the Result Video section and apply all 9 binding replacements (table in Fix 2).
+   c. Find the VACE log `TextBox` and change `LogOutput` → `VaceLogOutput`.
+3. Do NOT change anything outside the VACE tab section or the VaceVM region in the ViewModel.
 
 ---
 
-### Step A — Change command property types from `ICommand` to `RelayCommand`
+## 4. Completion Instructions
 
-In each file, in the `#region Commands` section, change these four declarations:
-
-```csharp
-// BEFORE (in all three sub-VMs):
-public ICommand GenerateVideoCommand { get; }
-public ICommand PlayVideoCommand { get; }
-public ICommand OpenResultFolderCommand { get; }
-public ICommand SendToEditCameraCommand { get; }
-```
-
-```csharp
-// AFTER:
-public RelayCommand GenerateVideoCommand { get; }
-public RelayCommand PlayVideoCommand { get; }
-public RelayCommand OpenResultFolderCommand { get; }
-public RelayCommand SendToEditCameraCommand { get; }
-```
-
-> The `Select*` commands (`SelectBackgroundImageCommand`, `SelectForegroundImageCommand`,
-> `SelectVideoCommand`, `SelectImageCommand`, `SelectAudioCommand`) have NO `CanExecute`
-> predicates, so leave them as `ICommand`.
-
----
-
-### Step B — Add `NotifyCommandsCanExecuteChanged()` and override `OnCanExecuteChanged()`
-
-In each sub-VM, add these two methods. Place them near the end of the class (before the closing
-`}`), following the same pattern used in `VideoGeneratorMainViewModel`.
-
-**For `VACEVideoViewModel.cs`** — add:
-```csharp
-private void NotifyCommandsCanExecuteChanged()
-{
-    GenerateVideoCommand.NotifyCanExecuteChanged();
-    PlayVideoCommand.NotifyCanExecuteChanged();
-    OpenResultFolderCommand.NotifyCanExecuteChanged();
-    SendToEditCameraCommand.NotifyCanExecuteChanged();
-}
-
-protected override void OnCanExecuteChanged()
-{
-    base.OnCanExecuteChanged();
-    NotifyCommandsCanExecuteChanged();
-}
-```
-
-**For `LTX2AudioViewModel.cs`** — add the same two methods (identical code, same four commands).
-
-**For `MochaVideoViewModel.cs`** — add the same two methods (identical code, same four commands).
-
----
-
-## 4. Verification
-
-After building and running:
-
-1. **VACE tab**: Upload background image + foreground image + input video + type a prompt
-   → "Generate VACE Video" button must become enabled
-2. **LTX Audio tab**: Upload image + audio file + type a prompt
-   → "Generate Video" button must become enabled
-3. **Mocha tab**: Upload source video + reference image + type a prompt
-   → "Generate" button must become enabled
-4. When generation starts (`IsProcessing = true`), the button must re-disable
-5. After generation finishes, the button must re-enable (if files still present)
-
-## 5. Completion Instructions
-
-Update this file with a "Changelog" section detailing all changes made for review.
+Update this file with a "Changelog" section detailing every line changed.
 
 ---
 
 ## Changelog
 
-### Summary
-Fixed the Generate Video button permanently disabled issue in VACE, LTX2Audio, and Mocha video generation tabs by changing command types from `ICommand` to `RelayCommand` and adding proper command notification methods.
+### File A: `FlipPix.UI/ViewModels/VideoGeneratorViewModel.cs`
 
-### Files Modified
+**Line 297-300 (Added):** Added 4 new pass-through properties after `IsAnalyzingVACE`:
+- `public int VaceTotalFrames => VaceVM.TotalFrames;`
+- `public int VaceTotalChunks => VaceVM.TotalChunks;`
+- `public string VaceProgressPercentage => VaceVM.ProgressPercentage;`
+- `public string VaceResultVideoInfo => VaceVM.ResultVideoInfo;`
 
-1. **FlipPix.UI/ViewModels/Video/VACEVideoViewModel.cs**
-   - Changed 4 command declarations from `ICommand` to `RelayCommand`:
-     - `GenerateVideoCommand`
-     - `PlayVideoCommand`
-     - `OpenResultFolderCommand`
-     - `SendToEditCameraCommand`
-   - Added `NotifyCommandsCanExecuteChanged()` method to notify each command when CanExecute state changes
-   - Added `OnCanExecuteChanged()` override to call `NotifyCommandsCanExecuteChanged()`
+### File B: `FlipPix.UI/VideoGeneratorWindow.xaml`
 
-2. **FlipPix.UI/ViewModels/Video/LTX2AudioViewModel.cs**
-   - Changed 4 command declarations from `ICommand` to `RelayCommand`:
-     - `GenerateVideoCommand`
-     - `PlayVideoCommand`
-     - `OpenResultFolderCommand`
-     - `SendToEditCameraCommand`
-   - Added `NotifyCommandsCanExecuteChanged()` method to notify each command when CanExecute state changes
-   - Added `OnCanExecuteChanged()` override to call `NotifyCommandsCanExecuteChanged()`
+**Fix 1 - Processing Status Block (lines ~1361-1384):**
+- Line 1369: `{Binding ProcessingStatus}` → `{Binding VaceProcessingStatus}`
+- Line 1375: `{Binding ProcessingProgress}` → `{Binding VaceProcessingProgress}`
+- Line 1379: `{Binding ProgressPercentage}` → `{Binding VaceProgressPercentage}`
+- Lines 1376-1380 (Inserted): Added new chunk counter TextBlock between status and progress bar:
+  ```xml
+  <TextBlock HorizontalAlignment="Center"
+             FontSize="11"
+             Foreground="#FF6B35"
+             Margin="0,0,0,5">
+      <Run Text="Chunks: "/>
+      <Run Text="{Binding VaceTotalChunks, Mode=OneWay}" FontWeight="SemiBold"/>
+      <Run Text=" × 81 frames"/>
+  </TextBlock>
+  ```
 
-3. **FlipPix.UI/ViewModels/Video/MochaVideoViewModel.cs**
-   - Changed 4 command declarations from `ICommand` to `RelayCommand`:
-     - `GenerateVideoCommand`
-     - `PlayVideoCommand`
-     - `OpenResultFolderCommand`
-     - `SendToEditCameraCommand`
-   - Added `NotifyCommandsCanExecuteChanged()` method to notify each command when CanExecute state changes
-   - Added `OnCanExecuteChanged()` override to call `NotifyCommandsCanExecuteChanged()`
+**Fix 2 - Result Video Section (lines ~1408-1454):**
+- Line ~1408: `{Binding HasResultVideo}` → `{Binding HasVACEResult}` (DataTrigger)
+- Line ~1418: `{Binding ResultVideoPath}` → `{Binding VaceResultPath}` (MediaElement Source)
+- Line ~1422: `{Binding HasResultVideo}` → `{Binding HasVACEResult}` (MediaElement Visibility)
+- Line ~1436: `{Binding PlayVideoCommand}` → `{Binding PlayVACEVideoCommand}` (Play button)
+- Line ~1437: `IsEnabled="{Binding HasResultVideo}"` → `IsEnabled="{Binding HasVACEResult}"` (Play button)
+- Line ~1443: `{Binding OpenResultFolderCommand}` → `{Binding OpenVACEResultFolderCommand}` (Open Folder button)
+- Line ~1444: `IsEnabled="{Binding HasResultVideo}"` → `IsEnabled="{Binding HasVACEResult}"` (Open Folder button)
+- Line ~1451: `IsEnabled="{Binding HasResultVideo}"` → `IsEnabled="{Binding HasVACEResult}"` (Send to Edit Camera button)
+- Line ~1454: `{Binding VideoInfo}` → `{Binding VaceResultVideoInfo}` (info text)
 
-### Technical Details
-- **Root Cause**: CommunityToolkit.Mvvm v8.2.2's `RelayCommand.CanExecuteChanged` is a plain `EventHandler?` not backed by `CommandManager.RequerySuggested`. The base class's `OnCanExecuteChanged()` calling `CommandManager.InvalidateRequerySuggested()` had no effect.
-- **Solution**: Store commands as `RelayCommand` type (not `ICommand`) and explicitly call `NotifyCanExecuteChanged()` on each command when properties change.
-- **Pattern Applied**: Matches the working implementation in `VideoGeneratorMainViewModel`.
-
-### Testing Required
-1. VACE tab: Upload background image + foreground image + input video + prompt → button should enable
-2. LTX Audio tab: Upload image + audio + prompt → button should enable
-3. Mocha tab: Upload source video + reference image + prompt → button should enable
-4. Button should disable during processing and re-enable after completion
+**Fix 3 - Log Section (line ~1472):**
+- Line ~1480: `{Binding LogOutput, Mode=OneWay}` → `{Binding VaceLogOutput, Mode=OneWay}`
