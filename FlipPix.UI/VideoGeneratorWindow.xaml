@@ -4,6 +4,7 @@
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
         xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+        xmlns:converters="clr-namespace:FlipPix.UI.Converters"
         mc:Ignorable="d"
         Title="FlipPix - Video Generator" Height="750" Width="950"
         WindowStartupLocation="CenterScreen"
@@ -13,6 +14,7 @@
         ResizeMode="CanResize">
 
     <Window.Resources>
+        <converters:BoolToVisibilityConverter x:Key="BoolToVisibilityConverter"/>
     </Window.Resources>
 
     <Grid>
@@ -1257,6 +1259,23 @@
                                                           Foreground="#666"
                                                           FontSize="10"
                                                           Margin="0,8,0,0"/>
+                                                <!-- Analyze Image Button -->
+                                                <StackPanel Orientation="Horizontal" Margin="0,8,0,0">
+                                                    <Button Content="Analyze Image"
+                                                            Style="{StaticResource SecondaryButtonStyle}"
+                                                            Command="{Binding AnalyzeVACEImageCommand}"
+                                                            IsEnabled="{Binding HasVACEForegroundImage}"
+                                                            Height="32"
+                                                            Padding="12,0"
+                                                            HorizontalAlignment="Left"/>
+                                                    <TextBlock Text="Analyzing image..."
+                                                               FontStyle="Italic"
+                                                               Foreground="#FF6B35"
+                                                               FontSize="11"
+                                                               VerticalAlignment="Center"
+                                                               Margin="10,0,0,0"
+                                                               Visibility="{Binding IsAnalyzingVACE, Converter={StaticResource BooleanToVisibilityConverter}}"/>
+                                                </StackPanel>
                                             </StackPanel>
                                         </Border>
 
@@ -1349,17 +1368,25 @@
                                                     Padding="12"
                                                     Visibility="{Binding IsProcessingVACE, Converter={StaticResource BooleanToVisibilityConverter}}">
                                                 <StackPanel>
-                                                    <TextBlock Text="{Binding ProcessingStatus}"
+                                                    <TextBlock Text="{Binding VaceProcessingStatus}"
                                                               FontWeight="SemiBold"
                                                               FontSize="11"
                                                               Margin="0,0,0,5"
                                                               TextAlignment="Center"
                                                               TextWrapping="Wrap"/>
-                                                    <ProgressBar Value="{Binding ProcessingProgress}"
+                                                    <TextBlock HorizontalAlignment="Center"
+                                                               FontSize="11"
+                                                               Foreground="#FF6B35"
+                                                               Margin="0,0,0,5">
+                                                        <Run Text="Chunks: "/>
+                                                        <Run Text="{Binding VaceTotalChunks, Mode=OneWay}" FontWeight="SemiBold"/>
+                                                        <Run Text=" × 81 frames"/>
+                                                    </TextBlock>
+                                                    <ProgressBar Value="{Binding VaceProcessingProgress, Mode=OneWay}"
                                                                 Height="16"
                                                                 Foreground="#FF6B35"
                                                                 Margin="0,0,0,5"/>
-                                                    <TextBlock Text="{Binding ProgressPercentage}"
+                                                    <TextBlock Text="{Binding VaceProgressPercentage}"
                                                               HorizontalAlignment="Center"
                                                               FontSize="11"
                                                               FontWeight="Bold"
@@ -1388,7 +1415,7 @@
                                                         <Style TargetType="TextBlock">
                                                             <Setter Property="Visibility" Value="Collapsed"/>
                                                             <Style.Triggers>
-                                                                <DataTrigger Binding="{Binding HasResultVideo}" Value="False">
+                                                                <DataTrigger Binding="{Binding HasVACEResult}" Value="False">
                                                                     <Setter Property="Visibility" Value="Visible"/>
                                                                 </DataTrigger>
                                                             </Style.Triggers>
@@ -1398,11 +1425,11 @@
 
                                                 <!-- Video Player -->
                                                 <MediaElement x:Name="VACEVideoPlayer"
-                                                            Source="{Binding ResultVideoPath}"
+                                                            Source="{Binding VaceResultPath}"
                                                             LoadedBehavior="Manual"
                                                             UnloadedBehavior="Stop"
                                                             Stretch="Uniform"
-                                                            Visibility="{Binding HasResultVideo, Converter={StaticResource BooleanToVisibilityConverter}}"/>
+                                                            Visibility="{Binding HasVACEResult, Converter={StaticResource BooleanToVisibilityConverter}}"/>
                                             </Grid>
                                         </Border>
 
@@ -1416,25 +1443,25 @@
                                             <Button Grid.Column="0"
                                                    Content="▶️ Play"
                                                    Style="{StaticResource SecondaryButtonStyle}"
-                                                   Command="{Binding PlayVideoCommand}"
-                                                   IsEnabled="{Binding HasResultVideo}"
+                                                   Command="{Binding PlayVACEVideoCommand}"
+                                                   IsEnabled="{Binding HasVACEResult}"
                                                    Margin="0,0,8,0"/>
 
                                             <Button Grid.Column="1"
                                                    Content="📂 Open Folder"
                                                    Style="{StaticResource SecondaryButtonStyle}"
-                                                   Command="{Binding OpenResultFolderCommand}"
-                                                   IsEnabled="{Binding HasResultVideo}"
+                                                   Command="{Binding OpenVACEResultFolderCommand}"
+                                                   IsEnabled="{Binding HasVACEResult}"
                                                    Margin="0,0,8,0"/>
 
                                             <Button Grid.Column="2"
                                                    Content="📷 Send to Edit Camera"
                                                    Style="{StaticResource SecondaryButtonStyle}"
                                                    Command="{Binding SendToEditCameraCommand}"
-                                                   IsEnabled="{Binding HasResultVideo}"/>
+                                                   IsEnabled="{Binding HasVACEResult}"/>
                                         </Grid>
 
-                                        <TextBlock Text="{Binding VideoInfo}"
+                                        <TextBlock Text="{Binding VaceResultVideoInfo}"
                                                   FontStyle="Italic"
                                                   Foreground="#666"
                                                   FontSize="11"
@@ -1452,7 +1479,7 @@
                                             Margin="0,8,0,0">
                                         <ScrollViewer MaxHeight="150"
                                                      VerticalScrollBarVisibility="Auto">
-                                            <TextBox Text="{Binding LogOutput, Mode=OneWay}"
+                                            <TextBox Text="{Binding VaceLogOutput, Mode=OneWay}"
                                                     TextWrapping="Wrap"
                                                     IsReadOnly="True"
                                                     FontFamily="Consolas"
@@ -1526,6 +1553,26 @@
                                                           Foreground="#666"
                                                           FontSize="10"
                                                           Margin="0,8,0,0"/>
+                                                <Button Content="Analyze Image"
+                                                        Style="{StaticResource SecondaryButtonStyle}"
+                                                        Command="{Binding AnalyzeLTX2AudioImageCommand}"
+                                                        IsEnabled="{Binding CanLTX2AnalyzeImage, Mode=OneWay}"
+                                                        Height="35"
+                                                        Width="150"
+                                                        HorizontalAlignment="Left"
+                                                        Margin="0,8,0,0"/>
+                                                <TextBlock Text="Image Analysis Result:" FontWeight="SemiBold" FontSize="12" Margin="0,10,0,5"/>
+                                                <TextBox Text="{Binding LTX2AudioAnalysisResult, Mode=OneWay}"
+                                                        TextWrapping="Wrap"
+                                                        AcceptsReturn="True"
+                                                        Height="120"
+                                                        Padding="12"
+                                                        VerticalScrollBarVisibility="Auto"
+                                                        Background="#F8F9FA"
+                                                        BorderBrush="#CED4DA"
+                                                        FontSize="11"
+                                                        IsReadOnly="True"
+                                                        Visibility="{Binding HasLTX2AudioAnalysis, Converter={StaticResource BoolToVisibilityConverter}}"/>
                                             </StackPanel>
                                         </Border>
 
@@ -1571,16 +1618,27 @@
                                     <StackPanel>
                                         <TextBlock Text="📝 Video Prompt" Style="{StaticResource HeaderTextStyle}" Foreground="#FF6B35"/>
 
-                                        <TextBlock Text="Describe the video action you want to generate:" FontWeight="SemiBold" FontSize="12" Margin="0,0,0,10"/>
-                                        <TextBox Text="{Binding LTX2AudioPrompt, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
-                                                TextWrapping="Wrap"
-                                                AcceptsReturn="True"
-                                                Height="100"
-                                                Padding="12"
-                                                VerticalScrollBarVisibility="Auto"
-                                                Background="White"
-                                                BorderBrush="#CED4DA"
-                                                FontSize="12"/>
+                                        <Button Content="Enhance Prompt"
+                                                Style="{StaticResource SecondaryButtonStyle}"
+                                                Command="{Binding EnhanceLTX2AudioPromptCommand}"
+                                                IsEnabled="{Binding CanLTX2EnhancePrompt, Mode=OneWay}"
+                                                Height="35"
+                                                Width="160"
+                                                HorizontalAlignment="Left"
+                                                Margin="0,5,0,10"/>
+
+                                        <StackPanel Visibility="{Binding ShowLTX2AudioVideoPrompt, Converter={StaticResource BoolToVisibilityConverter}}">
+                                            <TextBlock Text="Describe the video action you want to generate:" FontWeight="SemiBold" FontSize="12" Margin="0,0,0,10"/>
+                                            <TextBox Text="{Binding LTX2AudioPrompt, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                                                    TextWrapping="Wrap"
+                                                    AcceptsReturn="True"
+                                                    Height="100"
+                                                    Padding="12"
+                                                    VerticalScrollBarVisibility="Auto"
+                                                    Background="White"
+                                                    BorderBrush="#CED4DA"
+                                                    FontSize="12"/>
+                                        </StackPanel>
                                     </StackPanel>
                                 </Border>
 
@@ -2019,6 +2077,342 @@
                                                     Background="Transparent"
                                                     BorderThickness="0"
                                                     Padding="10"/>
+                                        </ScrollViewer>
+                                    </Border>
+                                </Expander>
+
+                            </StackPanel>
+                        </ScrollViewer>
+                    </TabItem>
+
+                    <!-- Tab 6: Infinite Talk Video Generator -->
+                    <TabItem Header="🎤 Infinite Talk">
+                        <ScrollViewer VerticalScrollBarVisibility="Auto">
+                            <StackPanel Margin="10">
+
+                                <!-- Infinite Talk Setup Section -->
+                                <Border Style="{StaticResource SectionPanelStyle}">
+                                    <StackPanel>
+                                        <TextBlock Text="🎬 Infinite Talk Video Inputs" Style="{StaticResource HeaderTextStyle}" Foreground="#FF6B35"/>
+
+                                        <!-- Image Input -->
+                                        <Border BorderBrush="#DEE2E6" BorderThickness="1" Background="White" CornerRadius="5" Padding="15" Margin="0,0,0,15">
+                                            <StackPanel>
+                                                <Grid>
+                                                    <Grid.ColumnDefinitions>
+                                                        <ColumnDefinition Width="120"/>
+                                                        <ColumnDefinition Width="*"/>
+                                                        <ColumnDefinition Width="Auto"/>
+                                                    </Grid.ColumnDefinitions>
+
+                                                    <TextBlock Grid.Column="0" Text="Source Image:" FontWeight="SemiBold" FontSize="12" VerticalAlignment="Center"/>
+                                                    <Border Grid.Column="1"
+                                                            BorderBrush="#DEE2E6" BorderThickness="1"
+                                                            Background="White" Height="80"
+                                                            CornerRadius="3" Margin="0,0,10,0">
+                                                        <Grid>
+                                                            <TextBlock Text="No image selected"
+                                                                      HorizontalAlignment="Center"
+                                                                      VerticalAlignment="Center"
+                                                                      Foreground="#999"
+                                                                      FontStyle="Italic">
+                                                                <TextBlock.Style>
+                                                                    <Style TargetType="TextBlock">
+                                                                        <Setter Property="Visibility" Value="Collapsed"/>
+                                                                        <Style.Triggers>
+                                                                            <DataTrigger Binding="{Binding InfiniteTalkImagePreview}" Value="{x:Null}">
+                                                                                <Setter Property="Visibility" Value="Visible"/>
+                                                                            </DataTrigger>
+                                                                        </Style.Triggers>
+                                                                    </Style>
+                                                                </TextBlock.Style>
+                                                            </TextBlock>
+                                                            <Image Source="{Binding InfiniteTalkImagePreview}"
+                                                                   Stretch="Uniform"/>
+                                                        </Grid>
+                                                    </Border>
+                                                    <Button Grid.Column="2"
+                                                           Content="Browse..."
+                                                           Style="{StaticResource SecondaryButtonStyle}"
+                                                           Command="{Binding SelectInfiniteTalkImageCommand}"
+                                                           Height="35"
+                                                           Width="100"/>
+                                                </Grid>
+                                                <TextBlock Text="{Binding InfiniteTalkImageInfo}"
+                                                          FontStyle="Italic"
+                                                          Foreground="#666"
+                                                          FontSize="10"
+                                                          Margin="0,8,0,0"/>
+                                                <Button Content="Analyze Image"
+                                                        Style="{StaticResource SecondaryButtonStyle}"
+                                                        Command="{Binding AnalyzeInfiniteTalkImageCommand}"
+                                                        IsEnabled="{Binding CanInfiniteTalkAnalyzeImage, Mode=OneWay}"
+                                                        Height="35"
+                                                        Width="150"
+                                                        HorizontalAlignment="Left"
+                                                        Margin="0,8,0,0"/>
+                                                <TextBlock Text="Image Analysis Result:" FontWeight="SemiBold" FontSize="12" Margin="0,10,0,5"/>
+                                                <TextBox Text="{Binding InfiniteTalkAnalysisResult, Mode=OneWay}"
+                                                        TextWrapping="Wrap"
+                                                        AcceptsReturn="True"
+                                                        Height="120"
+                                                        Padding="12"
+                                                        VerticalScrollBarVisibility="Auto"
+                                                        Background="#F8F9FA"
+                                                        BorderBrush="#CED4DA"
+                                                        FontSize="11"
+                                                        IsReadOnly="True"
+                                                        Visibility="{Binding HasInfiniteTalkAnalysis, Converter={StaticResource BoolToVisibilityConverter}}"/>
+                                            </StackPanel>
+                                        </Border>
+
+                                        <!-- Audio Input -->
+                                        <Border BorderBrush="#DEE2E6" BorderThickness="1" Background="White" CornerRadius="5" Padding="15" Margin="0,0,0,0">
+                                            <StackPanel>
+                                                <Grid>
+                                                    <Grid.ColumnDefinitions>
+                                                        <ColumnDefinition Width="120"/>
+                                                        <ColumnDefinition Width="*"/>
+                                                        <ColumnDefinition Width="Auto"/>
+                                                    </Grid.ColumnDefinitions>
+
+                                                    <TextBlock Grid.Column="0" Text="Audio File:" FontWeight="SemiBold" FontSize="12" VerticalAlignment="Center"/>
+                                                    <TextBox Grid.Column="1"
+                                                            Text="{Binding InfiniteTalkAudioPath, Mode=TwoWay}"
+                                                            IsReadOnly="True"
+                                                            Padding="10"
+                                                            Background="White"
+                                                            BorderBrush="#CED4DA"
+                                                            FontSize="11"
+                                                            VerticalAlignment="Center"
+                                                            Margin="0,0,10,0"/>
+                                                    <Button Grid.Column="2"
+                                                           Content="Browse..."
+                                                           Style="{StaticResource SecondaryButtonStyle}"
+                                                           Command="{Binding SelectInfiniteTalkAudioCommand}"
+                                                           Height="35"
+                                                           Width="100"/>
+                                                </Grid>
+                                                <TextBlock Text="{Binding InfiniteTalkAudioInfo}"
+                                                          FontStyle="Italic"
+                                                          Foreground="#666"
+                                                          FontSize="10"
+                                                          Margin="0,8,0,0"/>
+                                            </StackPanel>
+                                        </Border>
+                                    </StackPanel>
+                                </Border>
+
+                                <!-- Infinite Talk Prompt Section -->
+                                <Border Style="{StaticResource SectionPanelStyle}">
+                                    <StackPanel>
+                                        <TextBlock Text="📝 Video Prompt" Style="{StaticResource HeaderTextStyle}" Foreground="#FF6B35"/>
+
+                                        <Button Content="Enhance Prompt"
+                                                Style="{StaticResource SecondaryButtonStyle}"
+                                                Command="{Binding EnhanceInfiniteTalkPromptCommand}"
+                                                IsEnabled="{Binding CanInfiniteTalkEnhancePrompt, Mode=OneWay}"
+                                                Height="35"
+                                                Width="160"
+                                                HorizontalAlignment="Left"
+                                                Margin="0,5,0,10"/>
+
+                                        <StackPanel Visibility="{Binding ShowInfiniteTalkVideoPrompt, Converter={StaticResource BoolToVisibilityConverter}}">
+                                            <TextBlock Text="Describe the video action you want to generate:" FontWeight="SemiBold" FontSize="12" Margin="0,0,0,10"/>
+                                            <TextBox Text="{Binding InfiniteTalkPrompt, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                                                    TextWrapping="Wrap"
+                                                    AcceptsReturn="True"
+                                                    Height="100"
+                                                    Padding="12"
+                                                    VerticalScrollBarVisibility="Auto"
+                                                    Background="White"
+                                                    BorderBrush="#CED4DA"
+                                                    FontSize="12"/>
+                                        </StackPanel>
+                                    </StackPanel>
+                                </Border>
+
+                                <!-- Infinite Talk Settings Section -->
+                                <Border Style="{StaticResource SectionPanelStyle}">
+                                    <StackPanel>
+                                        <TextBlock Text="⚙️ Video Settings" Style="{StaticResource HeaderTextStyle}" Foreground="#FF6B35"/>
+
+                                        <Grid>
+                                            <Grid.ColumnDefinitions>
+                                                <ColumnDefinition Width="*"/>
+                                                <ColumnDefinition Width="*"/>
+                                            </Grid.ColumnDefinitions>
+
+                                            <StackPanel Grid.Column="0" Margin="0,0,10,0">
+                                                <TextBlock Text="Width:" FontWeight="SemiBold" FontSize="12" Margin="0,0,0,5"/>
+                                                <TextBox Text="{Binding InfiniteTalkWidth, Mode=TwoWay}"
+                                                        Padding="8"
+                                                        Background="White"
+                                                        BorderBrush="#CED4DA"
+                                                        FontSize="12"/>
+                                            </StackPanel>
+
+                                            <StackPanel Grid.Column="1" Margin="10,0,0,0">
+                                                <TextBlock Text="Height:" FontWeight="SemiBold" FontSize="12" Margin="0,0,0,5"/>
+                                                <TextBox Text="{Binding InfiniteTalkHeight, Mode=TwoWay}"
+                                                        Padding="8"
+                                                        Background="White"
+                                                        BorderBrush="#CED4DA"
+                                                        FontSize="12"/>
+                                            </StackPanel>
+                                        </Grid>
+
+                                        <TextBlock Text="ℹ️ InfiniteTalk mode processes the entire audio using 81-frame windows internally"
+                                                  FontStyle="Italic"
+                                                  Foreground="#666"
+                                                  FontSize="11"
+                                                  Margin="0,10,0,0"/>
+                                    </StackPanel>
+                                </Border>
+
+                                <!-- Infinite Talk Generate Section -->
+                                <Border Style="{StaticResource SectionPanelStyle}">
+                                    <Grid>
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="2*"/>
+                                            <ColumnDefinition Width="*"/>
+                                        </Grid.ColumnDefinitions>
+
+                                        <!-- Instructions -->
+                                        <StackPanel Grid.Column="0" Margin="0,0,20,0">
+                                            <TextBlock Text="ℹ️ Wan2.1 InfiniteTalk Video" Style="{StaticResource HeaderTextStyle}" Foreground="#FF6B35"/>
+                                            <TextBlock Text="Generate talking head videos synchronized to audio using Wan2.1 InfiniteTalk model. The system automatically calculates the number of frames needed based on the audio duration. The InfiniteTalk mode processes the video using 81-frame windows internally." FontSize="11" TextWrapping="Wrap" Foreground="#666" Margin="0,5,0,10"/>
+                                            <TextBlock Text="Total Frames:" FontWeight="Bold" FontSize="11" Margin="0,5,0,0"/>
+                                            <TextBlock Text="{Binding InfiniteTalkTotalFrames}" FontSize="11" Foreground="#666" Margin="0,0,0,5"/>
+                                            <TextBlock Text="Estimated Duration:" FontWeight="Bold" FontSize="11"/>
+                                            <TextBlock Text="{Binding InfiniteTalkEstimatedDuration}" FontSize="11" Foreground="#666"/>
+                                        </StackPanel>
+
+                                        <!-- Generate Button and Status -->
+                                        <StackPanel Grid.Column="1" VerticalAlignment="Center">
+                                            <Button Content="🎤 Generate Video"
+                                                   Style="{StaticResource PrimaryButtonStyle}"
+                                                   Command="{Binding GenerateInfiniteTalkVideoCommand}"
+                                                   IsEnabled="{Binding CanGenerateInfiniteTalkVideo, Mode=OneWay}"
+                                                   HorizontalAlignment="Stretch"
+                                                   Height="55"
+                                                   FontSize="15"
+                                                   Margin="0,0,0,15"/>
+
+                                            <!-- Processing Status -->
+                                            <Border Background="#FFF9F0"
+                                                    BorderBrush="#FFE0B0"
+                                                    BorderThickness="1"
+                                                    CornerRadius="5"
+                                                    Padding="12"
+                                                    Visibility="{Binding IsProcessingInfiniteTalk, Converter={StaticResource BooleanToVisibilityConverter}}">
+                                                <StackPanel>
+                                                    <TextBlock Text="{Binding InfiniteTalkProcessingStatus}"
+                                                              FontWeight="SemiBold"
+                                                              FontSize="11"
+                                                              Margin="0,0,0,5"
+                                                              TextAlignment="Center"
+                                                              TextWrapping="Wrap"/>
+                                                    <ProgressBar Value="{Binding InfiniteTalkProcessingProgress, Mode=OneWay}"
+                                                                Height="16"
+                                                                Foreground="#FF6B35"
+                                                                Margin="0,0,0,5"/>
+                                                    <TextBlock Text="{Binding InfiniteTalkProgressPercentage}"
+                                                              HorizontalAlignment="Center"
+                                                              FontSize="11"
+                                                              FontWeight="Bold"
+                                                              Foreground="#FF6B35"/>
+                                                </StackPanel>
+                                            </Border>
+                                        </StackPanel>
+                                    </Grid>
+                                </Border>
+
+                                <!-- Infinite Talk Result Video Section -->
+                                <Border Style="{StaticResource SectionPanelStyle}">
+                                    <StackPanel>
+                                        <TextBlock Text="🎥 Result Video" Style="{StaticResource HeaderTextStyle}" Foreground="#FF6B35"/>
+
+                                        <Border BorderBrush="#DEE2E6" BorderThickness="2"
+                                                Background="White" Height="250"
+                                                CornerRadius="5" Margin="0,0,0,10">
+                                            <Grid>
+                                                <TextBlock Text="Video will appear here after generation"
+                                                          HorizontalAlignment="Center"
+                                                          VerticalAlignment="Center"
+                                                          Foreground="#999"
+                                                          FontStyle="Italic">
+                                                    <TextBlock.Style>
+                                                        <Style TargetType="TextBlock">
+                                                            <Setter Property="Visibility" Value="Collapsed"/>
+                                                            <Style.Triggers>
+                                                                <DataTrigger Binding="{Binding HasInfiniteTalkResult}" Value="False">
+                                                                    <Setter Property="Visibility" Value="Visible"/>
+                                                                </DataTrigger>
+                                                            </Style.Triggers>
+                                                        </Style>
+                                                    </TextBlock.Style>
+                                                </TextBlock>
+
+                                                <!-- Video Player -->
+                                                <MediaElement x:Name="InfiniteTalkVideoPlayer"
+                                                            Source="{Binding InfiniteTalkResultPath}"
+                                                            LoadedBehavior="Manual"
+                                                            UnloadedBehavior="Stop"
+                                                            Stretch="Uniform"
+                                                            Visibility="{Binding HasInfiniteTalkResult, Converter={StaticResource BooleanToVisibilityConverter}}"/>
+                                            </Grid>
+                                        </Border>
+
+                                        <Grid>
+                                            <Grid.ColumnDefinitions>
+                                                <ColumnDefinition Width="*"/>
+                                                <ColumnDefinition Width="Auto"/>
+                                                <ColumnDefinition Width="Auto"/>
+                                            </Grid.ColumnDefinitions>
+
+                                            <Button Grid.Column="0"
+                                                   Content="▶️ Play"
+                                                   Style="{StaticResource SecondaryButtonStyle}"
+                                                   Command="{Binding PlayInfiniteTalkVideoCommand}"
+                                                   IsEnabled="{Binding HasInfiniteTalkResult}"
+                                                   Margin="0,0,8,0"/>
+
+                                            <Button Grid.Column="1"
+                                                   Content="📂 Open Folder"
+                                                   Style="{StaticResource SecondaryButtonStyle}"
+                                                   Command="{Binding OpenInfiniteTalkResultFolderCommand}"
+                                                   IsEnabled="{Binding HasInfiniteTalkResult}"
+                                                   Margin="0,0,8,0"/>
+
+                                            <Button Grid.Column="2"
+                                                   Content="📷 Send to Edit Camera"
+                                                   Style="{StaticResource SecondaryButtonStyle}"
+                                                   Command="{Binding SendInfiniteTalkToEditCameraCommand}"
+                                                   IsEnabled="{Binding HasInfiniteTalkResult}"/>
+                                        </Grid>
+
+                                        <TextBlock Text="{Binding InfiniteTalkVideoInfo}"
+                                                  FontStyle="Italic"
+                                                  Foreground="#666"
+                                                  FontSize="11"
+                                                  Margin="0,10,0,0"/>
+                                    </StackPanel>
+                                </Border>
+
+                                <!-- Infinite Talk Log Section -->
+                                <Expander Header="📋 Processing Log" IsExpanded="False" Margin="0,10,0,0">
+                                    <Border Style="{StaticResource SectionPanelStyle}">
+                                        <ScrollViewer>
+                                            <TextBox Text="{Binding InfiniteTalkLogOutput, Mode=OneWay}"
+                                                    IsReadOnly="True"
+                                                    TextWrapping="Wrap"
+                                                    Background="#F8F9FA"
+                                                    BorderBrush="#CED4DA"
+                                                    FontFamily="Consolas"
+                                                    FontSize="10"
+                                                    Padding="10"
+                                                    Height="200"/>
                                         </ScrollViewer>
                                     </Border>
                                 </Expander>

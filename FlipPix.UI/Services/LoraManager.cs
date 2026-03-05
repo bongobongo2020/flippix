@@ -42,19 +42,24 @@ namespace FlipPix.UI.Services
 
                 // Get all LoRA files (.safetensors, .pt, .pth, .bin)
                 var extensions = new[] { "*.safetensors", "*.pt", "*.pth", "*.bin" };
-                var files = extensions.SelectMany(ext => Directory.GetFiles(loraPath, ext, SearchOption.TopDirectoryOnly));
+                var files = extensions.SelectMany(ext => Directory.GetFiles(loraPath, ext, SearchOption.AllDirectories));
 
                 foreach (var file in files)
                 {
-                    var fileName = Path.GetFileName(file);
-                    var nameWithoutExt = Path.GetFileNameWithoutExtension(file);
+                    // Get relative path from base loras folder (e.g., "zimage\amateur_photography_zimage_v1")
+                    var relativePath = Path.GetRelativePath(loraPath, file);
+                    var relativePathNoExt = Path.ChangeExtension(relativePath, null);
 
                     // Check for paired files (e.g., model.safetensors and model.png)
                     var hasPreview = File.Exists(Path.ChangeExtension(file, ".png")) ||
                                    File.Exists(Path.Combine(Path.GetDirectoryName(file) ?? "", Path.GetFileNameWithoutExtension(file) + ".png"));
 
+                    // Normalize path separators to backslash for ComfyUI compatibility
+                    var normalizedPath = relativePath.Replace('/', '\\');
+                    var normalizedPathNoExt = relativePathNoExt.Replace('/', '\\');
+
                     // Add either filename with extension or without
-                    loras.Add(includeExtensions ? fileName : nameWithoutExt);
+                    loras.Add(includeExtensions ? normalizedPath : normalizedPathNoExt);
                 }
 
                 loras = loras.Distinct().OrderBy(n => n).ToList();
@@ -100,11 +105,23 @@ namespace FlipPix.UI.Services
 
                 // Try with various extensions
                 var extensions = new[] { ".safetensors", ".pt", ".pth", ".bin" };
-                var nameWithoutExt = Path.GetFileNameWithoutExtension(loraName);
+
+                // Handle subfolder paths (e.g., "zimage\lora_name")
+                string pathWithoutExt;
+                if (loraName.Contains('\\') || loraName.Contains('/'))
+                {
+                    // For paths with subfolders, just remove the extension
+                    pathWithoutExt = Path.ChangeExtension(loraName, null);
+                }
+                else
+                {
+                    // For simple filenames, use GetFileNameWithoutExtension
+                    pathWithoutExt = Path.GetFileNameWithoutExtension(loraName) ?? loraName;
+                }
 
                 foreach (var ext in extensions)
                 {
-                    var fullPath = Path.Combine(loraDir, nameWithoutExt + ext);
+                    var fullPath = Path.Combine(loraDir, pathWithoutExt + ext);
                     if (File.Exists(fullPath))
                     {
                         return fullPath;

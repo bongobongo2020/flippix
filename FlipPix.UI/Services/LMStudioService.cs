@@ -432,6 +432,70 @@ namespace FlipPix.UI.Services
             }
         }
 
+        public async Task<string> SendTextChatAsync(
+            string modelName,
+            string systemPrompt,
+            string userMessage,
+            int maxTokens = 2000,
+            CancellationToken cancellationToken = default)
+        {
+            await _semaphore.WaitAsync(cancellationToken);
+            try
+            {
+                var requestBody = new
+                {
+                    model = modelName,
+                    messages = new object[]
+                    {
+                        new { role = "system", content = systemPrompt },
+                        new { role = "user",   content = userMessage  }
+                    },
+                    max_tokens = maxTokens,
+                    temperature = 0.7,
+                    stream = false
+                };
+
+                var json = JsonSerializer.Serialize(requestBody, new JsonSerializerOptions
+                {
+                    PropertyNamingPolicy = JsonNamingPolicy.CamelCase
+                });
+
+                _logger.LogInfo($"SendTextChatAsync: model={modelName}, userMessage length={userMessage.Length}");
+
+                var fullUrl = $"{_baseUrl.TrimEnd('/')}/v1/chat/completions";
+                using var content = new StringContent(json, Encoding.UTF8, "application/json");
+                using var response = await _httpClient.PostAsync(fullUrl, content, cancellationToken);
+
+                if (!response.IsSuccessStatusCode)
+                {
+                    var errorContent = await response.Content.ReadAsStringAsync(cancellationToken);
+                    throw new Exception($"LM Studio API error: {response.StatusCode} - {errorContent}");
+                }
+
+                await using var stream = await response.Content.ReadAsStreamAsync(cancellationToken);
+                var result = await JsonSerializer.DeserializeAsync<LMStudioChatResponse>(stream,
+                    new JsonSerializerOptions { PropertyNameCaseInsensitive = true }, cancellationToken);
+
+                if (result?.Choices?.Count > 0)
+                {
+                    var text = result.Choices[0].Message?.Content?.Trim() ?? string.Empty;
+                    _logger.LogInfo($"SendTextChatAsync completed, response length={text.Length}");
+                    return text;
+                }
+
+                throw new Exception("No choices in LM Studio API response");
+            }
+            catch (OperationCanceledException) { throw; }
+            catch (HttpRequestException ex)
+            {
+                throw new Exception($"Failed to connect to LM Studio at {_baseUrl}: {ex.Message}", ex);
+            }
+            finally
+            {
+                _semaphore.Release();
+            }
+        }
+
         public async Task SetBaseUrlAsync(string baseUrl)
         {
             // No longer needed - URL is now retrieved dynamically from settings
