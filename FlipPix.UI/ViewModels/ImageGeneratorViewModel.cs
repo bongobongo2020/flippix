@@ -769,52 +769,67 @@ namespace FlipPix.UI.ViewModels
                 var baseUrl = _settingsService.Settings?.BaseUrl ?? string.Empty;
                 bool isRemoteServer = IsRemoteUrl(baseUrl);
 
+                // Check explicit LoRA folder override first — works regardless of local/remote server.
+                // Handles the case where ComfyUI is local but loras live on a mapped network drive.
+                var overrideLoraPath = _settingsService.Settings?.RemoteLoraFolderPath;
+                if (!string.IsNullOrEmpty(overrideLoraPath))
+                {
+                    if (Directory.Exists(overrideLoraPath))
+                    {
+                        AddLog($"Using configured LoRA folder: {overrideLoraPath}");
+                        return overrideLoraPath;
+                    }
+                    else
+                    {
+                        AddLog($"Configured LoRA folder not accessible: {overrideLoraPath}");
+                    }
+                }
+
                 string? loraBasePath;
 
                 if (isRemoteServer)
                 {
-                    // For remote servers, derive LoRA path from RemoteOutputFolderPath
-                    // RemoteOutputFolderPath is usually something like \\server\ComfyUI\output
-                    // We need to get \\server\ComfyUI\models\loras
-                    var remoteOutputPath = _settingsService.Settings?.RemoteOutputFolderPath;
-
-                    if (string.IsNullOrEmpty(remoteOutputPath))
-                    {
-                        AddLog("Remote output path not configured in settings - cannot derive LoRA path");
-                        return null;
-                    }
-
-                    // Also check if RemoteLoraFolderPath is explicitly set (for custom paths)
                     var explicitLoraPath = _settingsService.Settings?.RemoteLoraFolderPath;
                     if (!string.IsNullOrEmpty(explicitLoraPath))
                     {
-                        loraBasePath = explicitLoraPath;
-                        AddLog($"Using explicitly configured remote LoRA path: {loraBasePath}");
-                    }
-                    else
-                    {
-                        // Derive LoRA path from output path
-                        // Expected: \\server\ComfyUI\output -> \\server\ComfyUI\models\loras
-                        var comfyUIRoot = Path.GetDirectoryName(remoteOutputPath);
-                        if (string.IsNullOrEmpty(comfyUIRoot))
+                        if (Directory.Exists(explicitLoraPath))
                         {
-                            AddLog($"Could not derive ComfyUI root from output path: {remoteOutputPath}");
-                            return null;
+                            AddLog($"Using explicitly configured remote LoRA path: {explicitLoraPath}");
+                            return explicitLoraPath;
                         }
-
-                        loraBasePath = Path.Combine(comfyUIRoot, "models", "loras");
-                        AddLog($"Derived remote LoRA path from output path: {loraBasePath}");
+                        else
+                        {
+                            AddLog($"Configured remote LoRA path not accessible: {explicitLoraPath}");
+                            // Fall through to try deriving from output path
+                        }
                     }
 
-                    // For remote paths, check if directory exists directly
-                    if (Directory.Exists(loraBasePath))
+                    // Priority 2: Derive from RemoteOutputFolderPath
+                    var remoteOutputPath = _settingsService.Settings?.RemoteOutputFolderPath;
+                    if (string.IsNullOrEmpty(remoteOutputPath))
                     {
-                        AddLog($"Remote LoRA directory exists: {loraBasePath}");
-                        return loraBasePath;
+                        AddLog("Remote output path not configured and no explicit LoRA path set - cannot load LoRAs");
+                        return null;
+                    }
+
+                    var comfyUIRoot = Path.GetDirectoryName(remoteOutputPath);
+                    if (string.IsNullOrEmpty(comfyUIRoot))
+                    {
+                        AddLog($"Could not derive ComfyUI root from output path: {remoteOutputPath}");
+                        return null;
+                    }
+
+                    var loraBasePath2 = Path.Combine(comfyUIRoot, "models", "loras");
+                    AddLog($"Derived remote LoRA path from output path: {loraBasePath2}");
+
+                    if (Directory.Exists(loraBasePath2))
+                    {
+                        AddLog($"Remote LoRA directory exists: {loraBasePath2}");
+                        return loraBasePath2;
                     }
                     else
                     {
-                        AddLog($"Remote LoRA directory not found: {loraBasePath}");
+                        AddLog($"Remote LoRA directory not found: {loraBasePath2}");
                         return null;
                     }
                 }
@@ -1438,6 +1453,33 @@ namespace FlipPix.UI.ViewModels
                         node28["inputs"] = inputs;
                         workflowDict["28"] = JsonSerializer.SerializeToElement(node28);
                         AddLog($"Updated seed: {actualSeed}");
+                    }
+                }
+            }
+
+            // amateurZimageAPI: Update aspect ratio on node 46 (EmptySD3LatentImage)
+            if (workflowDict.ContainsKey("46"))
+            {
+                var resolutions = new[]
+                {
+                    (576, 416),  // Landscape (index 0)
+                    (416, 576),  // Portrait (index 1)
+                    (512, 512)   // Square (index 2)
+                };
+                var (width, height) = resolutions[Math.Min(AspectRatioIndex, resolutions.Length - 1)];
+
+                var node46 = JsonSerializer.Deserialize<Dictionary<string, object>>(workflowDict["46"].GetRawText());
+                if (node46 != null && node46.ContainsKey("inputs"))
+                {
+                    var inputs = JsonSerializer.Deserialize<Dictionary<string, object>>(
+                        JsonSerializer.Serialize(node46["inputs"]));
+                    if (inputs != null)
+                    {
+                        inputs["width"] = width;
+                        inputs["height"] = height;
+                        node46["inputs"] = inputs;
+                        workflowDict["46"] = JsonSerializer.SerializeToElement(node46);
+                        AddLog($"Updated node 46 aspect ratio: {width}x{height}");
                     }
                 }
             }

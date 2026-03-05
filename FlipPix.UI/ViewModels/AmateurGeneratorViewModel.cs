@@ -697,23 +697,35 @@ namespace FlipPix.UI.ViewModels
             AddLog("Removing metadata and watermark nodes to prevent file loading errors");
             RemoveNodesFromWorkflow(ref workflowJson, new[] { "107", "109", "747", "748", "749", "751" });
 
-            // 11. Update latent image dimensions based on orientation
-            bool isPortrait = OrientationIndex == 1;
-            if (isPortrait)
+            // 11. Update latent image dimensions based on aspect ratio orientation
+            // Node 46 is the primary latent image used by KSampler node 754
+            // Nodes 693, 758, 772 are for other purposes but should also match the aspect ratio
+            int orientationIndex = OrientationIndex; // 0=Landscape, 1=Portrait, 2=Square
+            AddLog($"Setting aspect ratio mode: {orientationIndex} (0=Land, 1=Port, 2=Square)");
+
+            if (orientationIndex == 1)  // Portrait mode
             {
-                // Portrait mode
                 WorkflowNodeUpdater.UpdateNodeInputMultiple(ref workflowJson, "46", new Dictionary<string, object> { { "width", 416 }, { "height", 576 } });
                 WorkflowNodeUpdater.UpdateNodeInputMultiple(ref workflowJson, "693", new Dictionary<string, object> { { "width", 208 }, { "height", 288 } });
                 WorkflowNodeUpdater.UpdateNodeInputMultiple(ref workflowJson, "758", new Dictionary<string, object> { { "width", 288 }, { "height", 208 } });
                 WorkflowNodeUpdater.UpdateNodeInputMultiple(ref workflowJson, "772", new Dictionary<string, object> { { "width", 1248 }, { "height", 1728 } });
+                AddLog("Portrait dimensions: 416x576");
             }
-            else
+            else if (orientationIndex == 2)  // Square mode
             {
-                // Landscape mode
+                WorkflowNodeUpdater.UpdateNodeInputMultiple(ref workflowJson, "46", new Dictionary<string, object> { { "width", 512 }, { "height", 512 } });
+                WorkflowNodeUpdater.UpdateNodeInputMultiple(ref workflowJson, "693", new Dictionary<string, object> { { "width", 256 }, { "height", 256 } });
+                WorkflowNodeUpdater.UpdateNodeInputMultiple(ref workflowJson, "758", new Dictionary<string, object> { { "width", 256 }, { "height", 256 } });
+                WorkflowNodeUpdater.UpdateNodeInputMultiple(ref workflowJson, "772", new Dictionary<string, object> { { "width", 1536 }, { "height", 1536 } });
+                AddLog("Square dimensions: 512x512");
+            }
+            else  // Landscape mode (default, index 0)
+            {
                 WorkflowNodeUpdater.UpdateNodeInputMultiple(ref workflowJson, "46", new Dictionary<string, object> { { "width", 576 }, { "height", 416 } });
-                WorkflowNodeUpdater.UpdateNodeInputMultiple(ref workflowJson, "693", new Dictionary<string, object> { { "width", 208 }, { "height", 288 } });
+                WorkflowNodeUpdater.UpdateNodeInputMultiple(ref workflowJson, "693", new Dictionary<string, object> { { "width", 288 }, { "height", 208 } });
                 WorkflowNodeUpdater.UpdateNodeInputMultiple(ref workflowJson, "758", new Dictionary<string, object> { { "width", 416 }, { "height", 576 } });
                 WorkflowNodeUpdater.UpdateNodeInputMultiple(ref workflowJson, "772", new Dictionary<string, object> { { "width", 1728 }, { "height", 1248 } });
+                AddLog("Landscape dimensions: 576x416");
             }
 
             return JsonSerializer.Deserialize<JsonElement>(workflowJson);
