@@ -129,7 +129,7 @@
   },
   "114": {
     "inputs": {
-      "noise_seed": 420
+      "noise_seed": 309334222143458
     },
     "class_type": "RandomNoise",
     "_meta": {
@@ -138,7 +138,7 @@
   },
   "115": {
     "inputs": {
-      "noise_seed": 785720289797325
+      "noise_seed": 646171791952896
     },
     "class_type": "RandomNoise",
     "_meta": {
@@ -223,7 +223,7 @@
   },
   "121": {
     "inputs": {
-      "text": "A medium wide shot of a rain-soaked meadow just after a thunderstorm has passed. The air is thick with mist and the scent of wet earth is almost visible in the haze. Puddles mirror a sky that is breaking apart, revealing patches of golden light between dark retreating clouds. A single deer stands perfectly still at the meadow's center, steam rising gently from its back, ears relaxed, body at ease — the freeze response melting into calm. The camera performs a very slow, gentle orbit around the deer, revealing wildflowers bowing under the weight of raindrops, dripping leaves, and a rainbow beginning to form in the distance. The color palette is muted sage, pewter grey, and sudden warm gold where sunlight breaks through. Ambient sound of rain tapering to a gentle drip, distant rumbling thunder fading away, water trickling into a nearby stream, and the first tentative birdsong returning.",
+      "text": "A single drop of deep violet ink falling into a still glass of clear water\nin slow motion. The ink blooms outward in elaborate, organic tendrils —\ncurling, expanding, then slowly dissolving into a soft lavender haze.\nCamera is static, eye-level with the glass. Extreme slow motion, high\nresolution. Light source from behind the glass, backlighting the ink bloom.\nAudio: a single low resonant tone that fades to silence. No other sound.\nPhotorealistic, hypnotic, visually lush.\n",
       "clip": [
         "190",
         0
@@ -335,7 +335,7 @@
       "pingpong": false,
       "save_output": true,
       "images": [
-        "127",
+        "333",
         0
       ],
       "audio": [
@@ -692,6 +692,21 @@
     "class_type": "LTX2SamplingPreviewOverride",
     "_meta": {
       "title": "LTX2 Sampling Preview Override"
+    }
+  },
+  "333": {
+    "inputs": {
+      "resize_type": "scale by multiplier",
+      "resize_type.scale": 2,
+      "quality": "ULTRA",
+      "images": [
+        "127",
+        0
+      ]
+    },
+    "class_type": "RTXVideoSuperResolution",
+    "_meta": {
+      "title": "RTX Video Super Resolution"
     }
   }
 }
