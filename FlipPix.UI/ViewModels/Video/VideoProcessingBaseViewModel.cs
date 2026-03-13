@@ -250,17 +250,7 @@ namespace FlipPix.UI.ViewModels.Video
                 return null;
             }
 
-            var foldersToCheck = new List<string> { outputFolder };
-            foreach (var subfolder in additionalSubfolders)
-            {
-                var subfolderPath = Path.Combine(outputFolder, subfolder);
-                if (Directory.Exists(subfolderPath))
-                {
-                    foldersToCheck.Add(subfolderPath);
-                }
-            }
-
-            AddLog($"Monitoring output folder(s): {string.Join(", ", foldersToCheck)}");
+            AddLog($"Monitoring output folder: {outputFolder} (subfolders: {string.Join(", ", additionalSubfolders.DefaultIfEmpty("none"))})");
 
             var actualMaxWait = maxWaitTime ?? TimeSpan.FromSeconds(60);
             var actualCheckInterval = checkInterval ?? TimeSpan.FromSeconds(2);
@@ -269,6 +259,15 @@ namespace FlipPix.UI.ViewModels.Video
             while (DateTime.Now - startTime < actualMaxWait)
             {
                 await Task.Delay(actualCheckInterval);
+
+                // Rebuild folder list each iteration so subfolders created during generation are picked up
+                var foldersToCheck = new List<string> { outputFolder };
+                foreach (var subfolder in additionalSubfolders)
+                {
+                    var subfolderPath = Path.Combine(outputFolder, subfolder);
+                    if (Directory.Exists(subfolderPath))
+                        foldersToCheck.Add(subfolderPath);
+                }
 
                 var currentFiles = new List<string>();
                 foreach (var folder in foldersToCheck)

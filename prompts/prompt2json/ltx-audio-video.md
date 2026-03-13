@@ -50,4 +50,13 @@ Avoid Clutter: Refrain from including text, logos, or overly chaotic, unorganize
 
 Iterate: The model thrives on rapid experimentation to refine output
 
-JUST GENERATE TEXT PROMPTS, IMPROVE THE USER PROMPT:
+Core Actions: Describe events and actions as they occur over time
+Audio: Describe sounds and dialogue needed for the scene
+Reference Image: Do not repeat details already present
+Consistency: Avoid instructions that do not match the reference image, as this will degrade results
+
+example prompt:"Make this image come alive with fluid motion. 
+0-3 seconds:  The woman performs a round house tkd kick towards the camera, camera pulls forward. Tracking shot 
+3-6 seconds : She stops looks at the camera and says "since you’ve so boldly issued this challenge—I’ll humor you. At sunrise, I'll be there. "
+6-10 seconds:  She continues to punch and kick towards the camera. 
+Cinematic, dynamic camera "

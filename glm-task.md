@@ -98,3 +98,15 @@ Update this file with a "Changelog" section detailing your changes for review.
 ### 2026-03-05: ImageGeneratorViewModel Fixes (amateurZimageAPI)
 ### 2026-03-05: Fixed Node Removal Issue
 ### 2026-03-05: Fixed Aspect Ratio Handling for amateurZimageAPI
+
+---
+
+### 2026-03-10: LTX 2.3 Tab – Compact Layout & Auto-Generate
+**Changelog:**
+1. **FlipPix.UI/ViewModels/Video/LTX23BasicViewModel.cs** — Modified `EnhancePromptWithLMStudioAsync()` to automatically trigger `AddToQueueAndProcess()` after prompt enhancement
+2. **FlipPix.UI/VideoGeneratorWindow.xaml** — Redesigned LTX 2.3 reference image section with 2-column layout (50% image, 50% analysis) and removed "Add to Queue & Generate" button
+
+**Change Summary:**
+- Made the reference image box more compact with side-by-side layout (image on left, analysis on right)
+- Enhanced user experience by removing manual "Add to Queue & Generate" button - the Enhance Prompt button now automatically queues and generates video after LM Studio returns the result
+- Reduces scrolling and streamlines the LTX 2.3 workflow

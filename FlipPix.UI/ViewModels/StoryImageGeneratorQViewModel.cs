@@ -171,8 +171,8 @@ namespace FlipPix.UI.ViewModels
                     return;
                 }
 
-                // Call LM Studio with system prompt
-                var userPrompt = "Analyze this character image and generate 10 sequential martial arts action story prompts following the template in the system instructions.";
+                // Call LM Studio with system prompt only
+                var userPrompt = string.Empty;
 
                 var analysisResult = await _lmStudioService.AnalyzeImageWithSystemPromptAsync(
                     modelName,
