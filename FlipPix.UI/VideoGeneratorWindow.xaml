@@ -1836,7 +1836,281 @@
                         </ScrollViewer>
                     </TabItem>
 
-                    <!-- Tab 5: Mocha Video Generator -->
+                    <!-- Tab 5: LTX 2.3 Basic I2V -->
+                    <TabItem Header="🎬 LTX 2.3">
+                        <ScrollViewer VerticalScrollBarVisibility="Auto">
+                            <StackPanel Margin="10">
+
+                                <!-- Reference Image Section -->
+                                <Border Style="{StaticResource SectionPanelStyle}">
+                                    <StackPanel>
+                                        <TextBlock Text="🖼️ Reference Image" Style="{StaticResource HeaderTextStyle}" Foreground="#FF6B35"/>
+
+                                        <Border BorderBrush="#DEE2E6" BorderThickness="1" Background="White" CornerRadius="5" Padding="15" Margin="0,0,0,0">
+                                            <Grid>
+                                                <Grid.ColumnDefinitions>
+                                                    <ColumnDefinition Width="*"/>
+                                                    <ColumnDefinition Width="10"/>
+                                                    <ColumnDefinition Width="*"/>
+                                                </Grid.ColumnDefinitions>
+
+                                                <!-- Left Column: Image Preview -->
+                                                <StackPanel Grid.Column="0">
+                                                    <TextBlock Text="Source Image:" FontWeight="SemiBold" FontSize="12" Margin="0,0,0,8"/>
+                                                    <Border BorderBrush="#DEE2E6" BorderThickness="1"
+                                                            Background="White" Height="200"
+                                                            CornerRadius="3">
+                                                        <Grid>
+                                                            <TextBlock Text="No image selected"
+                                                                      HorizontalAlignment="Center"
+                                                                      VerticalAlignment="Center"
+                                                                      Foreground="#999"
+                                                                      FontStyle="Italic">
+                                                                <TextBlock.Style>
+                                                                    <Style TargetType="TextBlock">
+                                                                        <Setter Property="Visibility" Value="Collapsed"/>
+                                                                        <Style.Triggers>
+                                                                            <DataTrigger Binding="{Binding LTX23ImagePreview}" Value="{x:Null}">
+                                                                                <Setter Property="Visibility" Value="Visible"/>
+                                                                            </DataTrigger>
+                                                                        </Style.Triggers>
+                                                                    </Style>
+                                                                </TextBlock.Style>
+                                                            </TextBlock>
+                                                            <Image Source="{Binding LTX23ImagePreview}" Stretch="Uniform"/>
+                                                        </Grid>
+                                                    </Border>
+                                                    <Button Content="Browse..."
+                                                            Style="{StaticResource SecondaryButtonStyle}"
+                                                            Command="{Binding SelectLTX23ImageCommand}"
+                                                            Height="32"
+                                                            HorizontalAlignment="Stretch"
+                                                            Margin="0,8,0,0"/>
+                                                    <TextBlock Text="{Binding LTX23ImageInfo}"
+                                                              FontStyle="Italic"
+                                                              Foreground="#666"
+                                                              FontSize="10"
+                                                              Margin="0,6,0,0"
+                                                              TextWrapping="Wrap"/>
+                                                </StackPanel>
+
+                                                <!-- Right Column: Analyze Button + Result -->
+                                                <StackPanel Grid.Column="2">
+                                                    <TextBlock Text="Image Analysis:" FontWeight="SemiBold" FontSize="12" Margin="0,0,0,8"/>
+                                                    <Button Content="🧠 Analyze Image"
+                                                            Style="{StaticResource SecondaryButtonStyle}"
+                                                            Command="{Binding AnalyzeLTX23ImageCommand}"
+                                                            IsEnabled="{Binding CanLTX23AnalyzeImage, Mode=OneWay}"
+                                                            Height="32"
+                                                            HorizontalAlignment="Stretch"/>
+                                                    <TextBox Text="{Binding LTX23AnalysisResult, Mode=OneWay}"
+                                                            TextWrapping="Wrap"
+                                                            AcceptsReturn="True"
+                                                            Height="188"
+                                                            Padding="10"
+                                                            VerticalScrollBarVisibility="Auto"
+                                                            Background="#F8F9FA"
+                                                            BorderBrush="#CED4DA"
+                                                            FontSize="11"
+                                                            IsReadOnly="True"
+                                                            Margin="0,8,0,0"/>
+                                                </StackPanel>
+                                            </Grid>
+                                        </Border>
+                                    </StackPanel>
+                                </Border>
+
+                                <!-- Video Prompt Section -->
+                                <Border Style="{StaticResource SectionPanelStyle}">
+                                    <StackPanel>
+                                        <TextBlock Text="📝 Video Prompt" Style="{StaticResource HeaderTextStyle}" Foreground="#FF6B35"/>
+
+                                        <Button Content="✨ Enhance Prompt"
+                                                Style="{StaticResource SecondaryButtonStyle}"
+                                                Command="{Binding EnhanceLTX23PromptCommand}"
+                                                IsEnabled="{Binding CanLTX23EnhancePrompt, Mode=OneWay}"
+                                                Height="35"
+                                                Width="160"
+                                                HorizontalAlignment="Left"
+                                                Margin="0,5,0,10"/>
+
+                                        <TextBlock Text="Describe the video action you want to generate:"
+                                                  FontWeight="SemiBold" FontSize="12"
+                                                  Margin="0,0,0,8"/>
+                                        <TextBox Text="{Binding LTX23Prompt, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                                                TextWrapping="Wrap"
+                                                AcceptsReturn="True"
+                                                Height="120"
+                                                Padding="12"
+                                                VerticalScrollBarVisibility="Auto"
+                                                Background="White"
+                                                BorderBrush="#CED4DA"
+                                                FontSize="12"/>
+                                    </StackPanel>
+                                </Border>
+
+                                <!-- Processing Status + Queue Section -->
+                                <Border Style="{StaticResource SectionPanelStyle}">
+                                    <StackPanel>
+                                        <!-- Processing Status -->
+                                        <Border Background="#FFF9F0"
+                                                BorderBrush="#FFE0B0"
+                                                BorderThickness="1"
+                                                CornerRadius="5"
+                                                Padding="12"
+                                                Visibility="{Binding IsProcessingLTX23, Converter={StaticResource BooleanToVisibilityConverter}}"
+                                                Margin="0,10,0,0">
+                                            <StackPanel>
+                                                <TextBlock Text="{Binding LTX23ProcessingStatus}"
+                                                          FontWeight="SemiBold" FontSize="11"
+                                                          TextAlignment="Center" TextWrapping="Wrap"/>
+                                                <ProgressBar Value="{Binding LTX23ProcessingProgress, Mode=OneWay}"
+                                                            Height="14" Foreground="#FF6B35"
+                                                            Margin="0,6,0,4"/>
+                                                <TextBlock Text="{Binding LTX23ProgressPercentage}"
+                                                          HorizontalAlignment="Center"
+                                                          FontSize="11" FontWeight="Bold"
+                                                          Foreground="#FF6B35"/>
+                                            </StackPanel>
+                                        </Border>
+
+                                        <!-- Queue List -->
+                                        <Border BorderBrush="#DEE2E6" BorderThickness="1"
+                                                CornerRadius="5" Margin="0,12,0,0"
+                                                Visibility="{Binding LTX23HasQueueItems, Converter={StaticResource BoolToVisibilityConverter}}">
+                                            <StackPanel>
+                                                <Border Background="#F0F0F0" Padding="10,6" CornerRadius="5,5,0,0">
+                                                    <Grid>
+                                                        <TextBlock Text="📋 Queue"
+                                                                  FontWeight="Bold" FontSize="12"
+                                                                  VerticalAlignment="Center"/>
+                                                        <TextBlock Text="{Binding LTX23QueueStatus}"
+                                                                  FontSize="10" Foreground="#666"
+                                                                  HorizontalAlignment="Right"
+                                                                  VerticalAlignment="Center"/>
+                                                    </Grid>
+                                                </Border>
+                                                <ScrollViewer MaxHeight="200" VerticalScrollBarVisibility="Auto" Padding="5">
+                                                    <ItemsControl ItemsSource="{Binding LTX23Queue}">
+                                                        <ItemsControl.ItemTemplate>
+                                                            <DataTemplate>
+                                                                <Border BorderBrush="#E9ECEF" BorderThickness="1"
+                                                                        CornerRadius="4" Padding="8,6"
+                                                                        Margin="2,2,2,0" Background="White">
+                                                                    <Grid>
+                                                                        <Grid.ColumnDefinitions>
+                                                                            <ColumnDefinition Width="*"/>
+                                                                            <ColumnDefinition Width="Auto"/>
+                                                                            <ColumnDefinition Width="Auto"/>
+                                                                        </Grid.ColumnDefinitions>
+
+                                                                        <StackPanel Grid.Column="0" VerticalAlignment="Center">
+                                                                            <TextBlock Text="{Binding DisplayText}"
+                                                                                      FontSize="11" TextTrimming="CharacterEllipsis"/>
+                                                                        </StackPanel>
+
+                                                                        <TextBlock Grid.Column="1"
+                                                                                  Text="{Binding StatusDisplay}"
+                                                                                  Foreground="{Binding StatusColor}"
+                                                                                  FontSize="10" FontWeight="SemiBold"
+                                                                                  VerticalAlignment="Center"
+                                                                                  Margin="8,0,8,0"/>
+
+                                                                        <Button Grid.Column="2"
+                                                                               Content="✕"
+                                                                               Width="22" Height="22"
+                                                                               FontSize="10"
+                                                                               Background="Transparent"
+                                                                               BorderThickness="0"
+                                                                               Foreground="#999"
+                                                                               Padding="0"
+                                                                               Command="{Binding DataContext.RemoveLTX23QueueItemCommand, RelativeSource={RelativeSource AncestorType=ItemsControl}}"
+                                                                               CommandParameter="{Binding}"/>
+                                                                    </Grid>
+                                                                </Border>
+                                                            </DataTemplate>
+                                                        </ItemsControl.ItemTemplate>
+                                                    </ItemsControl>
+                                                </ScrollViewer>
+                                            </StackPanel>
+                                        </Border>
+
+                                        <!-- Latest Result Preview -->
+                                        <Border BorderBrush="#DEE2E6" BorderThickness="1"
+                                                Background="White" Height="220" CornerRadius="5"
+                                                Margin="0,12,0,0">
+                                            <Grid>
+                                                <TextBlock Text="Latest generated video will appear here"
+                                                          HorizontalAlignment="Center"
+                                                          VerticalAlignment="Center"
+                                                          Foreground="#999" FontStyle="Italic">
+                                                    <TextBlock.Style>
+                                                        <Style TargetType="TextBlock">
+                                                            <Setter Property="Visibility" Value="Collapsed"/>
+                                                            <Style.Triggers>
+                                                                <DataTrigger Binding="{Binding HasLTX23Result}" Value="False">
+                                                                    <Setter Property="Visibility" Value="Visible"/>
+                                                                </DataTrigger>
+                                                            </Style.Triggers>
+                                                        </Style>
+                                                    </TextBlock.Style>
+                                                </TextBlock>
+                                                <MediaElement x:Name="LTX23VideoPlayer"
+                                                            Source="{Binding LTX23ResultPath}"
+                                                            LoadedBehavior="Manual"
+                                                            UnloadedBehavior="Stop"
+                                                            Stretch="Uniform"
+                                                            Visibility="{Binding HasLTX23Result, Converter={StaticResource BooleanToVisibilityConverter}}"/>
+                                            </Grid>
+                                        </Border>
+
+                                        <!-- Result Actions -->
+                                        <StackPanel Orientation="Horizontal" Margin="0,8,0,0">
+                                            <Button Content="▶️ Play"
+                                                   Style="{StaticResource SecondaryButtonStyle}"
+                                                   Command="{Binding PlayLTX23VideoCommand}"
+                                                   IsEnabled="{Binding HasLTX23Result}"
+                                                   Margin="0,0,8,0"/>
+                                            <Button Content="📂 Open Folder"
+                                                   Style="{StaticResource SecondaryButtonStyle}"
+                                                   Command="{Binding OpenLTX23ResultFolderCommand}"
+                                                   IsEnabled="{Binding HasLTX23Result}"
+                                                   Margin="0,0,8,0"/>
+                                            <Button Content="📷 Send to Edit Camera"
+                                                   Style="{StaticResource SecondaryButtonStyle}"
+                                                   Command="{Binding SendLTX23ToEditCameraCommand}"
+                                                   IsEnabled="{Binding HasLTX23Result}"/>
+                                        </StackPanel>
+
+                                        <TextBlock Text="{Binding LTX23VideoInfo}"
+                                                  FontStyle="Italic" Foreground="#666"
+                                                  FontSize="10" Margin="0,6,0,0"/>
+                                    </StackPanel>
+                                </Border>
+
+                                <!-- Log Output -->
+                                <Expander Header="📋 Generation Log" Margin="0,5,0,0" IsExpanded="False">
+                                    <Border BorderBrush="#DEE2E6" BorderThickness="1"
+                                            Background="#F8F9FA" CornerRadius="5"
+                                            Margin="0,8,0,0">
+                                        <ScrollViewer MaxHeight="150" VerticalScrollBarVisibility="Auto">
+                                            <TextBox Text="{Binding LTX23LogOutput, Mode=OneWay}"
+                                                    TextWrapping="Wrap"
+                                                    IsReadOnly="True"
+                                                    FontFamily="Consolas"
+                                                    FontSize="10"
+                                                    Background="Transparent"
+                                                    BorderThickness="0"
+                                                    Padding="10"/>
+                                        </ScrollViewer>
+                                    </Border>
+                                </Expander>
+
+                            </StackPanel>
+                        </ScrollViewer>
+                    </TabItem>
+
+                    <!-- Tab 6: Mocha Video Generator -->
                     <TabItem Header="Mocha">
                         <ScrollViewer VerticalScrollBarVisibility="Auto">
                             <StackPanel Margin="10">
@@ -2413,6 +2687,280 @@
                                                     FontSize="10"
                                                     Padding="10"
                                                     Height="200"/>
+                                        </ScrollViewer>
+                                    </Border>
+                                </Expander>
+
+                            </StackPanel>
+                        </ScrollViewer>
+                    </TabItem>
+
+                    <!-- Tab 8: LTX 2.3 Text to Video -->
+                    <TabItem Header="✨ Text to Video">
+                        <ScrollViewer VerticalScrollBarVisibility="Auto">
+                            <StackPanel Margin="10">
+
+                                <!-- Hero Prompt Section -->
+                                <Border Style="{StaticResource SectionPanelStyle}">
+                                    <StackPanel>
+                                        <TextBlock Text="✨ Text to Video"
+                                                  Style="{StaticResource HeaderTextStyle}"
+                                                  Foreground="#FF6B35"/>
+                                        <TextBlock Text="Describe the video you want to generate — no image required."
+                                                  FontSize="12" Foreground="#6C757D"
+                                                  Margin="0,0,0,12"/>
+
+                                        <TextBox Text="{Binding T2VPrompt, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                                                TextWrapping="Wrap"
+                                                AcceptsReturn="True"
+                                                MinHeight="140"
+                                                MaxHeight="260"
+                                                Padding="14"
+                                                VerticalScrollBarVisibility="Auto"
+                                                Background="White"
+                                                BorderBrush="#CED4DA"
+                                                BorderThickness="1"
+                                                FontSize="13"
+                                                VerticalAlignment="Stretch">
+                                            <TextBox.Style>
+                                                <Style TargetType="TextBox">
+                                                    <Style.Triggers>
+                                                        <Trigger Property="IsFocused" Value="True">
+                                                            <Setter Property="BorderBrush" Value="#FF6B35"/>
+                                                        </Trigger>
+                                                    </Style.Triggers>
+                                                </Style>
+                                            </TextBox.Style>
+                                        </TextBox>
+
+                                        <!-- Generate Button -->
+                                        <Button Content="🎬  Generate Video"
+                                                Style="{StaticResource PrimaryButtonStyle}"
+                                                Command="{Binding T2VGenerateCommand}"
+                                                IsEnabled="{Binding T2VCanAddToQueue}"
+                                                Height="44"
+                                                Margin="0,14,0,0"
+                                                FontSize="14"
+                                                FontWeight="SemiBold"
+                                                HorizontalAlignment="Stretch"/>
+                                    </StackPanel>
+                                </Border>
+
+                                <!-- Settings Section -->
+                                <Expander Header="⚙️ Generation Settings" IsExpanded="False" Margin="0,5,0,0">
+                                    <Border Style="{StaticResource SectionPanelStyle}" Margin="0,6,0,0">
+                                        <Grid>
+                                            <Grid.ColumnDefinitions>
+                                                <ColumnDefinition Width="*"/>
+                                                <ColumnDefinition Width="20"/>
+                                                <ColumnDefinition Width="*"/>
+                                                <ColumnDefinition Width="20"/>
+                                                <ColumnDefinition Width="*"/>
+                                                <ColumnDefinition Width="20"/>
+                                                <ColumnDefinition Width="*"/>
+                                            </Grid.ColumnDefinitions>
+
+                                            <!-- Duration -->
+                                            <StackPanel Grid.Column="0">
+                                                <TextBlock Text="Duration (seconds)" FontWeight="SemiBold" FontSize="11" Margin="0,0,0,6" Foreground="#495057"/>
+                                                <TextBox Text="{Binding T2VLength, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                                                        Padding="10,8"
+                                                        Background="White"
+                                                        BorderBrush="#CED4DA"
+                                                        FontSize="13"
+                                                        HorizontalContentAlignment="Center"/>
+                                            </StackPanel>
+
+                                            <!-- Width -->
+                                            <StackPanel Grid.Column="2">
+                                                <TextBlock Text="Width (px)" FontWeight="SemiBold" FontSize="11" Margin="0,0,0,6" Foreground="#495057"/>
+                                                <TextBox Text="{Binding T2VWidth, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                                                        Padding="10,8"
+                                                        Background="White"
+                                                        BorderBrush="#CED4DA"
+                                                        FontSize="13"
+                                                        HorizontalContentAlignment="Center"/>
+                                            </StackPanel>
+
+                                            <!-- Height -->
+                                            <StackPanel Grid.Column="4">
+                                                <TextBlock Text="Height (px)" FontWeight="SemiBold" FontSize="11" Margin="0,0,0,6" Foreground="#495057"/>
+                                                <TextBox Text="{Binding T2VHeight, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                                                        Padding="10,8"
+                                                        Background="White"
+                                                        BorderBrush="#CED4DA"
+                                                        FontSize="13"
+                                                        HorizontalContentAlignment="Center"/>
+                                            </StackPanel>
+
+                                            <!-- Seed -->
+                                            <StackPanel Grid.Column="6">
+                                                <TextBlock Text="Seed (-1 = random)" FontWeight="SemiBold" FontSize="11" Margin="0,0,0,6" Foreground="#495057"/>
+                                                <TextBox Text="{Binding T2VSeed, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                                                        Padding="10,8"
+                                                        Background="White"
+                                                        BorderBrush="#CED4DA"
+                                                        FontSize="13"
+                                                        HorizontalContentAlignment="Center"/>
+                                            </StackPanel>
+                                        </Grid>
+                                    </Border>
+                                </Expander>
+
+                                <!-- Processing Status -->
+                                <Border Background="#FFF9F0"
+                                        BorderBrush="#FFE0B0"
+                                        BorderThickness="1"
+                                        CornerRadius="6"
+                                        Padding="14"
+                                        Margin="0,10,0,0"
+                                        Visibility="{Binding IsProcessingT2V, Converter={StaticResource BooleanToVisibilityConverter}}">
+                                    <StackPanel>
+                                        <TextBlock Text="{Binding T2VProcessingStatus}"
+                                                  FontWeight="SemiBold" FontSize="12"
+                                                  TextAlignment="Center" TextWrapping="Wrap"
+                                                  Foreground="#495057"/>
+                                        <ProgressBar Value="{Binding T2VProcessingProgress, Mode=OneWay}"
+                                                    Height="10"
+                                                    Foreground="#FF6B35"
+                                                    Background="#F0F0F0"
+                                                    BorderThickness="0"
+                                                    Margin="0,8,0,4"/>
+                                        <TextBlock Text="{Binding T2VProgressPercentage}"
+                                                  HorizontalAlignment="Center"
+                                                  FontSize="11" FontWeight="Bold"
+                                                  Foreground="#FF6B35"/>
+                                    </StackPanel>
+                                </Border>
+
+                                <!-- Queue Panel -->
+                                <Border BorderBrush="#DEE2E6" BorderThickness="1"
+                                        CornerRadius="6" Margin="0,10,0,0"
+                                        Visibility="{Binding T2VHasQueueItems, Converter={StaticResource BoolToVisibilityConverter}}">
+                                    <StackPanel>
+                                        <Border Background="#F8F9FA" Padding="12,8" CornerRadius="6,6,0,0">
+                                            <Grid>
+                                                <TextBlock Text="📋 Queue"
+                                                          FontWeight="Bold" FontSize="12"
+                                                          VerticalAlignment="Center"/>
+                                                <TextBlock Text="{Binding T2VQueueStatus}"
+                                                          FontSize="10" Foreground="#6C757D"
+                                                          HorizontalAlignment="Right"
+                                                          VerticalAlignment="Center"/>
+                                            </Grid>
+                                        </Border>
+                                        <ScrollViewer MaxHeight="180" VerticalScrollBarVisibility="Auto" Padding="6">
+                                            <ItemsControl ItemsSource="{Binding T2VQueue}">
+                                                <ItemsControl.ItemTemplate>
+                                                    <DataTemplate>
+                                                        <Border BorderBrush="#E9ECEF" BorderThickness="1"
+                                                                CornerRadius="5" Padding="10,7"
+                                                                Margin="2,2,2,0" Background="White">
+                                                            <Grid>
+                                                                <Grid.ColumnDefinitions>
+                                                                    <ColumnDefinition Width="*"/>
+                                                                    <ColumnDefinition Width="Auto"/>
+                                                                    <ColumnDefinition Width="Auto"/>
+                                                                </Grid.ColumnDefinitions>
+
+                                                                <TextBlock Grid.Column="0"
+                                                                          Text="{Binding Prompt}"
+                                                                          FontSize="11"
+                                                                          TextTrimming="CharacterEllipsis"
+                                                                          VerticalAlignment="Center"
+                                                                          Foreground="#212529"/>
+
+                                                                <TextBlock Grid.Column="1"
+                                                                          Text="{Binding StatusDisplay}"
+                                                                          Foreground="{Binding StatusColor}"
+                                                                          FontSize="10" FontWeight="SemiBold"
+                                                                          VerticalAlignment="Center"
+                                                                          Margin="10,0,10,0"/>
+
+                                                                <Button Grid.Column="2"
+                                                                       Content="✕"
+                                                                       Width="22" Height="22"
+                                                                       FontSize="10"
+                                                                       Background="Transparent"
+                                                                       BorderThickness="0"
+                                                                       Foreground="#ADB5BD"
+                                                                       Padding="0"
+                                                                       Command="{Binding DataContext.T2VRemoveQueueItemCommand, RelativeSource={RelativeSource AncestorType=ItemsControl}}"
+                                                                       CommandParameter="{Binding}"/>
+                                                            </Grid>
+                                                        </Border>
+                                                    </DataTemplate>
+                                                </ItemsControl.ItemTemplate>
+                                            </ItemsControl>
+                                        </ScrollViewer>
+                                    </StackPanel>
+                                </Border>
+
+                                <!-- Result Preview -->
+                                <Border Style="{StaticResource SectionPanelStyle}" Margin="0,10,0,0">
+                                    <StackPanel>
+                                        <TextBlock Text="🎥 Result" Style="{StaticResource HeaderTextStyle}" Foreground="#FF6B35"/>
+
+                                        <Border BorderBrush="#DEE2E6" BorderThickness="1"
+                                                Background="#FAFAFA" Height="240" CornerRadius="5"
+                                                Margin="0,0,0,10">
+                                            <Grid>
+                                                <TextBlock Text="Generated video will appear here"
+                                                          HorizontalAlignment="Center"
+                                                          VerticalAlignment="Center"
+                                                          Foreground="#ADB5BD" FontStyle="Italic">
+                                                    <TextBlock.Style>
+                                                        <Style TargetType="TextBlock">
+                                                            <Setter Property="Visibility" Value="Collapsed"/>
+                                                            <Style.Triggers>
+                                                                <DataTrigger Binding="{Binding HasT2VResult}" Value="False">
+                                                                    <Setter Property="Visibility" Value="Visible"/>
+                                                                </DataTrigger>
+                                                            </Style.Triggers>
+                                                        </Style>
+                                                    </TextBlock.Style>
+                                                </TextBlock>
+                                                <MediaElement x:Name="T2VVideoPlayer"
+                                                            Source="{Binding T2VResultPath}"
+                                                            LoadedBehavior="Manual"
+                                                            UnloadedBehavior="Stop"
+                                                            Stretch="Uniform"
+                                                            Visibility="{Binding HasT2VResult, Converter={StaticResource BooleanToVisibilityConverter}}"/>
+                                            </Grid>
+                                        </Border>
+
+                                        <StackPanel Orientation="Horizontal">
+                                            <Button Content="▶️ Play"
+                                                   Style="{StaticResource SecondaryButtonStyle}"
+                                                   Command="{Binding T2VPlayVideoCommand}"
+                                                   IsEnabled="{Binding HasT2VResult}"
+                                                   Margin="0,0,8,0"/>
+                                            <Button Content="📂 Open Folder"
+                                                   Style="{StaticResource SecondaryButtonStyle}"
+                                                   Command="{Binding T2VOpenResultFolderCommand}"
+                                                   IsEnabled="{Binding HasT2VResult}"/>
+                                        </StackPanel>
+
+                                        <TextBlock Text="{Binding T2VVideoInfo}"
+                                                  FontStyle="Italic" Foreground="#6C757D"
+                                                  FontSize="10" Margin="0,6,0,0"/>
+                                    </StackPanel>
+                                </Border>
+
+                                <!-- Generation Log -->
+                                <Expander Header="📋 Generation Log" IsExpanded="False" Margin="0,5,0,0">
+                                    <Border BorderBrush="#DEE2E6" BorderThickness="1"
+                                            Background="#F8F9FA" CornerRadius="5"
+                                            Margin="0,8,0,0">
+                                        <ScrollViewer MaxHeight="150" VerticalScrollBarVisibility="Auto">
+                                            <TextBox Text="{Binding T2VLogOutput, Mode=OneWay}"
+                                                    TextWrapping="Wrap"
+                                                    IsReadOnly="True"
+                                                    FontFamily="Consolas"
+                                                    FontSize="10"
+                                                    Background="Transparent"
+                                                    BorderThickness="0"
+                                                    Padding="10"/>
                                         </ScrollViewer>
                                     </Border>
                                 </Expander>

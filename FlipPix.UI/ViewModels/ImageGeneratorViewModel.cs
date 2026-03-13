@@ -80,6 +80,7 @@ namespace FlipPix.UI.ViewModels
         private StoryImageGeneratorViewModel _storyGenerator;
         private StoryImageGeneratorQViewModel _storyGeneratorQ;
         private StoryImageGeneratorFViewModel _storyGeneratorF;
+        private StoryImageGeneratorFireViewModel _storyGeneratorFire;
         private StoryImageGeneratorAmateurViewModel _storyGeneratorAmateur;
         private AmateurGeneratorViewModel _amateurGenerator;
         private CameraAngleViewModel _cameraAngle;
@@ -105,9 +106,10 @@ namespace FlipPix.UI.ViewModels
             var lmStudioService = serviceProvider?.GetRequiredService<LMStudioService>();
             _analyzer = new ImageAnalyzerViewModel(comfyUIService, lmStudioService ?? throw new InvalidOperationException("LMStudioService is required"), logger, settingsService, _workflowCoordinator, fileDialogService, promptService);
             _cameraEdit = new FlipPixViewModel(comfyUIService, logger, settingsService, serviceProvider, promptService, fileDialogService);
-            _storyGenerator = new StoryImageGeneratorViewModel(comfyUIService, logger, settingsService, _workflowCoordinator, fileDialogService, loraManager, imageRetriever);
+            _storyGenerator = new StoryImageGeneratorViewModel(comfyUIService, logger, settingsService, _workflowCoordinator, fileDialogService, loraManager, imageRetriever, lmStudioService ?? throw new InvalidOperationException("LMStudioService is required"));
             _storyGeneratorQ = new StoryImageGeneratorQViewModel(comfyUIService, logger, settingsService, _workflowCoordinator, fileDialogService, loraManager, imageRetriever, lmStudioService ?? throw new InvalidOperationException("LMStudioService is required"));
             _storyGeneratorF = new StoryImageGeneratorFViewModel(comfyUIService, logger, settingsService, _workflowCoordinator, fileDialogService, loraManager, imageRetriever, lmStudioService ?? throw new InvalidOperationException("LMStudioService is required"));
+            _storyGeneratorFire = new StoryImageGeneratorFireViewModel(comfyUIService, logger, settingsService, _workflowCoordinator, fileDialogService, loraManager, imageRetriever, lmStudioService ?? throw new InvalidOperationException("LMStudioService is required"));
             _storyGeneratorAmateur = new StoryImageGeneratorAmateurViewModel(comfyUIService, logger, settingsService, _workflowCoordinator, fileDialogService, loraManager, imageRetriever);
             _amateurGenerator = new AmateurGeneratorViewModel(comfyUIService, logger, settingsService, promptService, loraManager, imageRetriever);
             _cameraAngle = new CameraAngleViewModel(comfyUIService, logger, settingsService, fileDialogService, imageRetriever);
@@ -246,6 +248,7 @@ namespace FlipPix.UI.ViewModels
         public StoryImageGeneratorViewModel StoryGenerator => _storyGenerator;
         public StoryImageGeneratorQViewModel StoryGeneratorQ => _storyGeneratorQ;
         public StoryImageGeneratorFViewModel StoryGeneratorF => _storyGeneratorF;
+        public StoryImageGeneratorFireViewModel StoryGeneratorFire => _storyGeneratorFire;
         public StoryImageGeneratorAmateurViewModel StoryGeneratorAmateur => _storyGeneratorAmateur;
         public AmateurGeneratorViewModel AmateurGenerator => _amateurGenerator;
         public CameraAngleViewModel CameraAngle => _cameraAngle;
@@ -1559,19 +1562,18 @@ namespace FlipPix.UI.ViewModels
                 }
             }
 
-            // amateurZimageAPI: Update aspect ratio on node 46 (EmptySD3LatentImage)
+            // amateurZimageAPI: Update aspect ratio
+            // Latent sizes (×3 = final output): landscape 576×416→1728×1248, portrait 416×576→1248×1728, square 416×416→1248×1248
+            var amateurLatentResolutions = new[] { (576, 416), (416, 576), (416, 416) };
+            var amateurFinalResolutions  = new[] { (1728, 1248), (1248, 1728), (1248, 1248) };
+            var (latW, latH) = amateurLatentResolutions[Math.Min(AspectRatioIndex, amateurLatentResolutions.Length - 1)];
+            var (finW, finH) = amateurFinalResolutions[Math.Min(AspectRatioIndex, amateurFinalResolutions.Length - 1)];
+
+            // Node 46: initial latent (EmptySD3LatentImage)
             if (workflowDict.ContainsKey("46") &&
                 workflowDict["46"].TryGetProperty("class_type", out var node46Class) &&
                 node46Class.GetString() == "EmptySD3LatentImage")
             {
-                var resolutions = new[]
-                {
-                    (576, 416),  // Landscape (index 0)
-                    (416, 576),  // Portrait (index 1)
-                    (512, 512)   // Square (index 2)
-                };
-                var (width, height) = resolutions[Math.Min(AspectRatioIndex, resolutions.Length - 1)];
-
                 var node46 = JsonSerializer.Deserialize<Dictionary<string, object>>(workflowDict["46"].GetRawText());
                 if (node46 != null && node46.ContainsKey("inputs"))
                 {
@@ -1579,11 +1581,30 @@ namespace FlipPix.UI.ViewModels
                         JsonSerializer.Serialize(node46["inputs"]));
                     if (inputs != null)
                     {
-                        inputs["width"] = width;
-                        inputs["height"] = height;
+                        inputs["width"] = latW;
+                        inputs["height"] = latH;
                         node46["inputs"] = inputs;
                         workflowDict["46"] = JsonSerializer.SerializeToElement(node46);
-                        AddLog($"Updated node 46 aspect ratio: {width}x{height}");
+                        AddLog($"Updated node 46 latent: {latW}x{latH}");
+                    }
+                }
+            }
+
+            // Node 618: ImageScale — final upscale to output dimensions
+            if (workflowDict.ContainsKey("618"))
+            {
+                var node618 = JsonSerializer.Deserialize<Dictionary<string, object>>(workflowDict["618"].GetRawText());
+                if (node618 != null && node618.ContainsKey("inputs"))
+                {
+                    var inputs = JsonSerializer.Deserialize<Dictionary<string, object>>(
+                        JsonSerializer.Serialize(node618["inputs"]));
+                    if (inputs != null)
+                    {
+                        inputs["width"] = finW;
+                        inputs["height"] = finH;
+                        node618["inputs"] = inputs;
+                        workflowDict["618"] = JsonSerializer.SerializeToElement(node618);
+                        AddLog($"Updated node 618 (ImageScale) output: {finW}x{finH}");
                     }
                 }
             }
@@ -3006,6 +3027,7 @@ namespace FlipPix.UI.ViewModels
                 SelectedLora = queueItem.SelectedLora;
 
                 var updatedWorkflow = UpdateWorkflowParameters(workflow);
+                _lastWorkflow = updatedWorkflow; // needed by GetOutputImagesFromComfyUI for workflow detection
 
                 // Restore original properties
                 ImagePrompt = originalPrompt;

@@ -4,6 +4,7 @@ using System.Collections.ObjectModel;
 using System.IO;
 using System.Linq;
 using System.Text.Json;
+using System.Text.RegularExpressions;
 using System.Threading;
 using System.Threading.Tasks;
 using System.Windows.Input;
@@ -44,6 +45,11 @@ namespace FlipPix.UI.ViewModels
         private ObservableCollection<string> _availableOrientations = new();
         private string _selectedOrientation = "Portrait (944x1408)";
 
+        // Analysis
+        private readonly LMStudioService _lmStudioService;
+        private bool _isAnalyzingImage = false;
+        private string _analysisStatus = string.Empty;
+
         public StoryImageGeneratorViewModel(
             ComfyUIService comfyUIService,
             IAppLogger logger,
@@ -51,9 +57,20 @@ namespace FlipPix.UI.ViewModels
             WorkflowQueueCoordinator workflowCoordinator,
             IFileDialogService fileDialogService,
             LoraManager loraManager,
-            ComfyUIImageRetriever imageRetriever)
+            ComfyUIImageRetriever imageRetriever,
+            LMStudioService lmStudioService)
             : base(comfyUIService, logger, settingsService, workflowCoordinator, fileDialogService, loraManager, imageRetriever)
         {
+            _lmStudioService = lmStudioService ?? throw new ArgumentNullException(nameof(lmStudioService));
+
+            // Re-evaluate AnalyzeImageWithQwenVLCommand when InputImagePath changes
+            PropertyChanged += (s, e) =>
+            {
+                if (e.PropertyName == nameof(InputImagePath))
+                {
+                    (AnalyzeImageWithQwenVLCommand as CommunityToolkit.Mvvm.Input.RelayCommand)?.NotifyCanExecuteChanged();
+                }
+            };
         }
 
         // --- Abstract member implementations ---
@@ -78,6 +95,9 @@ namespace FlipPix.UI.ViewModels
         protected override void InitializeVariant()
         {
             RefreshLorasCommand = new CommunityToolkit.Mvvm.Input.RelayCommand(RefreshLoras);
+            AnalyzeImageWithQwenVLCommand = new CommunityToolkit.Mvvm.Input.RelayCommand(
+                async () => await AnalyzeImageWithQwenVLAsync(),
+                () => !string.IsNullOrEmpty(InputImagePath) && File.Exists(InputImagePath) && !IsAnalyzingImage);
 
             LoadAvailableLoras();
             LoadWorkflowsAndStyles();
@@ -127,6 +147,28 @@ namespace FlipPix.UI.ViewModels
                 NegativePrompt = NegativePrompt,
                 SelectedOrientation = SelectedOrientation,
             };
+        }
+
+        // --- Analysis properties ---
+
+        public ICommand AnalyzeImageWithQwenVLCommand { get; private set; } = null!;
+
+        public bool IsAnalyzingImage
+        {
+            get => _isAnalyzingImage;
+            set
+            {
+                if (SetProperty(ref _isAnalyzingImage, value))
+                {
+                    CommandManager.InvalidateRequerySuggested();
+                }
+            }
+        }
+
+        public string AnalysisStatus
+        {
+            get => _analysisStatus;
+            set => SetProperty(ref _analysisStatus, value);
         }
 
         // --- Z-specific properties ---
@@ -447,22 +489,34 @@ namespace FlipPix.UI.ViewModels
         {
             try
             {
+                // Check RemoteLoraFolderPath first (same priority as ImageGeneratorViewModel)
+                var overridePath = _settingsService.Settings?.RemoteLoraFolderPath;
+                if (!string.IsNullOrEmpty(overridePath) && Directory.Exists(overridePath))
+                {
+                    AddLog($"Using configured LoRA folder: {overridePath}");
+                    LoadLorasFromDirectory(overridePath, "configured LoRA folder");
+                    return;
+                }
+
                 var loraBasePath = GetLoraModelPath();
                 if (!string.IsNullOrEmpty(loraBasePath))
                 {
+                    AddLog($"LoRA base path: {loraBasePath}");
                     var zimageLoraPath = Path.Combine(loraBasePath, "zimage");
                     if (Directory.Exists(zimageLoraPath))
                     {
-                        LoadLorasFromDirectory(zimageLoraPath, "ComfyUI LoRA directory");
+                        LoadLorasFromDirectory(zimageLoraPath, "ComfyUI zimage LoRA directory");
                         return;
                     }
                     else
                     {
+                        AddLog($"No 'zimage' subfolder found, searching base path directly");
                         LoadLorasFromDirectory(loraBasePath, "ComfyUI LoRA directory");
                         return;
                     }
                 }
 
+                AddLog("WARNING: LoRA base path not found. Check ComfyUI folder path or LoRA folder in settings.");
                 var localLoraPath = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "loras", "zimage");
                 LoadLorasFromDirectory(localLoraPath, "local directory");
             }
@@ -486,8 +540,8 @@ namespace FlipPix.UI.ViewModels
                 return;
             }
 
-            var loraFiles = Directory.GetFiles(loraPath, "*.safetensors")
-                .Select(Path.GetFileNameWithoutExtension)
+            var loraFiles = Directory.GetFiles(loraPath, "*.safetensors", SearchOption.AllDirectories)
+                .Select(f => Path.ChangeExtension(Path.GetRelativePath(loraPath, f), null).Replace('/', '\\'))
                 .Where(name => !string.IsNullOrEmpty(name))
                 .OrderBy(name => name)
                 .ToList();
@@ -514,6 +568,149 @@ namespace FlipPix.UI.ViewModels
                 AvailableLoras.Add("No LoRAs available");
                 AddLog($"No LoRA files found in {pathDescription}");
             }
+        }
+
+        // --- Qwen VL Analysis ---
+
+        private async Task AnalyzeImageWithQwenVLAsync()
+        {
+            try
+            {
+                IsAnalyzingImage = true;
+                AnalysisStatus = "Analyzing image with Qwen VL...";
+                AddLog("Starting image analysis with Qwen VL...");
+
+                var systemPromptPath = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "prompts", "prompt2json", "klien-story-10.md");
+                if (!File.Exists(systemPromptPath))
+                {
+                    throw new FileNotFoundException($"System prompt file not found: {systemPromptPath}");
+                }
+                var systemPrompt = await File.ReadAllTextAsync(systemPromptPath);
+
+                var modelName = _settingsService.Settings?.LMStudioSettings?.SelectedModel ?? string.Empty;
+                if (string.IsNullOrEmpty(modelName))
+                {
+                    System.Windows.MessageBox.Show(
+                        "No LM Studio model selected. Please configure LM Studio in the Image Analyzer tab first.",
+                        "Model Not Configured", System.Windows.MessageBoxButton.OK, System.Windows.MessageBoxImage.Warning);
+                    return;
+                }
+
+                var userPrompt = "Analyze this character image and generate 10 sequential story prompts following the template in the system instructions.";
+
+                var analysisResult = await _lmStudioService.AnalyzeImageWithSystemPromptAsync(
+                    modelName,
+                    InputImagePath,
+                    userPrompt,
+                    systemPrompt,
+                    maxTokens: 36000,
+                    CancellationToken.None);
+
+                if (string.IsNullOrEmpty(analysisResult))
+                {
+                    AddLog("ERROR: No response from Qwen VL");
+                    System.Windows.MessageBox.Show("No response received from Qwen VL.", "Error",
+                        System.Windows.MessageBoxButton.OK, System.Windows.MessageBoxImage.Error);
+                    return;
+                }
+
+                AddLog($"Received Qwen VL response ({analysisResult.Length} chars)");
+
+                var prompts = ParsePromptsFromAnalysis(analysisResult);
+
+                if (prompts.Count == 0)
+                {
+                    AddLog("ERROR: Could not parse any prompts from Qwen VL response");
+                    AddLog($"Raw response preview: {analysisResult.Substring(0, Math.Min(500, analysisResult.Length))}");
+                    System.Windows.MessageBox.Show(
+                        "Could not parse prompts from Qwen VL response. Check the activity log for details.",
+                        "Parse Error", System.Windows.MessageBoxButton.OK, System.Windows.MessageBoxImage.Warning);
+                    return;
+                }
+
+                var startIndex = QueueItems.Any() ? QueueItems.Max(q => q.Index) + 1 : 1;
+                for (int i = 0; i < prompts.Count; i++)
+                {
+                    QueueItems.Add(CreateQueueItem(startIndex + i, prompts[i], InputImagePath));
+                }
+
+                if (string.IsNullOrEmpty(PromptJsonFilePath))
+                {
+                    var imageName = Path.GetFileNameWithoutExtension(InputImagePath);
+                    PromptJsonFilePath = Path.Combine(
+                        Path.GetDirectoryName(InputImagePath) ?? AppDomain.CurrentDomain.BaseDirectory,
+                        $"{imageName}-zvl.json");
+                }
+
+                UpdateQueueCountNotifications();
+                SaveQueueToFile();
+                CommandManager.InvalidateRequerySuggested();
+                AnalysisStatus = $"Added {prompts.Count} prompts to queue";
+                AddLog($"Added {prompts.Count} prompts from Qwen VL analysis to queue (total: {QueueItems.Count})");
+
+                if (CanProcessQueue)
+                {
+                    AddLog("Auto-starting queue processing...");
+                    _ = ProcessQueueAsync();
+                }
+            }
+            catch (Exception ex)
+            {
+                AddLog($"ERROR analyzing image: {ex.Message}");
+                _logger.LogError($"Error analyzing image with Qwen VL: {ex}");
+                AnalysisStatus = "Analysis failed";
+
+                var lmStudioUrl = _settingsService.Settings?.LMStudioSettings?.BaseUrl ?? "http://localhost:1234";
+                System.Windows.MessageBox.Show(
+                    $"Error analyzing image:\n\n{ex.Message}\n\nPlease ensure LM Studio is running at {lmStudioUrl} with a Qwen VL model loaded.",
+                    "Error", System.Windows.MessageBoxButton.OK, System.Windows.MessageBoxImage.Error);
+            }
+            finally
+            {
+                IsAnalyzingImage = false;
+            }
+        }
+
+        private List<string> ParsePromptsFromAnalysis(string analysisText)
+        {
+            var prompts = new List<string>();
+
+            // Strategy 1: Split by "Prompt #N:" or "Prompt N:" pattern
+            var pattern = @"Prompt\s*#?\s*(\d+)\s*:\s*";
+            var matches = Regex.Matches(analysisText, pattern, RegexOptions.IgnoreCase);
+
+            for (int i = 0; i < matches.Count; i++)
+            {
+                var startPos = matches[i].Index + matches[i].Length;
+                var endPos = (i + 1 < matches.Count) ? matches[i + 1].Index : analysisText.Length;
+                var promptText = analysisText.Substring(startPos, endPos - startPos).Trim();
+                if (!string.IsNullOrWhiteSpace(promptText))
+                    prompts.Add(promptText);
+            }
+
+            // Strategy 2 (Fallback): Split by "Subject:" occurrences
+            if (prompts.Count == 0)
+            {
+                AddLog("No 'Prompt #N:' labels found, falling back to 'Subject:' delimiter parsing...");
+                var subjectPattern = @"(?=Subject\s*:)";
+                var segments = Regex.Split(analysisText, subjectPattern, RegexOptions.IgnoreCase);
+                foreach (var segment in segments)
+                {
+                    var trimmed = segment.Trim();
+                    if (!string.IsNullOrWhiteSpace(trimmed) && trimmed.StartsWith("Subject", StringComparison.OrdinalIgnoreCase))
+                        prompts.Add(trimmed);
+                }
+            }
+
+            // Strategy 3 (Last resort): Use PromptParser.ExtractPrompts
+            if (prompts.Count == 0)
+            {
+                AddLog("Fallback: Using generic PromptParser.ExtractPrompts...");
+                prompts = PromptParser.ExtractPrompts(analysisText);
+            }
+
+            AddLog($"Parsed {prompts.Count} prompts from Qwen VL response");
+            return prompts;
         }
 
         // --- Core processing logic ---
@@ -551,6 +748,15 @@ namespace FlipPix.UI.ViewModels
             var workflow = JsonSerializer.Deserialize<JsonElement>(workflowJson);
 
             cancellationToken.ThrowIfCancellationRequested();
+
+            // If LoRA is enabled but the snapshot has no LoRA selected, fall back to current selection
+            if (item.LoraEnabled && string.IsNullOrEmpty(item.SelectedLora) && !string.IsNullOrEmpty(SelectedLora))
+            {
+                AddLog($"LoRA snapshot was empty — using current selection: {SelectedLora}");
+                item.SelectedLora = SelectedLora;
+                item.LoraStrengthModel = LoraStrengthModel;
+                item.LoraStrengthClip = LoraStrengthClip;
+            }
 
             // Update workflow parameters (text-to-image, no input image needed)
             var updatedWorkflow = UpdateWorkflowParameters(workflow, item);

@@ -1,0 +1,326 @@
+{
+  "9": {
+    "inputs": {
+      "filename_prefix": "Firered_image_edit_1.0/00000",
+      "images": [
+        "126",
+        0
+      ]
+    },
+    "class_type": "SaveImage",
+    "_meta": {
+      "title": "Save Image"
+    }
+  },
+  "115": {
+    "inputs": {
+      "clip_name": "qwen_2.5_vl_7b_fp8_scaled.safetensors",
+      "type": "qwen_image",
+      "device": "default"
+    },
+    "class_type": "CLIPLoader",
+    "_meta": {
+      "title": "Load CLIP"
+    }
+  },
+  "116": {
+    "inputs": {
+      "vae_name": "qwen_image_vae.safetensors"
+    },
+    "class_type": "VAELoader",
+    "_meta": {
+      "title": "Load VAE"
+    }
+  },
+  "117": {
+    "inputs": {
+      "prompt": "",
+      "clip": [
+        "115",
+        0
+      ],
+      "vae": [
+        "116",
+        0
+      ],
+      "image1": [
+        "147",
+        0
+      ]
+    },
+    "class_type": "TextEncodeQwenImageEditPlus",
+    "_meta": {
+      "title": "TextEncodeQwenImageEditPlus"
+    }
+  },
+  "118": {
+    "inputs": {
+      "prompt": "Slow-motion capture of the male fighter’s forearm being snapped back by the female fighter’s precise jab, emphasizing the tension in his muscles and the fluidity of her counter-attack as the camera tilts upward to reveal the ring ropes.",
+      "clip": [
+        "115",
+        0
+      ],
+      "vae": [
+        "116",
+        0
+      ],
+      "image1": [
+        "147",
+        0
+      ]
+    },
+    "class_type": "TextEncodeQwenImageEditPlus",
+    "_meta": {
+      "title": "TextEncodeQwenImageEditPlus (Positive)"
+    }
+  },
+  "120": {
+    "inputs": {
+      "shift": 3.1,
+      "model": [
+        "154",
+        0
+      ]
+    },
+    "class_type": "ModelSamplingAuraFlow",
+    "_meta": {
+      "title": "ModelSamplingAuraFlow"
+    }
+  },
+  "123": {
+    "inputs": {
+      "strength": 1,
+      "model": [
+        "120",
+        0
+      ]
+    },
+    "class_type": "CFGNorm",
+    "_meta": {
+      "title": "CFGNorm"
+    }
+  },
+  "125": {
+    "inputs": {
+      "pixels": [
+        "147",
+        0
+      ],
+      "vae": [
+        "116",
+        0
+      ]
+    },
+    "class_type": "VAEEncode",
+    "_meta": {
+      "title": "VAE Encode"
+    }
+  },
+  "126": {
+    "inputs": {
+      "samples": [
+        "130",
+        0
+      ],
+      "vae": [
+        "116",
+        0
+      ]
+    },
+    "class_type": "VAEDecode",
+    "_meta": {
+      "title": "VAE Decode"
+    }
+  },
+  "130": {
+    "inputs": {
+      "seed": 43,
+      "steps": [
+        "157",
+        0
+      ],
+      "cfg": [
+        "164",
+        0
+      ],
+      "sampler_name": "euler",
+      "scheduler": "simple",
+      "denoise": 1,
+      "model": [
+        "123",
+        0
+      ],
+      "positive": [
+        "118",
+        0
+      ],
+      "negative": [
+        "117",
+        0
+      ],
+      "latent_image": [
+        "125",
+        0
+      ]
+    },
+    "class_type": "KSampler",
+    "_meta": {
+      "title": "KSampler"
+    }
+  },
+  "143": {
+    "inputs": {
+      "image": "Flux2-Dev-multiple-character-angles-1.0_00034_ (1).png"
+    },
+    "class_type": "LoadImage",
+    "_meta": {
+      "title": "Load Image"
+    }
+  },
+  "147": {
+    "inputs": {
+      "image": [
+        "143",
+        0
+      ]
+    },
+    "class_type": "FluxKontextImageScale",
+    "_meta": {
+      "title": "FluxKontextImageScale"
+    }
+  },
+  "151": {
+    "inputs": {
+      "lora_name": "FireRed-Image-Edit-1.0-Lightning-8steps-v1.0.safetensors",
+      "strength_model": 1,
+      "model": [
+        "165",
+        0
+      ]
+    },
+    "class_type": "LoraLoaderModelOnly",
+    "_meta": {
+      "title": "Load LoRA"
+    }
+  },
+  "153": {
+    "inputs": {
+      "value": true
+    },
+    "class_type": "PrimitiveBoolean",
+    "_meta": {
+      "title": "是否使用加速LoRA"
+    }
+  },
+  "154": {
+    "inputs": {
+      "switch": [
+        "153",
+        0
+      ],
+      "on_false": [
+        "165",
+        0
+      ],
+      "on_true": [
+        "151",
+        0
+      ]
+    },
+    "class_type": "ComfySwitchNode",
+    "_meta": {
+      "title": "Switch"
+    }
+  },
+  "155": {
+    "inputs": {
+      "value": 40
+    },
+    "class_type": "PrimitiveInt",
+    "_meta": {
+      "title": "Steps"
+    }
+  },
+  "156": {
+    "inputs": {
+      "value": 8
+    },
+    "class_type": "PrimitiveInt",
+    "_meta": {
+      "title": "LoRA-Steps"
+    }
+  },
+  "157": {
+    "inputs": {
+      "switch": [
+        "153",
+        0
+      ],
+      "on_false": [
+        "155",
+        0
+      ],
+      "on_true": [
+        "156",
+        0
+      ]
+    },
+    "class_type": "ComfySwitchNode",
+    "_meta": {
+      "title": "Switch"
+    }
+  },
+  "162": {
+    "inputs": {
+      "value": 4
+    },
+    "class_type": "PrimitiveFloat",
+    "_meta": {
+      "title": "CFG"
+    }
+  },
+  "163": {
+    "inputs": {
+      "value": 1
+    },
+    "class_type": "PrimitiveFloat",
+    "_meta": {
+      "title": "LoRA-CFG"
+    }
+  },
+  "164": {
+    "inputs": {
+      "switch": [
+        "153",
+        0
+      ],
+      "on_false": [
+        "162",
+        0
+      ],
+      "on_true": [
+        "163",
+        0
+      ]
+    },
+    "class_type": "ComfySwitchNode",
+    "_meta": {
+      "title": "Switch"
+    }
+  },
+  "165": {
+    "inputs": {
+      "model_name": "FireRed-Image-Edit-1.1-Q8_0.gguf",
+      "extra_model_name": "none",
+      "dequant_dtype": "default",
+      "patch_dtype": "default",
+      "patch_on_device": false,
+      "enable_fp16_accumulation": false,
+      "attention_override": "none"
+    },
+    "class_type": "GGUFLoaderKJ",
+    "_meta": {
+      "title": "GGUFLoaderKJ"
+    }
+  }
+}

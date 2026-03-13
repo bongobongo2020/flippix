@@ -68,6 +68,18 @@ namespace FlipPix.UI.ViewModels
         /// </summary>
         public InfiniteTalkViewModel InfiniteTalkVM { get; }
 
+        /// <summary>
+        /// LTX 2.3 basic image-to-video ViewModel - handles single reference image input,
+        /// AI analysis, prompt enhancement, and video generation with the LTX 2.3 GGUF workflow.
+        /// </summary>
+        public LTX23BasicViewModel LTX23BasicVM { get; }
+
+        /// <summary>
+        /// LTX 2.3 text-to-video ViewModel - generates video purely from a text prompt
+        /// using the LTX-2.3T2VGGUFAPI workflow with no image reference required.
+        /// </summary>
+        public LTX23T2VViewModel LTX23T2VVM { get; }
+
         public VideoGeneratorViewModel(
             ComfyUIService comfyUIService,
             LMStudioService lmStudioService,
@@ -131,12 +143,30 @@ namespace FlipPix.UI.ViewModels
                 _workflowCoordinator,
                 _fileDialogService);
 
+            LTX23BasicVM = new LTX23BasicViewModel(
+                comfyUIService,
+                logger,
+                lmStudioService,
+                settingsService,
+                serviceProvider,
+                _workflowCoordinator,
+                _fileDialogService);
+
+            LTX23T2VVM = new LTX23T2VViewModel(
+                comfyUIService,
+                logger,
+                settingsService,
+                serviceProvider,
+                _workflowCoordinator);
+
             // Forward PlayRequested events from sub-VMs
             MainVM.PlayRequested += (s, e) => PlayRequested?.Invoke(this, e);
             VaceVM.PlayRequested += (s, e) => PlayRequested?.Invoke(this, e);
             LTX2AudioVM.PlayRequested += (s, e) => PlayRequested?.Invoke(this, e);
             MochaVM.PlayRequested += (s, e) => PlayRequested?.Invoke(this, e);
             InfiniteTalkVM.PlayRequested += (s, e) => PlayRequested?.Invoke(this, e);
+            LTX23BasicVM.PlayRequested += (s, e) => PlayRequested?.Invoke(this, e);
+            LTX23T2VVM.PlayRequested += (s, e) => PlayRequested?.Invoke(this, e);
 
             // Forward PropertyChanged events from all sub-VMs for backward compatibility
             MainVM.PropertyChanged += ForwardPropertyChanged;
@@ -144,6 +174,8 @@ namespace FlipPix.UI.ViewModels
             LTX2AudioVM.PropertyChanged += ForwardPropertyChanged;
             MochaVM.PropertyChanged += ForwardPropertyChanged;
             InfiniteTalkVM.PropertyChanged += ForwardPropertyChanged;
+            LTX23BasicVM.PropertyChanged += ForwardPropertyChanged;
+            LTX23T2VVM.PropertyChanged += ForwardPropertyChanged;
 
             _logger.LogInfo("VideoGeneratorViewModel initialized with sub-ViewModels");
         }
@@ -446,6 +478,77 @@ namespace FlipPix.UI.ViewModels
 
         #endregion
 
+        #region LTX23T2VVM Backward Compatibility Properties
+
+        public string T2VPrompt { get => LTX23T2VVM.Prompt; set => LTX23T2VVM.Prompt = value; }
+        public int T2VLength { get => LTX23T2VVM.Length; set => LTX23T2VVM.Length = value; }
+        public int T2VWidth { get => LTX23T2VVM.Width; set => LTX23T2VVM.Width = value; }
+        public int T2VHeight { get => LTX23T2VVM.Height; set => LTX23T2VVM.Height = value; }
+        public long T2VSeed { get => LTX23T2VVM.Seed; set => LTX23T2VVM.Seed = value; }
+        public bool T2VCanAddToQueue => LTX23T2VVM.CanAddToQueue;
+        public bool IsProcessingT2V { get => LTX23T2VVM.IsProcessing; set => LTX23T2VVM.IsProcessing = value; }
+        public string T2VProcessingStatus => LTX23T2VVM.ProcessingStatus;
+        public double T2VProcessingProgress => LTX23T2VVM.ProcessingProgress;
+        public string T2VProgressPercentage => LTX23T2VVM.ProgressPercentage;
+        public string T2VLogOutput => LTX23T2VVM.LogOutput;
+        public bool HasT2VResult => LTX23T2VVM.HasResult;
+        public string T2VResultPath => LTX23T2VVM.ResultVideoPath;
+        public string T2VVideoInfo => LTX23T2VVM.ResultVideoInfo;
+        public ObservableCollection<QueueItem> T2VQueue => LTX23T2VVM.Queue;
+        public bool T2VHasQueueItems => LTX23T2VVM.HasQueueItems;
+        public bool T2VIsProcessingQueue => LTX23T2VVM.IsProcessingQueue;
+        public string T2VQueueStatus => LTX23T2VVM.QueueStatus;
+
+        public ICommand T2VGenerateCommand => LTX23T2VVM.GenerateVideoCommand;
+        public ICommand T2VRemoveQueueItemCommand => LTX23T2VVM.RemoveQueueItemCommand;
+        public ICommand T2VPlayVideoCommand => LTX23T2VVM.PlayVideoCommand;
+        public ICommand T2VOpenResultFolderCommand => LTX23T2VVM.OpenResultFolderCommand;
+
+        #endregion
+
+        #region LTX23BasicVM Backward Compatibility Properties
+
+        public string LTX23ImagePath { get => LTX23BasicVM.ImagePath; set => LTX23BasicVM.ImagePath = value; }
+        public BitmapImage? LTX23ImagePreview { get => LTX23BasicVM.ImagePreview; set => LTX23BasicVM.ImagePreview = value; }
+        public string LTX23ImageInfo { get => LTX23BasicVM.ImageInfo; set => LTX23BasicVM.ImageInfo = value; }
+        public string LTX23Prompt { get => LTX23BasicVM.Prompt; set => LTX23BasicVM.Prompt = value; }
+        public bool IsProcessingLTX23 { get => LTX23BasicVM.IsProcessing; set => LTX23BasicVM.IsProcessing = value; }
+        public string LTX23ProcessingStatus => LTX23BasicVM.ProcessingStatus;
+        public double LTX23ProcessingProgress => LTX23BasicVM.ProcessingProgress;
+        public string LTX23ProgressPercentage => LTX23BasicVM.ProgressPercentage;
+        public string LTX23LogOutput => LTX23BasicVM.LogOutput;
+        public bool HasLTX23Result => LTX23BasicVM.HasResult;
+        public string LTX23ResultPath => LTX23BasicVM.ResultVideoPath;
+        public string LTX23VideoInfo => LTX23BasicVM.ResultVideoInfo;
+        public bool CanGenerateLTX23Video => LTX23BasicVM.CanAddToQueue;
+        public bool CanLTX23AddToQueue => LTX23BasicVM.CanAddToQueue;
+
+        // LMStudio AI properties
+        public bool LTX23IsAnalyzing => LTX23BasicVM.IsAnalyzing;
+        public bool CanLTX23AnalyzeImage => LTX23BasicVM.CanAnalyzeImage;
+        public bool CanLTX23EnhancePrompt => LTX23BasicVM.CanEnhancePrompt;
+        public bool ShowLTX23VideoPrompt => LTX23BasicVM.ShowVideoPrompt;
+        public string LTX23AnalysisResult => LTX23BasicVM.AnalysisResult;
+        public bool HasLTX23Analysis => LTX23BasicVM.HasAnalysis;
+
+        // Queue
+        public ObservableCollection<QueueItem> LTX23Queue => LTX23BasicVM.Queue;
+        public bool LTX23HasQueueItems => LTX23BasicVM.HasQueueItems;
+        public bool LTX23IsProcessingQueue => LTX23BasicVM.IsProcessingQueue;
+        public string LTX23QueueStatus => LTX23BasicVM.QueueStatus;
+
+        // LTX23BasicVM Commands
+        public ICommand SelectLTX23ImageCommand => LTX23BasicVM.SelectImageCommand;
+        public ICommand AnalyzeLTX23ImageCommand => LTX23BasicVM.AnalyzeImageCommand;
+        public ICommand EnhanceLTX23PromptCommand => LTX23BasicVM.EnhancePromptCommand;
+        public ICommand GenerateLTX23VideoCommand => LTX23BasicVM.GenerateVideoCommand;
+        public ICommand RemoveLTX23QueueItemCommand => LTX23BasicVM.RemoveQueueItemCommand;
+        public ICommand PlayLTX23VideoCommand => LTX23BasicVM.PlayVideoCommand;
+        public ICommand OpenLTX23ResultFolderCommand => LTX23BasicVM.OpenResultFolderCommand;
+        public ICommand SendLTX23ToEditCameraCommand => LTX23BasicVM.SendToEditCameraCommand;
+
+        #endregion
+
         #region Public Methods
 
         /// <summary>
@@ -470,6 +573,8 @@ namespace FlipPix.UI.ViewModels
                 LTX2AudioVM.PropertyChanged -= ForwardPropertyChanged;
                 MochaVM.PropertyChanged -= ForwardPropertyChanged;
                 InfiniteTalkVM.PropertyChanged -= ForwardPropertyChanged;
+                LTX23BasicVM.PropertyChanged -= ForwardPropertyChanged;
+                LTX23T2VVM.PropertyChanged -= ForwardPropertyChanged;
 
                 // Dispose all sub-ViewModels
                 (MainVM as IDisposable)?.Dispose();
@@ -477,6 +582,8 @@ namespace FlipPix.UI.ViewModels
                 (LTX2AudioVM as IDisposable)?.Dispose();
                 (MochaVM as IDisposable)?.Dispose();
                 (InfiniteTalkVM as IDisposable)?.Dispose();
+                (LTX23BasicVM as IDisposable)?.Dispose();
+                (LTX23T2VVM as IDisposable)?.Dispose();
 
                 _disposed = true;
             }

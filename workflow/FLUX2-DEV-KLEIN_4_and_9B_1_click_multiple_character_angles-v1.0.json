@@ -36,6 +36,8 @@
   },
   "101": {
     "inputs": {
+      "append": "",
+      "prepend": "",
       "prompts": "Turn the camera to a close-up.\nTurn the camera to a wide-angle lens.\nRotate the camera 45 degrees to the right.\nRotate the camera 90 degrees to the right.\nTurn the camera to an aerial view.\nTurn the camera to a low-angle view.\nRotate the camera 45 degrees to the left.\nRotate the camera 90 degrees to the left.\n将镜头向下移动, ultra low angle shot, exaggerated perspective, 将镜头转为广角镜头（wide lens)\n将镜头向右旋转90度（Rotat将镜头向下移动（Move the camera down.）, Rotate the angle of the photo to an ultra-low angle shot of the subject, with the camera's point of view positioned very close to the legs. The perspective should exaggerate the subject's height and create a sense of monumentality, prominently showcasing the details of the legs, thighs, while the rest of the figure dramatically rises towards up, foreshortened but visible. the legs are a focal point of the image, enhanced by the perspective. She is sweating and oily, wearing sexy revealing tshirt and shorts. Important, keep the subject's id,  facial features, pose, and hairstyle identical. Ensure that other elements in the background also change to complement the subject's new imposing presence. Ensure that the lighting and overall composition reinforce this effect of grandeur and power within the new setting.\nMaintain the original body type.\n\n\n\n\n"
     },
     "class_type": "SimplePromptBatcher",
@@ -69,7 +71,11 @@
     "inputs": {
       "upscale_method": "lanczos",
       "megapixels": 1,
-      "resolution_steps": 1
+      "resolution_steps": 1,
+      "image": [
+        "76",
+        0
+      ]
     },
     "class_type": "ImageScaleToTotalPixels",
     "_meta": {

@@ -1104,10 +1104,13 @@ namespace FlipPix.UI.ViewModels.Video
                 return;
             }
 
-            await AnalyzeImageInternalAsync(FirstFrameImagePath);
+            if (SelectedSingleWorkflow == SingleVideoWorkflow.Wan22 && HasLastFrameImage)
+                await AnalyzeImageInternalAsync(FirstFrameImagePath, LastFrameImagePath);
+            else
+                await AnalyzeImageInternalAsync(FirstFrameImagePath);
         }
 
-        private async Task AnalyzeImageInternalAsync(string imagePath)
+        private async Task AnalyzeImageInternalAsync(string imagePath, string? lastImagePath = null)
         {
             _analysisCancellationTokenSource?.Dispose();
             _analysisCancellationTokenSource = CancellationTokenSource.CreateLinkedTokenSource(App.ShutdownToken);
@@ -1164,7 +1167,7 @@ namespace FlipPix.UI.ViewModels.Video
                 }
                 else
                 {
-                    promptPath = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "prompts", "prompt2json", "ltx_action_video_system_prompt.md");
+                    promptPath = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "prompts", "prompt2json", "ltx_FFLF.md");
                     promptLabel = "LTX-2 Action Video";
                 }
 
@@ -1179,12 +1182,27 @@ namespace FlipPix.UI.ViewModels.Video
                     analysisPrompt = "Describe this image in detail for video generation.";
                 }
 
-                var analysisResult = await _lmStudioService.AnalyzeImageAsync(
-                    selectedModel,
-                    imagePath,
-                    analysisPrompt,
-                    maxTokens: 2000,
-                    _analysisCancellationTokenSource.Token);
+                string analysisResult;
+                if (lastImagePath != null)
+                {
+                    AddLog($"Sending both frames to LM Studio: first={Path.GetFileName(imagePath)}, last={Path.GetFileName(lastImagePath)}");
+                    analysisResult = await _lmStudioService.AnalyzeTwoImagesAsync(
+                        selectedModel,
+                        imagePath,
+                        lastImagePath,
+                        analysisPrompt,
+                        maxTokens: 2000,
+                        _analysisCancellationTokenSource.Token);
+                }
+                else
+                {
+                    analysisResult = await _lmStudioService.AnalyzeImageAsync(
+                        selectedModel,
+                        imagePath,
+                        analysisPrompt,
+                        maxTokens: 2000,
+                        _analysisCancellationTokenSource.Token);
+                }
 
                 AnalysisProgress = 90;
 
