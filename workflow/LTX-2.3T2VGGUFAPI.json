@@ -592,7 +592,15 @@
   },
   "287": {
     "inputs": {
-      "expression": "1+ 8*(round(a*b)/8)"
+      "expression": "1+ 8*(round(a*b)/8)",
+      "variables.a": [
+        "291",
+        0
+      ],
+      "variables.b": [
+        "285",
+        0
+      ]
     },
     "class_type": "SimpleCalculatorKJ",
     "_meta": {
