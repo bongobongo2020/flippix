@@ -1439,6 +1439,37 @@ namespace FlipPix.UI.ViewModels
                 }
             }
 
+            // Node 244: EmptySD3LatentImage (Zstyle workflows — active sampling path)
+            // Node 56 above is a dead-end path; node 244 drives the actual SD3 sampler chain.
+            // Direct override bypasses the Any Switch routing (nodes 536/537) which has no sel
+            // input connected and always defaults to landscape regardless of orientation.
+            if (workflowDict.ContainsKey("244") &&
+                workflowDict["244"].TryGetProperty("class_type", out var node244Class) &&
+                node244Class.GetString() == "EmptySD3LatentImage")
+            {
+                var sd3Resolutions = new[]
+                {
+                    (1600, 1088), // Landscape
+                    (1088, 1600), // Portrait
+                    (1088, 1088), // Square
+                };
+                var (w244, h244) = sd3Resolutions[Math.Min(AspectRatioIndex, sd3Resolutions.Length - 1)];
+                var node244 = JsonSerializer.Deserialize<Dictionary<string, object>>(workflowDict["244"].GetRawText());
+                if (node244 != null && node244.ContainsKey("inputs"))
+                {
+                    var inputs = JsonSerializer.Deserialize<Dictionary<string, object>>(
+                        JsonSerializer.Serialize(node244["inputs"]));
+                    if (inputs != null)
+                    {
+                        inputs["width"] = w244;
+                        inputs["height"] = h244;
+                        node244["inputs"] = inputs;
+                        workflowDict["244"] = JsonSerializer.SerializeToElement(node244);
+                        AddLog($"Updated node 244 (EmptySD3LatentImage) resolution: {w244}x{h244}");
+                    }
+                }
+            }
+
             // Node 9: SaveImage — update filename_prefix date so output lands in today's folder
             if (workflowDict.ContainsKey("9"))
             {

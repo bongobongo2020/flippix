@@ -43,7 +43,7 @@ namespace FlipPix.UI.ViewModels
 
         // Resolution/Orientation settings
         private ObservableCollection<string> _availableOrientations = new();
-        private string _selectedOrientation = "Portrait (944x1408)";
+        private string _selectedOrientation = "Landscape (1408x944)";
 
         // Analysis
         private readonly LMStudioService _lmStudioService;
@@ -968,6 +968,14 @@ namespace FlipPix.UI.ViewModels
 
             // Update Long Side (node 248)
             WorkflowNodeUpdater.UpdateNodeInput(ref workflowJson, "248", "value", heightSD3);
+
+            // Directly set EmptySD3LatentImage (node 244) dimensions, bypassing Any Switch routing
+            // (nodes 536/537 have no sel input connected so default routing is always landscape)
+            WorkflowNodeUpdater.UpdateNodeInputMultiple(ref workflowJson, "244", new Dictionary<string, object>
+            {
+                { "width", widthSD3 },
+                { "height", heightSD3 }
+            });
 
             AddLog($"Orientation: {selectedOrientation} -> Node56: {width}x{height}, SD3: {widthSD3}x{heightSD3}");
 

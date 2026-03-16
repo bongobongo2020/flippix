@@ -2797,6 +2797,39 @@ namespace FlipPix.UI.ViewModels
                             modifiedWorkflow[kvp.Key] = nodeValue;
                         }
                     }
+                    else if (classType == "EmptySD3LatentImage")
+                    {
+                        // Directly set SD3 latent dimensions, bypassing Any Switch routing (nodes 536/537)
+                        // which has no sel input connected and always defaults to landscape.
+                        var (selectedWidth, selectedHeight) = GetDimensionsForAspectRatio(AspectRatioIndex);
+                        var nodeDict = JsonSerializer.Deserialize<Dictionary<string, object>>(nodeElement.GetRawText());
+                        if (nodeDict != null && nodeDict.TryGetValue("inputs", out var sd3InputsObj))
+                        {
+                            Dictionary<string, object>? sd3Inputs = null;
+                            if (sd3InputsObj is Dictionary<string, object> dictSd3Inputs)
+                                sd3Inputs = dictSd3Inputs;
+                            else if (sd3InputsObj is JsonElement sd3ElementInputs && sd3ElementInputs.ValueKind == JsonValueKind.Object)
+                                sd3Inputs = JsonSerializer.Deserialize<Dictionary<string, object>>(sd3ElementInputs.GetRawText());
+
+                            if (sd3Inputs != null)
+                            {
+                                sd3Inputs["width"] = selectedWidth;
+                                sd3Inputs["height"] = selectedHeight;
+                                nodeDict["inputs"] = sd3Inputs;
+                                modifiedWorkflow[kvp.Key] = nodeDict;
+                                updatedNodes++;
+                                _logger.LogInfo($"✓ Updated EmptySD3LatentImage node {kvp.Key}: {selectedWidth}x{selectedHeight}");
+                            }
+                            else
+                            {
+                                modifiedWorkflow[kvp.Key] = nodeValue;
+                            }
+                        }
+                        else
+                        {
+                            modifiedWorkflow[kvp.Key] = nodeValue;
+                        }
+                    }
                     else if (classType == "PrimitiveInt" && (title == "Default Short Side" || title == "Default Long Side"))
                     {
                         // Update resolution for Zstyle workflows based on selected aspect ratio
