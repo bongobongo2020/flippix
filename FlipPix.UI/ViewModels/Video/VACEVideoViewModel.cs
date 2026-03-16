@@ -517,12 +517,14 @@ namespace FlipPix.UI.ViewModels.Video
                         }
                         else
                         {
-                            AddLog($"WARNING: No output video for chunk {chunkIndex + 1}");
+                            AddLog($"ERROR: No output video for chunk {chunkIndex + 1} — aborting remaining chunks");
+                            break;
                         }
                     }
                     catch (Exception ex)
                     {
-                        AddLog($"ERROR processing chunk {chunkIndex + 1}: {ex.Message}");
+                        AddLog($"ERROR processing chunk {chunkIndex + 1}: {ex.Message} — aborting remaining chunks");
+                        break;
                     }
                 }
 

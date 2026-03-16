@@ -94,10 +94,10 @@
   "8": {
     "inputs": {
       "blocks_to_swap": 20,
-      "offload_img_emb": false,
-      "offload_txt_emb": false,
+      "offload_img_emb": true,
+      "offload_txt_emb": true,
       "use_non_blocking": true,
-      "vace_blocks_to_swap": 0,
+      "vace_blocks_to_swap": 20,
       "prefetch_blocks": 0,
       "block_swap_debug": false
     },
