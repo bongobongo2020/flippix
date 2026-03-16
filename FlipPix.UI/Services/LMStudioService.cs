@@ -116,14 +116,11 @@ namespace FlipPix.UI.Services
                     throw new FileNotFoundException($"Image file not found: {imagePath}");
                 }
 
-                // Send original image without resizing - Qwen-VL handles image processing
-                var imageBytes = await File.ReadAllBytesAsync(imagePath, cancellationToken);
+                var imageBytes = ResizeImageForVision(imagePath, 512, 512, useJpeg: true);
                 var base64Image = Convert.ToBase64String(imageBytes);
-                var imageFormat = Path.GetExtension(imagePath).TrimStart('.').ToLower();
-                if (imageFormat == "jpg") imageFormat = "jpeg";
-                var dataUrl = $"data:image/{imageFormat};base64,{base64Image}";
+                var dataUrl = $"data:image/jpeg;base64,{base64Image}";
 
-                _logger.LogInfo($"Sending original image for LM Studio analysis: {imageBytes.Length} bytes ({imageFormat}), max_tokens: {maxTokens}");
+                _logger.LogInfo($"Sending resized image for analysis: {imageBytes.Length} bytes (jpeg 512px), max_tokens: {maxTokens}");
 
                 // Create the request with vision - use the correct LM Studio multi-modal format
                 var requestBody = new
@@ -231,16 +228,14 @@ namespace FlipPix.UI.Services
 
                 string ToDataUrl(string path)
                 {
-                    var bytes = File.ReadAllBytes(path);
-                    var fmt = Path.GetExtension(path).TrimStart('.').ToLower();
-                    if (fmt == "jpg") fmt = "jpeg";
-                    return $"data:image/{fmt};base64,{Convert.ToBase64String(bytes)}";
+                    var bytes = ResizeImageForVision(path, 512, 512, useJpeg: true);
+                    return $"data:image/jpeg;base64,{Convert.ToBase64String(bytes)}";
                 }
 
                 var firstDataUrl = ToDataUrl(firstImagePath);
                 var lastDataUrl  = ToDataUrl(lastImagePath);
 
-                _logger.LogInfo($"Sending two-image FFLF analysis: first={Path.GetFileName(firstImagePath)}, last={Path.GetFileName(lastImagePath)}, max_tokens={maxTokens}");
+                _logger.LogInfo($"Sending two-image FFLF analysis (resized 512px): first={Path.GetFileName(firstImagePath)}, last={Path.GetFileName(lastImagePath)}, max_tokens={maxTokens}");
 
                 var requestBody = new
                 {
@@ -322,14 +317,11 @@ namespace FlipPix.UI.Services
                     throw new FileNotFoundException($"Image file not found: {imagePath}");
                 }
 
-                // Send original image without resizing - Qwen-VL handles image processing
-                var imageBytes = await File.ReadAllBytesAsync(imagePath, cancellationToken);
+                var imageBytes = ResizeImageForVision(imagePath, 512, 512, useJpeg: true);
                 var base64Image = Convert.ToBase64String(imageBytes);
-                var imageFormat = Path.GetExtension(imagePath).TrimStart('.').ToLower();
-                if (imageFormat == "jpg") imageFormat = "jpeg";
-                var dataUrl = $"data:image/{imageFormat};base64,{base64Image}";
+                var dataUrl = $"data:image/jpeg;base64,{base64Image}";
 
-                _logger.LogInfo($"Sending original image for LM Studio analysis with system prompt: {imageBytes.Length} bytes ({imageFormat}), max_tokens: {maxTokens}");
+                _logger.LogInfo($"Sending resized image for analysis with system prompt: {imageBytes.Length} bytes (jpeg 512px), max_tokens: {maxTokens}");
 
                 // Create the request with vision and system prompt
                 var requestBody = new
