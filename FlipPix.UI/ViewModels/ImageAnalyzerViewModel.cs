@@ -1342,13 +1342,13 @@ namespace FlipPix.UI.ViewModels
                 AnalysisText = "Analyzing image with LM Studio QwenVL AI...";
 
                 // Use LM Studio for image analysis
-                var analysisPrompt = "Describe this image in detail, including colors, objects, composition, and mood.";
+                var analysisPrompt = "Describe this image concisely in 2-3 sentences: subject, setting, colors, and mood.";
 
                 var analysisResult = await _lmStudioService.AnalyzeImageAsync(
                     SelectedModel,
                     SourceImagePath,
                     analysisPrompt,
-                    maxTokens: 500,
+                    maxTokens: 200,
                     _cancellationTokenSource.Token);
 
                 if (!string.IsNullOrEmpty(analysisResult))
