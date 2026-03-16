@@ -291,7 +291,7 @@ namespace FlipPix.UI.ViewModels.Video
                 IsAnalyzing = true;
                 AddLog("=== Analyzing image with LMStudio ===");
 
-                var baseUrl = _settingsService.Settings?.LMStudioSettings?.BaseUrl ?? "http://localhost:1234";
+                var baseUrl = _settingsService.Settings?.LMStudioSettings?.BaseUrl ?? "http://alien:8080";
                 await _lmStudioService.SetBaseUrlAsync(baseUrl);
 
                 var models = await _lmStudioService.GetAvailableModelsAsync();
@@ -338,7 +338,7 @@ namespace FlipPix.UI.ViewModels.Video
                 IsAnalyzing = true;
                 AddLog("=== Enhancing prompt with LMStudio (LTX 2.3) ===");
 
-                var baseUrl = _settingsService.Settings?.LMStudioSettings?.BaseUrl ?? "http://localhost:1234";
+                var baseUrl = _settingsService.Settings?.LMStudioSettings?.BaseUrl ?? "http://alien:8080";
                 await _lmStudioService.SetBaseUrlAsync(baseUrl);
 
                 var models = await _lmStudioService.GetAvailableModelsAsync();

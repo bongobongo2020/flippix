@@ -320,7 +320,7 @@ namespace FlipPix.UI.ViewModels
         {
             get
             {
-                var uri = new Uri(_settingsService.Settings?.LMStudioSettings?.BaseUrl ?? "http://localhost:1234");
+                var uri = new Uri(_settingsService.Settings?.LMStudioSettings?.BaseUrl ?? "http://alien:8080");
                 return uri.Host;
             }
             set
@@ -353,7 +353,7 @@ namespace FlipPix.UI.ViewModels
         {
             get
             {
-                var uri = new Uri(_settingsService.Settings?.LMStudioSettings?.BaseUrl ?? "http://localhost:1234");
+                var uri = new Uri(_settingsService.Settings?.LMStudioSettings?.BaseUrl ?? "http://alien:8080");
                 return uri.Port.ToString();
             }
             set
@@ -789,7 +789,7 @@ namespace FlipPix.UI.ViewModels
         {
             try
             {
-                var baseUrl = _settingsService.Settings?.LMStudioSettings?.BaseUrl ?? "http://localhost:1234";
+                var baseUrl = _settingsService.Settings?.LMStudioSettings?.BaseUrl ?? "http://alien:8080";
                 await _lmStudioService.SetBaseUrlAsync(baseUrl);
 
                 _logger.LogInfo($"LM Studio configured for {baseUrl}");
@@ -3591,7 +3591,7 @@ namespace FlipPix.UI.ViewModels
                 StatusBarMessage = "Testing LM Studio connection...";
                 _logger.LogInfo("Testing LM Studio connection...");
 
-                var baseUrl = _settingsService.Settings?.LMStudioSettings?.BaseUrl ?? "http://localhost:1234";
+                var baseUrl = _settingsService.Settings?.LMStudioSettings?.BaseUrl ?? "http://alien:8080";
                 await _lmStudioService.SetBaseUrlAsync(baseUrl);
 
                 var isRunning = await _lmStudioService.IsRunningAsync();

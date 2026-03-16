@@ -660,7 +660,7 @@ namespace FlipPix.UI.ViewModels
                 _logger.LogError($"Error analyzing image with Qwen VL: {ex}");
                 AnalysisStatus = "Analysis failed";
 
-                var lmStudioUrl = _settingsService.Settings?.LMStudioSettings?.BaseUrl ?? "http://localhost:1234";
+                var lmStudioUrl = _settingsService.Settings?.LMStudioSettings?.BaseUrl ?? "http://alien:8080";
                 System.Windows.MessageBox.Show(
                     $"Error analyzing image:\n\n{ex.Message}\n\nPlease ensure LM Studio is running at {lmStudioUrl} with a Qwen VL model loaded.",
                     "Error", System.Windows.MessageBoxButton.OK, System.Windows.MessageBoxImage.Error);

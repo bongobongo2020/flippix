@@ -2,7 +2,7 @@ namespace FlipPix.Core.Models;
 
 public class LMStudioSettings
 {
-    public string BaseUrl { get; set; } = "http://alien:1234";
+    public string BaseUrl { get; set; } = "http://alien:8080";
     public string SelectedModel { get; set; } = string.Empty;
     public int ConnectionTimeout { get; set; } = 30000; // 30 seconds
     public int MaxRetries { get; set; } = 3;

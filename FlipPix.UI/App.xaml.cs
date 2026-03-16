@@ -186,7 +186,7 @@ namespace FlipPix.UI
                 var settingsService = provider.GetRequiredService<SettingsService>();
 
                 // Pass a function that dynamically retrieves the URL from settings
-                return new LMStudioService(httpClient, logger, () => settingsService.Settings.LMStudioSettings?.BaseUrl ?? "http://localhost:1234");
+                return new LMStudioService(httpClient, logger, () => settingsService.Settings.LMStudioSettings?.BaseUrl ?? "http://alien:8080");
             });
 
             // Prompt service
