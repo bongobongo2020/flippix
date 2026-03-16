@@ -26,7 +26,7 @@ namespace FlipPix.UI.Services
         {
             _httpClient = httpClient;
             _logger = logger;
-            _getBaseUrl = getBaseUrl ?? (() => "http://localhost:1234");
+            _getBaseUrl = getBaseUrl ?? (() => "http://alien:8080");
             // Don't set BaseAddress - we'll use full URLs instead to allow changing the URL
             _httpClient.Timeout = TimeSpan.FromMinutes(5); // 5 minute timeout
             _semaphore = new SemaphoreSlim(1, 1); // Limit concurrent requests
@@ -184,7 +184,7 @@ namespace FlipPix.UI.Services
 
                 if (result?.Choices?.Count > 0)
                 {
-                    var analysis = result.Choices[0].Message?.Content?.Trim() ?? string.Empty;
+                    var analysis = StripThinkingBlocks(result.Choices[0].Message?.Content?.Trim() ?? string.Empty);
 
                     // Log only a preview of the analysis to avoid memory issues
                     var preview = analysis.Length > 200 ? analysis.Substring(0, 200) + "..." : analysis;
@@ -206,7 +206,7 @@ namespace FlipPix.UI.Services
             catch (HttpRequestException ex)
             {
                 _logger.LogError($"Failed to connect to LM Studio: {ex.Message}");
-                throw new Exception($"Failed to connect to LM Studio. Please ensure LM Studio is running on {_baseUrl}. Error: {ex.Message}", ex);
+                throw new Exception($"Failed to connect to LM Studio. Please ensure llamaserver is running on {_baseUrl}. Error: {ex.Message}", ex);
             }
             catch (Exception ex)
             {
@@ -282,7 +282,7 @@ namespace FlipPix.UI.Services
 
                 if (result?.Choices?.Count > 0)
                 {
-                    var analysis = result.Choices[0].Message?.Content?.Trim() ?? string.Empty;
+                    var analysis = StripThinkingBlocks(result.Choices[0].Message?.Content?.Trim() ?? string.Empty);
                     var preview = analysis.Length > 200 ? analysis.Substring(0, 200) + "..." : analysis;
                     _logger.LogInfo($"Two-image analysis completed (length: {analysis.Length}): {preview}");
                     return analysis;
@@ -395,7 +395,7 @@ namespace FlipPix.UI.Services
 
                 if (result?.Choices?.Count > 0)
                 {
-                    var analysis = result.Choices[0].Message?.Content?.Trim() ?? string.Empty;
+                    var analysis = StripThinkingBlocks(result.Choices[0].Message?.Content?.Trim() ?? string.Empty);
 
                     // Log only a preview of the analysis to avoid memory issues
                     var preview = analysis.Length > 200 ? analysis.Substring(0, 200) + "..." : analysis;
@@ -417,7 +417,7 @@ namespace FlipPix.UI.Services
             catch (HttpRequestException ex)
             {
                 _logger.LogError($"Failed to connect to LM Studio: {ex.Message}");
-                throw new Exception($"Failed to connect to LM Studio. Please ensure LM Studio is running on {_baseUrl}. Error: {ex.Message}", ex);
+                throw new Exception($"Failed to connect to llamaserver. Please ensure llamaserver is running on {_baseUrl}. Error: {ex.Message}", ex);
             }
             catch (Exception ex)
             {
@@ -490,7 +490,7 @@ namespace FlipPix.UI.Services
 
                 if (result?.Choices?.Count > 0)
                 {
-                    var enhancedPrompt = result.Choices[0].Message?.Content?.Trim() ?? string.Empty;
+                    var enhancedPrompt = StripThinkingBlocks(result.Choices[0].Message?.Content?.Trim() ?? string.Empty);
 
                     // Log only a preview of the enhanced prompt to avoid memory issues
                     var preview = enhancedPrompt.Length > 200 ? enhancedPrompt.Substring(0, 200) + "..." : enhancedPrompt;
@@ -571,7 +571,7 @@ namespace FlipPix.UI.Services
 
                 if (result?.Choices?.Count > 0)
                 {
-                    var text = result.Choices[0].Message?.Content?.Trim() ?? string.Empty;
+                    var text = StripThinkingBlocks(result.Choices[0].Message?.Content?.Trim() ?? string.Empty);
                     _logger.LogInfo($"SendTextChatAsync completed, response length={text.Length}");
                     return text;
                 }
@@ -664,6 +664,15 @@ namespace FlipPix.UI.Services
                 // Fallback: return original image bytes if resizing fails
                 return File.ReadAllBytes(imagePath);
             }
+        }
+
+        private static string StripThinkingBlocks(string text)
+        {
+            if (string.IsNullOrEmpty(text)) return text;
+            var result = System.Text.RegularExpressions.Regex.Replace(
+                text, @"<think>[\s\S]*?</think>", string.Empty,
+                System.Text.RegularExpressions.RegexOptions.IgnoreCase);
+            return result.Trim();
         }
 
         private static ImageCodecInfo GetEncoderInfo(string mimeType)

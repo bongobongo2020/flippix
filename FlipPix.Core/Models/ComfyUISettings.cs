@@ -56,7 +56,7 @@ public class ComfyUISettings
         {
             try
             {
-                var uri = new Uri(LMStudioSettings?.BaseUrl ?? "http://localhost:1234");
+                var uri = new Uri(LMStudioSettings?.BaseUrl ?? "http://alien:8080");
                 return uri.Host;
             }
             catch
@@ -76,7 +76,7 @@ public class ComfyUISettings
             catch
             {
                 // If parsing fails, construct a new URL
-                LMStudioSettings.BaseUrl = $"http://{value}:1234";
+                LMStudioSettings.BaseUrl = $"http://{value}:8080";
             }
         }
     }
@@ -87,7 +87,7 @@ public class ComfyUISettings
         {
             try
             {
-                var uri = new Uri(LMStudioSettings?.BaseUrl ?? "http://localhost:1234");
+                var uri = new Uri(LMStudioSettings?.BaseUrl ?? "http://alien:8080");
                 return uri.Port.ToString();
             }
             catch
@@ -110,7 +110,7 @@ public class ComfyUISettings
             catch
             {
                 // If parsing fails, construct a new URL
-                LMStudioSettings.BaseUrl = $"http://localhost:1234";
+                LMStudioSettings.BaseUrl = $"http://alien:8080";
             }
         }
     }

@@ -1124,7 +1124,7 @@ namespace FlipPix.UI.ViewModels.Video
 
                 AddLog("=== Starting image analysis with LM Studio ===");
 
-                var baseUrl = _settingsService.Settings?.LMStudioSettings?.BaseUrl ?? "http://localhost:1234";
+                var baseUrl = _settingsService.Settings?.LMStudioSettings?.BaseUrl ?? "http://alien:8080";
                 await _lmStudioService.SetBaseUrlAsync(baseUrl);
                 AddLog($"Using LM Studio at: {baseUrl}");
 

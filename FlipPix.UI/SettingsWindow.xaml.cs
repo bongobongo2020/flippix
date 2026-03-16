@@ -53,7 +53,7 @@ namespace FlipPix.UI
                 // Clone LM Studio settings
                 LMStudioSettings = new LMStudioSettings
                 {
-                    BaseUrl = original.LMStudioSettings?.BaseUrl ?? "http://localhost:1234",
+                    BaseUrl = original.LMStudioSettings?.BaseUrl ?? "http://alien:8080",
                     SelectedModel = original.LMStudioSettings?.SelectedModel ?? string.Empty,
                     ConnectionTimeout = original.LMStudioSettings?.ConnectionTimeout ?? 30000,
                     MaxRetries = original.LMStudioSettings?.MaxRetries ?? 3,
