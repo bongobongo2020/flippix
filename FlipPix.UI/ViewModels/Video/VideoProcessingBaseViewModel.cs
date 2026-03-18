@@ -312,6 +312,72 @@ namespace FlipPix.UI.ViewModels.Video
         }
 
         /// <summary>
+        /// Tries to resolve the output video path using ComfyUI's history API.
+        /// Returns a local file path if found, or null if not available.
+        /// </summary>
+        protected async Task<string?> TryGetVideoFromHistoryAsync(string promptId)
+        {
+            try
+            {
+                var outputFiles = await _comfyUIService.HttpClient.GetOutputFilesForPromptAsync(promptId);
+                var videoFile = outputFiles.FirstOrDefault(f =>
+                    f.EndsWith(".mp4", StringComparison.OrdinalIgnoreCase) ||
+                    f.EndsWith(".webm", StringComparison.OrdinalIgnoreCase));
+
+                if (videoFile == null)
+                {
+                    AddLog($"History API: no video output found for prompt {promptId}");
+                    return null;
+                }
+
+                AddLog($"History API: found video output: {videoFile}");
+
+                // Try to resolve to a local path
+                var settings = _settingsService.Settings;
+                if (settings != null)
+                {
+                    var baseUrl = GetComfyUIBaseUrl();
+                    bool isRemote = IsComfyUIRemote(new Uri(baseUrl).Host);
+                    string outputFolder = isRemote ? settings.RemoteOutputFolderPath : settings.OutputFolderPath;
+
+                    if (!string.IsNullOrEmpty(outputFolder))
+                    {
+                        // videoFile is "subfolder/filename" or just "filename"
+                        var localPath = Path.Combine(outputFolder, videoFile.Replace('/', Path.DirectorySeparatorChar));
+                        if (File.Exists(localPath))
+                        {
+                            AddLog($"History API: resolved local path: {localPath}");
+                            return localPath;
+                        }
+                        AddLog($"History API: local path not found at {localPath}, will download via /view");
+                    }
+                }
+
+                // Download via /view endpoint and save to temp
+                var parts = videoFile.Split('/');
+                var filename = parts.Last();
+                var subfolder = parts.Length > 1 ? string.Join("/", parts.Take(parts.Length - 1)) : "";
+
+                var videoBytes = await _comfyUIService.HttpClient.DownloadOutputVideoAsync(filename, subfolder);
+                if (videoBytes != null && videoBytes.Length > 0)
+                {
+                    var tempPath = Path.Combine(Path.GetTempPath(), $"flippix_history_{Guid.NewGuid():N}_{filename}");
+                    await File.WriteAllBytesAsync(tempPath, videoBytes);
+                    AddLog($"History API: downloaded video to temp: {tempPath} ({videoBytes.Length / 1024.0 / 1024.0:F2} MB)");
+                    return tempPath;
+                }
+
+                AddLog($"History API: download via /view failed for {videoFile}");
+                return null;
+            }
+            catch (Exception ex)
+            {
+                AddLog($"History API lookup failed: {ex.Message}");
+                return null;
+            }
+        }
+
+        /// <summary>
         /// Copies a video from a remote folder to local storage.
         /// </summary>
         protected async Task<string?> CopyVideoFromRemoteFolder(string remoteOutputPath, string? filePattern = null)

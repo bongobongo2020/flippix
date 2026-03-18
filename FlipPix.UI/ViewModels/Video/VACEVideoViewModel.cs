@@ -502,11 +502,19 @@ namespace FlipPix.UI.ViewModels.Video
                         var promptId = await _comfyUIService.ExecuteWorkflowAsync(updatedWorkflow, progress);
                         AddLog($"Chunk {chunkIndex + 1} completed, prompt ID: {promptId}");
 
-                        var outputVideo = await WaitForNewVideoAsync(
-                            existingFiles, "*.mp4",
-                            TimeSpan.FromMinutes(15),
-                            TimeSpan.FromSeconds(5),
-                            OutputSubfolder);
+                        // Try history API first (reliable regardless of output folder mapping)
+                        var outputVideo = await TryGetVideoFromHistoryAsync(promptId);
+
+                        // Fall back to filesystem polling if history API didn't find it
+                        if (outputVideo == null)
+                        {
+                            AddLog("History API returned no result, falling back to filesystem polling...");
+                            outputVideo = await WaitForNewVideoAsync(
+                                existingFiles, "*.mp4",
+                                TimeSpan.FromMinutes(15),
+                                TimeSpan.FromSeconds(5),
+                                OutputSubfolder);
+                        }
 
                         if (outputVideo != null && File.Exists(outputVideo))
                         {
