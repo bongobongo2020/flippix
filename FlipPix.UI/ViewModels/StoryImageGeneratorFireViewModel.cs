@@ -388,8 +388,9 @@ namespace FlipPix.UI.ViewModels
             WorkflowNodeUpdater.UpdateNodeInput(ref workflowJson, "155", "value", Steps);
             WorkflowNodeUpdater.UpdateNodeInput(ref workflowJson, "156", "value", Steps);
 
-            // Node 130 - KSampler: denoise
+            // Node 130 - KSampler: denoise + randomized seed
             WorkflowNodeUpdater.UpdateNodeInput(ref workflowJson, "130", "denoise", Denoise);
+            WorkflowNodeUpdater.UpdateNodeInput(ref workflowJson, "130", "seed", Random.Shared.Next());
 
             // Node 9 - SaveImage: filename with subfolder embedded in prefix
             WorkflowNodeUpdater.UpdateNodeInput(ref workflowJson, "9", "filename_prefix", $"{jsonFileName}/{jsonFileName}-{imageIndex}");
