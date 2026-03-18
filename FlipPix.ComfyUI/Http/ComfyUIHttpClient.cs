@@ -757,6 +757,29 @@ public class ComfyUIHttpClient : IDisposable
                                 }
                             }
 
+                            // Check for videos (VHS_VideoCombine outputs here)
+                            if (output.Value.TryGetProperty("videos", out var videoProps))
+                            {
+                                foreach (var video in videoProps.EnumerateArray())
+                                {
+                                    if (video.TryGetProperty("filename", out var filenameProp))
+                                    {
+                                        var filename = filenameProp.GetString();
+                                        if (!string.IsNullOrEmpty(filename))
+                                        {
+                                            var subfolderStr = "";
+                                            if (video.TryGetProperty("subfolder", out var subfolderProp))
+                                            {
+                                                subfolderStr = subfolderProp.GetString() ?? "";
+                                            }
+                                            var fullPath = string.IsNullOrEmpty(subfolderStr) ? filename : $"{subfolderStr}/{filename}";
+                                            files.Add(fullPath);
+                                            _logger.LogInfo($"Found output video for prompt: {fullPath}");
+                                        }
+                                    }
+                                }
+                            }
+
                             // Check for files (generic case)
                             if (output.Value.TryGetProperty("files", out var fileProps))
                             {
