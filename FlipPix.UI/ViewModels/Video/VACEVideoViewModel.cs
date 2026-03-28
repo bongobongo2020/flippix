@@ -1,6 +1,8 @@
 using System;
 using System.Collections.Generic;
+using System.Collections.ObjectModel;
 using System.IO;
+using System.Linq;
 using System.Text.Json;
 using System.Threading.Tasks;
 using System.Windows;
@@ -9,6 +11,7 @@ using System.Windows.Media.Imaging;
 using CommunityToolkit.Mvvm.Input;
 using FlipPix.ComfyUI.Services;
 using FlipPix.Core.Interfaces;
+using FlipPix.UI.Models;
 using FlipPix.UI.Services;
 
 namespace FlipPix.UI.ViewModels.Video
@@ -16,7 +19,7 @@ namespace FlipPix.UI.ViewModels.Video
     /// <summary>
     /// ViewModel for VACE (Video-to-Video with Control) video generation.
     /// Handles a reference image and input video, processed in 81-frame chunks.
-    /// Uses Wan-VACE_V2V_MasterAPI.json workflow.
+    /// Uses Wan-VACE_V2V_MasterAPI.json workflow. Supports a multi-item queue.
     /// </summary>
     public partial class VACEVideoViewModel : VideoProcessingBaseViewModel
     {
@@ -30,9 +33,13 @@ namespace FlipPix.UI.ViewModels.Video
         private string _inputVideoPath = string.Empty;
         private string _inputVideoInfo = string.Empty;
         private int _totalFrames;
+        private bool _isAnalyzing = false;
+        private bool _isProcessingQueue = false;
+        private string _queueStatus = string.Empty;
+
         private readonly IFileDialogService _fileDialogService;
         private readonly LMStudioService _lmStudioService;
-        private bool _isAnalyzing = false;
+        private readonly ObservableCollection<VaceQueueItem> _queue = new();
 
         public VACEVideoViewModel(
             ComfyUIService comfyUIService,
@@ -46,13 +53,22 @@ namespace FlipPix.UI.ViewModels.Video
         {
             _fileDialogService = fileDialogService ?? throw new ArgumentNullException(nameof(fileDialogService));
             _lmStudioService = lmStudioService ?? throw new ArgumentNullException(nameof(lmStudioService));
+
             SelectForegroundImageCommand = new RelayCommand(SelectForegroundImage);
             SelectVideoCommand = new RelayCommand(SelectVideo);
-            GenerateVideoCommand = new RelayCommand(async () => await GenerateVideoAsync(), () => CanGenerateVideo);
+            GenerateVideoCommand = new RelayCommand(AddToQueueAndProcess, () => CanAddToQueue);
+            RemoveQueueItemCommand = new RelayCommand<VaceQueueItem>(RemoveQueueItem);
             PlayVideoCommand = new RelayCommand(PlayVideo, () => HasResult);
             OpenResultFolderCommand = new RelayCommand(OpenResultFolder, () => HasResult);
             SendToEditCameraCommand = new RelayCommand(SendToEditCamera, () => HasResult);
             AnalyzeImageCommand = new RelayCommand(async () => await AnalyzeImageAsync(), () => CanAnalyzeImage);
+
+            _queue.CollectionChanged += (s, e) =>
+            {
+                OnPropertyChanged(nameof(HasQueueItems));
+                UpdateQueueStatus();
+                OnCanExecuteChanged();
+            };
 
             AddLog("VACE Video Generator initialized");
         }
@@ -62,6 +78,7 @@ namespace FlipPix.UI.ViewModels.Video
         public ICommand SelectForegroundImageCommand { get; }
         public ICommand SelectVideoCommand { get; }
         public RelayCommand GenerateVideoCommand { get; }
+        public RelayCommand<VaceQueueItem> RemoveQueueItemCommand { get; }
         public RelayCommand PlayVideoCommand { get; }
         public RelayCommand OpenResultFolderCommand { get; }
         public RelayCommand SendToEditCameraCommand { get; }
@@ -69,7 +86,7 @@ namespace FlipPix.UI.ViewModels.Video
 
         #endregion
 
-        #region Properties
+        #region Input Properties
 
         public string Prompt
         {
@@ -80,6 +97,7 @@ namespace FlipPix.UI.ViewModels.Video
                 {
                     _prompt = value;
                     OnPropertyChanged();
+                    OnPropertyChanged(nameof(CanAddToQueue));
                     OnPropertyChanged(nameof(CanGenerateVideo));
                     OnCanExecuteChanged();
                 }
@@ -96,6 +114,7 @@ namespace FlipPix.UI.ViewModels.Video
                     _foregroundImagePath = value;
                     OnPropertyChanged();
                     OnPropertyChanged(nameof(HasForegroundImage));
+                    OnPropertyChanged(nameof(CanAddToQueue));
                     OnPropertyChanged(nameof(CanGenerateVideo));
                     LoadForegroundImagePreview();
                     OnCanExecuteChanged();
@@ -125,6 +144,7 @@ namespace FlipPix.UI.ViewModels.Video
                     _inputVideoPath = value;
                     OnPropertyChanged();
                     OnPropertyChanged(nameof(HasInputVideo));
+                    OnPropertyChanged(nameof(CanAddToQueue));
                     OnPropertyChanged(nameof(CanGenerateVideo));
                     LoadVideoInfo();
                     OnCanExecuteChanged();
@@ -157,6 +177,7 @@ namespace FlipPix.UI.ViewModels.Video
         public bool HasForegroundImage => !string.IsNullOrEmpty(ForegroundImagePath) && File.Exists(ForegroundImagePath);
         public bool HasInputVideo => !string.IsNullOrEmpty(InputVideoPath) && File.Exists(InputVideoPath);
         public bool CanGenerateVideo => HasForegroundImage && HasInputVideo && !string.IsNullOrWhiteSpace(Prompt) && !IsProcessing;
+        public bool CanAddToQueue => HasForegroundImage && HasInputVideo && !string.IsNullOrWhiteSpace(Prompt);
 
         public bool IsAnalyzing
         {
@@ -174,6 +195,34 @@ namespace FlipPix.UI.ViewModels.Video
         }
 
         public bool CanAnalyzeImage => HasForegroundImage && !IsAnalyzing && !IsProcessing;
+
+        #endregion
+
+        #region Queue Properties
+
+        public ObservableCollection<VaceQueueItem> Queue => _queue;
+
+        public bool IsProcessingQueue
+        {
+            get => _isProcessingQueue;
+            private set
+            {
+                if (_isProcessingQueue != value)
+                {
+                    _isProcessingQueue = value;
+                    OnPropertyChanged();
+                    OnCanExecuteChanged();
+                }
+            }
+        }
+
+        public string QueueStatus
+        {
+            get => _queueStatus;
+            private set { if (_queueStatus != value) { _queueStatus = value; OnPropertyChanged(); } }
+        }
+
+        public bool HasQueueItems => _queue.Any();
 
         #endregion
 
@@ -223,7 +272,6 @@ namespace FlipPix.UI.ViewModels.Video
                 IsAnalyzing = true;
                 AddLog("=== Analyzing reference image with LM Studio ===");
 
-                // Load the VACE system prompt file
                 var systemPromptPath = Path.Combine(
                     AppDomain.CurrentDomain.BaseDirectory,
                     "prompts", "prompt2json", "vace-system-prompt.md");
@@ -240,7 +288,6 @@ namespace FlipPix.UI.ViewModels.Video
                 var systemPrompt = await File.ReadAllTextAsync(systemPromptPath);
                 AddLog($"System prompt loaded ({systemPrompt.Length} chars)");
 
-                // Resolve model from settings
                 var models = await _lmStudioService.GetAvailableModelsAsync();
                 string selectedModel = _settingsService.Settings?.LMStudioSettings?.SelectedModel ?? string.Empty;
 
@@ -267,7 +314,7 @@ namespace FlipPix.UI.ViewModels.Video
                     systemPrompt);
 
                 Prompt = result;
-                AddLog("Image analysis complete. Vace prompt updated.");
+                AddLog("Image analysis complete. VACE prompt updated.");
             }
             catch (Exception ex)
             {
@@ -337,28 +384,96 @@ namespace FlipPix.UI.ViewModels.Video
 
         #endregion
 
-        #region Video Generation
+        #region Queue Management
 
-        private async Task GenerateVideoAsync()
+        private void AddToQueueAndProcess()
         {
-            if (!CanGenerateVideo) return;
+            if (!CanAddToQueue) return;
 
-            try
+            var item = new VaceQueueItem
             {
-                await GenerateVideoAsyncInternal();
-            }
-            catch (Exception ex)
+                ForegroundImagePath = ForegroundImagePath,
+                InputVideoPath = InputVideoPath,
+                Prompt = Prompt,
+                ItemStatus = QueueItemStatus.Pending
+            };
+
+            _queue.Add(item);
+            AddLog($"Added to queue: {item.DisplayText}");
+            UpdateQueueStatus();
+
+            if (!IsProcessingQueue)
+                _ = ProcessQueueAsync();
+        }
+
+        private void RemoveQueueItem(VaceQueueItem? item)
+        {
+            if (item != null && item.ItemStatus != QueueItemStatus.Processing)
             {
-                AddLog($"ERROR: {ex.Message}");
-                System.Windows.MessageBox.Show($"An error occurred during VACE video generation:\n{ex.Message}", "Error", MessageBoxButton.OK, MessageBoxImage.Error);
+                _queue.Remove(item);
+                UpdateQueueStatus();
             }
         }
 
-        private async Task GenerateVideoAsyncInternal()
+        private void UpdateQueueStatus()
+        {
+            var pending = _queue.Count(x => x.ItemStatus == QueueItemStatus.Pending);
+            var completed = _queue.Count(x => x.ItemStatus == QueueItemStatus.Completed);
+            var failed = _queue.Count(x => x.ItemStatus == QueueItemStatus.Failed);
+            var total = _queue.Count;
+
+            QueueStatus = total == 0
+                ? string.Empty
+                : $"{pending} pending • {completed} done • {failed} failed";
+        }
+
+        private async Task ProcessQueueAsync()
+        {
+            if (IsProcessingQueue) return;
+
+            IsProcessingQueue = true;
+            AddLog("Starting VACE queue processing...");
+
+            try
+            {
+                VaceQueueItem? item;
+                while ((item = _queue.FirstOrDefault(x => x.ItemStatus == QueueItemStatus.Pending)) != null)
+                {
+                    item.ItemStatus = QueueItemStatus.Processing;
+                    UpdateQueueStatus();
+
+                    try
+                    {
+                        await GenerateSingleVideoAsync(item);
+                        item.ItemStatus = QueueItemStatus.Completed;
+                        AddLog($"Queue item completed: {item.DisplayText}");
+                    }
+                    catch (Exception ex)
+                    {
+                        item.ItemStatus = QueueItemStatus.Failed;
+                        item.ErrorMessage = ex.Message;
+                        AddLog($"Queue item FAILED: {ex.Message}");
+                    }
+
+                    UpdateQueueStatus();
+                }
+            }
+            finally
+            {
+                IsProcessingQueue = false;
+                AddLog("VACE queue processing finished.");
+            }
+        }
+
+        #endregion
+
+        #region Video Generation
+
+        private async Task GenerateSingleVideoAsync(VaceQueueItem item)
         {
             try
             {
-                AddLog("=== Starting VACE video generation ===");
+                AddLog($"=== Starting VACE video generation: {item.DisplayText} ===");
                 IsProcessing = true;
 
                 HasResult = false;
@@ -367,13 +482,13 @@ namespace FlipPix.UI.ViewModels.Video
                 ProcessingProgress = 0;
                 ProcessingStatus = "Preparing VACE workflow...";
 
-                AddLog($"Reference image: {Path.GetFileName(ForegroundImagePath)}");
-                AddLog($"Input video: {Path.GetFileName(InputVideoPath)}");
-                AddLog($"Prompt: {Prompt}");
+                AddLog($"Reference image: {Path.GetFileName(item.ForegroundImagePath)}");
+                AddLog($"Input video: {Path.GetFileName(item.InputVideoPath)}");
+                AddLog($"Prompt: {item.Prompt}");
 
                 // Get frame count
                 ProcessingStatus = "Analysing input video...";
-                TotalFrames = GetVideoFrameCount(InputVideoPath);
+                TotalFrames = GetVideoFrameCount(item.InputVideoPath);
                 if (TotalFrames <= 0)
                 {
                     AddLog("WARNING: Could not determine frame count; defaulting to 1 chunk");
@@ -392,7 +507,7 @@ namespace FlipPix.UI.ViewModels.Video
                     System.Windows.MessageBox.Show(
                         "ComfyUI is not running. Please start ComfyUI manually or configure auto-restart in settings.",
                         "ComfyUI Not Running", MessageBoxButton.OK, MessageBoxImage.Warning);
-                    return;
+                    throw new Exception("ComfyUI is not running.");
                 }
 
                 if (!_comfyUIService.IsConnected)
@@ -407,8 +522,7 @@ namespace FlipPix.UI.ViewModels.Video
                 if (!File.Exists(workflowPath))
                 {
                     AddLog($"ERROR: Workflow file not found: {workflowPath}");
-                    System.Windows.MessageBox.Show($"VACE workflow file not found:\n{workflowPath}", "Error", MessageBoxButton.OK, MessageBoxImage.Error);
-                    return;
+                    throw new FileNotFoundException($"VACE workflow file not found: {workflowPath}");
                 }
 
                 var workflowJson = await File.ReadAllTextAsync(workflowPath);
@@ -419,22 +533,20 @@ namespace FlipPix.UI.ViewModels.Video
                 ProcessingProgress = 10;
 
                 AddLog("Uploading reference image...");
-                var uploadedImageName = await _comfyUIService.UploadImageAsync(ForegroundImagePath);
+                var uploadedImageName = await _comfyUIService.UploadImageAsync(item.ForegroundImagePath);
                 if (string.IsNullOrEmpty(uploadedImageName))
                 {
                     AddLog("ERROR: Reference image upload failed");
-                    System.Windows.MessageBox.Show("Failed to upload reference image to ComfyUI.", "Upload Failed", MessageBoxButton.OK, MessageBoxImage.Error);
-                    return;
+                    throw new Exception("Failed to upload reference image to ComfyUI.");
                 }
                 AddLog($"Reference image uploaded: {uploadedImageName}");
 
                 AddLog("Uploading video...");
-                var uploadedVideoName = await _comfyUIService.UploadVideoAsync(InputVideoPath);
+                var uploadedVideoName = await _comfyUIService.UploadVideoAsync(item.InputVideoPath);
                 if (string.IsNullOrEmpty(uploadedVideoName))
                 {
                     AddLog("ERROR: Video upload failed");
-                    System.Windows.MessageBox.Show("Failed to upload video to ComfyUI.", "Upload Failed", MessageBoxButton.OK, MessageBoxImage.Error);
-                    return;
+                    throw new Exception("Failed to upload video to ComfyUI.");
                 }
                 AddLog($"Video uploaded: {uploadedVideoName}");
 
@@ -445,14 +557,14 @@ namespace FlipPix.UI.ViewModels.Video
                     var bitmap = new BitmapImage();
                     bitmap.BeginInit();
                     bitmap.CacheOption = BitmapCacheOption.OnLoad;
-                    bitmap.UriSource = new Uri(ForegroundImagePath, UriKind.Absolute);
+                    bitmap.UriSource = new Uri(item.ForegroundImagePath, UriKind.Absolute);
                     bitmap.EndInit();
                     bitmap.Freeze();
 
                     double ar = (double)bitmap.PixelWidth / bitmap.PixelHeight;
-                    if (ar > 1.2) { outputWidth = 1024; outputHeight = 576; }
-                    else if (ar >= 0.85) { outputWidth = 720; outputHeight = 720; }
-                    else { outputWidth = 576; outputHeight = 1024; }
+                    if (ar > 1.2) { outputWidth = 832; outputHeight = 480; }
+                    else if (ar >= 0.85) { outputWidth = 704; outputHeight = 704; }
+                    else { outputWidth = 480; outputHeight = 832; }
                     AddLog($"Output dimensions: {outputWidth}x{outputHeight} (AR: {ar:F2})");
                 }
                 catch (Exception ex)
@@ -483,7 +595,7 @@ namespace FlipPix.UI.ViewModels.Video
                         }
 
                         var updatedWorkflow = UpdateWorkflowParameters(workflow, uploadedImageName, uploadedVideoName,
-                            startFrame, framesInChunk, outputWidth, outputHeight);
+                            startFrame, framesInChunk, outputWidth, outputHeight, item.Prompt);
 
                         var progress = new Progress<FlipPix.ComfyUI.Models.ProgressMessage>(progressMsg =>
                         {
@@ -502,10 +614,8 @@ namespace FlipPix.UI.ViewModels.Video
                         var promptId = await _comfyUIService.ExecuteWorkflowAsync(updatedWorkflow, progress);
                         AddLog($"Chunk {chunkIndex + 1} completed, prompt ID: {promptId}");
 
-                        // Try history API first (reliable regardless of output folder mapping)
                         var outputVideo = await TryGetVideoFromHistoryAsync(promptId);
 
-                        // Fall back to filesystem polling if history API didn't find it
                         if (outputVideo == null)
                         {
                             AddLog("History API returned no result, falling back to filesystem polling...");
@@ -563,6 +673,7 @@ namespace FlipPix.UI.ViewModels.Video
                     foreach (var f in chunkFiles)
                         try { File.Delete(f); } catch { }
 
+                    item.OutputVideoPath = finalPath;
                     ResultVideoPath = finalPath;
                     await LocalCopyService.CopyVideoAsync(finalPath);
                     HasResult = true;
@@ -577,6 +688,7 @@ namespace FlipPix.UI.ViewModels.Video
                 {
                     AddLog("ERROR: No video chunks were generated");
                     ProcessingStatus = "No output generated";
+                    throw new Exception("No video chunks were generated.");
                 }
             }
             catch (Exception ex)
@@ -599,7 +711,8 @@ namespace FlipPix.UI.ViewModels.Video
             int startFrame,
             int framesInChunk,
             int outputWidth,
-            int outputHeight)
+            int outputHeight,
+            string prompt)
         {
             var workflowJson = workflow.GetRawText();
             AddLog($"Updating workflow: start={startFrame}, frames={framesInChunk}, size={outputWidth}x{outputHeight}");
@@ -616,7 +729,7 @@ namespace FlipPix.UI.ViewModels.Video
             WorkflowNodeUpdater.UpdateNodeInput(ref workflowJson, "148", "image", imageName);
 
             // Node 31: prompt
-            WorkflowNodeUpdater.UpdateNodeInput(ref workflowJson, "31", "string", Prompt);
+            WorkflowNodeUpdater.UpdateNodeInput(ref workflowJson, "31", "string", prompt);
 
             // Nodes 19/20/21: frames / height / width (INTConstant)
             WorkflowNodeUpdater.UpdateNodeInput(ref workflowJson, "19", "value", framesInChunk);
@@ -669,19 +782,15 @@ namespace FlipPix.UI.ViewModels.Video
 
         #endregion
 
-        private void NotifyCommandsCanExecuteChanged()
+        protected override void OnCanExecuteChanged()
         {
+            base.OnCanExecuteChanged();
             GenerateVideoCommand.NotifyCanExecuteChanged();
+            RemoveQueueItemCommand.NotifyCanExecuteChanged();
             PlayVideoCommand.NotifyCanExecuteChanged();
             OpenResultFolderCommand.NotifyCanExecuteChanged();
             SendToEditCameraCommand.NotifyCanExecuteChanged();
             AnalyzeImageCommand.NotifyCanExecuteChanged();
-        }
-
-        protected override void OnCanExecuteChanged()
-        {
-            base.OnCanExecuteChanged();
-            NotifyCommandsCanExecuteChanged();
         }
     }
 }

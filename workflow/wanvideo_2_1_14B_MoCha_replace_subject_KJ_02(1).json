@@ -26,8 +26,8 @@
   },
   "245": {
     "inputs": {
-      "width": 832,
-      "height": 480,
+      "width": 704,
+      "height": 400,
       "upscale_method": "lanczos",
       "keep_proportion": "crop",
       "pad_color": "0, 0, 0",
@@ -277,7 +277,7 @@
     },
     "class_type": "VHS_VideoCombine",
     "_meta": {
-      "title": "Video Combine 🎥🅥🅗🅢"
+      "title": "Video Combine \ud83c\udfa5\ud83c\udd65\ud83c\udd57\ud83c\udd62"
     }
   },
   "323": {
@@ -288,8 +288,8 @@
       "bbox_store": "[{}]",
       "bboxes": "[{}]",
       "bbox_format": "xyxy",
-      "width": 832,
-      "height": 480,
+      "width": 704,
+      "height": 400,
       "normalize": false,
       "New canvas": null,
       "bg_image": [

@@ -1,0 +1,454 @@
+{
+  "1": {
+    "inputs": {
+      "unet_name": "Wan21-14B-SCAIL-preview_fp8_scaled_mixed.safetensors",
+      "weight_dtype": "default"
+    },
+    "class_type": "UNETLoader",
+    "_meta": {
+      "title": "Load Diffusion Model"
+    }
+  },
+  "3": {
+    "inputs": {
+      "seed": 442045047621548,
+      "steps": 6,
+      "cfg": 1,
+      "sampler_name": "dpmpp_2m_sde",
+      "scheduler": "simple",
+      "denoise": 1,
+      "model": [
+        "57",
+        0
+      ],
+      "positive": [
+        "22",
+        0
+      ],
+      "negative": [
+        "22",
+        1
+      ],
+      "latent_image": [
+        "22",
+        2
+      ]
+    },
+    "class_type": "KSampler",
+    "_meta": {
+      "title": "KSampler"
+    }
+  },
+  "5": {
+    "inputs": {
+      "lora_name": "WAN\\wan21-lightx2v-i2v-14b-480p-cfg-step-distill-rank64-bf16.safetensors",
+      "strength_model": 1,
+      "model": [
+        "1",
+        0
+      ]
+    },
+    "class_type": "LoraLoaderModelOnly",
+    "_meta": {
+      "title": "Load LoRA"
+    }
+  },
+  "6": {
+    "inputs": {
+      "text": "woman kicking",
+      "clip": [
+        "9",
+        0
+      ]
+    },
+    "class_type": "CLIPTextEncode",
+    "_meta": {
+      "title": "CLIP Text Encode (Prompt)"
+    }
+  },
+  "7": {
+    "inputs": {
+      "conditioning": [
+        "6",
+        0
+      ]
+    },
+    "class_type": "ConditioningZeroOut",
+    "_meta": {
+      "title": "ConditioningZeroOut"
+    }
+  },
+  "8": {
+    "inputs": {
+      "vae_name": "Wan2_1_VAE_bf16.safetensors"
+    },
+    "class_type": "VAELoader",
+    "_meta": {
+      "title": "Load VAE"
+    }
+  },
+  "9": {
+    "inputs": {
+      "clip_name": "umt5_xxl_fp8_e4m3fn_scaled.safetensors",
+      "type": "wan",
+      "device": "default"
+    },
+    "class_type": "CLIPLoader",
+    "_meta": {
+      "title": "Load CLIP"
+    }
+  },
+  "10": {
+    "inputs": {
+      "samples": [
+        "3",
+        0
+      ],
+      "vae": [
+        "8",
+        0
+      ]
+    },
+    "class_type": "VAEDecode",
+    "_meta": {
+      "title": "VAE Decode"
+    }
+  },
+  "12": {
+    "inputs": {
+      "image": "qwen2512_20260327_005638.png"
+    },
+    "class_type": "LoadImage",
+    "_meta": {
+      "title": "Load Image"
+    }
+  },
+  "13": {
+    "inputs": {
+      "sage_attention": "auto",
+      "allow_compile": false,
+      "model": [
+        "5",
+        0
+      ]
+    },
+    "class_type": "PathchSageAttentionKJ",
+    "_meta": {
+      "title": "Patch Sage Attention KJ"
+    }
+  },
+  "16": {
+    "inputs": {
+      "crop": "none",
+      "clip_vision": [
+        "17",
+        0
+      ],
+      "image": [
+        "41",
+        0
+      ]
+    },
+    "class_type": "CLIPVisionEncode",
+    "_meta": {
+      "title": "CLIP Vision Encode"
+    }
+  },
+  "17": {
+    "inputs": {
+      "clip_name": "clip_vision_h.safetensors"
+    },
+    "class_type": "CLIPVisionLoader",
+    "_meta": {
+      "title": "Load CLIP Vision"
+    }
+  },
+  "21": {
+    "inputs": {
+      "frame_rate": 16,
+      "loop_count": 0,
+      "filename_prefix": "scail",
+      "format": "video/h264-mp4",
+      "pix_fmt": "yuv420p",
+      "crf": 17,
+      "save_metadata": true,
+      "trim_to_audio": false,
+      "pingpong": false,
+      "save_output": true,
+      "images": [
+        "10",
+        0
+      ]
+    },
+    "class_type": "VHS_VideoCombine",
+    "_meta": {
+      "title": "Video Combine 🎥🅥🅗🅢"
+    }
+  },
+  "22": {
+    "inputs": {
+      "width": [
+        "41",
+        1
+      ],
+      "height": [
+        "41",
+        2
+      ],
+      "length": [
+        "47",
+        1
+      ],
+      "batch_size": 1,
+      "pose_strength": 1,
+      "pose_start": 0,
+      "pose_end": 1,
+      "positive": [
+        "6",
+        0
+      ],
+      "negative": [
+        "7",
+        0
+      ],
+      "vae": [
+        "8",
+        0
+      ],
+      "clip_vision_output": [
+        "16",
+        0
+      ],
+      "reference_image": [
+        "41",
+        0
+      ],
+      "pose_video": [
+        "27",
+        0
+      ]
+    },
+    "class_type": "WanSCAILToVideo",
+    "_meta": {
+      "title": "WanSCAILToVideo"
+    }
+  },
+  "23": {
+    "inputs": {
+      "shift": 7,
+      "model": [
+        "13",
+        0
+      ]
+    },
+    "class_type": "ModelSamplingSD3",
+    "_meta": {
+      "title": "ModelSamplingSD3"
+    }
+  },
+  "24": {
+    "inputs": {
+      "frame_rate": 16,
+      "loop_count": 0,
+      "filename_prefix": "scail_pose",
+      "format": "video/h264-mp4",
+      "pix_fmt": "yuv420p",
+      "crf": 19,
+      "save_metadata": true,
+      "trim_to_audio": false,
+      "pingpong": false,
+      "save_output": false,
+      "images": [
+        "27",
+        0
+      ]
+    },
+    "class_type": "VHS_VideoCombine",
+    "_meta": {
+      "title": "Video Combine 🎥🅥🅗🅢"
+    }
+  },
+  "27": {
+    "inputs": {
+      "width": [
+        "69",
+        1
+      ],
+      "height": [
+        "68",
+        1
+      ],
+      "draw_face": true,
+      "draw_hands": true,
+      "render_device": "gpu",
+      "scale_hands": true,
+      "render_backend": "taichi",
+      "nlf_poses": [
+        "32",
+        0
+      ]
+    },
+    "class_type": "RenderNLFPoses",
+    "_meta": {
+      "title": "Render NLF Poses"
+    }
+  },
+  "31": {
+    "inputs": {
+      "url": "https://github.com/isarandi/nlf/releases/download/v0.3.2/nlf_l_multi_0.3.2.torchscript",
+      "warmup": true
+    },
+    "class_type": "DownloadAndLoadNLFModel",
+    "_meta": {
+      "title": "(Download)Load NLF Model"
+    }
+  },
+  "32": {
+    "inputs": {
+      "per_batch": 81,
+      "model": [
+        "31",
+        0
+      ],
+      "images": [
+        "40",
+        0
+      ]
+    },
+    "class_type": "NLFPredict",
+    "_meta": {
+      "title": "NLF Predict"
+    }
+  },
+  "40": {
+    "inputs": {
+      "width": [
+        "52",
+        0
+      ],
+      "height": [
+        "51",
+        0
+      ],
+      "upscale_method": "lanczos",
+      "keep_proportion": "crop",
+      "pad_color": "0, 0, 0",
+      "crop_position": "center",
+      "divisible_by": 32,
+      "device": "cpu",
+      "image": [
+        "47",
+        0
+      ]
+    },
+    "class_type": "ImageResizeKJv2",
+    "_meta": {
+      "title": "Resize Image v2"
+    }
+  },
+  "41": {
+    "inputs": {
+      "width": [
+        "40",
+        1
+      ],
+      "height": [
+        "40",
+        2
+      ],
+      "upscale_method": "lanczos",
+      "keep_proportion": "crop",
+      "pad_color": "255,255,255",
+      "crop_position": "center",
+      "divisible_by": 32,
+      "device": "cpu",
+      "image": [
+        "12",
+        0
+      ]
+    },
+    "class_type": "ImageResizeKJv2",
+    "_meta": {
+      "title": "Resize Image v2"
+    }
+  },
+  "47": {
+    "inputs": {
+      "video": "amai-kick1c.mp4",
+      "force_rate": 0,
+      "custom_width": 0,
+      "custom_height": 0,
+      "frame_load_cap": 0,
+      "skip_first_frames": 0,
+      "select_every_nth": 2,
+      "format": "AnimateDiff"
+    },
+    "class_type": "VHS_LoadVideo",
+    "_meta": {
+      "title": "Load Video (Upload) 🎥🅥🅗🅢"
+    }
+  },
+  "51": {
+    "inputs": {
+      "value": 832
+    },
+    "class_type": "INTConstant",
+    "_meta": {
+      "title": "height"
+    }
+  },
+  "52": {
+    "inputs": {
+      "value": 480
+    },
+    "class_type": "INTConstant",
+    "_meta": {
+      "title": "width"
+    }
+  },
+  "57": {
+    "inputs": {
+      "context_length": 81,
+      "context_overlap": 33,
+      "context_schedule": "standard_static",
+      "context_stride": 1,
+      "closed_loop": false,
+      "fuse_method": "pyramid",
+      "freenoise": false,
+      "model": [
+        "23",
+        0
+      ]
+    },
+    "class_type": "WanContextWindowsManual",
+    "_meta": {
+      "title": "WAN Context Windows (Manual)"
+    }
+  },
+  "68": {
+    "inputs": {
+      "expression": "a / 2",
+      "variables.a": [
+        "51",
+        0
+      ]
+    },
+    "class_type": "SimpleCalculatorKJ",
+    "_meta": {
+      "title": "SimpleCalculatorKJ"
+    }
+  },
+  "69": {
+    "inputs": {
+      "expression": "a / 2",
+      "variables.a": [
+        "52",
+        0
+      ]
+    },
+    "class_type": "SimpleCalculatorKJ",
+    "_meta": {
+      "title": "SimpleCalculatorKJ"
+    }
+  }
+}

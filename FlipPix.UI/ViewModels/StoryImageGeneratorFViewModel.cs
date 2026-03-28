@@ -550,21 +550,19 @@ namespace FlipPix.UI.ViewModels
                             return images;
                         }
 
-                        // Search in ComfyUI output directory's subfolder
+                        // Search in ComfyUI output directory's subfolder AND root (SaveImage node ignores subfolder input)
                         subfolderPath = Path.Combine(comfyUIOutputDir, jsonFileName);
-                        AddLog($"Searching for images in: {subfolderPath}");
-
-                        if (!Directory.Exists(subfolderPath))
-                        {
-                            AddLog($"WARNING: Subfolder not found: {subfolderPath}");
-                            AddLog("Falling back to main output directory...");
-                            subfolderPath = comfyUIOutputDir;
-                        }
+                        var primarySearchDirs = Directory.Exists(subfolderPath)
+                            ? new[] { subfolderPath, comfyUIOutputDir }
+                            : new[] { comfyUIOutputDir };
+                        AddLog($"Searching for images in: {string.Join(", ", primarySearchDirs)}");
 
                         // ComfyUI names files as: {filename_prefix}_00001_.png
                         // The filename_prefix we set is: {jsonFileName}-{imageIndex}
                         var pattern = $"{jsonFileName}-{imageIndex}_*.png";
-                        var matchingFiles = Directory.GetFiles(subfolderPath, pattern)
+                        var matchingFiles = primarySearchDirs
+                            .Where(Directory.Exists)
+                            .SelectMany(dir => Directory.GetFiles(dir, pattern))
                             .Select(f => new FileInfo(f))
                             .OrderByDescending(f => f.LastWriteTime)
                             .ToList();
