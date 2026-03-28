@@ -36,10 +36,6 @@
       "load_device": "offload_device",
       "attention_mode": "sageattn",
       "rms_norm_function": "default",
-      "compile_args": [
-        "1",
-        0
-      ],
       "block_swap_args": [
         "8",
         0
@@ -93,11 +89,11 @@
   },
   "8": {
     "inputs": {
-      "blocks_to_swap": 20,
+      "blocks_to_swap": 30,
       "offload_img_emb": true,
       "offload_txt_emb": true,
       "use_non_blocking": true,
-      "vace_blocks_to_swap": 15,
+      "vace_blocks_to_swap": 8,
       "prefetch_blocks": 0,
       "block_swap_debug": false
     },
@@ -145,7 +141,7 @@
   },
   "20": {
     "inputs": {
-      "value": 1024
+      "value": 832
     },
     "class_type": "INTConstant",
     "_meta": {
@@ -154,7 +150,7 @@
   },
   "21": {
     "inputs": {
-      "value": 576
+      "value": 480
     },
     "class_type": "INTConstant",
     "_meta": {

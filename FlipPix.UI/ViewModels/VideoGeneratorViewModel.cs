@@ -132,7 +132,8 @@ namespace FlipPix.UI.ViewModels
                 settingsService,
                 serviceProvider,
                 _workflowCoordinator,
-                _fileDialogService);
+                _fileDialogService,
+                lmStudioService);
 
             InfiniteTalkVM = new InfiniteTalkViewModel(
                 comfyUIService,
@@ -351,10 +352,17 @@ namespace FlipPix.UI.ViewModels
         public string VaceResultVideoInfo => VaceVM.ResultVideoInfo;
         public ICommand AnalyzeVACEImageCommand => VaceVM.AnalyzeImageCommand;
 
+        public bool VaceCanAddToQueue => VaceVM.CanAddToQueue;
+        public ObservableCollection<VaceQueueItem> VaceQueue => VaceVM.Queue;
+        public bool VaceHasQueueItems => VaceVM.HasQueueItems;
+        public bool VaceIsProcessingQueue => VaceVM.IsProcessingQueue;
+        public string VaceQueueStatus => VaceVM.QueueStatus;
+
         // VaceVM Commands
         public ICommand SelectVACEForegroundImageCommand => VaceVM.SelectForegroundImageCommand;
         public ICommand SelectVACEVideoCommand => VaceVM.SelectVideoCommand;
         public ICommand GenerateVACEVideoCommand => VaceVM.GenerateVideoCommand;
+        public ICommand RemoveVaceQueueItemCommand => VaceVM.RemoveQueueItemCommand;
         public ICommand PlayVACEVideoCommand => VaceVM.PlayVideoCommand;
         public ICommand OpenVACEResultFolderCommand => VaceVM.OpenResultFolderCommand;
 
@@ -422,6 +430,10 @@ namespace FlipPix.UI.ViewModels
         public string MochaVideoInfo => MochaVM.ResultVideoInfo;
         public bool CanGenerateMochaVideo => MochaVM.CanGenerateVideo;
 
+        public bool IsMochaAnalyzing => MochaVM.IsAnalyzing;
+        public bool CanAnalyzeMocha => MochaVM.CanAnalyzeImage;
+        public string MochaResultVideoInfo => MochaVM.ResultVideoInfo;
+
         // MochaVM Commands
         public ICommand SelectMochaVideoCommand => MochaVM.SelectVideoCommand;
         public ICommand SelectMochaImageCommand => MochaVM.SelectImageCommand;
@@ -429,6 +441,7 @@ namespace FlipPix.UI.ViewModels
         public ICommand PlayMochaVideoCommand => MochaVM.PlayVideoCommand;
         public ICommand OpenMochaResultFolderCommand => MochaVM.OpenResultFolderCommand;
         public ICommand SendMochaToEditCameraCommand => MochaVM.SendToEditCameraCommand;
+        public ICommand AnalyzeMochaCommand => MochaVM.AnalyzeImageCommand;
 
         #endregion
 

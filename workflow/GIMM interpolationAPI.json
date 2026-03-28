@@ -1,0 +1,75 @@
+{
+  "3": {
+    "inputs": {
+      "ds_factor": 1,
+      "interpolation_factor": 3,
+      "seed": 526084202942527,
+      "output_flows": false,
+      "gimmvfi_model": [
+        "5",
+        0
+      ],
+      "images": [
+        "4",
+        0
+      ]
+    },
+    "class_type": "GIMMVFI_interpolate",
+    "_meta": {
+      "title": "GIMM-VFI Interpolate"
+    }
+  },
+  "4": {
+    "inputs": {
+      "video": "SCAIL_20260327_182050.mp4",
+      "force_rate": 0,
+      "custom_width": 0,
+      "custom_height": 0,
+      "frame_load_cap": 0,
+      "skip_first_frames": 0,
+      "select_every_nth": 1,
+      "format": "Wan"
+    },
+    "class_type": "VHS_LoadVideo",
+    "_meta": {
+      "title": "Load Video (Upload) 🎥🅥🅗🅢"
+    }
+  },
+  "5": {
+    "inputs": {
+      "model": "gimmvfi_r_arb_lpips_fp32.safetensors",
+      "precision": "fp32",
+      "torch_compile": false
+    },
+    "class_type": "DownloadAndLoadGIMMVFIModel",
+    "_meta": {
+      "title": "(Down)Load GIMMVFI Model"
+    }
+  },
+  "6": {
+    "inputs": {
+      "frame_rate": 60,
+      "loop_count": 0,
+      "filename_prefix": "AnimateDiff",
+      "format": "video/nvenc_h264-mp4",
+      "pix_fmt": "yuv420p",
+      "bitrate": 10,
+      "megabit": true,
+      "save_metadata": true,
+      "pingpong": false,
+      "save_output": true,
+      "images": [
+        "3",
+        0
+      ],
+      "audio": [
+        "4",
+        2
+      ]
+    },
+    "class_type": "VHS_VideoCombine",
+    "_meta": {
+      "title": "Video Combine 🎥🅥🅗🅢"
+    }
+  }
+}

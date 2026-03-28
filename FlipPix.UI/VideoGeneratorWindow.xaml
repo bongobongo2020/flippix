@@ -1351,10 +1351,10 @@
 
                                         <!-- Generate Button and Status -->
                                         <StackPanel Grid.Column="1" VerticalAlignment="Center">
-                                            <Button Content="🎭 Generate VACE Video"
+                                            <Button Content="➕ Add to VACE Queue"
                                                    Style="{StaticResource PrimaryButtonStyle}"
                                                    Command="{Binding GenerateVACEVideoCommand}"
-                                                   IsEnabled="{Binding CanGenerateVACEVideo, Mode=OneWay}"
+                                                   IsEnabled="{Binding VaceCanAddToQueue, Mode=OneWay}"
                                                    HorizontalAlignment="Stretch"
                                                    Height="55"
                                                    FontSize="15"
@@ -1395,6 +1395,60 @@
                                             </Border>
                                         </StackPanel>
                                     </Grid>
+                                </Border>
+
+                                <!-- VACE Queue Panel -->
+                                <Border Style="{StaticResource SectionPanelStyle}"
+                                        Visibility="{Binding VaceHasQueueItems, Converter={StaticResource BooleanToVisibilityConverter}}">
+                                    <StackPanel>
+                                        <Grid Margin="0,0,0,8">
+                                            <Grid.ColumnDefinitions>
+                                                <ColumnDefinition Width="*"/>
+                                                <ColumnDefinition Width="Auto"/>
+                                            </Grid.ColumnDefinitions>
+                                            <TextBlock Grid.Column="0" Text="🎭 VACE Queue" Style="{StaticResource HeaderTextStyle}" Foreground="#FF6B35"/>
+                                            <TextBlock Grid.Column="1" Text="{Binding VaceQueueStatus}"
+                                                      FontStyle="Italic" Foreground="#666" FontSize="11"
+                                                      VerticalAlignment="Center"/>
+                                        </Grid>
+
+                                        <ItemsControl ItemsSource="{Binding VaceQueue}">
+                                            <ItemsControl.ItemTemplate>
+                                                <DataTemplate>
+                                                    <Border BorderBrush="#DEE2E6" BorderThickness="1" CornerRadius="4"
+                                                            Padding="10,6" Margin="0,0,0,4" Background="White">
+                                                        <Grid>
+                                                            <Grid.ColumnDefinitions>
+                                                                <ColumnDefinition Width="Auto"/>
+                                                                <ColumnDefinition Width="*"/>
+                                                                <ColumnDefinition Width="Auto"/>
+                                                            </Grid.ColumnDefinitions>
+
+                                                            <Border Grid.Column="0" CornerRadius="3" Padding="6,2" Margin="0,0,8,0"
+                                                                    Background="{Binding StatusColor}">
+                                                                <TextBlock Text="{Binding StatusDisplay}" FontSize="11" FontWeight="SemiBold" Foreground="White"/>
+                                                            </Border>
+
+                                                            <StackPanel Grid.Column="1" VerticalAlignment="Center">
+                                                                <TextBlock Text="{Binding DisplayText}" FontWeight="SemiBold" FontSize="11"/>
+                                                                <TextBlock Text="{Binding Prompt}" FontSize="10" Foreground="#666"
+                                                                           TextTrimming="CharacterEllipsis"/>
+                                                            </StackPanel>
+
+                                                            <Button Grid.Column="2"
+                                                                    Content="✕"
+                                                                    Style="{StaticResource SecondaryButtonStyle}"
+                                                                    Command="{Binding DataContext.RemoveVaceQueueItemCommand, RelativeSource={RelativeSource AncestorType=ItemsControl}}"
+                                                                    CommandParameter="{Binding}"
+                                                                    Width="28" Height="28"
+                                                                    Padding="0"
+                                                                    FontSize="10"/>
+                                                        </Grid>
+                                                    </Border>
+                                                </DataTemplate>
+                                            </ItemsControl.ItemTemplate>
+                                        </ItemsControl>
+                                    </StackPanel>
                                 </Border>
 
                                 <!-- VACE Result Video Section -->
@@ -2213,6 +2267,24 @@
                                                               Foreground="#666"
                                                               FontSize="10"
                                                               TextWrapping="Wrap"/>
+
+                                                    <!-- Analyze Image/Video Button -->
+                                                    <StackPanel Orientation="Horizontal" Margin="0,8,0,0">
+                                                        <Button Content="Analyze Image/Video"
+                                                                Style="{StaticResource SecondaryButtonStyle}"
+                                                                Command="{Binding AnalyzeMochaCommand}"
+                                                                IsEnabled="{Binding CanAnalyzeMocha}"
+                                                                Height="32"
+                                                                Padding="12,0"
+                                                                HorizontalAlignment="Left"/>
+                                                        <TextBlock Text="Analyzing..."
+                                                                   FontStyle="Italic"
+                                                                   Foreground="#FF6B35"
+                                                                   FontSize="11"
+                                                                   VerticalAlignment="Center"
+                                                                   Margin="10,0,0,0"
+                                                                   Visibility="{Binding IsMochaAnalyzing, Converter={StaticResource BooleanToVisibilityConverter}}"/>
+                                                    </StackPanel>
                                                 </StackPanel>
                                             </Border>
                                         </Grid>
@@ -2222,7 +2294,7 @@
                                                   Foreground="#999"
                                                   FontStyle="Italic"
                                                   TextWrapping="Wrap">
-                                            <Run Text="The video will be processed in 81-frame chunks. ffmpeg is required to count frames and merge the final output."/>
+                                            <Run Text="SCAIL processes the full video in a single pass using Wan SCAIL model. Analyze Image/Video uses Qwen VL to generate a synthesized motion prompt from your video and reference image."/>
                                         </TextBlock>
                                     </StackPanel>
                                 </Border>
@@ -2230,9 +2302,9 @@
                                 <!-- Prompt Section -->
                                 <Border Style="{StaticResource SectionPanelStyle}">
                                     <StackPanel>
-                                        <TextBlock Text="✍️ Prompt (Optional)" Style="{StaticResource HeaderTextStyle}" Foreground="#FF6B35"/>
+                                        <TextBlock Text="✍️ Prompt" Style="{StaticResource HeaderTextStyle}" Foreground="#FF6B35"/>
 
-                                        <TextBlock Text="Describe what you want to generate with the Mocha model"
+                                        <TextBlock Text="Motion prompt for SCAIL. Use 'Analyze Image/Video' to generate automatically."
                                                   FontStyle="Italic"
                                                   Foreground="#666"
                                                   FontSize="11"
@@ -2251,9 +2323,9 @@
                                                   FontSize="10"
                                                   Foreground="#999"
                                                   FontStyle="Italic">
-                                            <Run Text="Chunks:"/>
-                                            <Run Text="{Binding MochaTotalChunks, Mode=OneWay}" FontWeight="SemiBold"/>
-                                            <Run Text="• 81 frames per chunk"/>
+                                            <Run Text="Source video:"/>
+                                            <Run Text="{Binding MochaTotalFrames, Mode=OneWay}" FontWeight="SemiBold"/>
+                                            <Run Text="frames"/>
                                         </TextBlock>
                                     </StackPanel>
                                 </Border>
@@ -2261,7 +2333,7 @@
                                 <!-- Generate Button -->
                                 <Border Style="{StaticResource SectionPanelStyle}">
                                     <StackPanel>
-                                        <Button Content="🎬 Generate Mocha Video"
+                                        <Button Content="🎬 Generate SCAIL Video"
                                                 Style="{StaticResource PrimaryButtonStyle}"
                                                 Height="50"
                                                 FontSize="16"

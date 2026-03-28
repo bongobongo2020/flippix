@@ -1,0 +1,73 @@
+{
+  "1": {
+    "inputs": {
+      "resize_type": "scale by multiplier",
+      "resize_type.scale": 2,
+      "quality": "ULTRA",
+      "images": [
+        "2",
+        0
+      ]
+    },
+    "class_type": "RTXVideoSuperResolution",
+    "_meta": {
+      "title": "RTX Video Super Resolution"
+    }
+  },
+  "2": {
+    "inputs": {
+      "video": "AnimateDiff_00002.mp4",
+      "force_rate": 0,
+      "custom_width": 0,
+      "custom_height": 0,
+      "frame_load_cap": 0,
+      "skip_first_frames": 0,
+      "select_every_nth": 1,
+      "format": "Wan",
+      "meta_batch": [
+        "4",
+        0
+      ]
+    },
+    "class_type": "VHS_LoadVideo",
+    "_meta": {
+      "title": "Load Video (Upload) 🎥🅥🅗🅢"
+    }
+  },
+  "3": {
+    "inputs": {
+      "frame_rate": 60,
+      "loop_count": 0,
+      "filename_prefix": "upscale",
+      "format": "video/nvenc_hevc-mp4",
+      "pix_fmt": "yuv420p",
+      "bitrate": 10,
+      "megabit": true,
+      "save_metadata": true,
+      "pingpong": false,
+      "save_output": true,
+      "images": [
+        "1",
+        0
+      ],
+      "meta_batch": [
+        "4",
+        0
+      ]
+    },
+    "class_type": "VHS_VideoCombine",
+    "_meta": {
+      "title": "Video Combine 🎥🅥🅗🅢"
+    }
+  },
+  "4": {
+    "inputs": {
+      "frames_per_batch": 29,
+      "count": 3
+    },
+    "class_type": "VHS_BatchManager",
+    "_meta": {
+      "title": "Meta Batch Manager 🎥🅥🅗🅢"
+    }
+  }
+}

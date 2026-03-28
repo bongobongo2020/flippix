@@ -30,6 +30,9 @@ public class ComfyUISettings
     // Story Image Generator (Z) last used folder locations
     public string StoryImageGeneratorPromptJsonFolder { get; set; } = string.Empty;
 
+    // Enhance Video last used folder location
+    public string EnhanceVideoFolder { get; set; } = string.Empty;
+
     // Video Generator last used folder locations
     public string VideoGeneratorImageFolder { get; set; } = string.Empty;
     public string VideoGeneratorStoryPromptJsonFolder { get; set; } = string.Empty;

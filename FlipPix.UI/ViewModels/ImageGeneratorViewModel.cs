@@ -125,6 +125,7 @@ namespace FlipPix.UI.ViewModels
             NavigateToImageAnalyzerCommand = new RelayCommand(NavigateToImageAnalyzer);
             NavigateToVideoGeneratorCommand = new RelayCommand(NavigateToVideoGenerator);
                 NavigateToStoryVideoCommand = new RelayCommand(NavigateToStoryVideo);
+            NavigateToEnhanceVideoCommand = new RelayCommand(NavigateToEnhanceVideo);
             RefreshLorasCommand = new RelayCommand(RefreshLoras);
 
             // Queue commands
@@ -438,6 +439,7 @@ namespace FlipPix.UI.ViewModels
         public ICommand NavigateToImageAnalyzerCommand { get; }
         public ICommand NavigateToVideoGeneratorCommand { get; }
               public ICommand NavigateToStoryVideoCommand { get; }
+        public ICommand NavigateToEnhanceVideoCommand { get; }
         public ICommand RefreshLorasCommand { get; }
 
         // Queue commands
@@ -2450,6 +2452,21 @@ namespace FlipPix.UI.ViewModels
             catch (Exception ex)
             {
                 AddLog($"ERROR navigating to Video Generator: {ex.Message}");
+            }
+        }
+
+        private void NavigateToEnhanceVideo()
+        {
+            if (_serviceProvider == null) return;
+
+            try
+            {
+                var enhanceWindow = _serviceProvider.GetService(typeof(VideoEnhanceWindow)) as VideoEnhanceWindow;
+                enhanceWindow?.Show();
+            }
+            catch (Exception ex)
+            {
+                AddLog($"ERROR navigating to Enhance Video: {ex.Message}");
             }
         }
 

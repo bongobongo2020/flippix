@@ -5,6 +5,7 @@ using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Http;
 using System.Net.Http;
 using FlipPix.UI.ViewModels;
+using FlipPix.UI.ViewModels.Video;
 using FlipPix.ComfyUI.Services;
 using FlipPix.Core.Interfaces;
 using FlipPix.Core.Services;
@@ -283,6 +284,15 @@ namespace FlipPix.UI
                 var fileDialogService = provider.GetRequiredService<IFileDialogService>();
                 return new I2V2AViewModel(comfyUIService, logger, settingsService, provider, fileDialogService);
             });
+            services.AddTransient<VideoEnhanceViewModel>(provider =>
+            {
+                var comfyUIService = provider.GetRequiredService<FlipPix.ComfyUI.Services.ComfyUIService>();
+                var logger = provider.GetRequiredService<IAppLogger>();
+                var settingsService = provider.GetRequiredService<SettingsService>();
+                var fileDialogService = provider.GetRequiredService<IFileDialogService>();
+                var workflowCoordinator = provider.GetRequiredService<WorkflowQueueCoordinator>();
+                return new VideoEnhanceViewModel(comfyUIService, logger, settingsService, provider, workflowCoordinator, fileDialogService);
+            });
 
             // Views
             services.AddTransient<FlipPixWindow>(provider =>
@@ -319,6 +329,12 @@ namespace FlipPix.UI
                 var navigationService = provider.GetRequiredService<INavigationService>();
                 var windowPositionService = provider.GetRequiredService<WindowPositionService>();
                 return new I2V2AWindow(viewModel, navigationService, windowPositionService);
+            });
+            services.AddTransient<VideoEnhanceWindow>(provider =>
+            {
+                var viewModel = provider.GetRequiredService<VideoEnhanceViewModel>();
+                var windowPositionService = provider.GetRequiredService<WindowPositionService>();
+                return new VideoEnhanceWindow(viewModel, windowPositionService);
             });
         }
 
