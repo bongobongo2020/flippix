@@ -434,6 +434,8 @@ namespace FlipPix.UI.ViewModels.Video
 
                 ProcessingProgress = 10;
                 ProcessingStatus = "Uploading video...";
+                if (!IsMp4Valid(item.InputVideoPath, out var interpolateValidationError))
+                    throw new Exception($"Input video is not a valid MP4: {interpolateValidationError}\n\nPath: {item.InputVideoPath}\n\nRe-generate the source video and try again.");
                 var uploadedName = await _comfyUIService.UploadVideoAsync(item.InputVideoPath);
                 if (string.IsNullOrEmpty(uploadedName))
                     throw new Exception("Video upload failed.");
@@ -522,6 +524,8 @@ namespace FlipPix.UI.ViewModels.Video
 
                 ProcessingProgress = 10;
                 ProcessingStatus = "Uploading video...";
+                if (!IsMp4Valid(item.InputVideoPath, out var upscaleValidationError))
+                    throw new Exception($"Input video is not a valid MP4: {upscaleValidationError}\n\nPath: {item.InputVideoPath}\n\nRe-generate the source video and try again.");
                 var uploadedName = await _comfyUIService.UploadVideoAsync(item.InputVideoPath);
                 if (string.IsNullOrEmpty(uploadedName))
                     throw new Exception("Video upload failed.");
