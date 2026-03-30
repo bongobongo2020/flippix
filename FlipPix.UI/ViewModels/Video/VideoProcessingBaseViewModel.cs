@@ -288,8 +288,8 @@ namespace FlipPix.UI.ViewModels.Video
                         .OrderByDescending(f => File.GetLastWriteTime(f))
                         .First();
 
-                    // Wait for file to be fully written
-                    await Task.Delay(TimeSpan.FromSeconds(3));
+                    // Wait until file size stops growing (moov atom written last in MP4)
+                    await WaitForFileStableAsync(newestFile);
 
                     if (File.Exists(newestFile))
                     {
@@ -346,6 +346,7 @@ namespace FlipPix.UI.ViewModels.Video
                         var localPath = Path.Combine(outputFolder, videoFile.Replace('/', Path.DirectorySeparatorChar));
                         if (File.Exists(localPath))
                         {
+                            await WaitForFileStableAsync(localPath);
                             AddLog($"History API: resolved local path: {localPath}");
                             return localPath;
                         }
@@ -375,6 +376,47 @@ namespace FlipPix.UI.ViewModels.Video
                 AddLog($"History API lookup failed: {ex.Message}");
                 return null;
             }
+        }
+
+        /// <summary>
+        /// Waits until a file's size stops growing, indicating it has been fully written.
+        /// Polls every second; declares stable after two consecutive equal-size reads.
+        /// Times out after maxWait (default 60 s) to avoid hanging indefinitely.
+        /// </summary>
+        protected async Task WaitForFileStableAsync(string filePath, TimeSpan? maxWait = null)
+        {
+            var deadline = DateTime.Now + (maxWait ?? TimeSpan.FromSeconds(60));
+            long prevSize = -1;
+            int stableCount = 0;
+
+            while (DateTime.Now < deadline)
+            {
+                await Task.Delay(1000);
+                try
+                {
+                    long size = new FileInfo(filePath).Length;
+                    if (size > 0 && size == prevSize)
+                    {
+                        stableCount++;
+                        if (stableCount >= 2)
+                        {
+                            AddLog($"File stable at {size / 1024.0 / 1024.0:F2} MB: {Path.GetFileName(filePath)}");
+                            return;
+                        }
+                    }
+                    else
+                    {
+                        stableCount = 0;
+                    }
+                    prevSize = size;
+                }
+                catch
+                {
+                    // File may briefly be locked; keep waiting
+                }
+            }
+
+            AddLog($"WaitForFileStable: timeout reached for {Path.GetFileName(filePath)}, proceeding anyway");
         }
 
         /// <summary>
@@ -428,6 +470,67 @@ namespace FlipPix.UI.ViewModels.Video
             {
                 AddLog($"ERROR copying video: {ex.Message}");
                 return null;
+            }
+        }
+
+        /// <summary>
+        /// Scans an MP4/MOV file for the presence of a moov atom.
+        /// Returns false (with a reason) if the file is missing the moov atom or is too small to be valid.
+        /// </summary>
+        protected bool IsMp4Valid(string filePath, out string reason)
+        {
+            reason = string.Empty;
+            try
+            {
+                var fi = new FileInfo(filePath);
+                if (fi.Length < 8) { reason = "file is too small to be a valid MP4"; return false; }
+
+                using var stream = File.OpenRead(filePath);
+                long pos = 0;
+                bool foundMoov = false;
+
+                while (pos < stream.Length - 8)
+                {
+                    stream.Seek(pos, SeekOrigin.Begin);
+                    var header = new byte[8];
+                    if (stream.Read(header, 0, 8) < 8) break;
+
+                    uint boxSize = (uint)((header[0] << 24) | (header[1] << 16) | (header[2] << 8) | header[3]);
+                    string boxType = System.Text.Encoding.ASCII.GetString(header, 4, 4);
+
+                    if (boxType == "moov") { foundMoov = true; break; }
+
+                    // Extended size (boxSize == 1 means next 8 bytes are the real size)
+                    if (boxSize == 1)
+                    {
+                        var extSize = new byte[8];
+                        if (stream.Read(extSize, 0, 8) < 8) break;
+                        ulong realSize = 0;
+                        for (int i = 0; i < 8; i++) realSize = (realSize << 8) | extSize[i];
+                        if (realSize == 0) break;
+                        pos += (long)realSize;
+                    }
+                    else if (boxSize == 0) // box extends to EOF
+                    {
+                        break;
+                    }
+                    else
+                    {
+                        pos += boxSize;
+                    }
+                }
+
+                if (!foundMoov)
+                {
+                    reason = "moov atom not found — the file is incomplete or corrupt";
+                    return false;
+                }
+                return true;
+            }
+            catch (Exception ex)
+            {
+                reason = $"could not read file: {ex.Message}";
+                return false;
             }
         }
 
