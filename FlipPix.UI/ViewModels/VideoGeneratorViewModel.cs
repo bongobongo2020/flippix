@@ -80,6 +80,31 @@ namespace FlipPix.UI.ViewModels
         /// </summary>
         public LTX23T2VViewModel LTX23T2VVM { get; }
 
+        /// <summary>
+        /// Wan 2.2 Remix single image-to-video ViewModel - analyzes image via llamaserver,
+        /// generates a prompt, and auto-queues processing with the Wan 2.2 Remix workflow.
+        /// </summary>
+        public Wan22SingleViewModel Wan22SingleVM { get; }
+
+        // 0 = LTX 2.3, 1 = Wan 2.2 Remix
+        private int _singleVideoWorkflowIndex = 0;
+        public int SingleVideoWorkflowIndex
+        {
+            get => _singleVideoWorkflowIndex;
+            set
+            {
+                if (_singleVideoWorkflowIndex != value)
+                {
+                    _singleVideoWorkflowIndex = value;
+                    OnPropertyChanged();
+                    OnPropertyChanged(nameof(SingleVideoIsLTX23));
+                    OnPropertyChanged(nameof(SingleVideoIsWan22));
+                }
+            }
+        }
+        public bool SingleVideoIsLTX23 => _singleVideoWorkflowIndex == 0;
+        public bool SingleVideoIsWan22 => _singleVideoWorkflowIndex == 1;
+
         public VideoGeneratorViewModel(
             ComfyUIService comfyUIService,
             LMStudioService lmStudioService,
@@ -160,6 +185,15 @@ namespace FlipPix.UI.ViewModels
                 serviceProvider,
                 _workflowCoordinator);
 
+            Wan22SingleVM = new Wan22SingleViewModel(
+                comfyUIService,
+                logger,
+                lmStudioService,
+                settingsService,
+                serviceProvider,
+                _workflowCoordinator,
+                _fileDialogService);
+
             // Forward PlayRequested events from sub-VMs
             MainVM.PlayRequested += (s, e) => PlayRequested?.Invoke(this, e);
             VaceVM.PlayRequested += (s, e) => PlayRequested?.Invoke(this, e);
@@ -168,6 +202,7 @@ namespace FlipPix.UI.ViewModels
             InfiniteTalkVM.PlayRequested += (s, e) => PlayRequested?.Invoke(this, e);
             LTX23BasicVM.PlayRequested += (s, e) => PlayRequested?.Invoke(this, e);
             LTX23T2VVM.PlayRequested += (s, e) => PlayRequested?.Invoke(this, e);
+            Wan22SingleVM.PlayRequested += (s, e) => PlayRequested?.Invoke(this, e);
 
             // Forward PropertyChanged events from all sub-VMs for backward compatibility
             MainVM.PropertyChanged += ForwardPropertyChanged;
@@ -177,6 +212,7 @@ namespace FlipPix.UI.ViewModels
             InfiniteTalkVM.PropertyChanged += ForwardPropertyChanged;
             LTX23BasicVM.PropertyChanged += ForwardPropertyChanged;
             LTX23T2VVM.PropertyChanged += ForwardPropertyChanged;
+            Wan22SingleVM.PropertyChanged += ForwardPropertyChanged;
 
             _logger.LogInfo("VideoGeneratorViewModel initialized with sub-ViewModels");
         }
@@ -562,6 +598,40 @@ namespace FlipPix.UI.ViewModels
 
         #endregion
 
+        #region Wan22SingleVM Backward Compatibility Properties
+
+        public string Wan22ImagePath { get => Wan22SingleVM.ImagePath; set => Wan22SingleVM.ImagePath = value; }
+        public BitmapImage? Wan22ImagePreview { get => Wan22SingleVM.ImagePreview; set => Wan22SingleVM.ImagePreview = value; }
+        public string Wan22ImageInfo { get => Wan22SingleVM.ImageInfo; set => Wan22SingleVM.ImageInfo = value; }
+        public string Wan22Prompt { get => Wan22SingleVM.Prompt; set => Wan22SingleVM.Prompt = value; }
+        public bool IsProcessingWan22 { get => Wan22SingleVM.IsProcessing; set => Wan22SingleVM.IsProcessing = value; }
+        public string Wan22ProcessingStatus => Wan22SingleVM.ProcessingStatus;
+        public double Wan22ProcessingProgress => Wan22SingleVM.ProcessingProgress;
+        public string Wan22ProgressPercentage => Wan22SingleVM.ProgressPercentage;
+        public string Wan22LogOutput => Wan22SingleVM.LogOutput;
+        public bool HasWan22Result => Wan22SingleVM.HasResult;
+        public string Wan22ResultPath => Wan22SingleVM.ResultVideoPath;
+        public string Wan22VideoInfo => Wan22SingleVM.ResultVideoInfo;
+        public bool Wan22IsAnalyzing => Wan22SingleVM.IsAnalyzing;
+        public bool CanWan22AnalyzeImage => Wan22SingleVM.CanAnalyzeImage;
+        public string Wan22AnalysisResult => Wan22SingleVM.AnalysisResult;
+        public bool HasWan22Analysis => Wan22SingleVM.HasAnalysis;
+        public bool CanWan22AddToQueue => Wan22SingleVM.CanAddToQueue;
+        public ObservableCollection<QueueItem> Wan22Queue => Wan22SingleVM.Queue;
+        public bool Wan22HasQueueItems => Wan22SingleVM.HasQueueItems;
+        public bool Wan22IsProcessingQueue => Wan22SingleVM.IsProcessingQueue;
+        public string Wan22QueueStatus => Wan22SingleVM.QueueStatus;
+
+        public ICommand SelectWan22ImageCommand => Wan22SingleVM.SelectImageCommand;
+        public ICommand AnalyzeWan22ImageCommand => Wan22SingleVM.AnalyzeImageCommand;
+        public ICommand GenerateWan22VideoCommand => Wan22SingleVM.GenerateVideoCommand;
+        public ICommand RemoveWan22QueueItemCommand => Wan22SingleVM.RemoveQueueItemCommand;
+        public ICommand PlayWan22VideoCommand => Wan22SingleVM.PlayVideoCommand;
+        public ICommand OpenWan22ResultFolderCommand => Wan22SingleVM.OpenResultFolderCommand;
+        public ICommand SendWan22ToEditCameraCommand => Wan22SingleVM.SendToEditCameraCommand;
+
+        #endregion
+
         #region Public Methods
 
         /// <summary>
@@ -588,6 +658,7 @@ namespace FlipPix.UI.ViewModels
                 InfiniteTalkVM.PropertyChanged -= ForwardPropertyChanged;
                 LTX23BasicVM.PropertyChanged -= ForwardPropertyChanged;
                 LTX23T2VVM.PropertyChanged -= ForwardPropertyChanged;
+                Wan22SingleVM.PropertyChanged -= ForwardPropertyChanged;
 
                 // Dispose all sub-ViewModels
                 (MainVM as IDisposable)?.Dispose();
@@ -597,6 +668,7 @@ namespace FlipPix.UI.ViewModels
                 (InfiniteTalkVM as IDisposable)?.Dispose();
                 (LTX23BasicVM as IDisposable)?.Dispose();
                 (LTX23T2VVM as IDisposable)?.Dispose();
+                (Wan22SingleVM as IDisposable)?.Dispose();
 
                 _disposed = true;
             }

@@ -56,8 +56,8 @@
             <StackPanel Margin="20,15,20,15">
                 <TabControl>
 
-                    <!-- Tab 1: Single Video Generator -->
-                    <TabItem Header="🎬 Single Video Generator">
+                    <!-- Tab 1: FFLF -->
+                    <TabItem Header="🎬 FFLF">
                         <ScrollViewer VerticalScrollBarVisibility="Auto">
                             <StackPanel Margin="10">
                                 <!-- Workflow Selection for Single Video -->
@@ -1549,351 +1549,26 @@
                         </ScrollViewer>
                     </TabItem>
 
-                    <!-- Tab 4: LTX2 Audio Generator -->
-                    <TabItem Header="🎵 LTX2 Audio">
+                    <!-- Tab 5: Single Video -->
+                    <TabItem Header="🎬 Single Video">
                         <ScrollViewer VerticalScrollBarVisibility="Auto">
                             <StackPanel Margin="10">
 
-                                <!-- LTX2 Audio Setup Section -->
-                                <Border Style="{StaticResource SectionPanelStyle}">
+                                <!-- Workflow Selector -->
+                                <Border Style="{StaticResource SectionPanelStyle}" Margin="0,0,0,5">
                                     <StackPanel>
-                                        <TextBlock Text="🎬 LTX2 Audio Video Inputs" Style="{StaticResource HeaderTextStyle}" Foreground="#FF6B35"/>
-
-                                        <!-- Image Input -->
-                                        <Border BorderBrush="#DEE2E6" BorderThickness="1" Background="White" CornerRadius="5" Padding="15" Margin="0,0,0,15">
-                                            <StackPanel>
-                                                <Grid>
-                                                    <Grid.ColumnDefinitions>
-                                                        <ColumnDefinition Width="120"/>
-                                                        <ColumnDefinition Width="*"/>
-                                                        <ColumnDefinition Width="Auto"/>
-                                                    </Grid.ColumnDefinitions>
-
-                                                    <TextBlock Grid.Column="0" Text="Source Image:" FontWeight="SemiBold" FontSize="12" VerticalAlignment="Center"/>
-                                                    <Border Grid.Column="1"
-                                                            BorderBrush="#DEE2E6" BorderThickness="1"
-                                                            Background="White" Height="80"
-                                                            CornerRadius="3" Margin="0,0,10,0">
-                                                        <Grid>
-                                                            <TextBlock Text="No image selected"
-                                                                      HorizontalAlignment="Center"
-                                                                      VerticalAlignment="Center"
-                                                                      Foreground="#999"
-                                                                      FontStyle="Italic">
-                                                                <TextBlock.Style>
-                                                                    <Style TargetType="TextBlock">
-                                                                        <Setter Property="Visibility" Value="Collapsed"/>
-                                                                        <Style.Triggers>
-                                                                            <DataTrigger Binding="{Binding LTX2AudioImagePreview}" Value="{x:Null}">
-                                                                                <Setter Property="Visibility" Value="Visible"/>
-                                                                            </DataTrigger>
-                                                                        </Style.Triggers>
-                                                                    </Style>
-                                                                </TextBlock.Style>
-                                                            </TextBlock>
-                                                            <Image Source="{Binding LTX2AudioImagePreview}"
-                                                                   Stretch="Uniform"/>
-                                                        </Grid>
-                                                    </Border>
-                                                    <Button Grid.Column="2"
-                                                           Content="Browse..."
-                                                           Style="{StaticResource SecondaryButtonStyle}"
-                                                           Command="{Binding SelectLTX2AudioImageCommand}"
-                                                           Height="35"
-                                                           Width="100"/>
-                                                </Grid>
-                                                <TextBlock Text="{Binding LTX2AudioImageInfo}"
-                                                          FontStyle="Italic"
-                                                          Foreground="#666"
-                                                          FontSize="10"
-                                                          Margin="0,8,0,0"/>
-                                                <Button Content="Analyze Image"
-                                                        Style="{StaticResource SecondaryButtonStyle}"
-                                                        Command="{Binding AnalyzeLTX2AudioImageCommand}"
-                                                        IsEnabled="{Binding CanLTX2AnalyzeImage, Mode=OneWay}"
-                                                        Height="35"
-                                                        Width="150"
-                                                        HorizontalAlignment="Left"
-                                                        Margin="0,8,0,0"/>
-                                                <TextBlock Text="Image Analysis Result:" FontWeight="SemiBold" FontSize="12" Margin="0,10,0,5"/>
-                                                <TextBox Text="{Binding LTX2AudioAnalysisResult, Mode=OneWay}"
-                                                        TextWrapping="Wrap"
-                                                        AcceptsReturn="True"
-                                                        Height="120"
-                                                        Padding="12"
-                                                        VerticalScrollBarVisibility="Auto"
-                                                        Background="#F8F9FA"
-                                                        BorderBrush="#CED4DA"
-                                                        FontSize="11"
-                                                        IsReadOnly="True"
-                                                        Visibility="{Binding HasLTX2AudioAnalysis, Converter={StaticResource BoolToVisibilityConverter}}"/>
-                                            </StackPanel>
-                                        </Border>
-
-                                        <!-- Audio Input -->
-                                        <Border BorderBrush="#DEE2E6" BorderThickness="1" Background="White" CornerRadius="5" Padding="15" Margin="0,0,0,0">
-                                            <StackPanel>
-                                                <Grid>
-                                                    <Grid.ColumnDefinitions>
-                                                        <ColumnDefinition Width="120"/>
-                                                        <ColumnDefinition Width="*"/>
-                                                        <ColumnDefinition Width="Auto"/>
-                                                    </Grid.ColumnDefinitions>
-
-                                                    <TextBlock Grid.Column="0" Text="Audio File:" FontWeight="SemiBold" FontSize="12" VerticalAlignment="Center"/>
-                                                    <TextBox Grid.Column="1"
-                                                            Text="{Binding LTX2AudioPath, Mode=TwoWay}"
-                                                            IsReadOnly="True"
-                                                            Padding="10"
-                                                            Background="White"
-                                                            BorderBrush="#CED4DA"
-                                                            FontSize="11"
-                                                            VerticalAlignment="Center"
-                                                            Margin="0,0,10,0"/>
-                                                    <Button Grid.Column="2"
-                                                           Content="Browse..."
-                                                           Style="{StaticResource SecondaryButtonStyle}"
-                                                           Command="{Binding SelectLTX2AudioCommand}"
-                                                           Height="35"
-                                                           Width="100"/>
-                                                </Grid>
-                                                <TextBlock Text="{Binding LTX2AudioInfo}"
-                                                          FontStyle="Italic"
-                                                          Foreground="#666"
-                                                          FontSize="10"
-                                                          Margin="0,8,0,0"/>
-                                            </StackPanel>
-                                        </Border>
+                                        <TextBlock Text="🔧 Workflow" Style="{StaticResource HeaderTextStyle}" Foreground="#FF6B35"/>
+                                        <ComboBox SelectedIndex="{Binding SingleVideoWorkflowIndex, Mode=TwoWay}"
+                                                  Height="32" Margin="0,6,0,0"
+                                                  FontSize="13">
+                                            <ComboBoxItem Content="🎬 LTX 2.3"/>
+                                            <ComboBoxItem Content="🎨 Wan 2.2 Remix"/>
+                                        </ComboBox>
                                     </StackPanel>
                                 </Border>
 
-                                <!-- LTX2 Audio Prompt Section -->
-                                <Border Style="{StaticResource SectionPanelStyle}">
-                                    <StackPanel>
-                                        <TextBlock Text="📝 Video Prompt" Style="{StaticResource HeaderTextStyle}" Foreground="#FF6B35"/>
-
-                                        <Button Content="Enhance Prompt"
-                                                Style="{StaticResource SecondaryButtonStyle}"
-                                                Command="{Binding EnhanceLTX2AudioPromptCommand}"
-                                                IsEnabled="{Binding CanLTX2EnhancePrompt, Mode=OneWay}"
-                                                Height="35"
-                                                Width="160"
-                                                HorizontalAlignment="Left"
-                                                Margin="0,5,0,10"/>
-
-                                        <StackPanel Visibility="{Binding ShowLTX2AudioVideoPrompt, Converter={StaticResource BoolToVisibilityConverter}}">
-                                            <TextBlock Text="Describe the video action you want to generate:" FontWeight="SemiBold" FontSize="12" Margin="0,0,0,10"/>
-                                            <TextBox Text="{Binding LTX2AudioPrompt, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
-                                                    TextWrapping="Wrap"
-                                                    AcceptsReturn="True"
-                                                    Height="100"
-                                                    Padding="12"
-                                                    VerticalScrollBarVisibility="Auto"
-                                                    Background="White"
-                                                    BorderBrush="#CED4DA"
-                                                    FontSize="12"/>
-                                        </StackPanel>
-                                    </StackPanel>
-                                </Border>
-
-                                <!-- LTX2 Audio Settings Section -->
-                                <Border Style="{StaticResource SectionPanelStyle}">
-                                    <StackPanel>
-                                        <TextBlock Text="⚙️ Video Settings" Style="{StaticResource HeaderTextStyle}" Foreground="#FF6B35"/>
-
-                                        <Grid>
-                                            <Grid.ColumnDefinitions>
-                                                <ColumnDefinition Width="*"/>
-                                                <ColumnDefinition Width="*"/>
-                                            </Grid.ColumnDefinitions>
-
-                                            <StackPanel Grid.Column="0" Margin="0,0,10,0">
-                                                <TextBlock Text="Width:" FontWeight="SemiBold" FontSize="12" Margin="0,0,0,5"/>
-                                                <TextBox Text="{Binding LTX2AudioWidth, Mode=TwoWay}"
-                                                        Padding="8"
-                                                        Background="White"
-                                                        BorderBrush="#CED4DA"
-                                                        FontSize="12"/>
-                                            </StackPanel>
-
-                                            <StackPanel Grid.Column="1" Margin="10,0,0,0">
-                                                <TextBlock Text="Height:" FontWeight="SemiBold" FontSize="12" Margin="0,0,0,5"/>
-                                                <TextBox Text="{Binding LTX2AudioHeight, Mode=TwoWay}"
-                                                        Padding="8"
-                                                        Background="White"
-                                                        BorderBrush="#CED4DA"
-                                                        FontSize="12"/>
-                                            </StackPanel>
-                                        </Grid>
-
-                                        <TextBlock Text="ℹ️ Video will be generated in 20-second chunks and automatically merged"
-                                                  FontStyle="Italic"
-                                                  Foreground="#666"
-                                                  FontSize="11"
-                                                  Margin="0,10,0,0"/>
-                                    </StackPanel>
-                                </Border>
-
-                                <!-- LTX2 Audio Generate Section -->
-                                <Border Style="{StaticResource SectionPanelStyle}">
-                                    <Grid>
-                                        <Grid.ColumnDefinitions>
-                                            <ColumnDefinition Width="2*"/>
-                                            <ColumnDefinition Width="*"/>
-                                        </Grid.ColumnDefinitions>
-
-                                        <!-- Instructions -->
-                                        <StackPanel Grid.Column="0" Margin="0,0,20,0">
-                                            <TextBlock Text="ℹ️ LTX2 Audio-Synchronized Video" Style="{StaticResource HeaderTextStyle}" Foreground="#FF6B35"/>
-                                            <TextBlock Text="Generate videos synchronized to audio using the LTX2 model. The system automatically calculates the number of frames needed based on the audio duration and generates the video in 20-second chunks for optimal performance." FontSize="11" TextWrapping="Wrap" Foreground="#666" Margin="0,5,0,10"/>
-                                            <TextBlock Text="Total Frames:" FontWeight="Bold" FontSize="11" Margin="0,5,0,0"/>
-                                            <TextBlock Text="{Binding LTX2AudioTotalFrames}" FontSize="11" Foreground="#666" Margin="0,0,0,5"/>
-                                            <TextBlock Text="Estimated Duration:" FontWeight="Bold" FontSize="11"/>
-                                            <TextBlock Text="{Binding LTX2AudioEstimatedDuration}" FontSize="11" Foreground="#666"/>
-                                        </StackPanel>
-
-                                        <!-- Generate Button and Status -->
-                                        <StackPanel Grid.Column="1" VerticalAlignment="Center">
-                                            <Button Content="🎵 Generate Video"
-                                                   Style="{StaticResource PrimaryButtonStyle}"
-                                                   Command="{Binding GenerateLTX2AudioVideoCommand}"
-                                                   IsEnabled="{Binding CanGenerateLTX2AudioVideo, Mode=OneWay}"
-                                                   HorizontalAlignment="Stretch"
-                                                   Height="55"
-                                                   FontSize="15"
-                                                   Margin="0,0,0,15"/>
-
-                                            <!-- Processing Status -->
-                                            <Border Background="#FFF9F0"
-                                                    BorderBrush="#FFE0B0"
-                                                    BorderThickness="1"
-                                                    CornerRadius="5"
-                                                    Padding="12"
-                                                    Visibility="{Binding IsProcessingLTX2Audio, Converter={StaticResource BooleanToVisibilityConverter}}">
-                                                <StackPanel>
-                                                    <TextBlock Text="{Binding LTX2AudioProcessingStatus}"
-                                                              FontWeight="SemiBold"
-                                                              FontSize="11"
-                                                              Margin="0,0,0,5"
-                                                              TextAlignment="Center"
-                                                              TextWrapping="Wrap"/>
-                                                    <ProgressBar Value="{Binding LTX2AudioProcessingProgress, Mode=OneWay}"
-                                                                Height="16"
-                                                                Foreground="#FF6B35"
-                                                                Margin="0,0,0,5"/>
-                                                    <TextBlock Text="{Binding LTX2AudioProgressPercentage}"
-                                                              HorizontalAlignment="Center"
-                                                              FontSize="11"
-                                                              FontWeight="Bold"
-                                                              Foreground="#FF6B35"/>
-                                                </StackPanel>
-                                            </Border>
-                                        </StackPanel>
-                                    </Grid>
-                                </Border>
-
-                                <!-- LTX2 Audio Result Video Section -->
-                                <Border Style="{StaticResource SectionPanelStyle}">
-                                    <StackPanel>
-                                        <TextBlock Text="🎥 Result Video" Style="{StaticResource HeaderTextStyle}" Foreground="#FF6B35"/>
-
-                                        <Border BorderBrush="#DEE2E6" BorderThickness="2"
-                                                Background="White" Height="250"
-                                                CornerRadius="5" Margin="0,0,0,10">
-                                            <Grid>
-                                                <TextBlock Text="Video will appear here after generation"
-                                                          HorizontalAlignment="Center"
-                                                          VerticalAlignment="Center"
-                                                          Foreground="#999"
-                                                          FontStyle="Italic">
-                                                    <TextBlock.Style>
-                                                        <Style TargetType="TextBlock">
-                                                            <Setter Property="Visibility" Value="Collapsed"/>
-                                                            <Style.Triggers>
-                                                                <DataTrigger Binding="{Binding HasLTX2AudioResult}" Value="False">
-                                                                    <Setter Property="Visibility" Value="Visible"/>
-                                                                </DataTrigger>
-                                                            </Style.Triggers>
-                                                        </Style>
-                                                    </TextBlock.Style>
-                                                </TextBlock>
-
-                                                <!-- Video Player -->
-                                                <MediaElement x:Name="LTX2AudioVideoPlayer"
-                                                            Source="{Binding LTX2AudioResultPath}"
-                                                            LoadedBehavior="Manual"
-                                                            UnloadedBehavior="Stop"
-                                                            Stretch="Uniform"
-                                                            Visibility="{Binding HasLTX2AudioResult, Converter={StaticResource BooleanToVisibilityConverter}}"/>
-                                            </Grid>
-                                        </Border>
-
-                                        <Grid>
-                                            <Grid.ColumnDefinitions>
-                                                <ColumnDefinition Width="*"/>
-                                                <ColumnDefinition Width="Auto"/>
-                                                <ColumnDefinition Width="Auto"/>
-                                            </Grid.ColumnDefinitions>
-
-                                            <Button Grid.Column="0"
-                                                   Content="▶️ Play"
-                                                   Style="{StaticResource SecondaryButtonStyle}"
-                                                   Command="{Binding PlayLTX2AudioVideoCommand}"
-                                                   IsEnabled="{Binding HasLTX2AudioResult}"
-                                                   Margin="0,0,8,0"/>
-
-                                            <Button Grid.Column="1"
-                                                   Content="📂 Open Folder"
-                                                   Style="{StaticResource SecondaryButtonStyle}"
-                                                   Command="{Binding OpenLTX2AudioResultFolderCommand}"
-                                                   IsEnabled="{Binding HasLTX2AudioResult}"
-                                                   Margin="0,0,8,0"/>
-
-                                            <Button Grid.Column="2"
-                                                   Content="📷 Send to Edit Camera"
-                                                   Style="{StaticResource SecondaryButtonStyle}"
-                                                   Command="{Binding SendLTX2AudioToEditCameraCommand}"
-                                                   IsEnabled="{Binding HasLTX2AudioResult}"/>
-                                        </Grid>
-
-                                        <TextBlock Text="{Binding LTX2AudioVideoInfo}"
-                                                  FontStyle="Italic"
-                                                  Foreground="#666"
-                                                  FontSize="11"
-                                                  Margin="0,10,0,0"/>
-                                    </StackPanel>
-                                </Border>
-
-                                <!-- LTX2 Audio Log (Collapsible) -->
-                                <Expander Header="📝 Processing Log"
-                                         IsExpanded="True"
-                                         Margin="0,0,0,0">
-                                    <Border Background="White"
-                                            BorderBrush="#DEE2E6"
-                                            BorderThickness="1"
-                                            Margin="0,8,0,0">
-                                        <ScrollViewer MaxHeight="150"
-                                                     VerticalScrollBarVisibility="Auto">
-                                            <TextBox Text="{Binding LTX2AudioLogOutput, Mode=OneWay}"
-                                                    TextWrapping="Wrap"
-                                                    IsReadOnly="True"
-                                                    FontFamily="Consolas"
-                                                    FontSize="10"
-                                                    Background="Transparent"
-                                                    BorderThickness="0"
-                                                    Padding="10"/>
-                                        </ScrollViewer>
-                                    </Border>
-                                </Expander>
-
-                            </StackPanel>
-                        </ScrollViewer>
-                    </TabItem>
-
-                    <!-- Tab 5: LTX 2.3 Basic I2V -->
-                    <TabItem Header="🎬 LTX 2.3">
-                        <ScrollViewer VerticalScrollBarVisibility="Auto">
-                            <StackPanel Margin="10">
+                                <!-- LTX 2.3 Content -->
+                                <StackPanel Visibility="{Binding SingleVideoIsLTX23, Converter={StaticResource BooleanToVisibilityConverter}}">
 
                                 <!-- Reference Image Section -->
                                 <Border Style="{StaticResource SectionPanelStyle}">
@@ -2160,272 +1835,227 @@
                                     </Border>
                                 </Expander>
 
-                            </StackPanel>
-                        </ScrollViewer>
-                    </TabItem>
+                                </StackPanel>
+                                <!-- End LTX 2.3 Content -->
 
-                    <!-- Tab 6: Mocha Video Generator -->
-                    <TabItem Header="Mocha">
-                        <ScrollViewer VerticalScrollBarVisibility="Auto">
-                            <StackPanel Margin="10">
-                                <!-- Input Files Section -->
-                                <Border Style="{StaticResource SectionPanelStyle}">
-                                    <StackPanel>
-                                        <TextBlock Text="📤 Input Files" Style="{StaticResource HeaderTextStyle}" Foreground="#FF6B35"/>
+                                <!-- Wan 2.2 Remix Content -->
+                                <StackPanel Visibility="{Binding SingleVideoIsWan22, Converter={StaticResource BooleanToVisibilityConverter}}">
 
-                                        <Grid>
-                                            <Grid.ColumnDefinitions>
-                                                <ColumnDefinition Width="*"/>
-                                                <ColumnDefinition Width="*"/>
-                                            </Grid.ColumnDefinitions>
+                                    <!-- Reference Image Section -->
+                                    <Border Style="{StaticResource SectionPanelStyle}">
+                                        <StackPanel>
+                                            <TextBlock Text="🖼️ Reference Image" Style="{StaticResource HeaderTextStyle}" Foreground="#FF6B35"/>
+                                            <Border BorderBrush="#DEE2E6" BorderThickness="1" Background="White" CornerRadius="5" Padding="15">
+                                                <Grid>
+                                                    <Grid.ColumnDefinitions>
+                                                        <ColumnDefinition Width="*"/>
+                                                        <ColumnDefinition Width="10"/>
+                                                        <ColumnDefinition Width="*"/>
+                                                    </Grid.ColumnDefinitions>
 
-                                            <!-- Video Input -->
-                                            <Border Grid.Column="0" BorderBrush="#DEE2E6" BorderThickness="1" CornerRadius="5" Padding="15" Margin="0,0,8,0">
+                                                    <!-- Left: Image Preview -->
+                                                    <StackPanel Grid.Column="0">
+                                                        <TextBlock Text="Source Image:" FontWeight="SemiBold" FontSize="12" Margin="0,0,0,8"/>
+                                                        <Border BorderBrush="#DEE2E6" BorderThickness="1" Background="White" Height="200" CornerRadius="3">
+                                                            <Grid>
+                                                                <TextBlock Text="No image selected"
+                                                                          HorizontalAlignment="Center" VerticalAlignment="Center"
+                                                                          Foreground="#999" FontStyle="Italic">
+                                                                    <TextBlock.Style>
+                                                                        <Style TargetType="TextBlock">
+                                                                            <Setter Property="Visibility" Value="Collapsed"/>
+                                                                            <Style.Triggers>
+                                                                                <DataTrigger Binding="{Binding Wan22ImagePreview}" Value="{x:Null}">
+                                                                                    <Setter Property="Visibility" Value="Visible"/>
+                                                                                </DataTrigger>
+                                                                            </Style.Triggers>
+                                                                        </Style>
+                                                                    </TextBlock.Style>
+                                                                </TextBlock>
+                                                                <Image Source="{Binding Wan22ImagePreview}" Stretch="Uniform"/>
+                                                            </Grid>
+                                                        </Border>
+                                                        <Button Content="Browse..."
+                                                                Style="{StaticResource SecondaryButtonStyle}"
+                                                                Command="{Binding SelectWan22ImageCommand}"
+                                                                Height="32" HorizontalAlignment="Stretch" Margin="0,8,0,0"/>
+                                                        <TextBlock Text="{Binding Wan22ImageInfo}"
+                                                                  FontStyle="Italic" Foreground="#666" FontSize="10"
+                                                                  Margin="0,6,0,0" TextWrapping="Wrap"/>
+                                                    </StackPanel>
+
+                                                    <!-- Right: Analyze Button + Result -->
+                                                    <StackPanel Grid.Column="2">
+                                                        <TextBlock Text="Image Analysis:" FontWeight="SemiBold" FontSize="12" Margin="0,0,0,8"/>
+                                                        <Button Content="🧠 Analyze Image"
+                                                                Style="{StaticResource SecondaryButtonStyle}"
+                                                                Command="{Binding AnalyzeWan22ImageCommand}"
+                                                                IsEnabled="{Binding CanWan22AnalyzeImage, Mode=OneWay}"
+                                                                Height="32" HorizontalAlignment="Stretch"/>
+                                                        <TextBlock Text="Sends image to qwen-4-vl → auto-queues result"
+                                                                  FontSize="10" Foreground="#888" FontStyle="Italic"
+                                                                  Margin="0,4,0,4" TextWrapping="Wrap"/>
+                                                        <TextBox Text="{Binding Wan22AnalysisResult, Mode=OneWay}"
+                                                                TextWrapping="Wrap" AcceptsReturn="True"
+                                                                Height="160" Padding="10"
+                                                                VerticalScrollBarVisibility="Auto"
+                                                                Background="#F8F9FA" BorderBrush="#CED4DA"
+                                                                FontSize="11" IsReadOnly="True" Margin="0,4,0,0"/>
+                                                    </StackPanel>
+                                                </Grid>
+                                            </Border>
+                                        </StackPanel>
+                                    </Border>
+
+                                    <!-- Video Prompt Section -->
+                                    <Border Style="{StaticResource SectionPanelStyle}">
+                                        <StackPanel>
+                                            <TextBlock Text="📝 Video Prompt" Style="{StaticResource HeaderTextStyle}" Foreground="#FF6B35"/>
+                                            <TextBlock Text="Describe the video action (or edit the auto-generated prompt):"
+                                                      FontWeight="SemiBold" FontSize="12" Margin="0,0,0,8"/>
+                                            <TextBox Text="{Binding Wan22Prompt, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                                                    TextWrapping="Wrap" AcceptsReturn="True"
+                                                    Height="120" Padding="12"
+                                                    VerticalScrollBarVisibility="Auto"
+                                                    Background="White" BorderBrush="#CED4DA" FontSize="12"/>
+                                            <Button Content="➕ Add to Queue"
+                                                    Style="{StaticResource SecondaryButtonStyle}"
+                                                    Command="{Binding GenerateWan22VideoCommand}"
+                                                    IsEnabled="{Binding CanWan22AddToQueue, Mode=OneWay}"
+                                                    Height="35" Width="140" HorizontalAlignment="Left"
+                                                    Margin="0,10,0,0"/>
+                                        </StackPanel>
+                                    </Border>
+
+                                    <!-- Processing Status + Queue -->
+                                    <Border Style="{StaticResource SectionPanelStyle}">
+                                        <StackPanel>
+                                            <!-- Processing Status -->
+                                            <Border Background="#FFF9F0" BorderBrush="#FFE0B0" BorderThickness="1"
+                                                    CornerRadius="5" Padding="12" Margin="0,0,0,10"
+                                                    Visibility="{Binding IsProcessingWan22, Converter={StaticResource BooleanToVisibilityConverter}}">
                                                 <StackPanel>
-                                                    <TextBlock Text="🎬 Input Video" FontWeight="SemiBold" FontSize="13" Margin="0,0,0,10"/>
-
-                                                    <Grid Margin="0,0,0,10">
-                                                        <Grid.ColumnDefinitions>
-                                                            <ColumnDefinition Width="*"/>
-                                                            <ColumnDefinition Width="Auto"/>
-                                                        </Grid.ColumnDefinitions>
-                                                        <TextBox Grid.Column="0"
-                                                                Text="{Binding MochaVideoPath, Mode=TwoWay}"
-                                                                IsReadOnly="True"
-                                                                Padding="8"
-                                                                Background="White"
-                                                                BorderBrush="#CED4DA"
-                                                                FontSize="11"
-                                                                VerticalAlignment="Center"/>
-                                                        <Button Grid.Column="1"
-                                                               Content="Browse..."
-                                                               Style="{StaticResource SecondaryButtonStyle}"
-                                                               Margin="8,0,0,0"
-                                                               Command="{Binding SelectMochaVideoCommand}"/>
-                                                    </Grid>
-
-                                                    <TextBlock Text="{Binding MochaSourceVideoInfo}"
-                                                              FontStyle="Italic"
-                                                              Foreground="#666"
-                                                              FontSize="10"
-                                                              TextWrapping="Wrap"/>
+                                                    <TextBlock Text="{Binding Wan22ProcessingStatus}"
+                                                              FontWeight="SemiBold" FontSize="11"
+                                                              TextAlignment="Center" TextWrapping="Wrap"/>
+                                                    <ProgressBar Value="{Binding Wan22ProcessingProgress, Mode=OneWay}"
+                                                                Height="14" Foreground="#FF6B35" Margin="0,6,0,4"/>
+                                                    <TextBlock Text="{Binding Wan22ProgressPercentage}"
+                                                              HorizontalAlignment="Center" FontSize="11"
+                                                              FontWeight="Bold" Foreground="#FF6B35"/>
                                                 </StackPanel>
                                             </Border>
 
-                                            <!-- Image Input -->
-                                            <Border Grid.Column="1" BorderBrush="#DEE2E6" BorderThickness="1" CornerRadius="5" Padding="15" Margin="8,0,0,0">
+                                            <!-- Queue List -->
+                                            <Border BorderBrush="#DEE2E6" BorderThickness="1" CornerRadius="5"
+                                                    Visibility="{Binding Wan22HasQueueItems, Converter={StaticResource BoolToVisibilityConverter}}">
                                                 <StackPanel>
-                                                    <TextBlock Text="🖼️ Reference Image" FontWeight="SemiBold" FontSize="13" Margin="0,0,0,10"/>
-
-                                                    <Border BorderBrush="#DEE2E6" BorderThickness="2"
-                                                            Background="White" Height="120"
-                                                            CornerRadius="5" Margin="0,0,0,10">
+                                                    <Border Background="#F0F0F0" Padding="10,6" CornerRadius="5,5,0,0">
                                                         <Grid>
-                                                            <TextBlock Text="No image selected"
-                                                                      HorizontalAlignment="Center"
-                                                                      VerticalAlignment="Center"
-                                                                      Foreground="#999"
-                                                                      FontStyle="Italic">
-                                                                <TextBlock.Style>
-                                                                    <Style TargetType="TextBlock">
-                                                                        <Setter Property="Visibility" Value="Collapsed"/>
-                                                                        <Style.Triggers>
-                                                                            <DataTrigger Binding="{Binding MochaImagePreview}" Value="{x:Null}">
-                                                                                <Setter Property="Visibility" Value="Visible"/>
-                                                                            </DataTrigger>
-                                                                        </Style.Triggers>
-                                                                    </Style>
-                                                                </TextBlock.Style>
-                                                            </TextBlock>
-                                                            <Image Source="{Binding MochaImagePreview}"
-                                                                   Stretch="Uniform"/>
+                                                            <TextBlock Text="📋 Queue" FontWeight="Bold" FontSize="12" VerticalAlignment="Center"/>
+                                                            <TextBlock Text="{Binding Wan22QueueStatus}"
+                                                                      FontSize="10" Foreground="#666"
+                                                                      HorizontalAlignment="Right" VerticalAlignment="Center"/>
                                                         </Grid>
                                                     </Border>
-
-                                                    <Grid Margin="0,0,0,10">
-                                                        <Grid.ColumnDefinitions>
-                                                            <ColumnDefinition Width="*"/>
-                                                            <ColumnDefinition Width="Auto"/>
-                                                        </Grid.ColumnDefinitions>
-                                                        <TextBox Grid.Column="0"
-                                                                Text="{Binding MochaImagePath, Mode=TwoWay}"
-                                                                IsReadOnly="True"
-                                                                Padding="8"
-                                                                Background="White"
-                                                                BorderBrush="#CED4DA"
-                                                                FontSize="11"
-                                                                VerticalAlignment="Center"/>
-                                                        <Button Grid.Column="1"
-                                                               Content="Browse..."
-                                                               Style="{StaticResource SecondaryButtonStyle}"
-                                                               Margin="8,0,0,0"
-                                                               Command="{Binding SelectMochaImageCommand}"/>
-                                                    </Grid>
-
-                                                    <TextBlock Text="{Binding MochaImageInfo}"
-                                                              FontStyle="Italic"
-                                                              Foreground="#666"
-                                                              FontSize="10"
-                                                              TextWrapping="Wrap"/>
-
-                                                    <!-- Analyze Image/Video Button -->
-                                                    <StackPanel Orientation="Horizontal" Margin="0,8,0,0">
-                                                        <Button Content="Analyze Image/Video"
-                                                                Style="{StaticResource SecondaryButtonStyle}"
-                                                                Command="{Binding AnalyzeMochaCommand}"
-                                                                IsEnabled="{Binding CanAnalyzeMocha}"
-                                                                Height="32"
-                                                                Padding="12,0"
-                                                                HorizontalAlignment="Left"/>
-                                                        <TextBlock Text="Analyzing..."
-                                                                   FontStyle="Italic"
-                                                                   Foreground="#FF6B35"
-                                                                   FontSize="11"
-                                                                   VerticalAlignment="Center"
-                                                                   Margin="10,0,0,0"
-                                                                   Visibility="{Binding IsMochaAnalyzing, Converter={StaticResource BooleanToVisibilityConverter}}"/>
-                                                    </StackPanel>
+                                                    <ScrollViewer MaxHeight="200" VerticalScrollBarVisibility="Auto" Padding="5">
+                                                        <ItemsControl ItemsSource="{Binding Wan22Queue}">
+                                                            <ItemsControl.ItemTemplate>
+                                                                <DataTemplate>
+                                                                    <Border BorderBrush="#E9ECEF" BorderThickness="1"
+                                                                            CornerRadius="4" Padding="8,6"
+                                                                            Margin="2,2,2,0" Background="White">
+                                                                        <Grid>
+                                                                            <Grid.ColumnDefinitions>
+                                                                                <ColumnDefinition Width="*"/>
+                                                                                <ColumnDefinition Width="Auto"/>
+                                                                                <ColumnDefinition Width="Auto"/>
+                                                                            </Grid.ColumnDefinitions>
+                                                                            <TextBlock Grid.Column="0" Text="{Binding DisplayText}"
+                                                                                      FontSize="11" TextTrimming="CharacterEllipsis"
+                                                                                      VerticalAlignment="Center"/>
+                                                                            <TextBlock Grid.Column="1"
+                                                                                      Text="{Binding StatusDisplay}"
+                                                                                      Foreground="{Binding StatusColor}"
+                                                                                      FontSize="10" FontWeight="SemiBold"
+                                                                                      VerticalAlignment="Center" Margin="8,0,8,0"/>
+                                                                            <Button Grid.Column="2" Content="✕"
+                                                                                   Width="22" Height="22" FontSize="10"
+                                                                                   Background="Transparent" BorderThickness="0"
+                                                                                   Foreground="#999" Padding="0"
+                                                                                   Command="{Binding DataContext.RemoveWan22QueueItemCommand, RelativeSource={RelativeSource AncestorType=ItemsControl}}"
+                                                                                   CommandParameter="{Binding}"/>
+                                                                        </Grid>
+                                                                    </Border>
+                                                                </DataTemplate>
+                                                            </ItemsControl.ItemTemplate>
+                                                        </ItemsControl>
+                                                    </ScrollViewer>
                                                 </StackPanel>
                                             </Border>
-                                        </Grid>
 
-                                        <TextBlock Margin="0,10,0,0"
-                                                  FontSize="11"
-                                                  Foreground="#999"
-                                                  FontStyle="Italic"
-                                                  TextWrapping="Wrap">
-                                            <Run Text="SCAIL processes the full video in a single pass using Wan SCAIL model. Analyze Image/Video uses Qwen VL to generate a synthesized motion prompt from your video and reference image."/>
-                                        </TextBlock>
-                                    </StackPanel>
-                                </Border>
+                                            <!-- Video Output Preview -->
+                                            <Border BorderBrush="#DEE2E6" BorderThickness="1"
+                                                    Background="White" Height="220" CornerRadius="5" Margin="0,12,0,0">
+                                                <Grid>
+                                                    <TextBlock Text="Latest generated video will appear here"
+                                                              HorizontalAlignment="Center" VerticalAlignment="Center"
+                                                              Foreground="#999" FontStyle="Italic">
+                                                        <TextBlock.Style>
+                                                            <Style TargetType="TextBlock">
+                                                                <Setter Property="Visibility" Value="Collapsed"/>
+                                                                <Style.Triggers>
+                                                                    <DataTrigger Binding="{Binding HasWan22Result}" Value="False">
+                                                                        <Setter Property="Visibility" Value="Visible"/>
+                                                                    </DataTrigger>
+                                                                </Style.Triggers>
+                                                            </Style>
+                                                        </TextBlock.Style>
+                                                    </TextBlock>
+                                                    <MediaElement Source="{Binding Wan22ResultPath}"
+                                                                LoadedBehavior="Manual" UnloadedBehavior="Stop"
+                                                                Stretch="Uniform"
+                                                                Visibility="{Binding HasWan22Result, Converter={StaticResource BooleanToVisibilityConverter}}"/>
+                                                </Grid>
+                                            </Border>
 
-                                <!-- Prompt Section -->
-                                <Border Style="{StaticResource SectionPanelStyle}">
-                                    <StackPanel>
-                                        <TextBlock Text="✍️ Prompt" Style="{StaticResource HeaderTextStyle}" Foreground="#FF6B35"/>
+                                            <!-- Result Actions -->
+                                            <StackPanel Orientation="Horizontal" Margin="0,8,0,0">
+                                                <Button Content="▶️ Play"
+                                                       Style="{StaticResource SecondaryButtonStyle}"
+                                                       Command="{Binding PlayWan22VideoCommand}"
+                                                       IsEnabled="{Binding HasWan22Result}" Margin="0,0,8,0"/>
+                                                <Button Content="📂 Open Folder"
+                                                       Style="{StaticResource SecondaryButtonStyle}"
+                                                       Command="{Binding OpenWan22ResultFolderCommand}"
+                                                       IsEnabled="{Binding HasWan22Result}" Margin="0,0,8,0"/>
+                                                <Button Content="📷 Send to Edit Camera"
+                                                       Style="{StaticResource SecondaryButtonStyle}"
+                                                       Command="{Binding SendWan22ToEditCameraCommand}"
+                                                       IsEnabled="{Binding HasWan22Result}"/>
+                                            </StackPanel>
 
-                                        <TextBlock Text="Motion prompt for SCAIL. Use 'Analyze Image/Video' to generate automatically."
-                                                  FontStyle="Italic"
-                                                  Foreground="#666"
-                                                  FontSize="11"
-                                                  Margin="0,0,0,10"/>
-
-                                        <TextBox Text="{Binding MochaPrompt, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
-                                                 AcceptsReturn="True"
-                                                 TextWrapping="Wrap"
-                                                 Height="80"
-                                                 Padding="10"
-                                                 FontSize="12"
-                                                 Background="White"
-                                                 BorderBrush="#CED4DA"/>
-
-                                        <TextBlock Margin="0,8,0,0"
-                                                  FontSize="10"
-                                                  Foreground="#999"
-                                                  FontStyle="Italic">
-                                            <Run Text="Source video:"/>
-                                            <Run Text="{Binding MochaTotalFrames, Mode=OneWay}" FontWeight="SemiBold"/>
-                                            <Run Text="frames"/>
-                                        </TextBlock>
-                                    </StackPanel>
-                                </Border>
-
-                                <!-- Generate Button -->
-                                <Border Style="{StaticResource SectionPanelStyle}">
-                                    <StackPanel>
-                                        <Button Content="🎬 Generate SCAIL Video"
-                                                Style="{StaticResource PrimaryButtonStyle}"
-                                                Height="50"
-                                                FontSize="16"
-                                                Command="{Binding GenerateMochaVideoCommand}"
-                                                IsEnabled="{Binding CanGenerateMochaVideo, Mode=OneWay}"/>
-
-                                        <ProgressBar Value="{Binding MochaProcessingProgress, Mode=OneWay}"
-                                                     Maximum="100"
-                                                     Height="25"
-                                                     Margin="0,15,0,0"
-                                                     Visibility="{Binding IsProcessingMocha, Converter={StaticResource BooleanToVisibilityConverter}}"/>
-
-                                        <TextBlock Text="{Binding MochaProcessingStatus}"
-                                                  FontSize="12"
-                                                  Margin="0,8,0,0"
-                                                  Foreground="#666"
-                                                  Visibility="{Binding IsProcessingMocha, Converter={StaticResource BooleanToVisibilityConverter}}"/>
-                                    </StackPanel>
-                                </Border>
-
-                                <!-- Output Section -->
-                                <Border Style="{StaticResource SectionPanelStyle}"
-                                        Visibility="{Binding HasMochaResult, Converter={StaticResource BooleanToVisibilityConverter}}">
-                                    <StackPanel>
-                                        <TextBlock Text="📺 Result Video" Style="{StaticResource HeaderTextStyle}" Foreground="#28A745"/>
-
-                                        <MediaElement x:Name="MochaVideoPlayer"
-                                                    Source="{Binding MochaResultPath}"
-                                                    Width="640"
-                                                    Height="360"
-                                                    LoadedBehavior="Manual"
-                                                    UnloadedBehavior="Stop"
-                                                    Margin="0,10,0,0"
-                                                    Stretch="Uniform"/>
-
-                                        <Grid Margin="0,15,0,0">
-                                            <Grid.ColumnDefinitions>
-                                                <ColumnDefinition Width="*"/>
-                                                <ColumnDefinition Width="*"/>
-                                                <ColumnDefinition Width="*"/>
-                                            </Grid.ColumnDefinitions>
-
-                                            <Button Grid.Column="0"
-                                                   Content="▶ Play"
-                                                   Style="{StaticResource SecondaryButtonStyle}"
-                                                   Command="{Binding PlayMochaVideoCommand}"
-                                                   IsEnabled="{Binding HasMochaResult}"
-                                                   Margin="0,0,8,0"/>
-
-                                            <Button Grid.Column="1"
-                                                   Content="📁 Open Folder"
-                                                   Style="{StaticResource SecondaryButtonStyle}"
-                                                   Command="{Binding OpenMochaResultFolderCommand}"
-                                                   IsEnabled="{Binding HasMochaResult}"
-                                                   Margin="0,0,8,0"/>
-
-                                            <Button Grid.Column="2"
-                                                   Content="📷 Send to Edit Camera"
-                                                   Style="{StaticResource SecondaryButtonStyle}"
-                                                   Command="{Binding SendMochaToEditCameraCommand}"
-                                                   IsEnabled="{Binding HasMochaResult}"/>
-                                        </Grid>
-
-                                        <TextBlock Text="{Binding MochaResultVideoInfo}"
-                                                  FontStyle="Italic"
-                                                  Foreground="#666"
-                                                  FontSize="11"
-                                                  Margin="0,10,0,0"/>
-                                    </StackPanel>
-                                </Border>
-
-                                <!-- Mocha Log (Collapsible) -->
-                                <Expander Header="📝 Processing Log"
-                                         IsExpanded="True"
-                                         Margin="0,0,0,0">
-                                    <Border Background="White"
-                                            BorderBrush="#DEE2E6"
-                                            BorderThickness="1"
-                                            Margin="0,8,0,0">
-                                        <ScrollViewer MaxHeight="150"
-                                                     VerticalScrollBarVisibility="Auto">
-                                            <TextBox Text="{Binding MochaLogOutput, Mode=OneWay}"
-                                                    TextWrapping="Wrap"
-                                                    IsReadOnly="True"
-                                                    FontFamily="Consolas"
-                                                    FontSize="10"
-                                                    Background="Transparent"
-                                                    BorderThickness="0"
-                                                    Padding="10"/>
-                                        </ScrollViewer>
+                                            <TextBlock Text="{Binding Wan22VideoInfo}"
+                                                      FontStyle="Italic" Foreground="#666"
+                                                      FontSize="10" Margin="0,6,0,0"/>
+                                        </StackPanel>
                                     </Border>
-                                </Expander>
+
+                                    <!-- Log Output -->
+                                    <Expander Header="📋 Generation Log" Margin="0,5,0,0" IsExpanded="False">
+                                        <Border BorderBrush="#DEE2E6" BorderThickness="1"
+                                                Background="#F8F9FA" CornerRadius="5" Margin="0,8,0,0">
+                                            <ScrollViewer MaxHeight="150" VerticalScrollBarVisibility="Auto">
+                                                <TextBox Text="{Binding Wan22LogOutput, Mode=OneWay}"
+                                                        TextWrapping="Wrap" IsReadOnly="True"
+                                                        FontFamily="Consolas" FontSize="10"
+                                                        Background="Transparent" BorderThickness="0" Padding="10"/>
+                                            </ScrollViewer>
+                                        </Border>
+                                    </Expander>
+
+                                </StackPanel>
+                                <!-- End Wan 2.2 Remix Content -->
 
                             </StackPanel>
                         </ScrollViewer>
