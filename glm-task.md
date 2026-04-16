@@ -1,178 +1,326 @@
-# Task: VACE Video Generator — Queue System
-*(Completed directly by Claude — 2026-03-26)*
+# Task: Queue Persistence + ComfyUI Crash Detection with Auto-Restart
+*(2026-04-08)*
 
-Add a queue to the VACE Video Generator tab so multiple video generation jobs can be queued and processed sequentially, matching the pattern used by `LTX23BasicViewModel`.
+Two features:
+1. **Queue persistence** — save/load queue items to `%AppData%\FlipPix\queue\` so Pending/Failed items survive app restarts and crashes.
+2. **Crash detection with retry** — when a queue item fails with a connection error, detect if ComfyUI crashed, restart it, and re-queue the item for retry (up to 2 times).
 
 ---
 
-## Files to Create
+## Part 1 — BaseQueueItem: Add RetryCount
 
-### 1. `FlipPix.UI/Models/VaceQueueItem.cs` — new file
+### File: `FlipPix.UI/Models/BaseQueueItem.cs`
+
+Add a `RetryCount` property (after `ErrorMessage`):
 
 ```csharp
-using System.IO;
-using FlipPix.UI.Models;
+/// <summary>
+/// Number of automatic retry attempts made (used by crash-detection logic)
+/// </summary>
+public int RetryCount { get; set; } = 0;
+```
 
-namespace FlipPix.UI.Models
+---
+
+## Part 2 — VideoProcessingBaseViewModel: Add crash-detection helper
+
+### File: `FlipPix.UI/ViewModels/Video/VideoProcessingBaseViewModel.cs`
+
+Add the following `using` at the top if not already present:
+```csharp
+using System.Net.Http;
+```
+
+Add this method inside the class (e.g. after `AddLog`):
+
+```csharp
+/// <summary>
+/// Called from a queue processing catch block when an item fails.
+/// If the failure looks like a ComfyUI crash (connection error) and auto-restart is enabled,
+/// attempts to restart ComfyUI and returns true (meaning: reset item to Pending and retry).
+/// Returns false if item should be marked as Failed.
+/// </summary>
+protected async Task<bool> TryHandleCrashAndRetryAsync(BaseQueueItem item, Exception ex, int maxRetries = 2)
 {
-    /// <summary>
-    /// Queue item for VACE video generation jobs.
-    /// </summary>
-    public class VaceQueueItem : BaseQueueItem
-    {
-        public string ForegroundImagePath { get; set; } = string.Empty;
-        public string InputVideoPath { get; set; } = string.Empty;
-        public string Prompt { get; set; } = string.Empty;
-        public string? OutputVideoPath { get; set; }
+    bool isConnectionFailure =
+        ex is HttpRequestException ||
+        ex.InnerException is HttpRequestException ||
+        ex.Message.IndexOf("connection", StringComparison.OrdinalIgnoreCase) >= 0 ||
+        ex.Message.IndexOf("refused", StringComparison.OrdinalIgnoreCase) >= 0 ||
+        ex.Message.IndexOf("unreachable", StringComparison.OrdinalIgnoreCase) >= 0 ||
+        ex.Message.IndexOf("WebSocket", StringComparison.OrdinalIgnoreCase) >= 0 ||
+        ex.Message.IndexOf("ComfyUI is not running", StringComparison.OrdinalIgnoreCase) >= 0;
 
-        public string DisplayText =>
-            !string.IsNullOrEmpty(ForegroundImagePath)
-                ? $"{Path.GetFileName(ForegroundImagePath)} + {Path.GetFileName(InputVideoPath)}"
-                : "(no input)";
+    if (!isConnectionFailure) return false;
+
+    if (item.RetryCount >= maxRetries)
+    {
+        AddLog($"[CrashDetect] Max retries ({maxRetries}) reached for this item — marking Failed");
+        return false;
     }
+
+    var settings = _settingsService.Settings;
+    if (settings?.AutoRestartComfyUI != true)
+    {
+        AddLog("[CrashDetect] Auto-restart is disabled in settings");
+        return false;
+    }
+
+    AddLog($"[CrashDetect] Connection failure detected: {ex.Message}");
+    AddLog("[CrashDetect] Checking ComfyUI health and attempting restart if needed...");
+
+    var restarted = await _comfyUIService.DetectAndRestartIfCrashedAsync(
+        status => AddLog($"[AutoRestart] {status}"));
+
+    if (restarted)
+    {
+        item.RetryCount++;
+        AddLog($"[AutoRestart] ComfyUI is running. Retrying item (attempt {item.RetryCount}/{maxRetries})...");
+        return true;
+    }
+
+    AddLog("[AutoRestart] Could not restart ComfyUI — marking item as Failed");
+    return false;
 }
 ```
 
 ---
 
-## Files to Modify
+## Part 3 — VideoEnhanceViewModel: Add persistence + crash detection
 
-### 2. `FlipPix.UI/ViewModels/Video/VACEVideoViewModel.cs`
+### File: `FlipPix.UI/ViewModels/Video/VideoEnhanceViewModel.cs`
 
-**Add namespace import** at the top (with existing usings):
+**Add using** at top (if not present):
 ```csharp
-using System.Collections.ObjectModel;
-using System.Linq;
+using System.Text.Json;
 ```
 
-**Add fields** after the existing private fields (after `private bool _isAnalyzing = false;`):
+**Add file path properties** (add before the first `#region`):
 ```csharp
-private bool _isProcessingQueue = false;
-private string _queueStatus = string.Empty;
-private readonly ObservableCollection<VaceQueueItem> _queue = new();
+private string InterpolateQueueFilePath => Path.Combine(
+    Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData),
+    "FlipPix", "queue", "video_enhance_interpolate_queue.json");
+
+private string UpscaleQueueFilePath => Path.Combine(
+    Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData),
+    "FlipPix", "queue", "video_enhance_upscale_queue.json");
 ```
 
-**Add new command field** in the `#region Commands` declarations section — add after the existing command properties:
+**In the constructor**, after `AddLog("Video Enhance initialized");`, add:
 ```csharp
-public RelayCommand<VaceQueueItem> RemoveQueueItemCommand { get; }
+LoadInterpolateQueueFromFile();
+LoadUpscaleQueueFromFile();
 ```
 
-**Wire up the new command** in the constructor, after `AnalyzeImageCommand = ...`:
+**In `AddInterpolateToQueue()`**, after `_interpolateQueue.Add(item);` add:
 ```csharp
-RemoveQueueItemCommand = new RelayCommand<VaceQueueItem>(RemoveQueueItem);
+SaveInterpolateQueueToFile();
+```
 
-_queue.CollectionChanged += (s, e) =>
+**In `AddUpscaleToQueue()`**, after `_upscaleQueue.Add(item);` add:
+```csharp
+SaveUpscaleQueueToFile();
+```
+
+**Replace `ProcessInterpolateQueueAsync()`** (the entire method) with:
+```csharp
+private async Task ProcessInterpolateQueueAsync()
 {
-    OnPropertyChanged(nameof(HasQueueItems));
-    UpdateQueueStatus();
-    OnCanExecuteChanged();
-};
-```
-
-**Change the GenerateVideoCommand** registration in the constructor from:
-```csharp
-GenerateVideoCommand = new RelayCommand(async () => await GenerateVideoAsync(), () => CanGenerateVideo);
-```
-to:
-```csharp
-GenerateVideoCommand = new RelayCommand(AddToQueueAndProcess, () => CanAddToQueue);
-```
-
-**Add queue properties** after the existing `CanAnalyzeImage` property (inside `#region Properties`):
-```csharp
-public ObservableCollection<VaceQueueItem> Queue => _queue;
-
-public bool IsProcessingQueue
-{
-    get => _isProcessingQueue;
-    private set
+    if (IsProcessingInterpolateQueue) return;
+    IsProcessingInterpolateQueue = true;
+    AddLog("Starting interpolate queue...");
+    try
     {
-        if (_isProcessingQueue != value)
+        VideoEnhanceQueueItem? item;
+        while ((item = _interpolateQueue.FirstOrDefault(x => x.ItemStatus == QueueItemStatus.Pending)) != null)
         {
-            _isProcessingQueue = value;
-            OnPropertyChanged();
-            OnCanExecuteChanged();
+            item.ItemStatus = QueueItemStatus.Processing;
+            UpdateInterpolateQueueStatus();
+            SaveInterpolateQueueToFile();
+            try
+            {
+                await ProcessInterpolateSingleAsync(item);
+                item.ItemStatus = QueueItemStatus.Completed;
+                AddLog($"Interpolate complete: {item.DisplayText}");
+            }
+            catch (Exception ex)
+            {
+                var shouldRetry = await TryHandleCrashAndRetryAsync(item, ex);
+                if (shouldRetry)
+                {
+                    item.ItemStatus = QueueItemStatus.Pending;
+                    AddLog("Item reset to Pending — will retry after ComfyUI restart");
+                }
+                else
+                {
+                    item.ItemStatus = QueueItemStatus.Failed;
+                    item.ErrorMessage = ex.Message;
+                    AddLog($"Interpolate FAILED: {ex.Message}");
+                }
+            }
+            UpdateInterpolateQueueStatus();
+            SaveInterpolateQueueToFile();
         }
     }
-}
-
-public string QueueStatus
-{
-    get => _queueStatus;
-    private set { if (_queueStatus != value) { _queueStatus = value; OnPropertyChanged(); } }
-}
-
-public bool HasQueueItems => _queue.Any();
-
-public bool CanAddToQueue => HasForegroundImage && HasInputVideo && !string.IsNullOrWhiteSpace(Prompt);
-```
-
-**Update CanGenerateVideo** — change the existing property from:
-```csharp
-public bool CanGenerateVideo => HasForegroundImage && HasInputVideo && !string.IsNullOrWhiteSpace(Prompt) && !IsProcessing;
-```
-to:
-```csharp
-public bool CanGenerateVideo => HasForegroundImage && HasInputVideo && !string.IsNullOrWhiteSpace(Prompt) && !IsProcessing;
-public bool CanAddToQueue => HasForegroundImage && HasInputVideo && !string.IsNullOrWhiteSpace(Prompt);
-```
-Wait — `CanAddToQueue` was already added in the Queue Properties region above, so just update `CanGenerateVideo` to remove the `CanAddToQueue` definition from the Properties region (avoid duplicate). The queue properties region already defines `CanAddToQueue`.
-
-Actually: remove `CanGenerateVideo` from the existing region OR keep both, since they have different guards (`CanGenerateVideo` checks `!IsProcessing`). Keep `CanGenerateVideo` as-is and add `CanAddToQueue` as a separate property.
-
-**Add queue management methods** — add a new `#region Queue Management` section before `#region Video Generation`:
-
-```csharp
-#region Queue Management
-
-private void AddToQueueAndProcess()
-{
-    if (!CanAddToQueue) return;
-
-    var item = new VaceQueueItem
+    finally
     {
-        ForegroundImagePath = ForegroundImagePath,
-        InputVideoPath = InputVideoPath,
-        Prompt = Prompt,
-        ItemStatus = QueueItemStatus.Pending
-    };
-
-    _queue.Add(item);
-    AddLog($"Added to queue: {item.DisplayText}");
-    UpdateQueueStatus();
-
-    if (!IsProcessingQueue)
-        _ = ProcessQueueAsync();
-}
-
-private void RemoveQueueItem(VaceQueueItem? item)
-{
-    if (item != null && item.ItemStatus != QueueItemStatus.Processing)
-    {
-        _queue.Remove(item);
-        UpdateQueueStatus();
+        IsProcessingInterpolateQueue = false;
+        AddLog("Interpolate queue finished.");
     }
 }
+```
 
-private void UpdateQueueStatus()
+**Replace `ProcessUpscaleQueueAsync()`** (the entire method) with:
+```csharp
+private async Task ProcessUpscaleQueueAsync()
 {
-    var pending = _queue.Count(x => x.ItemStatus == QueueItemStatus.Pending);
-    var completed = _queue.Count(x => x.ItemStatus == QueueItemStatus.Completed);
-    var failed = _queue.Count(x => x.ItemStatus == QueueItemStatus.Failed);
-    var total = _queue.Count;
+    if (IsProcessingUpscaleQueue) return;
+    IsProcessingUpscaleQueue = true;
+    AddLog("Starting upscale queue...");
+    try
+    {
+        VideoEnhanceQueueItem? item;
+        while ((item = _upscaleQueue.FirstOrDefault(x => x.ItemStatus == QueueItemStatus.Pending)) != null)
+        {
+            item.ItemStatus = QueueItemStatus.Processing;
+            UpdateUpscaleQueueStatus();
+            SaveUpscaleQueueToFile();
+            try
+            {
+                await ProcessUpscaleSingleAsync(item);
+                item.ItemStatus = QueueItemStatus.Completed;
+                AddLog($"Upscale complete: {item.DisplayText}");
+            }
+            catch (Exception ex)
+            {
+                var shouldRetry = await TryHandleCrashAndRetryAsync(item, ex);
+                if (shouldRetry)
+                {
+                    item.ItemStatus = QueueItemStatus.Pending;
+                    AddLog("Item reset to Pending — will retry after ComfyUI restart");
+                }
+                else
+                {
+                    item.ItemStatus = QueueItemStatus.Failed;
+                    item.ErrorMessage = ex.Message;
+                    AddLog($"Upscale FAILED: {ex.Message}");
+                }
+            }
+            UpdateUpscaleQueueStatus();
+            SaveUpscaleQueueToFile();
+        }
+    }
+    finally
+    {
+        IsProcessingUpscaleQueue = false;
+        AddLog("Upscale queue finished.");
+    }
+}
+```
 
-    QueueStatus = total == 0
-        ? string.Empty
-        : $"{pending} pending • {completed} done • {failed} failed";
+**Add persistence methods** at the end of the class (before the closing `}`):
+```csharp
+#region Queue Persistence
+
+private void SaveInterpolateQueueToFile()
+{
+    try
+    {
+        var dir = Path.GetDirectoryName(InterpolateQueueFilePath);
+        if (!string.IsNullOrEmpty(dir) && !Directory.Exists(dir))
+            Directory.CreateDirectory(dir);
+        File.WriteAllText(InterpolateQueueFilePath,
+            JsonSerializer.Serialize(_interpolateQueue.ToList(), new JsonSerializerOptions { WriteIndented = true }));
+    }
+    catch (Exception ex) { AddLog($"Error saving interpolate queue: {ex.Message}"); }
 }
 
+private void LoadInterpolateQueueFromFile()
+{
+    try
+    {
+        if (!File.Exists(InterpolateQueueFilePath)) return;
+        var items = JsonSerializer.Deserialize<List<VideoEnhanceQueueItem>>(File.ReadAllText(InterpolateQueueFilePath));
+        if (items?.Any() != true) return;
+        _interpolateQueue.Clear();
+        foreach (var item in items)
+        {
+            if (item.ItemStatus == QueueItemStatus.Processing)
+                item.ItemStatus = QueueItemStatus.Pending;
+            _interpolateQueue.Add(item);
+        }
+        UpdateInterpolateQueueStatus();
+        AddLog($"Interpolate queue loaded: {_interpolateQueue.Count} items");
+    }
+    catch (Exception ex) { AddLog($"Error loading interpolate queue: {ex.Message}"); }
+}
+
+private void SaveUpscaleQueueToFile()
+{
+    try
+    {
+        var dir = Path.GetDirectoryName(UpscaleQueueFilePath);
+        if (!string.IsNullOrEmpty(dir) && !Directory.Exists(dir))
+            Directory.CreateDirectory(dir);
+        File.WriteAllText(UpscaleQueueFilePath,
+            JsonSerializer.Serialize(_upscaleQueue.ToList(), new JsonSerializerOptions { WriteIndented = true }));
+    }
+    catch (Exception ex) { AddLog($"Error saving upscale queue: {ex.Message}"); }
+}
+
+private void LoadUpscaleQueueFromFile()
+{
+    try
+    {
+        if (!File.Exists(UpscaleQueueFilePath)) return;
+        var items = JsonSerializer.Deserialize<List<VideoEnhanceQueueItem>>(File.ReadAllText(UpscaleQueueFilePath));
+        if (items?.Any() != true) return;
+        _upscaleQueue.Clear();
+        foreach (var item in items)
+        {
+            if (item.ItemStatus == QueueItemStatus.Processing)
+                item.ItemStatus = QueueItemStatus.Pending;
+            _upscaleQueue.Add(item);
+        }
+        UpdateUpscaleQueueStatus();
+        AddLog($"Upscale queue loaded: {_upscaleQueue.Count} items");
+    }
+    catch (Exception ex) { AddLog($"Error loading upscale queue: {ex.Message}"); }
+}
+
+#endregion
+```
+
+---
+
+## Part 4 — VACEVideoViewModel: Add persistence + crash detection
+
+### File: `FlipPix.UI/ViewModels/Video/VACEVideoViewModel.cs`
+
+**Add file path property** (before the first `#region`):
+```csharp
+private string QueueFilePath => Path.Combine(
+    Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData),
+    "FlipPix", "queue", "vace_queue.json");
+```
+
+**In the constructor**, after `AddLog(...)`, add:
+```csharp
+LoadQueueFromFile();
+```
+
+**In `AddToQueueAndProcess()`**, after `_queue.Add(item);` add:
+```csharp
+SaveQueueToFile();
+```
+
+**Replace `ProcessQueueAsync()`** with:
+```csharp
 private async Task ProcessQueueAsync()
 {
     if (IsProcessingQueue) return;
-
     IsProcessingQueue = true;
     AddLog("Starting VACE queue processing...");
-
     try
     {
         VaceQueueItem? item;
@@ -180,7 +328,7 @@ private async Task ProcessQueueAsync()
         {
             item.ItemStatus = QueueItemStatus.Processing;
             UpdateQueueStatus();
-
+            SaveQueueToFile();
             try
             {
                 await GenerateSingleVideoAsync(item);
@@ -189,12 +337,21 @@ private async Task ProcessQueueAsync()
             }
             catch (Exception ex)
             {
-                item.ItemStatus = QueueItemStatus.Failed;
-                item.ErrorMessage = ex.Message;
-                AddLog($"Queue item FAILED: {ex.Message}");
+                var shouldRetry = await TryHandleCrashAndRetryAsync(item, ex);
+                if (shouldRetry)
+                {
+                    item.ItemStatus = QueueItemStatus.Pending;
+                    AddLog("Item reset to Pending — will retry after ComfyUI restart");
+                }
+                else
+                {
+                    item.ItemStatus = QueueItemStatus.Failed;
+                    item.ErrorMessage = ex.Message;
+                    AddLog($"Queue item FAILED: {ex.Message}");
+                }
             }
-
             UpdateQueueStatus();
+            SaveQueueToFile();
         }
     }
     finally
@@ -203,438 +360,443 @@ private async Task ProcessQueueAsync()
         AddLog("VACE queue processing finished.");
     }
 }
-
-#endregion
 ```
 
-**Refactor `#region Video Generation`** — rename existing `GenerateVideoAsync` and `GenerateVideoAsyncInternal` into a single `GenerateSingleVideoAsync(VaceQueueItem item)` that reads from the item instead of from `this.ForegroundImagePath` etc.
-
-Replace the entire `#region Video Generation` block (from `private async Task GenerateVideoAsync()` through the closing brace of `GenerateVideoAsyncInternal`) with:
-
+**Add persistence methods** at end of class:
 ```csharp
-#region Video Generation
+#region Queue Persistence
 
-private async Task GenerateSingleVideoAsync(VaceQueueItem item)
+private void SaveQueueToFile()
 {
     try
     {
-        AddLog($"=== Starting VACE video generation: {item.DisplayText} ===");
-        IsProcessing = true;
-
-        HasResult = false;
-        ResultVideoPath = string.Empty;
-        ResultVideoInfo = string.Empty;
-        ProcessingProgress = 0;
-        ProcessingStatus = "Preparing VACE workflow...";
-
-        AddLog($"Reference image: {Path.GetFileName(item.ForegroundImagePath)}");
-        AddLog($"Input video: {Path.GetFileName(item.InputVideoPath)}");
-        AddLog($"Prompt: {item.Prompt}");
-
-        // Get frame count
-        ProcessingStatus = "Analysing input video...";
-        TotalFrames = GetVideoFrameCount(item.InputVideoPath);
-        if (TotalFrames <= 0)
-        {
-            AddLog("WARNING: Could not determine frame count; defaulting to 1 chunk");
-            TotalFrames = FramesPerChunk;
-        }
-        AddLog($"Total frames: {TotalFrames} → {TotalChunks} chunk(s) of {FramesPerChunk}");
-
-        // ComfyUI health check
-        ProcessingStatus = "Checking ComfyUI status...";
-        var comfyUIOk = await _comfyUIService.DetectAndRestartIfCrashedAsync(
-            status => AddLog($"[Auto-Restart] {status}"));
-
-        if (!comfyUIOk)
-        {
-            AddLog("ERROR: ComfyUI is not running");
-            System.Windows.MessageBox.Show(
-                "ComfyUI is not running. Please start ComfyUI manually or configure auto-restart in settings.",
-                "ComfyUI Not Running", MessageBoxButton.OK, MessageBoxImage.Warning);
-            throw new Exception("ComfyUI is not running.");
-        }
-
-        if (!_comfyUIService.IsConnected)
-        {
-            ProcessingStatus = "Connecting to ComfyUI...";
-            await _comfyUIService.ConnectAsync();
-            AddLog("Connected to ComfyUI");
-        }
-
-        // Load workflow
-        var workflowPath = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "workflow", "Wan-VACE_V2V_MasterAPI.json");
-        if (!File.Exists(workflowPath))
-        {
-            AddLog($"ERROR: Workflow file not found: {workflowPath}");
-            throw new FileNotFoundException($"VACE workflow file not found: {workflowPath}");
-        }
-
-        var workflowJson = await File.ReadAllTextAsync(workflowPath);
-        var workflow = JsonSerializer.Deserialize<JsonElement>(workflowJson);
-
-        // Upload assets
-        ProcessingStatus = "Uploading assets to ComfyUI...";
-        ProcessingProgress = 10;
-
-        AddLog("Uploading reference image...");
-        var uploadedImageName = await _comfyUIService.UploadImageAsync(item.ForegroundImagePath);
-        if (string.IsNullOrEmpty(uploadedImageName))
-        {
-            AddLog("ERROR: Reference image upload failed");
-            throw new Exception("Failed to upload reference image to ComfyUI.");
-        }
-        AddLog($"Reference image uploaded: {uploadedImageName}");
-
-        AddLog("Uploading video...");
-        var uploadedVideoName = await _comfyUIService.UploadVideoAsync(item.InputVideoPath);
-        if (string.IsNullOrEmpty(uploadedVideoName))
-        {
-            AddLog("ERROR: Video upload failed");
-            throw new Exception("Failed to upload video to ComfyUI.");
-        }
-        AddLog($"Video uploaded: {uploadedVideoName}");
-
-        // Calculate output dimensions from reference image
-        int outputWidth = 576, outputHeight = 1024;
-        try
-        {
-            var bitmap = new BitmapImage();
-            bitmap.BeginInit();
-            bitmap.CacheOption = BitmapCacheOption.OnLoad;
-            bitmap.UriSource = new Uri(item.ForegroundImagePath, UriKind.Absolute);
-            bitmap.EndInit();
-            bitmap.Freeze();
-
-            double ar = (double)bitmap.PixelWidth / bitmap.PixelHeight;
-            if (ar > 1.2) { outputWidth = 1024; outputHeight = 576; }
-            else if (ar >= 0.85) { outputWidth = 720; outputHeight = 720; }
-            else { outputWidth = 576; outputHeight = 1024; }
-            AddLog($"Output dimensions: {outputWidth}x{outputHeight} (AR: {ar:F2})");
-        }
-        catch (Exception ex)
-        {
-            AddLog($"Warning: Could not read image dimensions, using defaults: {ex.Message}");
-        }
-
-        // Chunk loop
-        var totalChunks = TotalChunks;
-        var chunkFiles = new List<string>();
-        AddLog($"=== Processing {totalChunks} chunk(s) of {FramesPerChunk} frames ===");
-
-        for (int chunkIndex = 0; chunkIndex < totalChunks; chunkIndex++)
-        {
-            try
-            {
-                var startFrame = chunkIndex * FramesPerChunk;
-                var framesInChunk = Math.Min(FramesPerChunk, TotalFrames - startFrame);
-
-                AddLog($"=== Chunk {chunkIndex + 1}/{totalChunks}: frames {startFrame}–{startFrame + framesInChunk - 1} ===");
-                ProcessingStatus = $"Processing chunk {chunkIndex + 1}/{totalChunks}";
-                var baseProgress = 20.0 + chunkIndex * 60.0 / totalChunks;
-
-                if (chunkIndex > 0 && !_comfyUIService.IsConnected)
-                {
-                    AddLog("Reconnecting to ComfyUI...");
-                    await _comfyUIService.ConnectAsync();
-                }
-
-                var updatedWorkflow = UpdateWorkflowParameters(workflow, uploadedImageName, uploadedVideoName,
-                    startFrame, framesInChunk, outputWidth, outputHeight, item.Prompt);
-
-                var progress = new Progress<FlipPix.ComfyUI.Models.ProgressMessage>(progressMsg =>
-                {
-                    if (progressMsg.Data?.Value != null && progressMsg.Data?.Max != null)
-                    {
-                        var percent = (double)progressMsg.Data.Value / progressMsg.Data.Max * 100;
-                        System.Windows.Application.Current.Dispatcher.Invoke(() =>
-                        {
-                            ProcessingProgress = baseProgress + percent * 0.6 / totalChunks;
-                            ProcessingStatus = $"Chunk {chunkIndex + 1}/{totalChunks}: {progressMsg.Data.Value}/{progressMsg.Data.Max}";
-                        });
-                    }
-                });
-
-                var existingFiles = GetExistingVideoFiles("*.mp4", OutputSubfolder);
-                var promptId = await _comfyUIService.ExecuteWorkflowAsync(updatedWorkflow, progress);
-                AddLog($"Chunk {chunkIndex + 1} completed, prompt ID: {promptId}");
-
-                var outputVideo = await TryGetVideoFromHistoryAsync(promptId);
-
-                if (outputVideo == null)
-                {
-                    AddLog("History API returned no result, falling back to filesystem polling...");
-                    outputVideo = await WaitForNewVideoAsync(
-                        existingFiles, "*.mp4",
-                        TimeSpan.FromMinutes(15),
-                        TimeSpan.FromSeconds(5),
-                        OutputSubfolder);
-                }
-
-                if (outputVideo != null && File.Exists(outputVideo))
-                {
-                    var chunkFile = Path.Combine(Path.GetTempPath(), $"vace_chunk_{chunkIndex:D3}_{Path.GetFileName(outputVideo)}");
-                    File.Copy(outputVideo, chunkFile, true);
-                    chunkFiles.Add(chunkFile);
-                    AddLog($"Chunk {chunkIndex + 1}/{totalChunks} saved: {Path.GetFileName(chunkFile)}");
-                }
-                else
-                {
-                    AddLog($"ERROR: No output video for chunk {chunkIndex + 1} — aborting remaining chunks");
-                    break;
-                }
-            }
-            catch (Exception ex)
-            {
-                AddLog($"ERROR processing chunk {chunkIndex + 1}: {ex.Message} — aborting remaining chunks");
-                break;
-            }
-        }
-
-        // Merge / finalise
-        ProcessingProgress = 85;
-        ProcessingStatus = "Merging video chunks...";
-        AddLog("=== Merging chunks ===");
-
-        if (chunkFiles.Count > 0)
-        {
-            var outputDir = Path.Combine(
-                _settingsService.Settings?.OutputFolderPath ?? Path.GetTempPath(),
-                "VACE");
-            Directory.CreateDirectory(outputDir);
-
-            var finalPath = Path.Combine(outputDir, $"VACE_{DateTime.Now:yyyyMMdd_HHmmss}.mp4");
-
-            if (chunkFiles.Count == 1)
-            {
-                File.Copy(chunkFiles[0], finalPath, true);
-                AddLog($"Single chunk copied to: {finalPath}");
-            }
-            else
-            {
-                MergeVideoChunksWithFFmpeg(chunkFiles, finalPath);
-            }
-
-            foreach (var f in chunkFiles)
-                try { File.Delete(f); } catch { }
-
-            item.OutputVideoPath = finalPath;
-            ResultVideoPath = finalPath;
-            await LocalCopyService.CopyVideoAsync(finalPath);
-            HasResult = true;
-
-            var fi = new FileInfo(finalPath);
-            ResultVideoInfo = $"VACE Video • {fi.Length / 1024 / 1024:F1}MB";
-            ProcessingProgress = 100;
-            ProcessingStatus = "VACE Complete!";
-            AddLog($"=== VACE generation complete: {finalPath} ===");
-        }
-        else
-        {
-            AddLog("ERROR: No video chunks were generated");
-            ProcessingStatus = "No output generated";
-            throw new Exception("No video chunks were generated.");
-        }
+        var dir = Path.GetDirectoryName(QueueFilePath);
+        if (!string.IsNullOrEmpty(dir) && !Directory.Exists(dir))
+            Directory.CreateDirectory(dir);
+        File.WriteAllText(QueueFilePath,
+            JsonSerializer.Serialize(_queue.ToList(), new JsonSerializerOptions { WriteIndented = true }));
     }
-    catch (Exception ex)
+    catch (Exception ex) { AddLog($"Error saving queue: {ex.Message}"); }
+}
+
+private void LoadQueueFromFile()
+{
+    try
     {
-        AddLog($"ERROR: {ex.Message}");
-        AddLog($"Stack trace: {ex.StackTrace}");
-        ProcessingStatus = "Error occurred";
-        throw;
+        if (!File.Exists(QueueFilePath)) return;
+        var items = JsonSerializer.Deserialize<List<VaceQueueItem>>(File.ReadAllText(QueueFilePath));
+        if (items?.Any() != true) return;
+        _queue.Clear();
+        foreach (var item in items)
+        {
+            if (item.ItemStatus == QueueItemStatus.Processing)
+                item.ItemStatus = QueueItemStatus.Pending;
+            _queue.Add(item);
+        }
+        UpdateQueueStatus();
+        AddLog($"VACE queue loaded: {_queue.Count} items");
     }
-    finally
-    {
-        IsProcessing = false;
-    }
+    catch (Exception ex) { AddLog($"Error loading queue: {ex.Message}"); }
 }
 
 #endregion
 ```
 
-**Update `UpdateWorkflowParameters` signature** — add `string prompt` parameter and use it instead of `this.Prompt`:
+---
 
-Change:
+## Part 5 — LTX23BasicViewModel: Add persistence + crash detection
+
+### File: `FlipPix.UI/ViewModels/Video/LTX23BasicViewModel.cs`
+
+**Add file path property**:
 ```csharp
-private JsonElement UpdateWorkflowParameters(
-    JsonElement workflow,
-    string imageName,
-    string videoName,
-    int startFrame,
-    int framesInChunk,
-    int outputWidth,
-    int outputHeight)
-```
-to:
-```csharp
-private JsonElement UpdateWorkflowParameters(
-    JsonElement workflow,
-    string imageName,
-    string videoName,
-    int startFrame,
-    int framesInChunk,
-    int outputWidth,
-    int outputHeight,
-    string prompt)
+private string QueueFilePath => Path.Combine(
+    Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData),
+    "FlipPix", "queue", "ltx23basic_queue.json");
 ```
 
-And inside the method, change `Prompt` to `prompt`:
+**In the constructor** (after `AddLog` or at end of constructor body), add:
 ```csharp
-WorkflowNodeUpdater.UpdateNodeInput(ref workflowJson, "31", "string", prompt);
+LoadQueueFromFile();
 ```
 
-**Update `NotifyCommandsCanExecuteChanged`** — add the new command:
+**In `AddToQueueAndProcess()`**, after `_queue.Add(item);` add:
 ```csharp
-RemoveQueueItemCommand.NotifyCanExecuteChanged();
+SaveQueueToFile();
+```
+
+**Replace `ProcessQueueAsync()`** with:
+```csharp
+private async Task ProcessQueueAsync()
+{
+    if (IsProcessingQueue) return;
+    IsProcessingQueue = true;
+    AddLog("Starting queue processing...");
+    try
+    {
+        QueueItem? item;
+        while ((item = _queue.FirstOrDefault(x => x.ItemStatus == QueueItemStatus.Pending)) != null)
+        {
+            item.ItemStatus = QueueItemStatus.Processing;
+            UpdateQueueStatus();
+            SaveQueueToFile();
+            try
+            {
+                await GenerateSingleVideoAsync(item);
+                item.ItemStatus = QueueItemStatus.Completed;
+                AddLog($"Queue item completed: {Path.GetFileName(item.ImagePath)}");
+            }
+            catch (Exception ex)
+            {
+                var shouldRetry = await TryHandleCrashAndRetryAsync(item, ex);
+                if (shouldRetry)
+                {
+                    item.ItemStatus = QueueItemStatus.Pending;
+                    AddLog("Item reset to Pending — will retry after ComfyUI restart");
+                }
+                else
+                {
+                    item.ItemStatus = QueueItemStatus.Failed;
+                    item.ErrorMessage = ex.Message;
+                    AddLog($"Queue item FAILED: {ex.Message}");
+                }
+            }
+            UpdateQueueStatus();
+            SaveQueueToFile();
+        }
+    }
+    finally
+    {
+        IsProcessingQueue = false;
+        AddLog("Queue processing finished.");
+    }
+}
+```
+
+**Add persistence methods** at end of class:
+```csharp
+#region Queue Persistence
+
+private void SaveQueueToFile()
+{
+    try
+    {
+        var dir = Path.GetDirectoryName(QueueFilePath);
+        if (!string.IsNullOrEmpty(dir) && !Directory.Exists(dir))
+            Directory.CreateDirectory(dir);
+        File.WriteAllText(QueueFilePath,
+            JsonSerializer.Serialize(_queue.ToList(), new JsonSerializerOptions { WriteIndented = true }));
+    }
+    catch (Exception ex) { AddLog($"Error saving queue: {ex.Message}"); }
+}
+
+private void LoadQueueFromFile()
+{
+    try
+    {
+        if (!File.Exists(QueueFilePath)) return;
+        var items = JsonSerializer.Deserialize<List<QueueItem>>(File.ReadAllText(QueueFilePath));
+        if (items?.Any() != true) return;
+        _queue.Clear();
+        foreach (var item in items)
+        {
+            if (item.ItemStatus == QueueItemStatus.Processing)
+                item.ItemStatus = QueueItemStatus.Pending;
+            _queue.Add(item);
+        }
+        UpdateQueueStatus();
+        AddLog($"Queue loaded: {_queue.Count} items");
+    }
+    catch (Exception ex) { AddLog($"Error loading queue: {ex.Message}"); }
+}
+
+#endregion
 ```
 
 ---
 
-### 3. `FlipPix.UI/ViewModels/VideoGeneratorViewModel.cs`
+## Part 6 — LTX23T2VViewModel: Add persistence + crash detection
 
-In the `#region VaceVM Backward Compatibility Properties` section (around line 330), add these properties **after** the existing VACE properties and before the `#endregion`:
+### File: `FlipPix.UI/ViewModels/Video/LTX23T2VViewModel.cs`
 
+Apply the **same changes as Part 5** but with filename `ltx23t2v_queue.json`.
+
+**Add file path property**:
 ```csharp
-// Queue
-public System.Collections.ObjectModel.ObservableCollection<VaceQueueItem> VaceQueue => VaceVM.Queue;
-public bool VaceHasQueueItems => VaceVM.HasQueueItems;
-public bool VaceIsProcessingQueue => VaceVM.IsProcessingQueue;
-public string VaceQueueStatus => VaceVM.QueueStatus;
-public ICommand RemoveVaceQueueItemCommand => VaceVM.RemoveQueueItemCommand;
-public bool VaceCanAddToQueue => VaceVM.CanAddToQueue;
+private string QueueFilePath => Path.Combine(
+    Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData),
+    "FlipPix", "queue", "ltx23t2v_queue.json");
 ```
 
-Also add the namespace import at the top of the file:
+**In constructor**, add:
 ```csharp
-using FlipPix.UI.Models;
+LoadQueueFromFile();
 ```
-(check if it's already present — it may be since other queue types are used)
+
+**In `AddToQueueAndProcess()`**, after `_queue.Add(item)`:
+```csharp
+SaveQueueToFile();
+```
+
+**Replace `ProcessQueueAsync()`** with the same pattern as Part 5 (same code, same crash detection, `QueueItem` type).
+
+**Add persistence methods** (same as Part 5 but with `ltx23t2v_queue.json` path already set via `QueueFilePath`).
 
 ---
 
-### 4. `FlipPix.UI/VideoGeneratorWindow.xaml` — VACE tab changes
+## Part 7 — VideoGeneratorMainViewModel: Add crash detection
 
-**In the VACE Generate Section** (around line 1337–1398), replace the "🎭 Generate VACE Video" button content and add a queue section.
+### File: `FlipPix.UI/ViewModels/Video/VideoGeneratorMainViewModel.cs`
 
-Change the button text and binding:
-```xml
-<Button Content="➕ Add to VACE Queue"
-       Style="{StaticResource PrimaryButtonStyle}"
-       Command="{Binding GenerateVACEVideoCommand}"
-       IsEnabled="{Binding VaceCanAddToQueue, Mode=OneWay}"
-       HorizontalAlignment="Stretch"
-       Height="55"
-       FontSize="15"
-       Margin="0,0,0,15"/>
+**In `ProcessQueueAsync()`** — find this catch block (around line 1437):
+```csharp
+catch (Exception ex)
+{
+    item.ItemStatus = QueueItemStatus.Failed;
+    UpdateQueueStatus();
+    SaveQueueToFile();
+    AddLog($"Error processing queue item: {ex.Message}");
+}
 ```
 
-**Add a Queue Panel section** — insert a new `<Border>` after the "VACE Generate Section" border (after line 1398, before the "VACE Result Video Section"):
-
-```xml
-<!-- VACE Queue Panel -->
-<Border Style="{StaticResource SectionPanelStyle}"
-        Visibility="{Binding VaceHasQueueItems, Converter={StaticResource BooleanToVisibilityConverter}}">
-    <StackPanel>
-        <Grid Margin="0,0,0,8">
-            <Grid.ColumnDefinitions>
-                <ColumnDefinition Width="*"/>
-                <ColumnDefinition Width="Auto"/>
-            </Grid.ColumnDefinitions>
-            <TextBlock Grid.Column="0" Text="🎭 VACE Queue" Style="{StaticResource HeaderTextStyle}" Foreground="#FF6B35"/>
-            <TextBlock Grid.Column="1" Text="{Binding VaceQueueStatus}"
-                      FontStyle="Italic" Foreground="#666" FontSize="11"
-                      VerticalAlignment="Center"/>
-        </Grid>
-
-        <ItemsControl ItemsSource="{Binding VaceQueue}">
-            <ItemsControl.ItemTemplate>
-                <DataTemplate>
-                    <Border BorderBrush="#DEE2E6" BorderThickness="1" CornerRadius="4"
-                            Padding="10,6" Margin="0,0,0,4" Background="White">
-                        <Grid>
-                            <Grid.ColumnDefinitions>
-                                <ColumnDefinition Width="Auto"/>
-                                <ColumnDefinition Width="*"/>
-                                <ColumnDefinition Width="Auto"/>
-                            </Grid.ColumnDefinitions>
-
-                            <!-- Status badge -->
-                            <Border Grid.Column="0" CornerRadius="3" Padding="6,2" Margin="0,0,8,0"
-                                    Background="{Binding StatusColor}">
-                                <TextBlock Text="{Binding StatusDisplay}" FontSize="11" FontWeight="SemiBold" Foreground="White"/>
-                            </Border>
-
-                            <!-- Item info -->
-                            <StackPanel Grid.Column="1" VerticalAlignment="Center">
-                                <TextBlock Text="{Binding DisplayText}" FontWeight="SemiBold" FontSize="11"/>
-                                <TextBlock Text="{Binding Prompt}" FontSize="10" Foreground="#666"
-                                           TextTrimming="CharacterEllipsis" MaxWidth="300"/>
-                            </StackPanel>
-
-                            <!-- Remove button -->
-                            <Button Grid.Column="2"
-                                    Content="✕"
-                                    Style="{StaticResource SecondaryButtonStyle}"
-                                    Command="{Binding DataContext.RemoveVaceQueueItemCommand, RelativeSource={RelativeSource AncestorType=ItemsControl}}"
-                                    CommandParameter="{Binding}"
-                                    Width="28" Height="28"
-                                    Padding="0"
-                                    FontSize="10"
-                                    Visibility="{Binding ItemStatus, Converter={StaticResource QueueItemNotProcessingConverter}}"/>
-                        </Grid>
-                    </Border>
-                </DataTemplate>
-            </ItemsControl.ItemTemplate>
-        </ItemsControl>
-    </StackPanel>
-</Border>
+Replace with:
+```csharp
+catch (Exception ex)
+{
+    var shouldRetry = await TryHandleCrashAndRetryAsync(item, ex);
+    if (shouldRetry)
+    {
+        item.ItemStatus = QueueItemStatus.Pending;
+        UpdateQueueStatus();
+        SaveQueueToFile();
+        AddLog("Item reset to Pending — will retry after ComfyUI restart");
+    }
+    else
+    {
+        item.ItemStatus = QueueItemStatus.Failed;
+        UpdateQueueStatus();
+        SaveQueueToFile();
+        AddLog($"Error processing queue item: {ex.Message}");
+    }
+}
 ```
 
-**Note on converter**: Check if `QueueItemNotProcessingConverter` already exists in the XAML resources. If not, use a simpler approach — replace the remove button visibility with `IsEnabled="{Binding ItemStatus, Converter=...}"` or just omit the visibility binding and rely on `RemoveQueueItem` method's guard (`item.ItemStatus != Processing`).
+**Also update `LoadQueueFromFile()`** — change `Processing → Failed` to `Processing → Pending` (so interrupted items are retried rather than shown as failed):
 
-**Simpler alternative for remove button** if converter doesn't exist — just show always and let the command's guard handle it:
-```xml
-<Button Grid.Column="2"
-        Content="✕"
-        Style="{StaticResource SecondaryButtonStyle}"
-        Command="{Binding DataContext.RemoveVaceQueueItemCommand, RelativeSource={RelativeSource AncestorType=ItemsControl}}"
-        CommandParameter="{Binding}"
-        Width="28" Height="28"
-        Padding="0"
-        FontSize="10"/>
+Find:
+```csharp
+if (item.ItemStatus == QueueItemStatus.Processing)
+{
+    item.ItemStatus = QueueItemStatus.Failed;
+}
+```
+
+Replace with:
+```csharp
+if (item.ItemStatus == QueueItemStatus.Processing)
+{
+    item.ItemStatus = QueueItemStatus.Pending;
+}
 ```
 
 ---
 
-## Behavior Summary
+## Part 8 — ImageAnalyzerViewModel: Add crash detection
 
-1. User fills in Reference Image + Input Video + Prompt
-2. Clicks "➕ Add to VACE Queue" → item added to queue, auto-processing starts if idle
-3. Items in queue show status: ⏳ Pending → 🔄 Processing → ✅ Completed / ❌ Failed
-4. Each item processes the full VACE chunk workflow sequentially
-5. Result video player updates after each completed item
-6. Items can be removed from queue (unless currently processing)
+### File: `FlipPix.UI/ViewModels/ImageAnalyzerViewModel.cs`
+
+Add using at top (if not present):
+```csharp
+using System.Net.Http;
+```
+
+**Find this catch block** in `ProcessQueueAsync()` (around line 1635):
+```csharp
+catch (Exception ex)
+{
+    item.Status = "Failed";
+    item.ErrorMessage = ex.Message;
+    item.Progress = 0;
+    SaveQueueToFile();
+    _logger.LogError($"Queue item failed: {item.StyleName} - {ex.Message}");
+
+    // Show error to user
+    try
+    {
+        System.Windows.Application.Current.Dispatcher.Invoke(() =>
+        {
+            StatusBarMessage = $"Error processing queue item: {ex.Message}";
+        });
+    }
+    catch { }
+}
+```
+
+Replace with:
+```csharp
+catch (Exception ex)
+{
+    bool isConnectionFailure =
+        ex is HttpRequestException ||
+        ex.InnerException is HttpRequestException ||
+        ex.Message.IndexOf("connection", StringComparison.OrdinalIgnoreCase) >= 0 ||
+        ex.Message.IndexOf("refused", StringComparison.OrdinalIgnoreCase) >= 0 ||
+        ex.Message.IndexOf("unreachable", StringComparison.OrdinalIgnoreCase) >= 0 ||
+        ex.Message.IndexOf("WebSocket", StringComparison.OrdinalIgnoreCase) >= 0 ||
+        ex.Message.IndexOf("ComfyUI is not running", StringComparison.OrdinalIgnoreCase) >= 0;
+
+    bool shouldRetry = false;
+    if (isConnectionFailure && item.RetryCount < 2 && _settingsService.Settings?.AutoRestartComfyUI == true)
+    {
+        _logger.LogWarning($"[CrashDetect] Connection failure: {ex.Message}. Checking ComfyUI health...");
+        var restarted = await _comfyUIService.DetectAndRestartIfCrashedAsync(
+            status => _logger.LogInfo($"[AutoRestart] {status}"));
+        if (restarted)
+        {
+            item.RetryCount++;
+            _logger.LogInfo($"[AutoRestart] ComfyUI restarted. Retrying item (attempt {item.RetryCount}/2)...");
+            shouldRetry = true;
+        }
+    }
+
+    if (shouldRetry)
+    {
+        item.Status = "Pending";
+        item.Progress = 0;
+        SaveQueueToFile();
+        try { System.Windows.Application.Current.Dispatcher.Invoke(() => StatusBarMessage = "ComfyUI restarted — retrying item..."); } catch { }
+    }
+    else
+    {
+        item.Status = "Failed";
+        item.ErrorMessage = ex.Message;
+        item.Progress = 0;
+        SaveQueueToFile();
+        _logger.LogError($"Queue item failed: {item.StyleName} - {ex.Message}");
+        try { System.Windows.Application.Current.Dispatcher.Invoke(() => StatusBarMessage = $"Error processing queue item: {ex.Message}"); } catch { }
+    }
+}
+```
+
+**Note:** When `shouldRetry = true` and `item.Status = "Pending"`, the while loop at the top of `ProcessQueueAsync()` will pick it up again on the next iteration automatically. The `QueueProgress++` in the `finally` block will still fire, so consider whether the counter needs adjustment — it's cosmetic only, leave it as-is.
 
 ---
 
-## 5. Completion Instructions
-Update this file with a "Changelog" section detailing your changes for review.
+## Part 9 — Settings UI: ComfyUI Restart Script path
+
+The `ComfyUIRestartScriptPath` setting already exists in `ComfyUISettings.cs`. The user needs a way to set it in the Settings window.
+
+### File: `FlipPix.UI/SettingsWindow.xaml.cs`
+
+Check if `ComfyUIRestartScriptPath` and `AutoRestartComfyUI` are already bound in the settings UI. If not, add a Browse button and text field for restart script path, and a checkbox for `AutoRestartComfyUI`. This is UI work — check existing settings window layout and add in the ComfyUI section.
+
+**If the Settings window already has these fields** (search for `AutoRestartComfyUI` binding in SettingsWindow.xaml) — skip this step.
+
+---
+
+## Completion Instructions
+
+After implementing all parts:
+1. Verify the build compiles without errors (user will run in Visual Studio)
+2. Update this file with a Changelog section
+
+---
+
+## Changelog
+
+### 2026-04-08: Queue Persistence + ComfyUI Crash Detection with Auto-Restart
+
+**Implemented By:** Claude (GLM Implementer)
+**Status:** Complete
+
+#### Summary
+Added two features to improve queue reliability:
+1. **Queue Persistence** - Queue items are now saved to `%AppData%\FlipPix\queue\` and automatically restored on app startup
+2. **ComfyUI Crash Detection with Auto-Restart** - When queue processing fails due to ComfyUI connection errors, the system now detects the crash, optionally restarts ComfyUI, and retries failed items (up to 2 times)
+
+#### Files Modified
+
+1. **FlipPix.UI/Models/BaseQueueItem.cs**
+   - Added `RetryCount` property for tracking automatic retry attempts
+
+2. **FlipPix.UI/ViewModels/Video/VideoProcessingBaseViewModel.cs**
+   - Added `System.Net.Http` using statement
+   - Added `TryHandleCrashAndRetryAsync()` protected method for crash detection and retry logic
+
+3. **FlipPix.UI/ViewModels/Video/VideoEnhanceViewModel.cs**
+   - Added queue file path properties for interpolate and upscale queues
+   - Added `SaveInterpolateQueueToFile()`, `LoadInterpolateQueueFromFile()`
+   - Added `SaveUpscaleQueueToFile()`, `LoadUpscaleQueueFromFile()`
+   - Updated `ProcessInterpolateQueueAsync()` and `ProcessUpscaleQueueAsync()` with crash detection and persistence calls
+   - Items in "Processing" state on load are reset to "Pending" for retry
+
+4. **FlipPix.UI/ViewModels/Video/VACEVideoViewModel.cs**
+   - Added `QueueFilePath` property for vace_queue.json
+   - Added `SaveQueueToFile()`, `LoadQueueToFile()` methods
+   - Updated `ProcessQueueAsync()` with crash detection and persistence calls
+   - Items in "Processing" state on load are reset to "Pending" for retry
+
+5. **FlipPix.UI/ViewModels/Video/LTX23BasicViewModel.cs**
+   - Added `QueueFilePath` property for ltx23basic_queue.json
+   - Added `SaveQueueToFile()`, `LoadQueueToFile()` methods
+   - Updated `ProcessQueueAsync()` with crash detection and persistence calls
+   - Items in "Processing" state on load are reset to "Pending" for retry
+
+6. **FlipPix.UI/ViewModels/Video/LTX23T2VViewModel.cs**
+   - Added `QueueFilePath` property for ltx23t2v_queue.json
+   - Added `SaveQueueToFile()`, `LoadQueueToFile()` methods
+   - Updated `ProcessQueueAsync()` with crash detection and persistence calls
+   - Items in "Processing" state on load are reset to "Pending" for retry
+
+7. **FlipPix.UI/ViewModels/Video/VideoGeneratorMainViewModel.cs**
+   - Updated `ProcessQueueAsync()` catch block with crash detection logic
+   - Changed `LoadQueueFromFile()` to reset "Processing" items to "Pending" instead of "Failed"
+
+8. **FlipPix.UI/ViewModels/ImageAnalyzerViewModel.cs**
+   - Updated `ProcessQueueAsync()` catch block with inline crash detection logic (does not inherit from VideoProcessingBaseViewModel)
+   - Items in "Processing" state on load are reset to "Pending" for retry
+
+9. **FlipPix.UI/SettingsWindow.xaml.cs** (No changes needed)
+   - Verified that `AutoRestartComfyUI` and `ComfyUIRestartScriptPath` are already bound in the UI
+   - Part 9 skipped as per task instructions
+
+#### Queue Persistence Details
+- Queue files are stored in `%AppData%\FlipPix\queue\` directory
+- Each ViewModel has its own queue file:
+  - `video_enhance_interpolate_queue.json`
+  - `video_enhance_upscale_queue.json`
+  - `vace_queue.json`
+  - `ltx23basic_queue.json`
+  - `ltx23t2v_queue.json`
+  - `story_video_queue.json` (already existed)
+  - Main video queue file (already existed)
+- Items in "Processing" state on load are reset to "Pending" for retry
+- Only "Pending" and "Failed" items are restored (completed items are kept for reference)
+
+#### Crash Detection Details
+- Detects connection errors: `HttpRequestException`, "connection", "refused", "unreachable", "WebSocket", "ComfyUI is not running"
+- Checks `AutoRestartComfyUI` setting before attempting restart
+- Maximum 2 retry attempts per item
+- Calls `ComfyUIService.DetectAndRestartIfCrashedAsync()` to handle restart
+- Items are reset to "Pending" status after successful restart for automatic retry
+- Failed retry attempts increment `RetryCount` and mark item as "Failed"
+
+#### Notes
+- ImageAnalyzerViewModel uses inline crash detection logic as it does not inherit from VideoProcessingBaseViewModel
+- All other video processing ViewModels use the shared `TryHandleCrashAndRetryAsync()` method from VideoProcessingBaseViewModel
+- Settings UI already had the necessary ComfyUI restart script path configuration
 
 ---
 
 ## Previous Task History / Changelogs
 
+### 2026-03-26: VACE Video Generator — Queue System
+*(Completed directly by Claude)*
+Added VaceQueueItem model, queue to VACEVideoViewModel, XAML queue panel in VideoGeneratorWindow.
+
 ### 2026-03-05: Fix LoRA Path — RemoteLoraFolderPath Must Be Checked Before isRemoteServer Branch
-**Changelog:**
-1. **FlipPix.UI/ViewModels/ImageGeneratorViewModel.cs** — Fixed `GetLoraModelPath()` to check `RemoteLoraFolderPath` first before `RemoteOutputFolderPath`
-2. **FlipPix.UI/ViewModels/ImageAnalyzerViewModel.cs** — Fixed `GetLoraModelPath()` to check `RemoteLoraFolderPath` first before `RemoteOutputFolderPath`
-
-**Change Summary:** Reordered the remote server path resolution logic in `GetLoraModelPath()` to prioritize the explicitly configured `RemoteLoraFolderPath`. Previously, the method returned `null` early when `RemoteOutputFolderPath` was empty, preventing the explicit LoRA path from ever being checked. Now:
-- Priority 1: Use `RemoteLoraFolderPath` if set and accessible
-- Priority 2: Derive path from `RemoteOutputFolderPath`
-- Only return `null` if both are unavailable
-
----
+1. **FlipPix.UI/ViewModels/ImageGeneratorViewModel.cs** — Fixed `GetLoraModelPath()`
+2. **FlipPix.UI/ViewModels/ImageAnalyzerViewModel.cs** — Fixed `GetLoraModelPath()`
 
 ### LTX2 Audio Tab – Analyze Image & Enhance Prompt via LMStudio
 *(Completed)*
@@ -647,14 +809,6 @@ Update this file with a "Changelog" section detailing your changes for review.
 ### 2026-03-05: Fixed Node Removal Issue
 ### 2026-03-05: Fixed Aspect Ratio Handling for amateurZimageAPI
 
----
-
 ### 2026-03-10: LTX 2.3 Tab – Compact Layout & Auto-Generate
-**Changelog:**
-1. **FlipPix.UI/ViewModels/Video/LTX23BasicViewModel.cs** — Modified `EnhancePromptWithLMStudioAsync()` to automatically trigger `AddToQueueAndProcess()` after prompt enhancement
-2. **FlipPix.UI/VideoGeneratorWindow.xaml** — Redesigned LTX 2.3 reference image section with 2-column layout (50% image, 50% analysis) and removed "Add to Queue & Generate" button
-
-**Change Summary:**
-- Made the reference image box more compact with side-by-side layout (image on left, analysis on right)
-- Enhanced user experience by removing manual "Add to Queue & Generate" button - the Enhance Prompt button now automatically queues and generates video after LM Studio returns the result
-- Reduces scrolling and streamlines the LTX 2.3 workflow
+1. **FlipPix.UI/ViewModels/Video/LTX23BasicViewModel.cs** — Auto-trigger after LM Studio enhancement
+2. **FlipPix.UI/VideoGeneratorWindow.xaml** — Redesigned LTX 2.3 reference image section

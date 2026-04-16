@@ -12,6 +12,7 @@ namespace FlipPix.UI.Models
         private string _firstFrameImagePath = string.Empty;
         private string _lastFrameImagePath = string.Empty;
         private long _seed = 0;
+        private int _frameCount = 240;
 
         public string Prompt
         {
@@ -79,6 +80,19 @@ namespace FlipPix.UI.Models
                     _seed = value;
                     OnPropertyChanged(nameof(Seed));
                     OnPropertyChanged(nameof(DisplayText));
+                }
+            }
+        }
+
+        public int FrameCount
+        {
+            get => _frameCount;
+            set
+            {
+                if (_frameCount != value)
+                {
+                    _frameCount = value;
+                    OnPropertyChanged(nameof(FrameCount));
                 }
             }
         }

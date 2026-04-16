@@ -4,6 +4,7 @@ using System.Collections.ObjectModel;
 using System.IO;
 using System.Linq;
 using System.Text.Json;
+using System.Threading;
 using System.Threading.Tasks;
 using System.Windows;
 using System.Windows.Input;
@@ -26,6 +27,10 @@ namespace FlipPix.UI.ViewModels.Video
         private const int FramesPerChunk = 81;
         private const string OutputSubfolder = "wan_vace";
 
+        private string QueueFilePath => Path.Combine(
+            Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData),
+            "FlipPix", "queue", "vace_queue.json");
+
         private string _prompt = string.Empty;
         private string _foregroundImagePath = string.Empty;
         private BitmapImage? _foregroundImagePreview;
@@ -40,6 +45,7 @@ namespace FlipPix.UI.ViewModels.Video
         private readonly IFileDialogService _fileDialogService;
         private readonly LMStudioService _lmStudioService;
         private readonly ObservableCollection<VaceQueueItem> _queue = new();
+        private CancellationTokenSource? _queueCts;
 
         public VACEVideoViewModel(
             ComfyUIService comfyUIService,
@@ -58,6 +64,9 @@ namespace FlipPix.UI.ViewModels.Video
             SelectVideoCommand = new RelayCommand(SelectVideo);
             GenerateVideoCommand = new RelayCommand(AddToQueueAndProcess, () => CanAddToQueue);
             RemoveQueueItemCommand = new RelayCommand<VaceQueueItem>(RemoveQueueItem);
+            ClearQueueCommand = new RelayCommand(ClearQueue, () => _queue.Any());
+            StopQueueCommand = new RelayCommand(StopQueue, () => IsProcessingQueue);
+            ReprocessAllFailedCommand = new RelayCommand(async () => await ReprocessAllFailedAsync(), () => HasFailedItems);
             PlayVideoCommand = new RelayCommand(PlayVideo, () => HasResult);
             OpenResultFolderCommand = new RelayCommand(OpenResultFolder, () => HasResult);
             SendToEditCameraCommand = new RelayCommand(SendToEditCamera, () => HasResult);
@@ -71,6 +80,7 @@ namespace FlipPix.UI.ViewModels.Video
             };
 
             AddLog("VACE Video Generator initialized");
+            LoadQueueFromFile();
         }
 
         #region Commands
@@ -79,10 +89,15 @@ namespace FlipPix.UI.ViewModels.Video
         public ICommand SelectVideoCommand { get; }
         public RelayCommand GenerateVideoCommand { get; }
         public RelayCommand<VaceQueueItem> RemoveQueueItemCommand { get; }
+        public RelayCommand ClearQueueCommand { get; }
+        public RelayCommand StopQueueCommand { get; }
+        public RelayCommand ReprocessAllFailedCommand { get; }
         public RelayCommand PlayVideoCommand { get; }
         public RelayCommand OpenResultFolderCommand { get; }
         public RelayCommand SendToEditCameraCommand { get; }
         public RelayCommand AnalyzeImageCommand { get; }
+
+        public bool HasFailedItems => _queue.Any(x => x.ItemStatus == QueueItemStatus.Failed);
 
         #endregion
 
@@ -399,6 +414,7 @@ namespace FlipPix.UI.ViewModels.Video
             };
 
             _queue.Add(item);
+            SaveQueueToFile();
             AddLog($"Added to queue: {item.DisplayText}");
             UpdateQueueStatus();
 
@@ -425,6 +441,41 @@ namespace FlipPix.UI.ViewModels.Video
             QueueStatus = total == 0
                 ? string.Empty
                 : $"{pending} pending • {completed} done • {failed} failed";
+
+            OnPropertyChanged(nameof(HasFailedItems));
+            OnCanExecuteChanged();
+        }
+
+        private void ClearQueue()
+        {
+            _queueCts?.Cancel();
+            foreach (var item in _queue.ToList())
+                _queue.Remove(item);
+            SaveQueueToFile();
+            UpdateQueueStatus();
+            AddLog("VACE queue cleared");
+        }
+
+        private void StopQueue()
+        {
+            _queueCts?.Cancel();
+            AddLog("VACE queue stop requested");
+        }
+
+        private async Task ReprocessAllFailedAsync()
+        {
+            var failed = _queue.Where(x => x.ItemStatus == QueueItemStatus.Failed).ToList();
+            if (!failed.Any()) return;
+
+            foreach (var item in failed)
+                item.ItemStatus = QueueItemStatus.Pending;
+
+            UpdateQueueStatus();
+            SaveQueueToFile();
+            AddLog($"Reprocessing {failed.Count} failed VACE item(s)...");
+
+            if (!IsProcessingQueue)
+                await ProcessQueueAsync();
         }
 
         private async Task ProcessQueueAsync()
@@ -432,37 +483,95 @@ namespace FlipPix.UI.ViewModels.Video
             if (IsProcessingQueue) return;
 
             IsProcessingQueue = true;
+            _queueCts?.Dispose();
+            _queueCts = new CancellationTokenSource();
+            var token = _queueCts.Token;
             AddLog("Starting VACE queue processing...");
+            OnCanExecuteChanged();
 
             try
             {
                 VaceQueueItem? item;
-                while ((item = _queue.FirstOrDefault(x => x.ItemStatus == QueueItemStatus.Pending)) != null)
+                while (!token.IsCancellationRequested &&
+                       (item = _queue.FirstOrDefault(x => x.ItemStatus == QueueItemStatus.Pending)) != null)
                 {
                     item.ItemStatus = QueueItemStatus.Processing;
                     UpdateQueueStatus();
-
+                    SaveQueueToFile();
                     try
                     {
                         await GenerateSingleVideoAsync(item);
                         item.ItemStatus = QueueItemStatus.Completed;
                         AddLog($"Queue item completed: {item.DisplayText}");
                     }
+                    catch (OperationCanceledException)
+                    {
+                        item.ItemStatus = QueueItemStatus.Pending;
+                        AddLog("VACE queue item cancelled — reset to Pending");
+                        break;
+                    }
                     catch (Exception ex)
                     {
-                        item.ItemStatus = QueueItemStatus.Failed;
-                        item.ErrorMessage = ex.Message;
-                        AddLog($"Queue item FAILED: {ex.Message}");
+                        var shouldRetry = await TryHandleCrashAndRetryAsync(item, ex);
+                        if (shouldRetry)
+                        {
+                            item.ItemStatus = QueueItemStatus.Pending;
+                            AddLog("Item reset to Pending — will retry after ComfyUI restart");
+                        }
+                        else
+                        {
+                            item.ItemStatus = QueueItemStatus.Failed;
+                            item.ErrorMessage = ex.Message;
+                            AddLog($"Queue item FAILED: {ex.Message}");
+                        }
                     }
-
                     UpdateQueueStatus();
+                    SaveQueueToFile();
                 }
             }
             finally
             {
                 IsProcessingQueue = false;
                 AddLog("VACE queue processing finished.");
+                OnCanExecuteChanged();
             }
+        }
+
+        #endregion
+
+        #region Queue Persistence
+
+        private void SaveQueueToFile()
+        {
+            try
+            {
+                var dir = Path.GetDirectoryName(QueueFilePath);
+                if (!string.IsNullOrEmpty(dir) && !Directory.Exists(dir))
+                    Directory.CreateDirectory(dir);
+                File.WriteAllText(QueueFilePath,
+                    JsonSerializer.Serialize(_queue.ToList(), new JsonSerializerOptions { WriteIndented = true }));
+            }
+            catch (Exception ex) { AddLog($"Error saving queue: {ex.Message}"); }
+        }
+
+        private void LoadQueueFromFile()
+        {
+            try
+            {
+                if (!File.Exists(QueueFilePath)) return;
+                var items = JsonSerializer.Deserialize<List<VaceQueueItem>>(File.ReadAllText(QueueFilePath));
+                if (items?.Any() != true) return;
+                _queue.Clear();
+                foreach (var item in items)
+                {
+                    if (item.ItemStatus == QueueItemStatus.Processing)
+                        item.ItemStatus = QueueItemStatus.Pending;
+                    _queue.Add(item);
+                }
+                UpdateQueueStatus();
+                AddLog($"VACE queue loaded: {_queue.Count} items");
+            }
+            catch (Exception ex) { AddLog($"Error loading queue: {ex.Message}"); }
         }
 
         #endregion
@@ -787,6 +896,9 @@ namespace FlipPix.UI.ViewModels.Video
             base.OnCanExecuteChanged();
             GenerateVideoCommand.NotifyCanExecuteChanged();
             RemoveQueueItemCommand.NotifyCanExecuteChanged();
+            ClearQueueCommand.NotifyCanExecuteChanged();
+            StopQueueCommand.NotifyCanExecuteChanged();
+            ReprocessAllFailedCommand.NotifyCanExecuteChanged();
             PlayVideoCommand.NotifyCanExecuteChanged();
             OpenResultFolderCommand.NotifyCanExecuteChanged();
             SendToEditCameraCommand.NotifyCanExecuteChanged();

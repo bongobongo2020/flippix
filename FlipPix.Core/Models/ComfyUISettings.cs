@@ -43,6 +43,7 @@ public class ComfyUISettings
 
     // Video Generator workflow settings
     public string SelectedVideoWorkflow { get; set; } = "ltx2_i2v"; // Default to LTXV
+    public int Ltx23FrameCount { get; set; } = 240;
 
     // Prompt2Json save directory for image analysis
     public string Prompt2JsonSaveDirectory { get; set; } = string.Empty;

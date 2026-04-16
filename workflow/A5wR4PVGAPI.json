@@ -57,7 +57,7 @@
   },
   "5025:5023": {
     "inputs": {
-      "lora_name": "ltx2\\ltx-2.3-22b-distilled-lora-384.safetensors",
+      "lora_name": "ltx2/ltx-2.3-22b-distilled-lora-384.safetensors",
       "strength_model": 0.5,
       "model": [
         "5025:5022",

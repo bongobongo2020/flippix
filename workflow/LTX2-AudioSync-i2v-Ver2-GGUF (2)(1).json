@@ -485,7 +485,7 @@
   },
   "51": {
     "inputs": {
-      "lora_name": "ltx2\\ltx-2-19b-distilled-lora_resized_dynamic_fro09_avg_rank_175_fp8.safetensors",
+      "lora_name": "ltx2/ltx-2-19b-distilled-lora_resized_dynamic_fro09_avg_rank_175_fp8.safetensors",
       "strength_model": 0.6,
       "model": [
         "109",

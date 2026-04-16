@@ -1,16 +1,29 @@
 using System;
+using System.IO;
 using System.Threading.Tasks;
-using System.Windows;
 using Forms = System.Windows.Forms;
-using Microsoft.Win32;
 
 namespace FlipPix.UI.Services
 {
     /// <summary>
     /// Default implementation of IFileDialogService using standard Windows dialogs.
+    /// Remembers the last browsed folder across all callers for the lifetime of the app.
     /// </summary>
     public class FileDialogService : IFileDialogService
     {
+        private static string? _lastUsedDirectory;
+
+        private static string? EffectiveDirectory(string? callerHint)
+            => _lastUsedDirectory ?? (string.IsNullOrEmpty(callerHint) ? null : callerHint);
+
+        private static void RememberDirectory(string? path)
+        {
+            if (string.IsNullOrEmpty(path)) return;
+            var dir = Directory.Exists(path) ? path : Path.GetDirectoryName(path);
+            if (!string.IsNullOrEmpty(dir) && Directory.Exists(dir))
+                _lastUsedDirectory = dir;
+        }
+
         public Task<string?> OpenFileDialogAsync(string title, string filter, string? initialDirectory = null)
         {
             return System.Windows.Application.Current.Dispatcher.InvokeAsync(() =>
@@ -23,10 +36,13 @@ namespace FlipPix.UI.Services
                     CheckPathExists = true
                 };
 
-                if (!string.IsNullOrEmpty(initialDirectory) && System.IO.Directory.Exists(initialDirectory))
-                    dialog.InitialDirectory = initialDirectory;
+                var startDir = EffectiveDirectory(initialDirectory);
+                if (!string.IsNullOrEmpty(startDir) && Directory.Exists(startDir))
+                    dialog.InitialDirectory = startDir;
 
-                return dialog.ShowDialog() == true ? dialog.FileName : null;
+                if (dialog.ShowDialog() != true) return null;
+                RememberDirectory(dialog.FileName);
+                return dialog.FileName;
             }).Task;
         }
 
@@ -43,10 +59,13 @@ namespace FlipPix.UI.Services
                     Multiselect = true
                 };
 
-                if (!string.IsNullOrEmpty(initialDirectory) && System.IO.Directory.Exists(initialDirectory))
-                    dialog.InitialDirectory = initialDirectory;
+                var startDir = EffectiveDirectory(initialDirectory);
+                if (!string.IsNullOrEmpty(startDir) && Directory.Exists(startDir))
+                    dialog.InitialDirectory = startDir;
 
-                return dialog.ShowDialog() == true ? dialog.FileNames : Array.Empty<string>();
+                if (dialog.ShowDialog() != true) return Array.Empty<string>();
+                RememberDirectory(dialog.FileNames.Length > 0 ? dialog.FileNames[0] : null);
+                return dialog.FileNames;
             }).Task;
         }
 
@@ -62,10 +81,13 @@ namespace FlipPix.UI.Services
                     CheckPathExists = true
                 };
 
-                if (!string.IsNullOrEmpty(initialDirectory) && System.IO.Directory.Exists(initialDirectory))
-                    dialog.InitialDirectory = initialDirectory;
+                var startDir = EffectiveDirectory(initialDirectory);
+                if (!string.IsNullOrEmpty(startDir) && Directory.Exists(startDir))
+                    dialog.InitialDirectory = startDir;
 
-                return dialog.ShowDialog() == true ? dialog.FileName : null;
+                if (dialog.ShowDialog() != true) return null;
+                RememberDirectory(dialog.FileName);
+                return dialog.FileName;
             }).Task;
         }
 
@@ -79,10 +101,13 @@ namespace FlipPix.UI.Services
                     ShowNewFolderButton = showNewFolderButton
                 };
 
-                if (!string.IsNullOrEmpty(initialDirectory) && System.IO.Directory.Exists(initialDirectory))
-                    dialog.SelectedPath = initialDirectory;
+                var startDir = EffectiveDirectory(initialDirectory);
+                if (!string.IsNullOrEmpty(startDir) && Directory.Exists(startDir))
+                    dialog.SelectedPath = startDir;
 
-                return dialog.ShowDialog() == Forms.DialogResult.OK ? dialog.SelectedPath : null;
+                if (dialog.ShowDialog() != Forms.DialogResult.OK) return null;
+                RememberDirectory(dialog.SelectedPath);
+                return dialog.SelectedPath;
             }).Task;
         }
     }

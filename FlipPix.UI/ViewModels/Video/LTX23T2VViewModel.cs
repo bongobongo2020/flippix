@@ -18,6 +18,10 @@ namespace FlipPix.UI.ViewModels.Video
     /// </summary>
     public partial class LTX23T2VViewModel : VideoProcessingBaseViewModel
     {
+        private string QueueFilePath => Path.Combine(
+            Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData),
+            "FlipPix", "queue", "ltx23t2v_queue.json");
+
         private string _prompt = string.Empty;
         private int _length = 10;
         private int _width = 1920;
@@ -49,6 +53,7 @@ namespace FlipPix.UI.ViewModels.Video
             };
 
             AddLog("LTX 2.3 Text-to-Video initialized");
+            LoadQueueFromFile();
         }
 
         #region Commands
@@ -149,6 +154,7 @@ namespace FlipPix.UI.ViewModels.Video
             };
 
             _queue.Add(item);
+            SaveQueueToFile();
             AddLog($"Added to queue: \"{Prompt.Substring(0, Math.Min(60, Prompt.Length))}\"");
             UpdateQueueStatus();
 
@@ -191,7 +197,7 @@ namespace FlipPix.UI.ViewModels.Video
                 {
                     item.ItemStatus = QueueItemStatus.Processing;
                     UpdateQueueStatus();
-
+                    SaveQueueToFile();
                     try
                     {
                         await GenerateSingleVideoAsync(item);
@@ -200,12 +206,21 @@ namespace FlipPix.UI.ViewModels.Video
                     }
                     catch (Exception ex)
                     {
-                        item.ItemStatus = QueueItemStatus.Failed;
-                        item.ErrorMessage = ex.Message;
-                        AddLog($"Queue item FAILED: {ex.Message}");
+                        var shouldRetry = await TryHandleCrashAndRetryAsync(item, ex);
+                        if (shouldRetry)
+                        {
+                            item.ItemStatus = QueueItemStatus.Pending;
+                            AddLog("Item reset to Pending — will retry after ComfyUI restart");
+                        }
+                        else
+                        {
+                            item.ItemStatus = QueueItemStatus.Failed;
+                            item.ErrorMessage = ex.Message;
+                            AddLog($"Queue item FAILED: {ex.Message}");
+                        }
                     }
-
                     UpdateQueueStatus();
+                    SaveQueueToFile();
                 }
             }
             finally
@@ -213,6 +228,43 @@ namespace FlipPix.UI.ViewModels.Video
                 IsProcessingQueue = false;
                 AddLog("Queue processing finished.");
             }
+        }
+
+        #endregion
+
+        #region Queue Persistence
+
+        private void SaveQueueToFile()
+        {
+            try
+            {
+                var dir = Path.GetDirectoryName(QueueFilePath);
+                if (!string.IsNullOrEmpty(dir) && !Directory.Exists(dir))
+                    Directory.CreateDirectory(dir);
+                File.WriteAllText(QueueFilePath,
+                    JsonSerializer.Serialize(_queue.ToList(), new JsonSerializerOptions { WriteIndented = true }));
+            }
+            catch (Exception ex) { AddLog($"Error saving queue: {ex.Message}"); }
+        }
+
+        private void LoadQueueFromFile()
+        {
+            try
+            {
+                if (!File.Exists(QueueFilePath)) return;
+                var items = JsonSerializer.Deserialize<List<QueueItem>>(File.ReadAllText(QueueFilePath));
+                if (items?.Any() != true) return;
+                _queue.Clear();
+                foreach (var item in items)
+                {
+                    if (item.ItemStatus == QueueItemStatus.Processing)
+                        item.ItemStatus = QueueItemStatus.Pending;
+                    _queue.Add(item);
+                }
+                UpdateQueueStatus();
+                AddLog($"Queue loaded: {_queue.Count} items");
+            }
+            catch (Exception ex) { AddLog($"Error loading queue: {ex.Message}"); }
         }
 
         #endregion

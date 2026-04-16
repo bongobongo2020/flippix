@@ -426,6 +426,8 @@
                                 <ColumnDefinition Width="Auto"/>
                                 <ColumnDefinition Width="Auto"/>
                                 <ColumnDefinition Width="Auto"/>
+                                <ColumnDefinition Width="Auto"/>
+                                <ColumnDefinition Width="Auto"/>
                             </Grid.ColumnDefinitions>
 
                             <TextBox Grid.Column="0"
@@ -459,7 +461,8 @@
                                    Command="{Binding ReprocessAllFailedCommand}"
                                    IsEnabled="{Binding HasFailedItems}"
                                    Height="35"
-                                   Width="140">
+                                   Width="140"
+                                   Margin="0,0,5,0">
                                 <Button.Style>
                                     <Style TargetType="Button" BasedOn="{StaticResource SecondaryButtonStyle}">
                                         <Setter Property="Background" Value="#FFA500"/>
@@ -470,6 +473,33 @@
                                             <Trigger Property="IsEnabled" Value="False">
                                                 <Setter Property="Background" Value="#CCC"/>
                                                 <Setter Property="Cursor" Value="Arrow"/>
+                                            </Trigger>
+                                        </Style.Triggers>
+                                    </Style>
+                                </Button.Style>
+                            </Button>
+
+                            <Button Grid.Column="4"
+                                   Content="⏹ Stop"
+                                   Command="{Binding StopQueueCommand}"
+                                   IsEnabled="{Binding IsProcessingQueue}"
+                                   Height="35"
+                                   Width="80"
+                                   Margin="0,0,5,0"
+                                   Background="#F59E0B" Foreground="White"
+                                   BorderThickness="0" FontWeight="SemiBold"/>
+
+                            <Button Grid.Column="5"
+                                   Content="🗑️ Clear"
+                                   Command="{Binding ClearQueueCommand}"
+                                   Height="35"
+                                   Width="80">
+                                <Button.Style>
+                                    <Style TargetType="Button" BasedOn="{StaticResource NavButtonStyle}">
+                                        <Setter Property="Background" Value="#DC3545"/>
+                                        <Style.Triggers>
+                                            <Trigger Property="IsMouseOver" Value="True">
+                                                <Setter Property="Background" Value="#C82333"/>
                                             </Trigger>
                                         </Style.Triggers>
                                     </Style>
@@ -986,6 +1016,8 @@
                                                 <ColumnDefinition Width="*"/>
                                                 <ColumnDefinition Width="Auto"/>
                                                 <ColumnDefinition Width="Auto"/>
+                                                <ColumnDefinition Width="Auto"/>
+                                                <ColumnDefinition Width="Auto"/>
                                             </Grid.ColumnDefinitions>
 
                                             <TextBlock Grid.Column="0"
@@ -1002,13 +1034,33 @@
                                                    IsEnabled="{Binding CanProcessStoryQueue}"
                                                    Height="35"
                                                    Width="140"
-                                                   Margin="0,0,10,0"/>
+                                                   Margin="0,0,5,0"/>
 
                                             <Button Grid.Column="2"
+                                                   Content="🔄 Retry Failed"
+                                                   Command="{Binding ReprocessAllStoryFailedCommand}"
+                                                   IsEnabled="{Binding HasStoryFailedItems}"
+                                                   Height="35"
+                                                   Width="110"
+                                                   Margin="0,0,5,0"
+                                                   Background="#FFA500" Foreground="White"
+                                                   BorderThickness="0" FontWeight="SemiBold"/>
+
+                                            <Button Grid.Column="3"
+                                                   Content="⏹ Stop"
+                                                   Command="{Binding StopStoryQueueCommand}"
+                                                   IsEnabled="{Binding IsProcessingStoryQueue}"
+                                                   Height="35"
+                                                   Width="80"
+                                                   Margin="0,0,5,0"
+                                                   Background="#F59E0B" Foreground="White"
+                                                   BorderThickness="0" FontWeight="SemiBold"/>
+
+                                            <Button Grid.Column="4"
                                                    Content="🗑️ Clear Queue"
                                                    Command="{Binding ClearStoryQueueCommand}"
                                                    Height="35"
-                                                   Width="120">
+                                                   Width="110">
                                                 <Button.Style>
                                                     <Style TargetType="Button" BasedOn="{StaticResource NavButtonStyle}">
                                                         <Setter Property="Background" Value="#DC3545"/>
@@ -1405,11 +1457,36 @@
                                             <Grid.ColumnDefinitions>
                                                 <ColumnDefinition Width="*"/>
                                                 <ColumnDefinition Width="Auto"/>
+                                                <ColumnDefinition Width="Auto"/>
+                                                <ColumnDefinition Width="Auto"/>
+                                                <ColumnDefinition Width="Auto"/>
                                             </Grid.ColumnDefinitions>
-                                            <TextBlock Grid.Column="0" Text="🎭 VACE Queue" Style="{StaticResource HeaderTextStyle}" Foreground="#FF6B35"/>
+                                            <TextBlock Grid.Column="0" Text="🎭 VACE Queue" Style="{StaticResource HeaderTextStyle}" Foreground="#FF6B35" VerticalAlignment="Center"/>
                                             <TextBlock Grid.Column="1" Text="{Binding VaceQueueStatus}"
                                                       FontStyle="Italic" Foreground="#666" FontSize="11"
-                                                      VerticalAlignment="Center"/>
+                                                      VerticalAlignment="Center" Margin="0,0,8,0"/>
+                                            <Button Grid.Column="2"
+                                                   Content="🔄 Retry"
+                                                   Command="{Binding ReprocessAllVaceFailedCommand}"
+                                                   IsEnabled="{Binding VaceHasFailedItems}"
+                                                   Height="28" Width="70" FontSize="11"
+                                                   Margin="0,0,5,0"
+                                                   Background="#FFA500" Foreground="White"
+                                                   BorderThickness="0" FontWeight="SemiBold"/>
+                                            <Button Grid.Column="3"
+                                                   Content="⏹ Stop"
+                                                   Command="{Binding StopVaceQueueCommand}"
+                                                   IsEnabled="{Binding VaceIsProcessingQueue}"
+                                                   Height="28" Width="65" FontSize="11"
+                                                   Margin="0,0,5,0"
+                                                   Background="#F59E0B" Foreground="White"
+                                                   BorderThickness="0" FontWeight="SemiBold"/>
+                                            <Button Grid.Column="4"
+                                                   Content="🗑️ Clear"
+                                                   Command="{Binding ClearVaceQueueCommand}"
+                                                   Height="28" Width="65" FontSize="11"
+                                                   Background="#DC3545" Foreground="White"
+                                                   BorderThickness="0" FontWeight="SemiBold"/>
                                         </Grid>
 
                                         <ItemsControl ItemsSource="{Binding VaceQueue}">
@@ -1626,7 +1703,7 @@
                                                 <!-- Right Column: Analyze Button + Result -->
                                                 <StackPanel Grid.Column="2">
                                                     <TextBlock Text="Image Analysis:" FontWeight="SemiBold" FontSize="12" Margin="0,0,0,8"/>
-                                                    <Button Content="🧠 Analyze Image"
+                                                    <Button Content="🧠 Analyze &amp; Generate"
                                                             Style="{StaticResource SecondaryButtonStyle}"
                                                             Command="{Binding AnalyzeLTX23ImageCommand}"
                                                             IsEnabled="{Binding CanLTX23AnalyzeImage, Mode=OneWay}"
@@ -1654,15 +1731,6 @@
                                     <StackPanel>
                                         <TextBlock Text="📝 Video Prompt" Style="{StaticResource HeaderTextStyle}" Foreground="#FF6B35"/>
 
-                                        <Button Content="✨ Enhance Prompt"
-                                                Style="{StaticResource SecondaryButtonStyle}"
-                                                Command="{Binding EnhanceLTX23PromptCommand}"
-                                                IsEnabled="{Binding CanLTX23EnhancePrompt, Mode=OneWay}"
-                                                Height="35"
-                                                Width="160"
-                                                HorizontalAlignment="Left"
-                                                Margin="0,5,0,10"/>
-
                                         <TextBlock Text="Describe the video action you want to generate:"
                                                   FontWeight="SemiBold" FontSize="12"
                                                   Margin="0,0,0,8"/>
@@ -1675,6 +1743,33 @@
                                                 Background="White"
                                                 BorderBrush="#CED4DA"
                                                 FontSize="12"/>
+
+                                        <!-- Frame Count -->
+                                        <Grid Margin="0,10,0,0">
+                                            <Grid.ColumnDefinitions>
+                                                <ColumnDefinition Width="Auto"/>
+                                                <ColumnDefinition Width="*"/>
+                                                <ColumnDefinition Width="Auto"/>
+                                            </Grid.ColumnDefinitions>
+                                            <TextBlock Grid.Column="0" Text="Frames:"
+                                                      FontWeight="SemiBold" FontSize="12"
+                                                      VerticalAlignment="Center" Margin="0,0,10,0"/>
+                                            <Slider Grid.Column="1"
+                                                   Minimum="49" Maximum="481"
+                                                   SmallChange="24" LargeChange="48"
+                                                   Value="{Binding LTX23FrameCount, Mode=TwoWay}"
+                                                   VerticalAlignment="Center"/>
+                                            <TextBox Grid.Column="2"
+                                                    Text="{Binding LTX23FrameCount, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                                                    Width="48" Height="28"
+                                                    TextAlignment="Center"
+                                                    VerticalContentAlignment="Center"
+                                                    FontSize="12" Margin="8,0,0,0"
+                                                    BorderBrush="#CED4DA"/>
+                                        </Grid>
+                                        <TextBlock Text="{Binding LTX23FrameCountHint}"
+                                                  FontSize="10" Foreground="#888"
+                                                  Margin="0,3,0,0"/>
                                     </StackPanel>
                                 </Border>
 
@@ -1710,13 +1805,37 @@
                                             <StackPanel>
                                                 <Border Background="#F0F0F0" Padding="10,6" CornerRadius="5,5,0,0">
                                                     <Grid>
-                                                        <TextBlock Text="📋 Queue"
-                                                                  FontWeight="Bold" FontSize="12"
-                                                                  VerticalAlignment="Center"/>
-                                                        <TextBlock Text="{Binding LTX23QueueStatus}"
+                                                        <Grid.ColumnDefinitions>
+                                                            <ColumnDefinition Width="*"/>
+                                                            <ColumnDefinition Width="Auto"/>
+                                                            <ColumnDefinition Width="Auto"/>
+                                                            <ColumnDefinition Width="Auto"/>
+                                                        </Grid.ColumnDefinitions>
+                                                        <TextBlock Grid.Column="0" Text="{Binding LTX23QueueStatus}"
                                                                   FontSize="10" Foreground="#666"
-                                                                  HorizontalAlignment="Right"
                                                                   VerticalAlignment="Center"/>
+                                                        <Button Grid.Column="1"
+                                                               Content="⏹ Stop"
+                                                               Command="{Binding StopLTX23QueueCommand}"
+                                                               IsEnabled="{Binding LTX23IsProcessingQueue}"
+                                                               Width="60" Height="22" FontSize="10"
+                                                               Margin="4,0,4,0"
+                                                               Background="#F59E0B" Foreground="White"
+                                                               BorderThickness="0" Padding="4,2"/>
+                                                        <Button Grid.Column="2"
+                                                               Content="🔄 Retry"
+                                                               Command="{Binding ReprocessLTX23FailedCommand}"
+                                                               IsEnabled="{Binding LTX23HasFailedItems}"
+                                                               Width="60" Height="22" FontSize="10"
+                                                               Margin="0,0,4,0"
+                                                               Background="#FFA500" Foreground="White"
+                                                               BorderThickness="0" Padding="4,2"/>
+                                                        <Button Grid.Column="3"
+                                                               Content="🗑️ Clear"
+                                                               Command="{Binding ClearLTX23QueueCommand}"
+                                                               Width="60" Height="22" FontSize="10"
+                                                               Background="#DC3545" Foreground="White"
+                                                               BorderThickness="0" Padding="4,2"/>
                                                     </Grid>
                                                 </Border>
                                                 <ScrollViewer MaxHeight="200" VerticalScrollBarVisibility="Auto" Padding="5">
@@ -1952,10 +2071,37 @@
                                                 <StackPanel>
                                                     <Border Background="#F0F0F0" Padding="10,6" CornerRadius="5,5,0,0">
                                                         <Grid>
-                                                            <TextBlock Text="📋 Queue" FontWeight="Bold" FontSize="12" VerticalAlignment="Center"/>
-                                                            <TextBlock Text="{Binding Wan22QueueStatus}"
+                                                            <Grid.ColumnDefinitions>
+                                                                <ColumnDefinition Width="*"/>
+                                                                <ColumnDefinition Width="Auto"/>
+                                                                <ColumnDefinition Width="Auto"/>
+                                                                <ColumnDefinition Width="Auto"/>
+                                                            </Grid.ColumnDefinitions>
+                                                            <TextBlock Grid.Column="0" Text="{Binding Wan22QueueStatus}"
                                                                       FontSize="10" Foreground="#666"
-                                                                      HorizontalAlignment="Right" VerticalAlignment="Center"/>
+                                                                      VerticalAlignment="Center"/>
+                                                            <Button Grid.Column="1"
+                                                                   Content="⏹ Stop"
+                                                                   Command="{Binding StopWan22QueueCommand}"
+                                                                   IsEnabled="{Binding Wan22IsProcessingQueue}"
+                                                                   Width="60" Height="22" FontSize="10"
+                                                                   Margin="4,0,4,0"
+                                                                   Background="#F59E0B" Foreground="White"
+                                                                   BorderThickness="0" Padding="4,2"/>
+                                                            <Button Grid.Column="2"
+                                                                   Content="🔄 Retry"
+                                                                   Command="{Binding ReprocessWan22FailedCommand}"
+                                                                   IsEnabled="{Binding Wan22HasFailedItems}"
+                                                                   Width="60" Height="22" FontSize="10"
+                                                                   Margin="0,0,4,0"
+                                                                   Background="#FFA500" Foreground="White"
+                                                                   BorderThickness="0" Padding="4,2"/>
+                                                            <Button Grid.Column="3"
+                                                                   Content="🗑️ Clear"
+                                                                   Command="{Binding ClearWan22QueueCommand}"
+                                                                   Width="60" Height="22" FontSize="10"
+                                                                   Background="#DC3545" Foreground="White"
+                                                                   BorderThickness="0" Padding="4,2"/>
                                                         </Grid>
                                                     </Border>
                                                     <ScrollViewer MaxHeight="200" VerticalScrollBarVisibility="Auto" Padding="5">
@@ -2656,6 +2802,505 @@
                                             Margin="0,8,0,0">
                                         <ScrollViewer MaxHeight="150" VerticalScrollBarVisibility="Auto">
                                             <TextBox Text="{Binding T2VLogOutput, Mode=OneWay}"
+                                                    TextWrapping="Wrap"
+                                                    IsReadOnly="True"
+                                                    FontFamily="Consolas"
+                                                    FontSize="10"
+                                                    Background="Transparent"
+                                                    BorderThickness="0"
+                                                    Padding="10"/>
+                                        </ScrollViewer>
+                                    </Border>
+                                </Expander>
+
+                            </StackPanel>
+                        </ScrollViewer>
+                    </TabItem>
+
+                    <!-- Tab: Long Video -->
+                    <TabItem Header="🔄 Long Video">
+                        <ScrollViewer VerticalScrollBarVisibility="Auto">
+                            <StackPanel Margin="10">
+
+                                <!-- Intro -->
+                                <Border Style="{StaticResource SectionPanelStyle}">
+                                    <StackPanel>
+                                        <TextBlock Text="🔄 Long Video Generator"
+                                                  Style="{StaticResource HeaderTextStyle}"
+                                                  Foreground="#FF6B35"/>
+                                        <TextBlock TextWrapping="Wrap" FontSize="12" Foreground="#6C757D"
+                                                  Margin="0,0,0,0">
+                                            Upload a video → extract last frame → analyze → generate new video → repeat.
+                                            Choose between Wan 2.2 Remix or LTX 2.3. Each iteration feeds the previous output as its input.
+                                        </TextBlock>
+                                    </StackPanel>
+                                </Border>
+
+                                <!-- Workflow Selection -->
+                                <Border Style="{StaticResource SectionPanelStyle}" Margin="0,8,0,0">
+                                    <StackPanel>
+                                        <TextBlock Text="🎬 Workflow"
+                                                  Style="{StaticResource HeaderTextStyle}"
+                                                  Foreground="#FF6B35"/>
+                                        <StackPanel Orientation="Horizontal" Margin="0,6,0,0">
+
+                                            <!-- Wan 2.2 Remix -->
+                                            <Border CornerRadius="5"
+                                                    Padding="10,8"
+                                                    BorderThickness="2"
+                                                    Margin="0,0,8,0"
+                                                    Cursor="Hand">
+                                                <Border.Style>
+                                                    <Style TargetType="Border">
+                                                        <Setter Property="Background" Value="White"/>
+                                                        <Setter Property="BorderBrush" Value="#DEE2E6"/>
+                                                        <Style.Triggers>
+                                                            <DataTrigger Binding="{Binding LongVideoUseWan}" Value="True">
+                                                                <Setter Property="BorderBrush" Value="#007BFF"/>
+                                                                <Setter Property="Background" Value="#CCE5FF"/>
+                                                            </DataTrigger>
+                                                        </Style.Triggers>
+                                                    </Style>
+                                                </Border.Style>
+                                                <Border.InputBindings>
+                                                    <MouseBinding Command="{Binding ToggleLongVideoWorkflowCommand}" MouseAction="LeftClick"/>
+                                                </Border.InputBindings>
+                                                <StackPanel>
+                                                    <TextBlock Text="🔵 Wan 2.2 Remix"
+                                                              FontSize="13" FontWeight="Bold"
+                                                              Foreground="#212529"/>
+                                                    <TextBlock Text="Wan2_2_RemixAPI.json"
+                                                              FontSize="10" Foreground="#6C757D"
+                                                              Margin="0,2,0,0"/>
+                                                </StackPanel>
+                                            </Border>
+
+                                            <!-- LTX 2.3 -->
+                                            <Border CornerRadius="5"
+                                                    Padding="10,8"
+                                                    BorderThickness="2"
+                                                    Cursor="Hand">
+                                                <Border.Style>
+                                                    <Style TargetType="Border">
+                                                        <Setter Property="Background" Value="White"/>
+                                                        <Setter Property="BorderBrush" Value="#DEE2E6"/>
+                                                        <Style.Triggers>
+                                                            <DataTrigger Binding="{Binding LongVideoUseLTX23}" Value="True">
+                                                                <Setter Property="BorderBrush" Value="#28A745"/>
+                                                                <Setter Property="Background" Value="#D4EDDA"/>
+                                                            </DataTrigger>
+                                                        </Style.Triggers>
+                                                    </Style>
+                                                </Border.Style>
+                                                <Border.InputBindings>
+                                                    <MouseBinding Command="{Binding ToggleLongVideoWorkflowCommand}" MouseAction="LeftClick"/>
+                                                </Border.InputBindings>
+                                                <StackPanel>
+                                                    <TextBlock Text="🟢 LTX 2.3"
+                                                              FontSize="13" FontWeight="Bold"
+                                                              Foreground="#212529"/>
+                                                    <TextBlock Text="LTX2.3-I2VAPI.json"
+                                                              FontSize="10" Foreground="#6C757D"
+                                                              Margin="0,2,0,0"/>
+                                                </StackPanel>
+                                            </Border>
+
+                                        </StackPanel>
+                                    </StackPanel>
+                                </Border>
+
+                                <!-- Wan Analysis Prompt Selection (Wan workflow only) -->
+                                <StackPanel Margin="0,8,0,0">
+                                    <StackPanel.Style>
+                                        <Style TargetType="StackPanel">
+                                            <Setter Property="Visibility" Value="Collapsed"/>
+                                            <Style.Triggers>
+                                                <DataTrigger Binding="{Binding LongVideoUseWan}" Value="True">
+                                                    <Setter Property="Visibility" Value="Visible"/>
+                                                </DataTrigger>
+                                            </Style.Triggers>
+                                        </Style>
+                                    </StackPanel.Style>
+                                <Border Style="{StaticResource SectionPanelStyle}">
+                                    <StackPanel>
+                                        <TextBlock Text="🧠 Analysis Prompt"
+                                                  Style="{StaticResource HeaderTextStyle}"
+                                                  Foreground="#FF6B35"/>
+                                        <TextBlock Text="Selects which system prompt is sent with the last frame to llamaserver:"
+                                                  FontSize="11" Foreground="#6C757D" Margin="0,0,0,8"/>
+                                        <StackPanel Orientation="Horizontal">
+
+                                            <!-- Button 1: wan-system-single -->
+                                            <Border CornerRadius="5"
+                                                    Padding="10,8"
+                                                    BorderThickness="2"
+                                                    Margin="0,0,8,0"
+                                                    Cursor="Hand">
+                                                <Border.Style>
+                                                    <Style TargetType="Border">
+                                                        <Setter Property="Background" Value="White"/>
+                                                        <Setter Property="BorderBrush" Value="#DEE2E6"/>
+                                                        <Style.Triggers>
+                                                            <DataTrigger Binding="{Binding LongVideoUseWanSinglePrompt}" Value="True">
+                                                                <Setter Property="BorderBrush" Value="#6F42C1"/>
+                                                                <Setter Property="Background" Value="#EDE7F6"/>
+                                                            </DataTrigger>
+                                                        </Style.Triggers>
+                                                    </Style>
+                                                </Border.Style>
+                                                <Border.InputBindings>
+                                                    <MouseBinding Command="{Binding SelectLongVideoWanSinglePromptCommand}" MouseAction="LeftClick"/>
+                                                </Border.InputBindings>
+                                                <StackPanel>
+                                                    <TextBlock Text="1 — Single Frame"
+                                                              FontSize="13" FontWeight="Bold"
+                                                              Foreground="#212529"/>
+                                                    <TextBlock Text="wan-system-single.md"
+                                                              FontSize="10" Foreground="#6C757D"
+                                                              Margin="0,2,0,0"/>
+                                                    <TextBlock Text="Cinematic action prompt"
+                                                              FontSize="10" Foreground="#6C757D"
+                                                              FontStyle="Italic"/>
+                                                </StackPanel>
+                                            </Border>
+
+                                            <!-- Button 2: wan-long-fight (default) -->
+                                            <Border CornerRadius="5"
+                                                    Padding="10,8"
+                                                    BorderThickness="2"
+                                                    Cursor="Hand">
+                                                <Border.Style>
+                                                    <Style TargetType="Border">
+                                                        <Setter Property="Background" Value="White"/>
+                                                        <Setter Property="BorderBrush" Value="#DEE2E6"/>
+                                                        <Style.Triggers>
+                                                            <DataTrigger Binding="{Binding LongVideoUseWanFightPrompt}" Value="True">
+                                                                <Setter Property="BorderBrush" Value="#DC3545"/>
+                                                                <Setter Property="Background" Value="#FDECEA"/>
+                                                            </DataTrigger>
+                                                        </Style.Triggers>
+                                                    </Style>
+                                                </Border.Style>
+                                                <Border.InputBindings>
+                                                    <MouseBinding Command="{Binding SelectLongVideoWanFightPromptCommand}" MouseAction="LeftClick"/>
+                                                </Border.InputBindings>
+                                                <StackPanel>
+                                                    <TextBlock Text="2 — Long Fight  ✓"
+                                                              FontSize="13" FontWeight="Bold"
+                                                              Foreground="#212529"/>
+                                                    <TextBlock Text="wan-long-fight.md"
+                                                              FontSize="10" Foreground="#6C757D"
+                                                              Margin="0,2,0,0"/>
+                                                    <TextBlock Text="Martial arts / combat prompt"
+                                                              FontSize="10" Foreground="#6C757D"
+                                                              FontStyle="Italic"/>
+                                                </StackPanel>
+                                            </Border>
+
+                                        </StackPanel>
+                                    </StackPanel>
+                                </Border>
+                                </StackPanel>
+
+                                <!-- Video Input -->
+                                <Border Style="{StaticResource SectionPanelStyle}" Margin="0,8,0,0">
+                                    <StackPanel>
+                                        <TextBlock Text="📹 Input Video"
+                                                  Style="{StaticResource HeaderTextStyle}"
+                                                  Foreground="#FF6B35"/>
+
+                                        <Button Content="📁 Browse Video"
+                                                Style="{StaticResource SecondaryButtonStyle}"
+                                                Command="{Binding SelectLongVideoCommand}"
+                                                Height="36"
+                                                HorizontalAlignment="Left"
+                                                MinWidth="160"
+                                                Margin="0,0,0,8"/>
+
+                                        <TextBlock Text="{Binding LongVideoInfo}"
+                                                  FontStyle="Italic"
+                                                  Foreground="#495057"
+                                                  FontSize="11"
+                                                  TextWrapping="Wrap"/>
+                                    </StackPanel>
+                                </Border>
+
+                                <!-- Loop Settings -->
+                                <Border Style="{StaticResource SectionPanelStyle}" Margin="0,8,0,0">
+                                    <StackPanel>
+                                        <TextBlock Text="⚙️ Loop Settings"
+                                                  Style="{StaticResource HeaderTextStyle}"
+                                                  Foreground="#FF6B35"/>
+
+                                        <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                                            <TextBlock Text="Iterations (1–10):"
+                                                      FontWeight="SemiBold"
+                                                      FontSize="12"
+                                                      VerticalAlignment="Center"
+                                                      Margin="0,0,10,0"/>
+                                            <Slider Value="{Binding LongVideoMaxIterations, Mode=TwoWay}"
+                                                   Minimum="1" Maximum="10"
+                                                   TickFrequency="1"
+                                                   IsSnapToTickEnabled="True"
+                                                   Width="160"
+                                                   VerticalAlignment="Center"/>
+                                            <TextBlock Text="{Binding LongVideoMaxIterations}"
+                                                      FontWeight="Bold"
+                                                      FontSize="16"
+                                                      Foreground="#FF6B35"
+                                                      Margin="10,0,0,0"
+                                                      VerticalAlignment="Center"/>
+                                        </StackPanel>
+                                    </StackPanel>
+                                </Border>
+
+                                <!-- Start / Stop -->
+                                <Grid Margin="0,8,0,0">
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="*"/>
+                                        <ColumnDefinition Width="10"/>
+                                        <ColumnDefinition Width="Auto"/>
+                                    </Grid.ColumnDefinitions>
+
+                                    <Button Grid.Column="0"
+                                           Content="{Binding LongVideoStartButtonContent}"
+                                           Style="{StaticResource PrimaryButtonStyle}"
+                                           Command="{Binding StartLongVideoCommand}"
+                                           IsEnabled="{Binding LongVideoCanStart}"
+                                           Height="44"
+                                           FontSize="14"
+                                           FontWeight="SemiBold"/>
+
+                                    <Button Grid.Column="2"
+                                           Content="⏹ Stop"
+                                           Style="{StaticResource SecondaryButtonStyle}"
+                                           Command="{Binding StopLongVideoCommand}"
+                                           IsEnabled="{Binding LongVideoIsRunning}"
+                                           Height="44"
+                                           Width="90"
+                                           FontSize="13"/>
+                                </Grid>
+
+                                <!-- Queue indicator -->
+                                <Border Margin="0,4,0,0" Padding="10,6" CornerRadius="4"
+                                        Background="#FFF3CD" BorderBrush="#FFEEBA" BorderThickness="1">
+                                    <Border.Style>
+                                        <Style TargetType="Border">
+                                            <Setter Property="Visibility" Value="Collapsed"/>
+                                            <Style.Triggers>
+                                                <DataTrigger Binding="{Binding LongVideoHasQueuedJobs}" Value="True">
+                                                    <Setter Property="Visibility" Value="Visible"/>
+                                                </DataTrigger>
+                                            </Style.Triggers>
+                                        </Style>
+                                    </Border.Style>
+                                    <TextBlock FontSize="11" Foreground="#856404">
+                                        <Run Text="⏳ "/>
+                                        <Run Text="{Binding LongVideoQueueCount, Mode=OneWay}"/>
+                                        <Run Text=" job(s) queued — will start automatically when current finishes"/>
+                                    </TextBlock>
+                                </Border>
+
+                                <!-- Progress -->
+                                <Border Background="#FFF9F0"
+                                        BorderBrush="#FFE0B0"
+                                        BorderThickness="1"
+                                        CornerRadius="6"
+                                        Padding="14"
+                                        Margin="0,8,0,0"
+                                        Visibility="{Binding LongVideoIsRunning, Converter={StaticResource BooleanToVisibilityConverter}}">
+                                    <StackPanel>
+                                        <TextBlock Text="{Binding LongVideoProcessingStatus}"
+                                                  FontWeight="SemiBold" FontSize="12"
+                                                  TextWrapping="Wrap"
+                                                  TextAlignment="Center"
+                                                  Foreground="#495057"/>
+                                        <ProgressBar Value="{Binding LongVideoProcessingProgress, Mode=OneWay}"
+                                                    Height="10"
+                                                    Foreground="#FF6B35"
+                                                    Background="#F0F0F0"
+                                                    BorderThickness="0"
+                                                    Margin="0,8,0,4"/>
+                                        <TextBlock Text="{Binding LongVideoProgressPercentage}"
+                                                  HorizontalAlignment="Center"
+                                                  FontSize="11" FontWeight="Bold"
+                                                  Foreground="#FF6B35"/>
+                                    </StackPanel>
+                                </Border>
+
+                                <!-- Iterations List -->
+                                <Border BorderBrush="#DEE2E6" BorderThickness="1"
+                                        CornerRadius="6" Margin="0,8,0,0"
+                                        Visibility="{Binding LongVideoHasIterations, Converter={StaticResource BoolToVisibilityConverter}}">
+                                    <StackPanel>
+                                        <Border Background="#F8F9FA" Padding="12,8" CornerRadius="6,6,0,0">
+                                            <TextBlock Text="📋 Iterations"
+                                                      FontWeight="Bold" FontSize="12"
+                                                      VerticalAlignment="Center"/>
+                                        </Border>
+
+                                        <ItemsControl ItemsSource="{Binding LongVideoIterations}" Margin="6,4,6,4">
+                                            <ItemsControl.ItemTemplate>
+                                                <DataTemplate>
+                                                    <Border BorderBrush="#E9ECEF" BorderThickness="1"
+                                                            CornerRadius="5" Padding="10,8"
+                                                            Margin="2,2,2,0" Background="White">
+                                                        <Grid>
+                                                            <Grid.ColumnDefinitions>
+                                                                <ColumnDefinition Width="*"/>
+                                                                <ColumnDefinition Width="Auto"/>
+                                                                <ColumnDefinition Width="Auto"/>
+                                                                <ColumnDefinition Width="Auto"/>
+                                                            </Grid.ColumnDefinitions>
+
+                                                            <StackPanel Grid.Column="0" VerticalAlignment="Center">
+                                                                <TextBlock Text="{Binding DisplayText}"
+                                                                          FontWeight="SemiBold" FontSize="12"
+                                                                          Foreground="#212529"/>
+                                                                <TextBlock Text="{Binding AnalysisPrompt}"
+                                                                          FontSize="10" Foreground="#6C757D"
+                                                                          TextTrimming="CharacterEllipsis"
+                                                                          MaxWidth="300"
+                                                                          Margin="0,2,0,0"/>
+                                                            </StackPanel>
+
+                                                            <TextBlock Grid.Column="1"
+                                                                      Text="{Binding StatusDisplay}"
+                                                                      Foreground="{Binding StatusColor}"
+                                                                      FontSize="11" FontWeight="SemiBold"
+                                                                      VerticalAlignment="Center"
+                                                                      Margin="10,0,6,0"/>
+
+                                                            <Button Grid.Column="2"
+                                                                   Content="▶"
+                                                                   Width="28" Height="28"
+                                                                   FontSize="11"
+                                                                   Style="{StaticResource SecondaryButtonStyle}"
+                                                                   Padding="0"
+                                                                   IsEnabled="{Binding HasOutput}"
+                                                                   ToolTip="Play this iteration's video"
+                                                                   Command="{Binding DataContext.PlayLongVideoIterationCommand, RelativeSource={RelativeSource AncestorType=ItemsControl}}"
+                                                                   CommandParameter="{Binding}"
+                                                                   Margin="2,0,0,0"/>
+
+                                                            <Button Grid.Column="3"
+                                                                   Content="📂"
+                                                                   Width="28" Height="28"
+                                                                   FontSize="11"
+                                                                   Style="{StaticResource SecondaryButtonStyle}"
+                                                                   Padding="0"
+                                                                   IsEnabled="{Binding HasOutput}"
+                                                                   ToolTip="Open output folder"
+                                                                   Command="{Binding DataContext.OpenLongVideoIterationFolderCommand, RelativeSource={RelativeSource AncestorType=ItemsControl}}"
+                                                                   CommandParameter="{Binding}"
+                                                                   Margin="2,0,0,0"/>
+                                                        </Grid>
+                                                    </Border>
+                                                </DataTemplate>
+                                            </ItemsControl.ItemTemplate>
+                                        </ItemsControl>
+                                    </StackPanel>
+                                </Border>
+
+                                <!-- Last Frame Preview + Analysis -->
+                                <Border Style="{StaticResource SectionPanelStyle}" Margin="0,8,0,0"
+                                        Visibility="{Binding LongVideoIsRunning, Converter={StaticResource BooleanToVisibilityConverter}}">
+                                    <Grid>
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="*"/>
+                                            <ColumnDefinition Width="12"/>
+                                            <ColumnDefinition Width="*"/>
+                                        </Grid.ColumnDefinitions>
+
+                                        <!-- Frame preview -->
+                                        <StackPanel Grid.Column="0">
+                                            <TextBlock Text="🖼️ Last Frame"
+                                                      FontSize="12" FontWeight="Bold"
+                                                      Foreground="#FF6B35" Margin="0,0,0,6"/>
+                                            <Border BorderBrush="#DEE2E6" BorderThickness="1"
+                                                    Background="White" Height="160" CornerRadius="5">
+                                                <Grid>
+                                                    <TextBlock Text="Extracting frame..."
+                                                              HorizontalAlignment="Center"
+                                                              VerticalAlignment="Center"
+                                                              Foreground="#999" FontStyle="Italic">
+                                                        <TextBlock.Style>
+                                                            <Style TargetType="TextBlock">
+                                                                <Setter Property="Visibility" Value="Collapsed"/>
+                                                                <Style.Triggers>
+                                                                    <DataTrigger Binding="{Binding LongVideoFramePreview}" Value="{x:Null}">
+                                                                        <Setter Property="Visibility" Value="Visible"/>
+                                                                    </DataTrigger>
+                                                                </Style.Triggers>
+                                                            </Style>
+                                                        </TextBlock.Style>
+                                                    </TextBlock>
+                                                    <Image Source="{Binding LongVideoFramePreview}" Stretch="Uniform"/>
+                                                </Grid>
+                                            </Border>
+                                        </StackPanel>
+
+                                        <!-- Analysis result -->
+                                        <StackPanel Grid.Column="2">
+                                            <TextBlock Text="🧠 Analysis"
+                                                      FontSize="12" FontWeight="Bold"
+                                                      Foreground="#FF6B35" Margin="0,0,0,6"/>
+                                            <TextBox Text="{Binding LongVideoCurrentAnalysis, Mode=OneWay}"
+                                                    TextWrapping="Wrap"
+                                                    AcceptsReturn="True"
+                                                    Height="160"
+                                                    Padding="10"
+                                                    VerticalScrollBarVisibility="Auto"
+                                                    Background="#F8F9FA"
+                                                    BorderBrush="#CED4DA"
+                                                    FontSize="11"
+                                                    IsReadOnly="True"/>
+                                        </StackPanel>
+                                    </Grid>
+                                </Border>
+
+                                <!-- Result -->
+                                <Border Style="{StaticResource SectionPanelStyle}" Margin="0,8,0,0"
+                                        Visibility="{Binding HasLongVideoResult, Converter={StaticResource BooleanToVisibilityConverter}}">
+                                    <StackPanel>
+                                        <TextBlock Text="🎥 Latest Result"
+                                                  Style="{StaticResource HeaderTextStyle}"
+                                                  Foreground="#FF6B35"/>
+
+                                        <Border BorderBrush="#DEE2E6" BorderThickness="1"
+                                                Background="#FAFAFA" Height="240"
+                                                CornerRadius="5" Margin="0,0,0,10">
+                                            <MediaElement x:Name="LongVideoPlayer"
+                                                        Source="{Binding LongVideoResultPath}"
+                                                        LoadedBehavior="Manual"
+                                                        UnloadedBehavior="Stop"
+                                                        Stretch="Uniform"/>
+                                        </Border>
+
+                                        <StackPanel Orientation="Horizontal">
+                                            <Button Content="▶️ Play"
+                                                   Style="{StaticResource SecondaryButtonStyle}"
+                                                   Command="{Binding PlayLongVideoResultCommand}"
+                                                   IsEnabled="{Binding HasLongVideoResult}"
+                                                   Margin="0,0,8,0"/>
+                                            <Button Content="📂 Open Folder"
+                                                   Style="{StaticResource SecondaryButtonStyle}"
+                                                   Command="{Binding OpenLongVideoResultFolderCommand}"
+                                                   IsEnabled="{Binding HasLongVideoResult}"/>
+                                        </StackPanel>
+
+                                        <TextBlock Text="{Binding LongVideoResultInfo}"
+                                                  FontStyle="Italic" Foreground="#6C757D"
+                                                  FontSize="10" Margin="0,6,0,0"/>
+                                    </StackPanel>
+                                </Border>
+
+                                <!-- Log -->
+                                <Expander Header="📋 Generation Log" IsExpanded="False" Margin="0,5,0,0">
+                                    <Border BorderBrush="#DEE2E6" BorderThickness="1"
+                                            Background="#F8F9FA" CornerRadius="5" Margin="0,8,0,0">
+                                        <ScrollViewer MaxHeight="150" VerticalScrollBarVisibility="Auto">
+                                            <TextBox Text="{Binding LongVideoLogOutput, Mode=OneWay}"
                                                     TextWrapping="Wrap"
                                                     IsReadOnly="True"
                                                     FontFamily="Consolas"

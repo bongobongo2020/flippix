@@ -6,6 +6,7 @@ using System.IO;
 using System.Linq;
 using System.Text.Json;
 using System.Threading;
+using System.Net.Http;
 using System.Threading.Tasks;
 using System.Windows.Input;
 using System.Windows.Media.Imaging;
@@ -117,6 +118,7 @@ namespace FlipPix.UI.ViewModels
             ClearQueueCommand = new RelayCommand(ClearQueue, () => !IsProcessingQueue);
             CancelProcessingCommand = new RelayCommand(CancelProcessing, () => IsProcessingQueue);
             ProcessQueueCommand = new RelayCommand(async () => await ProcessQueueAsync(), () => !IsProcessingQueue && QueueItems.Any(q => q.Status == "Pending"));
+            ReprocessAllFailedCommand = new RelayCommand(async () => await ReprocessAllFailedAsync(), () => FailedCount > 0 && !IsProcessingQueue);
 
             // Load ComfyUI settings
             if (_settingsService.Settings != null)
@@ -160,6 +162,7 @@ namespace FlipPix.UI.ViewModels
             (ClearQueueCommand as RelayCommand)?.NotifyCanExecuteChanged();
             (CancelProcessingCommand as RelayCommand)?.NotifyCanExecuteChanged();
             (ProcessQueueCommand as RelayCommand)?.NotifyCanExecuteChanged();
+            (ReprocessAllFailedCommand as RelayCommand)?.NotifyCanExecuteChanged();
         }
 
         // Properties
@@ -783,6 +786,7 @@ namespace FlipPix.UI.ViewModels
         public ICommand ClearQueueCommand { get; }
         public ICommand CancelProcessingCommand { get; }
         public ICommand ProcessQueueCommand { get; }
+        public ICommand ReprocessAllFailedCommand { get; }
 
         // Methods
         private async void InitializeLMStudio()
@@ -1341,11 +1345,28 @@ namespace FlipPix.UI.ViewModels
                 StatusBarMessage = "Analyzing image...";
                 AnalysisText = "Analyzing image with LM Studio QwenVL AI...";
 
+                // Dynamically fetch whichever model is currently loaded on the server
+                string modelToUse = SelectedModel;
+                try
+                {
+                    var activeModels = await _lmStudioService.GetAvailableModelsAsync(_cancellationTokenSource.Token);
+                    if (activeModels.Any())
+                    {
+                        var first = activeModels.First();
+                        modelToUse = !string.IsNullOrEmpty(first.Id) ? first.Id : first.Name;
+                        _logger.LogInfo($"Using active server model: {modelToUse}");
+                    }
+                }
+                catch (Exception ex)
+                {
+                    _logger.LogWarning($"Could not fetch active model from server, falling back to '{SelectedModel}': {ex.Message}");
+                }
+
                 // Use LM Studio for image analysis
                 var analysisPrompt = "Describe this image concisely in 2-3 sentences: subject, setting, colors, and mood.";
 
                 var analysisResult = await _lmStudioService.AnalyzeImageAsync(
-                    SelectedModel,
+                    modelToUse,
                     SourceImagePath,
                     analysisPrompt,
                     maxTokens: 200,
@@ -1634,21 +1655,45 @@ namespace FlipPix.UI.ViewModels
                         }
                         catch (Exception ex)
                         {
-                            item.Status = "Failed";
-                            item.ErrorMessage = ex.Message;
-                            item.Progress = 0;
-                            SaveQueueToFile();
-                            _logger.LogError($"Queue item failed: {item.StyleName} - {ex.Message}");
+                            bool isConnectionFailure =
+                                ex is HttpRequestException ||
+                                ex.InnerException is HttpRequestException ||
+                                ex.Message.IndexOf("connection", StringComparison.OrdinalIgnoreCase) >= 0 ||
+                                ex.Message.IndexOf("refused", StringComparison.OrdinalIgnoreCase) >= 0 ||
+                                ex.Message.IndexOf("unreachable", StringComparison.OrdinalIgnoreCase) >= 0 ||
+                                ex.Message.IndexOf("WebSocket", StringComparison.OrdinalIgnoreCase) >= 0 ||
+                                ex.Message.IndexOf("ComfyUI is not running", StringComparison.OrdinalIgnoreCase) >= 0;
 
-                            // Show error to user
-                            try
+                            bool shouldRetry = false;
+                            if (isConnectionFailure && item.RetryCount < 2 && _settingsService.Settings?.AutoRestartComfyUI == true)
                             {
-                                System.Windows.Application.Current.Dispatcher.Invoke(() =>
+                                _logger.LogWarning($"[CrashDetect] Connection failure: {ex.Message}. Checking ComfyUI health...");
+                                var restarted = await _comfyUIService.DetectAndRestartIfCrashedAsync(
+                                    status => _logger.LogInfo($"[AutoRestart] {status}"));
+                                if (restarted)
                                 {
-                                    StatusBarMessage = $"Error processing queue item: {ex.Message}";
-                                });
+                                    item.RetryCount++;
+                                    _logger.LogInfo($"[AutoRestart] ComfyUI restarted. Retrying item (attempt {item.RetryCount}/2)...");
+                                    shouldRetry = true;
+                                }
                             }
-                            catch { }
+
+                            if (shouldRetry)
+                            {
+                                item.Status = "Pending";
+                                item.Progress = 0;
+                                SaveQueueToFile();
+                                try { System.Windows.Application.Current.Dispatcher.Invoke(() => StatusBarMessage = "ComfyUI restarted — retrying item..."); } catch { }
+                            }
+                            else
+                            {
+                                item.Status = "Failed";
+                                item.ErrorMessage = ex.Message;
+                                item.Progress = 0;
+                                SaveQueueToFile();
+                                _logger.LogError($"Queue item failed: {item.StyleName} - {ex.Message}");
+                                try { System.Windows.Application.Current.Dispatcher.Invoke(() => StatusBarMessage = $"Error processing queue item: {ex.Message}"); } catch { }
+                            }
                         }
                         finally
                         {
@@ -3844,6 +3889,26 @@ namespace FlipPix.UI.ViewModels
                 OnPropertyChanged(nameof(FailedCount));
                 _logger.LogInfo($"Queue cleared: {itemsToRemove.Count} items removed");
             }
+        }
+
+        private async Task ReprocessAllFailedAsync()
+        {
+            var failed = QueueItems.Where(x => x.Status == "Failed").ToList();
+            if (!failed.Any()) return;
+
+            foreach (var item in failed)
+            {
+                item.Status = "Pending";
+                item.ErrorMessage = null;
+            }
+
+            OnPropertyChanged(nameof(QueuedCount));
+            OnPropertyChanged(nameof(FailedCount));
+            SaveQueueToFile();
+            _logger.LogInfo($"Reprocessing {failed.Count} failed item(s)");
+
+            if (!IsProcessingQueue)
+                await ProcessQueueAsync();
         }
 
         private void CancelProcessing()

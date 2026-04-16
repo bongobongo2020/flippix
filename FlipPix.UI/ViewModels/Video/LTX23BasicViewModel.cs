@@ -22,6 +22,10 @@ namespace FlipPix.UI.ViewModels.Video
     /// </summary>
     public partial class LTX23BasicViewModel : VideoProcessingBaseViewModel
     {
+        private string QueueFilePath => Path.Combine(
+            Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData),
+            "FlipPix", "queue", "ltx23basic_queue.json");
+
         private string _imagePath = string.Empty;
         private BitmapImage? _imagePreview;
         private string _imageInfo = string.Empty;
@@ -33,10 +37,12 @@ namespace FlipPix.UI.ViewModels.Video
         private bool _showVideoPrompt = false;
         private bool _isProcessingQueue = false;
         private string _queueStatus = string.Empty;
+        private int _frameCount = 240;
 
         private readonly IFileDialogService _fileDialogService;
         private readonly LMStudioService _lmStudioService;
         private readonly ObservableCollection<QueueItem> _queue = new();
+        private CancellationTokenSource? _queueCts;
 
         public LTX23BasicViewModel(
             ComfyUIService comfyUIService,
@@ -56,9 +62,14 @@ namespace FlipPix.UI.ViewModels.Video
             EnhancePromptCommand = new RelayCommand(async () => await EnhancePromptWithLMStudioAsync(), () => CanEnhancePrompt);
             GenerateVideoCommand = new RelayCommand(AddToQueueAndProcess, () => CanAddToQueue);
             RemoveQueueItemCommand = new RelayCommand<QueueItem>(RemoveQueueItem);
+            ClearQueueCommand = new RelayCommand(ClearQueue, () => _queue.Any());
+            StopQueueCommand = new RelayCommand(StopQueue, () => IsProcessingQueue);
+            ReprocessAllFailedCommand = new RelayCommand(async () => await ReprocessAllFailedAsync(), () => HasFailedItems);
             PlayVideoCommand = new RelayCommand(PlayVideo, () => HasResult);
             OpenResultFolderCommand = new RelayCommand(OpenResultFolder, () => HasResult);
             SendToEditCameraCommand = new RelayCommand(SendToEditCamera, () => HasResult);
+
+            _frameCount = settingsService.Settings?.Ltx23FrameCount ?? 240;
 
             _queue.CollectionChanged += (s, e) =>
             {
@@ -68,6 +79,7 @@ namespace FlipPix.UI.ViewModels.Video
             };
 
             AddLog("LTX 2.3 Basic Video Generator initialized");
+            LoadQueueFromFile();
         }
 
         #region Commands
@@ -77,9 +89,14 @@ namespace FlipPix.UI.ViewModels.Video
         public RelayCommand EnhancePromptCommand { get; }
         public RelayCommand GenerateVideoCommand { get; }
         public RelayCommand<QueueItem> RemoveQueueItemCommand { get; }
+        public RelayCommand ClearQueueCommand { get; }
+        public RelayCommand StopQueueCommand { get; }
+        public RelayCommand ReprocessAllFailedCommand { get; }
         public RelayCommand PlayVideoCommand { get; }
         public RelayCommand OpenResultFolderCommand { get; }
         public RelayCommand SendToEditCameraCommand { get; }
+
+        public bool HasFailedItems => _queue.Any(x => x.ItemStatus == QueueItemStatus.Failed);
 
         #endregion
 
@@ -155,6 +172,28 @@ namespace FlipPix.UI.ViewModels.Video
                 }
             }
         }
+
+        public int FrameCount
+        {
+            get => _frameCount;
+            set
+            {
+                var clamped = Math.Max(49, Math.Min(481, value));
+                if (_frameCount != clamped)
+                {
+                    _frameCount = clamped;
+                    OnPropertyChanged();
+                    OnPropertyChanged(nameof(FrameCountHint));
+                    if (_settingsService.Settings != null)
+                    {
+                        _settingsService.Settings.Ltx23FrameCount = clamped;
+                        _settingsService.SaveSettings(_settingsService.Settings);
+                    }
+                }
+            }
+        }
+
+        public string FrameCountHint => $"~{_frameCount / 24.0:F1}s at 24fps";
 
         public bool IsAnalyzing
         {
@@ -289,6 +328,8 @@ namespace FlipPix.UI.ViewModels.Video
             try
             {
                 IsAnalyzing = true;
+
+                // Step 1: Analyze image
                 AddLog("=== Analyzing image with LMStudio ===");
 
                 var baseUrl = _settingsService.Settings?.LMStudioSettings?.BaseUrl ?? "http://alien:8080";
@@ -306,23 +347,50 @@ namespace FlipPix.UI.ViewModels.Video
 
                 AddLog($"Using model: {selectedModel}");
 
-                var promptFilePath = Path.Combine(AppDomain.CurrentDomain.BaseDirectory,
+                var analysisPromptPath = Path.Combine(AppDomain.CurrentDomain.BaseDirectory,
                     "prompts", "prompt2json", "image-analysis-prompt.md");
-                if (!File.Exists(promptFilePath))
-                    throw new FileNotFoundException($"Prompt file not found: {promptFilePath}");
+                if (!File.Exists(analysisPromptPath))
+                    throw new FileNotFoundException($"Prompt file not found: {analysisPromptPath}");
 
-                var systemPrompt = await File.ReadAllTextAsync(promptFilePath);
-                var result = await _lmStudioService.AnalyzeImageWithSystemPromptAsync(
-                    selectedModel, ImagePath, "Analyze this image.", systemPrompt);
+                var analysisSystemPrompt = await File.ReadAllTextAsync(analysisPromptPath);
+                var analysisResult = await _lmStudioService.AnalyzeImageWithSystemPromptAsync(
+                    selectedModel, ImagePath, "Analyze this image.", analysisSystemPrompt);
 
-                AnalysisResult = result;
-                AddLog($"Image analysis complete ({result.Length} chars)");
+                AnalysisResult = analysisResult;
+                AddLog($"Image analysis complete ({analysisResult.Length} chars)");
+
+                // Step 2: Enhance prompt
+                AddLog("=== Enhancing prompt with LMStudio (LTX 2.3) ===");
+
+                var enhancePromptPath = Path.Combine(AppDomain.CurrentDomain.BaseDirectory,
+                    "prompts", "prompt2json", "ltx-audio-video.md");
+                if (!File.Exists(enhancePromptPath))
+                    throw new FileNotFoundException($"Prompt file not found: {enhancePromptPath}");
+
+                var enhanceSystemPrompt = await File.ReadAllTextAsync(enhancePromptPath);
+                var enhanced = await _lmStudioService.SendTextChatAsync(
+                    selectedModel, enhanceSystemPrompt, analysisResult, maxTokens: 2000);
+
+                Prompt = enhanced;
+                ShowVideoPrompt = true;
+                AddLog($"Prompt enhanced ({enhanced.Length} chars)");
+
+                // Step 3: Auto-queue and process
+                if (CanAddToQueue)
+                {
+                    AddLog("Auto-adding to queue and generating...");
+                    AddToQueueAndProcess();
+                }
+                else
+                {
+                    AddLog("Warning: Cannot add to queue - check image and prompt");
+                }
             }
             catch (Exception ex)
             {
-                AddLog($"ERROR analyzing image: {ex.Message}");
-                System.Windows.MessageBox.Show($"Image analysis failed:\n{ex.Message}",
-                    "Analysis Error", System.Windows.MessageBoxButton.OK, System.Windows.MessageBoxImage.Error);
+                AddLog($"ERROR: {ex.Message}");
+                System.Windows.MessageBox.Show($"Analyze & enhance failed:\n{ex.Message}",
+                    "Error", System.Windows.MessageBoxButton.OK, System.Windows.MessageBoxImage.Error);
             }
             finally
             {
@@ -351,8 +419,6 @@ namespace FlipPix.UI.ViewModels.Video
                         throw new Exception("No models available in LM Studio.");
                 }
 
-                AddLog($"Using model: {selectedModel}");
-
                 var promptFilePath = Path.Combine(AppDomain.CurrentDomain.BaseDirectory,
                     "prompts", "prompt2json", "ltx-audio-video.md");
                 if (!File.Exists(promptFilePath))
@@ -366,15 +432,10 @@ namespace FlipPix.UI.ViewModels.Video
                 ShowVideoPrompt = true;
                 AddLog($"Prompt enhanced ({enhanced.Length} chars)");
 
-                // Auto-trigger queue and generate after enhancement
                 if (CanAddToQueue)
                 {
                     AddLog("Auto-adding to queue and generating...");
                     AddToQueueAndProcess();
-                }
-                else
-                {
-                    AddLog("Warning: Cannot add to queue - check image and prompt");
                 }
             }
             catch (Exception ex)
@@ -401,10 +462,12 @@ namespace FlipPix.UI.ViewModels.Video
             {
                 ImagePath = ImagePath,
                 Prompt = Prompt,
+                FrameCount = FrameCount,
                 ItemStatus = QueueItemStatus.Pending
             };
 
             _queue.Add(item);
+            SaveQueueToFile();
             AddLog($"Added to queue: {Path.GetFileName(ImagePath)}");
             UpdateQueueStatus();
 
@@ -432,6 +495,41 @@ namespace FlipPix.UI.ViewModels.Video
             QueueStatus = total == 0
                 ? string.Empty
                 : $"{pending} pending • {completed} done • {failed} failed";
+
+            OnPropertyChanged(nameof(HasFailedItems));
+            OnCanExecuteChanged();
+        }
+
+        private void ClearQueue()
+        {
+            _queueCts?.Cancel();
+            foreach (var item in _queue.ToList())
+                _queue.Remove(item);
+            SaveQueueToFile();
+            UpdateQueueStatus();
+            AddLog("Queue cleared");
+        }
+
+        private void StopQueue()
+        {
+            _queueCts?.Cancel();
+            AddLog("Queue stop requested");
+        }
+
+        private async Task ReprocessAllFailedAsync()
+        {
+            var failed = _queue.Where(x => x.ItemStatus == QueueItemStatus.Failed).ToList();
+            if (!failed.Any()) return;
+
+            foreach (var item in failed)
+                item.ItemStatus = QueueItemStatus.Pending;
+
+            UpdateQueueStatus();
+            SaveQueueToFile();
+            AddLog($"Reprocessing {failed.Count} failed item(s)...");
+
+            if (!IsProcessingQueue)
+                await ProcessQueueAsync();
         }
 
         private async Task ProcessQueueAsync()
@@ -439,37 +537,95 @@ namespace FlipPix.UI.ViewModels.Video
             if (IsProcessingQueue) return;
 
             IsProcessingQueue = true;
+            _queueCts?.Dispose();
+            _queueCts = new CancellationTokenSource();
+            var token = _queueCts.Token;
             AddLog("Starting queue processing...");
+            OnCanExecuteChanged();
 
             try
             {
                 QueueItem? item;
-                while ((item = _queue.FirstOrDefault(x => x.ItemStatus == QueueItemStatus.Pending)) != null)
+                while (!token.IsCancellationRequested &&
+                       (item = _queue.FirstOrDefault(x => x.ItemStatus == QueueItemStatus.Pending)) != null)
                 {
                     item.ItemStatus = QueueItemStatus.Processing;
                     UpdateQueueStatus();
-
+                    SaveQueueToFile();
                     try
                     {
                         await GenerateSingleVideoAsync(item);
                         item.ItemStatus = QueueItemStatus.Completed;
                         AddLog($"Queue item completed: {Path.GetFileName(item.ImagePath)}");
                     }
+                    catch (OperationCanceledException)
+                    {
+                        item.ItemStatus = QueueItemStatus.Pending;
+                        AddLog("Queue item cancelled — reset to Pending");
+                        break;
+                    }
                     catch (Exception ex)
                     {
-                        item.ItemStatus = QueueItemStatus.Failed;
-                        item.ErrorMessage = ex.Message;
-                        AddLog($"Queue item FAILED: {ex.Message}");
+                        var shouldRetry = await TryHandleCrashAndRetryAsync(item, ex);
+                        if (shouldRetry)
+                        {
+                            item.ItemStatus = QueueItemStatus.Pending;
+                            AddLog("Item reset to Pending — will retry after ComfyUI restart");
+                        }
+                        else
+                        {
+                            item.ItemStatus = QueueItemStatus.Failed;
+                            item.ErrorMessage = ex.Message;
+                            AddLog($"Queue item FAILED: {ex.Message}");
+                        }
                     }
-
                     UpdateQueueStatus();
+                    SaveQueueToFile();
                 }
             }
             finally
             {
                 IsProcessingQueue = false;
                 AddLog("Queue processing finished.");
+                OnCanExecuteChanged();
             }
+        }
+
+        #endregion
+
+        #region Queue Persistence
+
+        private void SaveQueueToFile()
+        {
+            try
+            {
+                var dir = Path.GetDirectoryName(QueueFilePath);
+                if (!string.IsNullOrEmpty(dir) && !Directory.Exists(dir))
+                    Directory.CreateDirectory(dir);
+                File.WriteAllText(QueueFilePath,
+                    JsonSerializer.Serialize(_queue.ToList(), new JsonSerializerOptions { WriteIndented = true }));
+            }
+            catch (Exception ex) { AddLog($"Error saving queue: {ex.Message}"); }
+        }
+
+        private void LoadQueueFromFile()
+        {
+            try
+            {
+                if (!File.Exists(QueueFilePath)) return;
+                var items = JsonSerializer.Deserialize<List<QueueItem>>(File.ReadAllText(QueueFilePath));
+                if (items?.Any() != true) return;
+                _queue.Clear();
+                foreach (var item in items)
+                {
+                    if (item.ItemStatus == QueueItemStatus.Processing)
+                        item.ItemStatus = QueueItemStatus.Pending;
+                    _queue.Add(item);
+                }
+                UpdateQueueStatus();
+                AddLog($"Queue loaded: {_queue.Count} items");
+            }
+            catch (Exception ex) { AddLog($"Error loading queue: {ex.Message}"); }
         }
 
         #endregion
@@ -564,6 +720,7 @@ namespace FlipPix.UI.ViewModels.Video
                 var rawJson = workflow.GetRawText();
                 WorkflowNodeUpdater.UpdateNodeInput(ref rawJson, "5016:2004", "image", uploadedImageName);
                 WorkflowNodeUpdater.UpdateNodeInput(ref rawJson, "5026:5018", "text", item.Prompt);
+                WorkflowNodeUpdater.UpdateNodeInput(ref rawJson, "5026:4988", "value", item.FrameCount);
                 // Update width/height to match uploaded image aspect ratio
                 WorkflowNodeUpdater.UpdateNodeInputMultiple(ref rawJson, "5013:3059",
                     new Dictionary<string, object> { { "width", itemWidth }, { "height", itemHeight } });
@@ -686,6 +843,9 @@ namespace FlipPix.UI.ViewModels.Video
         {
             base.OnCanExecuteChanged();
             GenerateVideoCommand.NotifyCanExecuteChanged();
+            ClearQueueCommand.NotifyCanExecuteChanged();
+            StopQueueCommand.NotifyCanExecuteChanged();
+            ReprocessAllFailedCommand.NotifyCanExecuteChanged();
             PlayVideoCommand.NotifyCanExecuteChanged();
             OpenResultFolderCommand.NotifyCanExecuteChanged();
             SendToEditCameraCommand.NotifyCanExecuteChanged();

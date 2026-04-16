@@ -93,15 +93,45 @@
                             <Border Style="{StaticResource SectionPanelStyle}"
                                     Visibility="{Binding HasInterpolateQueueItems, Converter={StaticResource BooleanToVisibilityConverter}}">
                                 <StackPanel>
-                                    <StackPanel Orientation="Horizontal" Margin="0,0,0,8">
-                                        <TextBlock Text="Queue"
-                                                   FontSize="14" FontWeight="Bold"
-                                                   Foreground="#1565C0"/>
-                                        <TextBlock Text="{Binding InterpolateQueueStatus}"
-                                                   FontSize="11" Foreground="#6C757D"
-                                                   VerticalAlignment="Center"
-                                                   Margin="10,0,0,0"/>
-                                    </StackPanel>
+                                    <Grid Margin="0,0,0,8">
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="*"/>
+                                            <ColumnDefinition Width="Auto"/>
+                                            <ColumnDefinition Width="Auto"/>
+                                            <ColumnDefinition Width="Auto"/>
+                                        </Grid.ColumnDefinitions>
+                                        <StackPanel Grid.Column="0" Orientation="Horizontal">
+                                            <TextBlock Text="Queue"
+                                                       FontSize="14" FontWeight="Bold"
+                                                       Foreground="#1565C0" VerticalAlignment="Center"/>
+                                            <TextBlock Text="{Binding InterpolateQueueStatus}"
+                                                       FontSize="11" Foreground="#6C757D"
+                                                       VerticalAlignment="Center"
+                                                       Margin="10,0,0,0"/>
+                                        </StackPanel>
+                                        <Button Grid.Column="1"
+                                                Content="🔄 Retry Failed"
+                                                Command="{Binding ReprocessInterpolateFailedCommand}"
+                                                IsEnabled="{Binding HasInterpolateFailedItems}"
+                                                Height="28" Width="90" FontSize="11"
+                                                Margin="4,0,4,0"
+                                                Background="#FFA500" Foreground="White"
+                                                BorderThickness="0" FontWeight="SemiBold"/>
+                                        <Button Grid.Column="2"
+                                                Content="⏹ Stop"
+                                                Command="{Binding StopInterpolateQueueCommand}"
+                                                IsEnabled="{Binding IsProcessingInterpolateQueue}"
+                                                Height="28" Width="65" FontSize="11"
+                                                Margin="0,0,4,0"
+                                                Background="#F59E0B" Foreground="White"
+                                                BorderThickness="0" FontWeight="SemiBold"/>
+                                        <Button Grid.Column="3"
+                                                Content="🗑️ Clear"
+                                                Command="{Binding ClearInterpolateQueueCommand}"
+                                                Height="28" Width="65" FontSize="11"
+                                                Background="#DC3545" Foreground="White"
+                                                BorderThickness="0" FontWeight="SemiBold"/>
+                                    </Grid>
 
                                     <ItemsControl ItemsSource="{Binding InterpolateQueue}">
                                         <ItemsControl.ItemTemplate>
@@ -214,15 +244,45 @@
                             <Border Style="{StaticResource SectionPanelStyle}"
                                     Visibility="{Binding HasUpscaleQueueItems, Converter={StaticResource BooleanToVisibilityConverter}}">
                                 <StackPanel>
-                                    <StackPanel Orientation="Horizontal" Margin="0,0,0,8">
-                                        <TextBlock Text="Queue"
-                                                   FontSize="14" FontWeight="Bold"
-                                                   Foreground="#1565C0"/>
-                                        <TextBlock Text="{Binding UpscaleQueueStatus}"
-                                                   FontSize="11" Foreground="#6C757D"
-                                                   VerticalAlignment="Center"
-                                                   Margin="10,0,0,0"/>
-                                    </StackPanel>
+                                    <Grid Margin="0,0,0,8">
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="*"/>
+                                            <ColumnDefinition Width="Auto"/>
+                                            <ColumnDefinition Width="Auto"/>
+                                            <ColumnDefinition Width="Auto"/>
+                                        </Grid.ColumnDefinitions>
+                                        <StackPanel Grid.Column="0" Orientation="Horizontal">
+                                            <TextBlock Text="Queue"
+                                                       FontSize="14" FontWeight="Bold"
+                                                       Foreground="#1565C0" VerticalAlignment="Center"/>
+                                            <TextBlock Text="{Binding UpscaleQueueStatus}"
+                                                       FontSize="11" Foreground="#6C757D"
+                                                       VerticalAlignment="Center"
+                                                       Margin="10,0,0,0"/>
+                                        </StackPanel>
+                                        <Button Grid.Column="1"
+                                                Content="🔄 Retry Failed"
+                                                Command="{Binding ReprocessUpscaleFailedCommand}"
+                                                IsEnabled="{Binding HasUpscaleFailedItems}"
+                                                Height="28" Width="90" FontSize="11"
+                                                Margin="4,0,4,0"
+                                                Background="#FFA500" Foreground="White"
+                                                BorderThickness="0" FontWeight="SemiBold"/>
+                                        <Button Grid.Column="2"
+                                                Content="⏹ Stop"
+                                                Command="{Binding StopUpscaleQueueCommand}"
+                                                IsEnabled="{Binding IsProcessingUpscaleQueue}"
+                                                Height="28" Width="65" FontSize="11"
+                                                Margin="0,0,4,0"
+                                                Background="#F59E0B" Foreground="White"
+                                                BorderThickness="0" FontWeight="SemiBold"/>
+                                        <Button Grid.Column="3"
+                                                Content="🗑️ Clear"
+                                                Command="{Binding ClearUpscaleQueueCommand}"
+                                                Height="28" Width="65" FontSize="11"
+                                                Background="#DC3545" Foreground="White"
+                                                BorderThickness="0" FontWeight="SemiBold"/>
+                                    </Grid>
 
                                     <ItemsControl ItemsSource="{Binding UpscaleQueue}">
                                         <ItemsControl.ItemTemplate>

@@ -3,6 +3,7 @@ using System.Collections.ObjectModel;
 using System.IO;
 using System.Linq;
 using System.Text.Json;
+using System.Threading;
 using System.Threading.Tasks;
 using CommunityToolkit.Mvvm.Input;
 using FlipPix.ComfyUI.Services;
@@ -17,12 +18,21 @@ namespace FlipPix.UI.ViewModels.Video
         private const string InterpolateOutputSubfolder = "AnimateDiff";
         private const string UpscaleOutputSubfolder = "upscale";
 
+        private string InterpolateQueueFilePath => Path.Combine(
+            Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData),
+            "FlipPix", "queue", "video_enhance_interpolate_queue.json");
+
+        private string UpscaleQueueFilePath => Path.Combine(
+            Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData),
+            "FlipPix", "queue", "video_enhance_upscale_queue.json");
+
         // Interpolate state
         private string _interpolateVideoPath = string.Empty;
         private string _interpolateVideoInfo = string.Empty;
         private bool _isProcessingInterpolateQueue = false;
         private string _interpolateQueueStatus = string.Empty;
         private readonly ObservableCollection<VideoEnhanceQueueItem> _interpolateQueue = new();
+        private CancellationTokenSource? _interpolateCts;
 
         // Upscale state
         private string _upscaleVideoPath = string.Empty;
@@ -30,6 +40,7 @@ namespace FlipPix.UI.ViewModels.Video
         private bool _isProcessingUpscaleQueue = false;
         private string _upscaleQueueStatus = string.Empty;
         private readonly ObservableCollection<VideoEnhanceQueueItem> _upscaleQueue = new();
+        private CancellationTokenSource? _upscaleCts;
 
         private readonly IFileDialogService _fileDialogService;
 
@@ -47,10 +58,16 @@ namespace FlipPix.UI.ViewModels.Video
             SelectInterpolateVideoCommand = new RelayCommand(SelectInterpolateVideo);
             AddInterpolateToQueueCommand = new RelayCommand(AddInterpolateToQueue, () => CanAddInterpolate);
             RemoveInterpolateQueueItemCommand = new RelayCommand<VideoEnhanceQueueItem>(RemoveInterpolateQueueItem);
+            ClearInterpolateQueueCommand = new RelayCommand(ClearInterpolateQueue, () => _interpolateQueue.Any());
+            StopInterpolateQueueCommand = new RelayCommand(StopInterpolateQueue, () => IsProcessingInterpolateQueue);
+            ReprocessInterpolateFailedCommand = new RelayCommand(async () => await ReprocessInterpolateFailedAsync(), () => HasInterpolateFailedItems);
 
             SelectUpscaleVideoCommand = new RelayCommand(SelectUpscaleVideo);
             AddUpscaleToQueueCommand = new RelayCommand(AddUpscaleToQueue, () => CanAddUpscale);
             RemoveUpscaleQueueItemCommand = new RelayCommand<VideoEnhanceQueueItem>(RemoveUpscaleQueueItem);
+            ClearUpscaleQueueCommand = new RelayCommand(ClearUpscaleQueue, () => _upscaleQueue.Any());
+            StopUpscaleQueueCommand = new RelayCommand(StopUpscaleQueue, () => IsProcessingUpscaleQueue);
+            ReprocessUpscaleFailedCommand = new RelayCommand(async () => await ReprocessUpscaleFailedAsync(), () => HasUpscaleFailedItems);
 
             PlayVideoCommand = new RelayCommand(PlayVideo, () => HasResult);
             OpenResultFolderCommand = new RelayCommand(OpenResultFolder, () => HasResult);
@@ -69,6 +86,8 @@ namespace FlipPix.UI.ViewModels.Video
             };
 
             AddLog("Video Enhance initialized");
+            LoadInterpolateQueueFromFile();
+            LoadUpscaleQueueFromFile();
         }
 
         #region Commands
@@ -76,10 +95,19 @@ namespace FlipPix.UI.ViewModels.Video
         public RelayCommand SelectInterpolateVideoCommand { get; }
         public RelayCommand AddInterpolateToQueueCommand { get; }
         public RelayCommand<VideoEnhanceQueueItem> RemoveInterpolateQueueItemCommand { get; }
+        public RelayCommand ClearInterpolateQueueCommand { get; }
+        public RelayCommand StopInterpolateQueueCommand { get; }
+        public RelayCommand ReprocessInterpolateFailedCommand { get; }
 
         public RelayCommand SelectUpscaleVideoCommand { get; }
         public RelayCommand AddUpscaleToQueueCommand { get; }
         public RelayCommand<VideoEnhanceQueueItem> RemoveUpscaleQueueItemCommand { get; }
+        public RelayCommand ClearUpscaleQueueCommand { get; }
+        public RelayCommand StopUpscaleQueueCommand { get; }
+        public RelayCommand ReprocessUpscaleFailedCommand { get; }
+
+        public bool HasInterpolateFailedItems => _interpolateQueue.Any(x => x.ItemStatus == QueueItemStatus.Failed);
+        public bool HasUpscaleFailedItems => _upscaleQueue.Any(x => x.ItemStatus == QueueItemStatus.Failed);
 
         public RelayCommand PlayVideoCommand { get; }
         public RelayCommand OpenResultFolderCommand { get; }
@@ -277,6 +305,7 @@ namespace FlipPix.UI.ViewModels.Video
             };
 
             _interpolateQueue.Add(item);
+            SaveInterpolateQueueToFile();
             AddLog($"Added to interpolate queue: {item.DisplayText}");
             UpdateInterpolateQueueStatus();
 
@@ -299,39 +328,93 @@ namespace FlipPix.UI.ViewModels.Video
             var done = _interpolateQueue.Count(x => x.ItemStatus == QueueItemStatus.Completed);
             var failed = _interpolateQueue.Count(x => x.ItemStatus == QueueItemStatus.Failed);
             InterpolateQueueStatus = $"{pending} pending • {done} done • {failed} failed";
+            OnPropertyChanged(nameof(HasInterpolateFailedItems));
+            OnCanExecuteChanged();
+        }
+
+        private void ClearInterpolateQueue()
+        {
+            _interpolateCts?.Cancel();
+            foreach (var item in _interpolateQueue.ToList())
+                _interpolateQueue.Remove(item);
+            SaveInterpolateQueueToFile();
+            UpdateInterpolateQueueStatus();
+            AddLog("Interpolate queue cleared");
+        }
+
+        private void StopInterpolateQueue()
+        {
+            _interpolateCts?.Cancel();
+            AddLog("Interpolate queue stop requested");
+        }
+
+        private async Task ReprocessInterpolateFailedAsync()
+        {
+            var failed = _interpolateQueue.Where(x => x.ItemStatus == QueueItemStatus.Failed).ToList();
+            if (!failed.Any()) return;
+            foreach (var item in failed)
+                item.ItemStatus = QueueItemStatus.Pending;
+            UpdateInterpolateQueueStatus();
+            SaveInterpolateQueueToFile();
+            AddLog($"Reprocessing {failed.Count} failed interpolate item(s)...");
+            if (!IsProcessingInterpolateQueue)
+                await ProcessInterpolateQueueAsync();
         }
 
         private async Task ProcessInterpolateQueueAsync()
         {
             if (IsProcessingInterpolateQueue) return;
             IsProcessingInterpolateQueue = true;
+            _interpolateCts?.Dispose();
+            _interpolateCts = new CancellationTokenSource();
+            var token = _interpolateCts.Token;
             AddLog("Starting interpolate queue...");
+            OnCanExecuteChanged();
             try
             {
                 VideoEnhanceQueueItem? item;
-                while ((item = _interpolateQueue.FirstOrDefault(x => x.ItemStatus == QueueItemStatus.Pending)) != null)
+                while (!token.IsCancellationRequested &&
+                       (item = _interpolateQueue.FirstOrDefault(x => x.ItemStatus == QueueItemStatus.Pending)) != null)
                 {
                     item.ItemStatus = QueueItemStatus.Processing;
                     UpdateInterpolateQueueStatus();
+                    SaveInterpolateQueueToFile();
                     try
                     {
                         await ProcessInterpolateSingleAsync(item);
                         item.ItemStatus = QueueItemStatus.Completed;
                         AddLog($"Interpolate complete: {item.DisplayText}");
                     }
+                    catch (OperationCanceledException)
+                    {
+                        item.ItemStatus = QueueItemStatus.Pending;
+                        AddLog("Interpolate queue item cancelled — reset to Pending");
+                        break;
+                    }
                     catch (Exception ex)
                     {
-                        item.ItemStatus = QueueItemStatus.Failed;
-                        item.ErrorMessage = ex.Message;
-                        AddLog($"Interpolate FAILED: {ex.Message}");
+                        var shouldRetry = await TryHandleCrashAndRetryAsync(item, ex);
+                        if (shouldRetry)
+                        {
+                            item.ItemStatus = QueueItemStatus.Pending;
+                            AddLog("Item reset to Pending — will retry after ComfyUI restart");
+                        }
+                        else
+                        {
+                            item.ItemStatus = QueueItemStatus.Failed;
+                            item.ErrorMessage = ex.Message;
+                            AddLog($"Interpolate FAILED: {ex.Message}");
+                        }
                     }
                     UpdateInterpolateQueueStatus();
+                    SaveInterpolateQueueToFile();
                 }
             }
             finally
             {
                 IsProcessingInterpolateQueue = false;
                 AddLog("Interpolate queue finished.");
+                OnCanExecuteChanged();
             }
         }
 
@@ -351,6 +434,7 @@ namespace FlipPix.UI.ViewModels.Video
             };
 
             _upscaleQueue.Add(item);
+            SaveUpscaleQueueToFile();
             AddLog($"Added to upscale queue: {item.DisplayText}");
             UpdateUpscaleQueueStatus();
 
@@ -373,40 +457,164 @@ namespace FlipPix.UI.ViewModels.Video
             var done = _upscaleQueue.Count(x => x.ItemStatus == QueueItemStatus.Completed);
             var failed = _upscaleQueue.Count(x => x.ItemStatus == QueueItemStatus.Failed);
             UpscaleQueueStatus = $"{pending} pending • {done} done • {failed} failed";
+            OnPropertyChanged(nameof(HasUpscaleFailedItems));
+            OnCanExecuteChanged();
+        }
+
+        private void ClearUpscaleQueue()
+        {
+            _upscaleCts?.Cancel();
+            foreach (var item in _upscaleQueue.ToList())
+                _upscaleQueue.Remove(item);
+            SaveUpscaleQueueToFile();
+            UpdateUpscaleQueueStatus();
+            AddLog("Upscale queue cleared");
+        }
+
+        private void StopUpscaleQueue()
+        {
+            _upscaleCts?.Cancel();
+            AddLog("Upscale queue stop requested");
+        }
+
+        private async Task ReprocessUpscaleFailedAsync()
+        {
+            var failed = _upscaleQueue.Where(x => x.ItemStatus == QueueItemStatus.Failed).ToList();
+            if (!failed.Any()) return;
+            foreach (var item in failed)
+                item.ItemStatus = QueueItemStatus.Pending;
+            UpdateUpscaleQueueStatus();
+            SaveUpscaleQueueToFile();
+            AddLog($"Reprocessing {failed.Count} failed upscale item(s)...");
+            if (!IsProcessingUpscaleQueue)
+                await ProcessUpscaleQueueAsync();
         }
 
         private async Task ProcessUpscaleQueueAsync()
         {
             if (IsProcessingUpscaleQueue) return;
             IsProcessingUpscaleQueue = true;
+            _upscaleCts?.Dispose();
+            _upscaleCts = new CancellationTokenSource();
+            var token = _upscaleCts.Token;
             AddLog("Starting upscale queue...");
+            OnCanExecuteChanged();
             try
             {
                 VideoEnhanceQueueItem? item;
-                while ((item = _upscaleQueue.FirstOrDefault(x => x.ItemStatus == QueueItemStatus.Pending)) != null)
+                while (!token.IsCancellationRequested &&
+                       (item = _upscaleQueue.FirstOrDefault(x => x.ItemStatus == QueueItemStatus.Pending)) != null)
                 {
                     item.ItemStatus = QueueItemStatus.Processing;
                     UpdateUpscaleQueueStatus();
+                    SaveUpscaleQueueToFile();
                     try
                     {
                         await ProcessUpscaleSingleAsync(item);
                         item.ItemStatus = QueueItemStatus.Completed;
                         AddLog($"Upscale complete: {item.DisplayText}");
                     }
+                    catch (OperationCanceledException)
+                    {
+                        item.ItemStatus = QueueItemStatus.Pending;
+                        AddLog("Upscale queue item cancelled — reset to Pending");
+                        break;
+                    }
                     catch (Exception ex)
                     {
-                        item.ItemStatus = QueueItemStatus.Failed;
-                        item.ErrorMessage = ex.Message;
-                        AddLog($"Upscale FAILED: {ex.Message}");
+                        var shouldRetry = await TryHandleCrashAndRetryAsync(item, ex);
+                        if (shouldRetry)
+                        {
+                            item.ItemStatus = QueueItemStatus.Pending;
+                            AddLog("Item reset to Pending — will retry after ComfyUI restart");
+                        }
+                        else
+                        {
+                            item.ItemStatus = QueueItemStatus.Failed;
+                            item.ErrorMessage = ex.Message;
+                            AddLog($"Upscale FAILED: {ex.Message}");
+                        }
                     }
                     UpdateUpscaleQueueStatus();
+                    SaveUpscaleQueueToFile();
                 }
             }
             finally
             {
                 IsProcessingUpscaleQueue = false;
                 AddLog("Upscale queue finished.");
+                OnCanExecuteChanged();
             }
+        }
+
+        #endregion
+
+        #region Queue Persistence
+
+        private void SaveInterpolateQueueToFile()
+        {
+            try
+            {
+                var dir = Path.GetDirectoryName(InterpolateQueueFilePath);
+                if (!string.IsNullOrEmpty(dir) && !Directory.Exists(dir))
+                    Directory.CreateDirectory(dir);
+                File.WriteAllText(InterpolateQueueFilePath,
+                    JsonSerializer.Serialize(_interpolateQueue.ToList(), new JsonSerializerOptions { WriteIndented = true }));
+            }
+            catch (Exception ex) { AddLog($"Error saving interpolate queue: {ex.Message}"); }
+        }
+
+        private void LoadInterpolateQueueFromFile()
+        {
+            try
+            {
+                if (!File.Exists(InterpolateQueueFilePath)) return;
+                var items = JsonSerializer.Deserialize<List<VideoEnhanceQueueItem>>(File.ReadAllText(InterpolateQueueFilePath));
+                if (items?.Any() != true) return;
+                _interpolateQueue.Clear();
+                foreach (var item in items)
+                {
+                    if (item.ItemStatus == QueueItemStatus.Processing)
+                        item.ItemStatus = QueueItemStatus.Pending;
+                    _interpolateQueue.Add(item);
+                }
+                UpdateInterpolateQueueStatus();
+                AddLog($"Interpolate queue loaded: {_interpolateQueue.Count} items");
+            }
+            catch (Exception ex) { AddLog($"Error loading interpolate queue: {ex.Message}"); }
+        }
+
+        private void SaveUpscaleQueueToFile()
+        {
+            try
+            {
+                var dir = Path.GetDirectoryName(UpscaleQueueFilePath);
+                if (!string.IsNullOrEmpty(dir) && !Directory.Exists(dir))
+                    Directory.CreateDirectory(dir);
+                File.WriteAllText(UpscaleQueueFilePath,
+                    JsonSerializer.Serialize(_upscaleQueue.ToList(), new JsonSerializerOptions { WriteIndented = true }));
+            }
+            catch (Exception ex) { AddLog($"Error saving upscale queue: {ex.Message}"); }
+        }
+
+        private void LoadUpscaleQueueFromFile()
+        {
+            try
+            {
+                if (!File.Exists(UpscaleQueueFilePath)) return;
+                var items = JsonSerializer.Deserialize<List<VideoEnhanceQueueItem>>(File.ReadAllText(UpscaleQueueFilePath));
+                if (items?.Any() != true) return;
+                _upscaleQueue.Clear();
+                foreach (var item in items)
+                {
+                    if (item.ItemStatus == QueueItemStatus.Processing)
+                        item.ItemStatus = QueueItemStatus.Pending;
+                    _upscaleQueue.Add(item);
+                }
+                UpdateUpscaleQueueStatus();
+                AddLog($"Upscale queue loaded: {_upscaleQueue.Count} items");
+            }
+            catch (Exception ex) { AddLog($"Error loading upscale queue: {ex.Message}"); }
         }
 
         #endregion
@@ -599,7 +807,13 @@ namespace FlipPix.UI.ViewModels.Video
         {
             base.OnCanExecuteChanged();
             AddInterpolateToQueueCommand.NotifyCanExecuteChanged();
+            ClearInterpolateQueueCommand.NotifyCanExecuteChanged();
+            StopInterpolateQueueCommand.NotifyCanExecuteChanged();
+            ReprocessInterpolateFailedCommand.NotifyCanExecuteChanged();
             AddUpscaleToQueueCommand.NotifyCanExecuteChanged();
+            ClearUpscaleQueueCommand.NotifyCanExecuteChanged();
+            StopUpscaleQueueCommand.NotifyCanExecuteChanged();
+            ReprocessUpscaleFailedCommand.NotifyCanExecuteChanged();
             PlayVideoCommand.NotifyCanExecuteChanged();
             OpenResultFolderCommand.NotifyCanExecuteChanged();
         }
