@@ -129,7 +129,7 @@
   },
   "114": {
     "inputs": {
-      "noise_seed": 910737607644913
+      "noise_seed": 602572627035366
     },
     "class_type": "RandomNoise",
     "_meta": {
@@ -138,7 +138,7 @@
   },
   "115": {
     "inputs": {
-      "noise_seed": 1047213958406802
+      "noise_seed": 510787547823689
     },
     "class_type": "RandomNoise",
     "_meta": {
@@ -223,7 +223,7 @@
   },
   "121": {
     "inputs": {
-      "text": "A single drop of deep violet ink falling into a still glass of clear water\nin slow motion. The ink blooms outward in elaborate, organic tendrils —\ncurling, expanding, then slowly dissolving into a soft lavender haze.\nCamera is static, eye-level with the glass. Extreme slow motion, high\nresolution. Light source from behind the glass, backlighting the ink bloom.\nAudio: a single low resonant tone that fades to silence. No other sound.\nPhotorealistic, hypnotic, visually lush.\n",
+      "text": "A single drop of deep violet ink falling into a still glass of clear water\nin slow motion. The ink blooms outward in elaborate, organic tendrils \u2014\ncurling, expanding, then slowly dissolving into a soft lavender haze.\nCamera is static, eye-level with the glass. Extreme slow motion, high\nresolution. Light source from behind the glass, backlighting the ink bloom.\nAudio: a single low resonant tone that fades to silence. No other sound.\nPhotorealistic, hypnotic, visually lush.\n",
       "clip": [
         "190",
         0
@@ -331,7 +331,7 @@
     },
     "class_type": "VHS_VideoCombine",
     "_meta": {
-      "title": "Video Combine 🎥🅥🅗🅢"
+      "title": "Video Combine \ud83c\udfa5\ud83c\udd65\ud83c\udd57\ud83c\udd62"
     }
   },
   "160": {
@@ -634,7 +634,7 @@
       "PowerLoraLoaderHeaderWidget": {
         "type": "PowerLoraLoaderHeaderWidget"
       },
-      "➕ Add Lora": "",
+      "\u2795 Add Lora": "",
       "model": [
         "332",
         0

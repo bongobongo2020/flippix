@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Diagnostics;
 using System.IO;
 using System.Linq;
+using System.Net.Http;
 using System.Text.Json;
 using System.Threading;
 using System.Threading.Tasks;
@@ -11,6 +12,7 @@ using System.Windows.Input;
 using FlipPix.ComfyUI.Services;
 using FlipPix.Core.Interfaces;
 using CommunityToolkit.Mvvm.ComponentModel;
+using FlipPix.UI.Models;
 using FlipPix.UI.Services;
 
 namespace FlipPix.UI.ViewModels.Video
@@ -128,6 +130,55 @@ namespace FlipPix.UI.ViewModels.Video
             var logEntry = $"[{timestamp}] {message}\n";
             LogOutput += logEntry;
             _logger.LogInfo(message);
+        }
+
+        /// <summary>
+        /// Called from a queue processing catch block when an item fails.
+        /// If the failure looks like a ComfyUI crash (connection error) and auto-restart is enabled,
+        /// attempts to restart ComfyUI and returns true (meaning: reset item to Pending and retry).
+        /// Returns false if item should be marked as Failed.
+        /// </summary>
+        protected async Task<bool> TryHandleCrashAndRetryAsync(BaseQueueItem item, Exception ex, int maxRetries = 2)
+        {
+            bool isConnectionFailure =
+                ex is HttpRequestException ||
+                ex.InnerException is HttpRequestException ||
+                ex.Message.IndexOf("connection", StringComparison.OrdinalIgnoreCase) >= 0 ||
+                ex.Message.IndexOf("refused", StringComparison.OrdinalIgnoreCase) >= 0 ||
+                ex.Message.IndexOf("unreachable", StringComparison.OrdinalIgnoreCase) >= 0 ||
+                ex.Message.IndexOf("WebSocket", StringComparison.OrdinalIgnoreCase) >= 0 ||
+                ex.Message.IndexOf("ComfyUI is not running", StringComparison.OrdinalIgnoreCase) >= 0;
+
+            if (!isConnectionFailure) return false;
+
+            if (item.RetryCount >= maxRetries)
+            {
+                AddLog($"[CrashDetect] Max retries ({maxRetries}) reached for this item — marking Failed");
+                return false;
+            }
+
+            var settings = _settingsService.Settings;
+            if (settings?.AutoRestartComfyUI != true)
+            {
+                AddLog("[CrashDetect] Auto-restart is disabled in settings");
+                return false;
+            }
+
+            AddLog($"[CrashDetect] Connection failure detected: {ex.Message}");
+            AddLog("[CrashDetect] Checking ComfyUI health and attempting restart if needed...");
+
+            var restarted = await _comfyUIService.DetectAndRestartIfCrashedAsync(
+                status => AddLog($"[AutoRestart] {status}"));
+
+            if (restarted)
+            {
+                item.RetryCount++;
+                AddLog($"[AutoRestart] ComfyUI is running. Retrying item (attempt {item.RetryCount}/{maxRetries})...");
+                return true;
+            }
+
+            AddLog("[AutoRestart] Could not restart ComfyUI — marking item as Failed");
+            return false;
         }
 
         #endregion

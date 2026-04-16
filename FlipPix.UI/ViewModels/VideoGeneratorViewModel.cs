@@ -86,6 +86,12 @@ namespace FlipPix.UI.ViewModels
         /// </summary>
         public Wan22SingleViewModel Wan22SingleVM { get; }
 
+        /// <summary>
+        /// Long Video ViewModel - uploads a video, extracts its last frame, analyzes it,
+        /// generates a new video, then repeats up to 5 times using each output as the next input.
+        /// </summary>
+        public LongVideoViewModel LongVideoVM { get; }
+
         // 0 = LTX 2.3, 1 = Wan 2.2 Remix
         private int _singleVideoWorkflowIndex = 0;
         public int SingleVideoWorkflowIndex
@@ -194,6 +200,15 @@ namespace FlipPix.UI.ViewModels
                 _workflowCoordinator,
                 _fileDialogService);
 
+            LongVideoVM = new LongVideoViewModel(
+                comfyUIService,
+                logger,
+                lmStudioService,
+                settingsService,
+                serviceProvider,
+                _workflowCoordinator,
+                _fileDialogService);
+
             // Forward PlayRequested events from sub-VMs
             MainVM.PlayRequested += (s, e) => PlayRequested?.Invoke(this, e);
             VaceVM.PlayRequested += (s, e) => PlayRequested?.Invoke(this, e);
@@ -203,6 +218,7 @@ namespace FlipPix.UI.ViewModels
             LTX23BasicVM.PlayRequested += (s, e) => PlayRequested?.Invoke(this, e);
             LTX23T2VVM.PlayRequested += (s, e) => PlayRequested?.Invoke(this, e);
             Wan22SingleVM.PlayRequested += (s, e) => PlayRequested?.Invoke(this, e);
+            LongVideoVM.PlayRequested += (s, e) => PlayRequested?.Invoke(this, e);
 
             // Forward PropertyChanged events from all sub-VMs for backward compatibility
             MainVM.PropertyChanged += ForwardPropertyChanged;
@@ -213,6 +229,7 @@ namespace FlipPix.UI.ViewModels
             LTX23BasicVM.PropertyChanged += ForwardPropertyChanged;
             LTX23T2VVM.PropertyChanged += ForwardPropertyChanged;
             Wan22SingleVM.PropertyChanged += ForwardPropertyChanged;
+            LongVideoVM.PropertyChanged += ForwardPropertyChanged;
 
             _logger.LogInfo("VideoGeneratorViewModel initialized with sub-ViewModels");
         }
@@ -348,6 +365,8 @@ namespace FlipPix.UI.ViewModels
         public ICommand AddToQueueCommand => MainVM.AddToQueueCommand;
         public ICommand RemoveFromQueueCommand => MainVM.RemoveFromQueueCommand;
         public ICommand ProcessQueueCommand => MainVM.ProcessQueueCommand;
+        public ICommand ClearQueueCommand => MainVM.ClearQueueCommand;
+        public ICommand StopQueueCommand => MainVM.StopQueueCommand;
         public ICommand ReprocessItemCommand => MainVM.ReprocessItemCommand;
         public ICommand ReprocessAllFailedCommand => MainVM.ReprocessAllFailedCommand;
         public ICommand PauseQueueCommand => MainVM.PauseQueueCommand;
@@ -357,6 +376,9 @@ namespace FlipPix.UI.ViewModels
         public ICommand LoadStoryQueueCommand => MainVM.LoadStoryQueueCommand;
         public ICommand ProcessStoryQueueCommand => MainVM.ProcessStoryQueueCommand;
         public ICommand ClearStoryQueueCommand => MainVM.ClearStoryQueueCommand;
+        public ICommand StopStoryQueueCommand => MainVM.StopStoryQueueCommand;
+        public ICommand ReprocessAllStoryFailedCommand => MainVM.ReprocessAllStoryFailedCommand;
+        public bool HasStoryFailedItems => MainVM.HasStoryFailedItems;
         public ICommand PauseStoryQueueCommand => MainVM.PauseStoryQueueCommand;
         public ICommand ResumeStoryQueueCommand => MainVM.ResumeStoryQueueCommand;
         public ICommand ToggleWorkflowCommand => MainVM.ToggleWorkflowCommand;
@@ -399,6 +421,10 @@ namespace FlipPix.UI.ViewModels
         public ICommand SelectVACEVideoCommand => VaceVM.SelectVideoCommand;
         public ICommand GenerateVACEVideoCommand => VaceVM.GenerateVideoCommand;
         public ICommand RemoveVaceQueueItemCommand => VaceVM.RemoveQueueItemCommand;
+        public ICommand ClearVaceQueueCommand => VaceVM.ClearQueueCommand;
+        public ICommand StopVaceQueueCommand => VaceVM.StopQueueCommand;
+        public ICommand ReprocessAllVaceFailedCommand => VaceVM.ReprocessAllFailedCommand;
+        public bool VaceHasFailedItems => VaceVM.HasFailedItems;
         public ICommand PlayVACEVideoCommand => VaceVM.PlayVideoCommand;
         public ICommand OpenVACEResultFolderCommand => VaceVM.OpenResultFolderCommand;
 
@@ -572,6 +598,9 @@ namespace FlipPix.UI.ViewModels
         public bool CanGenerateLTX23Video => LTX23BasicVM.CanAddToQueue;
         public bool CanLTX23AddToQueue => LTX23BasicVM.CanAddToQueue;
 
+        public int LTX23FrameCount { get => LTX23BasicVM.FrameCount; set => LTX23BasicVM.FrameCount = value; }
+        public string LTX23FrameCountHint => LTX23BasicVM.FrameCountHint;
+
         // LMStudio AI properties
         public bool LTX23IsAnalyzing => LTX23BasicVM.IsAnalyzing;
         public bool CanLTX23AnalyzeImage => LTX23BasicVM.CanAnalyzeImage;
@@ -592,6 +621,10 @@ namespace FlipPix.UI.ViewModels
         public ICommand EnhanceLTX23PromptCommand => LTX23BasicVM.EnhancePromptCommand;
         public ICommand GenerateLTX23VideoCommand => LTX23BasicVM.GenerateVideoCommand;
         public ICommand RemoveLTX23QueueItemCommand => LTX23BasicVM.RemoveQueueItemCommand;
+        public ICommand ClearLTX23QueueCommand => LTX23BasicVM.ClearQueueCommand;
+        public ICommand StopLTX23QueueCommand => LTX23BasicVM.StopQueueCommand;
+        public ICommand ReprocessLTX23FailedCommand => LTX23BasicVM.ReprocessAllFailedCommand;
+        public bool LTX23HasFailedItems => LTX23BasicVM.HasFailedItems;
         public ICommand PlayLTX23VideoCommand => LTX23BasicVM.PlayVideoCommand;
         public ICommand OpenLTX23ResultFolderCommand => LTX23BasicVM.OpenResultFolderCommand;
         public ICommand SendLTX23ToEditCameraCommand => LTX23BasicVM.SendToEditCameraCommand;
@@ -626,9 +659,56 @@ namespace FlipPix.UI.ViewModels
         public ICommand AnalyzeWan22ImageCommand => Wan22SingleVM.AnalyzeImageCommand;
         public ICommand GenerateWan22VideoCommand => Wan22SingleVM.GenerateVideoCommand;
         public ICommand RemoveWan22QueueItemCommand => Wan22SingleVM.RemoveQueueItemCommand;
+        public ICommand ClearWan22QueueCommand => Wan22SingleVM.ClearQueueCommand;
+        public ICommand StopWan22QueueCommand => Wan22SingleVM.StopQueueCommand;
+        public ICommand ReprocessWan22FailedCommand => Wan22SingleVM.ReprocessAllFailedCommand;
+        public bool Wan22HasFailedItems => Wan22SingleVM.HasFailedItems;
         public ICommand PlayWan22VideoCommand => Wan22SingleVM.PlayVideoCommand;
         public ICommand OpenWan22ResultFolderCommand => Wan22SingleVM.OpenResultFolderCommand;
         public ICommand SendWan22ToEditCameraCommand => Wan22SingleVM.SendToEditCameraCommand;
+
+        #endregion
+
+        #region LongVideoVM Backward Compatibility Properties
+
+        public string LongVideoPath { get => LongVideoVM.VideoPath; set => LongVideoVM.VideoPath = value; }
+        public string LongVideoInfo => LongVideoVM.VideoInfo;
+        public bool LongVideoHasVideo => LongVideoVM.HasVideo;
+        public int LongVideoMaxIterations { get => LongVideoVM.MaxIterations; set => LongVideoVM.MaxIterations = value; }
+        public int LongVideoCurrentIteration => LongVideoVM.CurrentIteration;
+        public bool LongVideoIsRunning => LongVideoVM.IsRunning;
+        public bool LongVideoCanStart => LongVideoVM.CanStart;
+        public BitmapImage? LongVideoFramePreview => LongVideoVM.CurrentFramePreview;
+        public string LongVideoCurrentAnalysis => LongVideoVM.CurrentAnalysis;
+        public bool LongVideoIsProcessing { get => LongVideoVM.IsProcessing; set => LongVideoVM.IsProcessing = value; }
+        public string LongVideoProcessingStatus => LongVideoVM.ProcessingStatus;
+        public double LongVideoProcessingProgress => LongVideoVM.ProcessingProgress;
+        public string LongVideoProgressPercentage => LongVideoVM.ProgressPercentage;
+        public string LongVideoLogOutput => LongVideoVM.LogOutput;
+        public bool HasLongVideoResult => LongVideoVM.HasResult;
+        public string LongVideoResultPath => LongVideoVM.ResultVideoPath;
+        public string LongVideoResultInfo => LongVideoVM.ResultVideoInfo;
+        public ObservableCollection<LongVideoIterationItem> LongVideoIterations => LongVideoVM.Iterations;
+        public bool LongVideoHasIterations => LongVideoVM.HasIterations;
+
+        public bool LongVideoUseWan => LongVideoVM.UseWanWorkflow;
+        public bool LongVideoUseLTX23 => LongVideoVM.UseLTX23Workflow;
+        public int LongVideoQueueCount => LongVideoVM.QueuedJobCount;
+        public bool LongVideoHasQueuedJobs => LongVideoVM.HasQueuedJobs;
+        public string LongVideoStartButtonContent => LongVideoVM.StartButtonContent;
+
+        public ICommand SelectLongVideoCommand => LongVideoVM.SelectVideoCommand;
+        public ICommand StartLongVideoCommand => LongVideoVM.StartCommand;
+        public ICommand StopLongVideoCommand => LongVideoVM.StopCommand;
+        public ICommand PlayLongVideoResultCommand => LongVideoVM.PlayResultCommand;
+        public ICommand OpenLongVideoResultFolderCommand => LongVideoVM.OpenResultFolderCommand;
+        public ICommand PlayLongVideoIterationCommand => LongVideoVM.PlayIterationVideoCommand;
+        public ICommand OpenLongVideoIterationFolderCommand => LongVideoVM.OpenIterationFolderCommand;
+        public ICommand ToggleLongVideoWorkflowCommand => LongVideoVM.ToggleWorkflowCommand;
+        public bool LongVideoUseWanSinglePrompt => LongVideoVM.UseWanSinglePrompt;
+        public bool LongVideoUseWanFightPrompt => LongVideoVM.UseWanFightPrompt;
+        public ICommand SelectLongVideoWanSinglePromptCommand => LongVideoVM.SelectWanSinglePromptCommand;
+        public ICommand SelectLongVideoWanFightPromptCommand => LongVideoVM.SelectWanFightPromptCommand;
 
         #endregion
 
@@ -659,6 +739,7 @@ namespace FlipPix.UI.ViewModels
                 LTX23BasicVM.PropertyChanged -= ForwardPropertyChanged;
                 LTX23T2VVM.PropertyChanged -= ForwardPropertyChanged;
                 Wan22SingleVM.PropertyChanged -= ForwardPropertyChanged;
+                LongVideoVM.PropertyChanged -= ForwardPropertyChanged;
 
                 // Dispose all sub-ViewModels
                 (MainVM as IDisposable)?.Dispose();
@@ -669,6 +750,7 @@ namespace FlipPix.UI.ViewModels
                 (LTX23BasicVM as IDisposable)?.Dispose();
                 (LTX23T2VVM as IDisposable)?.Dispose();
                 (Wan22SingleVM as IDisposable)?.Dispose();
+                (LongVideoVM as IDisposable)?.Dispose();
 
                 _disposed = true;
             }

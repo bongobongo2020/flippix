@@ -3,6 +3,7 @@ using System.Collections.ObjectModel;
 using System.IO;
 using System.Linq;
 using System.Text.Json;
+using System.Threading;
 using System.Threading.Tasks;
 using System.Windows.Input;
 using System.Windows.Media.Imaging;
@@ -29,10 +30,13 @@ namespace FlipPix.UI.ViewModels.Video
         private string _analysisResult = string.Empty;
         private bool _isProcessingQueue = false;
         private string _queueStatus = string.Empty;
+        private int _srcImageWidth;
+        private int _srcImageHeight;
 
         private readonly IFileDialogService _fileDialogService;
         private readonly LMStudioService _lmStudioService;
         private readonly ObservableCollection<QueueItem> _queue = new();
+        private CancellationTokenSource? _queueCts;
 
         public Wan22SingleViewModel(
             ComfyUIService comfyUIService,
@@ -51,6 +55,9 @@ namespace FlipPix.UI.ViewModels.Video
             AnalyzeImageCommand = new RelayCommand(async () => await AnalyzeImageAsync(), () => CanAnalyzeImage);
             GenerateVideoCommand = new RelayCommand(AddToQueueAndProcess, () => CanAddToQueue);
             RemoveQueueItemCommand = new RelayCommand<QueueItem>(RemoveQueueItem);
+            ClearQueueCommand = new RelayCommand(ClearQueue, () => _queue.Any());
+            StopQueueCommand = new RelayCommand(StopQueue, () => IsProcessingQueue);
+            ReprocessAllFailedCommand = new RelayCommand(async () => await ReprocessAllFailedAsync(), () => HasFailedItems);
             PlayVideoCommand = new RelayCommand(PlayVideo, () => HasResult);
             OpenResultFolderCommand = new RelayCommand(OpenResultFolder, () => HasResult);
             SendToEditCameraCommand = new RelayCommand(SendToEditCamera, () => HasResult);
@@ -71,9 +78,14 @@ namespace FlipPix.UI.ViewModels.Video
         public RelayCommand AnalyzeImageCommand { get; }
         public RelayCommand GenerateVideoCommand { get; }
         public RelayCommand<QueueItem> RemoveQueueItemCommand { get; }
+        public RelayCommand ClearQueueCommand { get; }
+        public RelayCommand StopQueueCommand { get; }
+        public RelayCommand ReprocessAllFailedCommand { get; }
         public RelayCommand PlayVideoCommand { get; }
         public RelayCommand OpenResultFolderCommand { get; }
         public RelayCommand SendToEditCameraCommand { get; }
+
+        public bool HasFailedItems => _queue.Any(x => x.ItemStatus == QueueItemStatus.Failed);
 
         #endregion
 
@@ -226,6 +238,8 @@ namespace FlipPix.UI.ViewModels.Video
                 bitmap.EndInit();
                 bitmap.Freeze();
                 ImagePreview = bitmap;
+                _srcImageWidth = bitmap.PixelWidth;
+                _srcImageHeight = bitmap.PixelHeight;
                 var fi = new FileInfo(ImagePath);
                 ImageInfo = $"{bitmap.PixelWidth}x{bitmap.PixelHeight} • {fi.Length / 1024}KB";
             }
@@ -334,18 +348,56 @@ namespace FlipPix.UI.ViewModels.Video
             QueueStatus = total == 0
                 ? string.Empty
                 : $"{pending} pending • {completed} done • {failed} failed";
+
+            OnPropertyChanged(nameof(HasFailedItems));
+            OnCanExecuteChanged();
+        }
+
+        private void ClearQueue()
+        {
+            _queueCts?.Cancel();
+            foreach (var item in _queue.ToList())
+                _queue.Remove(item);
+            UpdateQueueStatus();
+            AddLog("Queue cleared");
+        }
+
+        private void StopQueue()
+        {
+            _queueCts?.Cancel();
+            AddLog("Queue stop requested");
+        }
+
+        private async Task ReprocessAllFailedAsync()
+        {
+            var failed = _queue.Where(x => x.ItemStatus == QueueItemStatus.Failed).ToList();
+            if (!failed.Any()) return;
+
+            foreach (var item in failed)
+                item.ItemStatus = QueueItemStatus.Pending;
+
+            UpdateQueueStatus();
+            AddLog($"Reprocessing {failed.Count} failed item(s)...");
+
+            if (!IsProcessingQueue)
+                await ProcessQueueAsync();
         }
 
         private async Task ProcessQueueAsync()
         {
             if (IsProcessingQueue) return;
             IsProcessingQueue = true;
+            _queueCts?.Dispose();
+            _queueCts = new CancellationTokenSource();
+            var token = _queueCts.Token;
             AddLog("Starting queue processing...");
+            OnCanExecuteChanged();
 
             try
             {
                 QueueItem? item;
-                while ((item = _queue.FirstOrDefault(x => x.ItemStatus == QueueItemStatus.Pending)) != null)
+                while (!token.IsCancellationRequested &&
+                       (item = _queue.FirstOrDefault(x => x.ItemStatus == QueueItemStatus.Pending)) != null)
                 {
                     item.ItemStatus = QueueItemStatus.Processing;
                     UpdateQueueStatus();
@@ -355,6 +407,12 @@ namespace FlipPix.UI.ViewModels.Video
                         await GenerateWan22VideoAsync(item);
                         item.ItemStatus = QueueItemStatus.Completed;
                         AddLog($"Queue item completed: {Path.GetFileName(item.ImagePath)}");
+                    }
+                    catch (OperationCanceledException)
+                    {
+                        item.ItemStatus = QueueItemStatus.Pending;
+                        AddLog("Queue item cancelled — reset to Pending");
+                        break;
                     }
                     catch (Exception ex)
                     {
@@ -376,6 +434,22 @@ namespace FlipPix.UI.ViewModels.Video
         #endregion
 
         #region Video Generation
+
+        /// <summary>
+        /// Computes Wan-compatible dimensions that preserve the source aspect ratio.
+        /// Targets the same pixel area as the default 1280×720, rounded to multiples of 16.
+        /// </summary>
+        private static (int width, int height) ComputeWanDimensions(int srcWidth, int srcHeight)
+        {
+            if (srcWidth <= 0 || srcHeight <= 0) return (1280, 720);
+            const int targetArea = 1280 * 720; // keep same quality/memory as default
+            double ratio = (double)srcWidth / srcHeight;
+            int w = (int)Math.Round(Math.Sqrt(targetArea * ratio) / 16) * 16;
+            int h = (int)Math.Round(Math.Sqrt(targetArea / ratio) / 16) * 16;
+            w = Math.Clamp(w, 256, 1536);
+            h = Math.Clamp(h, 256, 1536);
+            return (w, h);
+        }
 
         private async Task GenerateWan22VideoAsync(QueueItem item)
         {
@@ -423,12 +497,21 @@ namespace FlipPix.UI.ViewModels.Video
 
                 var rawJson = workflow.GetRawText();
                 var seed = (long)new Random().Next(1, int.MaxValue);
+
+                var (vidW, vidH) = ComputeWanDimensions(_srcImageWidth, _srcImageHeight);
+                AddLog($"Video dimensions: {vidW}x{vidH} (source: {_srcImageWidth}x{_srcImageHeight})");
+
                 WorkflowNodeUpdater.UpdateNodeInput(ref rawJson, "258", "image", uploadedImageName);
                 WorkflowNodeUpdater.UpdateNodeInput(ref rawJson, "6", "text", item.Prompt);
                 WorkflowNodeUpdater.UpdateNodeInput(ref rawJson, "57", "noise_seed", seed);
                 WorkflowNodeUpdater.UpdateNodeInput(ref rawJson, "58", "noise_seed", seed);
                 WorkflowNodeUpdater.UpdateNodeInput(ref rawJson, "304", "filename_prefix",
                     $"{DateTime.Now:yyyyMMdd_HHmmss}_Wan2.2");
+                // Match video dimensions to image aspect ratio
+                WorkflowNodeUpdater.UpdateNodeInput(ref rawJson, "131", "value", vidW); // Width constant
+                WorkflowNodeUpdater.UpdateNodeInput(ref rawJson, "130", "value", vidH); // Height constant
+                WorkflowNodeUpdater.UpdateNodeInput(ref rawJson, "445", "width", vidW); // PainterI2V
+                WorkflowNodeUpdater.UpdateNodeInput(ref rawJson, "445", "height", vidH);
 
                 var updatedWorkflow = JsonSerializer.Deserialize<JsonElement>(rawJson);
 
@@ -538,6 +621,9 @@ namespace FlipPix.UI.ViewModels.Video
         {
             base.OnCanExecuteChanged();
             GenerateVideoCommand.NotifyCanExecuteChanged();
+            ClearQueueCommand.NotifyCanExecuteChanged();
+            StopQueueCommand.NotifyCanExecuteChanged();
+            ReprocessAllFailedCommand.NotifyCanExecuteChanged();
             PlayVideoCommand.NotifyCanExecuteChanged();
             OpenResultFolderCommand.NotifyCanExecuteChanged();
             SendToEditCameraCommand.NotifyCanExecuteChanged();

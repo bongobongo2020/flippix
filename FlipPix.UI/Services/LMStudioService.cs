@@ -322,6 +322,8 @@ namespace FlipPix.UI.Services
                 var dataUrl = $"data:image/jpeg;base64,{base64Image}";
 
                 _logger.LogInfo($"Sending resized image for analysis with system prompt: {imageBytes.Length} bytes (jpeg 512px), max_tokens: {maxTokens}");
+                _logger.LogInfo($"System prompt ({systemPrompt.Length} chars): {systemPrompt.Substring(0, Math.Min(1000, systemPrompt.Length))}");
+                _logger.LogInfo($"User prompt: {userPrompt}");
 
                 // Create the request with vision and system prompt
                 var requestBody = new

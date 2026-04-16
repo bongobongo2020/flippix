@@ -54,6 +54,11 @@ namespace FlipPix.UI.Models
         public string? ErrorMessage { get; set; }
 
         /// <summary>
+        /// Number of automatic retry attempts made (used by crash-detection logic)
+        /// </summary>
+        public int RetryCount { get; set; } = 0;
+
+        /// <summary>
         /// Current status of the item (Pending, Processing, Completed, Failed, etc.)
         /// </summary>
         public string Status

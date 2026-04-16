@@ -4,7 +4,6 @@
       "filename_prefix": "output",
       "format": "auto",
       "codec": "auto",
-      "video-preview": "",
       "video": [
         "5027:4849",
         0
@@ -40,8 +39,8 @@
   "5030": {
     "inputs": {
       "resize_type": "scale by multiplier",
-      "resize_type.scale": 2,
-      "quality": "ULTRA",
+      "resize_type.scale": 1.5,
+      "quality": "HIGH",
       "images": [
         "5027:4851",
         0
@@ -143,7 +142,7 @@
   },
   "5002:4832": {
     "inputs": {
-      "noise_seed": 815816628358171
+      "noise_seed": 213127991779268
     },
     "class_type": "RandomNoise",
     "_meta": {
@@ -170,7 +169,7 @@
   },
   "5001:4967": {
     "inputs": {
-      "noise_seed": 439745432661753
+      "noise_seed": 537921946145096
     },
     "class_type": "RandomNoise",
     "_meta": {
@@ -197,7 +196,7 @@
   },
   "5012:5009": {
     "inputs": {
-      "noise_seed": 162549053116077
+      "noise_seed": 74322364081263
     },
     "class_type": "RandomNoise",
     "_meta": {
@@ -211,6 +210,20 @@
     "class_type": "PrimitiveInt",
     "_meta": {
       "title": "number of frames"
+    }
+  },
+  "5025:5023": {
+    "inputs": {
+      "lora_name": "LTX-23\\ltx-2.3-22b-distilled-lora-dynamic_fro09_avg_rank_105_bf16.safetensors",
+      "strength_model": 0.5,
+      "model": [
+        "5031",
+        0
+      ]
+    },
+    "class_type": "LoraLoaderModelOnly",
+    "_meta": {
+      "title": "Load LoRA"
     }
   },
   "5026:5018": {
@@ -264,20 +277,6 @@
     "class_type": "CM_FloatToInt",
     "_meta": {
       "title": "FloatToInt"
-    }
-  },
-  "5025:5023": {
-    "inputs": {
-      "lora_name": "ltx2\\ltx-2.3-22b-distilled-lora-dynamic_fro09_avg_rank_105_bf16.safetensors",
-      "strength_model": 0.5,
-      "model": [
-        "5031",
-        0
-      ]
-    },
-    "class_type": "LoraLoaderModelOnly",
-    "_meta": {
-      "title": "Load LoRA"
     }
   },
   "5013:3059": {

@@ -943,7 +943,7 @@
                         <StackPanel>
                             <TextBlock Text="Queue Controls" Style="{StaticResource HeaderTextStyle}" Foreground="#10B981"/>
 
-                            <Grid>
+                            <Grid Margin="0,0,0,8">
                                 <Grid.ColumnDefinitions>
                                     <ColumnDefinition Width="*"/>
                                     <ColumnDefinition Width="*"/>
@@ -967,6 +967,53 @@
                                             <Style.Triggers>
                                                 <Trigger Property="IsMouseOver" Value="True">
                                                     <Setter Property="Background" Value="#E55563"/>
+                                                </Trigger>
+                                            </Style.Triggers>
+                                        </Style>
+                                    </Button.Style>
+                                </Button>
+                            </Grid>
+
+                            <Grid Margin="0,0,0,8">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*"/>
+                                    <ColumnDefinition Width="*"/>
+                                </Grid.ColumnDefinitions>
+
+                                <Button Grid.Column="0"
+                                       Content="🔄 Retry Failed"
+                                       Command="{Binding ReprocessAllFailedCommand}"
+                                       Margin="0,0,5,0"
+                                       Height="38">
+                                    <Button.Style>
+                                        <Style TargetType="Button" BasedOn="{StaticResource SecondaryButtonStyle}">
+                                            <Setter Property="Background" Value="#FFA500"/>
+                                            <Style.Triggers>
+                                                <Trigger Property="IsMouseOver" Value="True">
+                                                    <Setter Property="Background" Value="#FF8C00"/>
+                                                </Trigger>
+                                                <Trigger Property="IsEnabled" Value="False">
+                                                    <Setter Property="Background" Value="#CCC"/>
+                                                </Trigger>
+                                            </Style.Triggers>
+                                        </Style>
+                                    </Button.Style>
+                                </Button>
+
+                                <Button Grid.Column="1"
+                                       Content="⏹ Stop Queue"
+                                       Command="{Binding CancelProcessingCommand}"
+                                       Margin="5,0,0,0"
+                                       Height="38">
+                                    <Button.Style>
+                                        <Style TargetType="Button" BasedOn="{StaticResource SecondaryButtonStyle}">
+                                            <Setter Property="Background" Value="#F59E0B"/>
+                                            <Style.Triggers>
+                                                <Trigger Property="IsMouseOver" Value="True">
+                                                    <Setter Property="Background" Value="#D97706"/>
+                                                </Trigger>
+                                                <Trigger Property="IsEnabled" Value="False">
+                                                    <Setter Property="Background" Value="#CCC"/>
                                                 </Trigger>
                                             </Style.Triggers>
                                         </Style>

@@ -44,6 +44,12 @@ namespace FlipPix.UI
                 VideoPlayer.Position = System.TimeSpan.Zero;
                 VideoPlayer.Play();
             }
+
+            if (LongVideoPlayer != null && LongVideoPlayer.Source != null)
+            {
+                LongVideoPlayer.Position = System.TimeSpan.Zero;
+                LongVideoPlayer.Play();
+            }
         }
 
         protected override void OnClosed(EventArgs e)
@@ -51,6 +57,10 @@ namespace FlipPix.UI
             if (VideoPlayer != null)
             {
                 VideoPlayer.Stop();
+            }
+            if (LongVideoPlayer != null)
+            {
+                LongVideoPlayer.Stop();
             }
             _viewModel.PlayRequested -= OnPlayRequested;
 

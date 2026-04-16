@@ -71,6 +71,7 @@ namespace FlipPix.UI.ViewModels.Video
         private readonly ObservableCollection<QueueItem> _promptQueue = new();
         private bool _isQueuePaused = false;
         private readonly ManualResetEventSlim _pauseEvent = new(true);
+        private CancellationTokenSource? _promptQueueCts;
 
         // Story Video Generator properties
         private string _storyPromptJsonPath = string.Empty;
@@ -83,6 +84,7 @@ namespace FlipPix.UI.ViewModels.Video
         private readonly ObservableCollection<StoryVideoQueueItem> _storyVideoQueue = new();
         private bool _isStoryQueuePaused = false;
         private readonly ManualResetEventSlim _storyPauseEvent = new(true);
+        private CancellationTokenSource? _storyQueueCts;
 
         // Workflow selection
         private string _selectedWorkflow = "ltx2_i2v";
@@ -143,6 +145,8 @@ namespace FlipPix.UI.ViewModels.Video
             AddToQueueCommand = new RelayCommand(AddToQueue, () => CanAddToQueue);
             RemoveFromQueueCommand = new RelayCommand<QueueItem>(RemoveFromQueue);
             ProcessQueueCommand = new RelayCommand(async () => await ProcessQueueAsync(), () => CanProcessQueue);
+            ClearQueueCommand = new RelayCommand(ClearQueue, () => PromptQueue.Any());
+            StopQueueCommand = new RelayCommand(StopQueue, () => IsProcessingQueue);
             ReprocessItemCommand = new RelayCommand<QueueItem>(async (item) => await ReprocessItemAsync(item));
             ReprocessAllFailedCommand = new RelayCommand(async () => await ReprocessAllFailedAsync(), () => HasFailedItems);
             PauseQueueCommand = new RelayCommand(PauseQueue, () => IsProcessingQueue && !IsQueuePaused);
@@ -154,6 +158,8 @@ namespace FlipPix.UI.ViewModels.Video
             LoadStoryQueueCommand = new RelayCommand(async () => await LoadStoryQueueAsync(), () => CanLoadStoryQueue);
             ProcessStoryQueueCommand = new RelayCommand(async () => await ProcessStoryQueueAsync(), () => CanProcessStoryQueue);
             ClearStoryQueueCommand = new RelayCommand(ClearStoryQueue, () => StoryVideoQueue.Any());
+            StopStoryQueueCommand = new RelayCommand(StopStoryQueue, () => IsProcessingStoryQueue);
+            ReprocessAllStoryFailedCommand = new RelayCommand(async () => await ReprocessAllStoryFailedAsync(), () => HasStoryFailedItems);
             PauseStoryQueueCommand = new RelayCommand(PauseStoryQueue, () => IsProcessingStoryQueue && !IsStoryQueuePaused);
             ResumeStoryQueueCommand = new RelayCommand(ResumeStoryQueue, () => IsProcessingStoryQueue && IsStoryQueuePaused);
 
@@ -846,6 +852,8 @@ namespace FlipPix.UI.ViewModels.Video
         public RelayCommand AddToQueueCommand { get; }
         public ICommand RemoveFromQueueCommand { get; }
         public RelayCommand ProcessQueueCommand { get; }
+        public RelayCommand ClearQueueCommand { get; }
+        public RelayCommand StopQueueCommand { get; }
         public ICommand ReprocessItemCommand { get; }
         public RelayCommand ReprocessAllFailedCommand { get; }
         public RelayCommand PauseQueueCommand { get; }
@@ -857,6 +865,9 @@ namespace FlipPix.UI.ViewModels.Video
         public RelayCommand LoadStoryQueueCommand { get; }
         public RelayCommand ProcessStoryQueueCommand { get; }
         public RelayCommand ClearStoryQueueCommand { get; }
+        public RelayCommand StopStoryQueueCommand { get; }
+        public RelayCommand ReprocessAllStoryFailedCommand { get; }
+        public bool HasStoryFailedItems => StoryVideoQueue.Any(x => x.Status == "Failed");
         public RelayCommand PauseStoryQueueCommand { get; }
         public RelayCommand ResumeStoryQueueCommand { get; }
 
@@ -873,6 +884,8 @@ namespace FlipPix.UI.ViewModels.Video
             CopyAnalysisCommand.NotifyCanExecuteChanged();
             AddToQueueCommand.NotifyCanExecuteChanged();
             ProcessQueueCommand.NotifyCanExecuteChanged();
+            ClearQueueCommand.NotifyCanExecuteChanged();
+            StopQueueCommand.NotifyCanExecuteChanged();
             ReprocessAllFailedCommand.NotifyCanExecuteChanged();
             PauseQueueCommand.NotifyCanExecuteChanged();
             ResumeQueueCommand.NotifyCanExecuteChanged();
@@ -882,6 +895,8 @@ namespace FlipPix.UI.ViewModels.Video
             LoadStoryQueueCommand.NotifyCanExecuteChanged();
             ProcessStoryQueueCommand.NotifyCanExecuteChanged();
             ClearStoryQueueCommand.NotifyCanExecuteChanged();
+            StopStoryQueueCommand.NotifyCanExecuteChanged();
+            ReprocessAllStoryFailedCommand.NotifyCanExecuteChanged();
             PauseStoryQueueCommand.NotifyCanExecuteChanged();
             ResumeStoryQueueCommand.NotifyCanExecuteChanged();
         }
@@ -1375,22 +1390,44 @@ namespace FlipPix.UI.ViewModels.Video
             }
         }
 
+        private void ClearQueue()
+        {
+            _promptQueueCts?.Cancel();
+            foreach (var item in PromptQueue.ToList())
+                PromptQueue.Remove(item);
+            SaveQueueToFile();
+            UpdateQueueStatus();
+            AddLog("Prompt queue cleared");
+        }
+
+        private void StopQueue()
+        {
+            _promptQueueCts?.Cancel();
+            AddLog("Prompt queue stop requested");
+        }
+
         private async Task ProcessQueueAsync()
         {
             if (!PromptQueue.Any()) return;
 
             IsProcessingQueue = true;
+            _promptQueueCts?.Dispose();
+            _promptQueueCts = new CancellationTokenSource();
+            var linkedCts = CancellationTokenSource.CreateLinkedTokenSource(_promptQueueCts.Token, App.ShutdownToken);
+            var token = linkedCts.Token;
+            NotifyCommandsCanExecuteChanged();
             AddLog("Waiting for other workflows to finish...");
 
             WorkflowQueueCoordinator.WorkflowLease lease;
             try
             {
-                lease = await _workflowCoordinator.AcquireAsync("VideoGenerator", App.ShutdownToken);
+                lease = await _workflowCoordinator.AcquireAsync("VideoGenerator", token);
             }
             catch (OperationCanceledException)
             {
                 AddLog("Queue processing cancelled while waiting");
                 IsProcessingQueue = false;
+                NotifyCommandsCanExecuteChanged();
                 return;
             }
 
@@ -1401,11 +1438,12 @@ namespace FlipPix.UI.ViewModels.Video
                 try
                 {
                     QueueItem? item;
-                    while ((item = PromptQueue.FirstOrDefault(x => x.ItemStatus == QueueItemStatus.Pending)) != null)
+                    while (!token.IsCancellationRequested &&
+                           (item = PromptQueue.FirstOrDefault(x => x.ItemStatus == QueueItemStatus.Pending)) != null)
                     {
                         if (IsProcessing) break;
 
-                        _pauseEvent.Wait(App.ShutdownToken);
+                        _pauseEvent.Wait(token);
 
                         try
                         {
@@ -1436,16 +1474,33 @@ namespace FlipPix.UI.ViewModels.Video
                         }
                         catch (Exception ex)
                         {
-                            item.ItemStatus = QueueItemStatus.Failed;
-                            UpdateQueueStatus();
-                            SaveQueueToFile();
-                            AddLog($"Error processing queue item: {ex.Message}");
+                            var shouldRetry = await TryHandleCrashAndRetryAsync(item, ex);
+                            if (shouldRetry)
+                            {
+                                item.ItemStatus = QueueItemStatus.Pending;
+                                UpdateQueueStatus();
+                                SaveQueueToFile();
+                                AddLog("Item reset to Pending — will retry after ComfyUI restart");
+                            }
+                            else
+                            {
+                                item.ItemStatus = QueueItemStatus.Failed;
+                                UpdateQueueStatus();
+                                SaveQueueToFile();
+                                AddLog($"Error processing queue item: {ex.Message}");
+                            }
                         }
                     }
 
                     UpdateQueueStatus();
                     SaveQueueToFile();
                     AddLog("=== Queue processing completed ===");
+                }
+                catch (OperationCanceledException)
+                {
+                    AddLog("Queue processing stopped by user");
+                    UpdateQueueStatus();
+                    SaveQueueToFile();
                 }
                 catch (Exception ex)
                 {
@@ -2147,16 +2202,22 @@ namespace FlipPix.UI.ViewModels.Video
         {
             if (!CanProcessStoryQueue) return;
 
+            _storyQueueCts?.Dispose();
+            _storyQueueCts = new CancellationTokenSource();
+            var linkedCts = CancellationTokenSource.CreateLinkedTokenSource(_storyQueueCts.Token, App.ShutdownToken);
+            var token = linkedCts.Token;
+            NotifyCommandsCanExecuteChanged();
             AddLog("Waiting for other workflows to finish...");
 
             WorkflowQueueCoordinator.WorkflowLease lease;
             try
             {
-                lease = await _workflowCoordinator.AcquireAsync("StoryVideo", App.ShutdownToken);
+                lease = await _workflowCoordinator.AcquireAsync("StoryVideo", token);
             }
             catch (OperationCanceledException)
             {
                 AddLog("Queue processing cancelled while waiting");
+                NotifyCommandsCanExecuteChanged();
                 return;
             }
 
@@ -2173,7 +2234,8 @@ namespace FlipPix.UI.ViewModels.Video
 
                     foreach (var item in pendingItems)
                     {
-                        _storyPauseEvent.Wait(App.ShutdownToken);
+                        if (token.IsCancellationRequested) break;
+                        _storyPauseEvent.Wait(token);
 
                         CurrentStoryQueueItem = item;
                         item.Status = "Processing";
@@ -2225,6 +2287,12 @@ namespace FlipPix.UI.ViewModels.Video
                     }
 
                     AddLog("=== Story queue processing completed ===");
+                }
+                catch (OperationCanceledException)
+                {
+                    AddLog("Story queue stopped by user");
+                    UpdateStoryQueueStatus();
+                    SaveStoryQueueToFile();
                 }
                 catch (Exception ex)
                 {
@@ -2300,11 +2368,13 @@ namespace FlipPix.UI.ViewModels.Video
             }
 
             OnPropertyChanged(nameof(CanProcessStoryQueue));
+            OnPropertyChanged(nameof(HasStoryFailedItems));
             NotifyCommandsCanExecuteChanged();
         }
 
         private void ClearStoryQueue()
         {
+            _storyQueueCts?.Cancel();
             StoryVideoQueue.Clear();
             UpdateStoryQueueStatus();
             AddLog("Story queue cleared");
@@ -2315,6 +2385,33 @@ namespace FlipPix.UI.ViewModels.Video
             {
                 File.Delete(queueFilePath);
             }
+        }
+
+        private void StopStoryQueue()
+        {
+            _storyQueueCts?.Cancel();
+            _storyPauseEvent.Set();
+            AddLog("Story queue stop requested");
+        }
+
+        private async Task ReprocessAllStoryFailedAsync()
+        {
+            var failed = StoryVideoQueue.Where(x => x.Status == "Failed").ToList();
+            if (!failed.Any()) return;
+
+            foreach (var item in failed)
+            {
+                item.Status = "Pending";
+                item.ErrorMessage = null;
+                item.Progress = 0;
+            }
+
+            UpdateStoryQueueStatus();
+            SaveStoryQueueToFile();
+            AddLog($"Reprocessing {failed.Count} failed story item(s)...");
+
+            if (!IsProcessingStoryQueue)
+                await ProcessStoryQueueAsync();
         }
 
         private void PauseStoryQueue()
@@ -2378,7 +2475,7 @@ namespace FlipPix.UI.ViewModels.Video
                     {
                         if (item.ItemStatus == QueueItemStatus.Processing)
                         {
-                            item.ItemStatus = QueueItemStatus.Failed;
+                            item.ItemStatus = QueueItemStatus.Pending;
                         }
                         _promptQueue.Add(item);
                     }
