@@ -181,7 +181,7 @@ namespace FlipPix.UI.Services
 
                 if (result?.Choices?.Count > 0)
                 {
-                    var analysis = StripThinkingBlocks(result.Choices[0].Message?.Content?.Trim() ?? string.Empty);
+                    var analysis = StripThinkingBlocks(result.Choices[0].Message?.EffectiveContent?.Trim() ?? string.Empty);
 
                     // Log only a preview of the analysis to avoid memory issues
                     var preview = analysis.Length > 200 ? analysis.Substring(0, 200) + "..." : analysis;
@@ -277,7 +277,7 @@ namespace FlipPix.UI.Services
 
                 if (result?.Choices?.Count > 0)
                 {
-                    var analysis = StripThinkingBlocks(result.Choices[0].Message?.Content?.Trim() ?? string.Empty);
+                    var analysis = StripThinkingBlocks(result.Choices[0].Message?.EffectiveContent?.Trim() ?? string.Empty);
                     var preview = analysis.Length > 200 ? analysis.Substring(0, 200) + "..." : analysis;
                     _logger.LogInfo($"Two-image analysis completed (length: {analysis.Length}): {preview}");
                     return analysis;
@@ -389,7 +389,7 @@ namespace FlipPix.UI.Services
 
                 if (result?.Choices?.Count > 0)
                 {
-                    var analysis = StripThinkingBlocks(result.Choices[0].Message?.Content?.Trim() ?? string.Empty);
+                    var analysis = StripThinkingBlocks(result.Choices[0].Message?.EffectiveContent?.Trim() ?? string.Empty);
 
                     // Log only a preview of the analysis to avoid memory issues
                     var preview = analysis.Length > 200 ? analysis.Substring(0, 200) + "..." : analysis;
@@ -484,7 +484,7 @@ namespace FlipPix.UI.Services
 
                 if (result?.Choices?.Count > 0)
                 {
-                    var enhancedPrompt = StripThinkingBlocks(result.Choices[0].Message?.Content?.Trim() ?? string.Empty);
+                    var enhancedPrompt = StripThinkingBlocks(result.Choices[0].Message?.EffectiveContent?.Trim() ?? string.Empty);
 
                     // Log only a preview of the enhanced prompt to avoid memory issues
                     var preview = enhancedPrompt.Length > 200 ? enhancedPrompt.Substring(0, 200) + "..." : enhancedPrompt;
@@ -565,7 +565,7 @@ namespace FlipPix.UI.Services
 
                 if (result?.Choices?.Count > 0)
                 {
-                    var text = StripThinkingBlocks(result.Choices[0].Message?.Content?.Trim() ?? string.Empty);
+                    var text = StripThinkingBlocks(result.Choices[0].Message?.EffectiveContent?.Trim() ?? string.Empty);
                     _logger.LogInfo($"SendTextChatAsync completed, response length={text.Length}");
                     return text;
                 }
@@ -639,7 +639,7 @@ namespace FlipPix.UI.Services
 
                 if (result?.Choices?.Count > 0)
                 {
-                    var analysis = StripThinkingBlocks(result.Choices[0].Message?.Content?.Trim() ?? string.Empty);
+                    var analysis = StripThinkingBlocks(result.Choices[0].Message?.EffectiveContent?.Trim() ?? string.Empty);
                     var preview = analysis.Length > 200 ? analysis.Substring(0, 200) + "..." : analysis;
                     _logger.LogInfo($"Multi-image analysis completed (length: {analysis.Length}): {preview}");
                     return analysis;

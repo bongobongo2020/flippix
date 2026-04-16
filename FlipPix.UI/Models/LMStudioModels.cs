@@ -57,6 +57,16 @@ namespace FlipPix.UI.Models
 
         [JsonPropertyName("content")]
         public string Content { get; set; } = string.Empty;
+
+        // DeepSeek/Gemma reasoning format: thinking goes here when reasoning_in_content=false
+        [JsonPropertyName("reasoning_content")]
+        public string? ReasoningContent { get; set; }
+
+        // Returns the actual text regardless of which field the model put it in
+        [JsonIgnore]
+        public string EffectiveContent => string.IsNullOrEmpty(Content)
+            ? (ReasoningContent ?? string.Empty)
+            : Content;
     }
 
     public class LMStudioChatResponse

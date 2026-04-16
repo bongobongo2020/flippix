@@ -1369,7 +1369,7 @@ namespace FlipPix.UI.ViewModels
                     modelToUse,
                     SourceImagePath,
                     analysisPrompt,
-                    maxTokens: 200,
+                    maxTokens: 2000,
                     _cancellationTokenSource.Token);
 
                 if (!string.IsNullOrEmpty(analysisResult))
