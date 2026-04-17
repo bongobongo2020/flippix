@@ -78,6 +78,95 @@ namespace FlipPix.UI.Services
         }
 
         /// <summary>
+        /// Strips chain-of-thought / thinking preamble from a model response, returning only the
+        /// final output paragraph.
+        /// </summary>
+        public static string StripThinking(string text)
+        {
+            if (string.IsNullOrWhiteSpace(text))
+                return string.Empty;
+
+            // 1. XML thinking tags: <think>...</think> or <thinking>...</thinking>
+            //    Qwen3/DeepSeek reasoning models emit </think> before their actual response.
+            var afterTag = Regex.Match(text, @"</think(?:ing)?>\s*([\s\S]+)$", RegexOptions.IgnoreCase);
+            if (afterTag.Success)
+            {
+                var r = afterTag.Groups[1].Value.Trim();
+                // Even if the content after </think> is short/truncated, it is the real output
+                if (r.Length > 0) return r;
+            }
+
+            // 2. Smart/curly quotes "..." — models wrap the final draft paragraph in these.
+            //    Find the LAST such block (the final revision is always last).
+            //    U+201C = left double quotation mark, U+201D = right double quotation mark.
+            var curlyQ = Regex.Matches(text, "\u201C([^\u201C\u201D]{80,})\u201D");
+            if (curlyQ.Count > 0)
+                return curlyQ[curlyQ.Count - 1].Groups[1].Value.Trim();
+
+            // 3. Intro phrase "Let's draft it carefully:" (or similar) followed by paragraph.
+            var draftIntro = Regex.Matches(
+                text,
+                @"(?:let'?s?\s+draft[^:\n]*|here'?s?\s+(?:the\s+)?(?:final\s+)?draft[^:\n]*)\s*:?\s*\n+([\s\S]{80,}?)(?:\n\s*\n\d+\.|$)",
+                RegexOptions.IgnoreCase);
+            if (draftIntro.Count > 0)
+            {
+                var candidate = draftIntro[draftIntro.Count - 1].Groups[1].Value.Trim();
+                // Strip surrounding straight/curly quotes if present
+                candidate = Regex.Replace(candidate, @"^[\u201C\u201D""\u2018\u2019']+|[\u201C\u201D""\u2018\u2019']+$", "").Trim();
+                candidate = StripPostPromptMeta(candidate);
+                if (candidate.Length > 50) return candidate;
+            }
+
+            // 4. Italic/bold section labels: *Final Draft:*, *Final Check:*, *Revised Draft:*, etc.
+            //    followed immediately by a newline + paragraph content.
+            var labelMatches = Regex.Matches(
+                text,
+                @"\*{1,2}[^\*\n]{0,80}(?:Draft|Output|Prompt|Check|Answer)[^\*\n]{0,80}\*{1,2}[^\n]*\n([ \t]*[^\-\*\d\n][^\n]{60,}(?:\n(?![ \t]*[\*\-•\d])[^\n]*)*)",
+                RegexOptions.IgnoreCase);
+            if (labelMatches.Count > 0)
+            {
+                var candidate = labelMatches[labelMatches.Count - 1].Groups[1].Value.Trim();
+                candidate = Regex.Replace(candidate, @"^[\u201C\u201D""\u2018\u2019']+|[\u201C\u201D""\u2018\u2019']+$", "").Trim();
+                candidate = StripPostPromptMeta(candidate);
+                if (candidate.Length > 50) return candidate;
+            }
+
+            // 5. Last substantial paragraph that does not look like analysis/reasoning.
+            //    Split on single blank lines (with optional spaces/tabs — but NOT more newlines).
+            var paragraphs = Regex.Split(text, @"\n[ \t]*\n")
+                .Select(p => p.Trim())
+                .Where(p => p.Length > 80)
+                .ToList();
+
+            var analysisLine = new Regex(
+                @"^(?:\d+[\.\)]\s|[ \t]*[\*\-•]\s|\*\*|Here'?s?\s+(?:a\s+)?think|Let me\s|I'?ll\s|I will\s|Step \d|Check:|Note:|Draft:|Refine|Deconstruct|Self-Correct|All constraint|Ready\.?|Proceed|This matches)",
+                RegexOptions.IgnoreCase);
+
+            for (int i = paragraphs.Count - 1; i >= 0; i--)
+            {
+                if (!analysisLine.IsMatch(paragraphs[i]))
+                {
+                    var result = paragraphs[i];
+                    // Strip surrounding quotes the model may have left
+                    result = Regex.Replace(result, @"^[\u201C\u201D""\u2018\u2019']+|[\u201C\u201D""\u2018\u2019']+$", "").Trim();
+                    return result;
+                }
+            }
+
+            return text.Trim();
+        }
+
+        private static string StripPostPromptMeta(string text)
+        {
+            // Remove trailing meta-commentary that sometimes follows the final paragraph
+            return Regex.Replace(
+                text,
+                @"\s*(?:✅|☑️?|Proceeds\.?|Ready\.?|Note:[\s\S]*|All constraints[\s\S]*|Self-Correction[\s\S]*)$",
+                string.Empty,
+                RegexOptions.IgnoreCase).Trim();
+        }
+
+        /// <summary>
         /// Clean and normalize a prompt string
         /// </summary>
         /// <param name="prompt">Raw prompt string</param>

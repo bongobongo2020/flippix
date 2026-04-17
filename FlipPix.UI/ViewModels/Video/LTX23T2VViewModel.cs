@@ -31,6 +31,7 @@ namespace FlipPix.UI.ViewModels.Video
         private string _queueStatus = string.Empty;
         private readonly ObservableCollection<QueueItem> _queue = new();
         private static readonly Random _rng = new();
+        private CancellationTokenSource? _queueCts;
 
         public LTX23T2VViewModel(
             ComfyUIService comfyUIService,
@@ -188,12 +189,30 @@ namespace FlipPix.UI.ViewModels.Video
             if (IsProcessingQueue) return;
 
             IsProcessingQueue = true;
-            AddLog("Starting queue processing...");
+            _queueCts?.Dispose();
+            _queueCts = CancellationTokenSource.CreateLinkedTokenSource(App.ShutdownToken);
+            var token = _queueCts.Token;
+            AddLog("Waiting for other workflows to finish...");
 
+            WorkflowQueueCoordinator.WorkflowLease lease;
+            try
+            {
+                lease = await _workflowCoordinator.AcquireAsync("LTX23T2V", token);
+            }
+            catch (OperationCanceledException)
+            {
+                AddLog("Queue processing cancelled while waiting");
+                IsProcessingQueue = false;
+                return;
+            }
+
+            AddLog("Starting queue processing...");
+            using (lease)
             try
             {
                 QueueItem? item;
-                while ((item = _queue.FirstOrDefault(x => x.ItemStatus == QueueItemStatus.Pending)) != null)
+                while (!token.IsCancellationRequested &&
+                       (item = _queue.FirstOrDefault(x => x.ItemStatus == QueueItemStatus.Pending)) != null)
                 {
                     item.ItemStatus = QueueItemStatus.Processing;
                     UpdateQueueStatus();
@@ -203,6 +222,12 @@ namespace FlipPix.UI.ViewModels.Video
                         await GenerateSingleVideoAsync(item);
                         item.ItemStatus = QueueItemStatus.Completed;
                         AddLog("Queue item completed.");
+                    }
+                    catch (OperationCanceledException)
+                    {
+                        item.ItemStatus = QueueItemStatus.Pending;
+                        AddLog("Queue item cancelled — reset to Pending");
+                        break;
                     }
                     catch (Exception ex)
                     {
