@@ -369,11 +369,11 @@ namespace FlipPix.UI.ViewModels.Video
 
                 var enhanceSystemPrompt = await File.ReadAllTextAsync(enhancePromptPath);
                 var enhanced = await _lmStudioService.SendTextChatAsync(
-                    selectedModel, enhanceSystemPrompt, analysisResult, maxTokens: 2000);
+                    selectedModel, enhanceSystemPrompt, analysisResult, maxTokens: 6000);
 
-                Prompt = enhanced;
+                Prompt = PromptParser.StripThinking(enhanced);
                 ShowVideoPrompt = true;
-                AddLog($"Prompt enhanced ({enhanced.Length} chars)");
+                AddLog($"Prompt enhanced ({Prompt.Length} chars)");
 
                 // Step 3: Auto-queue and process
                 if (CanAddToQueue)
@@ -426,11 +426,11 @@ namespace FlipPix.UI.ViewModels.Video
 
                 var systemPrompt = await File.ReadAllTextAsync(promptFilePath);
                 var enhanced = await _lmStudioService.SendTextChatAsync(
-                    selectedModel, systemPrompt, AnalysisResult, maxTokens: 2000);
+                    selectedModel, systemPrompt, AnalysisResult, maxTokens: 6000);
 
-                Prompt = enhanced;
+                Prompt = PromptParser.StripThinking(enhanced);
                 ShowVideoPrompt = true;
-                AddLog($"Prompt enhanced ({enhanced.Length} chars)");
+                AddLog($"Prompt enhanced ({Prompt.Length} chars)");
 
                 if (CanAddToQueue)
                 {
@@ -540,9 +540,24 @@ namespace FlipPix.UI.ViewModels.Video
             _queueCts?.Dispose();
             _queueCts = new CancellationTokenSource();
             var token = _queueCts.Token;
-            AddLog("Starting queue processing...");
+            AddLog("Waiting for other workflows to finish...");
             OnCanExecuteChanged();
 
+            WorkflowQueueCoordinator.WorkflowLease lease;
+            try
+            {
+                lease = await _workflowCoordinator.AcquireAsync("LTX23Basic", token);
+            }
+            catch (OperationCanceledException)
+            {
+                AddLog("Queue processing cancelled while waiting");
+                IsProcessingQueue = false;
+                OnCanExecuteChanged();
+                return;
+            }
+
+            AddLog("Starting queue processing...");
+            using (lease)
             try
             {
                 QueueItem? item;
@@ -644,8 +659,8 @@ namespace FlipPix.UI.ViewModels.Video
                 ProcessingProgress = 0;
                 ProcessingStatus = "Preparing workflow...";
 
-                // Detect image orientation and set constrained dimensions
-                int itemWidth = 320, itemHeight = 224; // default landscape
+                // Detect image orientation and set output latent dimensions
+                int itemWidth = 960, itemHeight = 544; // default landscape
                 try
                 {
                     var bitmap = new BitmapImage();
@@ -659,20 +674,20 @@ namespace FlipPix.UI.ViewModels.Video
                     var pixelHeight = bitmap.PixelHeight;
                     bool isPortrait = pixelHeight > pixelWidth;
 
-                    // LTX 2.3 constrained dimensions based on orientation
+                    // LTX 2.3 Two-Stage output latent dimensions
                     if (isPortrait)
                     {
-                        itemWidth = 224;
-                        itemHeight = 320;
+                        itemWidth = 544;
+                        itemHeight = 960;
                     }
                     else
                     {
-                        itemWidth = 320;
-                        itemHeight = 224;
+                        itemWidth = 960;
+                        itemHeight = 544;
                     }
 
                     AddLog($"Detected image: {pixelWidth}x{pixelHeight} ({(isPortrait ? "portrait" : "landscape")})");
-                    AddLog($"Using constrained dimensions: {itemWidth}x{itemHeight}");
+                    AddLog($"Using output dimensions: {itemWidth}x{itemHeight}");
                 }
                 catch (Exception ex)
                 {
@@ -698,14 +713,13 @@ namespace FlipPix.UI.ViewModels.Video
                 }
 
                 var workflowPath = Path.Combine(AppDomain.CurrentDomain.BaseDirectory,
-                    "workflow", "LTX2.3-I2VAPI.json");
+                    "workflow", "LTX-2.3_T2V_I2V_Two_Stage_Distilled(1).json");
 
                 if (!File.Exists(workflowPath))
                     throw new FileNotFoundException($"Workflow not found: {workflowPath}");
 
                 AddLog("Loading workflow...");
-                var workflowJson = await File.ReadAllTextAsync(workflowPath);
-                var workflow = JsonSerializer.Deserialize<JsonElement>(workflowJson);
+                var rawJson = await File.ReadAllTextAsync(workflowPath);
 
                 ProcessingStatus = "Uploading image...";
                 ProcessingProgress = 10;
@@ -717,13 +731,16 @@ namespace FlipPix.UI.ViewModels.Video
                 AddLog($"Image uploaded: {uploadedImageName}");
 
                 // Patch workflow nodes
-                var rawJson = workflow.GetRawText();
-                WorkflowNodeUpdater.UpdateNodeInput(ref rawJson, "5016:2004", "image", uploadedImageName);
-                WorkflowNodeUpdater.UpdateNodeInput(ref rawJson, "5026:5018", "text", item.Prompt);
-                WorkflowNodeUpdater.UpdateNodeInput(ref rawJson, "5026:4988", "value", item.FrameCount);
-                // Update width/height to match uploaded image aspect ratio
-                WorkflowNodeUpdater.UpdateNodeInputMultiple(ref rawJson, "5013:3059",
+                WorkflowNodeUpdater.UpdateNodeInput(ref rawJson, "2004", "image", uploadedImageName);
+                WorkflowNodeUpdater.UpdateNodeInput(ref rawJson, "2483", "text", item.Prompt);
+                WorkflowNodeUpdater.UpdateNodeInput(ref rawJson, "4988", "value", item.FrameCount);
+                // Output latent dimensions based on image orientation
+                WorkflowNodeUpdater.UpdateNodeInputMultiple(ref rawJson, "3059",
                     new Dictionary<string, object> { { "width", itemWidth }, { "height", itemHeight } });
+                // Randomise seeds for both two-stage samplers
+                var rng = new Random();
+                WorkflowNodeUpdater.UpdateNodeInput(ref rawJson, "4832", "noise_seed", (long)(rng.NextDouble() * long.MaxValue));
+                WorkflowNodeUpdater.UpdateNodeInput(ref rawJson, "4967", "noise_seed", (long)(rng.NextDouble() * long.MaxValue));
                 var updatedWorkflow = JsonSerializer.Deserialize<JsonElement>(rawJson);
 
                 // Record start time for output detection

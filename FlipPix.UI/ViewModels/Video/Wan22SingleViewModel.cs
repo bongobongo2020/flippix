@@ -390,9 +390,24 @@ namespace FlipPix.UI.ViewModels.Video
             _queueCts?.Dispose();
             _queueCts = new CancellationTokenSource();
             var token = _queueCts.Token;
-            AddLog("Starting queue processing...");
+            AddLog("Waiting for other workflows to finish...");
             OnCanExecuteChanged();
 
+            WorkflowQueueCoordinator.WorkflowLease lease;
+            try
+            {
+                lease = await _workflowCoordinator.AcquireAsync("Wan22Single", token);
+            }
+            catch (OperationCanceledException)
+            {
+                AddLog("Queue processing cancelled while waiting");
+                IsProcessingQueue = false;
+                OnCanExecuteChanged();
+                return;
+            }
+
+            AddLog("Starting queue processing...");
+            using (lease)
             try
             {
                 QueueItem? item;
