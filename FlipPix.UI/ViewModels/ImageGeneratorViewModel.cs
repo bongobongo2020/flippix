@@ -111,7 +111,7 @@ namespace FlipPix.UI.ViewModels
             _storyGeneratorF = new StoryImageGeneratorFViewModel(comfyUIService, logger, settingsService, _workflowCoordinator, fileDialogService, loraManager, imageRetriever, lmStudioService ?? throw new InvalidOperationException("LMStudioService is required"));
             _storyGeneratorFire = new StoryImageGeneratorFireViewModel(comfyUIService, logger, settingsService, _workflowCoordinator, fileDialogService, loraManager, imageRetriever, lmStudioService ?? throw new InvalidOperationException("LMStudioService is required"));
             _storyGeneratorAmateur = new StoryImageGeneratorAmateurViewModel(comfyUIService, logger, settingsService, _workflowCoordinator, fileDialogService, loraManager, imageRetriever);
-            _amateurGenerator = new AmateurGeneratorViewModel(comfyUIService, logger, settingsService, promptService, loraManager, imageRetriever);
+            _amateurGenerator = new AmateurGeneratorViewModel(comfyUIService, logger, settingsService, promptService, loraManager, imageRetriever, _workflowCoordinator, lmStudioService, fileDialogService);
             _cameraAngle = new CameraAngleViewModel(comfyUIService, logger, settingsService, fileDialogService, imageRetriever);
 
             // Initialize commands
