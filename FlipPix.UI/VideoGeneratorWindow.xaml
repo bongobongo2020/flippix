@@ -3316,6 +3316,424 @@
                         </ScrollViewer>
                     </TabItem>
 
+                    <!-- Tab 8: WanAnimate -->
+                    <TabItem Header="🕺 WanAnimate">
+                        <ScrollViewer VerticalScrollBarVisibility="Auto">
+                            <StackPanel Margin="10">
+
+                                <!-- Inputs Section -->
+                                <Border Style="{StaticResource SectionPanelStyle}">
+                                    <StackPanel>
+                                        <TextBlock Text="🎬 WanAnimate Inputs" Style="{StaticResource HeaderTextStyle}" Foreground="#FF6B35"/>
+
+                                        <!-- Reference Image -->
+                                        <Border BorderBrush="#DEE2E6" BorderThickness="1" Background="White" CornerRadius="5" Padding="15" Margin="0,0,0,10">
+                                            <StackPanel>
+                                                <TextBlock Text="Identity Reference Image" FontWeight="SemiBold" FontSize="12" Margin="0,0,0,8"/>
+                                                <Grid>
+                                                    <Grid.ColumnDefinitions>
+                                                        <ColumnDefinition Width="120"/>
+                                                        <ColumnDefinition Width="*"/>
+                                                        <ColumnDefinition Width="Auto"/>
+                                                    </Grid.ColumnDefinitions>
+                                                    <Border Grid.Column="1"
+                                                            BorderBrush="#DEE2E6" BorderThickness="1"
+                                                            Background="White" Height="80"
+                                                            CornerRadius="3" Margin="0,0,10,0">
+                                                        <Grid>
+                                                            <TextBlock Text="No reference image selected"
+                                                                      HorizontalAlignment="Center"
+                                                                      VerticalAlignment="Center"
+                                                                      Foreground="#999"
+                                                                      FontStyle="Italic">
+                                                                <TextBlock.Style>
+                                                                    <Style TargetType="TextBlock">
+                                                                        <Setter Property="Visibility" Value="Collapsed"/>
+                                                                        <Style.Triggers>
+                                                                            <DataTrigger Binding="{Binding WanAnimateRefImagePreview}" Value="{x:Null}">
+                                                                                <Setter Property="Visibility" Value="Visible"/>
+                                                                            </DataTrigger>
+                                                                        </Style.Triggers>
+                                                                    </Style>
+                                                                </TextBlock.Style>
+                                                            </TextBlock>
+                                                            <Image Source="{Binding WanAnimateRefImagePreview}" Stretch="Uniform"/>
+                                                        </Grid>
+                                                    </Border>
+                                                    <Button Grid.Column="2"
+                                                           Content="Browse..."
+                                                           Style="{StaticResource SecondaryButtonStyle}"
+                                                           Command="{Binding SelectWanAnimateRefImageCommand}"
+                                                           Height="35" Width="100"/>
+                                                </Grid>
+                                                <TextBlock Text="{Binding WanAnimateRefImageInfo}"
+                                                          FontStyle="Italic" Foreground="#666" FontSize="10" Margin="0,6,0,0"/>
+                                                <!-- Analyze button -->
+                                                <StackPanel Orientation="Horizontal" Margin="0,8,0,0">
+                                                    <Button Content="Analyze Image"
+                                                            Style="{StaticResource SecondaryButtonStyle}"
+                                                            Command="{Binding AnalyzeWanAnimateImageCommand}"
+                                                            IsEnabled="{Binding WanAnimateHasRefImage}"
+                                                            Height="32" Padding="12,0" HorizontalAlignment="Left"/>
+                                                    <TextBlock Text="Analyzing..."
+                                                               FontStyle="Italic" Foreground="#FF6B35" FontSize="11"
+                                                               VerticalAlignment="Center" Margin="10,0,0,0"
+                                                               Visibility="{Binding WanAnimateIsAnalyzing, Converter={StaticResource BooleanToVisibilityConverter}}"/>
+                                                </StackPanel>
+                                            </StackPanel>
+                                        </Border>
+
+                                        <!-- Face Reference Image -->
+                                        <Border BorderBrush="#DEE2E6" BorderThickness="1" Background="White" CornerRadius="5" Padding="15" Margin="0,0,0,10">
+                                            <StackPanel>
+                                                <TextBlock Text="Face Reference Image" FontWeight="SemiBold" FontSize="12" Margin="0,0,0,8"/>
+                                                <Grid>
+                                                    <Grid.ColumnDefinitions>
+                                                        <ColumnDefinition Width="120"/>
+                                                        <ColumnDefinition Width="*"/>
+                                                        <ColumnDefinition Width="Auto"/>
+                                                    </Grid.ColumnDefinitions>
+                                                    <Border Grid.Column="1"
+                                                            BorderBrush="#DEE2E6" BorderThickness="1"
+                                                            Background="White" Height="80"
+                                                            CornerRadius="3" Margin="0,0,10,0">
+                                                        <Grid>
+                                                            <TextBlock Text="No face image selected"
+                                                                      HorizontalAlignment="Center"
+                                                                      VerticalAlignment="Center"
+                                                                      Foreground="#999"
+                                                                      FontStyle="Italic">
+                                                                <TextBlock.Style>
+                                                                    <Style TargetType="TextBlock">
+                                                                        <Setter Property="Visibility" Value="Collapsed"/>
+                                                                        <Style.Triggers>
+                                                                            <DataTrigger Binding="{Binding WanAnimateFaceImagePreview}" Value="{x:Null}">
+                                                                                <Setter Property="Visibility" Value="Visible"/>
+                                                                            </DataTrigger>
+                                                                        </Style.Triggers>
+                                                                    </Style>
+                                                                </TextBlock.Style>
+                                                            </TextBlock>
+                                                            <Image Source="{Binding WanAnimateFaceImagePreview}" Stretch="Uniform"/>
+                                                        </Grid>
+                                                    </Border>
+                                                    <Button Grid.Column="2"
+                                                           Content="Browse..."
+                                                           Style="{StaticResource SecondaryButtonStyle}"
+                                                           Command="{Binding SelectWanAnimateFaceImageCommand}"
+                                                           Height="35" Width="100"/>
+                                                </Grid>
+                                                <TextBlock Text="{Binding WanAnimateFaceImageInfo}"
+                                                          FontStyle="Italic" Foreground="#666" FontSize="10" Margin="0,6,0,0"/>
+                                            </StackPanel>
+                                        </Border>
+
+                                        <!-- Input Video -->
+                                        <Border BorderBrush="#DEE2E6" BorderThickness="1" Background="White" CornerRadius="5" Padding="15" Margin="0,0,0,0">
+                                            <StackPanel>
+                                                <TextBlock Text="Input Video" FontWeight="SemiBold" FontSize="12" Margin="0,0,0,8"/>
+                                                <Grid>
+                                                    <Grid.ColumnDefinitions>
+                                                        <ColumnDefinition Width="120"/>
+                                                        <ColumnDefinition Width="*"/>
+                                                        <ColumnDefinition Width="Auto"/>
+                                                    </Grid.ColumnDefinitions>
+                                                    <TextBox Grid.Column="1"
+                                                            Text="{Binding WanAnimateVideoPath, Mode=TwoWay}"
+                                                            IsReadOnly="True"
+                                                            Padding="10"
+                                                            Background="White"
+                                                            BorderBrush="#CED4DA"
+                                                            FontSize="11"
+                                                            VerticalAlignment="Center"
+                                                            Margin="0,0,10,0"/>
+                                                    <Button Grid.Column="2"
+                                                           Content="Browse..."
+                                                           Style="{StaticResource SecondaryButtonStyle}"
+                                                           Command="{Binding SelectWanAnimateVideoCommand}"
+                                                           Height="35" Width="100"/>
+                                                </Grid>
+                                                <TextBlock Text="{Binding WanAnimateVideoInfo}"
+                                                          FontStyle="Italic" Foreground="#666" FontSize="10" Margin="0,6,0,0"/>
+                                            </StackPanel>
+                                        </Border>
+                                    </StackPanel>
+                                </Border>
+
+                                <!-- Prompt Section -->
+                                <Border Style="{StaticResource SectionPanelStyle}">
+                                    <StackPanel>
+                                        <TextBlock Text="📝 Prompts" Style="{StaticResource HeaderTextStyle}" Foreground="#FF6B35"/>
+
+                                        <TextBlock Text="Positive Prompt:" FontWeight="SemiBold" FontSize="12" Margin="0,0,0,6"/>
+                                        <TextBox Text="{Binding WanAnimatePrompt, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                                                TextWrapping="Wrap"
+                                                AcceptsReturn="True"
+                                                Height="80"
+                                                Padding="12"
+                                                VerticalScrollBarVisibility="Auto"
+                                                Background="White"
+                                                BorderBrush="#CED4DA"
+                                                FontSize="12"
+                                                Margin="0,0,0,10"/>
+
+                                        <TextBlock Text="Negative Prompt:" FontWeight="SemiBold" FontSize="12" Margin="0,0,0,6"/>
+                                        <TextBox Text="{Binding WanAnimateNegativePrompt, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                                                TextWrapping="Wrap"
+                                                AcceptsReturn="True"
+                                                Height="60"
+                                                Padding="12"
+                                                VerticalScrollBarVisibility="Auto"
+                                                Background="White"
+                                                BorderBrush="#CED4DA"
+                                                FontSize="11"/>
+                                    </StackPanel>
+                                </Border>
+
+                                <!-- Resolution + Generate Section -->
+                                <Border Style="{StaticResource SectionPanelStyle}">
+                                    <Grid>
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="2*"/>
+                                            <ColumnDefinition Width="*"/>
+                                        </Grid.ColumnDefinitions>
+
+                                        <!-- Info -->
+                                        <StackPanel Grid.Column="0" Margin="0,0,20,0">
+                                            <TextBlock Text="ℹ️ WanAnimate (Steady Dancer + OneToAll)" Style="{StaticResource HeaderTextStyle}" Foreground="#FF6B35"/>
+                                            <TextBlock Text="Uses reference image for identity + aspect ratio, face image for face swap, and input video for motion. Output resolution is auto-detected from the reference image (portrait → 640×1024, landscape → 832×480, square → 704×704). Processes in 81-frame chunks automatically." FontSize="11" TextWrapping="Wrap" Foreground="#666" Margin="0,5,0,10"/>
+
+                                            <StackPanel Orientation="Horizontal" Margin="0,0,0,8">
+                                                <TextBlock Text="Output:" FontWeight="SemiBold" FontSize="12" VerticalAlignment="Center" Width="60"/>
+                                                <Border Background="#E8F5E9" BorderBrush="#A5D6A7" BorderThickness="1"
+                                                        CornerRadius="4" Padding="8,4">
+                                                    <TextBlock VerticalAlignment="Center" FontSize="12">
+                                                        <Run Text="{Binding WanAnimateOutputWidth, Mode=OneWay}" FontWeight="Bold"/>
+                                                        <Run Text="×"/>
+                                                        <Run Text="{Binding WanAnimateOutputHeight, Mode=OneWay}" FontWeight="Bold"/>
+                                                        <Run Text=" (auto from image)" Foreground="#666" FontSize="10"/>
+                                                    </TextBlock>
+                                                </Border>
+                                            </StackPanel>
+                                        </StackPanel>
+
+                                        <!-- Generate button + status -->
+                                        <StackPanel Grid.Column="1" VerticalAlignment="Center">
+                                            <Button Content="➕ Add to Queue"
+                                                   Style="{StaticResource PrimaryButtonStyle}"
+                                                   Command="{Binding GenerateWanAnimateVideoCommand}"
+                                                   IsEnabled="{Binding WanAnimateCanAddToQueue, Mode=OneWay}"
+                                                   HorizontalAlignment="Stretch"
+                                                   Height="55"
+                                                   FontSize="15"
+                                                   Margin="0,0,0,15"/>
+
+                                            <Border Background="#FFF9F0"
+                                                    BorderBrush="#FFE0B0"
+                                                    BorderThickness="1"
+                                                    CornerRadius="5"
+                                                    Padding="12"
+                                                    Visibility="{Binding IsProcessingWanAnimate, Converter={StaticResource BooleanToVisibilityConverter}}">
+                                                <StackPanel>
+                                                    <TextBlock Text="{Binding WanAnimateProcessingStatus}"
+                                                              FontWeight="SemiBold" FontSize="11"
+                                                              Margin="0,0,0,5"
+                                                              TextAlignment="Center"
+                                                              TextWrapping="Wrap"/>
+                                                    <TextBlock HorizontalAlignment="Center"
+                                                               FontSize="11" Foreground="#FF6B35"
+                                                               Margin="0,0,0,5">
+                                                        <Run Text="Chunks: "/>
+                                                        <Run Text="{Binding WanAnimateTotalChunks, Mode=OneWay}" FontWeight="SemiBold"/>
+                                                        <Run Text=" × 81 frames"/>
+                                                    </TextBlock>
+                                                    <ProgressBar Value="{Binding WanAnimateProcessingProgress, Mode=OneWay}"
+                                                                Height="16"
+                                                                Foreground="#FF6B35"
+                                                                Margin="0,0,0,5"/>
+                                                    <TextBlock Text="{Binding WanAnimateProgressPercentage}"
+                                                              HorizontalAlignment="Center"
+                                                              FontSize="11" FontWeight="Bold"
+                                                              Foreground="#FF6B35"/>
+                                                </StackPanel>
+                                            </Border>
+                                        </StackPanel>
+                                    </Grid>
+                                </Border>
+
+                                <!-- Queue Panel -->
+                                <Border Style="{StaticResource SectionPanelStyle}"
+                                        Visibility="{Binding WanAnimateHasQueueItems, Converter={StaticResource BooleanToVisibilityConverter}}">
+                                    <StackPanel>
+                                        <Grid Margin="0,0,0,8">
+                                            <Grid.ColumnDefinitions>
+                                                <ColumnDefinition Width="*"/>
+                                                <ColumnDefinition Width="Auto"/>
+                                                <ColumnDefinition Width="Auto"/>
+                                                <ColumnDefinition Width="Auto"/>
+                                                <ColumnDefinition Width="Auto"/>
+                                            </Grid.ColumnDefinitions>
+                                            <TextBlock Grid.Column="0" Text="🕺 WanAnimate Queue" Style="{StaticResource HeaderTextStyle}" Foreground="#FF6B35" VerticalAlignment="Center"/>
+                                            <TextBlock Grid.Column="1" Text="{Binding WanAnimateQueueStatus}"
+                                                      FontStyle="Italic" Foreground="#666" FontSize="11"
+                                                      VerticalAlignment="Center" Margin="0,0,8,0"/>
+                                            <Button Grid.Column="2"
+                                                   Content="🔄 Retry"
+                                                   Command="{Binding ReprocessAllWanAnimateFailedCommand}"
+                                                   IsEnabled="{Binding WanAnimateHasFailedItems}"
+                                                   Height="28" Width="70" FontSize="11"
+                                                   Margin="0,0,5,0"
+                                                   Background="#FFA500" Foreground="White"
+                                                   BorderThickness="0" FontWeight="SemiBold"/>
+                                            <Button Grid.Column="3"
+                                                   Content="⏹ Stop"
+                                                   Command="{Binding StopWanAnimateQueueCommand}"
+                                                   IsEnabled="{Binding WanAnimateIsProcessingQueue}"
+                                                   Height="28" Width="65" FontSize="11"
+                                                   Margin="0,0,5,0"
+                                                   Background="#F59E0B" Foreground="White"
+                                                   BorderThickness="0" FontWeight="SemiBold"/>
+                                            <Button Grid.Column="4"
+                                                   Content="🗑️ Clear"
+                                                   Command="{Binding ClearWanAnimateQueueCommand}"
+                                                   Height="28" Width="65" FontSize="11"
+                                                   Background="#DC3545" Foreground="White"
+                                                   BorderThickness="0" FontWeight="SemiBold"/>
+                                        </Grid>
+
+                                        <ItemsControl ItemsSource="{Binding WanAnimateQueue}">
+                                            <ItemsControl.ItemTemplate>
+                                                <DataTemplate>
+                                                    <Border BorderBrush="#DEE2E6" BorderThickness="1" CornerRadius="4"
+                                                            Padding="10,6" Margin="0,0,0,4" Background="White">
+                                                        <Grid>
+                                                            <Grid.ColumnDefinitions>
+                                                                <ColumnDefinition Width="Auto"/>
+                                                                <ColumnDefinition Width="*"/>
+                                                                <ColumnDefinition Width="Auto"/>
+                                                            </Grid.ColumnDefinitions>
+
+                                                            <Border Grid.Column="0" CornerRadius="3" Padding="6,2" Margin="0,0,8,0"
+                                                                    Background="{Binding StatusColor}">
+                                                                <TextBlock Text="{Binding StatusDisplay}" FontSize="11" FontWeight="SemiBold" Foreground="White"/>
+                                                            </Border>
+
+                                                            <StackPanel Grid.Column="1" VerticalAlignment="Center">
+                                                                <TextBlock Text="{Binding DisplayText}" FontWeight="SemiBold" FontSize="11"/>
+                                                                <TextBlock Text="{Binding Prompt}" FontSize="10" Foreground="#666"
+                                                                           TextTrimming="CharacterEllipsis"/>
+                                                            </StackPanel>
+
+                                                            <Button Grid.Column="2"
+                                                                    Content="✕"
+                                                                    Style="{StaticResource SecondaryButtonStyle}"
+                                                                    Command="{Binding DataContext.RemoveWanAnimateQueueItemCommand, RelativeSource={RelativeSource AncestorType=ItemsControl}}"
+                                                                    CommandParameter="{Binding}"
+                                                                    Width="28" Height="28"
+                                                                    Padding="0" FontSize="10"/>
+                                                        </Grid>
+                                                    </Border>
+                                                </DataTemplate>
+                                            </ItemsControl.ItemTemplate>
+                                        </ItemsControl>
+                                    </StackPanel>
+                                </Border>
+
+                                <!-- Result Video Section -->
+                                <Border Style="{StaticResource SectionPanelStyle}">
+                                    <StackPanel>
+                                        <TextBlock Text="🎥 Result Video" Style="{StaticResource HeaderTextStyle}" Foreground="#FF6B35"/>
+
+                                        <Border BorderBrush="#DEE2E6" BorderThickness="2"
+                                                Background="White" Height="250"
+                                                CornerRadius="5" Margin="0,0,0,10">
+                                            <Grid>
+                                                <TextBlock Text="Video will appear here after generation"
+                                                          HorizontalAlignment="Center"
+                                                          VerticalAlignment="Center"
+                                                          Foreground="#999"
+                                                          FontStyle="Italic">
+                                                    <TextBlock.Style>
+                                                        <Style TargetType="TextBlock">
+                                                            <Setter Property="Visibility" Value="Collapsed"/>
+                                                            <Style.Triggers>
+                                                                <DataTrigger Binding="{Binding HasWanAnimateResult}" Value="False">
+                                                                    <Setter Property="Visibility" Value="Visible"/>
+                                                                </DataTrigger>
+                                                            </Style.Triggers>
+                                                        </Style>
+                                                    </TextBlock.Style>
+                                                </TextBlock>
+
+                                                <MediaElement x:Name="WanAnimateVideoPlayer"
+                                                            Source="{Binding WanAnimateResultPath}"
+                                                            LoadedBehavior="Manual"
+                                                            UnloadedBehavior="Stop"
+                                                            Stretch="Uniform"
+                                                            Visibility="{Binding HasWanAnimateResult, Converter={StaticResource BooleanToVisibilityConverter}}"/>
+                                            </Grid>
+                                        </Border>
+
+                                        <Grid>
+                                            <Grid.ColumnDefinitions>
+                                                <ColumnDefinition Width="*"/>
+                                                <ColumnDefinition Width="Auto"/>
+                                                <ColumnDefinition Width="Auto"/>
+                                            </Grid.ColumnDefinitions>
+
+                                            <Button Grid.Column="0"
+                                                   Content="▶️ Play"
+                                                   Style="{StaticResource SecondaryButtonStyle}"
+                                                   Command="{Binding PlayWanAnimateVideoCommand}"
+                                                   IsEnabled="{Binding HasWanAnimateResult}"
+                                                   Margin="0,0,8,0"/>
+
+                                            <Button Grid.Column="1"
+                                                   Content="📂 Open Folder"
+                                                   Style="{StaticResource SecondaryButtonStyle}"
+                                                   Command="{Binding OpenWanAnimateResultFolderCommand}"
+                                                   IsEnabled="{Binding HasWanAnimateResult}"
+                                                   Margin="0,0,8,0"/>
+
+                                            <Button Grid.Column="2"
+                                                   Content="📷 Send to Edit Camera"
+                                                   Style="{StaticResource SecondaryButtonStyle}"
+                                                   Command="{Binding SendWanAnimateToEditCameraCommand}"
+                                                   IsEnabled="{Binding HasWanAnimateResult}"/>
+                                        </Grid>
+
+                                        <TextBlock Text="{Binding WanAnimateResultVideoInfo}"
+                                                  FontStyle="Italic" Foreground="#666" FontSize="11"
+                                                  Margin="0,10,0,0"/>
+                                    </StackPanel>
+                                </Border>
+
+                                <!-- Log -->
+                                <Expander Header="📝 Processing Log"
+                                         IsExpanded="True"
+                                         Margin="0,0,0,0">
+                                    <Border Background="White"
+                                            BorderBrush="#DEE2E6"
+                                            BorderThickness="1"
+                                            Margin="0,8,0,0">
+                                        <ScrollViewer MaxHeight="150"
+                                                     VerticalScrollBarVisibility="Auto">
+                                            <TextBox Text="{Binding WanAnimateLogOutput, Mode=OneWay}"
+                                                    TextWrapping="Wrap"
+                                                    IsReadOnly="True"
+                                                    FontFamily="Consolas"
+                                                    FontSize="10"
+                                                    Background="Transparent"
+                                                    BorderThickness="0"
+                                                    Padding="10"/>
+                                        </ScrollViewer>
+                                    </Border>
+                                </Expander>
+
+                            </StackPanel>
+                        </ScrollViewer>
+                    </TabItem>
+
                 </TabControl>
             </StackPanel>
         </ScrollViewer>
