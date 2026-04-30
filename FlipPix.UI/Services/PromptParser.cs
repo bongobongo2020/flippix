@@ -96,12 +96,35 @@ namespace FlipPix.UI.Services
                 if (r.Length > 0) return r;
             }
 
-            // 2. Smart/curly quotes "..." — models wrap the final draft paragraph in these.
-            //    Find the LAST such block (the final revision is always last).
-            //    U+201C = left double quotation mark, U+201D = right double quotation mark.
-            var curlyQ = Regex.Matches(text, "\u201C([^\u201C\u201D]{80,})\u201D");
-            if (curlyQ.Count > 0)
-                return curlyQ[curlyQ.Count - 1].Groups[1].Value.Trim();
+            // 1.5. Qwen3/gemma4 plain-markdown thinking: numbered bold section headers
+            //      (**1. Analyse:** / **2. Draft:** / **3. Refine:**).
+            var numberedExtract = ExtractFromNumberedMarkdownThinking(text);
+            if (numberedExtract != null) return numberedExtract;
+
+            // 1.7. Bullet list of individually quoted sentences — Qwen3 /no_think output format.
+            //      Joins all COMPLETE "- "sentence."" bullets into one paragraph.
+            //      Truncated last items (no closing quote) are naturally excluded.
+            var quotedBullets = Regex.Matches(text,
+                "^[ \\t]*[-*\u2022][ \\t]+\"([^\"]{20,})\"",
+                RegexOptions.Multiline);
+            if (quotedBullets.Count >= 2)
+            {
+                var sentences = quotedBullets.Cast<Match>()
+                    .Select(m => m.Groups[1].Value.Trim())
+                    .Where(s => s.Length > 10)
+                    .ToList();
+                if (sentences.Count > 0)
+                    return string.Join(" ", sentences);
+            }
+
+            // 2. Quoted draft paragraph — curly "..." or straight "..." wrapping.
+            //    Require an uppercase start AND sentence-ending punctuation before the closing
+            //    quote so truncated/unfinished blocks (no closing quote) are ignored.
+            //    U+201C/U+201D = curly left/right double quotation marks.
+            var quotedDraft = Regex.Matches(text,
+                "(?:\u201C|\")([A-Z][^\u201C\u201D\"]{80,}[.!?])(?:\u201D|\")");
+            if (quotedDraft.Count > 0)
+                return quotedDraft[quotedDraft.Count - 1].Groups[1].Value.Trim();
 
             // 3. Intro phrase "Let's draft it carefully:" (or similar) followed by paragraph.
             var draftIntro = Regex.Matches(
@@ -154,6 +177,86 @@ namespace FlipPix.UI.Services
             }
 
             return text.Trim();
+        }
+
+        /// <summary>
+        /// Extracts the final image generation prompt from Qwen3/gemma4-style multi-section
+        /// markdown chain-of-thought output.  Returns null if not applicable.
+        /// </summary>
+        public static string? ExtractFromNumberedMarkdownThinking(string text)
+        {
+            // Detect multi-section bold-header markdown thinking.
+            // Handles all observed formats:
+            //   "**1. Section:**"  — number inside bold
+            //   "1.  **Section:**" — number OUTSIDE bold (current bug: was not matched)
+            //   "**Section:**"     — non-numbered
+            var sectionHeaders = Regex.Matches(text,
+                @"^\s*(?:\d+[\.\)]\s+)?\*\*[^*\n]{5,60}\*\*",
+                RegexOptions.Multiline);
+            if (sectionHeaders.Count < 2)
+                return null;
+
+            // Re-usable boundary: "start of next section header line or end of string"
+            // Matches both "  **Bold" and "1.  **Bold" at line start.
+            const string NEXT = @"\n\s*(?:\d+[\.\)]\s+)?\*\*[^*\n]";
+
+            // Priority 1: LAST inline draft/refining bullet — returns the most refined version.
+            //   Label can contain extra text around the keyword, e.g.:
+            //     "* *Draft 1:* TEXT"              — label has a number suffix
+            //     "* *Refining (Adding Detail):*"  — label has extra words around keyword
+            //     "- *Draft:* TEXT"                — dash bullet
+            //     "* *Final Prompt:* TEXT"         — explicit "Final"
+            var draftMatches = Regex.Matches(
+                text,
+                @"[-*•][ \t]+\*{1,2}(?:[^:\n*]*(?:Draft|Refin|Final|Enhanc|Polished|Output|Prompt|Combin)[^:\n*]*):?\*{0,2}[ \t]+([^\n]{50,})",
+                RegexOptions.IgnoreCase);
+            if (draftMatches.Count > 0)
+                return draftMatches[draftMatches.Count - 1].Groups[1].Value.Trim();
+
+            // Priority 2: last "Draft/Refin/Final/Combin" section — take its paragraph block.
+            //   Captures even truncated text (model writes most-refined content first within
+            //   the section). Lookahead updated to handle "1.  **Next Section" boundaries.
+            var finalSections = Regex.Matches(
+                text,
+                @"\*\*(?:[^*\n]*(?:Draft|Refin|Final|Combin)[^*\n]*)\*\*[:\s]*\n([\s\S]+?)(?=" + NEXT + @"|\z)",
+                RegexOptions.IgnoreCase);
+            if (finalSections.Count > 0)
+            {
+                var content = finalSections[finalSections.Count - 1].Groups[1].Value.Trim();
+                // Strip any opening curly/straight quote wrapping
+                content = Regex.Replace(content, @"^[""'\u201C\u201D]+", "").Trim();
+                if (content.Length > 50) return content;
+            }
+
+            // Priority 3: last non-Analyse section with labeled bullets → join their values.
+            //   Fallback when truncated before any Refine/Draft section is written.
+            //   Split pattern updated to handle "1.  **Section" boundaries.
+            var sectionParts = Regex.Split(text, @"(?=" + NEXT + ")");
+            for (int i = sectionParts.Length - 1; i >= 0; i--)
+            {
+                var section = sectionParts[i].Trim();
+                if (section.Length < 50) continue;
+
+                var firstLine = section.Split('\n')[0];
+                if (Regex.IsMatch(firstLine, @"\bAnalyz", RegexOptions.IgnoreCase)) continue;
+
+                // Handles both "* **Label:** VALUE" and "- *Label:* VALUE"
+                var bulletValues = Regex.Matches(
+                    section,
+                    @"^[ \t]*[-*•][ \t]+\*{1,2}[^:\*\n]+\*{0,2}:[ \t]+(.{40,})$",
+                    RegexOptions.Multiline);
+                if (bulletValues.Count > 0)
+                {
+                    var parts = bulletValues.Cast<Match>()
+                        .Select(m => m.Groups[1].Value.Trim().TrimEnd('.', ','))
+                        .Where(s => s.Length > 20)
+                        .ToList();
+                    if (parts.Count > 0)
+                        return string.Join(". ", parts);
+                }
+            }
+
+            return null;
         }
 
         private static string StripPostPromptMeta(string text)

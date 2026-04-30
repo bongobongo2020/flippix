@@ -92,6 +92,13 @@ namespace FlipPix.UI.ViewModels
         /// </summary>
         public LongVideoViewModel LongVideoVM { get; }
 
+        /// <summary>
+        /// WanAnimate ViewModel - handles reference image, face image, and input video
+        /// for the Wan Animate + Steady Dancer + OneToAll Animation + SCAIL workflow,
+        /// processed in 81-frame chunks.
+        /// </summary>
+        public WanAnimateViewModel WanAnimateVM { get; }
+
         // 0 = LTX 2.3, 1 = Wan 2.2 Remix
         private int _singleVideoWorkflowIndex = 0;
         public int SingleVideoWorkflowIndex
@@ -209,6 +216,15 @@ namespace FlipPix.UI.ViewModels
                 _workflowCoordinator,
                 _fileDialogService);
 
+            WanAnimateVM = new WanAnimateViewModel(
+                comfyUIService,
+                lmStudioService,
+                logger,
+                settingsService,
+                serviceProvider,
+                _workflowCoordinator,
+                _fileDialogService);
+
             // Forward PlayRequested events from sub-VMs
             MainVM.PlayRequested += (s, e) => PlayRequested?.Invoke(this, e);
             VaceVM.PlayRequested += (s, e) => PlayRequested?.Invoke(this, e);
@@ -219,6 +235,7 @@ namespace FlipPix.UI.ViewModels
             LTX23T2VVM.PlayRequested += (s, e) => PlayRequested?.Invoke(this, e);
             Wan22SingleVM.PlayRequested += (s, e) => PlayRequested?.Invoke(this, e);
             LongVideoVM.PlayRequested += (s, e) => PlayRequested?.Invoke(this, e);
+            WanAnimateVM.PlayRequested += (s, e) => PlayRequested?.Invoke(this, e);
 
             // Forward PropertyChanged events from all sub-VMs for backward compatibility
             MainVM.PropertyChanged += ForwardPropertyChanged;
@@ -230,6 +247,7 @@ namespace FlipPix.UI.ViewModels
             LTX23T2VVM.PropertyChanged += ForwardPropertyChanged;
             Wan22SingleVM.PropertyChanged += ForwardPropertyChanged;
             LongVideoVM.PropertyChanged += ForwardPropertyChanged;
+            WanAnimateVM.PropertyChanged += ForwardPropertyChanged;
 
             _logger.LogInfo("VideoGeneratorViewModel initialized with sub-ViewModels");
         }
@@ -712,6 +730,64 @@ namespace FlipPix.UI.ViewModels
 
         #endregion
 
+        #region WanAnimateVM Backward Compatibility Properties
+
+        public string WanAnimateRefImagePath { get => WanAnimateVM.ReferenceImagePath; set => WanAnimateVM.ReferenceImagePath = value; }
+        public BitmapImage? WanAnimateRefImagePreview { get => WanAnimateVM.ReferenceImagePreview; set => WanAnimateVM.ReferenceImagePreview = value; }
+        public string WanAnimateRefImageInfo { get => WanAnimateVM.ReferenceImageInfo; set => WanAnimateVM.ReferenceImageInfo = value; }
+        public bool WanAnimateHasRefImage => WanAnimateVM.HasReferenceImage;
+
+        public string WanAnimateFaceImagePath { get => WanAnimateVM.FaceImagePath; set => WanAnimateVM.FaceImagePath = value; }
+        public BitmapImage? WanAnimateFaceImagePreview { get => WanAnimateVM.FaceImagePreview; set => WanAnimateVM.FaceImagePreview = value; }
+        public string WanAnimateFaceImageInfo { get => WanAnimateVM.FaceImageInfo; set => WanAnimateVM.FaceImageInfo = value; }
+        public bool WanAnimateHasFaceImage => WanAnimateVM.HasFaceImage;
+
+        public string WanAnimateVideoPath { get => WanAnimateVM.InputVideoPath; set => WanAnimateVM.InputVideoPath = value; }
+        public string WanAnimateVideoInfo { get => WanAnimateVM.InputVideoInfo; set => WanAnimateVM.InputVideoInfo = value; }
+        public bool WanAnimateHasVideo => WanAnimateVM.HasInputVideo;
+
+        public string WanAnimatePrompt { get => WanAnimateVM.Prompt; set => WanAnimateVM.Prompt = value; }
+        public string WanAnimateNegativePrompt { get => WanAnimateVM.NegativePrompt; set => WanAnimateVM.NegativePrompt = value; }
+        public int WanAnimateOutputWidth { get => WanAnimateVM.OutputWidth; set => WanAnimateVM.OutputWidth = value; }
+        public int WanAnimateOutputHeight { get => WanAnimateVM.OutputHeight; set => WanAnimateVM.OutputHeight = value; }
+
+        public int WanAnimateTotalFrames => WanAnimateVM.TotalFrames;
+        public int WanAnimateTotalChunks => WanAnimateVM.TotalChunks;
+
+        public bool IsProcessingWanAnimate { get => WanAnimateVM.IsProcessing; set => WanAnimateVM.IsProcessing = value; }
+        public string WanAnimateProcessingStatus => WanAnimateVM.ProcessingStatus;
+        public double WanAnimateProcessingProgress => WanAnimateVM.ProcessingProgress;
+        public string WanAnimateProgressPercentage => WanAnimateVM.ProgressPercentage;
+        public string WanAnimateLogOutput => WanAnimateVM.LogOutput;
+
+        public bool HasWanAnimateResult => WanAnimateVM.HasResult;
+        public string WanAnimateResultPath => WanAnimateVM.ResultVideoPath;
+        public string WanAnimateResultVideoInfo => WanAnimateVM.ResultVideoInfo;
+
+        public bool WanAnimateCanAddToQueue => WanAnimateVM.CanAddToQueue;
+        public bool WanAnimateIsAnalyzing => WanAnimateVM.IsAnalyzing;
+
+        public ObservableCollection<WanAnimateQueueItem> WanAnimateQueue => WanAnimateVM.Queue;
+        public bool WanAnimateHasQueueItems => WanAnimateVM.HasQueueItems;
+        public bool WanAnimateIsProcessingQueue => WanAnimateVM.IsProcessingQueue;
+        public string WanAnimateQueueStatus => WanAnimateVM.QueueStatus;
+        public bool WanAnimateHasFailedItems => WanAnimateVM.HasFailedItems;
+
+        public ICommand SelectWanAnimateRefImageCommand => WanAnimateVM.SelectReferenceImageCommand;
+        public ICommand SelectWanAnimateFaceImageCommand => WanAnimateVM.SelectFaceImageCommand;
+        public ICommand SelectWanAnimateVideoCommand => WanAnimateVM.SelectVideoCommand;
+        public ICommand GenerateWanAnimateVideoCommand => WanAnimateVM.GenerateVideoCommand;
+        public ICommand RemoveWanAnimateQueueItemCommand => WanAnimateVM.RemoveQueueItemCommand;
+        public ICommand ClearWanAnimateQueueCommand => WanAnimateVM.ClearQueueCommand;
+        public ICommand StopWanAnimateQueueCommand => WanAnimateVM.StopQueueCommand;
+        public ICommand ReprocessAllWanAnimateFailedCommand => WanAnimateVM.ReprocessAllFailedCommand;
+        public ICommand PlayWanAnimateVideoCommand => WanAnimateVM.PlayVideoCommand;
+        public ICommand OpenWanAnimateResultFolderCommand => WanAnimateVM.OpenResultFolderCommand;
+        public ICommand SendWanAnimateToEditCameraCommand => WanAnimateVM.SendToEditCameraCommand;
+        public ICommand AnalyzeWanAnimateImageCommand => WanAnimateVM.AnalyzeImageCommand;
+
+        #endregion
+
         #region Public Methods
 
         /// <summary>
@@ -740,6 +816,7 @@ namespace FlipPix.UI.ViewModels
                 LTX23T2VVM.PropertyChanged -= ForwardPropertyChanged;
                 Wan22SingleVM.PropertyChanged -= ForwardPropertyChanged;
                 LongVideoVM.PropertyChanged -= ForwardPropertyChanged;
+                WanAnimateVM.PropertyChanged -= ForwardPropertyChanged;
 
                 // Dispose all sub-ViewModels
                 (MainVM as IDisposable)?.Dispose();
@@ -751,6 +828,7 @@ namespace FlipPix.UI.ViewModels
                 (LTX23T2VVM as IDisposable)?.Dispose();
                 (Wan22SingleVM as IDisposable)?.Dispose();
                 (LongVideoVM as IDisposable)?.Dispose();
+                (WanAnimateVM as IDisposable)?.Dispose();
 
                 _disposed = true;
             }

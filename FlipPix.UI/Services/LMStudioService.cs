@@ -136,7 +136,7 @@ namespace FlipPix.UI.Services
                                 new
                                 {
                                     type = "text",
-                                    text = prompt
+                                    text = SuppressThinking(prompt, modelName)
                                 },
                                 new
                                 {
@@ -247,7 +247,7 @@ namespace FlipPix.UI.Services
                             role = "user",
                             content = new object[]
                             {
-                                new { type = "text", text = $"Image 1 (First Frame):\n{prompt}" },
+                                new { type = "text", text = SuppressThinking($"Image 1 (First Frame):\n{prompt}", modelName) },
                                 new { type = "image_url", image_url = new { url = firstDataUrl } },
                                 new { type = "text", text = "Image 2 (Last Frame):" },
                                 new { type = "image_url", image_url = new { url = lastDataUrl } }
@@ -344,7 +344,7 @@ namespace FlipPix.UI.Services
                                 new
                                 {
                                     type = "text",
-                                    text = userPrompt
+                                    text = SuppressThinking(userPrompt, modelName)
                                 },
                                 new
                                 {
@@ -535,7 +535,7 @@ namespace FlipPix.UI.Services
                     messages = new object[]
                     {
                         new { role = "system", content = systemPrompt },
-                        new { role = "user",   content = userMessage  }
+                        new { role = "user",   content = SuppressThinking(userMessage, modelName)  }
                     },
                     max_tokens = maxTokens,
                     temperature = 0.7,
@@ -595,7 +595,7 @@ namespace FlipPix.UI.Services
             try
             {
                 var contentParts = new List<object>();
-                contentParts.Add(new { type = "text", text = userPrompt });
+                contentParts.Add(new { type = "text", text = SuppressThinking(userPrompt, modelName) });
 
                 foreach (var imagePath in imagePaths)
                 {
@@ -742,13 +742,59 @@ namespace FlipPix.UI.Services
             }
         }
 
+        /// <summary>
+        /// Returns true for models known to emit chain-of-thought reasoning in plain text.
+        /// These models support /no_think in the user message to suppress CoT output.
+        /// </summary>
+        private static bool IsThinkingModel(string modelName)
+        {
+            if (string.IsNullOrEmpty(modelName)) return false;
+            var lower = modelName.ToLowerInvariant();
+            return lower.Contains("qwen3") ||
+                   lower.Contains("qwq") ||
+                   lower.Contains("deepseek-r1") ||
+                   lower.Contains("-r1-") ||
+                   lower.Contains("gemma4") ||
+                   lower.Contains("thinking");
+        }
+
+        /// <summary>
+        /// Prepends /no_think to the user prompt for thinking models so the model skips
+        /// its chain-of-thought preamble and outputs only the final answer.
+        /// No-op for non-thinking models.
+        /// </summary>
+        private static string SuppressThinking(string prompt, string modelName)
+        {
+            if (!IsThinkingModel(modelName)) return prompt;
+            return "/no_think\n" + prompt;
+        }
+
         private static string StripThinkingBlocks(string text)
         {
             if (string.IsNullOrEmpty(text)) return text;
+
+            // 1. Remove XML think/thinking tags (DeepSeek, Qwen with explicit reasoning tokens)
             var result = System.Text.RegularExpressions.Regex.Replace(
-                text, @"<think>[\s\S]*?</think>", string.Empty,
-                System.Text.RegularExpressions.RegexOptions.IgnoreCase);
-            return result.Trim();
+                text, @"<think(?:ing)?>[\s\S]*?</think(?:ing)?>", string.Empty,
+                System.Text.RegularExpressions.RegexOptions.IgnoreCase).Trim();
+
+            // 2. Qwen3 / gemma4 bold-header markdown thinking.
+            var extracted = PromptParser.ExtractFromNumberedMarkdownThinking(result);
+            if (extracted != null) return extracted;
+
+            // 3. Plain-text-header thinking (no bold markers): model starts by restating the task
+            //    ("The user wants...", "I need to...") then writes draft sections with plain labels.
+            //    Delegate to PromptParser.StripThinking which handles quoted paragraphs etc.
+            if (System.Text.RegularExpressions.Regex.IsMatch(result,
+                    @"^(?:The user wants|I need to|The image shows|Let me analyze|I'll analyze)",
+                    System.Text.RegularExpressions.RegexOptions.IgnoreCase))
+            {
+                var stripped = PromptParser.StripThinking(result);
+                if (stripped.Length > 50 && stripped.Length < result.Length)
+                    return stripped;
+            }
+
+            return result;
         }
 
         private static ImageCodecInfo GetEncoderInfo(string mimeType)

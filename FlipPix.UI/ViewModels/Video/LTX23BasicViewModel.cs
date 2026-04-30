@@ -371,7 +371,7 @@ namespace FlipPix.UI.ViewModels.Video
                 var enhanced = await _lmStudioService.SendTextChatAsync(
                     selectedModel, enhanceSystemPrompt, analysisResult, maxTokens: 6000);
 
-                Prompt = PromptParser.StripThinking(enhanced);
+                Prompt = enhanced;
                 ShowVideoPrompt = true;
                 AddLog($"Prompt enhanced ({Prompt.Length} chars)");
 
@@ -428,7 +428,7 @@ namespace FlipPix.UI.ViewModels.Video
                 var enhanced = await _lmStudioService.SendTextChatAsync(
                     selectedModel, systemPrompt, AnalysisResult, maxTokens: 6000);
 
-                Prompt = PromptParser.StripThinking(enhanced);
+                Prompt = enhanced;
                 ShowVideoPrompt = true;
                 AddLog($"Prompt enhanced ({Prompt.Length} chars)");
 

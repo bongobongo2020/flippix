@@ -874,16 +874,18 @@ namespace FlipPix.UI.ViewModels
             {
                 WorkflowNodeUpdater.UpdateNodeInputMultiple(ref workflowJson, "46", new Dictionary<string, object> { { "width", 416 }, { "height", 576 } });
                 WorkflowNodeUpdater.UpdateNodeInputMultiple(ref workflowJson, "693", new Dictionary<string, object> { { "width", 208 }, { "height", 288 } });
-                WorkflowNodeUpdater.UpdateNodeInputMultiple(ref workflowJson, "758", new Dictionary<string, object> { { "width", 288 }, { "height", 208 } });
+                WorkflowNodeUpdater.UpdateNodeInputMultiple(ref workflowJson, "758", new Dictionary<string, object> { { "width", 416 }, { "height", 576 } });
                 WorkflowNodeUpdater.UpdateNodeInputMultiple(ref workflowJson, "772", new Dictionary<string, object> { { "width", 1248 }, { "height", 1728 } });
+                WorkflowNodeUpdater.UpdateNodeInputMultiple(ref workflowJson, "618", new Dictionary<string, object> { { "width", 1248 }, { "height", 1728 } });
                 AddLog("Portrait dimensions: 416x576");
             }
             else  // Landscape (default)
             {
                 WorkflowNodeUpdater.UpdateNodeInputMultiple(ref workflowJson, "46", new Dictionary<string, object> { { "width", 576 }, { "height", 416 } });
                 WorkflowNodeUpdater.UpdateNodeInputMultiple(ref workflowJson, "693", new Dictionary<string, object> { { "width", 288 }, { "height", 208 } });
-                WorkflowNodeUpdater.UpdateNodeInputMultiple(ref workflowJson, "758", new Dictionary<string, object> { { "width", 416 }, { "height", 576 } });
+                WorkflowNodeUpdater.UpdateNodeInputMultiple(ref workflowJson, "758", new Dictionary<string, object> { { "width", 288 }, { "height", 208 } });
                 WorkflowNodeUpdater.UpdateNodeInputMultiple(ref workflowJson, "772", new Dictionary<string, object> { { "width", 1728 }, { "height", 1248 } });
+                WorkflowNodeUpdater.UpdateNodeInputMultiple(ref workflowJson, "618", new Dictionary<string, object> { { "width", 1728 }, { "height", 1248 } });
                 AddLog("Landscape dimensions: 576x416");
             }
 
@@ -1186,7 +1188,7 @@ namespace FlipPix.UI.ViewModels
                     SourceImagePath,
                     userPrompt,
                     systemPrompt,
-                    maxTokens: 500,
+                    maxTokens: 2000,
                     cts.Token);
 
                 if (!string.IsNullOrWhiteSpace(enhancedPrompt))
