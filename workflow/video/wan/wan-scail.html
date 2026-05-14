@@ -1,0 +1,1671 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>WAN SCAIL — Motion Transfer · Vantage</title>
+<style>
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap');
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+
+:root{
+  --bg:#05050e;
+  --surf:rgba(255,255,255,0.028);
+  --surf2:rgba(255,255,255,0.05);
+  --bdr:rgba(255,255,255,0.07);
+  --bdr-h:rgba(255,255,255,0.14);
+  --vio:#c084fc;
+  --vio-d:rgba(192,132,252,0.1);
+  --vio-b:rgba(192,132,252,0.22);
+  --vio-glow:0 0 40px rgba(192,132,252,0.2);
+  --eme:#34d399;
+  --eme-d:rgba(52,211,153,0.1);
+  --ind:#818cf8;
+  --ind-d:rgba(129,140,248,0.1);
+  --ok:#22c55e;
+  --ok-d:rgba(34,197,94,0.1);
+  --err:#ef4444;
+  --amb:#f59e0b;
+  --txt:#e2e8f0;
+  --txt-m:#64748b;
+  --txt-d:#94a3b8;
+  --r:14px;
+  --r-s:9px;
+  --mono:'JetBrains Mono',monospace;
+}
+
+html,body{height:100%;background:var(--bg);color:var(--txt);
+  font-family:'Inter',system-ui,sans-serif;font-size:14px;line-height:1.6;overflow:hidden}
+
+body::before{content:'';position:fixed;width:900px;height:900px;
+  background:radial-gradient(circle,rgba(192,132,252,0.045) 0%,transparent 60%);
+  top:-300px;left:-200px;pointer-events:none;z-index:0;
+  animation:blob1 20s ease-in-out infinite alternate}
+body::after{content:'';position:fixed;width:700px;height:700px;
+  background:radial-gradient(circle,rgba(52,211,153,0.03) 0%,transparent 60%);
+  bottom:-200px;right:-150px;pointer-events:none;z-index:0;
+  animation:blob2 26s ease-in-out infinite alternate}
+@keyframes blob1{0%{transform:translate(0,0) scale(1)}100%{transform:translate(50px,30px) scale(1.07)}}
+@keyframes blob2{0%{transform:translate(0,0) scale(1)}100%{transform:translate(-30px,-40px) scale(1.05)}}
+
+.app{position:relative;z-index:1;height:100vh;display:grid;
+  grid-template-rows:56px 1fr;overflow:hidden}
+
+/* ═══ HEADER ══════════════════════════════════════════════════════════════ */
+header{
+  padding:0 20px;display:flex;align-items:center;gap:12px;
+  border-bottom:1px solid var(--bdr);
+  background:rgba(5,5,14,0.92);backdrop-filter:blur(24px);
+  position:relative;z-index:100;
+}
+.back-btn{
+  display:flex;align-items:center;gap:5px;padding:5px 11px;
+  border-radius:7px;border:1px solid var(--bdr);background:none;
+  color:var(--txt-m);cursor:pointer;font-size:12px;font-family:inherit;
+  transition:all .15s;text-decoration:none;
+}
+.back-btn:hover{border-color:var(--bdr-h);color:var(--txt);background:rgba(255,255,255,.04)}
+.hdr-sep{width:1px;height:20px;background:var(--bdr);flex-shrink:0}
+.tag{font-size:9px;letter-spacing:1.1px;text-transform:uppercase;font-weight:700;
+  padding:3px 9px;border-radius:4px;flex-shrink:0}
+.tag-wan{color:var(--vio);background:var(--vio-d);border:1px solid rgba(192,132,252,0.25)}
+.tag-scail{color:var(--eme);background:var(--eme-d);border:1px solid rgba(52,211,153,0.22)}
+.hdr-info .hdr-name{font-size:15px;font-weight:700;letter-spacing:-.3px}
+.hdr-info .hdr-sub{font-size:11px;color:var(--txt-m)}
+.hdr-right{margin-left:auto;display:flex;align-items:center;gap:8px}
+.conn-pill{display:flex;align-items:center;gap:6px;padding:4px 12px;
+  background:var(--surf);border:1px solid var(--bdr);border-radius:20px;
+  font-size:11px;color:var(--txt-m);cursor:pointer;transition:all .15s}
+.conn-pill:hover{border-color:var(--bdr-h);color:var(--txt-d)}
+.cdot{width:6px;height:6px;border-radius:50%;background:var(--txt-m);flex-shrink:0}
+.cdot.ok{background:var(--ok)}.cdot.err{background:var(--err)}
+.cdot.spin{background:var(--amb);animation:pdot 1.2s ease-in-out infinite}
+@keyframes pdot{0%,100%{opacity:1}50%{opacity:.3}}
+@keyframes spin{to{transform:rotate(360deg)}}
+
+/* ═══ WORKSPACE ═══════════════════════════════════════════════════════════ */
+.workspace{display:grid;grid-template-columns:360px 1fr;height:100%;overflow:hidden}
+
+/* ═══ LEFT PANEL ══════════════════════════════════════════════════════════ */
+.panel-left{
+  border-right:1px solid var(--bdr);overflow-y:auto;
+  padding:16px;display:flex;flex-direction:column;gap:11px;
+  scrollbar-width:thin;scrollbar-color:rgba(255,255,255,.06) transparent;
+}
+.panel-left::-webkit-scrollbar{width:3px}
+.panel-left::-webkit-scrollbar-thumb{background:rgba(255,255,255,.07);border-radius:2px}
+
+/* ═══ CARDS ═══════════════════════════════════════════════════════════════ */
+.card{background:var(--surf);border:1px solid var(--bdr);border-radius:var(--r);
+  padding:14px;transition:border-color .2s}
+.card:hover{border-color:var(--bdr-h)}
+.card-hd{font-size:10px;font-weight:700;letter-spacing:.8px;text-transform:uppercase;
+  color:var(--txt-m);margin-bottom:11px;display:flex;align-items:center;gap:7px}
+.dot{width:5px;height:5px;border-radius:50%;flex-shrink:0}
+.dot-vio{background:linear-gradient(135deg,#9333ea,#c084fc);box-shadow:0 0 5px rgba(192,132,252,.5)}
+.dot-eme{background:linear-gradient(135deg,#059669,#34d399)}
+.dot-ind{background:linear-gradient(135deg,#4338ca,#818cf8)}
+
+/* ═══ IMAGE UPLOAD ════════════════════════════════════════════════════════ */
+.img-zone{
+  aspect-ratio:3/4;border:1.5px dashed var(--bdr);border-radius:var(--r-s);
+  display:flex;flex-direction:column;align-items:center;justify-content:center;
+  gap:6px;cursor:pointer;transition:all .22s;position:relative;overflow:hidden;
+  background:rgba(0,0,0,.25);
+}
+.img-zone:hover{border-color:rgba(192,132,252,.4);background:rgba(192,132,252,.03)}
+.img-zone.drag{border-style:solid;border-color:var(--vio);background:rgba(192,132,252,.07)}
+.img-zone input[type=file]{position:absolute;inset:0;opacity:0;cursor:pointer;width:100%;height:100%;z-index:10}
+.img-zone img.thumb{width:100%;height:100%;object-fit:cover;display:none;position:absolute;inset:0;
+  border-radius:calc(var(--r-s) - 1px);pointer-events:none}
+.img-zone img.thumb.on{display:block}
+.zone-ui{display:flex;flex-direction:column;align-items:center;gap:4px;padding:8px;
+  text-align:center;z-index:1;pointer-events:none}
+.zone-ui.gone{visibility:hidden}
+.zone-ico{width:44px;height:44px;border-radius:12px;background:var(--vio-d);
+  border:1px solid rgba(192,132,252,.15);display:flex;align-items:center;justify-content:center;margin-bottom:3px}
+.zone-txt{font-size:11px;color:var(--txt-d);font-weight:500}
+.zone-hint{font-size:10px;color:var(--txt-m)}
+.zone-fname{font-size:10px;position:absolute;bottom:7px;left:0;right:0;text-align:center;
+  color:var(--vio);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;
+  padding:0 8px;display:none;pointer-events:none;z-index:2;
+  text-shadow:0 1px 4px rgba(0,0,0,.9)}
+.zone-fname.on{display:block}
+
+/* Analyze button */
+.analyze-btn{
+  width:100%;margin-top:9px;padding:9px;
+  border:1px solid rgba(192,132,252,.3);border-radius:var(--r-s);
+  background:var(--vio-d);color:var(--vio);
+  font-family:inherit;font-size:12px;font-weight:600;
+  cursor:pointer;transition:all .18s;
+  display:flex;align-items:center;justify-content:center;gap:7px;
+}
+.analyze-btn:hover:not(:disabled){
+  background:rgba(192,132,252,.18);border-color:rgba(192,132,252,.55);
+  box-shadow:0 0 20px rgba(192,132,252,.18);
+}
+.analyze-btn:disabled{opacity:.35;cursor:not-allowed}
+.analyze-btn .spn{width:13px;height:13px;border:2px solid rgba(192,132,252,.25);
+  border-top-color:var(--vio);border-radius:50%;animation:spin .8s linear infinite;
+  display:none;flex-shrink:0}
+.analyze-btn.loading .spn{display:inline-block}
+.analyze-btn.loading .a-ico{display:none}
+
+/* Analyze All Chunks button */
+.analyze-all-btn{
+  width:100%;margin-top:6px;padding:9px;
+  border:1px solid rgba(245,158,11,.3);border-radius:var(--r-s);
+  background:rgba(245,158,11,.07);color:var(--amb);
+  font-family:inherit;font-size:12px;font-weight:600;
+  cursor:pointer;transition:all .18s;
+  display:flex;align-items:center;justify-content:center;gap:7px;
+}
+.analyze-all-btn:hover:not(:disabled){
+  background:rgba(245,158,11,.16);border-color:rgba(245,158,11,.5);
+  box-shadow:0 0 18px rgba(245,158,11,.15);
+}
+.analyze-all-btn:disabled{opacity:.35;cursor:not-allowed}
+.analyze-all-btn .spn{width:13px;height:13px;border:2px solid rgba(245,158,11,.25);
+  border-top-color:var(--amb);border-radius:50%;animation:spin .8s linear infinite;
+  display:none;flex-shrink:0}
+.analyze-all-btn.loading .spn{display:inline-block}
+.analyze-all-btn.loading .a-ico{display:none}
+
+/* Analyzed indicator dot on chunk tile */
+.chunk-dot-analyzed{position:absolute;top:4px;right:4px;width:5px;height:5px;
+  border-radius:50%;background:var(--eme);display:none;
+  box-shadow:0 0 4px rgba(52,211,153,.6)}
+
+/* Prompt */
+.prompt-hdr{display:flex;align-items:center;justify-content:space-between;margin-bottom:9px}
+.prompt-hdr .card-hd{margin-bottom:0}
+.stream-badge{
+  font-size:9px;color:var(--vio);font-weight:700;letter-spacing:.6px;display:none;
+  animation:pdot 1.5s ease-in-out infinite;
+}
+textarea{
+  width:100%;background:rgba(0,0,0,.3);border:1px solid var(--bdr);
+  border-radius:var(--r-s);color:var(--txt);font-family:inherit;
+  font-size:12px;line-height:1.65;padding:9px 11px;resize:vertical;
+  min-height:90px;max-height:220px;outline:none;
+  transition:border-color .2s,box-shadow .2s;
+}
+textarea:focus{border-color:rgba(129,140,248,.5);box-shadow:0 0 0 3px rgba(129,140,248,.07)}
+textarea::placeholder{color:var(--txt-m)}
+textarea.streaming{border-color:rgba(192,132,252,.45)!important;
+  box-shadow:0 0 0 3px rgba(192,132,252,.07)!important}
+
+/* Settings */
+.row-2{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:8px}
+.field label{display:block;font-size:10px;font-weight:600;letter-spacing:.5px;
+  text-transform:uppercase;color:var(--txt-m);margin-bottom:5px}
+.field-in{
+  width:100%;background:rgba(0,0,0,.35);border:1px solid var(--bdr);
+  border-radius:6px;color:var(--txt);font-family:var(--mono);
+  font-size:12px;padding:6px 9px;outline:none;transition:border-color .15s;
+}
+.field-in:focus{border-color:rgba(129,140,248,.5)}
+.seed-row{display:flex;gap:6px;margin-top:8px;align-items:flex-end}
+.seed-row .field{flex:1}
+.rand-btn{
+  height:30px;padding:0 11px;background:var(--surf);border:1px solid var(--bdr);
+  border-radius:6px;color:var(--txt-m);font-size:11px;cursor:pointer;
+  transition:all .15s;font-family:inherit;white-space:nowrap;flex-shrink:0;
+}
+.rand-btn:hover{background:rgba(255,255,255,.06);color:var(--txt)}
+
+/* ═══ MAIN PANEL ══════════════════════════════════════════════════════════ */
+.panel-main{flex:1;display:flex;flex-direction:column;overflow:hidden}
+
+/* Video area */
+.vid-area{flex:1 1 0;min-height:160px;position:relative;overflow:hidden;background:rgba(0,0,0,.5)}
+.vid-zone{
+  width:100%;height:100%;display:flex;align-items:center;justify-content:center;
+  position:relative;cursor:pointer;transition:background .22s;
+}
+.vid-zone:hover:not(.loaded){background:rgba(52,211,153,.02)}
+.vid-zone input[type=file]{position:absolute;inset:0;opacity:0;cursor:pointer;
+  width:100%;height:100%;z-index:10}
+.vid-zone.loaded input[type=file]{pointer-events:none;z-index:-1}
+.vid-idle{display:flex;flex-direction:column;align-items:center;gap:8px;
+  color:var(--txt-m);pointer-events:none;transition:opacity .2s}
+.vid-idle.gone{opacity:0;pointer-events:none}
+.vid-idle-ico{width:60px;height:60px;border-radius:18px;
+  background:rgba(52,211,153,.07);border:1px solid rgba(52,211,153,.15);
+  display:flex;align-items:center;justify-content:center;margin-bottom:4px}
+.vid-idle-txt{font-size:13px;font-weight:500;color:var(--txt-d)}
+.vid-idle-hint{font-size:11px;color:var(--txt-m);text-align:center;max-width:280px;line-height:1.6}
+.drag-over-vio{border:2px dashed var(--eme)!important;background:rgba(52,211,153,.04)!important}
+
+video#vidPlayer{
+  width:100%;height:100%;object-fit:contain;display:none;position:absolute;inset:0;
+}
+video#vidPlayer.on{display:block}
+
+/* Video info overlay */
+.vid-info-bar{
+  position:absolute;bottom:10px;left:10px;right:10px;
+  display:none;align-items:center;gap:10px;padding:7px 14px;
+  background:rgba(5,5,14,.88);backdrop-filter:blur(14px);
+  border:1px solid var(--bdr);border-radius:9px;
+  pointer-events:none;
+}
+.vid-info-bar.on{display:flex}
+.vib-pill{font-size:10px;color:var(--txt-d);display:flex;align-items:center;gap:5px;white-space:nowrap}
+.vib-pill strong{color:var(--txt);font-family:var(--mono);font-size:11px}
+.vib-sep{width:1px;height:12px;background:var(--bdr);flex-shrink:0}
+.vib-chunks{margin-left:auto;font-size:11px;font-weight:700;
+  color:var(--vio);font-family:var(--mono);white-space:nowrap}
+
+/* Upload progress overlay */
+.upload-overlay{
+  position:absolute;inset:0;background:rgba(5,5,14,.82);
+  display:none;flex-direction:column;align-items:center;justify-content:center;
+  gap:10px;z-index:30;backdrop-filter:blur(6px);
+}
+.upload-overlay.on{display:flex}
+.upl-ring{width:38px;height:38px;border:3px solid rgba(52,211,153,.18);
+  border-top-color:var(--eme);border-radius:50%;animation:spin .9s linear infinite}
+.upl-txt{font-size:12px;color:var(--eme);font-weight:500}
+
+/* ═══ TIMELINE ════════════════════════════════════════════════════════════ */
+.timeline-bar{
+  flex-shrink:0;border-top:1px solid var(--bdr);padding:11px 14px 10px;
+  background:rgba(0,0,0,.22);
+}
+.tl-head{display:flex;align-items:center;justify-content:space-between;margin-bottom:9px}
+.tl-label{font-size:10px;font-weight:700;letter-spacing:.8px;text-transform:uppercase;
+  color:var(--txt-m);display:flex;align-items:center;gap:6px}
+.tl-sel-info{font-size:11px;color:var(--txt-d);font-family:var(--mono)}
+.tl-sel-info em{color:var(--vio);font-style:normal;font-weight:700}
+.tl-hint{font-size:10px;color:var(--txt-m);opacity:.65;font-family:inherit}
+
+.tl-scroll{
+  position:relative;overflow-x:auto;overflow-y:hidden;
+  scrollbar-width:thin;scrollbar-color:rgba(255,255,255,.05) transparent;
+  padding-bottom:3px;
+}
+.tl-scroll::-webkit-scrollbar{height:3px}
+.tl-scroll::-webkit-scrollbar-thumb{background:rgba(255,255,255,.07);border-radius:2px}
+.tl-track{
+  display:flex;gap:2px;min-width:100%;
+  min-height:44px;
+}
+.tl-empty{
+  flex:1;border:1px dashed var(--bdr);border-radius:7px;
+  display:flex;align-items:center;justify-content:center;
+  color:var(--txt-m);font-size:11px;min-height:44px;
+}
+.chunk-seg{
+  flex-shrink:0;height:44px;min-width:54px;border-radius:6px;
+  border:1px solid rgba(255,255,255,.06);background:rgba(255,255,255,.035);
+  cursor:pointer;transition:all .14s;position:relative;overflow:hidden;
+  display:flex;flex-direction:column;align-items:center;justify-content:center;
+}
+.chunk-seg:hover{border-color:rgba(192,132,252,.4);background:rgba(192,132,252,.08);transform:scaleY(.96)}
+.chunk-seg.sel{
+  border-color:var(--vio);background:rgba(192,132,252,.16);
+  box-shadow:0 0 12px rgba(192,132,252,.25);
+}
+.chunk-seg.done{border-color:rgba(52,211,153,.3);background:rgba(52,211,153,.07)}
+.chunk-seg.processing{
+  border-color:var(--amb);background:rgba(245,158,11,.08);
+  animation:chunk-pulse 1.4s ease-in-out infinite;
+}
+.chunk-seg.failed{border-color:rgba(239,68,68,.3);background:rgba(239,68,68,.05)}
+@keyframes chunk-pulse{0%,100%{opacity:1}50%{opacity:.65}}
+.chunk-idx{font-size:9px;font-weight:700;color:var(--txt-m);line-height:1;margin-bottom:1px;white-space:nowrap}
+.chunk-seg.sel .chunk-idx{color:var(--vio)}
+.chunk-seg.done .chunk-idx{color:var(--eme)}
+.chunk-frames{font-size:8.5px;color:var(--txt-m);font-family:var(--mono);line-height:1}
+.chunk-seg.sel .chunk-frames{color:rgba(192,132,252,.65)}
+.chunk-bot{position:absolute;bottom:0;left:0;right:0;height:2px;border-radius:0 0 6px 6px}
+.chunk-seg.sel .chunk-bot{background:var(--vio)}
+.chunk-seg.done .chunk-bot{background:var(--eme)}
+.chunk-seg.processing .chunk-bot{background:var(--amb)}
+
+/* Playhead */
+.tl-playhead{
+  position:absolute;top:0;bottom:3px;width:2px;
+  background:rgba(255,255,255,.55);pointer-events:none;z-index:5;
+  transition:left .08s linear;display:none;
+}
+.tl-playhead::after{
+  content:'';position:absolute;top:-1px;left:50%;transform:translateX(-50%);
+  width:7px;height:7px;border-radius:50%;background:white;
+  box-shadow:0 0 6px rgba(255,255,255,.7);
+}
+
+/* ═══ ACTION BAR ══════════════════════════════════════════════════════════ */
+.action-bar{
+  flex-shrink:0;border-top:1px solid var(--bdr);padding:10px 14px;
+  display:flex;align-items:center;gap:8px;background:rgba(0,0,0,.3);
+}
+.gen-btn{
+  flex:1;padding:10px 14px;border:none;border-radius:var(--r-s);
+  color:#fff;font-family:inherit;font-size:13px;font-weight:600;
+  cursor:pointer;transition:all .2s;display:flex;align-items:center;
+  justify-content:center;gap:7px;position:relative;overflow:hidden;
+}
+.gen-btn::before{content:'';position:absolute;inset:0;
+  background:linear-gradient(135deg,rgba(255,255,255,.1),transparent);
+  opacity:0;transition:opacity .2s}
+.gen-btn:hover:not(:disabled)::before{opacity:1}
+.gen-btn:hover:not(:disabled){transform:translateY(-1px)}
+.gen-btn:active:not(:disabled){transform:translateY(0)}
+.gen-btn:disabled{opacity:.3;cursor:not-allowed;transform:none;box-shadow:none}
+.btn-chunk{background:linear-gradient(135deg,#7c3aed,#c084fc);
+  box-shadow:0 4px 18px rgba(192,132,252,.22)}
+.btn-chunk:hover:not(:disabled){box-shadow:0 6px 28px rgba(192,132,252,.42)}
+.btn-all{background:linear-gradient(135deg,#047857,#34d399);
+  box-shadow:0 4px 18px rgba(52,211,153,.15)}
+.btn-all:hover:not(:disabled){box-shadow:0 6px 28px rgba(52,211,153,.32)}
+.gen-btn .spn{width:14px;height:14px;border:2px solid rgba(255,255,255,.28);
+  border-top-color:#fff;border-radius:50%;animation:spin .8s linear infinite;
+  display:none;flex-shrink:0}
+.gen-btn.loading .spn{display:inline-block}
+.gen-btn.loading .g-ico{display:none}
+.cancel-btn{
+  height:36px;padding:0 11px;border:1px solid rgba(239,68,68,.3);
+  border-radius:var(--r-s);background:rgba(239,68,68,.07);color:#f87171;
+  font-size:11px;font-family:inherit;cursor:pointer;transition:all .15s;
+  display:none;white-space:nowrap;
+}
+.cancel-btn.on{display:flex;align-items:center;gap:5px}
+.cancel-btn:hover{background:rgba(239,68,68,.15);border-color:rgba(239,68,68,.5)}
+
+/* ═══ PROGRESS + STATUS ═══════════════════════════════════════════════════ */
+.prog-bar{
+  flex-shrink:0;height:2px;background:rgba(255,255,255,.05);overflow:hidden;display:none;
+}
+.prog-bar.on{display:block}
+.prog-fill{height:100%;background:linear-gradient(90deg,#7c3aed,#c084fc,#34d399);
+  width:0%;transition:width .4s ease}
+
+.status-row{
+  flex-shrink:0;padding:5px 14px;display:flex;align-items:center;gap:8px;
+  min-height:28px;border-top:1px solid rgba(255,255,255,.035);
+}
+.sdot{width:5px;height:5px;border-radius:50%;background:var(--txt-m);flex-shrink:0}
+.sdot.ok{background:var(--ok)}.sdot.err{background:var(--err)}
+.sdot.run{background:var(--amb);animation:pdot 1.2s ease-in-out infinite}
+.stxt{font-size:11px;color:var(--txt-m);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.stxt.ok{color:var(--ok)}.stxt.err{color:#f87171}
+
+/* ═══ OUTPUT SECTION ══════════════════════════════════════════════════════ */
+.out-section{
+  flex:0 0 auto;max-height:280px;min-height:0;
+  border-top:1px solid var(--bdr);overflow-y:auto;
+  scrollbar-width:thin;scrollbar-color:rgba(255,255,255,.06) transparent;
+  transition:max-height .3s ease;
+}
+.out-section:empty-children{display:none}
+.out-section::-webkit-scrollbar{width:3px}
+.out-section::-webkit-scrollbar-thumb{background:rgba(255,255,255,.07);border-radius:2px}
+
+.out-idle{
+  padding:24px;display:flex;flex-direction:column;align-items:center;
+  justify-content:center;gap:8px;color:var(--txt-m);
+}
+.out-idle-ico{width:40px;height:40px;border-radius:12px;background:var(--surf);
+  border:1px solid var(--bdr);display:flex;align-items:center;justify-content:center;margin-bottom:2px}
+.out-idle-txt{font-size:12px;color:var(--txt-d);font-weight:500}
+.out-idle-sub{font-size:11px;text-align:center;max-width:300px;line-height:1.5}
+
+.out-grid{display:flex;flex-direction:column;gap:0}
+.out-item{border-bottom:1px solid var(--bdr);transition:background .15s}
+.out-item:hover{background:var(--surf)}
+.out-item:last-child{border-bottom:none}
+.out-item-body{display:flex;gap:10px;padding:8px 14px;align-items:center}
+.out-vid-thumb{
+  width:80px;height:50px;border-radius:6px;overflow:hidden;flex-shrink:0;
+  background:rgba(0,0,0,.4);border:1px solid var(--bdr);cursor:pointer;
+}
+.out-vid-thumb video{width:100%;height:100%;object-fit:cover;pointer-events:none}
+.out-meta{flex:1;min-width:0}
+.out-name{font-size:11px;color:var(--txt-d);overflow:hidden;text-overflow:ellipsis;
+  white-space:nowrap;font-weight:500}
+.out-tag{font-size:10px;color:var(--vio);font-family:var(--mono);margin-top:1px}
+.out-actions{display:flex;gap:5px;flex-shrink:0}
+.out-btn{
+  padding:4px 9px;border:1px solid var(--bdr);border-radius:5px;
+  background:none;color:var(--txt-m);font-size:10px;cursor:pointer;
+  transition:all .15s;font-family:inherit;display:flex;align-items:center;gap:4px;
+}
+.out-btn:hover{border-color:var(--bdr-h);color:var(--txt)}
+.out-btn.play-btn:hover{border-color:rgba(192,132,252,.4);color:var(--vio)}
+
+/* ═══ LIGHTBOX ════════════════════════════════════════════════════════════ */
+.lightbox{
+  position:fixed;inset:0;background:rgba(0,0,0,.88);z-index:999;
+  display:none;align-items:center;justify-content:center;
+  backdrop-filter:blur(8px);cursor:pointer;
+}
+.lightbox.on{display:flex}
+.lb-inner{max-width:90vw;max-height:90vh;position:relative;cursor:default}
+.lb-inner video{max-width:100%;max-height:90vh;border-radius:10px;
+  box-shadow:0 32px 80px rgba(0,0,0,.7)}
+.lb-close{position:absolute;top:-14px;right:-14px;width:30px;height:30px;
+  background:#1a1a2e;border:1px solid var(--bdr);border-radius:50%;
+  display:flex;align-items:center;justify-content:center;cursor:pointer;
+  color:var(--txt-m);transition:all .15s;font-size:16px;line-height:1}
+.lb-close:hover{color:var(--txt);border-color:var(--bdr-h)}
+.lb-label{position:absolute;bottom:-28px;left:0;right:0;text-align:center;
+  font-size:11px;color:var(--txt-m);font-family:var(--mono)}
+
+/* ═══ SETTINGS GEAR ════════════════════════════════════════════════════════ */
+.gear-wrap{position:relative}
+.gear-btn{
+  display:flex;align-items:center;justify-content:center;
+  width:30px;height:30px;border-radius:8px;
+  border:1px solid var(--bdr);background:none;
+  color:var(--txt-m);cursor:pointer;transition:all .15s;font-size:15px;line-height:1;
+}
+.gear-btn:hover,.gear-btn.open{border-color:var(--bdr-h);color:var(--txt);background:rgba(255,255,255,.05)}
+.gear-btn.open{border-color:rgba(192,132,252,.4);color:var(--vio);background:var(--vio-d)}
+.gear-pop{
+  display:none;position:absolute;top:calc(100% + 8px);right:0;
+  background:#0a0a18;border:1px solid rgba(255,255,255,.12);
+  border-radius:12px;padding:16px;width:290px;
+  box-shadow:0 20px 60px rgba(0,0,0,.75);z-index:400;
+}
+.gear-pop.open{display:block}
+.gear-pop-title{font-size:12px;font-weight:700;color:var(--txt-d);margin-bottom:13px;
+  display:flex;align-items:center;gap:7px}
+.gear-lbl{font-size:11px;color:var(--txt-m);margin-bottom:5px}
+.gear-input{
+  width:100%;background:rgba(0,0,0,.4);border:1px solid var(--bdr);
+  border-radius:7px;color:var(--txt);font-family:var(--mono);font-size:12px;
+  padding:7px 10px;outline:none;transition:border-color .2s;
+  display:block;margin-bottom:10px;
+}
+.gear-input:focus{border-color:rgba(192,132,252,.5)}
+.gear-save{
+  width:100%;padding:8px;background:linear-gradient(135deg,#7c3aed,#c084fc);
+  border:none;border-radius:7px;color:white;font-family:inherit;
+  font-size:12px;font-weight:600;cursor:pointer;transition:all .15s;
+}
+.gear-save:hover{box-shadow:0 4px 14px rgba(192,132,252,.35)}
+.gear-ok{font-size:11px;color:var(--ok);margin-top:7px;min-height:15px;text-align:center}
+
+/* ═══ VAL BOX ══════════════════════════════════════════════════════════════ */
+.val-msg{
+  flex-shrink:0;margin:0 14px;padding:7px 11px;
+  background:rgba(245,158,11,.07);border:1px solid rgba(245,158,11,.2);
+  border-radius:7px;font-size:11px;color:#fcd34d;display:none;
+}
+.val-msg.on{display:block}
+</style>
+</head>
+<body>
+<div class="app">
+
+<!-- ── Header ─────────────────────────────────────────────────────────── -->
+<header>
+  <a class="back-btn" href="/">
+    <svg width="11" height="11" viewBox="0 0 12 12" fill="none">
+      <path d="M7.5 2L3.5 6L7.5 10" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+    </svg>
+    Back
+  </a>
+  <div class="hdr-sep"></div>
+  <span class="tag tag-wan">WAN 2.1</span>
+  <span class="tag tag-scail">SCAIL</span>
+  <div class="hdr-info">
+    <div class="hdr-name">Motion Transfer</div>
+    <div class="hdr-sub">Multi-Character Pose &amp; Style Transfer</div>
+  </div>
+  <div class="hdr-right">
+    <div class="conn-pill" id="connPill" onclick="testConn()">
+      <div class="cdot spin" id="connDot"></div>
+      <span id="connTxt">Connecting…</span>
+    </div>
+    <div class="gear-wrap">
+      <button class="gear-btn" id="gearBtn" onclick="toggleGear()" title="Settings">⚙</button>
+      <div class="gear-pop" id="gearPop">
+        <div class="gear-pop-title">⚙ Connection Settings</div>
+        <div class="gear-lbl">ComfyUI URL</div>
+        <input class="gear-input" id="gearComfy" type="text" placeholder="http://127.0.0.1:8188">
+        <div class="gear-lbl">LLM Server URL</div>
+        <input class="gear-input" id="gearLlama" type="text" placeholder="http://127.0.0.1:8080">
+        <div class="gear-lbl">Output Directory (ComfyUI output folder)</div>
+        <input class="gear-input" id="gearOutputDir" type="text" placeholder="e.g. C:\ComfyUI\output or /home/user/ComfyUI/output">
+        <button class="gear-save" onclick="saveSettings()">Save &amp; Test</button>
+        <div class="gear-ok" id="gearOk"></div>
+      </div>
+    </div>
+  </div>
+</header>
+
+<div class="workspace">
+
+  <!-- ── Left Panel ────────────────────────────────────────────────────── -->
+  <div class="panel-left">
+
+    <!-- Character Image -->
+    <div class="card">
+      <div class="card-hd"><div class="dot dot-vio"></div>Character Image</div>
+      <div class="img-zone" id="imgZone">
+        <input type="file" id="imgFile" accept="image/png,image/jpeg,image/webp,image/gif">
+        <img class="thumb" id="imgThumb" alt="">
+        <div class="zone-ui" id="imgUI">
+          <div class="zone-ico">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none">
+              <rect x="3" y="3" width="18" height="18" rx="3" stroke="#c084fc" stroke-width="1.5"/>
+              <circle cx="8.5" cy="8.5" r="1.5" fill="#c084fc" opacity=".7"/>
+              <path d="M3 16l5-5 4 3.5 3-3 6 5.5" stroke="#c084fc" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+            </svg>
+          </div>
+          <div class="zone-txt">Drop character image</div>
+          <div class="zone-hint">PNG · JPG · WEBP</div>
+        </div>
+        <div class="zone-fname" id="imgFname"></div>
+      </div>
+
+      <button class="analyze-btn" id="analyzeBtn" onclick="analyzeImage()" disabled>
+        <div class="spn"></div>
+        <svg class="a-ico" width="13" height="13" viewBox="0 0 24 24" fill="none">
+          <path d="M9 3H5a2 2 0 00-2 2v4m6-6h10a2 2 0 012 2v4M9 3v18m0 0h10a2 2 0 002-2v-4M9 21H5a2 2 0 01-2-2v-4m0 0h18" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>
+        </svg>
+        Analyze Selected Chunk
+      </button>
+      <button class="analyze-all-btn" id="analyzeAllBtn" onclick="analyzeAllChunks()" disabled>
+        <div class="spn"></div>
+        <svg class="a-ico" width="13" height="13" viewBox="0 0 24 24" fill="none">
+          <path d="M4 6h16M4 10h16M4 14h10" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>
+          <circle cx="19" cy="17" r="3" stroke="currentColor" stroke-width="1.5"/>
+          <path d="M17.5 17l1 1 2-2" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+        </svg>
+        Analyze All Chunks
+      </button>
+    </div>
+
+    <!-- Prompt -->
+    <div class="card">
+      <div class="prompt-hdr">
+        <div class="card-hd" style="margin-bottom:0"><div class="dot dot-ind"></div>Positive Prompt</div>
+        <span class="stream-badge" id="streamBadge">● STREAMING</span>
+        <span id="promptChunkLabel" style="font-size:10px;color:var(--eme);font-family:var(--mono);display:none;margin-left:6px"></span>
+      </div>
+      <div style="margin-top:9px">
+        <textarea id="promptTxt" rows="5"
+          placeholder="Describe the motion or scene — or use Analyze Image above to auto-generate…"></textarea>
+      </div>
+    </div>
+
+    <!-- Settings -->
+    <div class="card">
+      <div class="card-hd"><div class="dot dot-eme"></div>Settings</div>
+      <div class="row-2">
+        <div class="field">
+          <label>Frame Rate</label>
+          <input class="field-in" type="number" id="fpsIn" value="24" min="1" max="60">
+        </div>
+        <div class="field">
+          <label>Max Edge</label>
+          <input class="field-in" type="number" id="resIn" value="832" min="256" max="1280" step="64">
+        </div>
+      </div>
+      <div class="seed-row">
+        <div class="field">
+          <label>Seed</label>
+          <input class="field-in" type="number" id="seedIn" value="-1" min="-1" style="width:100%">
+        </div>
+        <button class="rand-btn" onclick="randSeed()">Random</button>
+      </div>
+    </div>
+
+  </div><!-- /panel-left -->
+
+  <!-- ── Main Panel ────────────────────────────────────────────────────── -->
+  <div class="panel-main">
+
+    <!-- Video area -->
+    <div class="vid-area" id="vidArea">
+      <div class="vid-zone" id="vidZone">
+        <input type="file" id="vidFile" accept="video/mp4,video/x-matroska,video/avi,video/quicktime,video/webm,video/*">
+        <div class="upload-overlay" id="uploadOverlay">
+          <div class="upl-ring"></div>
+          <div class="upl-txt" id="uplTxt">Uploading video…</div>
+        </div>
+        <video id="vidPlayer" playsinline controls></video>
+        <div class="vid-idle" id="vidIdle">
+          <div class="vid-idle-ico">
+            <svg width="28" height="28" viewBox="0 0 24 24" fill="none">
+              <rect x="2" y="4" width="20" height="16" rx="3" stroke="#34d399" stroke-width="1.5"/>
+              <path d="M10 8.5l5.5 3.5-5.5 3.5V8.5z" fill="#34d399"/>
+            </svg>
+          </div>
+          <div class="vid-idle-txt">Drop reference video here</div>
+          <div class="vid-idle-hint">MP4 · MKV · AVI · MOV — will be analyzed for frame count &amp; FPS via ffprobe, then split into 121-frame windows for display</div>
+        </div>
+        <div class="vid-info-bar" id="vidInfoBar">
+          <div class="vib-pill">Duration<strong id="vibDur">—</strong></div>
+          <div class="vib-sep"></div>
+          <div class="vib-pill">FPS<strong id="vibFps">—</strong></div>
+          <div class="vib-sep"></div>
+          <div class="vib-pill">Frames<strong id="vibFrames">—</strong></div>
+          <div class="vib-sep"></div>
+          <div class="vib-pill">Size<strong id="vibSize">—</strong></div>
+          <div class="vib-chunks" id="vibChunks"></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Timeline -->
+    <div class="timeline-bar">
+      <div class="tl-head">
+        <div class="tl-label"><div class="dot dot-vio"></div>121-Frame Windows<span class="tl-hint" style="margin-left:8px;font-weight:400">shift-click to multi-select</span></div>
+        <div class="tl-sel-info" id="tlSelInfo">Upload a video to see chunks</div>
+      </div>
+      <div class="tl-scroll" id="tlScroll">
+        <div class="tl-track" id="tlTrack">
+          <div class="tl-empty">No video loaded</div>
+        </div>
+        <div class="tl-playhead" id="tlPlayhead"></div>
+      </div>
+    </div>
+
+    <!-- Progress bar -->
+    <div class="prog-bar" id="progBar"><div class="prog-fill" id="progFill"></div></div>
+
+    <!-- Status row -->
+    <div class="status-row">
+      <div class="sdot" id="sdot"></div>
+      <div class="stxt" id="stxt">Ready — upload a character image and reference video to begin</div>
+    </div>
+
+    <!-- Validation msg -->
+    <div class="val-msg" id="valMsg"></div>
+
+    <!-- Action bar -->
+    <div class="action-bar">
+      <button class="gen-btn btn-chunk" id="btnChunk" onclick="processChunk()" disabled>
+        <div class="spn"></div>
+        <svg class="g-ico" width="14" height="14" viewBox="0 0 24 24" fill="none">
+          <rect x="3" y="6" width="18" height="12" rx="2" stroke="currentColor" stroke-width="1.5"/>
+          <path d="M10 9.5l5 2.5-5 2.5v-5z" fill="currentColor"/>
+        </svg>
+        <span id="btnChunkLabel">Process Selected Chunk</span>
+      </button>
+      <button class="gen-btn btn-all" id="btnAll" onclick="processAll()" disabled>
+        <div class="spn"></div>
+        <svg class="g-ico" width="14" height="14" viewBox="0 0 24 24" fill="none">
+          <path d="M5 3l14 9-14 9V3z" fill="currentColor"/>
+        </svg>
+        Process Entire Video
+      </button>
+      <button class="cancel-btn" id="cancelBtn" onclick="cancelAll()">
+        <svg width="11" height="11" viewBox="0 0 24 24" fill="none">
+          <path d="M18 6L6 18M6 6l12 12" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+        </svg>
+        Cancel
+      </button>
+    </div>
+
+    <!-- Output section -->
+    <div class="out-section" id="outSection">
+      <div class="out-idle" id="outIdle">
+        <div class="out-idle-ico">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none">
+            <path d="M5 3l14 9-14 9V3z" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round"/>
+          </svg>
+        </div>
+        <div class="out-idle-txt">No output yet</div>
+        <div class="out-idle-sub">Select a chunk and click "Process Selected Chunk", or process the entire video sequentially</div>
+      </div>
+      <div class="out-grid" id="outGrid" style="display:none"></div>
+    </div>
+
+  </div><!-- /panel-main -->
+</div><!-- /workspace -->
+</div><!-- /app -->
+
+<!-- Lightbox -->
+<div class="lightbox" id="lightbox" onclick="closeLightbox(event)">
+  <div class="lb-inner" onclick="event.stopPropagation()">
+    <video id="lbVideo" controls autoplay loop></video>
+    <div class="lb-close" onclick="closeLightbox()">×</div>
+    <div class="lb-label" id="lbLabel"></div>
+  </div>
+</div>
+
+<script>
+// ── State ─────────────────────────────────────────────────────────────────
+const S = {
+  imgComfy: null,
+  vidComfy: null,
+  vidInfo: null,
+  selectedChunk: 0,       // anchor / last clicked (used for video scrubbing)
+  selectedChunks: new Set([0]), // full multi-selection
+  numChunks: 0,
+  totalFrames: 0,
+  processing: false,
+  allRunning: false,
+  analyzeRunning: false,
+  cancelFlag: false,
+  seeking: false,         // true while video is seeking — suppresses auto-follow
+  outputs: [],
+  chunkPrompts: {},       // per-chunk analyzed prompts keyed by chunk index
+  vidOrigName: null,      // original filename used as cache key
+};
+
+// ── Settings gear ─────────────────────────────────────────────────────────
+function toggleGear() {
+  const btn = document.getElementById('gearBtn');
+  const pop = document.getElementById('gearPop');
+  const open = pop.classList.toggle('open');
+  btn.classList.toggle('open', open);
+  if (open) {
+    // Populate current values
+    fetch('/settings').then(r => r.json()).then(d => {
+      document.getElementById('gearComfy').value = d.comfyui_url || '';
+      document.getElementById('gearLlama').value = d.llama_url || '';
+      document.getElementById('gearOutputDir').value = d.output_dir || '';
+    }).catch(() => {});
+  }
+}
+
+async function saveSettings() {
+  const comfy = document.getElementById('gearComfy').value.trim();
+  const llama = document.getElementById('gearLlama').value.trim();
+  const outputDir = document.getElementById('gearOutputDir').value.trim();
+  const ok = document.getElementById('gearOk');
+  ok.textContent = 'Saving…';
+  ok.style.color = 'var(--txt-m)';
+  try {
+    await fetch('/settings', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ comfyui_url: comfy, llama_url: llama, output_dir: outputDir }),
+    });
+    ok.textContent = 'Saved — testing connection…';
+    ok.style.color = 'var(--ok)';
+    await testConn();
+    ok.textContent = 'Settings saved ✓';
+    setTimeout(() => {
+      ok.textContent = '';
+      document.getElementById('gearPop').classList.remove('open');
+      document.getElementById('gearBtn').classList.remove('open');
+    }, 1800);
+  } catch (e) {
+    ok.textContent = 'Save failed: ' + e.message;
+    ok.style.color = 'var(--err)';
+  }
+}
+
+// Close gear popover when clicking outside
+document.addEventListener('click', e => {
+  const wrap = document.querySelector('.gear-wrap');
+  if (wrap && !wrap.contains(e.target)) {
+    document.getElementById('gearPop')?.classList.remove('open');
+    document.getElementById('gearBtn')?.classList.remove('open');
+  }
+});
+
+// ── Connection ────────────────────────────────────────────────────────────
+async function testConn() {
+  const dot = document.getElementById('connDot');
+  const txt = document.getElementById('connTxt');
+  dot.className = 'cdot spin';
+  txt.textContent = 'Connecting…';
+  try {
+    const r = await fetch('/settings/test');
+    const d = await r.json();
+    dot.className = d.ok ? 'cdot ok' : 'cdot err';
+    txt.textContent = d.ok ? 'ComfyUI Connected' : 'ComfyUI Error';
+  } catch {
+    dot.className = 'cdot err';
+    txt.textContent = 'Disconnected';
+  }
+}
+testConn();
+
+// ── Image upload ──────────────────────────────────────────────────────────
+const imgZone = document.getElementById('imgZone');
+const imgFileEl = document.getElementById('imgFile');
+
+imgZone.addEventListener('dragover', e => { e.preventDefault(); imgZone.classList.add('drag'); });
+imgZone.addEventListener('dragleave', () => imgZone.classList.remove('drag'));
+imgZone.addEventListener('drop', e => {
+  e.preventDefault(); imgZone.classList.remove('drag');
+  const f = e.dataTransfer.files[0];
+  if (f && f.type.startsWith('image/')) handleImg(f);
+});
+imgFileEl.addEventListener('change', () => { if (imgFileEl.files[0]) handleImg(imgFileEl.files[0]); });
+
+async function handleImg(file) {
+  const thumb = document.getElementById('imgThumb');
+  thumb.src = URL.createObjectURL(file);
+  thumb.classList.add('on');
+  document.getElementById('imgUI').classList.add('gone');
+  document.getElementById('imgFname').textContent = file.name;
+  document.getElementById('imgFname').classList.add('on');
+
+  setStatus('run', `Uploading image "${file.name}"…`);
+  const fd = new FormData();
+  fd.append('image', file);
+  try {
+    const r = await fetch('/upload', { method: 'POST', body: fd });
+    const d = await r.json();
+    if (d.name) {
+      S.imgComfy = d.name;
+      document.getElementById('analyzeBtn').disabled = false;
+      setStatus('ok', `Image ready: ${d.name}`);
+      checkReady();
+    } else {
+      setStatus('err', d.error || 'Image upload failed');
+    }
+  } catch (e) {
+    setStatus('err', 'Upload error: ' + e.message);
+  }
+}
+
+// ── Video upload ──────────────────────────────────────────────────────────
+const vidZone = document.getElementById('vidZone');
+const vidFileEl = document.getElementById('vidFile');
+
+vidZone.addEventListener('dragover', e => {
+  e.preventDefault();
+  if (!vidZone.classList.contains('loaded')) vidZone.classList.add('drag-over-vio');
+});
+vidZone.addEventListener('dragleave', () => vidZone.classList.remove('drag-over-vio'));
+vidZone.addEventListener('drop', e => {
+  e.preventDefault(); vidZone.classList.remove('drag-over-vio');
+  const f = e.dataTransfer.files[0];
+  if (f && f.type.startsWith('video/')) handleVid(f);
+});
+vidFileEl.addEventListener('change', () => { if (vidFileEl.files[0]) handleVid(vidFileEl.files[0]); });
+
+async function handleVid(file) {
+  // Immediate local preview
+  const player = document.getElementById('vidPlayer');
+  const blobUrl = URL.createObjectURL(file);
+  player.src = blobUrl;
+  player.classList.add('on');
+  document.getElementById('vidIdle').classList.add('gone');
+  vidZone.classList.add('loaded');
+
+  player.addEventListener('timeupdate', syncPlayhead, { passive: true });
+  player.addEventListener('seeked', () => { S.seeking = false; }, { passive: true });
+
+  // Upload overlay
+  setOverlay('Uploading video & running ffprobe…');
+  setStatus('run', `Uploading "${file.name}"…`);
+
+  const fd = new FormData();
+  fd.append('video', file);
+  try {
+    const r = await fetch('/upload-video', { method: 'POST', body: fd });
+    const d = await r.json();
+    hideOverlay();
+
+    if (d.error) { setStatus('err', d.error); return; }
+
+    S.vidComfy = d.filename;
+    S.vidOrigName = d.original_name || d.filename;
+    S.vidInfo = {
+      fps: d.fps || 24,
+      total_frames: d.total_frames || 0,
+      duration: d.duration || 0,
+      width: d.width || 0,
+      height: d.height || 0,
+      chunks: d.chunks || 0,
+    };
+    S.totalFrames = S.vidInfo.total_frames;
+    S.numChunks = S.vidInfo.chunks;
+
+    updateInfoBar();
+    buildTimeline();
+
+    // Also update fps input to match video
+    const detectedFps = Math.round(S.vidInfo.fps);
+    if (detectedFps > 0) document.getElementById('fpsIn').value = detectedFps;
+
+    setStatus('ok', `Video ready · ${S.vidInfo.total_frames} frames · ${S.vidInfo.chunks} chunks at ${S.vidInfo.fps.toFixed(2)} fps`);
+    checkReady();
+    loadCachedPrompts();
+  } catch (e) {
+    hideOverlay();
+    setStatus('err', 'Video upload error: ' + e.message);
+  }
+}
+
+function updateInfoBar() {
+  const i = S.vidInfo;
+  document.getElementById('vibDur').textContent = i.duration.toFixed(1) + 's';
+  document.getElementById('vibFps').textContent = Number.isInteger(i.fps) ? i.fps : i.fps.toFixed(3);
+  document.getElementById('vibFrames').textContent = i.total_frames.toLocaleString();
+  document.getElementById('vibSize').textContent = i.width && i.height ? `${i.width}×${i.height}` : '—';
+  document.getElementById('vibChunks').textContent = `${i.chunks} chunk${i.chunks !== 1 ? 's' : ''}`;
+  document.getElementById('vidInfoBar').classList.add('on');
+}
+
+// ── Timeline ──────────────────────────────────────────────────────────────
+function buildTimeline() {
+  S.selectedChunk = 0;
+  S.selectedChunks = new Set([0]);
+  S.chunkPrompts = {};
+
+  const track = document.getElementById('tlTrack');
+  track.innerHTML = '';
+  document.getElementById('tlPlayhead').style.display = 'block';
+
+  if (!S.numChunks) {
+    track.innerHTML = '<div class="tl-empty">No frames detected</div>';
+    updatePromptLabel();
+    return;
+  }
+
+  const wrap = document.getElementById('tlScroll');
+  const availW = wrap.clientWidth || 700;
+  const segW = Math.max(54, Math.min(100, Math.floor((availW - (S.numChunks - 1) * 2) / S.numChunks)));
+
+  for (let i = 0; i < S.numChunks; i++) {
+    const start = i * 121;
+    const end = Math.min(start + 120, S.totalFrames - 1);
+
+    const seg = document.createElement('div');
+    seg.className = 'chunk-seg' + (i === 0 ? ' sel' : '');
+    seg.style.width = segW + 'px';
+    seg.dataset.idx = i;
+    seg.innerHTML = `
+      <div class="chunk-idx">Chunk ${i + 1}</div>
+      <div class="chunk-frames">${start}–${end}</div>
+      <div class="chunk-bot"></div>
+      <div class="chunk-dot-analyzed" id="ca-${i}"></div>
+    `;
+    seg.addEventListener('click', e => selectChunk(i, e));
+    track.appendChild(seg);
+  }
+
+  updateTlInfo();
+  updateBtnLabel();
+  updatePromptLabel();
+}
+
+function selectChunk(idx, e) {
+  const shift = e && e.shiftKey;
+
+  if (shift) {
+    // Toggle this chunk in/out of the multi-selection
+    if (S.selectedChunks.has(idx)) {
+      S.selectedChunks.delete(idx);
+      if (S.selectedChunks.size === 0) S.selectedChunks.add(idx); // keep at least one
+    } else {
+      S.selectedChunks.add(idx);
+    }
+    S.selectedChunk = idx; // update anchor but don't scrub
+  } else {
+    S.selectedChunks = new Set([idx]);
+    S.selectedChunk = idx;
+    scrubToChunk(idx);
+  }
+
+  // Load per-chunk prompt into textarea if available
+  if (S.chunkPrompts[idx] !== undefined) {
+    document.getElementById('promptTxt').value = S.chunkPrompts[idx];
+  }
+
+  document.querySelectorAll('.chunk-seg').forEach((s, i) => s.classList.toggle('sel', S.selectedChunks.has(i)));
+  updateTlInfo();
+  updateBtnLabel();
+  updatePromptLabel();
+}
+
+function scrubToChunk(idx) {
+  const player = document.getElementById('vidPlayer');
+  if (player.src && S.vidInfo) {
+    const fps = S.vidInfo.fps || parseFloat(document.getElementById('fpsIn').value) || 24;
+    S.seeking = true;
+    player.currentTime = (idx * 121) / fps;
+  }
+}
+
+function updateTlInfo() {
+  const sorted = [...S.selectedChunks].sort((a, b) => a - b);
+  if (sorted.length === 1) {
+    const s = sorted[0];
+    const sf = s * 121;
+    const ef = Math.min(sf + 120, Math.max(0, S.totalFrames - 1));
+    const fps = S.vidInfo?.fps || 24;
+    const timeSec = (sf / fps).toFixed(2);
+    document.getElementById('tlSelInfo').innerHTML =
+      `Chunk <em>${s + 1}</em> of <em>${S.numChunks}</em> &nbsp;·&nbsp; frames <em>${sf}–${ef}</em> &nbsp;·&nbsp; t=<em>${timeSec}s</em>`;
+  } else {
+    const labels = sorted.map(i => `<em>${i + 1}</em>`).join(', ');
+    document.getElementById('tlSelInfo').innerHTML =
+      `<em>${sorted.length}</em> chunks selected: ${labels}`;
+  }
+}
+
+function updateBtnLabel() {
+  const n = S.selectedChunks.size;
+  const el = document.getElementById('btnChunkLabel');
+  if (el) el.textContent = n === 1 ? 'Process Selected Chunk' : `Process ${n} Selected Chunks`;
+}
+
+function syncPlayhead() {
+  const player = document.getElementById('vidPlayer');
+  const ph = document.getElementById('tlPlayhead');
+  const track = document.getElementById('tlTrack');
+  if (!player.duration || !S.vidInfo || !S.numChunks) return;
+
+  // Position playhead based on actual chunk pixel span, not track.scrollWidth
+  // (track has min-width:100% so scrollWidth is wider than the chunks themselves)
+  const segs = track.querySelectorAll('.chunk-seg');
+  const chunkSpan = segs.length
+    ? segs[segs.length - 1].offsetLeft + segs[segs.length - 1].offsetWidth
+    : track.scrollWidth;
+  const pct = player.currentTime / player.duration;
+  ph.style.left = (pct * chunkSpan) + 'px';
+
+  // Only auto-follow when user hasn't built a multi-selection and isn't seeking
+  if (S.selectedChunks.size > 1 || S.seeking) return;
+  const fps = S.vidInfo.fps || 24;
+  const frame = Math.floor(player.currentTime * fps);
+  const ci = Math.min(Math.floor(frame / 121), S.numChunks - 1);
+  if (ci !== S.selectedChunk) {
+    S.selectedChunks = new Set([ci]);
+    S.selectedChunk = ci;
+    document.querySelectorAll('.chunk-seg').forEach((s, i) => s.classList.toggle('sel', i === ci));
+    updateTlInfo();
+    updateBtnLabel();
+  }
+}
+
+// ── Overlay helpers ───────────────────────────────────────────────────────
+function setOverlay(msg) {
+  document.getElementById('uplTxt').textContent = msg;
+  document.getElementById('uploadOverlay').classList.add('on');
+}
+function hideOverlay() {
+  document.getElementById('uploadOverlay').classList.remove('on');
+}
+
+// ── Status ────────────────────────────────────────────────────────────────
+function setStatus(type, msg) {
+  const d = document.getElementById('sdot');
+  const t = document.getElementById('stxt');
+  d.className = 'sdot' + (type === 'ok' ? ' ok' : type === 'err' ? ' err' : type === 'run' ? ' run' : '');
+  t.className = 'stxt' + (type === 'ok' ? ' ok' : type === 'err' ? ' err' : '');
+  t.textContent = msg;
+}
+
+// ── Validation ────────────────────────────────────────────────────────────
+function showVal(msg) {
+  const b = document.getElementById('valMsg');
+  b.textContent = msg; b.classList.add('on');
+  setTimeout(() => b.classList.remove('on'), 5000);
+}
+function hideVal() { document.getElementById('valMsg').classList.remove('on'); }
+
+// ── Ready check ───────────────────────────────────────────────────────────
+function checkReady() {
+  const ready = !!(S.imgComfy && S.vidComfy && S.numChunks);
+  const notBusy = !(S.processing || S.analyzeRunning);
+  document.getElementById('btnChunk').disabled = !(ready && notBusy);
+  document.getElementById('btnAll').disabled = !(ready && notBusy);
+  const aaBtn = document.getElementById('analyzeAllBtn');
+  if (aaBtn) aaBtn.disabled = !(ready && notBusy);
+}
+
+// ── Per-chunk prompt helpers ──────────────────────────────────────────────
+function markChunkAnalyzed(idx) {
+  const dot = document.getElementById(`ca-${idx}`);
+  if (dot) dot.style.display = 'block';
+}
+
+function updatePromptLabel() {
+  const idx = S.selectedChunk;
+  const lbl = document.getElementById('promptChunkLabel');
+  if (!lbl) return;
+  if (S.chunkPrompts[idx] !== undefined) {
+    lbl.textContent = `· chunk ${idx + 1}`;
+    lbl.style.display = '';
+  } else {
+    lbl.style.display = 'none';
+  }
+}
+
+// ── Seed ──────────────────────────────────────────────────────────────────
+function randSeed() {
+  document.getElementById('seedIn').value = Math.floor(Math.random() * (2 ** 32));
+}
+
+// Auto-save textarea edits back to the current chunk's stored prompt
+document.getElementById('promptTxt').addEventListener('input', () => {
+  S.chunkPrompts[S.selectedChunk] = document.getElementById('promptTxt').value;
+  updatePromptLabel();
+});
+
+// ── Analyze image ─────────────────────────────────────────────────────────
+async function analyzeImage() {
+  if (!S.imgComfy) return;
+  const btn = document.getElementById('analyzeBtn');
+  const ta = document.getElementById('promptTxt');
+  const badge = document.getElementById('streamBadge');
+
+  btn.disabled = true;
+  btn.classList.add('loading');
+  badge.style.display = 'inline';
+  ta.value = '';
+  ta.classList.add('streaming');
+
+  // Two-step SCAIL pipeline when a video is loaded; image-only fallback otherwise
+  const useScail = !!(S.imgComfy && S.vidComfy);
+  let fetchPromise;
+  if (useScail) {
+    const chunkIdx   = S.selectedChunk || 0;
+    const skipFrames = chunkIdx * 121;
+    const totalLeft  = S.totalFrames ? Math.max(1, S.totalFrames - skipFrames) : 121;
+    const cap        = Math.min(121, totalLeft);
+    setStatus('run', 'Step 1 — extracting motion from video…');
+    fetchPromise = fetch('/analyze/scail', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        image:             S.imgComfy,
+        video:             S.vidComfy,
+        skip_first_frames: skipFrames,
+        frame_load_cap:    cap,
+        n_frames:          8,
+      }),
+    });
+  } else {
+    setStatus('run', 'Sending image to LLM for analysis…');
+    fetchPromise = fetch('/analyze', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        image: S.imgComfy,
+        concept: 'multi-character motion transfer — describe body poses, movements, and subject interactions that would translate well to pose-guided video generation',
+        dialogue: 'none',
+      }),
+    });
+  }
+
+  try {
+    const r = await fetchPromise;
+    if (!r.ok) {
+      const errText = await r.text().catch(() => r.statusText);
+      throw new Error(`Server error ${r.status}: ${errText}`);
+    }
+    const reader = r.body.getReader();
+    const dec = new TextDecoder();
+    let buf = '';
+    let reasoningBuf = '';
+    let hadError = false;
+
+    const processLines = (text) => {
+      const lines = text.split('\n');
+      for (const line of lines) {
+        if (!line.startsWith('data: ')) continue;
+        const raw = line.slice(6).trim();
+        if (raw === '[DONE]' || !raw) continue;
+        try {
+          const obj = JSON.parse(raw);
+          if (obj.error) {
+            hadError = true;
+            setStatus('err', 'Analysis error: ' + obj.error);
+            showVal('Analysis error: ' + obj.error);
+            return;
+          }
+          if (!obj.t) continue;
+          if (obj.k === 'c') {
+            ta.value += obj.t;
+            ta.scrollTop = ta.scrollHeight;
+          } else if (obj.k === 'r') {
+            reasoningBuf += obj.t;
+          } else if (obj.k === 's') {
+            setStatus('run', obj.t);
+          }
+        } catch { /* skip malformed */ }
+      }
+    };
+
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) {
+        buf += dec.decode();
+        if (buf) processLines(buf);
+        break;
+      }
+      buf += dec.decode(value, { stream: true });
+      const lastNl = buf.lastIndexOf('\n');
+      if (lastNl === -1) continue;
+      processLines(buf.slice(0, lastNl + 1));
+      buf = buf.slice(lastNl + 1);
+      if (hadError) { reader.cancel(); break; }
+    }
+
+    if (!ta.value.trim() && reasoningBuf.trim()) {
+      ta.value = reasoningBuf.trim();
+      ta.scrollTop = ta.scrollHeight;
+    }
+
+    if (!hadError) {
+      // Store result in per-chunk prompts and persist to cache
+      if (ta.value.trim()) {
+        const chunkIdx = S.selectedChunk;
+        S.chunkPrompts[chunkIdx] = ta.value.trim();
+        markChunkAnalyzed(chunkIdx);
+        updatePromptLabel();
+        saveCachedPrompts();
+      }
+      setStatus('ok', ta.value.trim() ? 'Analysis complete — prompt populated' : 'Analysis returned no text — check LLM server URL in settings');
+    }
+  } catch (e) {
+    setStatus('err', 'Analysis failed: ' + e.message);
+    showVal('Analysis failed: ' + e.message);
+  } finally {
+    ta.classList.remove('streaming');
+    badge.style.display = 'none';
+    btn.disabled = false;
+    btn.classList.remove('loading');
+  }
+}
+
+// ── Chunk prompt cache ────────────────────────────────────────────────────
+async function loadCachedPrompts() {
+  if (!S.vidOrigName) return;
+  try {
+    const r = await fetch(`/chunk-prompts/${encodeURIComponent(S.vidOrigName)}`);
+    if (!r.ok) return;
+    const d = await r.json();
+    if (!d.count) return;
+    let loaded = 0;
+    for (const [idxStr, prompt] of Object.entries(d.prompts)) {
+      const idx = parseInt(idxStr);
+      if (isNaN(idx) || !prompt) continue;
+      S.chunkPrompts[idx] = prompt;
+      markChunkAnalyzed(idx);
+      loaded++;
+    }
+    if (loaded) {
+      // Populate textarea with selected chunk's cached prompt
+      if (S.chunkPrompts[S.selectedChunk] !== undefined) {
+        document.getElementById('promptTxt').value = S.chunkPrompts[S.selectedChunk];
+        updatePromptLabel();
+      }
+      setStatus('ok', `Loaded ${loaded} cached prompt${loaded !== 1 ? 's' : ''} for "${S.vidOrigName}"`);
+    }
+  } catch {}
+}
+
+async function saveCachedPrompts() {
+  if (!S.vidOrigName || !Object.keys(S.chunkPrompts).length) return;
+  try {
+    await fetch('/chunk-prompts', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ video_key: S.vidOrigName, prompts: S.chunkPrompts }),
+    });
+  } catch {}
+}
+
+// ── Collect analysis (non-streaming) — returns final text string ──────────
+async function collectAnalysis(skipFrames, cap) {
+  const r = await fetch('/analyze/scail', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      image: S.imgComfy, video: S.vidComfy,
+      skip_first_frames: skipFrames, frame_load_cap: cap, n_frames: 8,
+    }),
+  });
+  const reader = r.body.getReader();
+  const dec = new TextDecoder();
+  let buf = '', text = '', reasoning = '';
+  const parseLines = s => {
+    for (const line of s.split('\n')) {
+      if (!line.startsWith('data: ')) continue;
+      const raw = line.slice(6).trim();
+      if (!raw || raw === '[DONE]') continue;
+      try {
+        const o = JSON.parse(raw);
+        if (o.k === 'c') text += o.t || '';
+        else if (o.k === 'r') reasoning += o.t || '';
+      } catch {}
+    }
+  };
+  while (true) {
+    const { done, value } = await reader.read();
+    if (done) { buf += dec.decode(); if (buf) parseLines(buf); break; }
+    buf += dec.decode(value, { stream: true });
+    const nl = buf.lastIndexOf('\n');
+    if (nl === -1) continue;
+    parseLines(buf.slice(0, nl + 1));
+    buf = buf.slice(nl + 1);
+  }
+  return text.trim() || reasoning.trim();
+}
+
+// ── Analyze all chunks ────────────────────────────────────────────────────
+async function analyzeAllChunks() {
+  if (!S.imgComfy || !S.vidComfy || !S.numChunks) return;
+  const btn = document.getElementById('analyzeAllBtn');
+  btn.classList.add('loading');
+  S.analyzeRunning = true;
+  S.cancelFlag = false;
+  checkReady();
+  document.getElementById('cancelBtn').classList.add('on');
+
+  const pb = document.getElementById('progBar');
+  const pf = document.getElementById('progFill');
+  pb.classList.add('on');
+  pf.style.width = '0%';
+
+  let done = 0;
+  try {
+    for (let i = 0; i < S.numChunks; i++) {
+      if (S.cancelFlag) break;
+      setStatus('run', `Analyzing chunk ${i + 1} of ${S.numChunks}…`);
+      const skipFrames = i * 121;
+      const cap = Math.min(121, Math.max(1, S.totalFrames - skipFrames));
+      const text = await collectAnalysis(skipFrames, cap);
+      if (S.cancelFlag) break;
+      if (text) {
+        S.chunkPrompts[i] = text;
+        markChunkAnalyzed(i);
+        done++;
+        // Update textarea if this chunk is currently selected
+        if (S.selectedChunk === i) {
+          document.getElementById('promptTxt').value = text;
+          updatePromptLabel();
+        }
+      }
+      pf.style.width = `${((i + 1) / S.numChunks) * 100}%`;
+    }
+    setStatus(S.cancelFlag ? '' : 'ok',
+      S.cancelFlag
+        ? `Cancelled — ${done} of ${S.numChunks} chunks analyzed`
+        : `Analysis complete — ${done} of ${S.numChunks} chunks analyzed`);
+  } catch (e) {
+    setStatus('err', 'Analysis failed: ' + e.message);
+  }
+
+  await saveCachedPrompts();
+  setTimeout(() => pb.classList.remove('on'), 1500);
+  S.analyzeRunning = false;
+  S.cancelFlag = false;
+  btn.classList.remove('loading');
+  document.getElementById('cancelBtn').classList.remove('on');
+  checkReady();
+}
+
+// ── Poll helper ───────────────────────────────────────────────────────────
+function pollStatus(promptId) {
+  return new Promise((resolve, reject) => {
+    const attempt = () => {
+      if (S.cancelFlag) { reject(new Error('cancelled')); return; }
+      fetch(`/status/${promptId}`)
+        .then(r => r.json())
+        .then(d => {
+          if (d.status === 'complete') resolve(d);
+          else if (d.status === 'error') reject(new Error('ComfyUI reported error'));
+          else setTimeout(attempt, 2200);
+        })
+        .catch(() => setTimeout(attempt, 2200));
+    };
+    setTimeout(attempt, 2200);
+  });
+}
+
+// ── Shared payload builder ────────────────────────────────────────────────
+function buildPayload(skipFirstFrames, frameLoadCap, promptOverride) {
+  return {
+    image: S.imgComfy,
+    video: S.vidComfy,
+    prompt: promptOverride ?? document.getElementById('promptTxt').value.trim(),
+    skip_first_frames: skipFirstFrames,
+    frame_load_cap: frameLoadCap,
+    fps: parseInt(document.getElementById('fpsIn').value) || 24,
+    resolution: parseInt(document.getElementById('resIn').value) || 1280,
+    vid_width:  S.vidInfo?.width  || 0,
+    vid_height: S.vidInfo?.height || 0,
+    seed: parseInt(document.getElementById('seedIn').value) ?? -1,
+  };
+}
+
+// ── Chunk state helpers ───────────────────────────────────────────────────
+function chunkSeg(idx) { return document.querySelector(`.chunk-seg[data-idx="${idx}"]`); }
+function markChunk(idx, cls) {
+  const seg = chunkSeg(idx);
+  if (!seg) return;
+  seg.classList.remove('sel', 'processing', 'done', 'failed');
+  if (cls === 'sel' || (cls !== 'done' && cls !== 'failed' && cls !== 'processing' && S.selectedChunks.has(idx))) {
+    seg.classList.add('sel');
+  } else {
+    seg.classList.add(cls);
+  }
+}
+
+// ── Process selected window(s) — one job covering the full selected range ─
+async function processChunk() {
+  const prompt = document.getElementById('promptTxt').value.trim();
+  if (!prompt) { showVal('Add a prompt before processing.'); return; }
+  hideVal();
+
+  const queue     = [...S.selectedChunks].sort((a, b) => a - b);
+  const firstIdx  = queue[0];
+  const lastIdx   = queue[queue.length - 1];
+  const sf        = firstIdx * 121;
+  const cap       = Math.min((lastIdx - firstIdx + 1) * 121, Math.max(1, S.totalFrames - sf));
+  const label     = queue.length === 1
+    ? `window ${firstIdx + 1} (frames ${sf}–${sf + cap - 1})`
+    : `windows ${firstIdx + 1}–${lastIdx + 1} (frames ${sf}–${sf + cap - 1})`;
+
+  S.processing = true;
+  S.cancelFlag = false;
+  checkReady();
+
+  const btn = document.getElementById('btnChunk');
+  btn.classList.add('loading');
+  document.getElementById('cancelBtn').classList.add('on');
+
+  queue.forEach(idx => markChunk(idx, 'processing'));
+  scrubToChunk(firstIdx);
+  setStatus('run', `Submitting ${label}…`);
+
+  try {
+    const r = await fetch('/generate/wan-scail', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(buildPayload(sf, cap)),
+    });
+    const d = await r.json();
+    if (d.error) throw new Error(d.error);
+
+    setStatus('run', `Queued · waiting for ComfyUI… (${d.prompt_id.slice(0, 8)})`);
+    const result = await pollStatus(d.prompt_id);
+    queue.forEach(idx => markChunk(idx, 'done'));
+    addOutput(firstIdx, d.prompt_id, result.videos || []);
+    setStatus('ok', `Done — ${label}!`);
+  } catch (e) {
+    if (e.message !== 'cancelled') {
+      setStatus('err', e.message);
+      queue.forEach(idx => markChunk(idx, 'failed'));
+    } else {
+      setStatus('', 'Cancelled');
+      queue.forEach(idx => markChunk(idx, 'sel'));
+    }
+  }
+
+  S.processing = false;
+  S.cancelFlag = false;
+  btn.classList.remove('loading');
+  document.getElementById('cancelBtn').classList.remove('on');
+  checkReady();
+}
+
+// ── Process entire video — one chunk per job, per-chunk prompts ───────────
+async function processAll() {
+  if (!S.numChunks) { showVal('No video loaded.'); return; }
+  hideVal();
+
+  S.processing = true;
+  S.allRunning = true;
+  S.cancelFlag = false;
+  checkReady();
+
+  const btnAll = document.getElementById('btnAll');
+  btnAll.classList.add('loading');
+  document.getElementById('cancelBtn').classList.add('on');
+
+  const pb = document.getElementById('progBar');
+  const pf = document.getElementById('progFill');
+  pb.classList.add('on');
+  pf.style.width = '0%';
+
+  for (let i = 0; i < S.numChunks; i++) markChunk(i, 'processing');
+
+  let completed = 0;
+  try {
+    for (let i = 0; i < S.numChunks; i++) {
+      if (S.cancelFlag) break;
+
+      // Get or auto-analyze prompt for this chunk
+      let prompt = S.chunkPrompts[i];
+      if (!prompt) {
+        setStatus('run', `Analyzing chunk ${i + 1} of ${S.numChunks}…`);
+        const skipFrames = i * 121;
+        const cap = Math.min(121, Math.max(1, S.totalFrames - skipFrames));
+        prompt = await collectAnalysis(skipFrames, cap);
+        if (prompt) {
+          S.chunkPrompts[i] = prompt;
+          markChunkAnalyzed(i);
+        }
+      }
+      if (S.cancelFlag) break;
+
+      // Fall back to shared textarea if analysis returned nothing
+      if (!prompt) prompt = document.getElementById('promptTxt').value.trim();
+      if (!prompt) { showVal(`No prompt for chunk ${i + 1} — add one and retry.`); break; }
+
+      const sf = i * 121;
+      const cap = Math.min(121, Math.max(1, S.totalFrames - sf));
+      setStatus('run', `Processing chunk ${i + 1} of ${S.numChunks}…`);
+
+      const r = await fetch('/generate/wan-scail', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(buildPayload(sf, cap, prompt)),
+      });
+      const d = await r.json();
+      if (d.error) throw new Error(d.error);
+
+      setStatus('run', `Chunk ${i + 1} queued (${d.prompt_id.slice(0, 8)})…`);
+      const result = await pollStatus(d.prompt_id);
+      markChunk(i, 'done');
+      addOutput(i, d.prompt_id, result.videos || []);
+      completed++;
+      pf.style.width = `${(completed / S.numChunks) * 100}%`;
+    }
+
+    if (completed === S.numChunks) {
+      setStatus('ok', `All ${S.numChunks} chunks complete!`);
+    } else if (S.cancelFlag) {
+      setStatus('', `Cancelled after ${completed} of ${S.numChunks} chunks`);
+    }
+  } catch (e) {
+    if (e.message === 'cancelled') {
+      for (let i = completed; i < S.numChunks; i++) markChunk(i, 'sel');
+      setStatus('', 'Cancelled');
+    } else {
+      setStatus('err', e.message);
+    }
+  }
+
+  setTimeout(() => pb.classList.remove('on'), 1500);
+  S.processing = false;
+  S.allRunning = false;
+  S.cancelFlag = false;
+  btnAll.classList.remove('loading');
+  document.getElementById('cancelBtn').classList.remove('on');
+  checkReady();
+}
+
+// ── Cancel ────────────────────────────────────────────────────────────────
+function cancelAll() {
+  S.cancelFlag = true;
+  setStatus('', 'Cancelling…');
+}
+
+// ── Add output ────────────────────────────────────────────────────────────
+function addOutput(chunkIdx, promptId, videos) {
+  document.getElementById('outIdle').style.display = 'none';
+  const grid = document.getElementById('outGrid');
+  grid.style.display = 'flex';
+
+  S.outputs.push({ chunkIdx, promptId, videos });
+
+  const sf = chunkIdx * 121;
+  const ef = Math.min(sf + 120, S.totalFrames - 1);
+
+  const item = document.createElement('div');
+  item.className = 'out-item';
+
+  if (videos.length > 0) {
+    const v = videos[0];
+    const src = `/view?filename=${encodeURIComponent(v.filename)}&type=${v.type || 'output'}&subfolder=${encodeURIComponent(v.subfolder || '')}`;
+    const dlSrc = `/download?filename=${encodeURIComponent(v.filename)}&type=${v.type || 'output'}&subfolder=${encodeURIComponent(v.subfolder || '')}`;
+
+    item.innerHTML = `
+      <div class="out-item-body">
+        <div class="out-vid-thumb" onclick="openLightbox('${src}','Chunk ${chunkIdx + 1} — frames ${sf}–${ef}')">
+          <video src="${src}" muted loop></video>
+        </div>
+        <div class="out-meta">
+          <div class="out-name">${v.filename}</div>
+          <div class="out-tag">Chunk ${chunkIdx + 1} &nbsp;·&nbsp; frames ${sf}–${ef}</div>
+        </div>
+        <div class="out-actions">
+          <button class="out-btn play-btn" onclick="openLightbox('${src}','Chunk ${chunkIdx + 1} — frames ${sf}–${ef}')">
+            <svg width="10" height="10" viewBox="0 0 24 24" fill="currentColor"><path d="M5 3l14 9-14 9V3z"/></svg>
+            Play
+          </button>
+          <a class="out-btn" href="${dlSrc}" download="${v.filename}">
+            <svg width="10" height="10" viewBox="0 0 24 24" fill="none"><path d="M12 3v12m0 0l-3.5-3.5M12 15l3.5-3.5M3 18h18" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+            Save
+          </a>
+        </div>
+      </div>`;
+
+    // Autoplay thumbnail on hover
+    const thumb = item.querySelector('.out-vid-thumb video');
+    item.querySelector('.out-vid-thumb').addEventListener('mouseenter', () => thumb.play());
+    item.querySelector('.out-vid-thumb').addEventListener('mouseleave', () => { thumb.pause(); thumb.currentTime = 0; });
+  } else {
+    item.innerHTML = `<div class="out-item-body"><div class="out-meta"><div class="out-name" style="color:var(--txt-m)">Chunk ${chunkIdx + 1} — no video output (ID: ${promptId.slice(0, 12)}…)</div></div></div>`;
+  }
+
+  grid.insertBefore(item, grid.firstChild);
+
+  // Expand output section if collapsed
+  const sec = document.getElementById('outSection');
+  if (sec.style.maxHeight === '0px') sec.style.maxHeight = '280px';
+}
+
+// ── Lightbox ──────────────────────────────────────────────────────────────
+function openLightbox(src, label) {
+  const lb = document.getElementById('lightbox');
+  const vid = document.getElementById('lbVideo');
+  vid.src = src;
+  document.getElementById('lbLabel').textContent = label;
+  lb.classList.add('on');
+  vid.play().catch(() => {});
+}
+function closeLightbox(e) {
+  if (e && e.target !== document.getElementById('lightbox') && !e.target.classList.contains('lb-close')) return;
+  const lb = document.getElementById('lightbox');
+  lb.classList.remove('on');
+  const vid = document.getElementById('lbVideo');
+  vid.pause();
+  vid.src = '';
+}
+document.addEventListener('keydown', e => { if (e.key === 'Escape') closeLightbox({ target: document.getElementById('lightbox') }); });
+</script>
+</body>
+</html>

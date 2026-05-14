@@ -99,6 +99,12 @@ namespace FlipPix.UI.ViewModels
         /// </summary>
         public WanAnimateViewModel WanAnimateVM { get; }
 
+        /// <summary>
+        /// WAN SCAIL ViewModel - handles character image + reference video for the
+        /// SCAIL Multi-Character Motion Transfer workflow, processed in 121-frame chunks.
+        /// </summary>
+        public WanScailViewModel WanScailVM { get; }
+
         // 0 = LTX 2.3, 1 = Wan 2.2 Remix
         private int _singleVideoWorkflowIndex = 0;
         public int SingleVideoWorkflowIndex
@@ -225,6 +231,15 @@ namespace FlipPix.UI.ViewModels
                 _workflowCoordinator,
                 _fileDialogService);
 
+            WanScailVM = new WanScailViewModel(
+                comfyUIService,
+                lmStudioService,
+                logger,
+                settingsService,
+                serviceProvider,
+                _workflowCoordinator,
+                _fileDialogService);
+
             // Forward PlayRequested events from sub-VMs
             MainVM.PlayRequested += (s, e) => PlayRequested?.Invoke(this, e);
             VaceVM.PlayRequested += (s, e) => PlayRequested?.Invoke(this, e);
@@ -236,6 +251,7 @@ namespace FlipPix.UI.ViewModels
             Wan22SingleVM.PlayRequested += (s, e) => PlayRequested?.Invoke(this, e);
             LongVideoVM.PlayRequested += (s, e) => PlayRequested?.Invoke(this, e);
             WanAnimateVM.PlayRequested += (s, e) => PlayRequested?.Invoke(this, e);
+            WanScailVM.PlayRequested += (s, e) => PlayRequested?.Invoke(this, e);
 
             // Forward PropertyChanged events from all sub-VMs for backward compatibility
             MainVM.PropertyChanged += ForwardPropertyChanged;
@@ -248,6 +264,7 @@ namespace FlipPix.UI.ViewModels
             Wan22SingleVM.PropertyChanged += ForwardPropertyChanged;
             LongVideoVM.PropertyChanged += ForwardPropertyChanged;
             WanAnimateVM.PropertyChanged += ForwardPropertyChanged;
+            WanScailVM.PropertyChanged += ForwardPropertyChanged;
 
             _logger.LogInfo("VideoGeneratorViewModel initialized with sub-ViewModels");
         }
@@ -788,6 +805,72 @@ namespace FlipPix.UI.ViewModels
 
         #endregion
 
+        #region WanScailVM Backward Compatibility Properties
+
+        public string WanScailCharacterImagePath { get => WanScailVM.CharacterImagePath; set => WanScailVM.CharacterImagePath = value; }
+        public BitmapImage? WanScailCharacterImagePreview { get => WanScailVM.CharacterImagePreview; set => WanScailVM.CharacterImagePreview = value; }
+        public string WanScailCharacterImageInfo { get => WanScailVM.CharacterImageInfo; set => WanScailVM.CharacterImageInfo = value; }
+        public bool WanScailHasCharacterImage => WanScailVM.HasCharacterImage;
+
+        public string WanScailVideoPath { get => WanScailVM.InputVideoPath; set => WanScailVM.InputVideoPath = value; }
+        public string WanScailVideoInfo { get => WanScailVM.InputVideoInfo; set => WanScailVM.InputVideoInfo = value; }
+        public bool WanScailHasVideo => WanScailVM.HasInputVideo;
+
+        public string WanScailPrompt { get => WanScailVM.Prompt; set => WanScailVM.Prompt = value; }
+        public string WanScailNegativePrompt { get => WanScailVM.NegativePrompt; set => WanScailVM.NegativePrompt = value; }
+        public int WanScailFps { get => WanScailVM.Fps; set => WanScailVM.Fps = value; }
+        public int WanScailMaxEdge { get => WanScailVM.MaxEdge; set => WanScailVM.MaxEdge = value; }
+        public long WanScailSeed { get => WanScailVM.Seed; set => WanScailVM.Seed = value; }
+
+        public int WanScailTotalFrames => WanScailVM.TotalFrames;
+        public int WanScailTotalChunks => WanScailVM.TotalChunks;
+
+        public bool IsProcessingWanScail { get => WanScailVM.IsProcessing; set => WanScailVM.IsProcessing = value; }
+        public string WanScailProcessingStatus => WanScailVM.ProcessingStatus;
+        public double WanScailProcessingProgress => WanScailVM.ProcessingProgress;
+        public string WanScailProgressPercentage => WanScailVM.ProgressPercentage;
+        public string WanScailLogOutput => WanScailVM.LogOutput;
+
+        public bool HasWanScailResult => WanScailVM.HasResult;
+        public string WanScailResultPath => WanScailVM.ResultVideoPath;
+        public string WanScailResultVideoInfo => WanScailVM.ResultVideoInfo;
+
+        public bool WanScailCanAddToQueue => WanScailVM.CanAddToQueue;
+        public bool WanScailIsAnalyzing => WanScailVM.IsAnalyzing;
+
+        public ObservableCollection<WanScailQueueItem> WanScailQueue => WanScailVM.Queue;
+        public bool WanScailHasQueueItems => WanScailVM.HasQueueItems;
+        public bool WanScailIsProcessingQueue => WanScailVM.IsProcessingQueue;
+        public string WanScailQueueStatus => WanScailVM.QueueStatus;
+        public bool WanScailHasFailedItems => WanScailVM.HasFailedItems;
+
+        public ICommand SelectWanScailCharacterImageCommand => WanScailVM.SelectCharacterImageCommand;
+        public ICommand SelectWanScailVideoCommand => WanScailVM.SelectVideoCommand;
+        public ICommand GenerateWanScailVideoCommand => WanScailVM.GenerateVideoCommand;
+        public ICommand ProcessSelectedWanScailChunkCommand => WanScailVM.ProcessSelectedChunkCommand;
+        public ICommand SelectWanScailChunkCommand => WanScailVM.SelectChunkCommand;
+        public ICommand RemoveWanScailQueueItemCommand => WanScailVM.RemoveQueueItemCommand;
+        public ICommand ClearWanScailQueueCommand => WanScailVM.ClearQueueCommand;
+        public ICommand StopWanScailQueueCommand => WanScailVM.StopQueueCommand;
+        public ICommand ReprocessAllWanScailFailedCommand => WanScailVM.ReprocessAllFailedCommand;
+        public ICommand PlayWanScailVideoCommand => WanScailVM.PlayVideoCommand;
+        public ICommand OpenWanScailResultFolderCommand => WanScailVM.OpenResultFolderCommand;
+        public ICommand SendWanScailToEditCameraCommand => WanScailVM.SendToEditCameraCommand;
+        public ICommand AnalyzeWanScailImageCommand => WanScailVM.AnalyzeImageCommand;
+        public ICommand RandomWanScailSeedCommand => WanScailVM.RandomSeedCommand;
+
+        // Video editor
+        public string? WanScailVideoFileUri => WanScailVM.VideoFileUri;
+        public bool WanScailHasVideoInfo => WanScailVM.HasVideoInfo;
+        public string WanScailVideoDuration => WanScailVM.VideoDuration;
+        public string WanScailVideoFpsDisplay => WanScailVM.VideoFpsDisplay;
+        public string WanScailVideoFrameCountDisplay => WanScailVM.VideoFrameCountDisplay;
+        public string WanScailVideoChunksDisplay => WanScailVM.VideoChunksDisplay;
+        public string WanScailChunkSelectionInfo => WanScailVM.ChunkSelectionInfo;
+        public ObservableCollection<WanScailChunkItem> WanScailChunkItems => WanScailVM.ChunkItems;
+
+        #endregion
+
         #region Public Methods
 
         /// <summary>
@@ -817,6 +900,7 @@ namespace FlipPix.UI.ViewModels
                 Wan22SingleVM.PropertyChanged -= ForwardPropertyChanged;
                 LongVideoVM.PropertyChanged -= ForwardPropertyChanged;
                 WanAnimateVM.PropertyChanged -= ForwardPropertyChanged;
+                WanScailVM.PropertyChanged -= ForwardPropertyChanged;
 
                 // Dispose all sub-ViewModels
                 (MainVM as IDisposable)?.Dispose();
@@ -829,6 +913,7 @@ namespace FlipPix.UI.ViewModels
                 (Wan22SingleVM as IDisposable)?.Dispose();
                 (LongVideoVM as IDisposable)?.Dispose();
                 (WanAnimateVM as IDisposable)?.Dispose();
+                (WanScailVM as IDisposable)?.Dispose();
 
                 _disposed = true;
             }
