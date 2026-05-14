@@ -21,6 +21,7 @@ namespace FlipPix.UI
 
             // Wire up video player controls
             _viewModel.PlayRequested += OnPlayRequested;
+            _viewModel.WanScailVM.SeekRequested += OnWanScailSeekRequested;
         }
 
         private void OnLoaded(object sender, RoutedEventArgs e)
@@ -56,6 +57,20 @@ namespace FlipPix.UI
                 WanAnimateVideoPlayer.Position = System.TimeSpan.Zero;
                 WanAnimateVideoPlayer.Play();
             }
+
+            if (WanScailVideoPlayer != null && WanScailVideoPlayer.Source != null)
+            {
+                WanScailVideoPlayer.Position = System.TimeSpan.Zero;
+                WanScailVideoPlayer.Play();
+            }
+        }
+
+        private void OnWanScailSeekRequested(object? sender, System.TimeSpan position)
+        {
+            if (WanScailRefVideoPlayer != null && WanScailRefVideoPlayer.Source != null)
+            {
+                WanScailRefVideoPlayer.Position = position;
+            }
         }
 
         protected override void OnClosed(EventArgs e)
@@ -72,6 +87,15 @@ namespace FlipPix.UI
             {
                 WanAnimateVideoPlayer.Stop();
             }
+            if (WanScailVideoPlayer != null)
+            {
+                WanScailVideoPlayer.Stop();
+            }
+            if (WanScailRefVideoPlayer != null)
+            {
+                WanScailRefVideoPlayer.Stop();
+            }
+            _viewModel.WanScailVM.SeekRequested -= OnWanScailSeekRequested;
             _viewModel.PlayRequested -= OnPlayRequested;
 
             // Dispose the ViewModel if it implements IDisposable
