@@ -3824,8 +3824,7 @@
                                                              IsReadOnly="True" Height="30"
                                                              VerticalContentAlignment="Center" Padding="6,0"
                                                              BorderBrush="#DDD6FE" Background="#F0FDF4"
-                                                             FontSize="11" Foreground="#555" Margin="0,0,6,0"
-                                                             TextTrimming="CharacterEllipsis"/>
+                                                             FontSize="11" Foreground="#555" Margin="0,0,6,0"/>
                                                     <Button Grid.Column="1" Content="Browse…"
                                                             Command="{Binding SelectWanScailVideoCommand}"
                                                             Height="30" Padding="10,0" FontSize="11"
@@ -4267,7 +4266,9 @@
                         </Grid>
                     </TabItem>
 
-                <!-- REPLACED_SENTINEL -->
+                    <TabItem Header="⚡ WAN SCAIL 2" FontWeight="Bold" FontSize="13">
+                        <ScrollViewer VerticalScrollBarVisibility="Auto">
+                            <StackPanel Margin="10">
 
                                 <!-- Inputs Section -->
                                 <Border Style="{StaticResource SectionPanelStyle}">
@@ -4608,7 +4609,7 @@
                                                     </TextBlock.Style>
                                                 </TextBlock>
 
-                                                <MediaElement x:Name="WanScailVideoPlayer"
+                                                <MediaElement x:Name="WanScailVideoPlayer2"
                                                             Source="{Binding WanScailResultPath}"
                                                             LoadedBehavior="Manual"
                                                             UnloadedBehavior="Stop"
