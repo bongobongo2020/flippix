@@ -3116,16 +3116,55 @@
                                                     CornerRadius="12">
                                                 <StackPanel Margin="12">
 
-                                                    <!-- Scene label + status badge -->
+                                                    <!-- Scene label + delete button + status badge -->
                                                     <Grid Margin="0,0,0,8">
                                                         <TextBlock Text="{Binding Index, StringFormat='Scene #{0}'}"
                                                                    FontWeight="Bold"
                                                                    FontSize="13"
                                                                    Foreground="#8B5CF6"
                                                                    VerticalAlignment="Center"/>
+                                                        <!-- Delete X button -->
+                                                        <Button HorizontalAlignment="Right"
+                                                                VerticalAlignment="Top"
+                                                                Margin="0,-6,-6,0"
+                                                                Width="18" Height="18"
+                                                                Padding="0"
+                                                                Background="#E5E7EB"
+                                                                BorderThickness="0"
+                                                                FontSize="9"
+                                                                FontWeight="Bold"
+                                                                Foreground="#6B7280"
+                                                                Content="✕"
+                                                                ToolTip="Delete scene"
+                                                                Command="{Binding DataContext.StoryGeneratorQ.DeleteItemCommand,
+                                                                          RelativeSource={RelativeSource AncestorType=ItemsControl}}"
+                                                                CommandParameter="{Binding}">
+                                                            <Button.Style>
+                                                                <Style TargetType="Button">
+                                                                    <Setter Property="Template">
+                                                                        <Setter.Value>
+                                                                            <ControlTemplate TargetType="Button">
+                                                                                <Border Background="{TemplateBinding Background}"
+                                                                                        CornerRadius="9"
+                                                                                        Padding="{TemplateBinding Padding}">
+                                                                                    <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                                                                                </Border>
+                                                                            </ControlTemplate>
+                                                                        </Setter.Value>
+                                                                    </Setter>
+                                                                    <Style.Triggers>
+                                                                        <Trigger Property="IsMouseOver" Value="True">
+                                                                            <Setter Property="Background" Value="#EF4444"/>
+                                                                            <Setter Property="Foreground" Value="White"/>
+                                                                        </Trigger>
+                                                                    </Style.Triggers>
+                                                                </Style>
+                                                            </Button.Style>
+                                                        </Button>
                                                         <Border HorizontalAlignment="Right"
                                                                 CornerRadius="8"
-                                                                Padding="7,2">
+                                                                Padding="7,2"
+                                                                Margin="0,0,24,0">
                                                             <Border.Style>
                                                                 <Style TargetType="Border">
                                                                     <Setter Property="Background" Value="#F3F4F6"/>
