@@ -398,6 +398,7 @@ namespace FlipPix.UI.ViewModels
             // Node 3 - KSampler
             WorkflowNodeUpdater.UpdateNodeInputMultiple(ref workflowJson, "3", new Dictionary<string, object>
             {
+                { "seed", Random.Shared.NextInt64(0, long.MaxValue) },
                 { "steps", Steps },
                 { "cfg", Cfg },
                 { "denoise", Denoise }
@@ -424,6 +425,8 @@ namespace FlipPix.UI.ViewModels
             // Nodes 371 and 435 - CFGGuider (cfg)
             WorkflowNodeUpdater.UpdateNodeInput(ref workflowJson, "371", "cfg", Cfg);
             WorkflowNodeUpdater.UpdateNodeInput(ref workflowJson, "435", "cfg", Cfg);
+            // Randomize seed for LCS pipeline (node 439 - RandomNoise; node 387 uses node 160 which is already -1/random)
+            WorkflowNodeUpdater.UpdateNodeInput(ref workflowJson, "439", "noise_seed", Random.Shared.NextInt64(0, long.MaxValue));
 
             // Inject SaveImage node connected to LCS VAEDecode output (node 433)
             // The Klein workflow only has a PreviewImage; we add SaveImage with a unique high node ID
