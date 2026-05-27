@@ -973,12 +973,22 @@ namespace FlipPix.UI.ViewModels
                     File.Copy(completedItems[i].OutputImagePath!, Path.Combine(finalFolderPath, destName), overwrite: true);
                 }
 
+                // Always write prompts.txt from queue items (covers both JSON-loaded and Qwen VL analyzed prompts)
+                var promptLines = new System.Text.StringBuilder();
+                for (int i = 0; i < completedItems.Count; i++)
+                {
+                    promptLines.AppendLine($"Scene {i + 1}:");
+                    promptLines.AppendLine(completedItems[i].Prompt);
+                    promptLines.AppendLine();
+                }
+                File.WriteAllText(Path.Combine(finalFolderPath, "prompts.txt"), promptLines.ToString());
+
                 if (!string.IsNullOrEmpty(PromptJsonFilePath) && File.Exists(PromptJsonFilePath))
                     File.Copy(PromptJsonFilePath, Path.Combine(finalFolderPath, "prompts.json"), overwrite: true);
 
                 AddLog($"Saved final storyboard: {finalFolderPath}");
                 System.Windows.MessageBox.Show(
-                    $"Saved {completedItems.Count} images + prompts.json\n\n{finalFolderPath}",
+                    $"Saved {completedItems.Count} images + prompts.txt\n\n{finalFolderPath}",
                     "Storyboard Saved", MessageBoxButton.OK, MessageBoxImage.Information);
 
                 Process.Start(new ProcessStartInfo { FileName = finalFolderPath, UseShellExecute = true });

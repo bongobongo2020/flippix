@@ -28,7 +28,7 @@ namespace FlipPix.UI.Services
             _logger = logger;
             _getBaseUrl = getBaseUrl ?? (() => "http://alien:8080");
             // Don't set BaseAddress - we'll use full URLs instead to allow changing the URL
-            _httpClient.Timeout = TimeSpan.FromMinutes(5); // 5 minute timeout
+            _httpClient.Timeout = TimeSpan.FromMinutes(15); // 15 minute timeout for large generation tasks
             _semaphore = new SemaphoreSlim(1, 1); // Limit concurrent requests
         }
 

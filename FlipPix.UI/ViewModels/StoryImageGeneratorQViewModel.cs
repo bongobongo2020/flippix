@@ -159,6 +159,13 @@ namespace FlipPix.UI.ViewModels
             set => SetProperty(ref _analysisStatus, value);
         }
 
+        private string _storyConcept = string.Empty;
+        public string StoryConcept
+        {
+            get => _storyConcept;
+            set => SetProperty(ref _storyConcept, value);
+        }
+
         private void ToggleSettingsVisibility()
         {
             SettingsVisible = !SettingsVisible;
@@ -175,7 +182,7 @@ namespace FlipPix.UI.ViewModels
                 AddLog("Starting image analysis with Qwen VL...");
 
                 // Read system prompt from file
-                var systemPromptPath = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "prompts", "prompt2json", "qwen2512.md");
+                var systemPromptPath = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "prompts", "prompt2json", "story-prompt.md");
                 if (!File.Exists(systemPromptPath))
                 {
                     throw new FileNotFoundException($"System prompt file not found: {systemPromptPath}");
@@ -192,8 +199,10 @@ namespace FlipPix.UI.ViewModels
                     return;
                 }
 
-                // Call LM Studio with system prompt only
-                var userPrompt = string.Empty;
+                // Pass story concept as user message if provided
+                var userPrompt = string.IsNullOrWhiteSpace(StoryConcept)
+                    ? string.Empty
+                    : $"Story concept: {StoryConcept.Trim()}";
 
                 var analysisResult = await _lmStudioService.AnalyzeImageWithSystemPromptAsync(
                     modelName,
@@ -278,46 +287,72 @@ namespace FlipPix.UI.ViewModels
         {
             var prompts = new List<string>();
 
-            // Strategy 1: Split by "Prompt #N:" or "Prompt N:" pattern
-            var pattern = @"Prompt\s*#?\s*(\d+)\s*:\s*";
-            var matches = Regex.Matches(analysisText, pattern, RegexOptions.IgnoreCase);
-
-            for (int i = 0; i < matches.Count; i++)
+            // Strategy 1: "Scene N — Title:" format (VERA/huihui story prompt output)
+            var scenePattern = @"Scene\s+\d+\s*[—–\-][^\n:]*:";
+            var sceneMatches = Regex.Matches(analysisText, scenePattern, RegexOptions.IgnoreCase);
+            if (sceneMatches.Count > 0)
             {
-                var startPos = matches[i].Index + matches[i].Length;
-                var endPos = (i + 1 < matches.Count) ? matches[i + 1].Index : analysisText.Length;
+                for (int i = 0; i < sceneMatches.Count; i++)
+                {
+                    var startPos = sceneMatches[i].Index + sceneMatches[i].Length;
+                    var endPos = (i + 1 < sceneMatches.Count) ? sceneMatches[i + 1].Index : analysisText.Length;
+
+                    var promptText = analysisText.Substring(startPos, endPos - startPos).Trim();
+                    // Strip surrounding quotes if present (VERA wraps prompts in "...")
+                    promptText = promptText.Trim('"').Trim();
+
+                    if (!string.IsNullOrWhiteSpace(promptText))
+                        prompts.Add(promptText);
+                }
+                AddLog($"Strategy 1 (Scene N — Title): parsed {prompts.Count} prompts");
+                AddLog($"Parsed {prompts.Count} prompts from Qwen VL response");
+                return prompts;
+            }
+
+            // Strategy 2: Split by "Prompt #N:" or "Prompt N:" pattern
+            var promptPattern = @"Prompt\s*#?\s*(\d+)\s*:\s*";
+            var promptMatches = Regex.Matches(analysisText, promptPattern, RegexOptions.IgnoreCase);
+
+            for (int i = 0; i < promptMatches.Count; i++)
+            {
+                var startPos = promptMatches[i].Index + promptMatches[i].Length;
+                var endPos = (i + 1 < promptMatches.Count) ? promptMatches[i + 1].Index : analysisText.Length;
 
                 var promptText = analysisText.Substring(startPos, endPos - startPos).Trim();
 
                 if (!string.IsNullOrWhiteSpace(promptText))
-                {
                     prompts.Add(promptText);
-                }
             }
 
-            // Strategy 2 (Fallback): Split by "Subject:" occurrences if no "Prompt #N:" found
-            if (prompts.Count == 0)
+            if (prompts.Count > 0)
             {
-                AddLog("No 'Prompt #N:' labels found, falling back to 'Subject:' delimiter parsing...");
-                var subjectPattern = @"(?=Subject\s*:)";
-                var segments = Regex.Split(analysisText, subjectPattern, RegexOptions.IgnoreCase);
-
-                foreach (var segment in segments)
-                {
-                    var trimmed = segment.Trim();
-                    if (!string.IsNullOrWhiteSpace(trimmed) && trimmed.StartsWith("Subject", StringComparison.OrdinalIgnoreCase))
-                    {
-                        prompts.Add(trimmed);
-                    }
-                }
+                AddLog($"Strategy 2 (Prompt #N): parsed {prompts.Count} prompts");
+                AddLog($"Parsed {prompts.Count} prompts from Qwen VL response");
+                return prompts;
             }
 
-            // Strategy 3 (Last resort): Use PromptParser.ExtractPrompts for generic parsing
-            if (prompts.Count == 0)
+            // Strategy 3: Split by "Subject:" occurrences
+            AddLog("No scene/prompt labels found, falling back to 'Subject:' delimiter parsing...");
+            var subjectPattern = @"(?=Subject\s*:)";
+            var segments = Regex.Split(analysisText, subjectPattern, RegexOptions.IgnoreCase);
+
+            foreach (var segment in segments)
             {
-                AddLog("Fallback: Using generic PromptParser.ExtractPrompts...");
-                prompts = PromptParser.ExtractPrompts(analysisText);
+                var trimmed = segment.Trim();
+                if (!string.IsNullOrWhiteSpace(trimmed) && trimmed.StartsWith("Subject", StringComparison.OrdinalIgnoreCase))
+                    prompts.Add(trimmed);
             }
+
+            if (prompts.Count > 0)
+            {
+                AddLog($"Strategy 3 (Subject:): parsed {prompts.Count} prompts");
+                AddLog($"Parsed {prompts.Count} prompts from Qwen VL response");
+                return prompts;
+            }
+
+            // Strategy 4 (Last resort): generic parsing
+            AddLog("Fallback: Using generic PromptParser.ExtractPrompts...");
+            prompts = PromptParser.ExtractPrompts(analysisText);
 
             AddLog($"Parsed {prompts.Count} prompts from Qwen VL response");
             return prompts;
