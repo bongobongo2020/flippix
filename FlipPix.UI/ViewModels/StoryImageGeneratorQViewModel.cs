@@ -44,6 +44,27 @@ namespace FlipPix.UI.ViewModels
             };
         }
 
+        // --- Workflow mode ---
+
+        public static readonly IReadOnlyList<string> WorkflowModes = new[] { "Qwen", "Klein" };
+
+        private string _selectedWorkflowMode = "Qwen";
+        public string SelectedWorkflowMode
+        {
+            get => _selectedWorkflowMode;
+            set
+            {
+                if (SetProperty(ref _selectedWorkflowMode, value))
+                {
+                    // Switch to sensible defaults per workflow
+                    if (value == "Klein")
+                        Steps = 20;
+                    else
+                        Steps = DefaultSteps;
+                }
+            }
+        }
+
         // --- Abstract member implementations ---
 
         protected override string VariantDisplayName => "Story Image Generator Q";
@@ -311,50 +332,51 @@ namespace FlipPix.UI.ViewModels
             string jsonFileName,
             CancellationToken cancellationToken)
         {
-            // Ensure ComfyUI is connected
             if (!_comfyUIService.IsConnected)
-            {
                 await _comfyUIService.ConnectAsync(cancellationToken);
-            }
 
             cancellationToken.ThrowIfCancellationRequested();
 
-            // Load workflow (RapidEditAIO-API.json - Qwen Rapid Edit workflow)
-            var workflowPath = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "workflow", "RapidEditAIO-API.json");
-            if (!File.Exists(workflowPath))
+            string workflowPath;
+            if (SelectedWorkflowMode == "Klein")
             {
-                throw new FileNotFoundException($"Workflow file not found: {workflowPath}");
+                workflowPath = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "workflow", "klein", "V2-Edit-with-LCS-example-workflowAPI.json");
+                AddLog("Using Klein workflow (Flux2 + LCS)");
             }
+            else
+            {
+                workflowPath = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "workflow", "RapidEditAIO-API.json");
+                AddLog("Using Qwen workflow (RapidEditAIO)");
+            }
+
+            if (!File.Exists(workflowPath))
+                throw new FileNotFoundException($"Workflow file not found: {workflowPath}");
 
             var workflowJson = await File.ReadAllTextAsync(workflowPath, cancellationToken);
             var workflow = JsonSerializer.Deserialize<JsonElement>(workflowJson);
 
             cancellationToken.ThrowIfCancellationRequested();
 
-            // Upload input image
             var uploadedImageName = await _comfyUIService.UploadImageAsync(inputImagePath);
 
-            // Update workflow parameters with image index for unique filenames
-            var updatedWorkflow = UpdateWorkflowParameters(workflow, uploadedImageName, item.Prompt, item.Index, jsonFileName);
+            JsonElement updatedWorkflow;
+            if (SelectedWorkflowMode == "Klein")
+                updatedWorkflow = UpdateKleinWorkflowParameters(workflow, uploadedImageName, item.Prompt, item.Index, jsonFileName);
+            else
+                updatedWorkflow = UpdateQwenWorkflowParameters(workflow, uploadedImageName, item.Prompt, item.Index, jsonFileName);
 
-            // Execute workflow with progress reporting
             var progress = CreateProgressReporter(item);
             var promptId = await _comfyUIService.ExecuteWorkflowAsync(updatedWorkflow, progress, cancellationToken);
 
-            // Get output images
             var outputImages = await GetOutputImagesFromComfyUI(promptId, jsonFileName, item.Index);
             if (!outputImages.Any())
-            {
                 throw new InvalidOperationException("No output images were generated");
-            }
 
             var outputImage = outputImages.First();
 
-            // Create output directory with folder named after the JSON filename
             var baseOutputDir = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "output", OutputFolderName, jsonFileName);
             Directory.CreateDirectory(baseOutputDir);
 
-            // Generate filename using prompt index (all images in the same folder)
             var outputPath = Path.Combine(baseOutputDir, $"{jsonFileName}-{item.Index}.png");
 
             await File.WriteAllBytesAsync(outputPath, outputImage);
@@ -363,32 +385,58 @@ namespace FlipPix.UI.ViewModels
             return outputPath;
         }
 
-        private JsonElement UpdateWorkflowParameters(JsonElement workflow, string inputImageName, string promptText, int imageIndex, string jsonFileName)
+        private JsonElement UpdateQwenWorkflowParameters(JsonElement workflow, string inputImageName, string promptText, int imageIndex, string jsonFileName)
         {
             var workflowJson = workflow.GetRawText();
 
-            // 1. Update the input image (node 213 - LoadImage)
+            // Node 213 - LoadImage
             WorkflowNodeUpdater.UpdateNodeInput(ref workflowJson, "213", "image", inputImageName);
-
-            // 2. Update the positive prompt (node 153 - TextEncodeQwenImageEditPlus)
+            // Node 153 - TextEncodeQwenImageEditPlus (positive)
             WorkflowNodeUpdater.UpdateNodeInput(ref workflowJson, "153", "prompt", promptText);
-
-            // 3. Update the negative prompt (node 154 - TextEncodeQwenImageEditPlus)
+            // Node 154 - TextEncodeQwenImageEditPlus (negative)
             WorkflowNodeUpdater.UpdateNodeInput(ref workflowJson, "154", "prompt", NegativePrompt);
-
-            // 4. Update KSampler settings (node 3)
+            // Node 3 - KSampler
             WorkflowNodeUpdater.UpdateNodeInputMultiple(ref workflowJson, "3", new Dictionary<string, object>
             {
                 { "steps", Steps },
                 { "cfg", Cfg },
                 { "denoise", Denoise }
             });
-
-            // 5. Update ModelSamplingAuraFlow shift (node 145)
+            // Node 145 - ModelSamplingAuraFlow
             WorkflowNodeUpdater.UpdateNodeInput(ref workflowJson, "145", "shift", 3.1);
-
-            // 6. Update SaveImage filename prefix (node 218) to use single folder named after JSON file
+            // Node 218 - SaveImage
             WorkflowNodeUpdater.UpdateNodeInput(ref workflowJson, "218", "filename_prefix", $"{jsonFileName}/{jsonFileName}-{imageIndex}");
+
+            return JsonSerializer.Deserialize<JsonElement>(workflowJson);
+        }
+
+        private JsonElement UpdateKleinWorkflowParameters(JsonElement workflow, string inputImageName, string promptText, int imageIndex, string jsonFileName)
+        {
+            var workflowJson = workflow.GetRawText();
+
+            // Node 385 - LoadImage (input reference image)
+            WorkflowNodeUpdater.UpdateNodeInput(ref workflowJson, "385", "image", inputImageName);
+            // Node 407 - CLIPTextEncode (positive prompt)
+            WorkflowNodeUpdater.UpdateNodeInput(ref workflowJson, "407", "text", promptText);
+            // Nodes 386 and 443 - Flux2Scheduler (steps)
+            WorkflowNodeUpdater.UpdateNodeInput(ref workflowJson, "386", "steps", Steps);
+            WorkflowNodeUpdater.UpdateNodeInput(ref workflowJson, "443", "steps", Steps);
+            // Nodes 371 and 435 - CFGGuider (cfg)
+            WorkflowNodeUpdater.UpdateNodeInput(ref workflowJson, "371", "cfg", Cfg);
+            WorkflowNodeUpdater.UpdateNodeInput(ref workflowJson, "435", "cfg", Cfg);
+
+            // Inject SaveImage node connected to LCS VAEDecode output (node 433)
+            // The Klein workflow only has a PreviewImage; we add SaveImage with a unique high node ID
+            WorkflowNodeUpdater.AddNode(ref workflowJson, "9000", new
+            {
+                inputs = new
+                {
+                    filename_prefix = $"{jsonFileName}/{jsonFileName}-{imageIndex}",
+                    images = new object[] { "433", 0 }
+                },
+                class_type = "SaveImage",
+                _meta = new { title = "Save Image (FlipPix)" }
+            });
 
             return JsonSerializer.Deserialize<JsonElement>(workflowJson);
         }
