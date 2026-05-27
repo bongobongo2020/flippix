@@ -2627,6 +2627,21 @@
                                                Style="{StaticResource SecondaryButtonStyle}"/>
                                     </Grid>
 
+                                    <!-- Story Concept Input -->
+                                    <TextBlock Text="Story Concept (optional)"
+                                               FontSize="12"
+                                               Foreground="#6B7280"
+                                               Margin="0,0,0,6"/>
+                                    <TextBox Text="{Binding StoryGeneratorQ.StoryConcept, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                                             Padding="10"
+                                             Background="#F9FAFB"
+                                             BorderBrush="#E5E7EB"
+                                             VerticalContentAlignment="Center"
+                                             FontSize="11"
+                                             Height="38"
+                                             Margin="0,0,0,10"
+                                             ToolTip="e.g. revenge thriller, romantic journey, sci-fi survival"/>
+
                                     <!-- Analyze Image with Qwen VL Button (NEW) -->
                                     <Button Content="🔍 Analyze Image with Qwen VL"
                                            Command="{Binding StoryGeneratorQ.AnalyzeImageWithQwenVLCommand}"
