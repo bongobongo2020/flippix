@@ -97,6 +97,27 @@ namespace FlipPix.UI.Services
         }
 
         /// <summary>
+        /// Add a new node to a workflow (or replace an existing node with the same ID)
+        /// </summary>
+        public static JsonElement AddNode(ref string workflowJson, string nodeId, object nodeDefinition)
+        {
+            if (string.IsNullOrWhiteSpace(workflowJson))
+                throw new ArgumentException("Workflow JSON cannot be null or empty", nameof(workflowJson));
+            if (string.IsNullOrWhiteSpace(nodeId))
+                throw new ArgumentException("Node ID cannot be null or empty", nameof(nodeId));
+
+            var workflowDict = JsonSerializer.Deserialize<Dictionary<string, JsonElement>>(workflowJson);
+            if (workflowDict == null)
+                throw new InvalidOperationException("Failed to deserialize workflow JSON");
+
+            workflowDict[nodeId] = JsonSerializer.SerializeToElement(nodeDefinition);
+
+            var updatedJson = JsonSerializer.Serialize(workflowDict);
+            workflowJson = updatedJson;
+            return JsonSerializer.SerializeToElement(workflowDict);
+        }
+
+        /// <summary>
         /// Get the current value of an input from a workflow node
         /// </summary>
         /// <param name="workflowJson">The workflow JSON as a string</param>
