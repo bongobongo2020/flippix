@@ -86,6 +86,7 @@ namespace FlipPix.UI.ViewModels
             PauseQueueCommand = new RelayCommand(PauseQueue, () => IsProcessingQueue && !IsQueuePaused);
             ResumeQueueCommand = new RelayCommand(ResumeQueue, () => IsProcessingQueue && IsQueuePaused);
             RegenerateItemCommand = new RelayCommand<StoryPromptItem>(RegenerateItem);
+            DeleteItemCommand = new RelayCommand<StoryPromptItem>(DeleteItem);
             SaveFinalStoryboardCommand = new RelayCommand(SaveFinalStoryboard, () => HasCompletedItems);
 
             // Let subclass do variant-specific init
@@ -391,6 +392,7 @@ namespace FlipPix.UI.ViewModels
         public ICommand PauseQueueCommand { get; }
         public ICommand ResumeQueueCommand { get; }
         public ICommand RegenerateItemCommand { get; }
+        public ICommand DeleteItemCommand { get; }
         public CommunityToolkit.Mvvm.Input.RelayCommand SaveFinalStoryboardCommand { get; }
 
         // --- Shared methods ---
@@ -932,6 +934,16 @@ namespace FlipPix.UI.ViewModels
             {
                 _ = ProcessQueueAsync();
             }
+        }
+
+        private void DeleteItem(StoryPromptItem? item)
+        {
+            if (item == null || item.Status == "Processing") return;
+
+            QueueItems.Remove(item);
+            SaveQueueToFile();
+            UpdateQueueCountNotifications();
+            CommandManager.InvalidateRequerySuggested();
         }
 
         private void SaveFinalStoryboard()
