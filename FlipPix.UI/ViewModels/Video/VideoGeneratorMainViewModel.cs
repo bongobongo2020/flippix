@@ -1693,7 +1693,7 @@ namespace FlipPix.UI.ViewModels.Video
                 AddLog("Executing video generation workflow...");
 
                 // Record existing video files BEFORE execution
-                var existingFilesBeforeExecution = GetExistingVideoFiles("*.mp4", "testrun", "testrun/vid", "video", "intpups", "intp", "ups");
+                var existingFilesBeforeExecution = GetExistingVideoFiles("*.mp4", "testrun", "testrun/vid", "video", "intpups", "intp", "ups", "painter-story");
                 AddLog($"Recording {existingFilesBeforeExecution.Count} existing video files before execution");
 
                 var progress = new Progress<FlipPix.ComfyUI.Models.ProgressMessage>(progressMsg =>
@@ -1722,7 +1722,7 @@ namespace FlipPix.UI.ViewModels.Video
                     "*.mp4",
                     TimeSpan.FromSeconds(60),
                     TimeSpan.FromSeconds(2),
-                    "testrun", "testrun/vid", "video", "intpups", "intp", "ups");
+                    "testrun", "testrun/vid", "video", "intpups", "intp", "ups", "painter-story");
 
                 if (outputVideo != null && File.Exists(outputVideo))
                 {
@@ -1770,7 +1770,11 @@ namespace FlipPix.UI.ViewModels.Video
             bool isWan22 = !_isStoryVideoMode && SelectedSingleWorkflow == SingleVideoWorkflow.Wan22;
 
             // Update first frame image - node IDs differ by workflow
-            string[] firstFrameNodes = isWan22 ? new[] { "55" } : new[] { "106" };
+            // - Wan22: node "55"
+            // - LTXV: node "106"
+            // - Painter (painteri2vAPI): node "119" (its only LoadImage node)
+            string[] firstFrameNodes = isWan22 ? new[] { "55" } : isLTXV ? new[] { "106" } : new[] { "119" };
+            bool firstFrameUpdated = false;
             foreach (var nodeId in firstFrameNodes)
             {
                 if (workflowDict.ContainsKey(nodeId))
@@ -1784,13 +1788,19 @@ namespace FlipPix.UI.ViewModels.Video
                             inputs["image"] = firstFrameImageName;
                             node["inputs"] = inputs;
                             workflowDict[nodeId] = JsonSerializer.SerializeToElement(node);
-                            AddLog($"✓ Node {nodeId} (First Frame) - Image updated");
+                            AddLog($"✓ Node {nodeId} (First Frame) - Image updated: {firstFrameImageName}");
+                            firstFrameUpdated = true;
                         }
                     }
                 }
             }
+            if (!firstFrameUpdated)
+            {
+                AddLog($"⚠ WARNING: First frame image node not found in workflow (tried: {string.Join(", ", firstFrameNodes)}) - image will not be updated!");
+            }
 
             // Update last frame image - node IDs differ by workflow
+            // Painter (painteri2vAPI) has no separate last-frame node; "35" won't exist so this is a no-op for painter.
             if (!string.IsNullOrEmpty(lastFrameImageName))
             {
                 string[] lastFrameNodes = isWan22 ? new[] { "643" } : new[] { "35" };
@@ -1976,6 +1986,25 @@ namespace FlipPix.UI.ViewModels.Video
                             workflowDict["128"] = JsonSerializer.SerializeToElement(node);
                             AddLog($"✓ Node 128 (Seed) - {seedValue}");
                         }
+                    }
+                }
+            }
+
+            // Update filename_prefix for painter story mode — gives each clip a sequential name
+            // in a "painter-story/" subfolder so the app can find it and copy it to the right place.
+            if (_isStoryVideoMode && !isLTXV && !isWan22 && workflowDict.ContainsKey("135"))
+            {
+                var itemIndex = CurrentStoryQueueItem?.Index ?? 0;
+                var node135 = JsonSerializer.Deserialize<Dictionary<string, object>>(workflowDict["135"].GetRawText());
+                if (node135 != null && node135.ContainsKey("inputs"))
+                {
+                    var inputs135 = JsonSerializer.Deserialize<Dictionary<string, object>>(JsonSerializer.Serialize(node135["inputs"]));
+                    if (inputs135 != null)
+                    {
+                        inputs135["filename_prefix"] = $"painter-story/painter-{itemIndex}";
+                        node135["inputs"] = inputs135;
+                        workflowDict["135"] = JsonSerializer.SerializeToElement(node135);
+                        AddLog($"✓ Node 135 - filename_prefix: painter-story/painter-{itemIndex}");
                     }
                 }
             }
@@ -2334,6 +2363,28 @@ namespace FlipPix.UI.ViewModels.Video
 
                 // Generate video
                 await GenerateVideoAsyncInternal();
+
+                // Copy the generated video into the same folder as the source images/prompts
+                if (HasResult && !string.IsNullOrEmpty(ResultVideoPath) && File.Exists(ResultVideoPath)
+                    && !string.IsNullOrEmpty(StoryImagesFolderPath) && Directory.Exists(StoryImagesFolderPath))
+                {
+                    try
+                    {
+                        var jsonBaseName = !string.IsNullOrEmpty(StoryPromptJsonPath)
+                            ? Path.GetFileNameWithoutExtension(StoryPromptJsonPath)
+                            : "painter";
+                        var destFileName = $"{jsonBaseName}-{item.Index}.mp4";
+                        var destPath = Path.Combine(StoryImagesFolderPath, destFileName);
+                        File.Copy(ResultVideoPath, destPath, overwrite: true);
+                        ResultVideoPath = destPath;
+                        AddLog($"✓ Video saved alongside source images: {destPath}");
+                    }
+                    catch (Exception copyEx)
+                    {
+                        AddLog($"⚠ Could not copy video to images folder: {copyEx.Message}");
+                        // Non-fatal — video still accessible at its ComfyUI output path
+                    }
+                }
             }
             finally
             {

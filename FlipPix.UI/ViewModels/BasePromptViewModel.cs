@@ -36,7 +36,7 @@ namespace FlipPix.UI.ViewModels
         public virtual List<SavedPrompt> SavedPrompts
         {
             get => _savedPrompts;
-            set => _savedPrompts = value ?? new List<SavedPrompt>();
+            set => SetProperty(ref _savedPrompts, value ?? new List<SavedPrompt>());
         }
 
         public virtual SavedPrompt? SelectedSavedPrompt
@@ -79,7 +79,7 @@ namespace FlipPix.UI.ViewModels
         {
             try
             {
-                SavedPrompts = _promptService.LoadPrompts(_promptType);
+                SavedPrompts = new List<SavedPrompt>(_promptService.LoadPrompts(_promptType));
                 _logger.LogInfo($"Loaded {SavedPrompts.Count} saved prompts for {_promptType}");
             }
             catch (Exception ex)

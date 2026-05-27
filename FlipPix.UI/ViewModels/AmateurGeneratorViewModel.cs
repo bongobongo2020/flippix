@@ -855,7 +855,7 @@ namespace FlipPix.UI.ViewModels
             // 9. Set fallback LoRA for node 760 (prevents invalid LoRA errors)
             WorkflowNodeUpdater.UpdateNodeInputMultiple(ref workflowJson, "760", new Dictionary<string, object>
             {
-                { "lora_name", $"zimage\\{AmateurLoraName}" },
+                { "lora_name", $"zimage/{AmateurLoraName}" },
                 { "strength_model", 0.0 }
             });
 

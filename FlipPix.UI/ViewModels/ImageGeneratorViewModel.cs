@@ -1514,7 +1514,7 @@ namespace FlipPix.UI.ViewModels
                     if (inputs != null)
                     {
                         // Use amateur photography LoRA with minimal strength as fallback
-                        inputs["lora_name"] = "zimage\\amateur_photography_zimage_v1.safetensors";
+                        inputs["lora_name"] = "zimage/amateur_photography_zimage_v1.safetensors";
                         inputs["strength_model"] = 0.0;
                         node760["inputs"] = inputs;
                         workflowDict["760"] = JsonSerializer.SerializeToElement(node760);
@@ -1894,7 +1894,7 @@ namespace FlipPix.UI.ViewModels
                     {
                         inputs = new
                         {
-                            lora_name = $"zimage\\{loraName}.safetensors",
+                            lora_name = $"zimage/{loraName}.safetensors",
                             strength_model = 1.0,
                             strength_clip = 1.0,
                             model = new object[] { "46", 0 }, // Connect to UNETLoader (node 46)
