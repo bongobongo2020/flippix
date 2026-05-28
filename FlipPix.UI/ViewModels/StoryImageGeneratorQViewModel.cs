@@ -46,7 +46,7 @@ namespace FlipPix.UI.ViewModels
 
         // --- Workflow mode ---
 
-        public static readonly IReadOnlyList<string> WorkflowModes = new[] { "Qwen", "Klein" };
+        public static readonly IReadOnlyList<string> WorkflowModes = new[] { "Qwen", "Klein", "FireRed" };
 
         private string _selectedWorkflowMode = "Qwen";
         public string SelectedWorkflowMode
@@ -59,11 +59,24 @@ namespace FlipPix.UI.ViewModels
                     // Switch to sensible defaults per workflow
                     if (value == "Klein")
                         Steps = 20;
+                    else if (value == "FireRed")
+                        Steps = 8;
                     else
                         Steps = DefaultSteps;
+
+                    OnPropertyChanged(nameof(ShowLoRAOption));
                 }
             }
         }
+
+        private bool _useLoRA = true;
+        public bool UseLoRA
+        {
+            get => _useLoRA;
+            set => SetProperty(ref _useLoRA, value);
+        }
+
+        public bool ShowLoRAOption => SelectedWorkflowMode == "FireRed";
 
         // --- Abstract member implementations ---
 
@@ -378,6 +391,11 @@ namespace FlipPix.UI.ViewModels
                 workflowPath = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "workflow", "klein", "V2-Edit-with-LCS-example-workflowAPI.json");
                 AddLog("Using Klein workflow (Flux2 + LCS)");
             }
+            else if (SelectedWorkflowMode == "FireRed")
+            {
+                workflowPath = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "workflow", "firered-image-edit-1.1API.json");
+                AddLog("Using FireRed workflow");
+            }
             else
             {
                 workflowPath = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "workflow", "RapidEditAIO-API.json");
@@ -397,6 +415,8 @@ namespace FlipPix.UI.ViewModels
             JsonElement updatedWorkflow;
             if (SelectedWorkflowMode == "Klein")
                 updatedWorkflow = UpdateKleinWorkflowParameters(workflow, uploadedImageName, item.Prompt, item.Index, jsonFileName);
+            else if (SelectedWorkflowMode == "FireRed")
+                updatedWorkflow = UpdateFireRedWorkflowParameters(workflow, uploadedImageName, item.Prompt, item.Index, jsonFileName);
             else
                 updatedWorkflow = UpdateQwenWorkflowParameters(workflow, uploadedImageName, item.Prompt, item.Index, jsonFileName);
 
@@ -475,6 +495,26 @@ namespace FlipPix.UI.ViewModels
                 class_type = "SaveImage",
                 _meta = new { title = "Save Image (FlipPix)" }
             });
+
+            return JsonSerializer.Deserialize<JsonElement>(workflowJson);
+        }
+
+        private JsonElement UpdateFireRedWorkflowParameters(JsonElement workflow, string inputImageName, string promptText, int imageIndex, string jsonFileName)
+        {
+            var workflowJson = workflow.GetRawText();
+
+            WorkflowNodeUpdater.UpdateNodeInput(ref workflowJson, "143", "image", inputImageName);
+            WorkflowNodeUpdater.UpdateNodeInput(ref workflowJson, "118", "prompt", promptText);
+            if (!string.IsNullOrEmpty(NegativePrompt))
+                WorkflowNodeUpdater.UpdateNodeInput(ref workflowJson, "117", "prompt", NegativePrompt);
+            WorkflowNodeUpdater.UpdateNodeInput(ref workflowJson, "153", "value", UseLoRA);
+            WorkflowNodeUpdater.UpdateNodeInput(ref workflowJson, "155", "value", Steps);
+            WorkflowNodeUpdater.UpdateNodeInput(ref workflowJson, "156", "value", Steps);
+            WorkflowNodeUpdater.UpdateNodeInput(ref workflowJson, "130", "denoise", Denoise);
+            WorkflowNodeUpdater.UpdateNodeInput(ref workflowJson, "130", "seed", Random.Shared.Next());
+            WorkflowNodeUpdater.UpdateNodeInput(ref workflowJson, "9", "filename_prefix", $"{jsonFileName}/{jsonFileName}-{imageIndex}");
+
+            AddLog($"FireRed workflow: LoRA={UseLoRA}, Steps={Steps}, Denoise={Denoise:F2}");
 
             return JsonSerializer.Deserialize<JsonElement>(workflowJson);
         }

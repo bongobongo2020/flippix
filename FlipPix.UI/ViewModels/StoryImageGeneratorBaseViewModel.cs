@@ -703,6 +703,7 @@ namespace FlipPix.UI.ViewModels
             OnPropertyChanged(nameof(QueueProgressText));
             OnPropertyChanged(nameof(HasAnyItems));
             OnPropertyChanged(nameof(HasCompletedItems));
+            (ClearQueueCommand as RelayCommand)?.NotifyCanExecuteChanged();
             (ForceCancelQueueCommand as RelayCommand)?.NotifyCanExecuteChanged();
             SaveFinalStoryboardCommand.NotifyCanExecuteChanged();
         }
