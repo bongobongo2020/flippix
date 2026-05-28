@@ -1,123 +1,245 @@
 <Window xmlns="https://github.com/avaloniaui"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
-        xmlns:vm="clr-namespace:FlipPix.UI.Linux.ViewModels;assembly=FlipPix.UI.Linux"
         x:Class="FlipPix.UI.Linux.Windows.ImageGeneratorWindow"
         Title="FlipPix - Image Generator"
-        Width="1400" Height="900"
-        MinWidth="800" MinHeight="600"
+        Width="1050" Height="950"
+        MinWidth="800" MinHeight="700"
         WindowStartupLocation="CenterScreen">
 
     <DockPanel>
-        <!-- Header -->
-        <Border DockPanel.Dock="Top" Background="#FF6B35" Height="40">
-            <DockPanel>
-                <TextBlock Text="FlipPix" FontSize="18" FontWeight="Bold" Foreground="White"
-                           VerticalAlignment="Center" Margin="15,0"/>
-                <StackPanel Orientation="Horizontal" HorizontalAlignment="Right"
-                            VerticalAlignment="Center" Margin="0,0,10,0" Spacing="5">
-                    <Button Content="Settings" Classes="nav" Click="SettingsButton_Click"/>
-                    <Button Content="ComfyUI" Classes="nav" Click="ComfyUIButton_Click"/>
-                </StackPanel>
-            </DockPanel>
+        <!-- Header (draggable) -->
+        <Border DockPanel.Dock="Top" PointerPressed="Header_PointerPressed">
+            <Border.Background>
+                <LinearGradientBrush StartPoint="0%,0%" EndPoint="100%,0%">
+                    <GradientStop Color="#FF6B35" Offset="0"/>
+                    <GradientStop Color="#F7931E" Offset="1"/>
+                </LinearGradientBrush>
+            </Border.Background>
+            <StackPanel Margin="25,18">
+                <TextBlock Text="🖼️ FlipPix Image Generator" FontSize="26" FontWeight="Bold" Foreground="White"/>
+                <TextBlock Text="AI-powered image generation with ComfyUI" FontSize="12" Foreground="#FFFAF0" Margin="0,4,0,0"/>
+            </StackPanel>
+        </Border>
+
+        <!-- Navigation Bar -->
+        <Border DockPanel.Dock="Top" Background="#E9ECEF" BorderBrush="#DEE2E6" BorderThickness="0,1,0,1" Padding="15,8">
+            <WrapPanel Orientation="Horizontal">
+                <TextBlock Text="Tools:" FontWeight="SemiBold" FontSize="12" VerticalAlignment="Center" Margin="0,0,12,0" Foreground="#495057"/>
+                <Button Content="🎬 Video Generator" Classes="nav" Background="#6366F1" Click="NavVideoGenerator_Click"/>
+                <Button Content="✨ Enhance Video" Classes="nav" Background="#1565C0" Click="NavVideoEnhance_Click"/>
+                <Button Content="📷 Camera Edit" Classes="nav" Background="#10B981" Click="NavCameraEdit_Click"/>
+                <Button Content="🔊 Image to Video+Audio" Classes="nav" Click="NavI2V2A_Click"/>
+                <Button Content="📖 Story Video" Classes="nav" Click="NavStoryVideo_Click"/>
+                <Button Content="🧠 Ollama" Classes="nav" Click="NavOllama_Click"/>
+                <Button Content="⚙️ Settings" Classes="nav" Click="SettingsButton_Click"/>
+            </WrapPanel>
         </Border>
 
         <!-- Status Bar -->
-        <Border DockPanel.Dock="Bottom" Background="#F0F0F0" Height="28" BorderBrush="#DDD" BorderThickness="0,1,0,0">
+        <Border DockPanel.Dock="Bottom" Background="#F8F9FA" BorderBrush="#DEE2E6" BorderThickness="0,1,0,0" Height="28">
             <DockPanel>
                 <TextBlock Text="{Binding StatusBarMessage}" VerticalAlignment="Center" Margin="10,0" FontSize="11"/>
-                <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" VerticalAlignment="Center" Margin="10,0" Spacing="5">
+                <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" VerticalAlignment="Center" Margin="10,0" Spacing="4">
                     <TextBlock Text="ComfyUI:" FontSize="11" Foreground="#666"/>
                     <TextBlock Text="{Binding ComfyUIServer}" FontSize="11" FontWeight="Bold"/>
+                    <TextBlock Text=":" FontSize="11"/>
+                    <TextBlock Text="{Binding ComfyUIPort}" FontSize="11" FontWeight="Bold"/>
                 </StackPanel>
             </DockPanel>
         </Border>
 
         <!-- Main Content -->
         <TabControl>
-            <!-- Text-to-Image Tab -->
-            <TabItem Header="Text to Image">
-                <Grid ColumnDefinitions="400,*">
-                    <!-- Left Panel: Controls -->
-                    <ScrollViewer Grid.Column="0" Margin="10">
-                        <StackPanel Spacing="10">
-                            <!-- Prompt -->
-                            <Border Background="#F8F9FA" BorderBrush="#DEE2E6" BorderThickness="1" CornerRadius="8" Padding="15">
-                                <StackPanel Spacing="8">
-                                    <TextBlock Text="Image Prompt" FontWeight="Bold"/>
-                                    <TextBox Text="{Binding ImagePrompt}" AcceptsReturn="True" Height="100"
-                                             Watermark="Enter your image description..."/>
-                                </StackPanel>
-                            </Border>
+            <!-- Image Generator Tab -->
+            <TabItem Header="🎨 Image Generator">
+                <ScrollViewer HorizontalScrollBarVisibility="Disabled">
+                    <StackPanel Margin="20,15">
 
-                            <!-- Settings -->
-                            <Border Background="#F8F9FA" BorderBrush="#DEE2E6" BorderThickness="1" CornerRadius="8" Padding="15">
-                                <StackPanel Spacing="8">
-                                    <TextBlock Text="Settings" FontWeight="Bold"/>
-                                    <Grid ColumnDefinitions="*,*" RowDefinitions="Auto,Auto,Auto,Auto">
-                                        <TextBlock Grid.Row="0" Grid.Column="0" Text="Aspect Ratio:" VerticalAlignment="Center"/>
-                                        <ComboBox Grid.Row="0" Grid.Column="1" SelectedIndex="{Binding AspectRatioIndex}">
-                                            <ComboBoxItem>Landscape 16:9</ComboBoxItem>
-                                            <ComboBoxItem>Portrait 9:16</ComboBoxItem>
-                                            <ComboBoxItem>Square 1:1</ComboBoxItem>
-                                        </ComboBox>
-                                        <TextBlock Grid.Row="1" Grid.Column="0" Text="Steps:" VerticalAlignment="Center"/>
-                                        <NumericUpDown Grid.Row="1" Grid.Column="1" Value="{Binding Steps}" Minimum="1" Maximum="100"/>
-                                        <TextBlock Grid.Row="2" Grid.Column="0" Text="CFG:" VerticalAlignment="Center"/>
-                                        <NumericUpDown Grid.Row="2" Grid.Column="1" Value="{Binding Cfg}" Minimum="0.1" Maximum="20" Increment="0.1" FormatString="F1"/>
-                                        <TextBlock Grid.Row="3" Grid.Column="0" Text="Seed (0=random):" VerticalAlignment="Center"/>
-                                        <NumericUpDown Grid.Row="3" Grid.Column="1" Value="{Binding Seed}" Minimum="0"/>
+                        <!-- Images Side by Side -->
+                        <Border Background="#F8F9FA" BorderBrush="#DEE2E6" BorderThickness="1" CornerRadius="8" Padding="20" Margin="0,0,0,15">
+                            <Grid ColumnDefinitions="*,*">
+                                <!-- Input Image -->
+                                <StackPanel Grid.Column="0" Margin="0,0,10,0">
+                                    <TextBlock Text="📤 Input Image (optional)" FontSize="15" FontWeight="Bold" Margin="0,0,0,8" Foreground="#FF6B35"/>
+                                    <Border BorderBrush="#DEE2E6" BorderThickness="2" Background="White" Height="220" CornerRadius="5" Margin="0,0,0,8">
+                                        <Grid>
+                                            <TextBlock Text="No image selected" HorizontalAlignment="Center" VerticalAlignment="Center"
+                                                       Foreground="#999" FontStyle="Italic"
+                                                       IsVisible="{Binding !HasInputImage}"/>
+                                            <Image Source="{Binding ImagePreviewSource, Converter={StaticResource PathToBitmapConverter}}"
+                                                   Stretch="Uniform" IsVisible="{Binding HasInputImage}"/>
+                                        </Grid>
+                                    </Border>
+                                    <Grid ColumnDefinitions="*,Auto">
+                                        <TextBox Grid.Column="0" Text="{Binding ImageFilePath}" IsReadOnly="True" Padding="8" FontSize="11"/>
+                                        <Button Grid.Column="1" Content="Browse" Classes="secondary" Margin="8,0,0,0"
+                                                Command="{Binding SelectImageCommand}"/>
                                     </Grid>
                                 </StackPanel>
-                            </Border>
-
-                            <!-- Buttons -->
-                            <Button Content="Generate Image" Classes="primary"
-                                    Command="{Binding GenerateImageCommand}"
-                                    HorizontalAlignment="Stretch" Height="45"/>
-                            <Button Content="Cancel" Classes="danger"
-                                    Command="{Binding CancelGenerationCommand}"
-                                    IsVisible="{Binding IsProcessing}"
-                                    HorizontalAlignment="Stretch"/>
-                        </StackPanel>
-                    </ScrollViewer>
-
-                    <!-- Right Panel: Result -->
-                    <Grid Grid.Column="1" Margin="10">
-                        <Grid.RowDefinitions>
-                            <RowDefinition Height="*"/>
-                            <RowDefinition Height="Auto"/>
-                        </Grid.RowDefinitions>
-
-                        <!-- Image Preview -->
-                        <Border Grid.Row="0" Background="#1E1E2E" CornerRadius="8">
-                            <Grid>
-                                <!-- No result placeholder -->
-                                <TextBlock Text="Generated image will appear here"
-                                           Foreground="#888" FontSize="14"
-                                           HorizontalAlignment="Center" VerticalAlignment="Center"
-                                           IsVisible="{Binding !HasResultImage}"/>
 
                                 <!-- Result Image -->
-                                <Image Source="{Binding ResultImagePath, Converter={StaticResource PathToBitmapConverter}}"
-                                       Stretch="Uniform"
-                                       IsVisible="{Binding HasResultImage}"/>
+                                <StackPanel Grid.Column="1" Margin="10,0,0,0">
+                                    <TextBlock Text="✨ Result Image" FontSize="15" FontWeight="Bold" Margin="0,0,0,8" Foreground="#FF6B35"/>
+                                    <Border BorderBrush="#DEE2E6" BorderThickness="2" Background="White" Height="220" CornerRadius="5" Margin="0,0,0,8">
+                                        <Grid>
+                                            <TextBlock Text="Result will appear here" HorizontalAlignment="Center" VerticalAlignment="Center"
+                                                       Foreground="#999" FontStyle="Italic"
+                                                       IsVisible="{Binding !HasResultImage}"/>
+                                            <Image Source="{Binding ResultPreviewSource, Converter={StaticResource PathToBitmapConverter}}"
+                                                   Stretch="Uniform" IsVisible="{Binding HasResultImage}"/>
+                                        </Grid>
+                                    </Border>
+                                    <Grid ColumnDefinitions="*,*">
+                                        <Button Grid.Column="0" Content="📂 Open Folder" Classes="secondary"
+                                                Command="{Binding OpenResultFolderCommand}"
+                                                IsEnabled="{Binding HasResultImage}" Margin="0,0,4,0"/>
+                                        <Button Grid.Column="1" Content="🎬 To Video" Classes="secondary"
+                                                Command="{Binding SendToVideoGeneratorCommand}"
+                                                IsEnabled="{Binding HasResultImage}" Margin="4,0,0,0"/>
+                                    </Grid>
+                                </StackPanel>
                             </Grid>
                         </Border>
 
-                        <!-- Progress Bar -->
-                        <StackPanel Grid.Row="1" Margin="0,10,0,0" Spacing="5" IsVisible="{Binding IsProcessing}">
-                            <ProgressBar Value="{Binding ProcessingProgress}" Maximum="100" Height="8"/>
-                            <TextBlock Text="{Binding ProcessingStatus}" FontSize="11" Foreground="#666"/>
-                        </StackPanel>
-                    </Grid>
-                </Grid>
+                        <!-- Prompts and Generate -->
+                        <Border Background="#F8F9FA" BorderBrush="#DEE2E6" BorderThickness="1" CornerRadius="8" Padding="20" Margin="0,0,0,15">
+                            <Grid ColumnDefinitions="2*,*">
+                                <StackPanel Grid.Column="0" Margin="0,0,20,0">
+                                    <TextBlock Text="💬 Prompt" FontWeight="SemiBold" FontSize="12" Margin="0,0,0,5"/>
+                                    <TextBox Text="{Binding CustomPrompt}" AcceptsReturn="True" Height="80"
+                                             Padding="10" FontSize="12" Margin="0,0,0,10"
+                                             Watermark="Describe the image you want to generate..."/>
+                                    <TextBlock Text="🚫 Negative Prompt" FontWeight="SemiBold" FontSize="12" Margin="0,0,0,5"/>
+                                    <TextBox Text="{Binding NegativePrompt}" AcceptsReturn="True" Height="50"
+                                             Padding="8" FontSize="11" Margin="0,0,0,10"
+                                             Watermark="What to avoid..."/>
+                                    <Grid ColumnDefinitions="*,Auto">
+                                        <Button Grid.Column="0" Content="💾 Save Prompt" Classes="secondary"
+                                                Command="{Binding SaveCustomPromptCommand}" Margin="0,0,8,0"/>
+                                        <Button Grid.Column="1" Content="🗑️ Delete Saved" Background="#DC3545" Foreground="White"
+                                                Command="{Binding DeleteSavedPromptCommand}"/>
+                                    </Grid>
+                                </StackPanel>
+
+                                <StackPanel Grid.Column="1" VerticalAlignment="Center">
+                                    <Button Content="🚀 Generate Image" Classes="primary"
+                                            Command="{Binding ProcessImageCommand}"
+                                            HorizontalAlignment="Stretch" Height="50" FontSize="14" Margin="0,0,0,15"/>
+
+                                    <Border Background="#FFF9F0" BorderBrush="#FFE0B0" BorderThickness="1" CornerRadius="5" Padding="12"
+                                            IsVisible="{Binding IsProcessing}">
+                                        <StackPanel>
+                                            <TextBlock Text="{Binding ProcessingStatus}" FontWeight="SemiBold" FontSize="11"
+                                                       Margin="0,0,0,5" TextAlignment="Center"/>
+                                            <ProgressBar Value="{Binding ProcessingProgress}" Height="16" Foreground="#FF6B35" Margin="0,0,0,5"/>
+                                            <TextBlock Text="{Binding ProgressPercentage}" HorizontalAlignment="Center"
+                                                       FontSize="11" FontWeight="Bold" Foreground="#FF6B35"/>
+                                        </StackPanel>
+                                    </Border>
+                                </StackPanel>
+                            </Grid>
+                        </Border>
+
+                        <!-- Advanced Settings -->
+                        <Expander Header="⚙️ Advanced Settings" IsExpanded="False" Margin="0,0,0,15">
+                            <Border Background="#F8F9FA" BorderBrush="#DEE2E6" BorderThickness="1" CornerRadius="5" Padding="15" Margin="0,8,0,0">
+                                <Grid ColumnDefinitions="*,*,*">
+                                    <StackPanel Grid.Column="0" Margin="0,0,15,0">
+                                        <TextBlock Text="Steps" FontWeight="SemiBold" FontSize="11" Margin="0,0,0,5"/>
+                                        <Grid ColumnDefinitions="*,Auto">
+                                            <Slider Grid.Column="0" Value="{Binding Steps}" Minimum="1" Maximum="30"
+                                                    TickFrequency="1" IsSnapToTickEnabled="True" VerticalAlignment="Center"/>
+                                            <TextBlock Grid.Column="1" Text="{Binding Steps}" Margin="8,0,0,0"
+                                                       VerticalAlignment="Center" FontWeight="Bold" MinWidth="25"/>
+                                        </Grid>
+                                    </StackPanel>
+                                    <StackPanel Grid.Column="1" Margin="0,0,15,0">
+                                        <TextBlock Text="CFG Scale" FontWeight="SemiBold" FontSize="11" Margin="0,0,0,5"/>
+                                        <Grid ColumnDefinitions="*,Auto">
+                                            <Slider Grid.Column="0" Value="{Binding Cfg}" Minimum="1" Maximum="10"
+                                                    TickFrequency="0.5" IsSnapToTickEnabled="True" VerticalAlignment="Center"/>
+                                            <TextBlock Grid.Column="1" Text="{Binding Cfg, StringFormat={}{0:F1}}" Margin="8,0,0,0"
+                                                       VerticalAlignment="Center" FontWeight="Bold" MinWidth="30"/>
+                                        </Grid>
+                                    </StackPanel>
+                                    <StackPanel Grid.Column="2">
+                                        <TextBlock Text="Denoise" FontWeight="SemiBold" FontSize="11" Margin="0,0,0,5"/>
+                                        <Grid ColumnDefinitions="*,Auto">
+                                            <Slider Grid.Column="0" Value="{Binding Denoise}" Minimum="0" Maximum="1"
+                                                    TickFrequency="0.05" IsSnapToTickEnabled="True" VerticalAlignment="Center"/>
+                                            <TextBlock Grid.Column="1" Text="{Binding Denoise, StringFormat={}{0:F2}}" Margin="8,0,0,0"
+                                                       VerticalAlignment="Center" FontWeight="Bold" MinWidth="35"/>
+                                        </Grid>
+                                    </StackPanel>
+                                </Grid>
+                            </Border>
+                        </Expander>
+
+                        <!-- Queue Management -->
+                        <Border Background="#F8F9FA" BorderBrush="#DEE2E6" BorderThickness="1" CornerRadius="8" Padding="20" Margin="0,0,0,15">
+                            <StackPanel>
+                                <TextBlock Text="📋 Queue" FontSize="15" FontWeight="Bold" Margin="0,0,0,10" Foreground="#FF6B35"/>
+                                <Grid ColumnDefinitions="*,*,*" Margin="0,0,0,12">
+                                    <Button Grid.Column="0" Content="➕ Add to Queue" Classes="secondary"
+                                            Command="{Binding AddToQueueCommand}" Margin="0,0,5,0"/>
+                                    <Button Grid.Column="1" Content="🚀 Process Queue" Classes="primary"
+                                            Command="{Binding ProcessQueueCommand}" Margin="5,0,5,0"/>
+                                    <Button Grid.Column="2" Content="🗑️ Clear" Background="#DC3545" Foreground="White"
+                                            Command="{Binding ClearQueueCommand}" Margin="5,0,0,0"/>
+                                </Grid>
+
+                                <Border Background="White" BorderBrush="#DEE2E6" BorderThickness="1" CornerRadius="5" MaxHeight="180">
+                                    <ScrollViewer VerticalScrollBarVisibility="Auto">
+                                        <ItemsControl ItemsSource="{Binding QueueItems}">
+                                            <ItemsControl.ItemTemplate>
+                                                <DataTemplate>
+                                                    <Border BorderBrush="#E9ECEF" BorderThickness="0,0,0,1" Padding="10">
+                                                        <Grid ColumnDefinitions="*,Auto,Auto">
+                                                            <StackPanel Grid.Column="0">
+                                                                <TextBlock Text="{Binding CameraControl}" FontWeight="SemiBold" FontSize="12"/>
+                                                                <TextBlock Text="{Binding Prompt}" FontSize="10" Foreground="#666"
+                                                                           TextTrimming="CharacterEllipsis" MaxWidth="300"/>
+                                                            </StackPanel>
+                                                            <TextBlock Grid.Column="1"
+                                                                       Text="{Binding Status}"
+                                                                       Foreground="{Binding Status, Converter={StaticResource StatusToForegroundConverter}}"
+                                                                       FontSize="11" FontWeight="Bold"
+                                                                       VerticalAlignment="Center" Margin="10,0"/>
+                                                            <Button Grid.Column="2" Content="❌" Background="Transparent"
+                                                                    BorderThickness="0" Padding="5" FontSize="12"
+                                                                    Command="{Binding DataContext.RemoveFromQueueCommand, RelativeSource={RelativeSource AncestorType=Window}}"
+                                                                    CommandParameter="{Binding}"/>
+                                                        </Grid>
+                                                    </Border>
+                                                </DataTemplate>
+                                            </ItemsControl.ItemTemplate>
+                                        </ItemsControl>
+                                    </ScrollViewer>
+                                </Border>
+                            </StackPanel>
+                        </Border>
+
+                        <!-- Log -->
+                        <Expander Header="📝 Processing Log" IsExpanded="True">
+                            <Border Background="White" BorderBrush="#DEE2E6" BorderThickness="1" Margin="0,8,0,0">
+                                <ScrollViewer MaxHeight="150" VerticalScrollBarVisibility="Auto">
+                                    <TextBox Text="{Binding LogOutput}" IsReadOnly="True"
+                                             FontFamily="Monospace" FontSize="10" Background="Transparent"
+                                             BorderThickness="0" Padding="10"/>
+                                </ScrollViewer>
+                            </Border>
+                        </Expander>
+
+                    </StackPanel>
+                </ScrollViewer>
             </TabItem>
 
             <!-- Log Tab -->
-            <TabItem Header="Log">
+            <TabItem Header="📝 Log">
                 <ScrollViewer>
                     <TextBox Text="{Binding LogOutput}" IsReadOnly="True" AcceptsReturn="True"
-                             FontFamily="Monospace" FontSize="11" Background="#1E1E2E" Foreground="#AAF"/>
+                             FontFamily="Monospace" FontSize="11" Background="#1E1E2E" Foreground="#AAF"
+                             BorderThickness="0"/>
                 </ScrollViewer>
             </TabItem>
         </TabControl>
