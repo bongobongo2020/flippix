@@ -1,8 +1,11 @@
 using System;
+using System.Linq;
+using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Input;
 using Avalonia.Interactivity;
 using Avalonia.Markup.Xaml;
+using Avalonia.VisualTree;
 using FlipPix.UI.Linux.Services;
 using FlipPix.UI.Linux.ViewModels;
 using FlipPix.Core.Services;
@@ -118,6 +121,14 @@ public partial class ImageGeneratorWindow : Window
         catch (Exception ex) { System.Diagnostics.Debug.WriteLine($"NavStoryVideo error: {ex.Message}"); }
     }
 
+    private void ExitButton_Click(object? sender, RoutedEventArgs e)
+    {
+        if (Application.Current?.ApplicationLifetime is Avalonia.Controls.ApplicationLifetimes.IClassicDesktopStyleApplicationLifetime desktop)
+            desktop.Shutdown();
+        else
+            Environment.Exit(0);
+    }
+
     private void NavOllama_Click(object? sender, RoutedEventArgs e)
     {
         try
@@ -127,5 +138,21 @@ public partial class ImageGeneratorWindow : Window
             new OllamaWindow().Show();
         }
         catch (Exception ex) { System.Diagnostics.Debug.WriteLine($"NavOllama error: {ex.Message}"); }
+    }
+
+    private void NavAnalyze_Click(object? sender, RoutedEventArgs e)
+    {
+        try
+        {
+            if (this.FindControl<TabControl>(null) is not { } tc)
+            {
+                // find any TabControl
+                tc = this.FindControl<TabControl>("") as TabControl
+                     ?? (TabControl?)this.GetVisualDescendants().OfType<TabControl>().FirstOrDefault();
+            }
+            // Analyze tab is index 2 (0=Image Generator, 1=Story Image Q, 2=Analyze, 3=Log)
+            if (tc != null) tc.SelectedIndex = 2;
+        }
+        catch (Exception ex) { System.Diagnostics.Debug.WriteLine($"NavAnalyze error: {ex.Message}"); }
     }
 }

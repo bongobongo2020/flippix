@@ -78,9 +78,9 @@ public partial class App : Application
                 await Dispatcher.UIThread.InvokeAsync(() =>
                 {
                     var setupWin = new SetupChoiceWindow();
-                    splash.Close();
                     desktop.MainWindow = setupWin;
                     setupWin.Show();
+                    splash.Close();
 
                     setupWin.Closed += (_, _) =>
                     {

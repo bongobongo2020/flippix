@@ -2281,6 +2281,21 @@ namespace FlipPix.UI.ViewModels.Video
                 }
 
                 AddLog($"Selected story prompts file: {Path.GetFileName(StoryPromptJsonPath)}");
+
+                // Auto-detect images folder if the same directory contains images
+                if (!string.IsNullOrEmpty(folderPath) &&
+                    (string.IsNullOrEmpty(StoryImagesFolderPath) || !Directory.Exists(StoryImagesFolderPath)))
+                {
+                    var hasImages = Directory.GetFiles(folderPath, "*.png")
+                        .Concat(Directory.GetFiles(folderPath, "*.jpg"))
+                        .Concat(Directory.GetFiles(folderPath, "*.jpeg"))
+                        .Any();
+                    if (hasImages)
+                    {
+                        StoryImagesFolderPath = folderPath;
+                        AddLog($"Auto-detected images folder: {folderPath}");
+                    }
+                }
             }
         }
 
@@ -2330,24 +2345,26 @@ namespace FlipPix.UI.ViewModels.Video
 
             try
             {
-                List<string> prompts;
+                List<(string? ImageName, string Prompt)> promptPairs;
                 var ext = Path.GetExtension(StoryPromptJsonPath).ToLowerInvariant();
 
                 if (ext == ".txt")
                 {
                     AddLog("Loading story prompts from TXT file...");
                     var txtContent = await File.ReadAllTextAsync(StoryPromptJsonPath);
-                    prompts = ParsePromptsFromTxt(txtContent);
+                    promptPairs = ParsePromptsFromTxt(txtContent);
                 }
                 else
                 {
                     AddLog("Loading story prompts from JSON file...");
                     var jsonContent = await File.ReadAllTextAsync(StoryPromptJsonPath);
                     var storyData = JsonSerializer.Deserialize<StoryPromptData>(jsonContent);
-                    prompts = storyData?.Prompts ?? new List<string>();
+                    promptPairs = (storyData?.Prompts ?? new List<string>())
+                        .Select(p => ((string?)null, p))
+                        .ToList();
                 }
 
-                if (!prompts.Any())
+                if (!promptPairs.Any())
                 {
                     AddLog("ERROR: No prompts found in file");
                     System.Windows.MessageBox.Show("No prompts found in the file.", "Error", MessageBoxButton.OK, MessageBoxImage.Error);
@@ -2360,29 +2377,65 @@ namespace FlipPix.UI.ViewModels.Video
                     .OrderBy(f => f)
                     .ToList();
 
+                // Build lookup dictionaries for name-based pairing
+                var imageByFilename = imageFiles.ToDictionary(
+                    f => Path.GetFileName(f),
+                    f => f,
+                    StringComparer.OrdinalIgnoreCase);
+                var imageByStem = imageFiles.ToDictionary(
+                    f => Path.GetFileNameWithoutExtension(f),
+                    f => f,
+                    StringComparer.OrdinalIgnoreCase);
+
+                bool useNamePairing = promptPairs.Any(p => p.ImageName != null);
+
                 StoryVideoQueue.Clear();
 
-                int count = Math.Min(prompts.Count, imageFiles.Count);
-                for (int i = 0; i < count; i++)
+                if (useNamePairing)
                 {
-                    var queueItem = new StoryVideoQueueItem
+                    int idx = 1;
+                    foreach (var (imageName, prompt) in promptPairs)
                     {
-                        Index = i + 1,
-                        Prompt = prompts[i],
-                        InputImagePath = imageFiles[i],
-                        Status = "Pending"
-                    };
-
-                    queueItem.PropertyChanged += (s, e) =>
-                    {
-                        if (e.PropertyName == nameof(StoryVideoQueueItem.Status))
+                        string? imagePath = null;
+                        if (imageName != null)
                         {
-                            OnPropertyChanged(nameof(CanProcessStoryQueue));
-                            NotifyCommandsCanExecuteChanged();
+                            imageByFilename.TryGetValue(imageName, out imagePath);
+                            if (imagePath == null)
+                                imageByStem.TryGetValue(Path.GetFileNameWithoutExtension(imageName), out imagePath);
                         }
-                    };
 
-                    StoryVideoQueue.Add(queueItem);
+                        if (imagePath == null)
+                        {
+                            AddLog($"WARNING: No matching image found for '{imageName}', skipping");
+                            continue;
+                        }
+
+                        var queueItem = new StoryVideoQueueItem
+                        {
+                            Index = idx++,
+                            Prompt = prompt,
+                            InputImagePath = imagePath,
+                            Status = "Pending"
+                        };
+                        queueItem.PropertyChanged += StoryQueueItem_StatusChanged;
+                        StoryVideoQueue.Add(queueItem);
+                    }
+                }
+                else
+                {
+                    int count = Math.Min(promptPairs.Count, imageFiles.Count);
+                    for (int i = 0; i < count; i++)
+                    {
+                        var queueItem = new StoryVideoQueueItem
+                        {
+                            Index = i + 1,
+                            Prompt = promptPairs[i].Prompt,
+                            InputImagePath = imageFiles[i],
+                            Status = "Pending"
+                        };
+                        queueItem.PropertyChanged += StoryQueueItem_StatusChanged;
+                        StoryVideoQueue.Add(queueItem);
+                    }
                 }
 
                 UpdateStoryQueueStatus();
@@ -2397,22 +2450,91 @@ namespace FlipPix.UI.ViewModels.Video
             }
         }
 
-        private List<string> ParsePromptsFromTxt(string content)
+        private void StoryQueueItem_StatusChanged(object? sender, System.ComponentModel.PropertyChangedEventArgs e)
         {
-            var dict = new SortedDictionary<int, string>();
-            // Split on "Scene N:" lines, capturing the scene number
-            var parts = Regex.Split(content, @"^Scene\s+(\d+):\s*$", RegexOptions.Multiline);
-            // parts layout: [pre-text, sceneNum, sceneText, sceneNum, sceneText, ...]
-            for (int i = 1; i + 1 < parts.Length; i += 2)
+            if (e.PropertyName == nameof(StoryVideoQueueItem.Status))
             {
-                if (int.TryParse(parts[i].Trim(), out var sceneNum))
-                {
-                    var text = parts[i + 1].Trim();
-                    if (!string.IsNullOrWhiteSpace(text))
-                        dict[sceneNum] = text;
-                }
+                OnPropertyChanged(nameof(CanProcessStoryQueue));
+                NotifyCommandsCanExecuteChanged();
             }
-            return dict.Values.ToList();
+        }
+
+        private List<(string? ImageName, string Prompt)> ParsePromptsFromTxt(string content)
+        {
+            var imageExts = new HashSet<string>(StringComparer.OrdinalIgnoreCase)
+                { ".png", ".jpg", ".jpeg", ".webp", ".bmp", ".gif" };
+
+            // Format A: "Scene N:" headers (written by SaveFinalStoryboard)
+            if (Regex.IsMatch(content, @"^Scene\s+\d+:\s*$", RegexOptions.Multiline))
+            {
+                var dict = new SortedDictionary<int, string>();
+                var parts = Regex.Split(content, @"^Scene\s+(\d+):\s*$", RegexOptions.Multiline);
+                for (int i = 1; i + 1 < parts.Length; i += 2)
+                {
+                    if (int.TryParse(parts[i].Trim(), out var sceneNum))
+                    {
+                        var text = parts[i + 1].Trim();
+                        if (!string.IsNullOrWhiteSpace(text))
+                            dict[sceneNum] = text;
+                    }
+                }
+                AddLog($"TXT format: Scene N: headers ({dict.Count} prompts)");
+                return dict.Values.Select(v => ((string?)null, v)).ToList();
+            }
+
+            var lines = content.Split(new[] { "\r\n", "\r", "\n" }, StringSplitOptions.None);
+            var nonEmpty = lines.Where(l => !string.IsNullOrWhiteSpace(l)).ToList();
+            if (!nonEmpty.Any()) return new();
+
+            // Format B: tab-separated "filename.ext\tprompt"
+            var tabPairs = nonEmpty
+                .Select(l => { var t = l.IndexOf('\t'); return t > 0 ? (l[..t].Trim(), l[(t + 1)..].Trim()) : (null, (string?)null); })
+                .Where(p => p.Item1 != null && imageExts.Contains(Path.GetExtension(p.Item1)) && !string.IsNullOrWhiteSpace(p.Item2))
+                .Select(p => (p.Item1, p.Item2!))
+                .ToList();
+
+            if (tabPairs.Count >= nonEmpty.Count * 0.7)
+            {
+                AddLog($"TXT format: tab-separated filename\\tprompt ({tabPairs.Count} pairs)");
+                return tabPairs.Select(p => ((string?)p.Item1, p.Item2)).ToList();
+            }
+
+            // Format C: "filename.ext: prompt" (colon after image filename with extension)
+            var colonPairs = nonEmpty
+                .Select(l =>
+                {
+                    var c = l.IndexOf(':');
+                    if (c <= 0) return ((string?)null, (string?)null);
+                    var name = l[..c].Trim();
+                    if (!imageExts.Contains(Path.GetExtension(name))) return (null, (string?)null);
+                    var prompt = l[(c + 1)..].Trim();
+                    return string.IsNullOrWhiteSpace(prompt) ? (null, (string?)null) : (name, prompt);
+                })
+                .Where(p => p.Item1 != null)
+                .Select(p => (p.Item1!, p.Item2!))
+                .ToList();
+
+            if (colonPairs.Count >= nonEmpty.Count * 0.7)
+            {
+                AddLog($"TXT format: colon-separated filename.ext: prompt ({colonPairs.Count} pairs)");
+                return colonPairs.Select(p => ((string?)p.Item1, p.Item2)).ToList();
+            }
+
+            // Format D: blank-line separated paragraphs (each paragraph = one prompt)
+            var paragraphs = Regex.Split(content, @"\r?\n(?:\s*\r?\n)+")
+                .Select(b => b.Trim())
+                .Where(b => !string.IsNullOrWhiteSpace(b))
+                .ToList();
+
+            if (paragraphs.Count > 1)
+            {
+                AddLog($"TXT format: blank-line separated paragraphs ({paragraphs.Count} prompts)");
+                return paragraphs.Select(p => ((string?)null, p)).ToList();
+            }
+
+            // Format E: one prompt per line
+            AddLog($"TXT format: line-by-line ({nonEmpty.Count} prompts)");
+            return nonEmpty.Select(l => ((string?)null, l.Trim())).ToList();
         }
 
         private async Task ProcessStoryQueueAsync()

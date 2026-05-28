@@ -93,7 +93,7 @@
     },
     "class_type": "VHS_VideoCombine",
     "_meta": {
-      "title": "Video Combine \ud83c\udfa5\ud83c\udd65\ud83c\udd57\ud83c\udd62"
+      "title": "Video Combine 🎥🅥🅗🅢"
     }
   },
   "18": {
@@ -135,10 +135,7 @@
   },
   "20": {
     "inputs": {
-      "frame_rate": [
-        "55",
-        0
-      ],
+      "frame_rate": 25,
       "positive": [
         "6",
         0
@@ -276,7 +273,7 @@
   },
   "59": {
     "inputs": {
-      "value": "EXT. DESERT DUNES \u2013 DAY \u2013 ACTION. A wide establishing shot captures two fighters locked in brutal combat across a vast, windswept expanse of shifting sand dunes under an overcast sky, with muted ochre tones and gritty textures dominating the scene; dust particles swirl chaotically around their feet as they move, backlighting from above casts soft shadows that emphasize muscle definition and sweat glistening on skin. The muscular, bearded man\u2014bare-chested, wearing a leather belt, armored gauntlets, and knee-high boots with blood smears across his torso and limbs\u2014lunges forward with a thunderous right jab, his veins bulging under the strain, while the woman\u2014lean but powerful, in a beige sports bra and red wrap skirt, her dark hair whipping behind her as she braces for impact\u2014deflects the blow with a sharp counter-strike to his forearm. The camera pushes in rapidly on their intertwined fists, capturing the moment of contact as both fighters stagger backward, sand exploding beneath them; their breaths are heavy, ragged, and visible in the cold air, with grunts echoing through the emptiness. The whip-pan reveals a distant horizon where sparse desert shrubs stand against the gray sky, as the man\u2019s follow-up kick connects with her thigh, sending her stumbling forward before she recovers with a flurry of punches with blood spurting from his face; the sound design layers crashing sand, bone-jarring impacts, and the low rumble of wind howling through dunes."
+      "value": "EXT. DESERT DUNES – DAY – ACTION. A wide establishing shot captures two fighters locked in brutal combat across a vast, windswept expanse of shifting sand dunes under an overcast sky, with muted ochre tones and gritty textures dominating the scene; dust particles swirl chaotically around their feet as they move, backlighting from above casts soft shadows that emphasize muscle definition and sweat glistening on skin. The muscular, bearded man—bare-chested, wearing a leather belt, armored gauntlets, and knee-high boots with blood smears across his torso and limbs—lunges forward with a thunderous right jab, his veins bulging under the strain, while the woman—lean but powerful, in a beige sports bra and red wrap skirt, her dark hair whipping behind her as she braces for impact—deflects the blow with a sharp counter-strike to his forearm. The camera pushes in rapidly on their intertwined fists, capturing the moment of contact as both fighters stagger backward, sand exploding beneath them; their breaths are heavy, ragged, and visible in the cold air, with grunts echoing through the emptiness. The whip-pan reveals a distant horizon where sparse desert shrubs stand against the gray sky, as the man’s follow-up kick connects with her thigh, sending her stumbling forward before she recovers with a flurry of punches with blood spurting from his face; the sound design layers crashing sand, bone-jarring impacts, and the low rumble of wind howling through dunes."
     },
     "class_type": "PrimitiveStringMultiline",
     "_meta": {
@@ -353,8 +350,8 @@
   },
   "88": {
     "inputs": {
-      "clip_name1": "gemma3\\gemma_3_12B_it_fp8_e4m3fn.safetensors",
-      "clip_name2": "gemma3\\ltx-2-19b-embeddings_connector_bf16.safetensors",
+      "clip_name1": "gemma3/gemma_3_12B_it_fp8_e4m3fn.safetensors",
+      "clip_name2": "gemma3/ltx-2-19b-embeddings_connector_bf16.safetensors",
       "type": "ltxv",
       "device": "cpu"
     },
@@ -427,7 +424,7 @@
   },
   "106": {
     "inputs": {
-      "image": "Flux2Klein9B-camera-angles-20260222_174639_00001_.png"
+      "image": "AnimateDiff_00006.png"
     },
     "class_type": "LoadImage",
     "_meta": {
@@ -523,7 +520,7 @@
     },
     "class_type": "LTXVNormalizingSampler",
     "_meta": {
-      "title": "\ud83c\udd5b\ud83c\udd63\ud83c\udd67 LTXV Normalizing Sampler"
+      "title": "🅛🅣🅧 LTXV Normalizing Sampler"
     }
   },
   "124": {
@@ -621,7 +618,7 @@
     },
     "class_type": "VHS_SelectImages",
     "_meta": {
-      "title": "Select Images \ud83c\udfa5\ud83c\udd65\ud83c\udd57\ud83c\udd62"
+      "title": "Select Images 🎥🅥🅗🅢"
     }
   },
   "138": {
