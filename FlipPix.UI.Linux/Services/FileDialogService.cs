@@ -5,6 +5,7 @@ using System.Linq;
 using System.Threading.Tasks;
 using Avalonia.Controls;
 using Avalonia.Platform.Storage;
+using FlipPix.UI.Linux.Windows;
 
 namespace FlipPix.UI.Linux.Services;
 
@@ -26,16 +27,16 @@ public class FileDialogService : IFileDialogService
             _lastUsedDirectory = dir;
     }
 
-    private static IStorageFolder? GetStartFolder(string? hint)
+    private static async Task<IStorageFolder?> GetStartFolderAsync(string? hint)
     {
+        if (_topLevel == null) return null;
         var dir = EffectiveDirectory(hint);
         if (string.IsNullOrEmpty(dir) || !Directory.Exists(dir)) return null;
-        return _topLevel?.StorageProvider.TryGetFolderFromPathAsync(dir).GetAwaiter().GetResult();
+        return await _topLevel.StorageProvider.TryGetFolderFromPathAsync(dir);
     }
 
     private static List<FilePickerFileType> ParseFilter(string filter)
     {
-        // WPF filter format: "Images|*.jpg;*.png|All Files|*.*"
         var parts = filter.Split('|');
         var result = new List<FilePickerFileType>();
         for (int i = 0; i + 1 < parts.Length; i += 2)
@@ -47,15 +48,31 @@ public class FileDialogService : IFileDialogService
         return result;
     }
 
+    private static bool IsImageFilter(string filter)
+    {
+        var lower = filter.ToLowerInvariant();
+        return lower.Contains(".png") || lower.Contains(".jpg") || lower.Contains(".jpeg")
+            || lower.Contains(".webp") || lower.Contains(".bmp");
+    }
+
     public async Task<string?> OpenFileDialogAsync(string title, string filter, string? initialDirectory = null)
     {
         if (_topLevel == null) return null;
+
+        if (IsImageFilter(filter) && _topLevel is Window ownerWindow)
+        {
+            var picker = new ImagePickerWindow(EffectiveDirectory(initialDirectory));
+            var result = await picker.ShowDialog<string?>(ownerWindow);
+            if (!string.IsNullOrEmpty(result)) RememberDirectory(result);
+            return result;
+        }
+
         var files = await _topLevel.StorageProvider.OpenFilePickerAsync(new FilePickerOpenOptions
         {
             Title = title,
             AllowMultiple = false,
             FileTypeFilter = ParseFilter(filter),
-            SuggestedStartLocation = GetStartFolder(initialDirectory)
+            SuggestedStartLocation = await GetStartFolderAsync(initialDirectory)
         });
         var path = files.FirstOrDefault()?.Path.LocalPath;
         RememberDirectory(path);
@@ -70,7 +87,7 @@ public class FileDialogService : IFileDialogService
             Title = title,
             AllowMultiple = true,
             FileTypeFilter = ParseFilter(filter),
-            SuggestedStartLocation = GetStartFolder(initialDirectory)
+            SuggestedStartLocation = await GetStartFolderAsync(initialDirectory)
         });
         var paths = files.Select(f => f.Path.LocalPath).ToArray();
         if (paths.Length > 0) RememberDirectory(paths[0]);
@@ -85,7 +102,7 @@ public class FileDialogService : IFileDialogService
             Title = title,
             FileTypeChoices = ParseFilter(filter),
             SuggestedFileName = defaultFileName,
-            SuggestedStartLocation = GetStartFolder(initialDirectory)
+            SuggestedStartLocation = await GetStartFolderAsync(initialDirectory)
         });
         var path = file?.Path.LocalPath;
         RememberDirectory(path);
@@ -99,7 +116,7 @@ public class FileDialogService : IFileDialogService
         {
             Title = title,
             AllowMultiple = false,
-            SuggestedStartLocation = GetStartFolder(initialDirectory)
+            SuggestedStartLocation = await GetStartFolderAsync(initialDirectory)
         });
         var path = folders.FirstOrDefault()?.Path.LocalPath;
         RememberDirectory(path);
