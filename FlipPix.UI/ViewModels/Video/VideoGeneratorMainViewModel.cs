@@ -1,9 +1,11 @@
 using System;
 using System.Collections.Generic;
 using System.Collections.ObjectModel;
+using System.Diagnostics;
 using System.IO;
 using System.Linq;
 using System.Net.Http;
+using System.Text;
 using System.Text.Json;
 using System.Text.RegularExpressions;
 using System.Threading;
@@ -171,6 +173,9 @@ namespace FlipPix.UI.ViewModels.Video
             ReprocessAllStoryFailedCommand = new RelayCommand(async () => await ReprocessAllStoryFailedAsync(), () => HasStoryFailedItems);
             PauseStoryQueueCommand = new RelayCommand(PauseStoryQueue, () => IsProcessingStoryQueue && !IsStoryQueuePaused);
             ResumeStoryQueueCommand = new RelayCommand(ResumeStoryQueue, () => IsProcessingStoryQueue && IsStoryQueuePaused);
+            RegenerateStoryItemCommand = new RelayCommand<StoryVideoQueueItem>(RegenerateStoryItem);
+            DeleteStoryItemCommand = new RelayCommand<StoryVideoQueueItem>(DeleteStoryItem);
+            JoinClipsCommand = new RelayCommand(async () => await JoinClipsAsync(), () => HasCompletedStoryItems && !IsJoiningClips);
 
             // Workflow toggle command
             ToggleWorkflowCommand = new RelayCommand(ToggleWorkflow);
@@ -180,6 +185,7 @@ namespace FlipPix.UI.ViewModels.Video
             _storyVideoQueue.CollectionChanged += (s, e) =>
             {
                 OnPropertyChanged(nameof(CanProcessStoryQueue));
+                OnPropertyChanged(nameof(HasCompletedStoryItems));
                 NotifyCommandsCanExecuteChanged();
             };
 
@@ -910,6 +916,29 @@ namespace FlipPix.UI.ViewModels.Video
         public bool HasStoryFailedItems => StoryVideoQueue.Any(x => x.Status == "Failed");
         public RelayCommand PauseStoryQueueCommand { get; }
         public RelayCommand ResumeStoryQueueCommand { get; }
+        public RelayCommand<StoryVideoQueueItem> RegenerateStoryItemCommand { get; }
+        public RelayCommand<StoryVideoQueueItem> DeleteStoryItemCommand { get; }
+        public RelayCommand JoinClipsCommand { get; }
+
+        public bool HasCompletedStoryItems =>
+            !_isJoiningClips &&
+            StoryVideoQueue.Any(i => i.Status == "Completed" && !string.IsNullOrEmpty(i.OutputVideoPath) && File.Exists(i.OutputVideoPath));
+
+        private bool _isJoiningClips;
+        public bool IsJoiningClips
+        {
+            get => _isJoiningClips;
+            set
+            {
+                if (_isJoiningClips != value)
+                {
+                    _isJoiningClips = value;
+                    OnPropertyChanged();
+                    OnPropertyChanged(nameof(HasCompletedStoryItems));
+                    JoinClipsCommand.NotifyCanExecuteChanged();
+                }
+            }
+        }
 
         // Workflow toggle command
         public ICommand ToggleWorkflowCommand { get; }
@@ -939,6 +968,7 @@ namespace FlipPix.UI.ViewModels.Video
             ReprocessAllStoryFailedCommand.NotifyCanExecuteChanged();
             PauseStoryQueueCommand.NotifyCanExecuteChanged();
             ResumeStoryQueueCommand.NotifyCanExecuteChanged();
+            JoinClipsCommand.NotifyCanExecuteChanged();
         }
 
         #region Image Selection Methods
@@ -2047,8 +2077,80 @@ namespace FlipPix.UI.ViewModels.Video
                 }
             }
 
+            // Auto-detect image orientation and set video dimensions
+            var (videoW, videoH) = GetVideoDimensionsForImage(FirstFrameImagePath, isLTXV, isWan22);
+            if (isLTXV)
+            {
+                UpdatePrimitiveIntNode(workflowDict, "56", videoW, "Width");
+                UpdatePrimitiveIntNode(workflowDict, "57", videoH, "Height");
+            }
+            else if (!isWan22) // Painter
+            {
+                UpdatePrimitiveIntNode(workflowDict, "112", videoW, "Width");
+                UpdatePrimitiveIntNode(workflowDict, "114", videoH, "Height");
+            }
+            // Wan22 uses SimpleMath nodes that derive from the image itself — no override needed
+
             AddLog("Workflow parameters updated successfully");
             return JsonSerializer.SerializeToElement(workflowDict);
+        }
+
+        private (int width, int height) GetVideoDimensionsForImage(string imagePath, bool isLTXV, bool isWan22)
+        {
+            // Wan22 auto-derives from image — skip
+            if (isWan22) return (Width, Height);
+
+            try
+            {
+                if (!string.IsNullOrEmpty(imagePath) && File.Exists(imagePath))
+                {
+                    var bi = new BitmapImage();
+                    bi.BeginInit();
+                    bi.UriSource = new Uri(imagePath, UriKind.Absolute);
+                    bi.CacheOption = BitmapCacheOption.OnLoad;
+                    bi.EndInit();
+
+                    int imgW = bi.PixelWidth;
+                    int imgH = bi.PixelHeight;
+
+                    bool portrait = imgH > imgW;
+                    bool square = imgW == imgH;
+
+                    if (isLTXV)
+                    {
+                        // LTXV native resolutions (multiples of 32, within model limits)
+                        if (square)   return (720, 720);
+                        if (portrait) return (720, 1280);
+                        return (1280, 720); // landscape
+                    }
+                    else // Painter
+                    {
+                        if (square)   return (512, 512);
+                        if (portrait) return (480, 832);
+                        return (832, 480); // landscape
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                AddLog($"WARNING: Could not read image dimensions for orientation detection: {ex.Message}");
+            }
+
+            // Fallback to defaults
+            return isLTXV ? (1280, 720) : (832, 480);
+        }
+
+        private void UpdatePrimitiveIntNode(Dictionary<string, JsonElement> workflowDict, string nodeId, int value, string label)
+        {
+            if (!workflowDict.ContainsKey(nodeId)) return;
+            var node = JsonSerializer.Deserialize<Dictionary<string, object>>(workflowDict[nodeId].GetRawText());
+            if (node == null || !node.ContainsKey("inputs")) return;
+            var inputs = JsonSerializer.Deserialize<Dictionary<string, object>>(JsonSerializer.Serialize(node["inputs"]));
+            if (inputs == null) return;
+            inputs["value"] = value;
+            node["inputs"] = inputs;
+            workflowDict[nodeId] = JsonSerializer.SerializeToElement(node);
+            AddLog($"✓ Node {nodeId} ({label}) - {value}px");
         }
 
         private void UpdateQueueStatus()
@@ -2484,6 +2586,7 @@ namespace FlipPix.UI.ViewModels.Video
 
             OnPropertyChanged(nameof(CanProcessStoryQueue));
             OnPropertyChanged(nameof(HasStoryFailedItems));
+            OnPropertyChanged(nameof(HasCompletedStoryItems));
             NotifyCommandsCanExecuteChanged();
         }
 
@@ -2541,6 +2644,110 @@ namespace FlipPix.UI.ViewModels.Video
             IsStoryQueuePaused = false;
             _storyPauseEvent.Set();
             AddLog("Story queue resumed");
+        }
+
+        private void RegenerateStoryItem(StoryVideoQueueItem? item)
+        {
+            if (item == null) return;
+            item.Status = "Pending";
+            item.Progress = 0;
+            item.ErrorMessage = null;
+            item.OutputImagePath = null;
+            UpdateStoryQueueStatus();
+            SaveStoryQueueToFile();
+            AddLog($"Regenerating clip #{item.Index}");
+            if (!IsProcessingStoryQueue)
+                _ = ProcessStoryQueueAsync();
+        }
+
+        private void DeleteStoryItem(StoryVideoQueueItem? item)
+        {
+            if (item == null) return;
+            StoryVideoQueue.Remove(item);
+            UpdateStoryQueueStatus();
+            SaveStoryQueueToFile();
+            AddLog($"Deleted clip #{item.Index}");
+        }
+
+        private async Task JoinClipsAsync()
+        {
+            var completedItems = StoryVideoQueue
+                .Where(i => i.Status == "Completed" && !string.IsNullOrEmpty(i.OutputVideoPath) && File.Exists(i.OutputVideoPath))
+                .OrderBy(i => i.Index)
+                .ToList();
+
+            if (!completedItems.Any())
+            {
+                System.Windows.MessageBox.Show("No completed video clips to join.", "No Clips", System.Windows.MessageBoxButton.OK, System.Windows.MessageBoxImage.Information);
+                return;
+            }
+
+            var ffmpegPath = FindFFmpeg();
+            if (string.IsNullOrEmpty(ffmpegPath))
+            {
+                System.Windows.MessageBox.Show(
+                    "FFmpeg not found. Please install FFmpeg at C:\\ffmpeg\\bin\\ffmpeg.exe or add it to your system PATH.",
+                    "FFmpeg Not Found", System.Windows.MessageBoxButton.OK, System.Windows.MessageBoxImage.Warning);
+                return;
+            }
+
+            IsJoiningClips = true;
+            try
+            {
+                var tempDir = Path.GetTempPath();
+                var listFile = Path.Combine(tempDir, "flippix_story_concat.txt");
+                var lines = completedItems.Select(i => $"file '{i.OutputVideoPath!.Replace("\\", "/")}'");
+                File.WriteAllLines(listFile, lines, System.Text.Encoding.UTF8);
+
+                var videosFolder = Environment.GetFolderPath(Environment.SpecialFolder.MyVideos);
+                Directory.CreateDirectory(videosFolder);
+                var timestamp = DateTime.Now.ToString("yyyyMMdd_HHmmss");
+                var outputPath = Path.Combine(videosFolder, $"flippix_story_{timestamp}.mp4");
+
+                AddLog($"Joining {completedItems.Count} clips → {outputPath}");
+
+                var startInfo = new ProcessStartInfo
+                {
+                    FileName = ffmpegPath,
+                    Arguments = $"-y -f concat -safe 0 -i \"{listFile}\" -c copy \"{outputPath}\"",
+                    RedirectStandardError = true,
+                    UseShellExecute = false,
+                    CreateNoWindow = true
+                };
+
+                using var process = new Process { StartInfo = startInfo };
+                var errorOutput = new System.Text.StringBuilder();
+                process.ErrorDataReceived += (s, e) => { if (e.Data != null) errorOutput.AppendLine(e.Data); };
+                process.Start();
+                process.BeginErrorReadLine();
+                await process.WaitForExitAsync();
+
+                if (process.ExitCode == 0 && File.Exists(outputPath))
+                {
+                    AddLog($"Joined video saved: {outputPath}");
+                    var result = System.Windows.MessageBox.Show(
+                        $"Story video saved to:\n{outputPath}\n\nOpen the Videos folder?",
+                        "Clips Joined", System.Windows.MessageBoxButton.YesNo, System.Windows.MessageBoxImage.Information);
+                    if (result == System.Windows.MessageBoxResult.Yes)
+                        Process.Start(new ProcessStartInfo(videosFolder) { UseShellExecute = true });
+                }
+                else
+                {
+                    AddLog($"FFmpeg error (exit {process.ExitCode}): {errorOutput}");
+                    System.Windows.MessageBox.Show(
+                        $"Failed to join clips (exit code {process.ExitCode}).\nCheck the activity log for details.",
+                        "Join Failed", System.Windows.MessageBoxButton.OK, System.Windows.MessageBoxImage.Error);
+                }
+            }
+            catch (Exception ex)
+            {
+                AddLog($"Error joining clips: {ex.Message}");
+                System.Windows.MessageBox.Show($"Error joining clips:\n{ex.Message}", "Error", System.Windows.MessageBoxButton.OK, System.Windows.MessageBoxImage.Error);
+            }
+            finally
+            {
+                IsJoiningClips = false;
+            }
         }
 
         #endregion

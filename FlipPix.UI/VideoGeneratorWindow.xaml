@@ -1133,79 +1133,175 @@
                                             </StackPanel>
                                         </Border>
 
-                                        <!-- Queue Items List -->
-                                        <TextBlock Text="Queue Items:"
-                                                  FontWeight="SemiBold"
-                                                  FontSize="12"
-                                                  Margin="0,0,0,5"/>
+                                        <!-- Storyboard hint -->
+                                        <TextBlock Text="Click a clip to play it. Edit the prompt below, then click Regenerate to redo that clip."
+                                                   FontSize="11"
+                                                   Foreground="#9CA3AF"
+                                                   Margin="0,0,0,12"/>
 
-                                        <Border BorderBrush="#DEE2E6"
-                                                BorderThickness="1"
-                                                Background="White"
-                                                CornerRadius="5"
-                                                MaxHeight="250">
-                                            <ScrollViewer VerticalScrollBarVisibility="Auto" Padding="5">
-                                                <ItemsControl ItemsSource="{Binding StoryVideoQueue}">
-                                                    <ItemsControl.ItemTemplate>
-                                                        <DataTemplate>
-                                                            <Border BorderBrush="#E9ECEF"
+                                        <!-- Storyboard cards -->
+                                        <ItemsControl ItemsSource="{Binding StoryVideoQueue}"
+                                                      x:Name="StoryVideoStoryboardControl">
+                                            <ItemsControl.ItemsPanel>
+                                                <ItemsPanelTemplate>
+                                                    <WrapPanel Orientation="Horizontal"/>
+                                                </ItemsPanelTemplate>
+                                            </ItemsControl.ItemsPanel>
+                                            <ItemsControl.ItemTemplate>
+                                                <DataTemplate>
+                                                    <Border Width="240"
+                                                            Margin="6,6"
+                                                            Background="#F9FAFB"
+                                                            BorderBrush="#E5E7EB"
+                                                            BorderThickness="1"
+                                                            CornerRadius="12">
+                                                        <StackPanel Margin="12">
+
+                                                            <!-- Clip label + delete button + status badge -->
+                                                            <Grid Margin="0,0,0,8">
+                                                                <TextBlock Text="{Binding Index, StringFormat='Clip #{0}'}"
+                                                                           FontWeight="Bold"
+                                                                           FontSize="13"
+                                                                           Foreground="#FF6B35"
+                                                                           VerticalAlignment="Center"/>
+                                                                <!-- Delete X button -->
+                                                                <Button HorizontalAlignment="Right"
+                                                                        VerticalAlignment="Top"
+                                                                        Margin="0,-6,-6,0"
+                                                                        Width="18" Height="18"
+                                                                        Padding="0"
+                                                                        Background="#E5E7EB"
+                                                                        BorderThickness="0"
+                                                                        FontSize="9"
+                                                                        FontWeight="Bold"
+                                                                        Foreground="#6B7280"
+                                                                        Content="✕"
+                                                                        ToolTip="Delete clip"
+                                                                        Command="{Binding DataContext.DeleteStoryItemCommand,
+                                                                                  RelativeSource={RelativeSource AncestorType=ItemsControl}}"
+                                                                        CommandParameter="{Binding}">
+                                                                    <Button.Style>
+                                                                        <Style TargetType="Button">
+                                                                            <Setter Property="Template">
+                                                                                <Setter.Value>
+                                                                                    <ControlTemplate TargetType="Button">
+                                                                                        <Border Background="{TemplateBinding Background}"
+                                                                                                CornerRadius="9"
+                                                                                                Padding="{TemplateBinding Padding}">
+                                                                                            <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                                                                                        </Border>
+                                                                                    </ControlTemplate>
+                                                                                </Setter.Value>
+                                                                            </Setter>
+                                                                            <Style.Triggers>
+                                                                                <Trigger Property="IsMouseOver" Value="True">
+                                                                                    <Setter Property="Background" Value="#EF4444"/>
+                                                                                    <Setter Property="Foreground" Value="White"/>
+                                                                                </Trigger>
+                                                                            </Style.Triggers>
+                                                                        </Style>
+                                                                    </Button.Style>
+                                                                </Button>
+                                                                <!-- Status badge -->
+                                                                <Border HorizontalAlignment="Right"
+                                                                        CornerRadius="8"
+                                                                        Padding="7,2"
+                                                                        Margin="0,0,24,0">
+                                                                    <Border.Style>
+                                                                        <Style TargetType="Border">
+                                                                            <Setter Property="Background" Value="#F3F4F6"/>
+                                                                            <Style.Triggers>
+                                                                                <DataTrigger Binding="{Binding Status}" Value="Completed">
+                                                                                    <Setter Property="Background" Value="#D1FAE5"/>
+                                                                                </DataTrigger>
+                                                                                <DataTrigger Binding="{Binding Status}" Value="Processing">
+                                                                                    <Setter Property="Background" Value="#EDE9FE"/>
+                                                                                </DataTrigger>
+                                                                                <DataTrigger Binding="{Binding Status}" Value="Failed">
+                                                                                    <Setter Property="Background" Value="#FEE2E2"/>
+                                                                                </DataTrigger>
+                                                                            </Style.Triggers>
+                                                                        </Style>
+                                                                    </Border.Style>
+                                                                    <TextBlock FontSize="10" FontWeight="SemiBold" Text="{Binding Status}">
+                                                                        <TextBlock.Style>
+                                                                            <Style TargetType="TextBlock">
+                                                                                <Setter Property="Foreground" Value="#6B7280"/>
+                                                                                <Style.Triggers>
+                                                                                    <DataTrigger Binding="{Binding Status}" Value="Completed">
+                                                                                        <Setter Property="Foreground" Value="#059669"/>
+                                                                                    </DataTrigger>
+                                                                                    <DataTrigger Binding="{Binding Status}" Value="Processing">
+                                                                                        <Setter Property="Foreground" Value="#7C3AED"/>
+                                                                                    </DataTrigger>
+                                                                                    <DataTrigger Binding="{Binding Status}" Value="Failed">
+                                                                                        <Setter Property="Foreground" Value="#DC2626"/>
+                                                                                    </DataTrigger>
+                                                                                </Style.Triggers>
+                                                                            </Style>
+                                                                        </TextBlock.Style>
+                                                                    </TextBlock>
+                                                                </Border>
+                                                            </Grid>
+
+                                                            <!-- Video thumbnail area (click to play) -->
+                                                            <Border Height="155"
+                                                                    Background="#F3F4F6"
+                                                                    BorderBrush="#E5E7EB"
                                                                     BorderThickness="1"
-                                                                    CornerRadius="3"
-                                                                    Padding="10"
-                                                                    Margin="0,0,0,5">
-                                                                <Grid>
-                                                                    <Grid.ColumnDefinitions>
-                                                                        <ColumnDefinition Width="Auto"/>
-                                                                        <ColumnDefinition Width="*"/>
-                                                                        <ColumnDefinition Width="Auto"/>
-                                                                        <ColumnDefinition Width="Auto"/>
-                                                                    </Grid.ColumnDefinitions>
-
-                                                                    <!-- Index -->
-                                                                    <Border Grid.Column="0"
-                                                                            Background="#FF6B35"
-                                                                            CornerRadius="3"
-                                                                            Padding="8,4"
-                                                                            Margin="0,0,10,0"
-                                                                            VerticalAlignment="Center">
-                                                                        <TextBlock Text="{Binding Index}"
-                                                                                  Foreground="White"
-                                                                                  FontWeight="Bold"
-                                                                                  FontSize="12"
-                                                                                  MinWidth="30"
-                                                                                  TextAlignment="Center"/>
-                                                                    </Border>
-
-                                                                    <!-- Prompt Text -->
-                                                                    <StackPanel Grid.Column="1" VerticalAlignment="Center">
-                                                                        <TextBlock Text="{Binding Prompt}"
-                                                                                  TextWrapping="Wrap"
-                                                                                  FontSize="11"
-                                                                                  MaxWidth="500"
-                                                                                  ToolTip="{Binding Prompt}"/>
-                                                                        <TextBlock Text="{Binding InputImagePath}"
-                                                                                  FontSize="9"
-                                                                                  Foreground="#999"
-                                                                                  FontStyle="Italic"
-                                                                                  Margin="0,3,0,0"/>
-                                                                    </StackPanel>
-
-                                                                    <!-- Status -->
-                                                                    <TextBlock Grid.Column="2"
-                                                                              Text="{Binding StatusDisplay}"
-                                                                              FontSize="10"
-                                                                              FontWeight="SemiBold"
-                                                                              Foreground="{Binding StatusColor}"
-                                                                              VerticalAlignment="Center"
-                                                                              Margin="10,0"/>
-
-                                                                    <!-- Progress Bar (for processing items) -->
-                                                                    <Grid Grid.Column="3"
-                                                                          Width="100"
-                                          VerticalAlignment="Center"
-                                          Margin="10,0,0,0">
-                                                                        <Grid.Style>
-                                                                            <Style TargetType="Grid">
+                                                                    CornerRadius="8"
+                                                                    Margin="0,0,0,10"
+                                                                    Cursor="Hand">
+                                                                <Border.InputBindings>
+                                                                    <MouseBinding Command="{Binding OpenImageCommand}" MouseAction="LeftClick"/>
+                                                                </Border.InputBindings>
+                                                                <StackPanel HorizontalAlignment="Center" VerticalAlignment="Center">
+                                                                    <!-- Icon changes by status -->
+                                                                    <TextBlock HorizontalAlignment="Center" FontSize="40">
+                                                                        <TextBlock.Style>
+                                                                            <Style TargetType="TextBlock">
+                                                                                <Setter Property="Text" Value="🎬"/>
+                                                                                <Style.Triggers>
+                                                                                    <DataTrigger Binding="{Binding Status}" Value="Processing">
+                                                                                        <Setter Property="Text" Value="⚙️"/>
+                                                                                    </DataTrigger>
+                                                                                    <DataTrigger Binding="{Binding Status}" Value="Completed">
+                                                                                        <Setter Property="Text" Value="▶"/>
+                                                                                    </DataTrigger>
+                                                                                    <DataTrigger Binding="{Binding Status}" Value="Failed">
+                                                                                        <Setter Property="Text" Value="❌"/>
+                                                                                    </DataTrigger>
+                                                                                </Style.Triggers>
+                                                                            </Style>
+                                                                        </TextBlock.Style>
+                                                                    </TextBlock>
+                                                                    <TextBlock FontSize="11"
+                                                                               Foreground="#9CA3AF"
+                                                                               HorizontalAlignment="Center"
+                                                                               Margin="0,4,0,0">
+                                                                        <TextBlock.Style>
+                                                                            <Style TargetType="TextBlock">
+                                                                                <Setter Property="Text" Value="{Binding Status}"/>
+                                                                                <Style.Triggers>
+                                                                                    <DataTrigger Binding="{Binding Status}" Value="Completed">
+                                                                                        <Setter Property="Text" Value="Click to play"/>
+                                                                                        <Setter Property="Foreground" Value="#059669"/>
+                                                                                    </DataTrigger>
+                                                                                </Style.Triggers>
+                                                                            </Style>
+                                                                        </TextBlock.Style>
+                                                                    </TextBlock>
+                                                                    <!-- Progress bar while processing -->
+                                                                    <ProgressBar Value="{Binding Progress}"
+                                                                                 Maximum="100"
+                                                                                 Height="4"
+                                                                                 Width="120"
+                                                                                 Margin="0,6,0,0"
+                                                                                 Foreground="#FF6B35"
+                                                                                 Background="#E5E7EB"
+                                                                                 BorderThickness="0">
+                                                                        <ProgressBar.Style>
+                                                                            <Style TargetType="ProgressBar">
                                                                                 <Setter Property="Visibility" Value="Collapsed"/>
                                                                                 <Style.Triggers>
                                                                                     <DataTrigger Binding="{Binding Status}" Value="Processing">
@@ -1213,19 +1309,150 @@
                                                                                     </DataTrigger>
                                                                                 </Style.Triggers>
                                                                             </Style>
-                                                                        </Grid.Style>
-                                                                        <ProgressBar Value="{Binding Progress}"
-                                                                                    Height="10"
-                                                                                    Foreground="#FFA500"/>
-                                                                    </Grid>
-                                                                </Grid>
+                                                                        </ProgressBar.Style>
+                                                                    </ProgressBar>
+                                                                </StackPanel>
                                                             </Border>
-                                                        </DataTemplate>
-                                                    </ItemsControl.ItemTemplate>
-                                                </ItemsControl>
-                                            </ScrollViewer>
-                                        </Border>
+
+                                                            <!-- Editable prompt -->
+                                                            <TextBox Text="{Binding Prompt, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                                                                     TextWrapping="Wrap"
+                                                                     AcceptsReturn="False"
+                                                                     Height="80"
+                                                                     Padding="8"
+                                                                     VerticalScrollBarVisibility="Auto"
+                                                                     Background="White"
+                                                                     BorderBrush="#D1D5DB"
+                                                                     FontSize="11"
+                                                                     VerticalContentAlignment="Top"
+                                                                     Margin="0,0,0,8"
+                                                                     ToolTip="Edit this prompt and click Regenerate">
+                                                                <TextBox.Resources>
+                                                                    <Style TargetType="Border">
+                                                                        <Setter Property="CornerRadius" Value="6"/>
+                                                                    </Style>
+                                                                </TextBox.Resources>
+                                                            </TextBox>
+
+                                                            <!-- Regenerate button -->
+                                                            <Button Content="🔄 Regenerate"
+                                                                    Command="{Binding DataContext.RegenerateStoryItemCommand,
+                                                                              RelativeSource={RelativeSource AncestorType=ItemsControl}}"
+                                                                    CommandParameter="{Binding}"
+                                                                    HorizontalAlignment="Stretch"
+                                                                    Height="32"
+                                                                    Foreground="White"
+                                                                    BorderThickness="0"
+                                                                    FontSize="11"
+                                                                    FontWeight="SemiBold">
+                                                                <Button.Style>
+                                                                    <Style TargetType="Button">
+                                                                        <Setter Property="Background" Value="#FF6B35"/>
+                                                                        <Setter Property="Template">
+                                                                            <Setter.Value>
+                                                                                <ControlTemplate TargetType="Button">
+                                                                                    <Border Background="{TemplateBinding Background}"
+                                                                                            CornerRadius="6"
+                                                                                            Padding="{TemplateBinding Padding}">
+                                                                                        <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                                                                                    </Border>
+                                                                                </ControlTemplate>
+                                                                            </Setter.Value>
+                                                                        </Setter>
+                                                                        <Style.Triggers>
+                                                                            <Trigger Property="IsMouseOver" Value="True">
+                                                                                <Setter Property="Background" Value="#E55A25"/>
+                                                                            </Trigger>
+                                                                            <Trigger Property="IsEnabled" Value="False">
+                                                                                <Setter Property="Background" Value="#CBD5E1"/>
+                                                                                <Setter Property="Foreground" Value="#94A3B8"/>
+                                                                            </Trigger>
+                                                                        </Style.Triggers>
+                                                                    </Style>
+                                                                </Button.Style>
+                                                            </Button>
+
+                                                        </StackPanel>
+                                                    </Border>
+                                                </DataTemplate>
+                                            </ItemsControl.ItemTemplate>
+                                        </ItemsControl>
+
                                     </StackPanel>
+                                </Border>
+
+                                <!-- Join Clips Section -->
+                                <Border Background="White"
+                                        BorderBrush="#E5E7EB"
+                                        BorderThickness="1"
+                                        CornerRadius="12"
+                                        Padding="20"
+                                        Margin="0,12,0,0">
+                                    <Border.Style>
+                                        <Style TargetType="Border">
+                                            <Setter Property="Visibility" Value="Visible"/>
+                                            <Style.Triggers>
+                                                <DataTrigger Binding="{Binding StoryVideoQueue.Count}" Value="0">
+                                                    <Setter Property="Visibility" Value="Collapsed"/>
+                                                </DataTrigger>
+                                            </Style.Triggers>
+                                        </Style>
+                                    </Border.Style>
+                                    <Grid>
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="*"/>
+                                            <ColumnDefinition Width="Auto"/>
+                                        </Grid.ColumnDefinitions>
+
+                                        <StackPanel Grid.Column="0" VerticalAlignment="Center">
+                                            <TextBlock Text="🔗 Join All Clips"
+                                                       FontSize="14"
+                                                       FontWeight="SemiBold"
+                                                       Foreground="#374151"
+                                                       Margin="0,0,0,4"/>
+                                            <TextBlock Text="Concatenate all completed clips with FFmpeg and save to your Videos folder."
+                                                       FontSize="11"
+                                                       Foreground="#6B7280"/>
+                                        </StackPanel>
+
+                                        <Button Grid.Column="1"
+                                                Content="🔗 Join Clips"
+                                                Command="{Binding JoinClipsCommand}"
+                                                Height="40"
+                                                Padding="20,0"
+                                                Foreground="White"
+                                                BorderThickness="0"
+                                                FontSize="13"
+                                                FontWeight="SemiBold"
+                                                VerticalAlignment="Center">
+                                            <Button.Style>
+                                                <Style TargetType="Button">
+                                                    <Setter Property="Background" Value="#059669"/>
+                                                    <Setter Property="Template">
+                                                        <Setter.Value>
+                                                            <ControlTemplate TargetType="Button">
+                                                                <Border Background="{TemplateBinding Background}"
+                                                                        CornerRadius="8"
+                                                                        Padding="{TemplateBinding Padding}">
+                                                                    <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                                                                </Border>
+                                                            </ControlTemplate>
+                                                        </Setter.Value>
+                                                    </Setter>
+                                                    <Style.Triggers>
+                                                        <Trigger Property="IsMouseOver" Value="True">
+                                                            <Setter Property="Background" Value="#047857"/>
+                                                        </Trigger>
+                                                        <Trigger Property="IsEnabled" Value="False">
+                                                            <Setter Property="Background" Value="#CBD5E1"/>
+                                                            <Setter Property="Foreground" Value="#94A3B8"/>
+                                                        </Trigger>
+                                                    </Style.Triggers>
+                                                </Style>
+                                            </Button.Style>
+                                        </Button>
+
+                                    </Grid>
                                 </Border>
 
                                 <!-- Story Log (Collapsible) -->
