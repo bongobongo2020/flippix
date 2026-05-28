@@ -1,0 +1,3849 @@
+{
+  "id": "5b1925c4-10a9-4f49-84c6-9c2edf37c3f5",
+  "revision": 0,
+  "last_node_id": 128,
+  "last_link_id": 361,
+  "nodes": [
+    {
+      "id": 60,
+      "type": "CLIPTextEncode",
+      "pos": [
+        2870,
+        1130
+      ],
+      "size": [
+        400,
+        200
+      ],
+      "flags": {
+        "collapsed": true,
+        "pinned": true
+      },
+      "order": 0,
+      "mode": 0,
+      "inputs": [
+        {
+          "name": "clip",
+          "type": "CLIP",
+          "link": null
+        }
+      ],
+      "outputs": [
+        {
+          "name": "CONDITIONING",
+          "type": "CONDITIONING",
+          "links": [
+            90
+          ]
+        }
+      ],
+      "properties": {
+        "cnr_id": "comfy-core",
+        "ver": "0.3.75",
+        "Node name for S&R": "CLIPTextEncode"
+      },
+      "widgets_values": [
+        ""
+      ]
+    },
+    {
+      "id": 56,
+      "type": "EmptyLatentImage",
+      "pos": [
+        2910,
+        1170
+      ],
+      "size": [
+        270,
+        106
+      ],
+      "flags": {
+        "collapsed": true,
+        "pinned": true
+      },
+      "order": 1,
+      "mode": 0,
+      "inputs": [],
+      "outputs": [
+        {
+          "name": "LATENT",
+          "type": "LATENT",
+          "links": [
+            81
+          ]
+        }
+      ],
+      "properties": {
+        "cnr_id": "comfy-core",
+        "ver": "0.3.75",
+        "Node name for S&R": "EmptyLatentImage"
+      },
+      "widgets_values": [
+        944,
+        1408,
+        1
+      ]
+    },
+    {
+      "id": 54,
+      "type": "CLIPTextEncode",
+      "pos": [
+        2820,
+        1090
+      ],
+      "size": [
+        410,
+        90
+      ],
+      "flags": {
+        "collapsed": true,
+        "pinned": true
+      },
+      "order": 49,
+      "mode": 0,
+      "inputs": [
+        {
+          "name": "clip",
+          "type": "CLIP",
+          "link": null
+        },
+        {
+          "name": "text",
+          "type": "STRING",
+          "widget": {
+            "name": "text"
+          },
+          "link": 296
+        }
+      ],
+      "outputs": [
+        {
+          "name": "CONDITIONING",
+          "type": "CONDITIONING",
+          "slot_index": 0,
+          "links": [
+            78
+          ]
+        }
+      ],
+      "title": "CLIP Text Encode (Positive Prompt)",
+      "properties": {
+        "cnr_id": "comfy-core",
+        "ver": "0.3.75",
+        "Node name for S&R": "CLIPTextEncode"
+      },
+      "widgets_values": [
+        "A woman with short, spiky blonde hair is depicted from the chest up, aiming a large, dark gray firearm. Her hair is tousled and appears to be catching the light. She has blue eyes and shadow on her cheeks. She is wearing a white tank top with one strap visibly off her right shoulder. The firearm she holds is dark gray and appears to be a heavy weapon. A dark ancient castle is visible in the background on the right side. Her attire includes dark, torn shorts and ripped, dark stockings or tights on her legs."
+      ]
+    },
+    {
+      "id": 71,
+      "type": "Reroute",
+      "pos": [
+        1160,
+        190
+      ],
+      "size": [
+        75,
+        26
+      ],
+      "flags": {
+        "pinned": true
+      },
+      "order": 59,
+      "mode": 0,
+      "inputs": [
+        {
+          "name": "",
+          "type": "*",
+          "link": 298
+        }
+      ],
+      "outputs": [
+        {
+          "name": "",
+          "type": "MODEL",
+          "links": [
+            196
+          ]
+        }
+      ],
+      "properties": {
+        "showOutputText": false,
+        "horizontal": false
+      }
+    },
+    {
+      "id": 72,
+      "type": "Reroute",
+      "pos": [
+        1160,
+        220
+      ],
+      "size": [
+        75,
+        26
+      ],
+      "flags": {
+        "pinned": true
+      },
+      "order": 52,
+      "mode": 0,
+      "inputs": [
+        {
+          "name": "",
+          "type": "*",
+          "link": 330
+        }
+      ],
+      "outputs": [
+        {
+          "name": "",
+          "type": "VAE",
+          "links": [
+            198
+          ]
+        }
+      ],
+      "properties": {
+        "showOutputText": false,
+        "horizontal": false
+      }
+    },
+    {
+      "id": 73,
+      "type": "Reroute",
+      "pos": [
+        1160,
+        250
+      ],
+      "size": [
+        75,
+        26
+      ],
+      "flags": {
+        "pinned": true
+      },
+      "order": 67,
+      "mode": 0,
+      "inputs": [
+        {
+          "name": "",
+          "type": "*",
+          "link": 199
+        }
+      ],
+      "outputs": [
+        {
+          "name": "",
+          "type": "CONDITIONING",
+          "links": [
+            200
+          ]
+        }
+      ],
+      "properties": {
+        "showOutputText": false,
+        "horizontal": false
+      }
+    },
+    {
+      "id": 74,
+      "type": "Reroute",
+      "pos": [
+        1160,
+        280
+      ],
+      "size": [
+        75,
+        26
+      ],
+      "flags": {
+        "pinned": true
+      },
+      "order": 64,
+      "mode": 0,
+      "inputs": [
+        {
+          "name": "",
+          "type": "*",
+          "link": 201
+        }
+      ],
+      "outputs": [
+        {
+          "name": "",
+          "type": "CONDITIONING",
+          "links": [
+            202
+          ]
+        }
+      ],
+      "properties": {
+        "showOutputText": false,
+        "horizontal": false
+      }
+    },
+    {
+      "id": 75,
+      "type": "Reroute",
+      "pos": [
+        1160,
+        310
+      ],
+      "size": [
+        75,
+        26
+      ],
+      "flags": {
+        "pinned": true
+      },
+      "order": 55,
+      "mode": 0,
+      "inputs": [
+        {
+          "name": "",
+          "type": "*",
+          "link": 257
+        }
+      ],
+      "outputs": [
+        {
+          "name": "",
+          "type": "SAMPLER",
+          "links": [
+            204
+          ]
+        }
+      ],
+      "properties": {
+        "showOutputText": false,
+        "horizontal": false
+      }
+    },
+    {
+      "id": 76,
+      "type": "Reroute",
+      "pos": [
+        1160,
+        340
+      ],
+      "size": [
+        75,
+        26
+      ],
+      "flags": {
+        "pinned": true
+      },
+      "order": 57,
+      "mode": 0,
+      "inputs": [
+        {
+          "name": "",
+          "type": "*",
+          "link": 205
+        }
+      ],
+      "outputs": [
+        {
+          "name": "",
+          "type": "SIGMAS",
+          "links": [
+            206
+          ]
+        }
+      ],
+      "properties": {
+        "showOutputText": false,
+        "horizontal": false
+      }
+    },
+    {
+      "id": 77,
+      "type": "Reroute",
+      "pos": [
+        1160,
+        370
+      ],
+      "size": [
+        75,
+        26
+      ],
+      "flags": {
+        "pinned": true
+      },
+      "order": 44,
+      "mode": 0,
+      "inputs": [
+        {
+          "name": "",
+          "type": "*",
+          "link": 207
+        }
+      ],
+      "outputs": [
+        {
+          "name": "",
+          "type": "LATENT",
+          "links": [
+            208
+          ]
+        }
+      ],
+      "properties": {
+        "showOutputText": false,
+        "horizontal": false
+      }
+    },
+    {
+      "id": 28,
+      "type": "UnetLoaderGGUF",
+      "pos": [
+        -180,
+        140
+      ],
+      "size": [
+        380,
+        100
+      ],
+      "flags": {
+        "pinned": true
+      },
+      "order": 2,
+      "mode": 0,
+      "inputs": [],
+      "outputs": [
+        {
+          "name": "MODEL",
+          "type": "MODEL",
+          "links": [
+            358
+          ]
+        }
+      ],
+      "properties": {
+        "cnr_id": "comfyui-gguf",
+        "ver": "1.1.8",
+        "Node name for S&R": "UnetLoaderGGUF"
+      },
+      "widgets_values": [
+        "z_image_turbo-Q8_0.gguf"
+      ],
+      "color": "#322",
+      "bgcolor": "#533",
+      "shape": 1
+    },
+    {
+      "id": 89,
+      "type": "CLIPLoaderGGUF",
+      "pos": [
+        -180,
+        410
+      ],
+      "size": [
+        380,
+        110
+      ],
+      "flags": {
+        "pinned": true
+      },
+      "order": 3,
+      "mode": 0,
+      "inputs": [],
+      "outputs": [
+        {
+          "name": "CLIP",
+          "type": "CLIP",
+          "links": [
+            360
+          ]
+        }
+      ],
+      "properties": {
+        "cnr_id": "comfyui-gguf",
+        "ver": "1.1.8",
+        "Node name for S&R": "CLIPLoaderGGUF"
+      },
+      "widgets_values": [
+        "Qwen3-4B.i1-Q5_K_S.gguf",
+        "lumina2"
+      ],
+      "color": "#322",
+      "bgcolor": "#533",
+      "shape": 1
+    },
+    {
+      "id": 17,
+      "type": "VAELoader",
+      "pos": [
+        -180,
+        280
+      ],
+      "size": [
+        380,
+        90
+      ],
+      "flags": {
+        "pinned": true
+      },
+      "order": 4,
+      "mode": 0,
+      "inputs": [],
+      "outputs": [
+        {
+          "name": "VAE",
+          "type": "VAE",
+          "links": [
+            329
+          ]
+        }
+      ],
+      "properties": {
+        "cnr_id": "comfy-core",
+        "ver": "0.3.75",
+        "Node name for S&R": "VAELoader"
+      },
+      "widgets_values": [
+        "ae.safetensors"
+      ],
+      "color": "#322",
+      "bgcolor": "#533",
+      "shape": 1
+    },
+    {
+      "id": 93,
+      "type": "PrimitiveStringMultiline",
+      "pos": [
+        -1590,
+        180
+      ],
+      "size": [
+        450,
+        180
+      ],
+      "flags": {
+        "pinned": true
+      },
+      "order": 5,
+      "mode": 2,
+      "inputs": [],
+      "outputs": [
+        {
+          "name": "STRING",
+          "type": "STRING",
+          "links": [
+            249
+          ]
+        }
+      ],
+      "title": "STYLE: Casual Mobile Photo",
+      "properties": {
+        "cnr_id": "comfy-core",
+        "ver": "0.3.75",
+        "Node name for S&R": "PrimitiveStringMultiline"
+      },
+      "widgets_values": [
+        "# File Details\n * filename: DSC1000.JPG\n * source:  old Android phone\n\n# Photograph Details\n * Color  : vibrant\n * Style  : casual and amateur\n * Content: {$@}\n"
+      ],
+      "shape": 1
+    },
+    {
+      "id": 67,
+      "type": "SamplerCustom",
+      "pos": [
+        1900,
+        220
+      ],
+      "size": [
+        250,
+        580
+      ],
+      "flags": {
+        "pinned": true
+      },
+      "order": 68,
+      "mode": 0,
+      "inputs": [
+        {
+          "name": "model",
+          "type": "MODEL",
+          "link": 196
+        },
+        {
+          "name": "positive",
+          "type": "CONDITIONING",
+          "link": 200
+        },
+        {
+          "name": "negative",
+          "type": "CONDITIONING",
+          "link": 202
+        },
+        {
+          "name": "sampler",
+          "type": "SAMPLER",
+          "link": 204
+        },
+        {
+          "name": "sigmas",
+          "type": "SIGMAS",
+          "link": 206
+        },
+        {
+          "name": "latent_image",
+          "type": "LATENT",
+          "link": 208
+        },
+        {
+          "name": "noise_seed",
+          "type": "INT",
+          "widget": {
+            "name": "noise_seed"
+          },
+          "link": 193
+        }
+      ],
+      "outputs": [
+        {
+          "name": "output",
+          "type": "LATENT",
+          "links": [
+            189
+          ]
+        },
+        {
+          "name": "denoised_output",
+          "type": "LATENT",
+          "links": null
+        }
+      ],
+      "properties": {
+        "cnr_id": "comfy-core",
+        "ver": "0.3.75",
+        "Node name for S&R": "SamplerCustom"
+      },
+      "widgets_values": [
+        true,
+        1,
+        "fixed",
+        1
+      ]
+    },
+    {
+      "id": 50,
+      "type": "KSamplerAdvanced",
+      "pos": [
+        3110,
+        1060
+      ],
+      "size": [
+        304.748046875,
+        334
+      ],
+      "flags": {
+        "pinned": true
+      },
+      "order": 58,
+      "mode": 0,
+      "inputs": [
+        {
+          "name": "model",
+          "type": "MODEL",
+          "link": null
+        },
+        {
+          "name": "positive",
+          "type": "CONDITIONING",
+          "link": 78
+        },
+        {
+          "name": "negative",
+          "type": "CONDITIONING",
+          "link": 90
+        },
+        {
+          "name": "latent_image",
+          "type": "LATENT",
+          "link": 81
+        },
+        {
+          "name": "noise_seed",
+          "type": "INT",
+          "widget": {
+            "name": "noise_seed"
+          },
+          "link": 85
+        },
+        {
+          "name": "steps",
+          "type": "INT",
+          "widget": {
+            "name": "steps"
+          },
+          "link": 87
+        }
+      ],
+      "outputs": [
+        {
+          "name": "LATENT",
+          "type": "LATENT",
+          "links": null
+        }
+      ],
+      "properties": {
+        "cnr_id": "comfy-core",
+        "ver": "0.3.75",
+        "Node name for S&R": "KSamplerAdvanced"
+      },
+      "widgets_values": [
+        "enable",
+        1,
+        "randomize",
+        8,
+        1,
+        "euler",
+        "simple",
+        0,
+        10000,
+        "disable"
+      ]
+    },
+    {
+      "id": 92,
+      "type": "PrimitiveStringMultiline",
+      "pos": [
+        -1590,
+        400
+      ],
+      "size": [
+        450,
+        180
+      ],
+      "flags": {
+        "pinned": true
+      },
+      "order": 6,
+      "mode": 2,
+      "inputs": [],
+      "outputs": [
+        {
+          "name": "STRING",
+          "type": "STRING",
+          "links": [
+            270
+          ]
+        }
+      ],
+      "title": "STYLE: Vintage Candid Photo",
+      "properties": {
+        "cnr_id": "comfy-core",
+        "ver": "0.3.75",
+        "Node name for S&R": "PrimitiveStringMultiline"
+      },
+      "widgets_values": [
+        "A gritty, candid vintage photograph from a disposable camera, dark shadows and vibrant warm colors, featuring: {$@}"
+      ],
+      "shape": 1
+    },
+    {
+      "id": 122,
+      "type": "PrimitiveStringMultiline",
+      "pos": [
+        -1590,
+        620
+      ],
+      "size": [
+        450,
+        180
+      ],
+      "flags": {
+        "pinned": true
+      },
+      "order": 7,
+      "mode": 0,
+      "inputs": [],
+      "outputs": [
+        {
+          "name": "STRING",
+          "type": "STRING",
+          "links": [
+            325
+          ]
+        }
+      ],
+      "title": "STYLE: Classic Film Photo",
+      "properties": {
+        "cnr_id": "comfy-core",
+        "ver": "0.3.75",
+        "Node name for S&R": "PrimitiveStringMultiline"
+      },
+      "widgets_values": [
+        "A cinematic shot from a classic film with deep black shadows and warm earth tones. The film grain is visible. The scene, imbued with profound emotion, depicts: {$@}"
+      ],
+      "shape": 1
+    },
+    {
+      "id": 47,
+      "type": "PrimitiveStringMultiline",
+      "pos": [
+        -1590,
+        -40
+      ],
+      "size": [
+        450,
+        180
+      ],
+      "flags": {
+        "pinned": true
+      },
+      "order": 8,
+      "mode": 2,
+      "inputs": [],
+      "outputs": [
+        {
+          "name": "STRING",
+          "type": "STRING",
+          "links": [
+            271
+          ]
+        }
+      ],
+      "title": "STYLE: Lo-fi Mobile Photo",
+      "properties": {
+        "cnr_id": "comfy-core",
+        "ver": "0.3.75",
+        "Node name for S&R": "PrimitiveStringMultiline"
+      },
+      "widgets_values": [
+        "A raw documentary photograph taken with an old Android phone. This casual, low quality, amateur shot showcases {$@}"
+      ],
+      "shape": 1
+    },
+    {
+      "id": 114,
+      "type": "Reroute",
+      "pos": [
+        270,
+        140
+      ],
+      "size": [
+        75,
+        26
+      ],
+      "flags": {
+        "pinned": true
+      },
+      "order": 50,
+      "mode": 0,
+      "inputs": [
+        {
+          "name": "",
+          "type": "*",
+          "link": 359
+        }
+      ],
+      "outputs": [
+        {
+          "name": "",
+          "type": "MODEL",
+          "links": [
+            298
+          ]
+        }
+      ],
+      "properties": {
+        "showOutputText": false,
+        "horizontal": false
+      }
+    },
+    {
+      "id": 123,
+      "type": "Reroute",
+      "pos": [
+        270,
+        200
+      ],
+      "size": [
+        75,
+        26
+      ],
+      "flags": {
+        "pinned": true
+      },
+      "order": 29,
+      "mode": 0,
+      "inputs": [
+        {
+          "name": "",
+          "type": "*",
+          "link": 329
+        }
+      ],
+      "outputs": [
+        {
+          "name": "",
+          "type": "VAE",
+          "links": [
+            330
+          ]
+        }
+      ],
+      "properties": {
+        "showOutputText": false,
+        "horizontal": false
+      }
+    },
+    {
+      "id": 6,
+      "type": "CLIPTextEncode",
+      "pos": [
+        430,
+        280
+      ],
+      "size": [
+        470,
+        350
+      ],
+      "flags": {
+        "collapsed": true,
+        "pinned": true
+      },
+      "order": 66,
+      "mode": 0,
+      "inputs": [
+        {
+          "name": "clip",
+          "type": "CLIP",
+          "link": 300
+        },
+        {
+          "name": "text",
+          "type": "STRING",
+          "widget": {
+            "name": "text"
+          },
+          "link": 54
+        }
+      ],
+      "outputs": [
+        {
+          "name": "CONDITIONING",
+          "type": "CONDITIONING",
+          "slot_index": 0,
+          "links": [
+            199
+          ]
+        }
+      ],
+      "title": "CLIP Text Encode (Positive Prompt)",
+      "properties": {
+        "cnr_id": "comfy-core",
+        "ver": "0.3.75",
+        "Node name for S&R": "CLIPTextEncode"
+      },
+      "widgets_values": [
+        ""
+      ]
+    },
+    {
+      "id": 7,
+      "type": "CLIPTextEncode",
+      "pos": [
+        430,
+        320
+      ],
+      "size": [
+        425.27801513671875,
+        180.6060791015625
+      ],
+      "flags": {
+        "collapsed": true,
+        "pinned": true
+      },
+      "order": 60,
+      "mode": 0,
+      "inputs": [
+        {
+          "name": "clip",
+          "type": "CLIP",
+          "link": 301
+        }
+      ],
+      "outputs": [
+        {
+          "name": "CONDITIONING",
+          "type": "CONDITIONING",
+          "slot_index": 0,
+          "links": [
+            201
+          ]
+        }
+      ],
+      "title": "CLIP Text Encode (Negative Prompt)",
+      "properties": {
+        "cnr_id": "comfy-core",
+        "ver": "0.3.75",
+        "Node name for S&R": "CLIPTextEncode"
+      },
+      "widgets_values": [
+        ""
+      ]
+    },
+    {
+      "id": 115,
+      "type": "Reroute",
+      "pos": [
+        270,
+        270
+      ],
+      "size": [
+        75,
+        26
+      ],
+      "flags": {
+        "pinned": true
+      },
+      "order": 51,
+      "mode": 0,
+      "inputs": [
+        {
+          "name": "",
+          "type": "*",
+          "link": 361
+        }
+      ],
+      "outputs": [
+        {
+          "name": "",
+          "type": "CLIP",
+          "links": [
+            300,
+            301
+          ]
+        }
+      ],
+      "properties": {
+        "showOutputText": false,
+        "horizontal": false
+      }
+    },
+    {
+      "id": 8,
+      "type": "VAEDecode",
+      "pos": [
+        2190,
+        220
+      ],
+      "size": [
+        220,
+        50
+      ],
+      "flags": {
+        "pinned": true
+      },
+      "order": 69,
+      "mode": 0,
+      "inputs": [
+        {
+          "name": "samples",
+          "type": "LATENT",
+          "link": 189
+        },
+        {
+          "name": "vae",
+          "type": "VAE",
+          "link": 198
+        }
+      ],
+      "outputs": [
+        {
+          "name": "IMAGE",
+          "type": "IMAGE",
+          "slot_index": 0,
+          "links": [
+            16
+          ]
+        }
+      ],
+      "properties": {
+        "cnr_id": "comfy-core",
+        "ver": "0.3.75",
+        "Node name for S&R": "VAEDecode"
+      },
+      "widgets_values": []
+    },
+    {
+      "id": 107,
+      "type": "Reroute",
+      "pos": [
+        1160,
+        1090
+      ],
+      "size": [
+        75,
+        26
+      ],
+      "flags": {
+        "pinned": true
+      },
+      "order": 61,
+      "mode": 0,
+      "inputs": [
+        {
+          "name": "",
+          "type": "*",
+          "link": 288
+        }
+      ],
+      "outputs": [
+        {
+          "name": "",
+          "type": "*",
+          "links": [
+            287
+          ]
+        }
+      ],
+      "properties": {
+        "showOutputText": false,
+        "horizontal": false
+      }
+    },
+    {
+      "id": 109,
+      "type": "Reroute",
+      "pos": [
+        1160,
+        1060
+      ],
+      "size": [
+        75,
+        26
+      ],
+      "flags": {
+        "pinned": true
+      },
+      "order": 56,
+      "mode": 0,
+      "inputs": [
+        {
+          "name": "",
+          "type": "*",
+          "link": 291
+        }
+      ],
+      "outputs": [
+        {
+          "name": "",
+          "type": "*",
+          "links": [
+            292
+          ]
+        }
+      ],
+      "properties": {
+        "showOutputText": false,
+        "horizontal": false
+      }
+    },
+    {
+      "id": 9,
+      "type": "SaveImage",
+      "pos": [
+        2160,
+        410
+      ],
+      "size": [
+        630,
+        1000
+      ],
+      "flags": {
+        "pinned": true
+      },
+      "order": 70,
+      "mode": 0,
+      "inputs": [
+        {
+          "name": "images",
+          "type": "IMAGE",
+          "link": 16
+        }
+      ],
+      "outputs": [],
+      "properties": {
+        "cnr_id": "comfy-core",
+        "ver": "0.3.75",
+        "Node name for S&R": "SaveImage"
+      },
+      "widgets_values": [
+        "ZImage/%date:yyyy_MM_dd%/ZI"
+      ],
+      "color": "#323",
+      "bgcolor": "#535"
+    },
+    {
+      "id": 38,
+      "type": "PrimitiveStringMultiline",
+      "pos": [
+        -1590,
+        840
+      ],
+      "size": [
+        450,
+        180
+      ],
+      "flags": {
+        "pinned": true
+      },
+      "order": 9,
+      "mode": 2,
+      "inputs": [],
+      "outputs": [
+        {
+          "name": "STRING",
+          "type": "STRING",
+          "links": [
+            357
+          ]
+        }
+      ],
+      "title": "STYLE: B&W Darkroom",
+      "properties": {
+        "cnr_id": "comfy-core",
+        "ver": "0.3.75",
+        "Node name for S&R": "PrimitiveStringMultiline"
+      },
+      "widgets_values": [
+        "A chiaroscuro darkroom, black and white high contrast, grainy photo with wide-angle vision, and vignette effect. This casual photo showcases: {$@}\n"
+      ]
+    },
+    {
+      "id": 41,
+      "type": "PrimitiveStringMultiline",
+      "pos": [
+        -1590,
+        1060
+      ],
+      "size": [
+        450,
+        180
+      ],
+      "flags": {
+        "pinned": true
+      },
+      "order": 10,
+      "mode": 2,
+      "inputs": [],
+      "outputs": [
+        {
+          "name": "STRING",
+          "type": "STRING",
+          "links": [
+            356
+          ]
+        }
+      ],
+      "title": "STYLE: Cyberpunk Neon",
+      "properties": {
+        "cnr_id": "comfy-core",
+        "ver": "0.3.75",
+        "Node name for S&R": "PrimitiveStringMultiline"
+      },
+      "widgets_values": [
+        "Black cyberpunk landscape photograph with dark atmosphere and glowing neon lights with satured colors, featuring {$@}"
+      ],
+      "shape": 1
+    },
+    {
+      "id": 45,
+      "type": "PrimitiveStringMultiline",
+      "pos": [
+        -1590,
+        1280
+      ],
+      "size": [
+        450,
+        180
+      ],
+      "flags": {
+        "pinned": true
+      },
+      "order": 11,
+      "mode": 2,
+      "inputs": [],
+      "outputs": [
+        {
+          "name": "STRING",
+          "type": "STRING",
+          "links": [
+            354
+          ]
+        }
+      ],
+      "title": "STYLE: Retro Pixel Art",
+      "properties": {
+        "cnr_id": "comfy-core",
+        "ver": "0.3.75",
+        "Node name for S&R": "PrimitiveStringMultiline"
+      },
+      "widgets_values": [
+        "A detailed retro pixel art illustration in the style of Commodore 64 graphics, featuring {$@}. Chunky, low-resolution details, often with dithering techniques"
+      ],
+      "shape": 1
+    },
+    {
+      "id": 63,
+      "type": "PrimitiveStringMultiline",
+      "pos": [
+        -1590,
+        1500
+      ],
+      "size": [
+        450,
+        180
+      ],
+      "flags": {
+        "pinned": true
+      },
+      "order": 12,
+      "mode": 2,
+      "inputs": [],
+      "outputs": [
+        {
+          "name": "STRING",
+          "type": "STRING",
+          "links": [
+            355
+          ]
+        }
+      ],
+      "title": "STYLE: Simple Vector Illustration",
+      "properties": {
+        "cnr_id": "comfy-core",
+        "ver": "0.3.75",
+        "Node name for S&R": "PrimitiveStringMultiline"
+      },
+      "widgets_values": [
+        "A stylized digital illustration with a graphic design aesthetic, featuring flat, solid colors, no defined outlines, and a minimalist approach to composition, featuring: {$@}. Iconography style."
+      ],
+      "shape": 1
+    },
+    {
+      "id": 37,
+      "type": "PrimitiveStringMultiline",
+      "pos": [
+        -1590,
+        1720
+      ],
+      "size": [
+        450,
+        180
+      ],
+      "flags": {
+        "pinned": true
+      },
+      "order": 13,
+      "mode": 2,
+      "inputs": [],
+      "outputs": [
+        {
+          "name": "STRING",
+          "type": "STRING",
+          "links": [
+            351
+          ]
+        }
+      ],
+      "title": "STYLE: Vintage Comic Panel",
+      "properties": {
+        "cnr_id": "comfy-core",
+        "ver": "0.3.75",
+        "Node name for S&R": "PrimitiveStringMultiline"
+      },
+      "widgets_values": [
+        "An old sheet of paper with a vintage erotic comic strip from 1950 painted in white, red, blue and black with freehand outlines, a detailed and dirty image featuring: {$@}"
+      ],
+      "shape": 1
+    },
+    {
+      "id": 125,
+      "type": "PrimitiveStringMultiline",
+      "pos": [
+        -1590,
+        1940
+      ],
+      "size": [
+        450,
+        180
+      ],
+      "flags": {
+        "pinned": true
+      },
+      "order": 14,
+      "mode": 2,
+      "inputs": [],
+      "outputs": [
+        {
+          "name": "STRING",
+          "type": "STRING",
+          "links": [
+            350
+          ]
+        }
+      ],
+      "title": "STYLE: Comic Cover",
+      "properties": {
+        "cnr_id": "comfy-core",
+        "ver": "0.3.75",
+        "Node name for S&R": "PrimitiveStringMultiline"
+      },
+      "widgets_values": [
+        "Dark European-style adult comic book cover, with intense colors and lots of cleavages and sexual provocation, action scene featuring: {$@}"
+      ],
+      "shape": 1
+    },
+    {
+      "id": 117,
+      "type": "PrimitiveStringMultiline",
+      "pos": [
+        -1590,
+        2160
+      ],
+      "size": [
+        450,
+        180
+      ],
+      "flags": {
+        "pinned": true
+      },
+      "order": 15,
+      "mode": 2,
+      "inputs": [],
+      "outputs": [
+        {
+          "name": "STRING",
+          "type": "STRING",
+          "links": [
+            349
+          ]
+        }
+      ],
+      "title": "STYLE: Studio Anime",
+      "properties": {
+        "cnr_id": "comfy-core",
+        "ver": "0.3.75",
+        "Node name for S&R": "PrimitiveStringMultiline"
+      },
+      "widgets_values": [
+        "Epic anime filmed by Studio Ghibli, Japanese animation and hand-painted, depicts: {$@}"
+      ],
+      "shape": 1
+    },
+    {
+      "id": 43,
+      "type": "PrimitiveStringMultiline",
+      "pos": [
+        -1590,
+        2600
+      ],
+      "size": [
+        450,
+        180
+      ],
+      "flags": {
+        "pinned": true
+      },
+      "order": 16,
+      "mode": 2,
+      "inputs": [],
+      "outputs": [
+        {
+          "name": "STRING",
+          "type": "STRING",
+          "links": [
+            347
+          ]
+        }
+      ],
+      "title": "STYLE: Minimalist Sketchwash",
+      "properties": {
+        "cnr_id": "comfy-core",
+        "ver": "0.3.75",
+        "Node name for S&R": "PrimitiveStringMultiline"
+      },
+      "widgets_values": [
+        "A minimalist pencil sketch and watercolor painting, rendered with rough drawing style and pastel colors on a white background, featuring: {$@}. "
+      ],
+      "shape": 1
+    },
+    {
+      "id": 124,
+      "type": "PrimitiveStringMultiline",
+      "pos": [
+        -1590,
+        2380
+      ],
+      "size": [
+        450,
+        180
+      ],
+      "flags": {
+        "pinned": true
+      },
+      "order": 17,
+      "mode": 2,
+      "inputs": [],
+      "outputs": [
+        {
+          "name": "STRING",
+          "type": "STRING",
+          "links": [
+            348
+          ]
+        }
+      ],
+      "title": "STYLE: Dark Anime",
+      "properties": {
+        "cnr_id": "comfy-core",
+        "ver": "0.3.75",
+        "Node name for S&R": "PrimitiveStringMultiline"
+      },
+      "widgets_values": [
+        "Dark fantasy masterpiece of cel_shading, with detailed anime violent style, featuring: {$@}."
+      ],
+      "shape": 1
+    },
+    {
+      "id": 101,
+      "type": "PrimitiveStringMultiline",
+      "pos": [
+        -1590,
+        2820
+      ],
+      "size": [
+        450,
+        180
+      ],
+      "flags": {
+        "pinned": true
+      },
+      "order": 18,
+      "mode": 2,
+      "inputs": [],
+      "outputs": [
+        {
+          "name": "STRING",
+          "type": "STRING",
+          "links": [
+            344
+          ]
+        }
+      ],
+      "title": "STYLE: Vintage EGA Monitor",
+      "properties": {
+        "cnr_id": "comfy-core",
+        "ver": "0.3.75",
+        "Node name for S&R": "PrimitiveStringMultiline"
+      },
+      "widgets_values": [
+        "Photo of an old monitor displaying a EGA game for DOS. The monitor is on a wooden table, and light from a window is reflecting off the screen. The image has scanlines. The game features a retro pixel art design in 16-color EGA, with thick, low-resolution pixels.\n\nThe pixel-art illustration on the monitor includes all of the following:\n<begin>\n{$@}\n<end>\n"
+      ],
+      "shape": 1
+    },
+    {
+      "id": 34,
+      "type": "Reroute",
+      "pos": [
+        -890,
+        1120
+      ],
+      "size": [
+        75,
+        26
+      ],
+      "flags": {
+        "pinned": true
+      },
+      "order": 33,
+      "mode": 0,
+      "inputs": [
+        {
+          "name": "",
+          "type": "*",
+          "link": 271
+        }
+      ],
+      "outputs": [
+        {
+          "name": "",
+          "type": "STRING",
+          "links": [
+            224,
+            272
+          ]
+        }
+      ],
+      "properties": {
+        "showOutputText": false,
+        "horizontal": false
+      }
+    },
+    {
+      "id": 35,
+      "type": "Reroute",
+      "pos": [
+        -890,
+        1160
+      ],
+      "size": [
+        75,
+        26
+      ],
+      "flags": {
+        "pinned": true
+      },
+      "order": 30,
+      "mode": 0,
+      "inputs": [
+        {
+          "name": "",
+          "type": "*",
+          "link": 249
+        }
+      ],
+      "outputs": [
+        {
+          "name": "",
+          "type": "STRING",
+          "links": [
+            225,
+            273
+          ]
+        }
+      ],
+      "properties": {
+        "showOutputText": false,
+        "horizontal": false
+      }
+    },
+    {
+      "id": 36,
+      "type": "Reroute",
+      "pos": [
+        -890,
+        1200
+      ],
+      "size": [
+        75,
+        26
+      ],
+      "flags": {
+        "pinned": true
+      },
+      "order": 31,
+      "mode": 0,
+      "inputs": [
+        {
+          "name": "",
+          "type": "*",
+          "link": 270
+        }
+      ],
+      "outputs": [
+        {
+          "name": "",
+          "type": "STRING",
+          "links": [
+            226,
+            274
+          ]
+        }
+      ],
+      "properties": {
+        "showOutputText": false,
+        "horizontal": false
+      }
+    },
+    {
+      "id": 42,
+      "type": "Reroute",
+      "pos": [
+        -890,
+        1240
+      ],
+      "size": [
+        75,
+        26
+      ],
+      "flags": {
+        "pinned": true
+      },
+      "order": 32,
+      "mode": 0,
+      "inputs": [
+        {
+          "name": "",
+          "type": "*",
+          "link": 325
+        }
+      ],
+      "outputs": [
+        {
+          "name": "",
+          "type": "STRING",
+          "links": [
+            227,
+            276
+          ]
+        }
+      ],
+      "properties": {
+        "showOutputText": false,
+        "horizontal": false
+      }
+    },
+    {
+      "id": 44,
+      "type": "Reroute",
+      "pos": [
+        -890,
+        1280
+      ],
+      "size": [
+        75,
+        26
+      ],
+      "flags": {
+        "pinned": true
+      },
+      "order": 34,
+      "mode": 0,
+      "inputs": [
+        {
+          "name": "",
+          "type": "*",
+          "link": 357
+        }
+      ],
+      "outputs": [
+        {
+          "name": "",
+          "type": "STRING",
+          "links": [
+            228,
+            277
+          ]
+        }
+      ],
+      "properties": {
+        "showOutputText": false,
+        "horizontal": false
+      }
+    },
+    {
+      "id": 46,
+      "type": "Reroute",
+      "pos": [
+        -890,
+        1320
+      ],
+      "size": [
+        75,
+        26
+      ],
+      "flags": {
+        "pinned": true
+      },
+      "order": 35,
+      "mode": 0,
+      "inputs": [
+        {
+          "name": "",
+          "type": "*",
+          "link": 356
+        }
+      ],
+      "outputs": [
+        {
+          "name": "",
+          "type": "STRING",
+          "links": [
+            229,
+            278
+          ]
+        }
+      ],
+      "properties": {
+        "showOutputText": false,
+        "horizontal": false
+      }
+    },
+    {
+      "id": 48,
+      "type": "Reroute",
+      "pos": [
+        -890,
+        1360
+      ],
+      "size": [
+        75,
+        26
+      ],
+      "flags": {
+        "pinned": true
+      },
+      "order": 36,
+      "mode": 0,
+      "inputs": [
+        {
+          "name": "",
+          "type": "*",
+          "link": 354
+        }
+      ],
+      "outputs": [
+        {
+          "name": "",
+          "type": "STRING",
+          "links": [
+            230,
+            279
+          ]
+        }
+      ],
+      "properties": {
+        "showOutputText": false,
+        "horizontal": false
+      }
+    },
+    {
+      "id": 64,
+      "type": "Reroute",
+      "pos": [
+        -890,
+        1400
+      ],
+      "size": [
+        75,
+        26
+      ],
+      "flags": {
+        "pinned": true
+      },
+      "order": 37,
+      "mode": 0,
+      "inputs": [
+        {
+          "name": "",
+          "type": "*",
+          "link": 355
+        }
+      ],
+      "outputs": [
+        {
+          "name": "",
+          "type": "STRING",
+          "links": [
+            231,
+            280
+          ]
+        }
+      ],
+      "properties": {
+        "showOutputText": false,
+        "horizontal": false
+      }
+    },
+    {
+      "id": 94,
+      "type": "Reroute",
+      "pos": [
+        -890,
+        1440
+      ],
+      "size": [
+        75,
+        26
+      ],
+      "flags": {
+        "pinned": true
+      },
+      "order": 38,
+      "mode": 0,
+      "inputs": [
+        {
+          "name": "",
+          "type": "*",
+          "link": 351
+        }
+      ],
+      "outputs": [
+        {
+          "name": "",
+          "type": "STRING",
+          "links": [
+            246,
+            281
+          ]
+        }
+      ],
+      "properties": {
+        "showOutputText": false,
+        "horizontal": false
+      }
+    },
+    {
+      "id": 102,
+      "type": "Reroute",
+      "pos": [
+        -890,
+        1480
+      ],
+      "size": [
+        75,
+        26
+      ],
+      "flags": {
+        "pinned": true
+      },
+      "order": 39,
+      "mode": 0,
+      "inputs": [
+        {
+          "name": "",
+          "type": "*",
+          "link": 350
+        }
+      ],
+      "outputs": [
+        {
+          "name": "",
+          "type": "STRING",
+          "links": [
+            266,
+            282
+          ]
+        }
+      ],
+      "properties": {
+        "showOutputText": false,
+        "horizontal": false
+      }
+    },
+    {
+      "id": 118,
+      "type": "Reroute",
+      "pos": [
+        -890,
+        1520
+      ],
+      "size": [
+        75,
+        26
+      ],
+      "flags": {
+        "pinned": true
+      },
+      "order": 40,
+      "mode": 0,
+      "inputs": [
+        {
+          "name": "",
+          "type": "*",
+          "link": 349
+        }
+      ],
+      "outputs": [
+        {
+          "name": "",
+          "type": "STRING",
+          "links": [
+            308,
+            310
+          ]
+        }
+      ],
+      "properties": {
+        "showOutputText": false,
+        "horizontal": false
+      }
+    },
+    {
+      "id": 121,
+      "type": "Reroute",
+      "pos": [
+        -890,
+        1560
+      ],
+      "size": [
+        75,
+        26
+      ],
+      "flags": {
+        "pinned": true
+      },
+      "order": 42,
+      "mode": 0,
+      "inputs": [
+        {
+          "name": "",
+          "type": "*",
+          "link": 348
+        }
+      ],
+      "outputs": [
+        {
+          "name": "",
+          "type": "STRING",
+          "links": [
+            313,
+            314
+          ]
+        }
+      ],
+      "properties": {
+        "showOutputText": false,
+        "horizontal": false
+      }
+    },
+    {
+      "id": 126,
+      "type": "Reroute",
+      "pos": [
+        -890,
+        1600
+      ],
+      "size": [
+        75,
+        26
+      ],
+      "flags": {
+        "pinned": true
+      },
+      "order": 41,
+      "mode": 0,
+      "inputs": [
+        {
+          "name": "",
+          "type": "*",
+          "link": 347
+        }
+      ],
+      "outputs": [
+        {
+          "name": "",
+          "type": "STRING",
+          "links": [
+            331,
+            333
+          ]
+        }
+      ],
+      "properties": {
+        "showOutputText": false,
+        "horizontal": false
+      }
+    },
+    {
+      "id": 127,
+      "type": "Reroute",
+      "pos": [
+        -890,
+        1640
+      ],
+      "size": [
+        75,
+        26
+      ],
+      "flags": {
+        "pinned": true
+      },
+      "order": 43,
+      "mode": 0,
+      "inputs": [
+        {
+          "name": "",
+          "type": "*",
+          "link": 344
+        }
+      ],
+      "outputs": [
+        {
+          "name": "",
+          "type": "STRING",
+          "links": [
+            332,
+            334
+          ]
+        }
+      ],
+      "properties": {
+        "showOutputText": false,
+        "horizontal": false
+      }
+    },
+    {
+      "id": 90,
+      "type": "PrimitiveString",
+      "pos": [
+        -900,
+        1710
+      ],
+      "size": [
+        270,
+        58
+      ],
+      "flags": {
+        "collapsed": true,
+        "pinned": true
+      },
+      "order": 19,
+      "mode": 0,
+      "inputs": [],
+      "outputs": [
+        {
+          "name": "STRING",
+          "type": "STRING",
+          "links": [
+            335
+          ]
+        }
+      ],
+      "title": "No Style",
+      "properties": {
+        "cnr_id": "comfy-core",
+        "ver": "0.3.75",
+        "Node name for S&R": "PrimitiveString"
+      },
+      "widgets_values": [
+        "{$@}"
+      ]
+    },
+    {
+      "id": 104,
+      "type": "Node Collector (rgthree)",
+      "pos": [
+        -640,
+        1090
+      ],
+      "size": [
+        380,
+        310
+      ],
+      "flags": {
+        "pinned": true
+      },
+      "order": 53,
+      "mode": 0,
+      "inputs": [
+        {
+          "dir": 3,
+          "name": "STYLE: Lo-fi Mobile Photo",
+          "type": "*",
+          "link": 272
+        },
+        {
+          "dir": 3,
+          "name": "STYLE: Casual Mobile Photo",
+          "type": "*",
+          "link": 273
+        },
+        {
+          "dir": 3,
+          "name": "STYLE: Vintage Candid Photo",
+          "type": "*",
+          "link": 274
+        },
+        {
+          "dir": 3,
+          "name": "STYLE: Classic Film Photo",
+          "type": "*",
+          "link": 276
+        },
+        {
+          "dir": 3,
+          "name": "STYLE: B&W Darkroom",
+          "type": "*",
+          "link": 277
+        },
+        {
+          "dir": 3,
+          "name": "STYLE: Cyberpunk Neon",
+          "type": "*",
+          "link": 278
+        },
+        {
+          "dir": 3,
+          "name": "STYLE: Retro Pixel Art",
+          "type": "*",
+          "link": 279
+        },
+        {
+          "dir": 3,
+          "name": "STYLE: Simple Vector Illustration",
+          "type": "*",
+          "link": 280
+        },
+        {
+          "dir": 3,
+          "name": "STYLE: Vintage Comic Panel",
+          "type": "*",
+          "link": 281
+        },
+        {
+          "dir": 3,
+          "name": "STYLE: Comic Cover",
+          "type": "*",
+          "link": 282
+        },
+        {
+          "dir": 3,
+          "name": "STYLE: Studio Anime",
+          "type": "*",
+          "link": 308
+        },
+        {
+          "dir": 3,
+          "name": "STYLE: Dark Anime",
+          "type": "*",
+          "link": 313
+        },
+        {
+          "dir": 3,
+          "name": "STYLE: Minimalist Sketchwash",
+          "type": "*",
+          "link": 331
+        },
+        {
+          "dir": 3,
+          "name": "STYLE: Vintage EGA Monitor",
+          "type": "*",
+          "link": 332
+        },
+        {
+          "dir": 3,
+          "name": "",
+          "type": "*",
+          "link": null
+        }
+      ],
+      "outputs": [
+        {
+          "dir": 4,
+          "name": "Output",
+          "type": "*",
+          "links": [
+            288
+          ]
+        }
+      ],
+      "properties": {}
+    },
+    {
+      "id": 87,
+      "type": "Any Switch (rgthree)",
+      "pos": [
+        -640,
+        1440
+      ],
+      "size": [
+        380,
+        326
+      ],
+      "flags": {
+        "pinned": true
+      },
+      "order": 54,
+      "mode": 0,
+      "inputs": [
+        {
+          "dir": 3,
+          "name": "any_01",
+          "type": "STRING",
+          "link": 224
+        },
+        {
+          "dir": 3,
+          "name": "any_02",
+          "type": "STRING",
+          "link": 225
+        },
+        {
+          "dir": 3,
+          "name": "any_03",
+          "type": "STRING",
+          "link": 226
+        },
+        {
+          "dir": 3,
+          "name": "any_04",
+          "type": "STRING",
+          "link": 227
+        },
+        {
+          "dir": 3,
+          "name": "any_05",
+          "type": "STRING",
+          "link": 228
+        },
+        {
+          "dir": 3,
+          "name": "any_06",
+          "type": "STRING",
+          "link": 229
+        },
+        {
+          "dir": 3,
+          "name": "any_07",
+          "type": "STRING",
+          "link": 230
+        },
+        {
+          "dir": 3,
+          "name": "any_08",
+          "type": "STRING",
+          "link": 231
+        },
+        {
+          "dir": 3,
+          "name": "any_09",
+          "type": "STRING",
+          "link": 246
+        },
+        {
+          "dir": 3,
+          "name": "any_10",
+          "type": "STRING",
+          "link": 266
+        },
+        {
+          "dir": 3,
+          "name": "any_11",
+          "type": "STRING",
+          "link": 310
+        },
+        {
+          "dir": 3,
+          "name": "any_12",
+          "type": "STRING",
+          "link": 314
+        },
+        {
+          "dir": 3,
+          "name": "any_13",
+          "type": "STRING",
+          "link": 333
+        },
+        {
+          "dir": 3,
+          "name": "any_14",
+          "type": "STRING",
+          "link": 334
+        },
+        {
+          "dir": 3,
+          "name": "any_15",
+          "type": "STRING",
+          "link": 335
+        },
+        {
+          "dir": 3,
+          "name": "any_16",
+          "type": "STRING",
+          "link": null
+        }
+      ],
+      "outputs": [
+        {
+          "dir": 4,
+          "label": "STRING",
+          "name": "*",
+          "shape": 3,
+          "type": "STRING",
+          "links": [
+            232
+          ]
+        }
+      ],
+      "properties": {
+        "cnr_id": "rgthree-comfy",
+        "ver": "1.0.2511270846"
+      },
+      "widgets_values": []
+    },
+    {
+      "id": 31,
+      "type": "StringReplace",
+      "pos": [
+        -150,
+        1420
+      ],
+      "size": [
+        450,
+        280
+      ],
+      "flags": {
+        "pinned": true
+      },
+      "order": 62,
+      "mode": 0,
+      "inputs": [
+        {
+          "name": "string",
+          "type": "STRING",
+          "widget": {
+            "name": "string"
+          },
+          "link": 232
+        },
+        {
+          "name": "replace",
+          "type": "STRING",
+          "widget": {
+            "name": "replace"
+          },
+          "link": 294
+        }
+      ],
+      "outputs": [
+        {
+          "name": "STRING",
+          "type": "STRING",
+          "links": [
+            54
+          ]
+        }
+      ],
+      "title": "STYLE INTEGRATOR",
+      "properties": {
+        "cnr_id": "comfy-core",
+        "ver": "0.3.75",
+        "Node name for S&R": "StringReplace"
+      },
+      "widgets_values": [
+        "",
+        "{$@}",
+        ""
+      ]
+    },
+    {
+      "id": 13,
+      "type": "EmptySD3LatentImage",
+      "pos": [
+        760,
+        700
+      ],
+      "size": [
+        260,
+        120
+      ],
+      "flags": {
+        "pinned": true
+      },
+      "order": 20,
+      "mode": 0,
+      "inputs": [],
+      "outputs": [
+        {
+          "name": "LATENT",
+          "type": "LATENT",
+          "slot_index": 0,
+          "links": [
+            207
+          ]
+        }
+      ],
+      "properties": {
+        "cnr_id": "comfy-core",
+        "ver": "0.3.75",
+        "Node name for S&R": "EmptySD3LatentImage"
+      },
+      "widgets_values": [
+        944,
+        1408,
+        1
+      ]
+    },
+    {
+      "id": 70,
+      "type": "KarrasScheduler",
+      "pos": [
+        760,
+        520
+      ],
+      "size": [
+        260,
+        140
+      ],
+      "flags": {
+        "pinned": true
+      },
+      "order": 47,
+      "mode": 0,
+      "inputs": [
+        {
+          "name": "steps",
+          "type": "INT",
+          "widget": {
+            "name": "steps"
+          },
+          "link": 194
+        }
+      ],
+      "outputs": [
+        {
+          "name": "SIGMAS",
+          "type": "SIGMAS",
+          "links": [
+            205
+          ]
+        }
+      ],
+      "properties": {
+        "cnr_id": "comfy-core",
+        "ver": "0.3.75",
+        "Node name for S&R": "KarrasScheduler"
+      },
+      "widgets_values": [
+        8,
+        0.98,
+        0.01,
+        0.3
+      ]
+    },
+    {
+      "id": 96,
+      "type": "Any Switch (rgthree)",
+      "pos": [
+        760,
+        360
+      ],
+      "size": [
+        260,
+        120
+      ],
+      "flags": {
+        "pinned": true
+      },
+      "order": 45,
+      "mode": 0,
+      "inputs": [
+        {
+          "dir": 3,
+          "name": "any_01",
+          "type": "SAMPLER",
+          "link": 258
+        },
+        {
+          "dir": 3,
+          "name": "any_02",
+          "type": "SAMPLER",
+          "link": 259
+        },
+        {
+          "dir": 3,
+          "name": "any_03",
+          "type": "SAMPLER",
+          "link": null
+        },
+        {
+          "dir": 3,
+          "name": "any_04",
+          "type": "SAMPLER",
+          "link": null
+        },
+        {
+          "dir": 3,
+          "name": "any_05",
+          "type": "SAMPLER",
+          "link": null
+        }
+      ],
+      "outputs": [
+        {
+          "dir": 4,
+          "label": "SAMPLER",
+          "name": "*",
+          "shape": 3,
+          "type": "SAMPLER",
+          "links": [
+            257
+          ]
+        }
+      ],
+      "properties": {
+        "cnr_id": "rgthree-comfy",
+        "ver": "1.0.2511270846"
+      },
+      "widgets_values": []
+    },
+    {
+      "id": 68,
+      "type": "KSamplerSelect",
+      "pos": [
+        430,
+        400
+      ],
+      "size": [
+        270,
+        70
+      ],
+      "flags": {
+        "pinned": true
+      },
+      "order": 21,
+      "mode": 0,
+      "inputs": [],
+      "outputs": [
+        {
+          "name": "SAMPLER",
+          "type": "SAMPLER",
+          "links": [
+            258,
+            284
+          ]
+        }
+      ],
+      "title": "Euler: NOISY, TEXTURED",
+      "properties": {
+        "cnr_id": "comfy-core",
+        "ver": "0.3.75",
+        "Node name for S&R": "KSamplerSelect"
+      },
+      "widgets_values": [
+        "euler"
+      ]
+    },
+    {
+      "id": 95,
+      "type": "KSamplerSelect",
+      "pos": [
+        430,
+        510
+      ],
+      "size": [
+        270,
+        80
+      ],
+      "flags": {
+        "pinned": true
+      },
+      "order": 22,
+      "mode": 2,
+      "inputs": [],
+      "outputs": [
+        {
+          "name": "SAMPLER",
+          "type": "SAMPLER",
+          "links": [
+            259,
+            285
+          ]
+        }
+      ],
+      "title": "Euler Ancestral:  SOFT, CLEAN",
+      "properties": {
+        "cnr_id": "comfy-core",
+        "ver": "0.3.75",
+        "Node name for S&R": "KSamplerSelect"
+      },
+      "widgets_values": [
+        "euler_ancestral"
+      ]
+    },
+    {
+      "id": 106,
+      "type": "Node Collector (rgthree)",
+      "pos": [
+        760,
+        860
+      ],
+      "size": [
+        260,
+        70
+      ],
+      "flags": {
+        "pinned": true
+      },
+      "order": 46,
+      "mode": 0,
+      "inputs": [
+        {
+          "dir": 3,
+          "name": "Euler: NOISY, TEXTURED",
+          "type": "*",
+          "link": 284
+        },
+        {
+          "dir": 3,
+          "name": "Euler Ancestral:  SOFT, CLEAN",
+          "type": "*",
+          "link": 285
+        },
+        {
+          "dir": 3,
+          "name": "",
+          "type": "*",
+          "link": null
+        }
+      ],
+      "outputs": [
+        {
+          "dir": 4,
+          "name": "Output",
+          "type": "*",
+          "links": [
+            291
+          ]
+        }
+      ],
+      "properties": {}
+    },
+    {
+      "id": 110,
+      "type": "PrimitiveStringMultiline",
+      "pos": [
+        2210,
+        1640
+      ],
+      "size": [
+        400,
+        200
+      ],
+      "flags": {
+        "collapsed": true,
+        "pinned": true
+      },
+      "order": 48,
+      "mode": 0,
+      "inputs": [
+        {
+          "name": "value",
+          "type": "STRING",
+          "widget": {
+            "name": "value"
+          },
+          "link": 295
+        }
+      ],
+      "outputs": [
+        {
+          "name": "STRING",
+          "type": "STRING",
+          "links": [
+            294
+          ]
+        }
+      ],
+      "title": "This node is used for reroute",
+      "properties": {
+        "cnr_id": "comfy-core",
+        "ver": "0.3.75",
+        "Node name for S&R": "PrimitiveStringMultiline"
+      },
+      "widgets_values": [
+        "A woman with short, spiky blonde hair is depicted from the chest up, aiming a large, dark gray firearm. Her hair is tousled and appears to be catching the light. She has blue eyes and shadow on her cheeks. She is wearing a white tank top with one strap visibly off her right shoulder. The firearm she holds is dark gray and appears to be a heavy weapon. A dark ancient castle is visible in the background on the right side. Her attire includes dark, torn shorts and ripped, dark stockings or tights on her legs."
+      ]
+    },
+    {
+      "id": 91,
+      "type": "Note",
+      "pos": [
+        -920,
+        90
+      ],
+      "size": [
+        710,
+        540
+      ],
+      "flags": {
+        "pinned": true
+      },
+      "order": 23,
+      "mode": 0,
+      "inputs": [],
+      "outputs": [],
+      "title": "README",
+      "properties": {},
+      "widgets_values": [
+        "Amazing Z-Image Workflow v2\n\n## Workflow Prerequisites ##\n\n This workflow requires the following custom nodes, which can be obtained via ComfyUI-Manager or from:\n\n  * rgthree     : https://github.com/rgthree/rgthree-comfy\n  * ComfyUI-GGUF: https://github.com/city96/ComfyUI-GGUF\n\n Additionally, ensure you have the following three models downloaded and placed in their respective\n directories within your ComfyUI installation:\n\n  z_image_turbo-Q5_K_S.gguf\n    * Download: https://huggingface.co/jayn7/Z-Image-Turbo-GGUF/blob/main/z_image_turbo-Q5_K_S.gguf\n    * Local Directory: `ComfyUI/models/diffusion_models/`\n\n  Qwen3-4B.i1-Q5_K_S.gguf\n    * Download: https://huggingface.co/mradermacher/Qwen3-4B-i1-GGUF/blob/main/Qwen3-4B.i1-Q5_K_S.gguf\n    * Local Directory: `ComfyUI/models/text_encoders/`\n\n  ae.safetensors\n    * Download: https://huggingface.co/Comfy-Org/z_image_turbo/blob/main/split_files/vae/ae.safetensors\n    * Local Directory: `Comfyui/models/vae/`\n\n## More Info ##\n   - https://github.com/martin-rizzo/AmazingZImageWorkflow\n   - https://civitai.com/models/2181458/amazing-z-image-workflow\n\n\nCreated by Martin Rizzo  \n  GitHub : https://github.com/martin-rizzo\n  CivitAI: https://civitai.com/user/Photographer\n  Reddit : https://www.reddit.com/user/FotografoVirtual\n"
+      ],
+      "color": "#322",
+      "bgcolor": "#533",
+      "shape": 1
+    },
+    {
+      "id": 88,
+      "type": "Fast Muter (rgthree)",
+      "pos": [
+        1280,
+        840
+      ],
+      "size": [
+        350,
+        390
+      ],
+      "flags": {
+        "pinned": true
+      },
+      "order": 65,
+      "mode": 0,
+      "inputs": [
+        {
+          "dir": 3,
+          "name": "STYLE: Lo-fi Mobile Photo",
+          "type": "*",
+          "link": 287
+        },
+        {
+          "dir": 3,
+          "name": "",
+          "type": "*",
+          "link": null
+        }
+      ],
+      "outputs": [
+        {
+          "dir": 4,
+          "name": "OPT_CONNECTION",
+          "type": "*",
+          "links": null
+        }
+      ],
+      "title": "STYLE SELECTOR",
+      "properties": {
+        "toggleRestriction": "max one"
+      },
+      "color": "#232",
+      "bgcolor": "#353",
+      "shape": 1
+    },
+    {
+      "id": 97,
+      "type": "Fast Muter (rgthree)",
+      "pos": [
+        1280,
+        1270
+      ],
+      "size": [
+        350,
+        140
+      ],
+      "flags": {
+        "pinned": true
+      },
+      "order": 63,
+      "mode": 0,
+      "inputs": [
+        {
+          "dir": 3,
+          "name": "Euler: NOISY, TEXTURED",
+          "type": "*",
+          "link": 292
+        },
+        {
+          "dir": 3,
+          "name": "",
+          "type": "*",
+          "link": null
+        }
+      ],
+      "outputs": [
+        {
+          "dir": 4,
+          "name": "OPT_CONNECTION",
+          "type": "*",
+          "links": null
+        }
+      ],
+      "title": "SAMPLER SELECTOR",
+      "properties": {
+        "toggleRestriction": "always one"
+      },
+      "color": "#232",
+      "bgcolor": "#353",
+      "shape": 1
+    },
+    {
+      "id": 58,
+      "type": "PrimitiveNode",
+      "pos": [
+        1640,
+        670
+      ],
+      "size": [
+        250,
+        130
+      ],
+      "flags": {
+        "pinned": true
+      },
+      "order": 24,
+      "mode": 0,
+      "inputs": [],
+      "outputs": [
+        {
+          "name": "INT",
+          "type": "INT",
+          "widget": {
+            "name": "noise_seed"
+          },
+          "links": [
+            85,
+            193
+          ]
+        }
+      ],
+      "title": "SEED",
+      "properties": {
+        "Run widget replace on values": false
+      },
+      "widgets_values": [
+        1,
+        "fixed"
+      ],
+      "color": "#432",
+      "bgcolor": "#653",
+      "shape": 1
+    },
+    {
+      "id": 59,
+      "type": "PrimitiveNode",
+      "pos": [
+        1640,
+        520
+      ],
+      "size": [
+        250,
+        110
+      ],
+      "flags": {
+        "pinned": true
+      },
+      "order": 25,
+      "mode": 0,
+      "inputs": [],
+      "outputs": [
+        {
+          "name": "INT",
+          "type": "INT",
+          "widget": {
+            "name": "steps"
+          },
+          "links": [
+            87,
+            194
+          ]
+        }
+      ],
+      "title": "STEPS (TURBO = 8)",
+      "properties": {
+        "Run widget replace on values": false
+      },
+      "widgets_values": [
+        8,
+        "fixed"
+      ],
+      "color": "#2a363b",
+      "bgcolor": "#3f5159",
+      "shape": 1
+    },
+    {
+      "id": 111,
+      "type": "Note",
+      "pos": [
+        1230,
+        700
+      ],
+      "size": [
+        290,
+        88
+      ],
+      "flags": {
+        "pinned": true
+      },
+      "order": 26,
+      "mode": 0,
+      "inputs": [],
+      "outputs": [],
+      "properties": {},
+      "widgets_values": [
+        "Select \"EDITING AREA\" group\nand press '.' to automatic zoom-in"
+      ],
+      "color": "#222",
+      "bgcolor": "#000"
+    },
+    {
+      "id": 57,
+      "type": "PrimitiveNode",
+      "pos": [
+        1640,
+        840
+      ],
+      "size": [
+        510,
+        570
+      ],
+      "flags": {
+        "pinned": true
+      },
+      "order": 27,
+      "mode": 0,
+      "inputs": [],
+      "outputs": [
+        {
+          "name": "STRING",
+          "type": "STRING",
+          "widget": {
+            "name": "value"
+          },
+          "links": [
+            295,
+            296
+          ]
+        }
+      ],
+      "title": "PROMPT",
+      "properties": {
+        "Run widget replace on values": false
+      },
+      "widgets_values": [
+        "A woman with short, spiky blonde hair is depicted from the chest up, aiming a large, dark gray firearm. Her hair is tousled and appears to be catching the light. She has blue eyes and shadow on her cheeks. She is wearing a white tank top with one strap visibly off her right shoulder. The firearm she holds is dark gray and appears to be a heavy weapon. A dark ancient castle is visible in the background on the right side. Her attire includes dark, torn shorts and ripped, dark stockings or tights on her legs."
+      ],
+      "color": "#232",
+      "bgcolor": "#353",
+      "shape": 1
+    },
+    {
+      "id": 128,
+      "type": "Power Lora Loader (rgthree)",
+      "pos": [
+        338.88949469398136,
+        38.07843847175433
+      ],
+      "size": [
+        340.519921875,
+        142
+      ],
+      "flags": {},
+      "order": 28,
+      "mode": 0,
+      "inputs": [
+        {
+          "dir": 3,
+          "name": "model",
+          "type": "MODEL",
+          "link": 358
+        },
+        {
+          "dir": 3,
+          "name": "clip",
+          "type": "CLIP",
+          "link": 360
+        }
+      ],
+      "outputs": [
+        {
+          "dir": 4,
+          "name": "MODEL",
+          "shape": 3,
+          "type": "MODEL",
+          "links": [
+            359
+          ]
+        },
+        {
+          "dir": 4,
+          "name": "CLIP",
+          "shape": 3,
+          "type": "CLIP",
+          "links": [
+            361
+          ]
+        }
+      ],
+      "properties": {
+        "cnr_id": "rgthree-comfy",
+        "ver": "738105af5fb14e96fbecaf406dc356e284797e8c",
+        "Show Strengths": "Single Strength",
+        "Match": ""
+      },
+      "widgets_values": [
+        {},
+        {
+          "type": "PowerLoraLoaderHeaderWidget"
+        },
+        {
+          "on": true,
+          "lora": "zimage/sridevi-zimage.safetensors",
+          "strength": 1,
+          "strengthTwo": null
+        },
+        {},
+        ""
+      ]
+    }
+  ],
+  "links": [
+    [
+      16,
+      8,
+      0,
+      9,
+      0,
+      "IMAGE"
+    ],
+    [
+      54,
+      31,
+      0,
+      6,
+      1,
+      "STRING"
+    ],
+    [
+      78,
+      54,
+      0,
+      50,
+      1,
+      "CONDITIONING"
+    ],
+    [
+      81,
+      56,
+      0,
+      50,
+      3,
+      "LATENT"
+    ],
+    [
+      85,
+      58,
+      0,
+      50,
+      4,
+      "INT"
+    ],
+    [
+      87,
+      59,
+      0,
+      50,
+      5,
+      "INT"
+    ],
+    [
+      90,
+      60,
+      0,
+      50,
+      2,
+      "CONDITIONING"
+    ],
+    [
+      189,
+      67,
+      0,
+      8,
+      0,
+      "LATENT"
+    ],
+    [
+      193,
+      58,
+      0,
+      67,
+      6,
+      "INT"
+    ],
+    [
+      194,
+      59,
+      0,
+      70,
+      0,
+      "INT"
+    ],
+    [
+      196,
+      71,
+      0,
+      67,
+      0,
+      "MODEL"
+    ],
+    [
+      198,
+      72,
+      0,
+      8,
+      1,
+      "VAE"
+    ],
+    [
+      199,
+      6,
+      0,
+      73,
+      0,
+      "*"
+    ],
+    [
+      200,
+      73,
+      0,
+      67,
+      1,
+      "CONDITIONING"
+    ],
+    [
+      201,
+      7,
+      0,
+      74,
+      0,
+      "*"
+    ],
+    [
+      202,
+      74,
+      0,
+      67,
+      2,
+      "CONDITIONING"
+    ],
+    [
+      204,
+      75,
+      0,
+      67,
+      3,
+      "SAMPLER"
+    ],
+    [
+      205,
+      70,
+      0,
+      76,
+      0,
+      "*"
+    ],
+    [
+      206,
+      76,
+      0,
+      67,
+      4,
+      "SIGMAS"
+    ],
+    [
+      207,
+      13,
+      0,
+      77,
+      0,
+      "*"
+    ],
+    [
+      208,
+      77,
+      0,
+      67,
+      5,
+      "LATENT"
+    ],
+    [
+      224,
+      34,
+      0,
+      87,
+      0,
+      "*"
+    ],
+    [
+      225,
+      35,
+      0,
+      87,
+      1,
+      "STRING"
+    ],
+    [
+      226,
+      36,
+      0,
+      87,
+      2,
+      "STRING"
+    ],
+    [
+      227,
+      42,
+      0,
+      87,
+      3,
+      "STRING"
+    ],
+    [
+      228,
+      44,
+      0,
+      87,
+      4,
+      "STRING"
+    ],
+    [
+      229,
+      46,
+      0,
+      87,
+      5,
+      "STRING"
+    ],
+    [
+      230,
+      48,
+      0,
+      87,
+      6,
+      "STRING"
+    ],
+    [
+      231,
+      64,
+      0,
+      87,
+      7,
+      "STRING"
+    ],
+    [
+      232,
+      87,
+      0,
+      31,
+      0,
+      "STRING"
+    ],
+    [
+      246,
+      94,
+      0,
+      87,
+      8,
+      "STRING"
+    ],
+    [
+      249,
+      93,
+      0,
+      35,
+      0,
+      "*"
+    ],
+    [
+      257,
+      96,
+      0,
+      75,
+      0,
+      "*"
+    ],
+    [
+      258,
+      68,
+      0,
+      96,
+      0,
+      "SAMPLER"
+    ],
+    [
+      259,
+      95,
+      0,
+      96,
+      1,
+      "SAMPLER"
+    ],
+    [
+      266,
+      102,
+      0,
+      87,
+      9,
+      "STRING"
+    ],
+    [
+      270,
+      92,
+      0,
+      36,
+      0,
+      "*"
+    ],
+    [
+      271,
+      47,
+      0,
+      34,
+      0,
+      "*"
+    ],
+    [
+      272,
+      34,
+      0,
+      104,
+      0,
+      "*"
+    ],
+    [
+      273,
+      35,
+      0,
+      104,
+      1,
+      "*"
+    ],
+    [
+      274,
+      36,
+      0,
+      104,
+      2,
+      "*"
+    ],
+    [
+      276,
+      42,
+      0,
+      104,
+      3,
+      "*"
+    ],
+    [
+      277,
+      44,
+      0,
+      104,
+      4,
+      "*"
+    ],
+    [
+      278,
+      46,
+      0,
+      104,
+      5,
+      "*"
+    ],
+    [
+      279,
+      48,
+      0,
+      104,
+      6,
+      "*"
+    ],
+    [
+      280,
+      64,
+      0,
+      104,
+      7,
+      "*"
+    ],
+    [
+      281,
+      94,
+      0,
+      104,
+      8,
+      "*"
+    ],
+    [
+      282,
+      102,
+      0,
+      104,
+      9,
+      "*"
+    ],
+    [
+      284,
+      68,
+      0,
+      106,
+      0,
+      "*"
+    ],
+    [
+      285,
+      95,
+      0,
+      106,
+      1,
+      "*"
+    ],
+    [
+      287,
+      107,
+      0,
+      88,
+      0,
+      "*"
+    ],
+    [
+      288,
+      104,
+      0,
+      107,
+      0,
+      "*"
+    ],
+    [
+      291,
+      106,
+      0,
+      109,
+      0,
+      "*"
+    ],
+    [
+      292,
+      109,
+      0,
+      97,
+      0,
+      "*"
+    ],
+    [
+      294,
+      110,
+      0,
+      31,
+      1,
+      "STRING"
+    ],
+    [
+      295,
+      57,
+      0,
+      110,
+      0,
+      "STRING"
+    ],
+    [
+      296,
+      57,
+      0,
+      54,
+      1,
+      "STRING"
+    ],
+    [
+      298,
+      114,
+      0,
+      71,
+      0,
+      "*"
+    ],
+    [
+      300,
+      115,
+      0,
+      6,
+      0,
+      "CLIP"
+    ],
+    [
+      301,
+      115,
+      0,
+      7,
+      0,
+      "CLIP"
+    ],
+    [
+      308,
+      118,
+      0,
+      104,
+      10,
+      "*"
+    ],
+    [
+      310,
+      118,
+      0,
+      87,
+      10,
+      "STRING"
+    ],
+    [
+      313,
+      121,
+      0,
+      104,
+      11,
+      "*"
+    ],
+    [
+      314,
+      121,
+      0,
+      87,
+      11,
+      "STRING"
+    ],
+    [
+      325,
+      122,
+      0,
+      42,
+      0,
+      "*"
+    ],
+    [
+      329,
+      17,
+      0,
+      123,
+      0,
+      "*"
+    ],
+    [
+      330,
+      123,
+      0,
+      72,
+      0,
+      "*"
+    ],
+    [
+      331,
+      126,
+      0,
+      104,
+      12,
+      "*"
+    ],
+    [
+      332,
+      127,
+      0,
+      104,
+      13,
+      "*"
+    ],
+    [
+      333,
+      126,
+      0,
+      87,
+      12,
+      "STRING"
+    ],
+    [
+      334,
+      127,
+      0,
+      87,
+      13,
+      "STRING"
+    ],
+    [
+      335,
+      90,
+      0,
+      87,
+      14,
+      "STRING"
+    ],
+    [
+      344,
+      101,
+      0,
+      127,
+      0,
+      "*"
+    ],
+    [
+      347,
+      43,
+      0,
+      126,
+      0,
+      "*"
+    ],
+    [
+      348,
+      124,
+      0,
+      121,
+      0,
+      "*"
+    ],
+    [
+      349,
+      117,
+      0,
+      118,
+      0,
+      "*"
+    ],
+    [
+      350,
+      125,
+      0,
+      102,
+      0,
+      "*"
+    ],
+    [
+      351,
+      37,
+      0,
+      94,
+      0,
+      "*"
+    ],
+    [
+      354,
+      45,
+      0,
+      48,
+      0,
+      "*"
+    ],
+    [
+      355,
+      63,
+      0,
+      64,
+      0,
+      "*"
+    ],
+    [
+      356,
+      41,
+      0,
+      46,
+      0,
+      "*"
+    ],
+    [
+      357,
+      38,
+      0,
+      44,
+      0,
+      "*"
+    ],
+    [
+      358,
+      28,
+      0,
+      128,
+      0,
+      "MODEL"
+    ],
+    [
+      359,
+      128,
+      0,
+      114,
+      0,
+      "MODEL"
+    ],
+    [
+      360,
+      89,
+      0,
+      128,
+      1,
+      "CLIP"
+    ],
+    [
+      361,
+      128,
+      1,
+      115,
+      0,
+      "CLIP"
+    ]
+  ],
+  "groups": [
+    {
+      "id": 1,
+      "title": "MODELS",
+      "bounding": [
+        -200,
+        60,
+        420,
+        570
+      ],
+      "color": "#A88",
+      "flags": {
+        "pinned": true
+      }
+    },
+    {
+      "id": 2,
+      "title": "STYLES",
+      "bounding": [
+        -1600,
+        -120,
+        470,
+        3130
+      ],
+      "color": "#b58b2a",
+      "flags": {}
+    },
+    {
+      "id": 3,
+      "title": "EDITING AREA",
+      "bounding": [
+        1220,
+        590,
+        1270,
+        730
+      ],
+      "color": "#3f789e",
+      "flags": {
+        "pinned": true
+      }
+    },
+    {
+      "id": 4,
+      "title": "CIVITAI Compatibility",
+      "bounding": [
+        2800,
+        980,
+        630,
+        430
+      ],
+      "color": "#444",
+      "flags": {
+        "pinned": true
+      }
+    }
+  ],
+  "config": {},
+  "extra": {
+    "ds": {
+      "scale": 0.5131581182307067,
+      "offset": [
+        -173.78901373148148,
+        361.76519372824595
+      ]
+    },
+    "frontendVersion": "1.43.18",
+    "VHS_latentpreview": false,
+    "VHS_latentpreviewrate": 0,
+    "VHS_MetadataImage": true,
+    "VHS_KeepIntermediate": true
+  },
+  "version": 0.4
+}

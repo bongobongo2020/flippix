@@ -1,0 +1,479 @@
+{
+  "112": {
+    "inputs": {
+      "width": [
+        "113",
+        0
+      ],
+      "height": [
+        "114",
+        0
+      ],
+      "batch_size": 1
+    },
+    "class_type": "EmptyFlux2LatentImage",
+    "_meta": {
+      "title": "Empty Flux 2 Latent"
+    }
+  },
+  "113": {
+    "inputs": {
+      "value": 768
+    },
+    "class_type": "PrimitiveInt",
+    "_meta": {
+      "title": "Width"
+    }
+  },
+  "114": {
+    "inputs": {
+      "value": 1376
+    },
+    "class_type": "PrimitiveInt",
+    "_meta": {
+      "title": "Height"
+    }
+  },
+  "152": {
+    "inputs": {
+      "clip_name": "qwen_3_8b.safetensors",
+      "type": "flux2",
+      "device": "cuda:0"
+    },
+    "class_type": "CLIPLoaderMultiGPU",
+    "_meta": {
+      "title": "CLIPLoaderMultiGPU"
+    }
+  },
+  "153": {
+    "inputs": {
+      "vae_name": "flux2-vae.safetensors",
+      "device": "cuda:0"
+    },
+    "class_type": "VAELoaderMultiGPU",
+    "_meta": {
+      "title": "VAELoaderMultiGPU"
+    }
+  },
+  "160": {
+    "inputs": {
+      "seed": -1
+    },
+    "class_type": "Seed (rgthree)",
+    "_meta": {
+      "title": "Seed (rgthree)"
+    }
+  },
+  "359": {
+    "inputs": {
+      "unet_name": "klein/Flux2-Klein-9B-True-v2-bf16.safetensors",
+      "weight_dtype": "default",
+      "device": "cuda:0"
+    },
+    "class_type": "UNETLoaderMultiGPU",
+    "_meta": {
+      "title": "UNETLoaderMultiGPU"
+    }
+  },
+  "371": {
+    "inputs": {
+      "cfg": 1,
+      "model": [
+        "359",
+        0
+      ],
+      "positive": [
+        "377",
+        0
+      ],
+      "negative": [
+        "379",
+        0
+      ]
+    },
+    "class_type": "CFGGuider",
+    "_meta": {
+      "title": "CFGGuider"
+    }
+  },
+  "372": {
+    "inputs": {
+      "sampler_name": "res_2m"
+    },
+    "class_type": "KSamplerSelect",
+    "_meta": {
+      "title": "KSamplerSelect"
+    }
+  },
+  "373": {
+    "inputs": {
+      "width": [
+        "374",
+        0
+      ],
+      "height": [
+        "374",
+        1
+      ],
+      "batch_size": 1
+    },
+    "class_type": "EmptyFlux2LatentImage",
+    "_meta": {
+      "title": "Empty Flux 2 Latent"
+    }
+  },
+  "374": {
+    "inputs": {
+      "image": [
+        "388",
+        0
+      ]
+    },
+    "class_type": "GetImageSize",
+    "_meta": {
+      "title": "Get Image Size"
+    }
+  },
+  "375": {
+    "inputs": {
+      "samples": [
+        "376",
+        0
+      ],
+      "vae": [
+        "153",
+        0
+      ]
+    },
+    "class_type": "VAEDecode",
+    "_meta": {
+      "title": "VAE Decode"
+    }
+  },
+  "376": {
+    "inputs": {
+      "noise": [
+        "387",
+        0
+      ],
+      "guider": [
+        "371",
+        0
+      ],
+      "sampler": [
+        "372",
+        0
+      ],
+      "sigmas": [
+        "386",
+        0
+      ],
+      "latent_image": [
+        "373",
+        0
+      ]
+    },
+    "class_type": "SamplerCustomAdvanced",
+    "_meta": {
+      "title": "SamplerCustomAdvanced"
+    }
+  },
+  "377": {
+    "inputs": {
+      "conditioning": [
+        "407",
+        0
+      ],
+      "latent": [
+        "378",
+        0
+      ]
+    },
+    "class_type": "ReferenceLatent",
+    "_meta": {
+      "title": "ReferenceLatent"
+    }
+  },
+  "378": {
+    "inputs": {
+      "pixels": [
+        "388",
+        0
+      ],
+      "vae": [
+        "153",
+        0
+      ]
+    },
+    "class_type": "VAEEncode",
+    "_meta": {
+      "title": "VAE Encode"
+    }
+  },
+  "379": {
+    "inputs": {
+      "conditioning": [
+        "406",
+        0
+      ],
+      "latent": [
+        "378",
+        0
+      ]
+    },
+    "class_type": "ReferenceLatent",
+    "_meta": {
+      "title": "ReferenceLatent"
+    }
+  },
+  "385": {
+    "inputs": {
+      "image": "00000_00012_-12_00001_.png"
+    },
+    "class_type": "LoadImage",
+    "_meta": {
+      "title": "Load Image"
+    }
+  },
+  "386": {
+    "inputs": {
+      "steps": 15,
+      "width": [
+        "374",
+        0
+      ],
+      "height": [
+        "374",
+        1
+      ]
+    },
+    "class_type": "Flux2Scheduler",
+    "_meta": {
+      "title": "Flux2Scheduler"
+    }
+  },
+  "387": {
+    "inputs": {
+      "noise_seed": [
+        "160",
+        0
+      ]
+    },
+    "class_type": "RandomNoise",
+    "_meta": {
+      "title": "RandomNoise"
+    }
+  },
+  "388": {
+    "inputs": {
+      "upscale_method": "nearest-exact",
+      "megapixels": 1,
+      "resolution_steps": 1,
+      "image": [
+        "385",
+        0
+      ]
+    },
+    "class_type": "ImageScaleToTotalPixels",
+    "_meta": {
+      "title": "ImageScaleToTotalPixels"
+    }
+  },
+  "406": {
+    "inputs": {
+      "conditioning": [
+        "407",
+        0
+      ]
+    },
+    "class_type": "ConditioningZeroOut",
+    "_meta": {
+      "title": "ConditioningZeroOut"
+    }
+  },
+  "407": {
+    "inputs": {
+      "text": "woman kicking towards camera,  rotate 360.",
+      "clip": [
+        "152",
+        0
+      ]
+    },
+    "class_type": "CLIPTextEncode",
+    "_meta": {
+      "title": "CLIP Text Encode (Positive Prompt)"
+    }
+  },
+  "431": {
+    "inputs": {
+      "vae": [
+        "153",
+        0
+      ]
+    },
+    "class_type": "LCSLoadData",
+    "_meta": {
+      "title": "LCS Load Data"
+    }
+  },
+  "432": {
+    "inputs": {
+      "mode": "auto",
+      "intensity": 1,
+      "model": [
+        "359",
+        0
+      ],
+      "lcs_data": [
+        "431",
+        0
+      ],
+      "vae": [
+        "153",
+        0
+      ],
+      "reference_image": [
+        "388",
+        0
+      ]
+    },
+    "class_type": "LCSColorAnchor",
+    "_meta": {
+      "title": "LCS Color Anchor"
+    }
+  },
+  "433": {
+    "inputs": {
+      "samples": [
+        "434",
+        0
+      ],
+      "vae": [
+        "153",
+        0
+      ]
+    },
+    "class_type": "VAEDecode",
+    "_meta": {
+      "title": "VAE Decode"
+    }
+  },
+  "434": {
+    "inputs": {
+      "noise": [
+        "439",
+        0
+      ],
+      "guider": [
+        "435",
+        0
+      ],
+      "sampler": [
+        "372",
+        0
+      ],
+      "sigmas": [
+        "443",
+        0
+      ],
+      "latent_image": [
+        "373",
+        0
+      ]
+    },
+    "class_type": "SamplerCustomAdvanced",
+    "_meta": {
+      "title": "SamplerCustomAdvanced"
+    }
+  },
+  "435": {
+    "inputs": {
+      "cfg": 1,
+      "model": [
+        "442",
+        0
+      ],
+      "positive": [
+        "377",
+        0
+      ],
+      "negative": [
+        "379",
+        0
+      ]
+    },
+    "class_type": "CFGGuider",
+    "_meta": {
+      "title": "CFGGuider"
+    }
+  },
+  "438": {
+    "inputs": {
+      "images": [
+        "433",
+        0
+      ]
+    },
+    "class_type": "PreviewImage",
+    "_meta": {
+      "title": "Preview Image"
+    }
+  },
+  "439": {
+    "inputs": {
+      "noise_seed": 437981058906333
+    },
+    "class_type": "RandomNoise",
+    "_meta": {
+      "title": "RandomNoise"
+    }
+  },
+  "441": {
+    "inputs": {
+      "vae": [
+        "153",
+        0
+      ]
+    },
+    "class_type": "LCSSharpnessCalibrate",
+    "_meta": {
+      "title": "LCS Sharpness Calibrate"
+    }
+  },
+  "442": {
+    "inputs": {
+      "strength": 2,
+      "start_step": 5,
+      "end_step": 15,
+      "model": [
+        "432",
+        0
+      ],
+      "sharpness_data": [
+        "441",
+        0
+      ]
+    },
+    "class_type": "LCSSharpnessIntervene",
+    "_meta": {
+      "title": "LCS Sharpness Intervene"
+    }
+  },
+  "443": {
+    "inputs": {
+      "steps": 25,
+      "width": [
+        "374",
+        0
+      ],
+      "height": [
+        "374",
+        1
+      ]
+    },
+    "class_type": "Flux2Scheduler",
+    "_meta": {
+      "title": "Flux2Scheduler"
+    }
+  }
+}

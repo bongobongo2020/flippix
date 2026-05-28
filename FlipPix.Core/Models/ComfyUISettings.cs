@@ -27,6 +27,11 @@ public class ComfyUISettings
     public string StoryGeneratorPromptJsonFolder { get; set; } = string.Empty;
     public string StoryGeneratorInputImageFolder { get; set; } = string.Empty;
 
+    // Story Generator Q — Z mode LoRA settings (persisted across sessions)
+    public bool StoryImageQZLoraEnabled { get; set; } = false;
+    public string StoryImageQZSelectedLora { get; set; } = string.Empty;
+    public double StoryImageQZLoraStrengthModel { get; set; } = 1.0;
+
     // Story Image Generator (Z) last used folder locations
     public string StoryImageGeneratorPromptJsonFolder { get; set; } = string.Empty;
 
@@ -44,6 +49,10 @@ public class ComfyUISettings
     // Video Generator workflow settings
     public string SelectedVideoWorkflow { get; set; } = "ltx2_i2v"; // Default to LTXV
     public int Ltx23FrameCount { get; set; } = 240;
+
+    // Painter (WAN 2.2 LightX2V) workflow model names — adjust to match your ComfyUI server
+    public string PainterHighNoiseModel { get; set; } = @"wan\wan2.2_i2v_high_noise_14B_Q8_0.gguf";
+    public string PainterLowNoiseModel { get; set; } = @"wan\wan2.2_i2v_low_noise_14B_Q8_0.gguf";
 
     // Prompt2Json save directory for image analysis
     public string Prompt2JsonSaveDirectory { get; set; } = string.Empty;

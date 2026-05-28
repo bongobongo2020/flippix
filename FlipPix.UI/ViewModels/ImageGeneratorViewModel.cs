@@ -77,10 +77,7 @@ namespace FlipPix.UI.ViewModels
         // Nested ViewModels for tabs
         private ImageAnalyzerViewModel _analyzer;
         private FlipPixViewModel _cameraEdit;
-        private StoryImageGeneratorViewModel _storyGenerator;
         private StoryImageGeneratorQViewModel _storyGeneratorQ;
-        private StoryImageGeneratorFViewModel _storyGeneratorF;
-        private StoryImageGeneratorFireViewModel _storyGeneratorFire;
         private StoryImageGeneratorAmateurViewModel _storyGeneratorAmateur;
         private AmateurGeneratorViewModel _amateurGenerator;
         private CameraAngleViewModel _cameraAngle;
@@ -106,10 +103,7 @@ namespace FlipPix.UI.ViewModels
             var lmStudioService = serviceProvider?.GetRequiredService<LMStudioService>();
             _analyzer = new ImageAnalyzerViewModel(comfyUIService, lmStudioService ?? throw new InvalidOperationException("LMStudioService is required"), logger, settingsService, _workflowCoordinator, fileDialogService, promptService);
             _cameraEdit = new FlipPixViewModel(comfyUIService, logger, settingsService, serviceProvider, promptService, fileDialogService);
-            _storyGenerator = new StoryImageGeneratorViewModel(comfyUIService, logger, settingsService, _workflowCoordinator, fileDialogService, loraManager, imageRetriever, lmStudioService ?? throw new InvalidOperationException("LMStudioService is required"));
             _storyGeneratorQ = new StoryImageGeneratorQViewModel(comfyUIService, logger, settingsService, _workflowCoordinator, fileDialogService, loraManager, imageRetriever, lmStudioService ?? throw new InvalidOperationException("LMStudioService is required"));
-            _storyGeneratorF = new StoryImageGeneratorFViewModel(comfyUIService, logger, settingsService, _workflowCoordinator, fileDialogService, loraManager, imageRetriever, lmStudioService ?? throw new InvalidOperationException("LMStudioService is required"));
-            _storyGeneratorFire = new StoryImageGeneratorFireViewModel(comfyUIService, logger, settingsService, _workflowCoordinator, fileDialogService, loraManager, imageRetriever, lmStudioService ?? throw new InvalidOperationException("LMStudioService is required"));
             _storyGeneratorAmateur = new StoryImageGeneratorAmateurViewModel(comfyUIService, logger, settingsService, _workflowCoordinator, fileDialogService, loraManager, imageRetriever);
             _amateurGenerator = new AmateurGeneratorViewModel(comfyUIService, logger, settingsService, promptService, loraManager, imageRetriever, _workflowCoordinator, lmStudioService, fileDialogService);
             _cameraAngle = new CameraAngleViewModel(comfyUIService, logger, settingsService, fileDialogService, imageRetriever);
@@ -246,10 +240,7 @@ namespace FlipPix.UI.ViewModels
         // Nested ViewModel properties
         public ImageAnalyzerViewModel Analyzer => _analyzer;
         public FlipPixViewModel CameraEdit => _cameraEdit;
-        public StoryImageGeneratorViewModel StoryGenerator => _storyGenerator;
         public StoryImageGeneratorQViewModel StoryGeneratorQ => _storyGeneratorQ;
-        public StoryImageGeneratorFViewModel StoryGeneratorF => _storyGeneratorF;
-        public StoryImageGeneratorFireViewModel StoryGeneratorFire => _storyGeneratorFire;
         public StoryImageGeneratorAmateurViewModel StoryGeneratorAmateur => _storyGeneratorAmateur;
         public AmateurGeneratorViewModel AmateurGenerator => _amateurGenerator;
         public CameraAngleViewModel CameraAngle => _cameraAngle;
@@ -3223,9 +3214,7 @@ namespace FlipPix.UI.ViewModels
                 // Dispose nested ViewModels
                 _analyzer?.Dispose();
                 _cameraEdit?.Dispose();
-                _storyGenerator?.Dispose();
                 _storyGeneratorQ?.Dispose();
-                _storyGeneratorF?.Dispose();
                 _storyGeneratorAmateur?.Dispose();
                 _amateurGenerator?.Dispose();
                 _cameraAngle?.Dispose();

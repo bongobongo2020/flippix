@@ -1,0 +1,350 @@
+{
+  "6": {
+    "inputs": {
+      "text": [
+        "31",
+        0
+      ],
+      "clip": [
+        "128",
+        1
+      ]
+    },
+    "class_type": "CLIPTextEncode",
+    "_meta": {
+      "title": "CLIP Text Encode (Positive Prompt)"
+    }
+  },
+  "7": {
+    "inputs": {
+      "text": "",
+      "clip": [
+        "128",
+        1
+      ]
+    },
+    "class_type": "CLIPTextEncode",
+    "_meta": {
+      "title": "CLIP Text Encode (Negative Prompt)"
+    }
+  },
+  "8": {
+    "inputs": {
+      "samples": [
+        "67",
+        0
+      ],
+      "vae": [
+        "17",
+        0
+      ]
+    },
+    "class_type": "VAEDecode",
+    "_meta": {
+      "title": "VAE Decode"
+    }
+  },
+  "9": {
+    "inputs": {
+      "filename_prefix": "ZImage/2026_05_27/ZI",
+      "images": [
+        "8",
+        0
+      ]
+    },
+    "class_type": "SaveImage",
+    "_meta": {
+      "title": "Save Image"
+    }
+  },
+  "17": {
+    "inputs": {
+      "vae_name": "ae.safetensors"
+    },
+    "class_type": "VAELoader",
+    "_meta": {
+      "title": "Load VAE"
+    }
+  },
+  "28": {
+    "inputs": {
+      "unet_name": "z_image_turbo-Q8_0.gguf"
+    },
+    "class_type": "UnetLoaderGGUF",
+    "_meta": {
+      "title": "Unet Loader (GGUF)"
+    }
+  },
+  "31": {
+    "inputs": {
+      "string": [
+        "87",
+        0
+      ],
+      "find": "{$@}",
+      "replace": [
+        "385",
+        0
+      ]
+    },
+    "class_type": "StringReplace",
+    "_meta": {
+      "title": "STYLE INTEGRATOR"
+    }
+  },
+  "47": {
+    "inputs": {
+      "value": "A raw documentary photograph taken with an old Android phone. This casual, low quality, amateur shot showcases {$@}"
+    },
+    "class_type": "PrimitiveStringMultiline",
+    "_meta": {
+      "title": "STYLE: Lo-fi Mobile Photo"
+    }
+  },
+  "50": {
+    "inputs": {
+      "add_noise": "enable",
+      "noise_seed": 1,
+      "steps": 8,
+      "cfg": 1,
+      "sampler_name": "euler",
+      "scheduler": "simple",
+      "start_at_step": 0,
+      "end_at_step": 10000,
+      "return_with_leftover_noise": "disable",
+      "positive": [
+        "54",
+        0
+      ],
+      "negative": [
+        "60",
+        0
+      ],
+      "latent_image": [
+        "56",
+        0
+      ]
+    },
+    "class_type": "KSamplerAdvanced",
+    "_meta": {
+      "title": "KSampler (Advanced)"
+    }
+  },
+  "54": {
+    "inputs": {
+      "text": "A woman with short, spiky blonde hair is depicted from the chest up, aiming a large, dark gray firearm. Her hair is tousled and appears to be catching the light. She has blue eyes and shadow on her cheeks. She is wearing a white tank top with one strap visibly off her right shoulder. The firearm she holds is dark gray and appears to be a heavy weapon. A dark ancient castle is visible in the background on the right side. Her attire includes dark, torn shorts and ripped, dark stockings or tights on her legs."
+    },
+    "class_type": "CLIPTextEncode",
+    "_meta": {
+      "title": "CLIP Text Encode (Positive Prompt)"
+    }
+  },
+  "56": {
+    "inputs": {
+      "width": 944,
+      "height": 1408,
+      "batch_size": 1
+    },
+    "class_type": "EmptyLatentImage",
+    "_meta": {
+      "title": "Empty Latent Image"
+    }
+  },
+  "60": {
+    "inputs": {
+      "text": ""
+    },
+    "class_type": "CLIPTextEncode",
+    "_meta": {
+      "title": "CLIP Text Encode (Prompt)"
+    }
+  },
+  "67": {
+    "inputs": {
+      "add_noise": true,
+      "noise_seed": [
+        "307",
+        0
+      ],
+      "cfg": 1,
+      "model": [
+        "128",
+        0
+      ],
+      "positive": [
+        "6",
+        0
+      ],
+      "negative": [
+        "7",
+        0
+      ],
+      "sampler": [
+        "96",
+        0
+      ],
+      "sigmas": [
+        "70",
+        0
+      ],
+      "latent_image": [
+        "244",
+        0
+      ]
+    },
+    "class_type": "SamplerCustom",
+    "_meta": {
+      "title": "SamplerCustom"
+    }
+  },
+  "68": {
+    "inputs": {
+      "sampler_name": "euler"
+    },
+    "class_type": "KSamplerSelect",
+    "_meta": {
+      "title": "Euler: NOISY, TEXTURED"
+    }
+  },
+  "70": {
+    "inputs": {
+      "steps": 8,
+      "sigma_max": 0.98,
+      "sigma_min": 0.01,
+      "rho": 0.3
+    },
+    "class_type": "KarrasScheduler",
+    "_meta": {
+      "title": "KarrasScheduler"
+    }
+  },
+  "87": {
+    "inputs": {
+      "any_01": [
+        "47",
+        0
+      ],
+      "any_15": [
+        "90",
+        0
+      ]
+    },
+    "class_type": "Any Switch (rgthree)",
+    "_meta": {
+      "title": "Any Switch (rgthree)"
+    }
+  },
+  "89": {
+    "inputs": {
+      "clip_name": "Qwen3-4B.i1-Q5_K_S.gguf",
+      "type": "lumina2"
+    },
+    "class_type": "CLIPLoaderGGUF",
+    "_meta": {
+      "title": "CLIPLoader (GGUF)"
+    }
+  },
+  "90": {
+    "inputs": {
+      "value": "{$@}"
+    },
+    "class_type": "PrimitiveString",
+    "_meta": {
+      "title": "No Style"
+    }
+  },
+  "96": {
+    "inputs": {
+      "any_01": [
+        "68",
+        0
+      ]
+    },
+    "class_type": "Any Switch (rgthree)",
+    "_meta": {
+      "title": "Any Switch (rgthree)"
+    }
+  },
+  "110": {
+    "inputs": {
+      "value": "A woman with short, spiky blonde hair is depicted from the chest up, aiming a large, dark gray firearm. Her hair is tousled and appears to be catching the light. She has blue eyes and shadow on her cheeks. She is wearing a white tank top with one strap visibly off her right shoulder. The firearm she holds is dark gray and appears to be a heavy weapon. A dark ancient castle is visible in the background on the right side. Her attire includes dark, torn shorts and ripped, dark stockings or tights on her legs."
+    },
+    "class_type": "PrimitiveStringMultiline",
+    "_meta": {
+      "title": "This node is used for reroute"
+    }
+  },
+  "128": {
+    "inputs": {
+      "PowerLoraLoaderHeaderWidget": {
+        "type": "PowerLoraLoaderHeaderWidget"
+      },
+      "lora_1": {
+        "on": true,
+        "lora": "zimage/sridevi-zimage.safetensors",
+        "strength": 1
+      },
+      "➕ Add Lora": "",
+      "model": [
+        "28",
+        0
+      ],
+      "clip": [
+        "89",
+        0
+      ]
+    },
+    "class_type": "Power Lora Loader (rgthree)",
+    "_meta": {
+      "title": "Power Lora Loader (rgthree)"
+    }
+  },
+  "243": {
+    "inputs": {
+      "value": 944
+    },
+    "class_type": "PrimitiveInt",
+    "_meta": {
+      "title": "Default Short Side"
+    }
+  },
+  "244": {
+    "inputs": {
+      "width": 944,
+      "height": 1408,
+      "batch_size": 1
+    },
+    "class_type": "EmptySD3LatentImage",
+    "_meta": {
+      "title": "EmptySD3LatentImage"
+    }
+  },
+  "248": {
+    "inputs": {
+      "value": 1408
+    },
+    "class_type": "PrimitiveInt",
+    "_meta": {
+      "title": "Default Long Side"
+    }
+  },
+  "307": {
+    "inputs": {
+      "value": 1
+    },
+    "class_type": "PrimitiveInt",
+    "_meta": {
+      "title": "SEED"
+    }
+  },
+  "385": {
+    "inputs": {
+      "string": "",
+      "mode": "Both"
+    },
+    "class_type": "StringTrim",
+    "_meta": {
+      "title": "(used for reroute)"
+    }
+  }
+}

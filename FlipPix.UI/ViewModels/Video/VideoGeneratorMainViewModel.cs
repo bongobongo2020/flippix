@@ -5,6 +5,7 @@ using System.IO;
 using System.Linq;
 using System.Net.Http;
 using System.Text.Json;
+using System.Text.RegularExpressions;
 using System.Threading;
 using System.Threading.Tasks;
 using System.Windows;
@@ -91,6 +92,8 @@ namespace FlipPix.UI.ViewModels.Video
         private bool _useLTXWorkflow = true;
         private SingleVideoWorkflow _selectedSingleWorkflow = SingleVideoWorkflow.LTX2V;
         private bool _isStoryVideoMode = false;
+        private string _painterHighNoiseModel = @"wan\wan2.2_i2v_high_noise_14B_Q8_0.gguf";
+        private string _painterLowNoiseModel = @"wan\wan2.2_i2v_low_noise_14B_Q8_0.gguf";
 
         /// <summary>
         /// Workflow options for single video generation (Tab 1).
@@ -124,6 +127,12 @@ namespace FlipPix.UI.ViewModels.Video
             // Load default prompts from settings
             _videoPrompt = settingsService.Settings.DefaultVideoPrompt;
             _negativePrompt = settingsService.Settings.DefaultNegativePrompt;
+
+            // Load Painter model names from settings
+            if (!string.IsNullOrEmpty(settingsService.Settings.PainterHighNoiseModel))
+                _painterHighNoiseModel = settingsService.Settings.PainterHighNoiseModel;
+            if (!string.IsNullOrEmpty(settingsService.Settings.PainterLowNoiseModel))
+                _painterLowNoiseModel = settingsService.Settings.PainterLowNoiseModel;
 
             // Initialize commands
             SelectImageCommand = new RelayCommand(SelectImage);
@@ -755,6 +764,37 @@ namespace FlipPix.UI.ViewModels.Video
 
         public string WorkflowDisplay => UseLTXWorkflow ? "LTXV (LTX-2_image2video_distilledAPI.json)" : "Painter (painteri2vAPI.json)";
         public string WorkflowIndicator => UseLTXWorkflow ? "LTXV" : "Painter";
+
+        public string PainterHighNoiseModel
+        {
+            get => _painterHighNoiseModel;
+            set
+            {
+                if (_painterHighNoiseModel != value)
+                {
+                    _painterHighNoiseModel = value;
+                    OnPropertyChanged();
+                    var settings = _settingsService.Settings;
+                    if (settings != null) { settings.PainterHighNoiseModel = value; _settingsService.SaveSettings(settings); }
+                }
+            }
+        }
+
+        public string PainterLowNoiseModel
+        {
+            get => _painterLowNoiseModel;
+            set
+            {
+                if (_painterLowNoiseModel != value)
+                {
+                    _painterLowNoiseModel = value;
+                    OnPropertyChanged();
+                    var settings = _settingsService.Settings;
+                    if (settings != null) { settings.PainterLowNoiseModel = value; _settingsService.SaveSettings(settings); }
+                }
+            }
+        }
+
         public int SelectedWorkflowIndex
         {
             get => UseLTXWorkflow ? 0 : 1;
@@ -1770,7 +1810,8 @@ namespace FlipPix.UI.ViewModels.Video
             bool isWan22 = !_isStoryVideoMode && SelectedSingleWorkflow == SingleVideoWorkflow.Wan22;
 
             // Update first frame image - node IDs differ by workflow
-            string[] firstFrameNodes = isWan22 ? new[] { "55" } : new[] { "106" };
+            // Painter uses node 119 (LoadImage → GetImageRangeFromBatch → start_image)
+            string[] firstFrameNodes = isWan22 ? new[] { "55" } : (isLTXV ? new[] { "106" } : new[] { "119" });
             foreach (var nodeId in firstFrameNodes)
             {
                 if (workflowDict.ContainsKey(nodeId))
@@ -1790,8 +1831,8 @@ namespace FlipPix.UI.ViewModels.Video
                 }
             }
 
-            // Update last frame image - node IDs differ by workflow
-            if (!string.IsNullOrEmpty(lastFrameImageName))
+            // Update last frame image - Painter has no separate last frame node (single reference image)
+            if (!string.IsNullOrEmpty(lastFrameImageName) && (isLTXV || isWan22))
             {
                 string[] lastFrameNodes = isWan22 ? new[] { "643" } : new[] { "35" };
                 foreach (var nodeId in lastFrameNodes)
@@ -1813,6 +1854,10 @@ namespace FlipPix.UI.ViewModels.Video
                     }
                 }
             }
+            else if (!isLTXV && !isWan22)
+            {
+                AddLog("Painter workflow: single reference image used (no separate last frame)");
+            }
             else
             {
                 AddLog("Last frame not provided - skipping last frame node update");
@@ -1826,7 +1871,7 @@ namespace FlipPix.UI.ViewModels.Video
             }
             else
             {
-                positivePromptNodes = isLTXV ? new[] { "59", "121", "92:3" } : new[] { "93", "62", "6" };
+                positivePromptNodes = isLTXV ? new[] { "59", "121", "92:3" } : new[] { "6" };
             }
             foreach (var nodeId in positivePromptNodes)
             {
@@ -1979,6 +2024,28 @@ namespace FlipPix.UI.ViewModels.Video
                     }
                 }
             }
+            else
+            {
+                // Painter (WAN 2.2 LightX2V) parameters
+
+                // Randomize seed (node 132, KSamplerAdvanced noise_seed)
+                if (workflowDict.ContainsKey("132"))
+                {
+                    var seedValue = Seed > 0 ? (int)(Seed & 0x7FFFFFFF) : new Random().Next();
+                    var node = JsonSerializer.Deserialize<Dictionary<string, object>>(workflowDict["132"].GetRawText());
+                    if (node != null && node.ContainsKey("inputs"))
+                    {
+                        var inputs = JsonSerializer.Deserialize<Dictionary<string, object>>(JsonSerializer.Serialize(node["inputs"]));
+                        if (inputs != null)
+                        {
+                            inputs["noise_seed"] = seedValue;
+                            node["inputs"] = inputs;
+                            workflowDict["132"] = JsonSerializer.SerializeToElement(node);
+                            AddLog($"✓ Node 132 (Seed) - {seedValue}");
+                        }
+                    }
+                }
+            }
 
             AddLog("Workflow parameters updated successfully");
             return JsonSerializer.SerializeToElement(workflowDict);
@@ -2096,8 +2163,8 @@ namespace FlipPix.UI.ViewModels.Video
             }
 
             var filePath = await _fileDialogService.OpenFileDialogAsync(
-                "Select Story Prompts JSON File",
-                "JSON Files (*.json)|*.json|All Files (*.*)|*.*",
+                "Select Story Prompts File",
+                "Prompt Files (*.json;*.txt)|*.json;*.txt|JSON Files (*.json)|*.json|Text Files (*.txt)|*.txt|All Files (*.*)|*.*",
                 initialDirectory);
 
             if (filePath != null)
@@ -2135,6 +2202,23 @@ namespace FlipPix.UI.ViewModels.Video
                 }
 
                 AddLog($"Selected story images folder: {StoryImagesFolderPath}");
+
+                // Auto-detect prompts.txt or a JSON prompts file in the selected folder
+                var txtPath = Path.Combine(selectedPath, "prompts.txt");
+                if (File.Exists(txtPath))
+                {
+                    StoryPromptJsonPath = txtPath;
+                    AddLog($"Auto-detected prompts file: prompts.txt");
+                }
+                else
+                {
+                    var jsonFiles = Directory.GetFiles(selectedPath, "*.json");
+                    if (jsonFiles.Length == 1)
+                    {
+                        StoryPromptJsonPath = jsonFiles[0];
+                        AddLog($"Auto-detected prompts file: {Path.GetFileName(jsonFiles[0])}");
+                    }
+                }
             }
         }
 
@@ -2144,14 +2228,27 @@ namespace FlipPix.UI.ViewModels.Video
 
             try
             {
-                AddLog("Loading story prompts from JSON file...");
-                var jsonContent = await File.ReadAllTextAsync(StoryPromptJsonPath);
-                var storyData = JsonSerializer.Deserialize<StoryPromptData>(jsonContent);
+                List<string> prompts;
+                var ext = Path.GetExtension(StoryPromptJsonPath).ToLowerInvariant();
 
-                if (storyData?.Prompts == null || !storyData.Prompts.Any())
+                if (ext == ".txt")
                 {
-                    AddLog("ERROR: No prompts found in JSON file");
-                    System.Windows.MessageBox.Show("No prompts found in the JSON file.", "Error", MessageBoxButton.OK, MessageBoxImage.Error);
+                    AddLog("Loading story prompts from TXT file...");
+                    var txtContent = await File.ReadAllTextAsync(StoryPromptJsonPath);
+                    prompts = ParsePromptsFromTxt(txtContent);
+                }
+                else
+                {
+                    AddLog("Loading story prompts from JSON file...");
+                    var jsonContent = await File.ReadAllTextAsync(StoryPromptJsonPath);
+                    var storyData = JsonSerializer.Deserialize<StoryPromptData>(jsonContent);
+                    prompts = storyData?.Prompts ?? new List<string>();
+                }
+
+                if (!prompts.Any())
+                {
+                    AddLog("ERROR: No prompts found in file");
+                    System.Windows.MessageBox.Show("No prompts found in the file.", "Error", MessageBoxButton.OK, MessageBoxImage.Error);
                     return;
                 }
 
@@ -2163,13 +2260,13 @@ namespace FlipPix.UI.ViewModels.Video
 
                 StoryVideoQueue.Clear();
 
-                int count = Math.Min(storyData.Prompts.Count, imageFiles.Count);
+                int count = Math.Min(prompts.Count, imageFiles.Count);
                 for (int i = 0; i < count; i++)
                 {
                     var queueItem = new StoryVideoQueueItem
                     {
                         Index = i + 1,
-                        Prompt = storyData.Prompts[i],
+                        Prompt = prompts[i],
                         InputImagePath = imageFiles[i],
                         Status = "Pending"
                     };
@@ -2196,6 +2293,24 @@ namespace FlipPix.UI.ViewModels.Video
                 AddLog($"ERROR loading story queue: {ex.Message}");
                 System.Windows.MessageBox.Show($"Error loading story queue:\n\n{ex.Message}", "Error", MessageBoxButton.OK, MessageBoxImage.Error);
             }
+        }
+
+        private List<string> ParsePromptsFromTxt(string content)
+        {
+            var dict = new SortedDictionary<int, string>();
+            // Split on "Scene N:" lines, capturing the scene number
+            var parts = Regex.Split(content, @"^Scene\s+(\d+):\s*$", RegexOptions.Multiline);
+            // parts layout: [pre-text, sceneNum, sceneText, sceneNum, sceneText, ...]
+            for (int i = 1; i + 1 < parts.Length; i += 2)
+            {
+                if (int.TryParse(parts[i].Trim(), out var sceneNum))
+                {
+                    var text = parts[i + 1].Trim();
+                    if (!string.IsNullOrWhiteSpace(text))
+                        dict[sceneNum] = text;
+                }
+            }
+            return dict.Values.ToList();
         }
 
         private async Task ProcessStoryQueueAsync()
