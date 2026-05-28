@@ -1,0 +1,95 @@
+<Window xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        x:Class="FlipPix.UI.Linux.Windows.OllamaWindow"
+        Title="Ollama Prompt Enhancer" Height="600" Width="800"
+        WindowStartupLocation="CenterScreen">
+
+    <Grid Margin="20">
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="*"/>
+            <RowDefinition Height="Auto"/>
+        </Grid.RowDefinitions>
+
+        <!-- Connection Settings -->
+        <Border Grid.Row="0" Background="#F8F9FA" BorderBrush="#DEE2E6" BorderThickness="1" CornerRadius="5" Padding="10" Margin="0,0,0,10">
+            <StackPanel>
+                <TextBlock Text="Ollama Connection" FontSize="13" FontWeight="Bold" Margin="0,0,0,8"/>
+                <Grid ColumnDefinitions="*,Auto,Auto">
+                    <TextBox Grid.Column="0" Text="{Binding OllamaUrl}" Margin="0,0,5,0"/>
+                    <Button Grid.Column="1" Content="Connect" Classes="secondary"
+                            Command="{Binding ConnectCommand}" Margin="0,0,5,0"/>
+                    <Button Grid.Column="2" Content="Refresh Models" Classes="secondary"
+                            Command="{Binding RefreshModelsCommand}"/>
+                </Grid>
+            </StackPanel>
+        </Border>
+
+        <!-- Model Selection and Enhancement Type -->
+        <Border Grid.Row="1" Background="#F8F9FA" BorderBrush="#DEE2E6" BorderThickness="1" CornerRadius="5" Padding="10" Margin="0,0,0,10">
+            <StackPanel>
+                <TextBlock Text="Settings" FontSize="13" FontWeight="Bold" Margin="0,0,0,8"/>
+
+                <Grid ColumnDefinitions="200,*" Margin="0,0,0,8">
+                    <TextBlock Grid.Column="0" Text="Select Model:" VerticalAlignment="Center"/>
+                    <ComboBox Grid.Column="1" ItemsSource="{Binding AvailableModels}"
+                              SelectedItem="{Binding SelectedModel}"
+                              DisplayMemberBinding="{Binding Name}"/>
+                </Grid>
+
+                <Grid ColumnDefinitions="200,*">
+                    <TextBlock Grid.Column="0" Text="Enhancement Type:" VerticalAlignment="Center"/>
+                    <ComboBox Grid.Column="1" ItemsSource="{Binding EnhancementTypes}"
+                              SelectedItem="{Binding SelectedEnhancementType}"/>
+                </Grid>
+            </StackPanel>
+        </Border>
+
+        <!-- Main Content Area -->
+        <Grid Grid.Row="2" ColumnDefinitions="*,*">
+
+            <!-- User Prompt -->
+            <Border Grid.Column="0" Background="#F8F9FA" BorderBrush="#DEE2E6" BorderThickness="1" CornerRadius="5" Padding="10" Margin="0,0,5,0">
+                <Grid RowDefinitions="*,Auto">
+                    <TextBlock Grid.Row="0" Text="Your Prompt" FontSize="13" FontWeight="Bold" Margin="0,0,0,8"/>
+                    <TextBox Grid.Row="0" Margin="0,22,0,0"
+                             Text="{Binding UserPrompt}"
+                             TextWrapping="Wrap" AcceptsReturn="True"/>
+                    <Button Grid.Row="1" Content="Enhance Prompt" Classes="primary"
+                            Command="{Binding EnhancePromptCommand}"
+                            Margin="0,10,0,0" HorizontalAlignment="Stretch"/>
+                </Grid>
+            </Border>
+
+            <!-- Enhanced Prompt -->
+            <Border Grid.Column="1" Background="#F8F9FA" BorderBrush="#DEE2E6" BorderThickness="1" CornerRadius="5" Padding="10" Margin="5,0,0,0">
+                <Grid RowDefinitions="Auto,*,Auto">
+                    <TextBlock Grid.Row="0" Text="Enhanced Prompt" FontSize="13" FontWeight="Bold" Margin="0,0,0,8"/>
+                    <ScrollViewer Grid.Row="1">
+                        <TextBlock Text="{Binding EnhancedPrompt}" TextWrapping="Wrap"/>
+                    </ScrollViewer>
+                    <StackPanel Grid.Row="2" Orientation="Horizontal"
+                                HorizontalAlignment="Right" Margin="0,10,0,0" Spacing="5">
+                        <Button Content="Send to Image Generator" Classes="secondary"
+                                Command="{Binding SendToImageGeneratorCommand}"/>
+                        <Button Content="Send to Video Generator" Classes="secondary"
+                                Command="{Binding SendToVideoGeneratorCommand}"/>
+                    </StackPanel>
+                </Grid>
+            </Border>
+        </Grid>
+
+        <!-- Status Bar -->
+        <Border Grid.Row="3" Background="#F8F9FA" BorderBrush="#DEE2E6" BorderThickness="0,1,0,0" Height="28" Margin="0,10,0,0">
+            <DockPanel>
+                <StackPanel Orientation="Horizontal" VerticalAlignment="Center" Margin="5,0">
+                    <TextBlock Text="{Binding StatusMessage}" Margin="0,0,10,0"/>
+                    <ProgressBar Width="100" Height="16"
+                                 IsIndeterminate="{Binding IsProcessing}"
+                                 IsVisible="{Binding IsProcessing}"/>
+                </StackPanel>
+            </DockPanel>
+        </Border>
+    </Grid>
+</Window>

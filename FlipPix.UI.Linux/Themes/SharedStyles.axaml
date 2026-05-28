@@ -1,0 +1,70 @@
+<Styles xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:converters="clr-namespace:FlipPix.UI.Linux.Converters;assembly=FlipPix.UI.Linux">
+
+    <Styles.Resources>
+        <!-- Converters as resources -->
+        <converters:BoolToVisibilityConverter x:Key="BooleanToVisibilityConverter"/>
+        <converters:StringToVisibilityConverter x:Key="StringToVisibilityConverter"/>
+        <converters:PathToBitmapConverter x:Key="PathToBitmapConverter"/>
+        <converters:StatusToForegroundConverter x:Key="StatusToForegroundConverter"/>
+    </Styles.Resources>
+
+    <!-- Primary Button -->
+    <Style Selector="Button.primary">
+        <Setter Property="Background" Value="#FF6B35"/>
+        <Setter Property="Foreground" Value="White"/>
+        <Setter Property="BorderThickness" Value="0"/>
+        <Setter Property="Padding" Value="20,10"/>
+        <Setter Property="FontWeight" Value="Bold"/>
+        <Setter Property="FontSize" Value="14"/>
+        <Setter Property="CornerRadius" Value="5"/>
+    </Style>
+    <Style Selector="Button.primary:pointerover /template/ ContentPresenter">
+        <Setter Property="Background" Value="#FF8556"/>
+    </Style>
+    <Style Selector="Button.primary:disabled /template/ ContentPresenter">
+        <Setter Property="Background" Value="#CCC"/>
+    </Style>
+
+    <!-- Secondary Button -->
+    <Style Selector="Button.secondary">
+        <Setter Property="Background" Value="#4CAF50"/>
+        <Setter Property="Foreground" Value="White"/>
+        <Setter Property="BorderThickness" Value="0"/>
+        <Setter Property="Padding" Value="15,8"/>
+        <Setter Property="CornerRadius" Value="5"/>
+    </Style>
+
+    <!-- Danger Button -->
+    <Style Selector="Button.danger">
+        <Setter Property="Background" Value="#DC3545"/>
+        <Setter Property="Foreground" Value="White"/>
+        <Setter Property="BorderThickness" Value="0"/>
+        <Setter Property="Padding" Value="15,8"/>
+        <Setter Property="CornerRadius" Value="5"/>
+    </Style>
+
+    <!-- Nav Button -->
+    <Style Selector="Button.nav">
+        <Setter Property="Background" Value="#6C757D"/>
+        <Setter Property="Foreground" Value="White"/>
+        <Setter Property="BorderThickness" Value="0"/>
+        <Setter Property="Padding" Value="12,8"/>
+        <Setter Property="Margin" Value="0,0,8,0"/>
+        <Setter Property="FontSize" Value="12"/>
+        <Setter Property="CornerRadius" Value="5"/>
+    </Style>
+
+    <Style Selector="Button.nav.active">
+        <Setter Property="Background" Value="#FF6B35"/>
+        <Setter Property="FontWeight" Value="Bold"/>
+    </Style>
+
+    <Style Selector="Button.small">
+        <Setter Property="Padding" Value="8,4"/>
+        <Setter Property="FontSize" Value="11"/>
+        <Setter Property="CornerRadius" Value="3"/>
+    </Style>
+
+</Styles>
