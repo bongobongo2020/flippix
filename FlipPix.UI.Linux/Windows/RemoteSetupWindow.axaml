@@ -1,0 +1,23 @@
+<Window xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        x:Class="FlipPix.UI.Linux.Windows.RemoteSetupWindow"
+        Title="Remote Server Setup"
+        Width="500" Height="300"
+        CanResize="False"
+        WindowStartupLocation="CenterOwner">
+    <StackPanel Margin="25" Spacing="15">
+        <TextBlock Text="Remote ComfyUI Setup" FontSize="20" FontWeight="Bold"/>
+
+        <Grid ColumnDefinitions="150,*" RowDefinitions="Auto,Auto" Margin="0,10,0,0">
+            <TextBlock Grid.Row="0" Grid.Column="0" Text="Server URL:" VerticalAlignment="Center"/>
+            <TextBox Grid.Row="0" Grid.Column="1" x:Name="ServerUrlBox" Text="http://192.168.1.100:8188"/>
+            <TextBlock Grid.Row="1" Grid.Column="0" Text="Output Folder:" VerticalAlignment="Center" Margin="0,10,0,0"/>
+            <TextBox Grid.Row="1" Grid.Column="1" x:Name="OutputFolderBox" Margin="0,10,0,0"/>
+        </Grid>
+
+        <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" Spacing="10" Margin="0,10,0,0">
+            <Button Content="Connect" Classes="primary" Click="ConnectButton_Click"/>
+            <Button Content="Cancel" Classes="danger" Click="CancelButton_Click"/>
+        </StackPanel>
+    </StackPanel>
+</Window>

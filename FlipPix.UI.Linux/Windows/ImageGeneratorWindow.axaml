@@ -1,0 +1,125 @@
+<Window xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:vm="clr-namespace:FlipPix.UI.Linux.ViewModels;assembly=FlipPix.UI.Linux"
+        x:Class="FlipPix.UI.Linux.Windows.ImageGeneratorWindow"
+        Title="FlipPix - Image Generator"
+        Width="1400" Height="900"
+        MinWidth="800" MinHeight="600"
+        WindowStartupLocation="CenterScreen">
+
+    <DockPanel>
+        <!-- Header -->
+        <Border DockPanel.Dock="Top" Background="#FF6B35" Height="40">
+            <DockPanel>
+                <TextBlock Text="FlipPix" FontSize="18" FontWeight="Bold" Foreground="White"
+                           VerticalAlignment="Center" Margin="15,0"/>
+                <StackPanel Orientation="Horizontal" HorizontalAlignment="Right"
+                            VerticalAlignment="Center" Margin="0,0,10,0" Spacing="5">
+                    <Button Content="Settings" Classes="nav" Click="SettingsButton_Click"/>
+                    <Button Content="ComfyUI" Classes="nav" Click="ComfyUIButton_Click"/>
+                </StackPanel>
+            </DockPanel>
+        </Border>
+
+        <!-- Status Bar -->
+        <Border DockPanel.Dock="Bottom" Background="#F0F0F0" Height="28" BorderBrush="#DDD" BorderThickness="0,1,0,0">
+            <DockPanel>
+                <TextBlock Text="{Binding StatusBarMessage}" VerticalAlignment="Center" Margin="10,0" FontSize="11"/>
+                <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" VerticalAlignment="Center" Margin="10,0" Spacing="5">
+                    <TextBlock Text="ComfyUI:" FontSize="11" Foreground="#666"/>
+                    <TextBlock Text="{Binding ComfyUIServer}" FontSize="11" FontWeight="Bold"/>
+                </StackPanel>
+            </DockPanel>
+        </Border>
+
+        <!-- Main Content -->
+        <TabControl>
+            <!-- Text-to-Image Tab -->
+            <TabItem Header="Text to Image">
+                <Grid ColumnDefinitions="400,*">
+                    <!-- Left Panel: Controls -->
+                    <ScrollViewer Grid.Column="0" Margin="10">
+                        <StackPanel Spacing="10">
+                            <!-- Prompt -->
+                            <Border Background="#F8F9FA" BorderBrush="#DEE2E6" BorderThickness="1" CornerRadius="8" Padding="15">
+                                <StackPanel Spacing="8">
+                                    <TextBlock Text="Image Prompt" FontWeight="Bold"/>
+                                    <TextBox Text="{Binding ImagePrompt}" AcceptsReturn="True" Height="100"
+                                             Watermark="Enter your image description..."/>
+                                </StackPanel>
+                            </Border>
+
+                            <!-- Settings -->
+                            <Border Background="#F8F9FA" BorderBrush="#DEE2E6" BorderThickness="1" CornerRadius="8" Padding="15">
+                                <StackPanel Spacing="8">
+                                    <TextBlock Text="Settings" FontWeight="Bold"/>
+                                    <Grid ColumnDefinitions="*,*" RowDefinitions="Auto,Auto,Auto,Auto">
+                                        <TextBlock Grid.Row="0" Grid.Column="0" Text="Aspect Ratio:" VerticalAlignment="Center"/>
+                                        <ComboBox Grid.Row="0" Grid.Column="1" SelectedIndex="{Binding AspectRatioIndex}">
+                                            <ComboBoxItem>Landscape 16:9</ComboBoxItem>
+                                            <ComboBoxItem>Portrait 9:16</ComboBoxItem>
+                                            <ComboBoxItem>Square 1:1</ComboBoxItem>
+                                        </ComboBox>
+                                        <TextBlock Grid.Row="1" Grid.Column="0" Text="Steps:" VerticalAlignment="Center"/>
+                                        <NumericUpDown Grid.Row="1" Grid.Column="1" Value="{Binding Steps}" Minimum="1" Maximum="100"/>
+                                        <TextBlock Grid.Row="2" Grid.Column="0" Text="CFG:" VerticalAlignment="Center"/>
+                                        <NumericUpDown Grid.Row="2" Grid.Column="1" Value="{Binding Cfg}" Minimum="0.1" Maximum="20" Increment="0.1" FormatString="F1"/>
+                                        <TextBlock Grid.Row="3" Grid.Column="0" Text="Seed (0=random):" VerticalAlignment="Center"/>
+                                        <NumericUpDown Grid.Row="3" Grid.Column="1" Value="{Binding Seed}" Minimum="0"/>
+                                    </Grid>
+                                </StackPanel>
+                            </Border>
+
+                            <!-- Buttons -->
+                            <Button Content="Generate Image" Classes="primary"
+                                    Command="{Binding GenerateImageCommand}"
+                                    HorizontalAlignment="Stretch" Height="45"/>
+                            <Button Content="Cancel" Classes="danger"
+                                    Command="{Binding CancelGenerationCommand}"
+                                    IsVisible="{Binding IsProcessing}"
+                                    HorizontalAlignment="Stretch"/>
+                        </StackPanel>
+                    </ScrollViewer>
+
+                    <!-- Right Panel: Result -->
+                    <Grid Grid.Column="1" Margin="10">
+                        <Grid.RowDefinitions>
+                            <RowDefinition Height="*"/>
+                            <RowDefinition Height="Auto"/>
+                        </Grid.RowDefinitions>
+
+                        <!-- Image Preview -->
+                        <Border Grid.Row="0" Background="#1E1E2E" CornerRadius="8">
+                            <Grid>
+                                <!-- No result placeholder -->
+                                <TextBlock Text="Generated image will appear here"
+                                           Foreground="#888" FontSize="14"
+                                           HorizontalAlignment="Center" VerticalAlignment="Center"
+                                           IsVisible="{Binding !HasResultImage}"/>
+
+                                <!-- Result Image -->
+                                <Image Source="{Binding ResultImagePath, Converter={StaticResource PathToBitmapConverter}}"
+                                       Stretch="Uniform"
+                                       IsVisible="{Binding HasResultImage}"/>
+                            </Grid>
+                        </Border>
+
+                        <!-- Progress Bar -->
+                        <StackPanel Grid.Row="1" Margin="0,10,0,0" Spacing="5" IsVisible="{Binding IsProcessing}">
+                            <ProgressBar Value="{Binding ProcessingProgress}" Maximum="100" Height="8"/>
+                            <TextBlock Text="{Binding ProcessingStatus}" FontSize="11" Foreground="#666"/>
+                        </StackPanel>
+                    </Grid>
+                </Grid>
+            </TabItem>
+
+            <!-- Log Tab -->
+            <TabItem Header="Log">
+                <ScrollViewer>
+                    <TextBox Text="{Binding LogOutput}" IsReadOnly="True" AcceptsReturn="True"
+                             FontFamily="Monospace" FontSize="11" Background="#1E1E2E" Foreground="#AAF"/>
+                </ScrollViewer>
+            </TabItem>
+        </TabControl>
+    </DockPanel>
+</Window>
