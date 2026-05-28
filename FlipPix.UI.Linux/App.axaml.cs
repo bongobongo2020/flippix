@@ -51,13 +51,13 @@ public partial class App : Application
 
         logger.LogInfo("FlipPix Linux starting up");
 
-        // Start startup flow asynchronously
-        desktop.MainWindow = new SplashWindow();
-        desktop.MainWindow.Show();
+        var splash = new SplashWindow();
+        desktop.MainWindow = splash;
+        splash.Show();
 
         Task.Run(async () =>
         {
-            await StartupFlowAsync(desktop, settingsService, logger);
+            await StartupFlowAsync(desktop, settingsService, logger, splash);
         });
 
         base.OnFrameworkInitializationCompleted();
@@ -66,31 +66,31 @@ public partial class App : Application
     private async Task StartupFlowAsync(
         IClassicDesktopStyleApplicationLifetime desktop,
         SettingsService settingsService,
-        IAppLogger logger)
+        IAppLogger logger,
+        Window splash)
     {
         try
         {
             if (!settingsService.IsComfyUIFolderConfigured())
             {
                 logger.LogInfo("ComfyUI not configured. Showing setup.");
-                bool setupDone = false;
 
                 await Dispatcher.UIThread.InvokeAsync(async () =>
                 {
                     var setupWin = new SetupChoiceWindow();
+                    splash.Close();
                     desktop.MainWindow = setupWin;
                     setupWin.Show();
 
                     setupWin.Closed += (_, _) =>
                     {
-                        setupDone = setupWin.UserConfirmed;
                         if (!setupWin.UserConfirmed)
                         {
                             desktop.Shutdown();
                         }
                         else
                         {
-                            _ = ShowMainWindowAsync(desktop);
+                            _ = ShowMainWindowAsync(desktop, null);
                         }
                     };
                 });
@@ -98,7 +98,7 @@ public partial class App : Application
             else
             {
                 await CheckServerConnectivityAsync(settingsService, logger);
-                await ShowMainWindowAsync(desktop);
+                await ShowMainWindowAsync(desktop, splash);
             }
         }
         catch (Exception ex)
@@ -106,6 +106,7 @@ public partial class App : Application
             logger.LogError(ex, "Error during startup");
             await Dispatcher.UIThread.InvokeAsync(async () =>
             {
+                splash.Close();
                 var box = MessageBoxManager.GetMessageBoxStandard(
                     "Startup Error",
                     $"FlipPix failed to start:\n{ex.Message}",
@@ -116,7 +117,7 @@ public partial class App : Application
         }
     }
 
-    private async Task ShowMainWindowAsync(IClassicDesktopStyleApplicationLifetime desktop)
+    private async Task ShowMainWindowAsync(IClassicDesktopStyleApplicationLifetime desktop, Window? closePrev)
     {
         await Dispatcher.UIThread.InvokeAsync(() =>
         {
@@ -127,6 +128,7 @@ public partial class App : Application
             var mainWindow = new Windows.ImageGeneratorWindow(imageGeneratorViewModel, settingsService, windowPositionService);
             desktop.MainWindow = mainWindow;
             mainWindow.Show();
+            closePrev?.Close();
         });
     }
 

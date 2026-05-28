@@ -1,11 +1,11 @@
 using System;
 using Avalonia.Controls;
+using Avalonia.Input;
 using Avalonia.Interactivity;
 using Avalonia.Markup.Xaml;
 using FlipPix.UI.Linux.Services;
 using FlipPix.UI.Linux.ViewModels;
 using FlipPix.Core.Services;
-using FlipPix.UI.Linux.Windows;
 
 namespace FlipPix.UI.Linux.Windows;
 
@@ -27,50 +27,105 @@ public partial class ImageGeneratorWindow : Window
         Closing += OnClosing;
     }
 
-    private void InitializeComponent()
-    {
-        AvaloniaXamlLoader.Load(this);
-    }
+    private void InitializeComponent() => AvaloniaXamlLoader.Load(this);
 
     private void OnOpened(object? sender, EventArgs e)
     {
-        // Register TopLevel for file dialogs
         FileDialogService.SetTopLevel(TopLevel.GetTopLevel(this)!);
         _windowPositionService.LoadPosition("ImageGenerator", this);
     }
 
-    private void OnClosing(object? sender, Avalonia.Controls.WindowClosingEventArgs e)
+    private void OnClosing(object? sender, WindowClosingEventArgs e)
     {
         _windowPositionService.SavePosition("ImageGenerator", this);
     }
 
-    private void SettingsButton_Click(object sender, RoutedEventArgs e)
+    private void Header_PointerPressed(object? sender, PointerPressedEventArgs e)
+    {
+        if (e.GetCurrentPoint(this).Properties.IsLeftButtonPressed)
+            BeginMoveDrag(e);
+    }
+
+    private void SettingsButton_Click(object? sender, RoutedEventArgs e)
+    {
+        try { new SettingsWindow(_settingsService).ShowDialog(this); }
+        catch (Exception ex) { System.Diagnostics.Debug.WriteLine($"Settings error: {ex.Message}"); }
+    }
+
+    private void NavVideoGenerator_Click(object? sender, RoutedEventArgs e)
     {
         try
         {
-            var settingsWindow = new SettingsWindow(_settingsService);
-            settingsWindow.ShowDialog(this);
+            var services = App.Services;
+            if (services == null) return;
+            var vm = services.GetService(typeof(VideoGeneratorViewModel)) as VideoGeneratorViewModel;
+            var wps = services.GetService(typeof(WindowPositionService)) as WindowPositionService;
+            if (vm != null && wps != null) new VideoGeneratorWindow(vm, wps).Show();
         }
-        catch (Exception ex)
-        {
-            System.Diagnostics.Debug.WriteLine($"Error opening settings: {ex.Message}");
-        }
+        catch (Exception ex) { System.Diagnostics.Debug.WriteLine($"NavVideoGenerator error: {ex.Message}"); }
     }
 
-    private void ComfyUIButton_Click(object sender, RoutedEventArgs e)
+    private void NavVideoEnhance_Click(object? sender, RoutedEventArgs e)
     {
-        if (_settingsService?.Settings?.BaseUrl != null)
+        try
         {
-            try
-            {
-                var psi = new System.Diagnostics.ProcessStartInfo
-                {
-                    FileName = _settingsService.Settings.BaseUrl,
-                    UseShellExecute = true
-                };
-                System.Diagnostics.Process.Start(psi);
-            }
-            catch { }
+            var services = App.Services;
+            if (services == null) return;
+            var vm = services.GetService(typeof(FlipPix.UI.Linux.ViewModels.Video.VideoEnhanceViewModel)) as FlipPix.UI.Linux.ViewModels.Video.VideoEnhanceViewModel;
+            var wps = services.GetService(typeof(WindowPositionService)) as WindowPositionService;
+            if (vm != null && wps != null) new VideoEnhanceWindow(vm, wps).Show();
         }
+        catch (Exception ex) { System.Diagnostics.Debug.WriteLine($"NavVideoEnhance error: {ex.Message}"); }
+    }
+
+    private void NavCameraEdit_Click(object? sender, RoutedEventArgs e)
+    {
+        try
+        {
+            var services = App.Services;
+            if (services == null) return;
+            var vm = services.GetService(typeof(FlipPixViewModel)) as FlipPixViewModel;
+            var wps = services.GetService(typeof(WindowPositionService)) as WindowPositionService;
+            if (vm != null && wps != null) new FlipPixWindow(vm, wps).Show();
+        }
+        catch (Exception ex) { System.Diagnostics.Debug.WriteLine($"NavCameraEdit error: {ex.Message}"); }
+    }
+
+    private void NavI2V2A_Click(object? sender, RoutedEventArgs e)
+    {
+        try
+        {
+            var services = App.Services;
+            if (services == null) return;
+            var vm = services.GetService(typeof(I2V2AViewModel)) as I2V2AViewModel;
+            var nav = services.GetService(typeof(INavigationService)) as INavigationService;
+            var wps = services.GetService(typeof(WindowPositionService)) as WindowPositionService;
+            if (vm != null && nav != null && wps != null) new I2V2AWindow(vm, nav, wps).Show();
+        }
+        catch (Exception ex) { System.Diagnostics.Debug.WriteLine($"NavI2V2A error: {ex.Message}"); }
+    }
+
+    private void NavStoryVideo_Click(object? sender, RoutedEventArgs e)
+    {
+        try
+        {
+            var services = App.Services;
+            if (services == null) return;
+            var vm = services.GetService(typeof(StoryVideoViewModel)) as StoryVideoViewModel;
+            var wps = services.GetService(typeof(WindowPositionService)) as WindowPositionService;
+            if (vm != null && wps != null) new StoryVideoWindow(vm, wps).Show();
+        }
+        catch (Exception ex) { System.Diagnostics.Debug.WriteLine($"NavStoryVideo error: {ex.Message}"); }
+    }
+
+    private void NavOllama_Click(object? sender, RoutedEventArgs e)
+    {
+        try
+        {
+            var services = App.Services;
+            if (services == null) return;
+            new OllamaWindow().Show();
+        }
+        catch (Exception ex) { System.Diagnostics.Debug.WriteLine($"NavOllama error: {ex.Message}"); }
     }
 }
