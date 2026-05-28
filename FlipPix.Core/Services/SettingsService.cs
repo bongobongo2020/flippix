@@ -99,7 +99,7 @@ namespace FlipPix.Core.Services
                                    !uri.Host.Equals("127.0.0.1", StringComparison.OrdinalIgnoreCase) &&
                                    !uri.Host.Equals("0.0.0.0", StringComparison.OrdinalIgnoreCase);
 
-                    if (isRemote && Directory.Exists(_settings.RemoteOutputFolderPath))
+                    if (isRemote && !string.IsNullOrEmpty(_settings.RemoteOutputFolderPath))
                     {
                         return true;
                     }

@@ -31,6 +31,12 @@ public partial class SettingsWindow : Window
             outputBox.Text = settings.OutputFolderPath ?? string.Empty;
         if (this.FindControl<TextBox>("ComfyUIFolderBox") is { } comfyBox)
             comfyBox.Text = settings.ComfyUIFolderPath ?? string.Empty;
+
+        var lm = settings.LMStudioSettings;
+        if (this.FindControl<TextBox>("LMStudioServerBox") is { } serverBox)
+            serverBox.Text = settings.LMStudioServer ?? lm?.BaseUrl?.Replace("http://", "").Split(':')[0] ?? string.Empty;
+        if (this.FindControl<TextBox>("LMStudioPortBox") is { } portBox)
+            portBox.Text = settings.LMStudioPort ?? lm?.BaseUrl?.Split(':').LastOrDefault() ?? "8080";
     }
 
     private void SaveButton_Click(object sender, RoutedEventArgs e)
@@ -42,6 +48,16 @@ public partial class SettingsWindow : Window
             settings.OutputFolderPath = outputBox.Text ?? settings.OutputFolderPath;
         if (this.FindControl<TextBox>("ComfyUIFolderBox") is { } comfyBox)
             settings.ComfyUIFolderPath = comfyBox.Text ?? settings.ComfyUIFolderPath;
+
+        if (this.FindControl<TextBox>("LMStudioServerBox") is { } serverBox && !string.IsNullOrWhiteSpace(serverBox.Text))
+        {
+            settings.LMStudioServer = serverBox.Text.Trim();
+            var port = this.FindControl<TextBox>("LMStudioPortBox")?.Text?.Trim() ?? "8080";
+            settings.LMStudioPort = port;
+            if (settings.LMStudioSettings != null)
+                settings.LMStudioSettings.BaseUrl = $"http://{settings.LMStudioServer}:{port}";
+        }
+
         _settingsService.SaveSettings(settings);
         Close();
     }

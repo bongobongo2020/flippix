@@ -2,6 +2,7 @@
 // These replace System.Windows.* APIs with Linux-compatible equivalents
 
 using System;
+using System.IO;
 using Avalonia.Threading;
 
 // Provide CommandManager.InvalidateRequerySuggested() as a no-op
@@ -153,7 +154,6 @@ namespace System.Windows
 // but some VMs still have BitmapImage type references
 namespace System.Windows.Media.Imaging
 {
-    // Stub class - not actually used, we replace with string paths
     public class BitmapImage
     {
         public int PixelWidth { get; set; }
@@ -163,10 +163,38 @@ namespace System.Windows.Media.Imaging
         public Uri? UriSource { get; set; }
         public BitmapCacheOption CacheOption { get; set; }
         public BitmapCreateOptions CreateOptions { get; set; }
-        public System.IO.Stream? StreamSource { get; set; }
+        public Stream? StreamSource { get; set; }
+
+        public Avalonia.Media.Imaging.Bitmap? AvaloniaBitmap { get; private set; }
 
         public void BeginInit() { }
-        public void EndInit() { }
+
+        public void EndInit()
+        {
+            try
+            {
+                if (StreamSource != null)
+                {
+                    if (StreamSource.CanSeek)
+                        StreamSource.Position = 0;
+                    AvaloniaBitmap = new Avalonia.Media.Imaging.Bitmap(StreamSource);
+                }
+                else if (UriSource != null)
+                {
+                    string localPath = UriSource.IsAbsoluteUri ? UriSource.LocalPath : UriSource.ToString();
+                    if (File.Exists(localPath))
+                        AvaloniaBitmap = new Avalonia.Media.Imaging.Bitmap(localPath);
+                }
+
+                if (AvaloniaBitmap != null)
+                {
+                    PixelWidth = (int)AvaloniaBitmap.Size.Width;
+                    PixelHeight = (int)AvaloniaBitmap.Size.Height;
+                }
+            }
+            catch { }
+        }
+
         public void Freeze() { }
     }
 

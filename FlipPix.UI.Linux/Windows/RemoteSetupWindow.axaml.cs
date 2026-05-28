@@ -13,6 +13,12 @@ public partial class RemoteSetupWindow : Window
     {
         InitializeComponent();
         _settingsService = settingsService;
+
+        var s = settingsService.Settings;
+        if (!string.IsNullOrEmpty(s.BaseUrl) && this.FindControl<TextBox>("ServerUrlBox") is { } urlBox)
+            urlBox.Text = s.BaseUrl;
+        if (!string.IsNullOrEmpty(s.RemoteOutputFolderPath) && this.FindControl<TextBox>("OutputFolderBox") is { } outBox)
+            outBox.Text = s.RemoteOutputFolderPath;
     }
 
     private void InitializeComponent()
@@ -26,7 +32,7 @@ public partial class RemoteSetupWindow : Window
         if (this.FindControl<TextBox>("ServerUrlBox") is { } urlBox && !string.IsNullOrEmpty(urlBox.Text))
             settings.BaseUrl = urlBox.Text;
         if (this.FindControl<TextBox>("OutputFolderBox") is { } outputBox && !string.IsNullOrEmpty(outputBox.Text))
-            settings.OutputFolderPath = outputBox.Text;
+            settings.RemoteOutputFolderPath = outputBox.Text;
         _settingsService.SaveSettings(settings);
         Close(true);
     }

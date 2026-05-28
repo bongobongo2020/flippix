@@ -89,7 +89,7 @@ namespace FlipPix.UI.Linux.ViewModels
         {
             if (!Uri.TryCreate(ServerUrl, UriKind.Absolute, out _)) { ValidationMessage = "Invalid server URL."; CanSave = false; return; }
             if (string.IsNullOrEmpty(RemoteOutputFolderPath)) { ValidationMessage = "Remote output folder required."; CanSave = false; return; }
-            if (!Directory.Exists(RemoteOutputFolderPath)) { ValidationMessage = "Remote output folder not accessible."; CanSave = false; return; }
+            if (string.IsNullOrEmpty(RemoteOutputFolderPath)) { ValidationMessage = "Remote output folder required."; CanSave = false; return; }
             if (!IsServerConnected) { ValidationMessage = "Folder OK - please test server connection."; CanSave = false; return; }
             ValidationMessage = "Remote configuration validated!"; CanSave = true; OutputFolderInfo = $"Remote output: {RemoteOutputFolderPath}";
         }

@@ -12,6 +12,8 @@ public class PathToBitmapConverter : IValueConverter
 
     public object? Convert(object? value, Type targetType, object? parameter, CultureInfo culture)
     {
+        if (value is System.Windows.Media.Imaging.BitmapImage bitmapImage)
+            return bitmapImage.AvaloniaBitmap;
         if (value is not string path || string.IsNullOrEmpty(path) || !File.Exists(path))
             return null;
         try
