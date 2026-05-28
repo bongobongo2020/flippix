@@ -766,7 +766,14 @@ namespace FlipPix.UI.ViewModels
             var promptId = await _comfyUIService.ExecuteWorkflowAsync(updatedWorkflow, progress, cancellationToken);
 
             // Get output images
-            var outputImages = await GetOutputImagesFromComfyUI(promptId);
+            var outputImages = await _imageRetriever.GetOutputImagesAsync(
+                _comfyUIService.HttpClient,
+                _settingsService,
+                _logger,
+                AddLog,
+                specificFolder: "ZImage",
+                promptId: promptId,
+                ct: cancellationToken);
             if (!outputImages.Any())
             {
                 throw new InvalidOperationException("No output images were generated");
@@ -1022,174 +1029,6 @@ namespace FlipPix.UI.ViewModels
             {
                 return baseTemplate.Replace("{$spicy-content-with}", "");
             }
-        }
-
-        private async Task<List<byte[]>> GetOutputImagesFromComfyUI(string promptId)
-        {
-            var images = new List<byte[]>();
-
-            try
-            {
-                var baseUrl = _settingsService.Settings?.BaseUrl;
-                if (string.IsNullOrEmpty(baseUrl))
-                {
-                    _logger.LogWarning("Settings BaseUrl is null or empty, reloading settings");
-                    baseUrl = _settingsService.LoadSettings().BaseUrl;
-                    if (string.IsNullOrEmpty(baseUrl))
-                    {
-                        _logger.LogWarning("Failed to load BaseUrl from settings, using default");
-                        baseUrl = "http://127.0.0.1:8188";
-                    }
-                }
-                var uri = new Uri(baseUrl);
-                var actualServer = uri.Host;
-
-                bool isRemoteComfyUI = _imageRetriever.IsComfyUIRemote(_settingsService);
-
-                AddLog($"ComfyUI server: {actualServer}");
-                AddLog($"Is remote ComfyUI: {isRemoteComfyUI}");
-
-                int retryCount = 0;
-                int maxRetries = 20;
-
-                while (retryCount < maxRetries && !images.Any())
-                {
-                    if (retryCount > 0)
-                    {
-                        AddLog($"Retry {retryCount}/{maxRetries} - waiting 5 seconds before checking again...");
-                        await Task.Delay(5000);
-                    }
-
-                    if (isRemoteComfyUI)
-                    {
-                        AddLog("Detected remote ComfyUI server, downloading generated image...");
-
-                        var outputFiles = await _comfyUIService.HttpClient.GetOutputFilesAsync();
-                        AddLog($"Found {outputFiles.Count} potential output files");
-
-                        var imageFiles = outputFiles.Where(f =>
-                            f.EndsWith(".png") &&
-                            !f.StartsWith("z-image_") &&
-                            !f.StartsWith("temp_"))
-                            .ToList();
-
-                        if (imageFiles.Any())
-                        {
-                            var filename = imageFiles.Last();
-                            AddLog($"Downloading generated image: {filename}");
-
-                            var imageData = await _comfyUIService.HttpClient.DownloadOutputImageAsync(filename);
-                            if (imageData != null)
-                            {
-                                images.Add(imageData);
-                                AddLog($"Successfully downloaded image ({imageData.Length} bytes)");
-                            }
-                        }
-                        else
-                        {
-                            var fallbackImage = await _comfyUIService.HttpClient.TryDownloadRecentOutputAsync(promptId);
-                            if (fallbackImage != null)
-                            {
-                                images.Add(fallbackImage);
-                                AddLog($"Successfully downloaded image via fallback method ({fallbackImage.Length} bytes)");
-                            }
-                        }
-                    }
-                    else
-                    {
-                        var comfyUIOutputDir = _settingsService.Settings?.OutputFolderPath;
-                        if (string.IsNullOrEmpty(comfyUIOutputDir))
-                        {
-                            AddLog("ERROR: ComfyUI output folder not configured");
-                            return images;
-                        }
-
-                        if (!Directory.Exists(comfyUIOutputDir))
-                        {
-                            AddLog($"ERROR: ComfyUI output folder not found: {comfyUIOutputDir}");
-                            return images;
-                        }
-
-                        var searchDirs = new List<string> { comfyUIOutputDir };
-
-                        var zimageDir = Path.Combine(comfyUIOutputDir, "ZImage");
-                        if (Directory.Exists(zimageDir))
-                        {
-                            searchDirs.Add(zimageDir);
-                            try
-                            {
-                                var dateDirs = Directory.GetDirectories(zimageDir)
-                                    .OrderByDescending(d => Directory.GetLastWriteTime(d))
-                                    .Take(3);
-                                foreach (var dateDir in dateDirs)
-                                {
-                                    searchDirs.Add(dateDir);
-                                }
-                            }
-                            catch { }
-                        }
-
-                        AddLog($"Searching in {searchDirs.Count} directories for output images");
-
-                        foreach (var searchDir in searchDirs)
-                        {
-                            var recentFiles = Directory.GetFiles(searchDir, "*.png")
-                                .Select(f => new FileInfo(f))
-                                .Where(f => (DateTime.Now - f.LastWriteTime).TotalMinutes < 2)
-                                .OrderByDescending(f => f.LastWriteTime)
-                                .ToList();
-
-                            if (recentFiles.Any())
-                            {
-                                AddLog($"Found {recentFiles.Count} recent PNG files in: {Path.GetFileName(searchDir)}");
-                                var latestFile = recentFiles.First();
-                                AddLog($"Using latest file: {latestFile.Name} (modified: {latestFile.LastWriteTime})");
-                                images.Add(await File.ReadAllBytesAsync(latestFile.FullName));
-                                break;
-                            }
-                        }
-
-                        if (!images.Any())
-                        {
-                            AddLog($"No recent images found in retry {retryCount + 1}");
-
-                            if (retryCount >= 5)
-                            {
-                                foreach (var searchDir in searchDirs)
-                                {
-                                    var olderFiles = Directory.GetFiles(searchDir, "*.png")
-                                        .Select(f => new FileInfo(f))
-                                        .Where(f => (DateTime.Now - f.LastWriteTime).TotalMinutes < 10)
-                                        .OrderByDescending(f => f.LastWriteTime)
-                                        .ToList();
-
-                                    if (olderFiles.Any())
-                                    {
-                                        AddLog($"Fallback: Found {olderFiles.Count} PNG files in last 10 minutes in: {Path.GetFileName(searchDir)}");
-                                        var latestFile = olderFiles.First();
-                                        AddLog($"Using fallback file: {latestFile.Name} (modified: {latestFile.LastWriteTime})");
-                                        images.Add(await File.ReadAllBytesAsync(latestFile.FullName));
-                                        break;
-                                    }
-                                }
-                            }
-                        }
-                    }
-
-                    retryCount++;
-                }
-
-                if (!images.Any())
-                {
-                    AddLog("WARNING: No output images received after all retries");
-                }
-            }
-            catch (Exception ex)
-            {
-                AddLog($"ERROR retrieving output images: {ex.Message}");
-            }
-
-            return images;
         }
 
         protected override void Dispose(bool disposing)
