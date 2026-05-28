@@ -75,7 +75,7 @@ public partial class App : Application
             {
                 logger.LogInfo("ComfyUI not configured. Showing setup.");
 
-                await Dispatcher.UIThread.InvokeAsync(async () =>
+                await Dispatcher.UIThread.InvokeAsync(() =>
                 {
                     var setupWin = new SetupChoiceWindow();
                     splash.Close();
@@ -87,6 +87,28 @@ public partial class App : Application
                         if (!setupWin.UserConfirmed)
                         {
                             desktop.Shutdown();
+                            return;
+                        }
+
+                        if (setupWin.IsLocalSelected)
+                        {
+                            // Show folder picker to configure local ComfyUI path
+                            var setupViewModel = _serviceProvider?.GetRequiredService<ComfyUIFolderSetupViewModel>();
+                            if (setupViewModel == null) { desktop.Shutdown(); return; }
+                            var folderWin = new ComfyUIFolderSetupWindow(setupViewModel);
+                            desktop.MainWindow = folderWin;
+                            folderWin.Show();
+                            folderWin.Closed += (_, _) => _ = ShowMainWindowAsync(desktop, null);
+                        }
+                        else if (setupWin.IsRemoteSelected)
+                        {
+                            // Show remote server URL entry
+                            var settingsService = _serviceProvider?.GetRequiredService<SettingsService>();
+                            if (settingsService == null) { desktop.Shutdown(); return; }
+                            var remoteWin = new RemoteSetupWindow(settingsService);
+                            desktop.MainWindow = remoteWin;
+                            remoteWin.Show();
+                            remoteWin.Closed += (_, _) => _ = ShowMainWindowAsync(desktop, null);
                         }
                         else
                         {
