@@ -1,0 +1,746 @@
+<Window xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:vm="clr-namespace:FlipPix.UI.Linux.ViewModels;assembly=FlipPix.UI.Linux"
+        x:Class="FlipPix.UI.Linux.Windows.ImageGeneratorWindow"
+        Title="FlipPix - Image Generator"
+        Width="1050" Height="950"
+        MinWidth="800" MinHeight="700"
+        WindowStartupLocation="CenterScreen">
+
+    <DockPanel>
+        <!-- Header (draggable) -->
+        <Border DockPanel.Dock="Top" PointerPressed="Header_PointerPressed">
+            <Border.Background>
+                <LinearGradientBrush StartPoint="0%,0%" EndPoint="100%,0%">
+                    <GradientStop Color="#FF6B35" Offset="0"/>
+                    <GradientStop Color="#F7931E" Offset="1"/>
+                </LinearGradientBrush>
+            </Border.Background>
+            <StackPanel Margin="25,18">
+                <TextBlock Text="🖼️ FlipPix Image Generator" FontSize="26" FontWeight="Bold" Foreground="White"/>
+                <TextBlock Text="AI-powered image generation with ComfyUI" FontSize="12" Foreground="#FFFAF0" Margin="0,4,0,0"/>
+            </StackPanel>
+        </Border>
+
+        <!-- Navigation Bar -->
+        <Border DockPanel.Dock="Top" Background="#E9ECEF" BorderBrush="#DEE2E6" BorderThickness="0,1,0,1" Padding="15,8">
+            <WrapPanel Orientation="Horizontal">
+                <TextBlock Text="Tools:" FontWeight="SemiBold" FontSize="12" VerticalAlignment="Center" Margin="0,0,12,0" Foreground="#495057"/>
+                <Button Content="🎬 Video Generator" Classes="nav" Background="#6366F1" Click="NavVideoGenerator_Click"/>
+                <Button Content="✨ Enhance Video" Classes="nav" Background="#1565C0" Click="NavVideoEnhance_Click"/>
+                <Button Content="📷 Camera Edit" Classes="nav" Background="#10B981" Click="NavCameraEdit_Click"/>
+                <Button Content="🔊 Image to Video+Audio" Classes="nav" Click="NavI2V2A_Click"/>
+                <Button Content="📖 Story Video" Classes="nav" Click="NavStoryVideo_Click"/>
+                <Button Content="🧠 Ollama" Classes="nav" Click="NavOllama_Click"/>
+                <Button Content="🔍 Analyze" Classes="nav" Background="#9333EA" Click="NavAnalyze_Click"/>
+                <Button Content="⚙️ Settings" Classes="nav" Click="SettingsButton_Click"/>
+                <Button Content="✕ Exit" Classes="nav" Background="#DC3545" Click="ExitButton_Click"/>
+            </WrapPanel>
+        </Border>
+
+        <!-- Status Bar -->
+        <Border DockPanel.Dock="Bottom" Background="#F8F9FA" BorderBrush="#DEE2E6" BorderThickness="0,1,0,0" Height="28">
+            <DockPanel>
+                <TextBlock Text="{Binding StatusBarMessage}" VerticalAlignment="Center" Margin="10,0" FontSize="11"/>
+                <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" VerticalAlignment="Center" Margin="10,0" Spacing="4">
+                    <TextBlock Text="ComfyUI:" FontSize="11" Foreground="#666"/>
+                    <TextBlock Text="{Binding ComfyUIServer}" FontSize="11" FontWeight="Bold"/>
+                    <TextBlock Text=":" FontSize="11"/>
+                    <TextBlock Text="{Binding ComfyUIPort}" FontSize="11" FontWeight="Bold"/>
+                </StackPanel>
+            </DockPanel>
+        </Border>
+
+        <!-- Main Content -->
+        <TabControl>
+            <!-- Image Generator Tab -->
+            <TabItem Header="🎨 Image Generator">
+                <ScrollViewer HorizontalScrollBarVisibility="Disabled">
+                    <StackPanel Margin="20,15">
+
+                        <!-- Images Side by Side -->
+                        <Border Background="#F8F9FA" BorderBrush="#DEE2E6" BorderThickness="1" CornerRadius="8" Padding="20" Margin="0,0,0,15">
+                            <Grid ColumnDefinitions="*,*">
+                                <!-- Input Image -->
+                                <StackPanel Grid.Column="0" Margin="0,0,10,0">
+                                    <TextBlock Text="📤 Input Image (optional)" FontSize="15" FontWeight="Bold" Margin="0,0,0,8" Foreground="#FF6B35"/>
+                                    <Border BorderBrush="#DEE2E6" BorderThickness="2" Background="White" Height="220" CornerRadius="5" Margin="0,0,0,8">
+                                        <Grid>
+                                            <TextBlock Text="No image selected" HorizontalAlignment="Center" VerticalAlignment="Center"
+                                                       Foreground="#999" FontStyle="Italic"
+                                                       IsVisible="{Binding !HasInputImage}"/>
+                                            <Image Source="{Binding ImagePreviewSource, Converter={StaticResource PathToBitmapConverter}}"
+                                                   Stretch="Uniform" IsVisible="{Binding HasInputImage}"/>
+                                        </Grid>
+                                    </Border>
+                                    <Grid ColumnDefinitions="*,Auto">
+                                        <TextBox Grid.Column="0" Text="{Binding ImageFilePath}" IsReadOnly="True" Padding="8" FontSize="11"/>
+                                        <Button Grid.Column="1" Content="Browse" Classes="secondary" Margin="8,0,0,0"
+                                                Command="{Binding SelectImageCommand}"/>
+                                    </Grid>
+                                </StackPanel>
+
+                                <!-- Result Image -->
+                                <StackPanel Grid.Column="1" Margin="10,0,0,0">
+                                    <TextBlock Text="✨ Result Image" FontSize="15" FontWeight="Bold" Margin="0,0,0,8" Foreground="#FF6B35"/>
+                                    <Border BorderBrush="#DEE2E6" BorderThickness="2" Background="White" Height="220" CornerRadius="5" Margin="0,0,0,8">
+                                        <Grid>
+                                            <TextBlock Text="Result will appear here" HorizontalAlignment="Center" VerticalAlignment="Center"
+                                                       Foreground="#999" FontStyle="Italic"
+                                                       IsVisible="{Binding !HasResultImage}"/>
+                                            <Image Source="{Binding ResultPreviewSource, Converter={StaticResource PathToBitmapConverter}}"
+                                                   Stretch="Uniform" IsVisible="{Binding HasResultImage}"/>
+                                        </Grid>
+                                    </Border>
+                                    <Grid ColumnDefinitions="*,*">
+                                        <Button Grid.Column="0" Content="📂 Open Folder" Classes="secondary"
+                                                Command="{Binding OpenResultFolderCommand}"
+                                                IsEnabled="{Binding HasResultImage}" Margin="0,0,4,0"/>
+                                        <Button Grid.Column="1" Content="🎬 To Video" Classes="secondary"
+                                                Command="{Binding SendToVideoGeneratorCommand}"
+                                                IsEnabled="{Binding HasResultImage}" Margin="4,0,0,0"/>
+                                    </Grid>
+                                </StackPanel>
+                            </Grid>
+                        </Border>
+
+                        <!-- Prompts and Generate -->
+                        <Border Background="#F8F9FA" BorderBrush="#DEE2E6" BorderThickness="1" CornerRadius="8" Padding="20" Margin="0,0,0,15">
+                            <Grid ColumnDefinitions="2*,*">
+                                <StackPanel Grid.Column="0" Margin="0,0,20,0">
+                                    <TextBlock Text="💬 Prompt" FontWeight="SemiBold" FontSize="12" Margin="0,0,0,5"/>
+                                    <TextBox Text="{Binding CustomPrompt}" AcceptsReturn="True" Height="80"
+                                             Padding="10" FontSize="12" Margin="0,0,0,10"
+                                             Watermark="Describe the image you want to generate..."/>
+                                    <TextBlock Text="🚫 Negative Prompt" FontWeight="SemiBold" FontSize="12" Margin="0,0,0,5"/>
+                                    <TextBox Text="{Binding NegativePrompt}" AcceptsReturn="True" Height="50"
+                                             Padding="8" FontSize="11" Margin="0,0,0,10"
+                                             Watermark="What to avoid..."/>
+                                    <Grid ColumnDefinitions="*,Auto">
+                                        <Button Grid.Column="0" Content="💾 Save Prompt" Classes="secondary"
+                                                Command="{Binding SaveCustomPromptCommand}" Margin="0,0,8,0"/>
+                                        <Button Grid.Column="1" Content="🗑️ Delete Saved" Background="#DC3545" Foreground="White"
+                                                Command="{Binding DeleteSavedPromptCommand}"/>
+                                    </Grid>
+                                </StackPanel>
+
+                                <StackPanel Grid.Column="1" VerticalAlignment="Center">
+                                    <Button Content="🚀 Generate Image" Classes="primary"
+                                            Command="{Binding ProcessImageCommand}"
+                                            HorizontalAlignment="Stretch" Height="50" FontSize="14" Margin="0,0,0,15"/>
+
+                                    <Border Background="#FFF9F0" BorderBrush="#FFE0B0" BorderThickness="1" CornerRadius="5" Padding="12"
+                                            IsVisible="{Binding IsProcessing}">
+                                        <StackPanel>
+                                            <TextBlock Text="{Binding ProcessingStatus}" FontWeight="SemiBold" FontSize="11"
+                                                       Margin="0,0,0,5" TextAlignment="Center"/>
+                                            <ProgressBar Value="{Binding ProcessingProgress}" Height="16" Foreground="#FF6B35" Margin="0,0,0,5"/>
+                                            <TextBlock Text="{Binding ProgressPercentage}" HorizontalAlignment="Center"
+                                                       FontSize="11" FontWeight="Bold" Foreground="#FF6B35"/>
+                                        </StackPanel>
+                                    </Border>
+                                </StackPanel>
+                            </Grid>
+                        </Border>
+
+                        <!-- Advanced Settings -->
+                        <Expander Header="⚙️ Advanced Settings" IsExpanded="False" Margin="0,0,0,15">
+                            <Border Background="#F8F9FA" BorderBrush="#DEE2E6" BorderThickness="1" CornerRadius="5" Padding="15" Margin="0,8,0,0">
+                                <Grid ColumnDefinitions="*,*,*">
+                                    <StackPanel Grid.Column="0" Margin="0,0,15,0">
+                                        <TextBlock Text="Steps" FontWeight="SemiBold" FontSize="11" Margin="0,0,0,5"/>
+                                        <Grid ColumnDefinitions="*,Auto">
+                                            <Slider Grid.Column="0" Value="{Binding Steps}" Minimum="1" Maximum="30"
+                                                    TickFrequency="1" IsSnapToTickEnabled="True" VerticalAlignment="Center"/>
+                                            <TextBlock Grid.Column="1" Text="{Binding Steps}" Margin="8,0,0,0"
+                                                       VerticalAlignment="Center" FontWeight="Bold" MinWidth="25"/>
+                                        </Grid>
+                                    </StackPanel>
+                                    <StackPanel Grid.Column="1" Margin="0,0,15,0">
+                                        <TextBlock Text="CFG Scale" FontWeight="SemiBold" FontSize="11" Margin="0,0,0,5"/>
+                                        <Grid ColumnDefinitions="*,Auto">
+                                            <Slider Grid.Column="0" Value="{Binding Cfg}" Minimum="1" Maximum="10"
+                                                    TickFrequency="0.5" IsSnapToTickEnabled="True" VerticalAlignment="Center"/>
+                                            <TextBlock Grid.Column="1" Text="{Binding Cfg, StringFormat={}{0:F1}}" Margin="8,0,0,0"
+                                                       VerticalAlignment="Center" FontWeight="Bold" MinWidth="30"/>
+                                        </Grid>
+                                    </StackPanel>
+                                    <StackPanel Grid.Column="2">
+                                        <TextBlock Text="Denoise" FontWeight="SemiBold" FontSize="11" Margin="0,0,0,5"/>
+                                        <Grid ColumnDefinitions="*,Auto">
+                                            <Slider Grid.Column="0" Value="{Binding Denoise}" Minimum="0" Maximum="1"
+                                                    TickFrequency="0.05" IsSnapToTickEnabled="True" VerticalAlignment="Center"/>
+                                            <TextBlock Grid.Column="1" Text="{Binding Denoise, StringFormat={}{0:F2}}" Margin="8,0,0,0"
+                                                       VerticalAlignment="Center" FontWeight="Bold" MinWidth="35"/>
+                                        </Grid>
+                                    </StackPanel>
+                                </Grid>
+                            </Border>
+                        </Expander>
+
+                        <!-- Queue Management -->
+                        <Border Background="#F8F9FA" BorderBrush="#DEE2E6" BorderThickness="1" CornerRadius="8" Padding="20" Margin="0,0,0,15">
+                            <StackPanel>
+                                <TextBlock Text="📋 Queue" FontSize="15" FontWeight="Bold" Margin="0,0,0,10" Foreground="#FF6B35"/>
+                                <Grid ColumnDefinitions="*,*,*" Margin="0,0,0,12">
+                                    <Button Grid.Column="0" Content="➕ Add to Queue" Classes="secondary"
+                                            Command="{Binding AddToQueueCommand}" Margin="0,0,5,0"/>
+                                    <Button Grid.Column="1" Content="🚀 Process Queue" Classes="primary"
+                                            Command="{Binding ProcessQueueCommand}" Margin="5,0,5,0"/>
+                                    <Button Grid.Column="2" Content="🗑️ Clear" Background="#DC3545" Foreground="White"
+                                            Command="{Binding ClearQueueCommand}" Margin="5,0,0,0"/>
+                                </Grid>
+
+                                <Border Background="White" BorderBrush="#DEE2E6" BorderThickness="1" CornerRadius="5" MaxHeight="180">
+                                    <ScrollViewer VerticalScrollBarVisibility="Auto">
+                                        <ItemsControl ItemsSource="{Binding QueueItems}">
+                                            <ItemsControl.ItemTemplate>
+                                                <DataTemplate>
+                                                    <Border BorderBrush="#E9ECEF" BorderThickness="0,0,0,1" Padding="10">
+                                                        <Grid ColumnDefinitions="*,Auto,Auto">
+                                                            <StackPanel Grid.Column="0">
+                                                                <TextBlock Text="{Binding CameraControl}" FontWeight="SemiBold" FontSize="12"/>
+                                                                <TextBlock Text="{Binding Prompt}" FontSize="10" Foreground="#666"
+                                                                           TextTrimming="CharacterEllipsis" MaxWidth="300"/>
+                                                            </StackPanel>
+                                                            <TextBlock Grid.Column="1"
+                                                                       Text="{Binding Status}"
+                                                                       Foreground="{Binding Status, Converter={StaticResource StatusToForegroundConverter}}"
+                                                                       FontSize="11" FontWeight="Bold"
+                                                                       VerticalAlignment="Center" Margin="10,0"/>
+                                                            <Button Grid.Column="2" Content="❌" Background="Transparent"
+                                                                    BorderThickness="0" Padding="5" FontSize="12"
+                                                                    Command="{Binding DataContext.RemoveFromQueueCommand, RelativeSource={RelativeSource AncestorType=Window}}"
+                                                                    CommandParameter="{Binding}"/>
+                                                        </Grid>
+                                                    </Border>
+                                                </DataTemplate>
+                                            </ItemsControl.ItemTemplate>
+                                        </ItemsControl>
+                                    </ScrollViewer>
+                                </Border>
+                            </StackPanel>
+                        </Border>
+
+                        <!-- Log -->
+                        <Expander Header="📝 Processing Log" IsExpanded="True">
+                            <Border Background="White" BorderBrush="#DEE2E6" BorderThickness="1" Margin="0,8,0,0">
+                                <ScrollViewer MaxHeight="150" VerticalScrollBarVisibility="Auto">
+                                    <TextBox Text="{Binding LogOutput}" IsReadOnly="True"
+                                             FontFamily="Monospace" FontSize="10" Background="Transparent"
+                                             BorderThickness="0" Padding="10"/>
+                                </ScrollViewer>
+                            </Border>
+                        </Expander>
+
+                    </StackPanel>
+                </ScrollViewer>
+            </TabItem>
+
+            <!-- Story Image Q Tab -->
+            <TabItem Header="📖 Story Image Q">
+                <ScrollViewer VerticalScrollBarVisibility="Auto">
+                    <StackPanel Margin="20">
+
+                        <!-- Header + Workflow selector -->
+                        <Grid Margin="0,0,0,20">
+                            <TextBlock Text="✨ Story Image Generator Q" FontSize="22" FontWeight="SemiBold" Foreground="#8B5CF6" VerticalAlignment="Center"/>
+                            <StackPanel HorizontalAlignment="Right" Orientation="Horizontal" VerticalAlignment="Center" Spacing="8">
+                                <TextBlock Text="Workflow:" VerticalAlignment="Center" FontSize="12" FontWeight="SemiBold"/>
+                                <ComboBox ItemsSource="{x:Static vm:StoryImageGeneratorQViewModel.WorkflowModes}"
+                                          SelectedItem="{Binding StoryGeneratorQ.SelectedWorkflowMode, Mode=TwoWay}"
+                                          Width="110" Height="32" FontSize="12"/>
+                                <Button Content="⚙️" Width="36" Height="36" Classes="secondary" Padding="0"
+                                        Command="{Binding StoryGeneratorQ.ToggleSettingsVisibilityCommand}"/>
+                            </StackPanel>
+                        </Grid>
+
+                        <!-- Collapsible settings panel -->
+                        <Border Background="#F9FAFB" BorderBrush="#E5E7EB" BorderThickness="1" CornerRadius="10" Padding="18" Margin="0,0,0,16"
+                                IsVisible="{Binding StoryGeneratorQ.SettingsVisible}">
+                            <Grid ColumnDefinitions="*,*,*" RowDefinitions="Auto,Auto,Auto">
+                                <!-- Steps -->
+                                <StackPanel Grid.Column="0" Grid.Row="0" Margin="0,0,12,0">
+                                    <TextBlock Text="Steps" FontWeight="SemiBold" FontSize="12" Margin="0,0,0,6"/>
+                                    <Grid ColumnDefinitions="*,Auto">
+                                        <Slider Grid.Column="0" Value="{Binding StoryGeneratorQ.Steps, Mode=TwoWay}" Minimum="1" Maximum="20" TickFrequency="1" IsSnapToTickEnabled="True"/>
+                                        <TextBlock Grid.Column="1" Text="{Binding StoryGeneratorQ.Steps}" Margin="8,0,0,0" FontWeight="Bold" FontSize="13" Foreground="#8B5CF6" VerticalAlignment="Center"/>
+                                    </Grid>
+                                </StackPanel>
+                                <!-- CFG -->
+                                <StackPanel Grid.Column="1" Grid.Row="0" Margin="0,0,12,0">
+                                    <TextBlock Text="CFG" FontWeight="SemiBold" FontSize="12" Margin="0,0,0,6"/>
+                                    <Grid ColumnDefinitions="*,Auto">
+                                        <Slider Grid.Column="0" Value="{Binding StoryGeneratorQ.Cfg, Mode=TwoWay}" Minimum="1" Maximum="10" TickFrequency="0.5" IsSnapToTickEnabled="True"/>
+                                        <TextBlock Grid.Column="1" Text="{Binding StoryGeneratorQ.Cfg, StringFormat={}{0:F1}}" Margin="8,0,0,0" FontWeight="Bold" FontSize="13" Foreground="#8B5CF6" VerticalAlignment="Center"/>
+                                    </Grid>
+                                </StackPanel>
+                                <!-- Denoise -->
+                                <StackPanel Grid.Column="2" Grid.Row="0">
+                                    <TextBlock Text="Denoise" FontWeight="SemiBold" FontSize="12" Margin="0,0,0,6"/>
+                                    <Grid ColumnDefinitions="*,Auto">
+                                        <Slider Grid.Column="0" Value="{Binding StoryGeneratorQ.Denoise, Mode=TwoWay}" Minimum="0" Maximum="1" TickFrequency="0.05" IsSnapToTickEnabled="True"/>
+                                        <TextBlock Grid.Column="1" Text="{Binding StoryGeneratorQ.Denoise, StringFormat={}{0:F2}}" Margin="8,0,0,0" FontWeight="Bold" FontSize="13" Foreground="#8B5CF6" VerticalAlignment="Center"/>
+                                    </Grid>
+                                </StackPanel>
+                                <!-- Negative Prompt -->
+                                <StackPanel Grid.Column="0" Grid.ColumnSpan="3" Grid.Row="1" Margin="0,12,0,0">
+                                    <TextBlock Text="Negative Prompt" FontWeight="SemiBold" FontSize="12" Margin="0,0,0,6"/>
+                                    <TextBox Text="{Binding StoryGeneratorQ.NegativePrompt, Mode=TwoWay}" AcceptsReturn="True" Height="55" Padding="10" FontSize="12"/>
+                                </StackPanel>
+                                <!-- LoRA (FireRed only) -->
+                                <StackPanel Grid.Column="0" Grid.ColumnSpan="3" Grid.Row="2" Margin="0,10,0,0"
+                                            IsVisible="{Binding StoryGeneratorQ.ShowLoRAOption}">
+                                    <CheckBox Content="Use LoRA" IsChecked="{Binding StoryGeneratorQ.UseLoRA, Mode=TwoWay}" FontSize="12" FontWeight="SemiBold"/>
+                                </StackPanel>
+                            </Grid>
+                        </Border>
+
+                        <!-- StoryImageZ options (style + LoRA + orientation) -->
+                        <Border Background="#F0FDF4" BorderBrush="#86EFAC" BorderThickness="1" CornerRadius="10" Padding="18" Margin="0,0,0,16"
+                                IsVisible="{Binding StoryGeneratorQ.ShowZOptions}">
+                            <Grid ColumnDefinitions="*,16,*,16,*">
+                                <!-- Style -->
+                                <StackPanel Grid.Column="0">
+                                    <TextBlock Text="🎨 ZStyle" FontWeight="SemiBold" FontSize="12" Foreground="#166534" Margin="0,0,0,6"/>
+                                    <ComboBox ItemsSource="{Binding StoryGeneratorQ.ZStyleNames}"
+                                              SelectedIndex="{Binding StoryGeneratorQ.ZSelectedStyleIndex, Mode=TwoWay}"
+                                              Height="32" Padding="8,0" FontSize="12"/>
+                                </StackPanel>
+                                <!-- LoRA -->
+                                <StackPanel Grid.Column="2">
+                                    <TextBlock Text="🔧 LoRA" FontWeight="SemiBold" FontSize="12" Foreground="#166534" Margin="0,0,0,6"/>
+                                    <CheckBox Content="Enable LoRA" IsChecked="{Binding StoryGeneratorQ.ZLoraEnabled, Mode=TwoWay}" FontSize="12" Margin="0,0,0,6"/>
+                                    <Grid ColumnDefinitions="*,Auto" IsVisible="{Binding StoryGeneratorQ.ZLoraEnabled}">
+                                        <ComboBox Grid.Column="0" ItemsSource="{Binding StoryGeneratorQ.ZAvailableLoras}"
+                                                  SelectedItem="{Binding StoryGeneratorQ.ZSelectedLora, Mode=TwoWay}"
+                                                  Height="32" Padding="8,0" FontSize="11" Margin="0,0,6,0"/>
+                                        <Button Grid.Column="1" Content="↻" Width="32" Height="32" Background="#16A34A" Foreground="White"
+                                                Command="{Binding StoryGeneratorQ.RefreshZLorasCommand}" BorderThickness="0" FontSize="14" FontWeight="Bold"/>
+                                    </Grid>
+                                    <StackPanel IsVisible="{Binding StoryGeneratorQ.ZLoraEnabled}" Margin="0,8,0,0">
+                                        <TextBlock Text="Strength" FontSize="11" Margin="0,0,0,4"/>
+                                        <Grid ColumnDefinitions="*,Auto">
+                                            <Slider Grid.Column="0" Value="{Binding StoryGeneratorQ.ZLoraStrengthModel, Mode=TwoWay}" Minimum="0" Maximum="2" TickFrequency="0.05" IsSnapToTickEnabled="True"/>
+                                            <TextBlock Grid.Column="1" Text="{Binding StoryGeneratorQ.ZLoraStrengthModel, StringFormat={}{0:F2}}" Margin="8,0,0,0" FontWeight="Bold" FontSize="12" Foreground="#16A34A" VerticalAlignment="Center"/>
+                                        </Grid>
+                                    </StackPanel>
+                                </StackPanel>
+                                <!-- Orientation -->
+                                <StackPanel Grid.Column="4">
+                                    <TextBlock Text="📐 Orientation" FontWeight="SemiBold" FontSize="12" Foreground="#166534" Margin="0,0,0,6"/>
+                                    <ComboBox ItemsSource="{x:Static vm:StoryImageGeneratorQViewModel.ZOrientations}"
+                                              SelectedItem="{Binding StoryGeneratorQ.ZSelectedOrientation, Mode=TwoWay}"
+                                              Height="32" Padding="8,0" FontSize="12"/>
+                                </StackPanel>
+                            </Grid>
+                        </Border>
+
+                        <!-- Main content: left=file selection, right=preview -->
+                        <Border Background="White" BorderBrush="#E5E7EB" BorderThickness="1" CornerRadius="12" Padding="20">
+                            <Grid ColumnDefinitions="*,20,*">
+                                <!-- Left: inputs -->
+                                <StackPanel Grid.Column="0">
+                                    <TextBlock Text="📝 Story Prompts" FontSize="15" FontWeight="SemiBold" Foreground="#374151" Margin="0,0,0,12"/>
+
+                                    <TextBlock Text="Input Image" FontSize="12" Foreground="#6B7280" Margin="0,0,0,5"/>
+                                    <Grid ColumnDefinitions="*,Auto" Margin="0,0,0,10">
+                                        <TextBox Grid.Column="0" Text="{Binding StoryGeneratorQ.InputImagePath, Mode=TwoWay}" IsReadOnly="True" Padding="10" Height="36" FontSize="11"/>
+                                        <Button Grid.Column="1" Content="Browse" Classes="secondary" Margin="8,0,0,0" Height="36"
+                                                Command="{Binding StoryGeneratorQ.SelectInputImageCommand}"/>
+                                    </Grid>
+
+                                    <TextBlock Text="Story Concept (optional)" FontSize="12" Foreground="#6B7280" Margin="0,0,0,5"/>
+                                    <TextBox Text="{Binding StoryGeneratorQ.StoryConcept, Mode=TwoWay}" Height="36" Padding="10" FontSize="11" Margin="0,0,0,10"
+                                             Watermark="e.g. revenge thriller, romantic journey, sci-fi survival"/>
+
+                                    <Button Content="🔍 Analyze Image with Qwen VL"
+                                            Command="{Binding StoryGeneratorQ.AnalyzeImageWithQwenVLCommand}"
+                                            HorizontalAlignment="Stretch" Height="42" Background="#F59E0B" Foreground="White"
+                                            BorderThickness="0" FontSize="13" FontWeight="SemiBold" Margin="0,0,0,6" CornerRadius="8"/>
+
+                                    <Border Background="#FEF3C7" BorderBrush="#FCD34D" BorderThickness="2" CornerRadius="6" Padding="10" Margin="0,0,0,10"
+                                            IsVisible="{Binding StoryGeneratorQ.IsAnalyzingImage}">
+                                        <StackPanel>
+                                            <TextBlock Text="{Binding StoryGeneratorQ.AnalysisStatus}" FontWeight="Bold" FontSize="11" TextAlignment="Center" Foreground="#92400E" Margin="0,0,0,5"/>
+                                            <ProgressBar IsIndeterminate="True" Height="16" Foreground="#F59E0B"/>
+                                        </StackPanel>
+                                    </Border>
+
+                                    <TextBlock Text="Prompts JSON File" FontSize="12" Foreground="#6B7280" Margin="0,0,0,5"/>
+                                    <Grid ColumnDefinitions="*,Auto" Margin="0,0,0,10">
+                                        <TextBox Grid.Column="0" Text="{Binding StoryGeneratorQ.PromptJsonFilePath, Mode=TwoWay}" IsReadOnly="True" Padding="10" Height="36" FontSize="11"/>
+                                        <Button Grid.Column="1" Content="Browse" Classes="secondary" Margin="8,0,0,0" Height="36"
+                                                Command="{Binding StoryGeneratorQ.SelectPromptJsonCommand}"/>
+                                    </Grid>
+
+                                    <Button Content="📥 Add Prompts from JSON"
+                                            Command="{Binding StoryGeneratorQ.LoadPromptsCommand}"
+                                            HorizontalAlignment="Stretch" Height="44" Classes="primary" FontSize="13" FontWeight="SemiBold"
+                                            Background="#8B5CF6"/>
+                                </StackPanel>
+
+                                <!-- Right: image preview -->
+                                <StackPanel Grid.Column="2">
+                                    <TextBlock Text="🖼️ Image Preview" FontSize="15" FontWeight="SemiBold" Foreground="#374151" Margin="0,0,0,12"/>
+                                    <Border BorderBrush="#E5E7EB" BorderThickness="2" Background="#F9FAFB" CornerRadius="10" Height="220">
+                                        <Grid>
+                                            <TextBlock Text="No image selected" HorizontalAlignment="Center" VerticalAlignment="Center"
+                                                       Foreground="#9CA3AF" FontSize="13"
+                                                       IsVisible="{Binding StoryGeneratorQ.InputImagePreview, Converter={StaticResource StringToVisibilityConverter}, ConverterParameter=inverse}"/>
+                                            <Image Source="{Binding StoryGeneratorQ.InputImagePreview, Converter={StaticResource PathToBitmapConverter}}"
+                                                   Stretch="Uniform" Margin="4"/>
+                                        </Grid>
+                                    </Border>
+                                </StackPanel>
+                            </Grid>
+                        </Border>
+
+                        <!-- Queue management -->
+                        <Border Background="White" BorderBrush="#E5E7EB" BorderThickness="1" CornerRadius="12" Padding="20" Margin="0,16,0,0">
+                            <StackPanel>
+                                <TextBlock Text="📋 Queue Management" FontSize="15" FontWeight="SemiBold" Foreground="#374151" Margin="0,0,0,12"/>
+
+                                <Grid ColumnDefinitions="*,*,*" Margin="0,0,0,12">
+                                    <Button Grid.Column="0" Content="🚀 Generate Story"
+                                            Command="{Binding StoryGeneratorQ.ProcessQueueCommand}"
+                                            Height="42" Background="#8B5CF6" Foreground="White" BorderThickness="0"
+                                            FontSize="13" FontWeight="SemiBold" Margin="0,0,6,0" CornerRadius="8" Classes="primary"/>
+                                    <Button Grid.Column="1" Content="📂 Output Folder"
+                                            Command="{Binding StoryGeneratorQ.OpenOutputFolderCommand}"
+                                            Height="42" Classes="secondary" FontSize="13" Margin="0,0,6,0"/>
+                                    <Button Grid.Column="2" Content="🗑️ Clear Queue"
+                                            Command="{Binding StoryGeneratorQ.ClearQueueCommand}"
+                                            Height="42" Background="#FEE2E2" Foreground="#DC2626" BorderThickness="0"
+                                            FontSize="13" CornerRadius="8"/>
+                                </Grid>
+
+                                <!-- Pause/Resume (while processing) -->
+                                <StackPanel Orientation="Horizontal" Margin="0,0,0,10" Spacing="8"
+                                            IsVisible="{Binding StoryGeneratorQ.IsProcessingQueue}">
+                                    <Button Content="⏸ Pause" Width="100" Height="30" Background="#F59E0B" Foreground="White" BorderThickness="0" FontWeight="SemiBold"
+                                            Command="{Binding StoryGeneratorQ.PauseQueueCommand}"/>
+                                    <Button Content="▶ Resume" Width="100" Height="30" Background="#10B981" Foreground="White" BorderThickness="0" FontWeight="SemiBold"
+                                            Command="{Binding StoryGeneratorQ.ResumeQueueCommand}"/>
+                                </StackPanel>
+
+                                <!-- Queue stats -->
+                                <Border Background="#F9FAFB" BorderBrush="#E5E7EB" BorderThickness="1" CornerRadius="8" Padding="10" Margin="0,0,0,12">
+                                    <StackPanel Orientation="Horizontal" Spacing="16">
+                                        <TextBlock Text="Queue:" FontWeight="SemiBold" FontSize="12" VerticalAlignment="Center"/>
+                                        <TextBlock Text="{Binding StoryGeneratorQ.QueuedCount, StringFormat='Queued: {0}'}" FontSize="11" Foreground="#6B7280" VerticalAlignment="Center"/>
+                                        <TextBlock Text="{Binding StoryGeneratorQ.CompletedCount, StringFormat='Done: {0}'}" FontSize="11" Foreground="#059669" VerticalAlignment="Center"/>
+                                        <TextBlock Text="{Binding StoryGeneratorQ.FailedCount, StringFormat='Failed: {0}'}" FontSize="11" Foreground="#DC2626" VerticalAlignment="Center"/>
+                                    </StackPanel>
+                                </Border>
+
+                                <!-- Progress (while processing) -->
+                                <Border Background="#FEF3C7" BorderBrush="#F59E0B" BorderThickness="1" CornerRadius="8" Padding="10" Margin="0,0,0,12"
+                                        IsVisible="{Binding StoryGeneratorQ.IsProcessingQueue}">
+                                    <StackPanel>
+                                        <TextBlock Text="{Binding StoryGeneratorQ.QueueProgressText, StringFormat='Processing: {0}'}"
+                                                   FontWeight="SemiBold" FontSize="11" Foreground="#92400E" Margin="0,0,0,5"/>
+                                        <ProgressBar Value="{Binding StoryGeneratorQ.QueueProgress, Mode=OneWay}"
+                                                     Maximum="{Binding StoryGeneratorQ.QueueTotal, Mode=OneWay}"
+                                                     Height="6" Foreground="#8B5CF6" Background="#F3F4F6" BorderThickness="0"/>
+                                    </StackPanel>
+                                </Border>
+
+                                <!-- Queue items list -->
+                                <Border Background="#F9FAFB" BorderBrush="#E5E7EB" BorderThickness="1" CornerRadius="8" MaxHeight="180">
+                                    <ScrollViewer VerticalScrollBarVisibility="Auto">
+                                        <ItemsControl ItemsSource="{Binding StoryGeneratorQ.QueueItems}">
+                                            <ItemsControl.ItemTemplate>
+                                                <DataTemplate>
+                                                    <Border BorderBrush="#E5E7EB" BorderThickness="0,0,0,1" Padding="10">
+                                                        <Grid ColumnDefinitions="Auto,*,Auto">
+                                                            <TextBlock Grid.Column="0" Text="{Binding Index, StringFormat='#{0}'}"
+                                                                       FontWeight="Bold" FontSize="12" Foreground="#8B5CF6" VerticalAlignment="Center" Margin="0,0,10,0"/>
+                                                            <TextBlock Grid.Column="1" Text="{Binding Prompt}" FontSize="11"
+                                                                       TextTrimming="CharacterEllipsis" VerticalAlignment="Center"
+                                                                       Foreground="{Binding Status, Converter={StaticResource StatusToForegroundConverter}}"/>
+                                                            <TextBlock Grid.Column="2" Text="{Binding StatusDisplay}" FontSize="10"
+                                                                       Foreground="#6B7280" VerticalAlignment="Center" Margin="8,0,0,0"/>
+                                                        </Grid>
+                                                    </Border>
+                                                </DataTemplate>
+                                            </ItemsControl.ItemTemplate>
+                                        </ItemsControl>
+                                    </ScrollViewer>
+                                </Border>
+                            </StackPanel>
+                        </Border>
+
+                        <!-- Storyboard cards (visible once items loaded) -->
+                        <Border Background="White" BorderBrush="#E5E7EB" BorderThickness="1" CornerRadius="12" Padding="20" Margin="0,16,0,0"
+                                IsVisible="{Binding StoryGeneratorQ.HasAnyItems}">
+                            <StackPanel>
+                                <Grid ColumnDefinitions="*,Auto" Margin="0,0,0,12">
+                                    <TextBlock Grid.Column="0" Text="🎬 Storyboard" FontSize="15" FontWeight="SemiBold" Foreground="#374151" VerticalAlignment="Center"/>
+                                    <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="8" VerticalAlignment="Center">
+                                        <TextBlock Text="Save to folder:" FontSize="12" Foreground="#6B7280" VerticalAlignment="Center"/>
+                                        <TextBox Text="{Binding StoryGeneratorQ.FinalFolderName, Mode=TwoWay}" Width="180" Height="34" Padding="10,0" VerticalContentAlignment="Center" FontSize="12"/>
+                                        <Button Content="💾 Save Final Storyboard"
+                                                Command="{Binding StoryGeneratorQ.SaveFinalStoryboardCommand}"
+                                                Height="34" Padding="14,0" Background="#059669" Foreground="White" BorderThickness="0"
+                                                FontSize="12" FontWeight="SemiBold" CornerRadius="6"/>
+                                    </StackPanel>
+                                </Grid>
+
+                                <TextBlock Text="Click an image to open it. Edit the prompt below each image, then click Regenerate to redo that scene."
+                                           FontSize="11" Foreground="#9CA3AF" Margin="0,0,0,14"/>
+
+                                <ItemsControl ItemsSource="{Binding StoryGeneratorQ.QueueItems}">
+                                    <ItemsControl.ItemsPanel>
+                                        <ItemsPanelTemplate>
+                                            <WrapPanel Orientation="Horizontal"/>
+                                        </ItemsPanelTemplate>
+                                    </ItemsControl.ItemsPanel>
+                                    <ItemsControl.ItemTemplate>
+                                        <DataTemplate>
+                                            <Border Width="220" Margin="6" Background="#F9FAFB" BorderBrush="#E5E7EB" BorderThickness="1" CornerRadius="10">
+                                                <StackPanel Margin="10">
+                                                    <Grid Margin="0,0,0,8">
+                                                        <TextBlock Text="{Binding Index, StringFormat='Scene #{0}'}" FontWeight="Bold" FontSize="12" Foreground="#8B5CF6" VerticalAlignment="Center"/>
+                                                        <Button HorizontalAlignment="Right" VerticalAlignment="Top" Width="18" Height="18" Padding="0"
+                                                                Background="#E5E7EB" BorderThickness="0" FontSize="9" FontWeight="Bold" Foreground="#6B7280"
+                                                                Content="✕" ToolTip.Tip="Delete scene"
+                                                                Command="{Binding DataContext.StoryGeneratorQ.DeleteItemCommand, RelativeSource={RelativeSource Mode=FindAncestor, AncestorType={x:Type ItemsControl}}}"
+                                                                CommandParameter="{Binding}"/>
+                                                        <TextBlock HorizontalAlignment="Right" Margin="0,0,24,0" FontSize="10" FontWeight="SemiBold"
+                                                                   Text="{Binding Status}"
+                                                                   Foreground="{Binding Status, Converter={StaticResource StatusToForegroundConverter}}"
+                                                                   VerticalAlignment="Center"/>
+                                                    </Grid>
+
+                                                    <!-- Image thumbnail -->
+                                                    <Button Height="180" Background="#F3F4F6" BorderThickness="1" BorderBrush="#E5E7EB"
+                                                            CornerRadius="8" Margin="0,0,0,8" Padding="0" HorizontalAlignment="Stretch"
+                                                            Command="{Binding OpenImageCommand}">
+                                                        <Grid>
+                                                            <StackPanel HorizontalAlignment="Center" VerticalAlignment="Center"
+                                                                        IsVisible="{Binding !IsCompleted}">
+                                                                <TextBlock Text="🖼️" FontSize="32" HorizontalAlignment="Center"/>
+                                                                <TextBlock Text="{Binding Status}" FontSize="11" Foreground="#9CA3AF" HorizontalAlignment="Center" Margin="0,4,0,0"/>
+                                                                <ProgressBar Value="{Binding Progress}" Maximum="100" Height="4" Width="100" Margin="0,6,0,0"
+                                                                             Foreground="#8B5CF6" Background="#E5E7EB" BorderThickness="0"
+                                                                             IsVisible="{Binding IsProcessing}"/>
+                                                            </StackPanel>
+                                                            <Image Source="{Binding StoryboardThumbnailImage}" Stretch="Uniform" Margin="4"
+                                                                   IsVisible="{Binding IsCompleted}"/>
+                                                        </Grid>
+                                                    </Button>
+
+                                                    <TextBox Text="{Binding Prompt, Mode=TwoWay}" AcceptsReturn="False" Height="70"
+                                                             Padding="8" FontSize="11" VerticalContentAlignment="Top" Margin="0,0,0,8"/>
+
+                                                    <Button Content="🔄 Regenerate"
+                                                            Command="{Binding DataContext.StoryGeneratorQ.RegenerateItemCommand, RelativeSource={RelativeSource Mode=FindAncestor, AncestorType={x:Type ItemsControl}}}"
+                                                            CommandParameter="{Binding}"
+                                                            HorizontalAlignment="Stretch" Height="30" Background="#6366F1" Foreground="White"
+                                                            BorderThickness="0" FontSize="11" FontWeight="SemiBold" CornerRadius="6"/>
+                                                </StackPanel>
+                                            </Border>
+                                        </DataTemplate>
+                                    </ItemsControl.ItemTemplate>
+                                </ItemsControl>
+                            </StackPanel>
+                        </Border>
+
+                        <!-- Log -->
+                        <Expander Header="📋 Activity Log" IsExpanded="False" Margin="0,16,0,0">
+                            <Border Background="#1F2937" BorderBrush="#374151" BorderThickness="1" CornerRadius="8" Margin="0,6,0,0">
+                                <ScrollViewer MaxHeight="140" VerticalScrollBarVisibility="Auto">
+                                    <TextBox Text="{Binding StoryGeneratorQ.LogOutput}" IsReadOnly="True"
+                                             FontFamily="Monospace" FontSize="10" Background="Transparent" Foreground="#D1D5DB"
+                                             BorderThickness="0" Padding="12"/>
+                                </ScrollViewer>
+                            </Border>
+                        </Expander>
+
+                    </StackPanel>
+                </ScrollViewer>
+            </TabItem>
+
+            <!-- Analyze Tab -->
+            <TabItem Header="🔍 Analyze">
+                <ScrollViewer HorizontalScrollBarVisibility="Disabled">
+                    <Grid ColumnDefinitions="*,15,*" Margin="20,15">
+
+                        <!-- Left column: input mode + image upload + analyze -->
+                        <StackPanel Grid.Column="0">
+                            <Border Background="#F8F9FA" BorderBrush="#DEE2E6" BorderThickness="1" CornerRadius="8" Padding="18" Margin="0,0,0,12">
+                                <StackPanel>
+                                    <TextBlock Text="Input Mode" FontWeight="SemiBold" FontSize="14" Foreground="#6366F1" Margin="0,0,0,10"/>
+                                    <StackPanel Orientation="Horizontal" Spacing="10" Margin="0,0,0,14">
+                                        <RadioButton Content="Text Prompt" IsChecked="{Binding Analyzer.IsTextPromptMode, Mode=OneWay}" GroupName="AnalyzeInputMode"/>
+                                        <RadioButton Content="Image Analysis" IsChecked="{Binding Analyzer.IsImageAnalysisMode, Mode=TwoWay}" GroupName="AnalyzeInputMode"/>
+                                    </StackPanel>
+
+                                    <!-- Text prompt mode -->
+                                    <StackPanel IsVisible="{Binding Analyzer.IsTextPromptMode}">
+                                        <TextBlock Text="Prompt" FontWeight="SemiBold" FontSize="11" Margin="0,0,0,4"/>
+                                        <TextBox Text="{Binding ImagePrompt, Mode=TwoWay}" AcceptsReturn="True" Height="100" Padding="10" FontSize="12"
+                                                 Watermark="Describe the image you want to generate..."/>
+                                    </StackPanel>
+
+                                    <!-- Image analysis mode -->
+                                    <StackPanel IsVisible="{Binding Analyzer.IsImageAnalysisMode}">
+                                        <TextBlock Text="Upload an image to analyze" FontSize="11" Foreground="#666" Margin="0,0,0,8"/>
+                                        <Grid ColumnDefinitions="*,Auto" Margin="0,0,0,8">
+                                            <TextBox Grid.Column="0" Text="{Binding Analyzer.SourceImagePath, Mode=TwoWay}" IsReadOnly="True" Padding="8" FontSize="11" Height="30"/>
+                                            <Button Grid.Column="1" Content="Browse" Classes="secondary" Margin="6,0,0,0" Height="30"
+                                                    Command="{Binding Analyzer.BrowseImageCommand}"/>
+                                        </Grid>
+                                        <Border BorderBrush="#DEE2E6" BorderThickness="2" Background="White" Height="155" CornerRadius="5" Margin="0,0,0,8">
+                                            <Grid>
+                                                <TextBlock Text="No image selected" HorizontalAlignment="Center" VerticalAlignment="Center"
+                                                           Foreground="#999" FontStyle="Italic" FontSize="13"
+                                                           IsVisible="{Binding !Analyzer.HasSourceImage}"/>
+                                                <Image Source="{Binding Analyzer.SourceImagePath, Converter={StaticResource PathToBitmapConverter}}"
+                                                       Stretch="Uniform" Margin="5"
+                                                       IsVisible="{Binding Analyzer.HasSourceImage}"/>
+                                            </Grid>
+                                        </Border>
+                                        <Button Content="Analyze Image with QwenVL"
+                                                Command="{Binding Analyzer.AnalyzeImageCommand}"
+                                                HorizontalAlignment="Stretch" Height="36" Background="#6366F1" Foreground="White"
+                                                BorderThickness="0" FontSize="13" FontWeight="SemiBold" Margin="0,0,0,8" CornerRadius="6"/>
+                                        <Border Background="#FEF3C7" BorderBrush="#FCD34D" BorderThickness="2" CornerRadius="6" Padding="10"
+                                                IsVisible="{Binding Analyzer.IsAnalyzing}">
+                                            <StackPanel>
+                                                <TextBlock Text="Analyzing image..." FontWeight="Bold" FontSize="11" TextAlignment="Center" Foreground="#92400E" Margin="0,0,0,5"/>
+                                                <ProgressBar IsIndeterminate="True" Height="16" Foreground="#F59E0B"/>
+                                            </StackPanel>
+                                        </Border>
+                                        <TextBlock Text="Prompt" FontWeight="SemiBold" FontSize="11" Margin="0,10,0,4"/>
+                                        <TextBox Text="{Binding Analyzer.AnalysisText, Mode=TwoWay}" AcceptsReturn="True" Height="80" Padding="10" FontSize="12"/>
+                                    </StackPanel>
+                                </StackPanel>
+                            </Border>
+
+                            <!-- LM Studio connection (analysis mode only) -->
+                            <Expander Header="🔌 LM Studio Connection" IsExpanded="False"
+                                      IsVisible="{Binding Analyzer.IsImageAnalysisMode}">
+                                <Border Background="#F8F9FA" BorderBrush="#DEE2E6" BorderThickness="1" CornerRadius="8" Padding="15" Margin="0,6,0,0">
+                                    <StackPanel>
+                                        <TextBlock Text="LM Studio Settings" FontWeight="Bold" FontSize="12" Foreground="#10B981" Margin="0,0,0,10"/>
+                                        <Grid ColumnDefinitions="*,*,Auto" Margin="0,0,0,10">
+                                            <StackPanel Grid.Column="0" Margin="0,0,8,0">
+                                                <TextBlock Text="Server" FontWeight="SemiBold" FontSize="11" Margin="0,0,0,4"/>
+                                                <TextBox Text="{Binding Analyzer.LMStudioServer}" Height="30" Padding="8" FontSize="11"/>
+                                            </StackPanel>
+                                            <StackPanel Grid.Column="1" Margin="0,0,8,0">
+                                                <TextBlock Text="Port" FontWeight="SemiBold" FontSize="11" Margin="0,0,0,4"/>
+                                                <TextBox Text="{Binding Analyzer.LMStudioPort}" Height="30" Padding="8" FontSize="11"/>
+                                            </StackPanel>
+                                            <StackPanel Grid.Column="2">
+                                                <TextBlock Text=" " Height="15" Margin="0,0,0,4"/>
+                                                <Button Content="Test" Classes="secondary" Width="50" Height="30"
+                                                        Command="{Binding Analyzer.TestLMStudioConnectionCommand}"/>
+                                            </StackPanel>
+                                        </Grid>
+                                        <Grid ColumnDefinitions="*,Auto">
+                                            <StackPanel Grid.Column="0" Margin="0,0,8,0">
+                                                <TextBlock Text="AI Model" FontWeight="SemiBold" FontSize="11" Margin="0,0,0,4"/>
+                                                <ComboBox ItemsSource="{Binding Analyzer.AvailableModels}"
+                                                          SelectedValue="{Binding Analyzer.SelectedModel}"
+                                                          SelectedValueBinding="{Binding Name}"
+                                                          Height="30" Padding="8" FontSize="11">
+                                                    <ComboBox.ItemTemplate>
+                                                        <DataTemplate>
+                                                            <TextBlock Text="{Binding Name}" TextTrimming="CharacterEllipsis"/>
+                                                        </DataTemplate>
+                                                    </ComboBox.ItemTemplate>
+                                                </ComboBox>
+                                            </StackPanel>
+                                            <StackPanel Grid.Column="1">
+                                                <TextBlock Text=" " Height="15" Margin="0,0,0,4"/>
+                                                <Button Content="Refresh" Classes="secondary" Width="65" Height="30"
+                                                        Command="{Binding Analyzer.RefreshModelsCommand}"/>
+                                            </StackPanel>
+                                        </Grid>
+                                    </StackPanel>
+                                </Border>
+                            </Expander>
+                        </StackPanel>
+
+                        <!-- Right column: generation settings + queue -->
+                        <StackPanel Grid.Column="2">
+                            <Border Background="#F8F9FA" BorderBrush="#DEE2E6" BorderThickness="1" CornerRadius="8" Padding="18" Margin="0,0,0,12">
+                                <StackPanel>
+                                    <TextBlock Text="Generation Settings" FontWeight="SemiBold" FontSize="14" Foreground="#FF6B35" Margin="0,0,0,10"/>
+
+                                    <TextBlock Text="Model Workflow" FontWeight="SemiBold" FontSize="11" Margin="0,0,0,4"/>
+                                    <ComboBox SelectedIndex="{Binding Analyzer.SelectedWorkflow, Mode=TwoWay}" Height="32" Padding="8" FontSize="11" Margin="0,0,0,10">
+                                        <ComboBoxItem Content="Zimage (with LoRA support)"/>
+                                        <ComboBoxItem Content="Qwen 2512"/>
+                                        <ComboBoxItem Content="Klien (Flux2)"/>
+                                    </ComboBox>
+
+                                    <StackPanel IsVisible="{Binding Analyzer.ShowStyleOptions}" Margin="0,0,0,10">
+                                        <TextBlock Text="Style Preset" FontWeight="SemiBold" FontSize="11" Margin="0,0,0,4"/>
+                                        <ComboBox SelectedIndex="{Binding Analyzer.SelectedStyleIndex, Mode=TwoWay}" ItemsSource="{Binding Analyzer.StyleNames}" Height="32" Padding="8" FontSize="11"/>
+                                    </StackPanel>
+
+                                    <StackPanel IsVisible="{Binding Analyzer.ShowLoraOptions}" Margin="0,0,0,10">
+                                        <CheckBox Content="Enable LoRA" IsChecked="{Binding Analyzer.LoraEnabled, Mode=TwoWay}" FontWeight="SemiBold" FontSize="11" Margin="0,0,0,6"/>
+                                        <Grid ColumnDefinitions="*,Auto" IsVisible="{Binding Analyzer.LoraEnabled}">
+                                            <ComboBox Grid.Column="0" ItemsSource="{Binding Analyzer.AvailableLoras}" SelectedItem="{Binding Analyzer.SelectedLora, Mode=TwoWay}"
+                                                      Height="32" Padding="8" FontSize="11" Margin="0,0,6,0"/>
+                                            <Button Grid.Column="1" Content="Refresh" Classes="secondary" Width="60" Height="32"
+                                                    Command="{Binding Analyzer.RefreshLorasCommand}"/>
+                                        </Grid>
+                                    </StackPanel>
+
+                                    <TextBlock Text="Aspect Ratio" FontWeight="SemiBold" FontSize="11" Margin="0,0,0,4"/>
+                                    <ComboBox SelectedIndex="{Binding Analyzer.AspectRatioIndex, Mode=TwoWay}" Height="30" Padding="8" FontSize="11" Margin="0,0,0,12">
+                                        <ComboBoxItem Content="Landscape"/>
+                                        <ComboBoxItem Content="Portrait"/>
+                                        <ComboBoxItem Content="Square"/>
+                                    </ComboBox>
+
+                                    <Button Content="Generate Image" Classes="primary"
+                                            Command="{Binding Analyzer.GenerateImageCommand}"
+                                            HorizontalAlignment="Stretch" Height="42" FontSize="14" Margin="0,0,0,8" Background="#6366F1"/>
+                                    <Button Content="Add to Queue" Classes="secondary"
+                                            Command="{Binding Analyzer.AddToQueueCommand}"
+                                            HorizontalAlignment="Stretch" Height="36" FontSize="13" Margin="0,0,0,8"/>
+
+                                    <Expander Header="⚙️ Advanced" IsExpanded="False">
+                                        <StackPanel Margin="0,8,0,0" Spacing="10">
+                                            <StackPanel>
+                                                <TextBlock Text="Steps" FontWeight="SemiBold" FontSize="11" Margin="0,0,0,4"/>
+                                                <Grid ColumnDefinitions="*,Auto">
+                                                    <Slider Grid.Column="0" Value="{Binding Analyzer.Steps, Mode=TwoWay}" Minimum="4" Maximum="20" TickFrequency="1" IsSnapToTickEnabled="True"/>
+                                                    <TextBlock Grid.Column="1" Text="{Binding Analyzer.Steps}" Margin="8,0,0,0" FontWeight="Bold" FontSize="11" VerticalAlignment="Center" MinWidth="25"/>
+                                                </Grid>
+                                            </StackPanel>
+                                            <StackPanel>
+                                                <TextBlock Text="CFG Scale" FontWeight="SemiBold" FontSize="11" Margin="0,0,0,4"/>
+                                                <Grid ColumnDefinitions="*,Auto">
+                                                    <Slider Grid.Column="0" Value="{Binding Analyzer.Cfg, Mode=TwoWay}" Minimum="1" Maximum="3" TickFrequency="0.5" IsSnapToTickEnabled="True"/>
+                                                    <TextBlock Grid.Column="1" Text="{Binding Analyzer.Cfg, StringFormat={}{0:F1}}" Margin="8,0,0,0" FontWeight="Bold" FontSize="11" VerticalAlignment="Center" MinWidth="25"/>
+                                                </Grid>
+                                            </StackPanel>
+                                        </StackPanel>
+                                    </Expander>
+                                </StackPanel>
+                            </Border>
+                        </StackPanel>
+
+                    </Grid>
+                </ScrollViewer>
+            </TabItem>
+
+            <!-- Log Tab -->
+            <TabItem Header="📝 Log">
+                <ScrollViewer>
+                    <TextBox Text="{Binding LogOutput}" IsReadOnly="True" AcceptsReturn="True"
+                             FontFamily="Monospace" FontSize="11" Background="#1E1E2E" Foreground="#AAF"
+                             BorderThickness="0"/>
+                </ScrollViewer>
+            </TabItem>
+        </TabControl>
+    </DockPanel>
+</Window>

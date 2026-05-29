@@ -1,0 +1,111 @@
+<Window xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:cv="clr-namespace:Avalonia.Data.Converters;assembly=Avalonia.Base"
+        x:Class="FlipPix.UI.Linux.Windows.ImagePickerWindow"
+        Title="Select Image"
+        Width="920" Height="680"
+        MinWidth="600" MinHeight="400"
+        WindowStartupLocation="CenterOwner">
+
+    <Window.Styles>
+        <Style Selector="Border.pickerItem">
+            <Setter Property="Background" Value="White"/>
+            <Setter Property="BorderBrush" Value="#DEE2E6"/>
+            <Setter Property="BorderThickness" Value="2"/>
+            <Setter Property="CornerRadius" Value="6"/>
+            <Setter Property="Cursor" Value="Hand"/>
+        </Style>
+        <Style Selector="Border.pickerItem:pointerover">
+            <Setter Property="Background" Value="#FFF5EE"/>
+            <Setter Property="BorderBrush" Value="#FF6B35"/>
+        </Style>
+        <Style Selector="Border.pickerItem.selected">
+            <Setter Property="Background" Value="#FFF0E6"/>
+            <Setter Property="BorderBrush" Value="#FF6B35"/>
+        </Style>
+    </Window.Styles>
+
+    <DockPanel>
+        <!-- Path bar -->
+        <Border DockPanel.Dock="Top" Background="#F8F9FA" BorderBrush="#DEE2E6" BorderThickness="0,0,0,1" Padding="10,8">
+            <DockPanel>
+                <Button DockPanel.Dock="Left" Content="↑ Up" Width="60" Margin="0,0,8,0" Height="34"
+                        Command="{Binding GoUpCommand}" Classes="secondary"/>
+                <TextBox x:Name="PathBox" Text="{Binding CurrentPath, Mode=TwoWay}"
+                         Height="34" VerticalContentAlignment="Center" FontSize="12"
+                         KeyDown="PathBox_KeyDown"/>
+            </DockPanel>
+        </Border>
+
+        <!-- Bottom bar -->
+        <Border DockPanel.Dock="Bottom" Background="#F8F9FA" BorderBrush="#DEE2E6" BorderThickness="0,1,0,0" Padding="10,8">
+            <DockPanel>
+                <StackPanel DockPanel.Dock="Right" Orientation="Horizontal" Spacing="8">
+                    <Button Content="Cancel" Width="80" Height="34" Click="CancelButton_Click" Classes="secondary"/>
+                    <Button Content="OK" Width="80" Height="34" Click="OkButton_Click"
+                            Background="#FF6B35" Foreground="White" BorderThickness="0" FontWeight="Bold" CornerRadius="5"/>
+                </StackPanel>
+                <TextBlock Text="Selected: " VerticalAlignment="Center" FontSize="12" FontWeight="SemiBold" Margin="0,0,6,0"/>
+                <TextBox Text="{Binding SelectedPath, Mode=TwoWay}" Height="34" VerticalContentAlignment="Center" FontSize="11"
+                         Margin="0,0,12,0"/>
+            </DockPanel>
+        </Border>
+
+        <!-- Image grid -->
+        <ScrollViewer VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
+            <ItemsControl ItemsSource="{Binding Items}" Margin="8">
+                <ItemsControl.ItemsPanel>
+                    <ItemsPanelTemplate>
+                        <WrapPanel Orientation="Horizontal"/>
+                    </ItemsPanelTemplate>
+                </ItemsControl.ItemsPanel>
+                <ItemsControl.ItemTemplate>
+                    <DataTemplate>
+                        <Border Width="128" Height="148" Margin="4"
+                                Classes="pickerItem"
+                                Classes.selected="{Binding IsSelected}"
+                                PointerPressed="Item_PointerPressed"
+                                DoubleTapped="Item_DoubleTapped">
+                            <StackPanel Margin="4">
+                                <!-- Thumbnail area -->
+                                <Border Height="100" Background="#F0F2F5" CornerRadius="4" ClipToBounds="True">
+                                    <Grid>
+                                        <!-- Folder icon -->
+                                        <TextBlock Text="📁" FontSize="44"
+                                                   HorizontalAlignment="Center" VerticalAlignment="Center"
+                                                   IsVisible="{Binding IsDirectory}"/>
+
+                                        <!-- Image: loaded thumbnail -->
+                                        <Image Source="{Binding Thumbnail}" Stretch="Uniform" Margin="2"
+                                               IsVisible="{Binding Thumbnail, Converter={x:Static cv:ObjectConverters.IsNotNull}}"/>
+
+                                        <!-- Image: placeholder while loading -->
+                                        <TextBlock Text="🖼" FontSize="40"
+                                                   HorizontalAlignment="Center" VerticalAlignment="Center"
+                                                   IsVisible="{Binding Thumbnail, Converter={x:Static cv:ObjectConverters.IsNull}}"
+                                                   Opacity="0.3">
+                                            <TextBlock.IsVisible>
+                                                <MultiBinding Converter="{x:Static BoolConverters.And}">
+                                                    <Binding Path="Thumbnail" Converter="{x:Static cv:ObjectConverters.IsNull}"/>
+                                                    <Binding Path="IsDirectory" Converter="{x:Static BoolConverters.Not}"/>
+                                                </MultiBinding>
+                                            </TextBlock.IsVisible>
+                                        </TextBlock>
+                                    </Grid>
+                                </Border>
+
+                                <!-- Filename -->
+                                <TextBlock Text="{Binding Name}" FontSize="10"
+                                           TextTrimming="CharacterEllipsis"
+                                           HorizontalAlignment="Center"
+                                           Margin="2,4,2,0"
+                                           MaxWidth="118"
+                                           ToolTip.Tip="{Binding Name}"/>
+                            </StackPanel>
+                        </Border>
+                    </DataTemplate>
+                </ItemsControl.ItemTemplate>
+            </ItemsControl>
+        </ScrollViewer>
+    </DockPanel>
+</Window>

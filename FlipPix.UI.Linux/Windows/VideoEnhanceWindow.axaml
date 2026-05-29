@@ -1,0 +1,263 @@
+<Window xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        x:Class="FlipPix.UI.Linux.Windows.VideoEnhanceWindow"
+        Title="FlipPix - Enhance Video" Height="800" Width="900"
+        WindowStartupLocation="CenterScreen"
+        MinHeight="650" MinWidth="800">
+
+    <Grid RowDefinitions="Auto,*,Auto">
+
+        <!-- Header -->
+        <Border Grid.Row="0" PointerPressed="Header_PointerPressed" Cursor="SizeAll">
+            <Border.Background>
+                <LinearGradientBrush StartPoint="0%,0%" EndPoint="100%,0%">
+                    <GradientStop Color="#1565C0" Offset="0"/>
+                    <GradientStop Color="#42A5F5" Offset="1"/>
+                </LinearGradientBrush>
+            </Border.Background>
+            <StackPanel Margin="25,20">
+                <TextBlock Text="Enhance Video" FontSize="28" FontWeight="Bold" Foreground="White"/>
+                <TextBlock Text="Interpolate frames for smooth slow-motion  -  Upscale resolution"
+                           FontSize="13" Foreground="#E3F2FD" Margin="0,5,0,0"/>
+            </StackPanel>
+        </Border>
+
+        <!-- Main Content -->
+        <ScrollViewer Grid.Row="1">
+            <StackPanel Margin="20,15,20,15" Spacing="15">
+
+                <TabControl>
+
+                    <!-- Tab 1: Interpolate -->
+                    <TabItem Header="Interpolate">
+                        <StackPanel Margin="10,15,10,10" Spacing="15">
+
+                            <!-- Input Section -->
+                            <Border Background="#F8F9FA" BorderBrush="#DEE2E6" BorderThickness="1" CornerRadius="8" Padding="15">
+                                <StackPanel Spacing="8">
+                                    <TextBlock Text="Input Video" FontSize="14" FontWeight="Bold" Foreground="#1565C0"/>
+
+                                    <Grid ColumnDefinitions="*,Auto">
+                                        <TextBox Grid.Column="0"
+                                                 Text="{Binding InterpolateVideoPath, Mode=TwoWay}"
+                                                 IsReadOnly="True" Padding="8,6" FontSize="12" Height="34"/>
+                                        <Button Grid.Column="1" Content="Browse" Classes="primary"
+                                                Command="{Binding SelectInterpolateVideoCommand}"
+                                                Width="80" Height="34" Margin="8,0,0,0"/>
+                                    </Grid>
+
+                                    <TextBlock Text="{Binding InterpolateVideoInfo}"
+                                               FontSize="11" Foreground="#6C757D"
+                                               IsVisible="{Binding HasInterpolateVideo}"/>
+
+                                    <Button Content="Add to Queue" Classes="primary"
+                                            Command="{Binding AddInterpolateToQueueCommand}"
+                                            HorizontalAlignment="Left" Width="140" Height="36"/>
+                                </StackPanel>
+                            </Border>
+
+                            <!-- Queue Section -->
+                            <Border Background="#F8F9FA" BorderBrush="#DEE2E6" BorderThickness="1" CornerRadius="8" Padding="15"
+                                    IsVisible="{Binding HasInterpolateQueueItems}">
+                                <StackPanel Spacing="8">
+                                    <Grid ColumnDefinitions="*,Auto,Auto,Auto">
+                                        <StackPanel Grid.Column="0" Orientation="Horizontal" Spacing="10">
+                                            <TextBlock Text="Queue" FontSize="14" FontWeight="Bold" Foreground="#1565C0" VerticalAlignment="Center"/>
+                                            <TextBlock Text="{Binding InterpolateQueueStatus}"
+                                                       FontSize="11" Foreground="#6C757D" VerticalAlignment="Center"/>
+                                        </StackPanel>
+                                        <Button Grid.Column="1" Content="Retry Failed"
+                                                Command="{Binding ReprocessInterpolateFailedCommand}"
+                                                IsEnabled="{Binding HasInterpolateFailedItems}"
+                                                Height="28" Width="90" FontSize="11" Margin="4,0"
+                                                Background="#FFA500" Foreground="White" BorderThickness="0"/>
+                                        <Button Grid.Column="2" Content="Stop"
+                                                Command="{Binding StopInterpolateQueueCommand}"
+                                                IsEnabled="{Binding IsProcessingInterpolateQueue}"
+                                                Height="28" Width="65" FontSize="11" Margin="0,0,4,0"
+                                                Background="#F59E0B" Foreground="White" BorderThickness="0"/>
+                                        <Button Grid.Column="3" Content="Clear"
+                                                Command="{Binding ClearInterpolateQueueCommand}"
+                                                Height="28" Width="65" FontSize="11"
+                                                Background="#DC3545" Foreground="White" BorderThickness="0"/>
+                                    </Grid>
+
+                                    <ItemsControl ItemsSource="{Binding InterpolateQueue}">
+                                        <ItemsControl.ItemTemplate>
+                                            <DataTemplate>
+                                                <Border Background="White" BorderBrush="#DEE2E6" BorderThickness="1"
+                                                        CornerRadius="5" Padding="10,8" Margin="0,0,0,6">
+                                                    <Grid ColumnDefinitions="*,Auto,Auto">
+                                                        <StackPanel Grid.Column="0">
+                                                            <TextBlock Text="{Binding DisplayText}" FontSize="12" FontWeight="SemiBold"/>
+                                                            <TextBlock Text="{Binding StatusDisplay}" FontSize="11"
+                                                                       Foreground="{Binding StatusColor}" Margin="0,2,0,0"/>
+                                                            <TextBlock Text="{Binding ErrorMessage}" FontSize="10"
+                                                                       Foreground="#DC3545" Margin="0,2,0,0"
+                                                                       IsVisible="{Binding ErrorMessage, Converter={StaticResource StringToVisibilityConverter}}"/>
+                                                        </StackPanel>
+                                                        <ProgressBar Grid.Column="1" Value="{Binding Progress}"
+                                                                     Minimum="0" Maximum="100"
+                                                                     Width="80" Height="6" Margin="10,0" VerticalAlignment="Center"/>
+                                                        <Button Grid.Column="2" Content="x" Width="24" Height="24" FontSize="10"
+                                                                Background="Transparent" BorderThickness="0" Foreground="#6C757D"
+                                                                Command="{Binding DataContext.RemoveInterpolateQueueItemCommand,
+                                                                          RelativeSource={RelativeSource AncestorType=ItemsControl}}"
+                                                                CommandParameter="{Binding}"/>
+                                                    </Grid>
+                                                </Border>
+                                            </DataTemplate>
+                                        </ItemsControl.ItemTemplate>
+                                    </ItemsControl>
+                                </StackPanel>
+                            </Border>
+                        </StackPanel>
+                    </TabItem>
+
+                    <!-- Tab 2: Upscale -->
+                    <TabItem Header="Upscale">
+                        <StackPanel Margin="10,15,10,10" Spacing="15">
+
+                            <!-- Input Section -->
+                            <Border Background="#F8F9FA" BorderBrush="#DEE2E6" BorderThickness="1" CornerRadius="8" Padding="15">
+                                <StackPanel Spacing="8">
+                                    <TextBlock Text="Input Video" FontSize="14" FontWeight="Bold" Foreground="#1565C0"/>
+
+                                    <Grid ColumnDefinitions="*,Auto">
+                                        <TextBox Grid.Column="0"
+                                                 Text="{Binding UpscaleVideoPath, Mode=TwoWay}"
+                                                 IsReadOnly="True" Padding="8,6" FontSize="12" Height="34"/>
+                                        <Button Grid.Column="1" Content="Browse" Classes="primary"
+                                                Command="{Binding SelectUpscaleVideoCommand}"
+                                                Width="80" Height="34" Margin="8,0,0,0"/>
+                                    </Grid>
+
+                                    <TextBlock Text="{Binding UpscaleVideoInfo}"
+                                               FontSize="11" Foreground="#6C757D"
+                                               IsVisible="{Binding HasUpscaleVideo}"/>
+
+                                    <Button Content="Add to Queue" Classes="primary"
+                                            Command="{Binding AddUpscaleToQueueCommand}"
+                                            HorizontalAlignment="Left" Width="140" Height="36"/>
+                                </StackPanel>
+                            </Border>
+
+                            <!-- Queue Section -->
+                            <Border Background="#F8F9FA" BorderBrush="#DEE2E6" BorderThickness="1" CornerRadius="8" Padding="15"
+                                    IsVisible="{Binding HasUpscaleQueueItems}">
+                                <StackPanel Spacing="8">
+                                    <Grid ColumnDefinitions="*,Auto,Auto,Auto">
+                                        <StackPanel Grid.Column="0" Orientation="Horizontal" Spacing="10">
+                                            <TextBlock Text="Queue" FontSize="14" FontWeight="Bold" Foreground="#1565C0" VerticalAlignment="Center"/>
+                                            <TextBlock Text="{Binding UpscaleQueueStatus}"
+                                                       FontSize="11" Foreground="#6C757D" VerticalAlignment="Center"/>
+                                        </StackPanel>
+                                        <Button Grid.Column="1" Content="Retry Failed"
+                                                Command="{Binding ReprocessUpscaleFailedCommand}"
+                                                IsEnabled="{Binding HasUpscaleFailedItems}"
+                                                Height="28" Width="90" FontSize="11" Margin="4,0"
+                                                Background="#FFA500" Foreground="White" BorderThickness="0"/>
+                                        <Button Grid.Column="2" Content="Stop"
+                                                Command="{Binding StopUpscaleQueueCommand}"
+                                                IsEnabled="{Binding IsProcessingUpscaleQueue}"
+                                                Height="28" Width="65" FontSize="11" Margin="0,0,4,0"
+                                                Background="#F59E0B" Foreground="White" BorderThickness="0"/>
+                                        <Button Grid.Column="3" Content="Clear"
+                                                Command="{Binding ClearUpscaleQueueCommand}"
+                                                Height="28" Width="65" FontSize="11"
+                                                Background="#DC3545" Foreground="White" BorderThickness="0"/>
+                                    </Grid>
+
+                                    <ItemsControl ItemsSource="{Binding UpscaleQueue}">
+                                        <ItemsControl.ItemTemplate>
+                                            <DataTemplate>
+                                                <Border Background="White" BorderBrush="#DEE2E6" BorderThickness="1"
+                                                        CornerRadius="5" Padding="10,8" Margin="0,0,0,6">
+                                                    <Grid ColumnDefinitions="*,Auto,Auto">
+                                                        <StackPanel Grid.Column="0">
+                                                            <TextBlock Text="{Binding DisplayText}" FontSize="12" FontWeight="SemiBold"/>
+                                                            <TextBlock Text="{Binding StatusDisplay}" FontSize="11"
+                                                                       Foreground="{Binding StatusColor}" Margin="0,2,0,0"/>
+                                                            <TextBlock Text="{Binding ErrorMessage}" FontSize="10"
+                                                                       Foreground="#DC3545" Margin="0,2,0,0"
+                                                                       IsVisible="{Binding ErrorMessage, Converter={StaticResource StringToVisibilityConverter}}"/>
+                                                        </StackPanel>
+                                                        <ProgressBar Grid.Column="1" Value="{Binding Progress}"
+                                                                     Minimum="0" Maximum="100"
+                                                                     Width="80" Height="6" Margin="10,0" VerticalAlignment="Center"/>
+                                                        <Button Grid.Column="2" Content="x" Width="24" Height="24" FontSize="10"
+                                                                Background="Transparent" BorderThickness="0" Foreground="#6C757D"
+                                                                Command="{Binding DataContext.RemoveUpscaleQueueItemCommand,
+                                                                          RelativeSource={RelativeSource AncestorType=ItemsControl}}"
+                                                                CommandParameter="{Binding}"/>
+                                                    </Grid>
+                                                </Border>
+                                            </DataTemplate>
+                                        </ItemsControl.ItemTemplate>
+                                    </ItemsControl>
+                                </StackPanel>
+                            </Border>
+                        </StackPanel>
+                    </TabItem>
+                </TabControl>
+
+                <!-- Progress Section -->
+                <Border Background="#F8F9FA" BorderBrush="#DEE2E6" BorderThickness="1" CornerRadius="8" Padding="15"
+                        IsVisible="{Binding IsProcessing}">
+                    <StackPanel Spacing="5">
+                        <TextBlock Text="Processing" FontSize="14" FontWeight="Bold" Foreground="#1565C0"/>
+                        <TextBlock Text="{Binding ProcessingStatus}" FontSize="12" Foreground="#495057"/>
+                        <ProgressBar Value="{Binding ProcessingProgress}" Minimum="0" Maximum="100" Height="10"/>
+                        <TextBlock Text="{Binding ProgressPercentage}" FontSize="11" Foreground="#6C757D"
+                                   HorizontalAlignment="Right"/>
+                    </StackPanel>
+                </Border>
+
+                <!-- Result Section -->
+                <Border Background="#F8F9FA" BorderBrush="#DEE2E6" BorderThickness="1" CornerRadius="8" Padding="15"
+                        IsVisible="{Binding HasResult}">
+                    <StackPanel Spacing="8">
+                        <TextBlock Text="Result" FontSize="14" FontWeight="Bold" Foreground="#28A745"/>
+                        <TextBlock Text="{Binding ResultVideoInfo}" FontSize="11" Foreground="#6C757D"/>
+                        <StackPanel Orientation="Horizontal" Spacing="8">
+                            <Button Content="Play" Classes="primary"
+                                    Command="{Binding PlayVideoCommand}"
+                                    Width="80" Height="32"/>
+                            <Button Content="Open Folder" Classes="secondary"
+                                    Command="{Binding OpenResultFolderCommand}"
+                                    Width="100" Height="32"/>
+                        </StackPanel>
+                    </StackPanel>
+                </Border>
+
+                <!-- Log Section -->
+                <Border Background="#F8F9FA" BorderBrush="#DEE2E6" BorderThickness="1" CornerRadius="8" Padding="15">
+                    <StackPanel Spacing="5">
+                        <TextBlock Text="Log" FontSize="13" FontWeight="Bold" Foreground="#495057"/>
+                        <ScrollViewer Height="120" Background="White">
+                            <TextBlock Text="{Binding LogOutput}" FontFamily="Monospace"
+                                       FontSize="10" Foreground="#495057" Padding="8" TextWrapping="Wrap"/>
+                        </ScrollViewer>
+                    </StackPanel>
+                </Border>
+
+            </StackPanel>
+        </ScrollViewer>
+
+        <!-- Status Bar -->
+        <Border Grid.Row="2" Background="#F8F9FA" BorderBrush="#DEE2E6" BorderThickness="0,1,0,0" Height="28" Padding="15,0">
+            <DockPanel>
+                <TextBlock Text="{Binding ProcessingStatus}" FontSize="11" Foreground="#495057"
+                           VerticalAlignment="Center"/>
+                <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" VerticalAlignment="Center" Spacing="5">
+                    <TextBlock Text="Interpolate: " FontSize="11" Foreground="#6C757D"/>
+                    <TextBlock Text="{Binding IsProcessingInterpolateQueue, StringFormat='{}{0}'}"
+                               FontSize="11" Foreground="{Binding IsProcessingInterpolateQueue, Converter={StaticResource StatusToForegroundConverter}}"/>
+                    <TextBlock Text="  Upscale: " FontSize="11" Foreground="#6C757D"/>
+                    <TextBlock Text="{Binding IsProcessingUpscaleQueue, StringFormat='{}{0}'}"
+                               FontSize="11" Foreground="{Binding IsProcessingUpscaleQueue, Converter={StaticResource StatusToForegroundConverter}}"/>
+                </StackPanel>
+            </DockPanel>
+        </Border>
+    </Grid>
+</Window>

@@ -1,7 +1,6 @@
 using FlipPix.Core.Models;
 using FlipPix.Core.Interfaces;
-using System.Drawing;
-using System.Runtime.Versioning;
+using SixLabors.ImageSharp;
 
 namespace FlipPix.Core.Services;
 
@@ -14,15 +13,14 @@ public class ImageAnalysisService
         _logger = logger;
     }
 
-    [SupportedOSPlatform("windows6.1")]
-    public ImageInfo AnalyzeImage(string imagePath)
+    public FlipPix.Core.Models.ImageInfo AnalyzeImage(string imagePath)
     {
         try
         {
             _logger.LogInfo($"Analyzing image: {imagePath}");
 
-            using var image = Image.FromFile(imagePath);
-            var imageInfo = new ImageInfo
+            using var image = Image.Load(imagePath);
+            var imageInfo = new FlipPix.Core.Models.ImageInfo
             {
                 Width = image.Width,
                 Height = image.Height,
@@ -39,7 +37,7 @@ public class ImageAnalysisService
         }
     }
 
-    public (int width, int height) GetTargetResolutionForWanVACE(ImageInfo imageInfo)
+    public (int width, int height) GetTargetResolutionForWanVACE(FlipPix.Core.Models.ImageInfo imageInfo)
     {
         // FlipPix works best with resolutions that are multiples of 8
         // Use conservative resolutions to prevent OOM errors

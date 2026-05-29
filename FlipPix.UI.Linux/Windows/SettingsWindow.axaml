@@ -1,0 +1,43 @@
+<Window xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        x:Class="FlipPix.UI.Linux.Windows.SettingsWindow"
+        Title="FlipPix Settings"
+        Width="700" Height="620"
+        WindowStartupLocation="CenterOwner">
+    <ScrollViewer Margin="20">
+        <StackPanel Spacing="15">
+            <TextBlock Text="Settings" FontSize="22" FontWeight="Bold"/>
+
+            <Border Background="#F8F9FA" BorderBrush="#DEE2E6" BorderThickness="1" CornerRadius="8" Padding="15">
+                <StackPanel Spacing="10">
+                    <TextBlock Text="ComfyUI Server" FontWeight="Bold"/>
+                    <Grid ColumnDefinitions="150,*" RowDefinitions="Auto,Auto,Auto">
+                        <TextBlock Grid.Row="0" Grid.Column="0" Text="Base URL:" VerticalAlignment="Center"/>
+                        <TextBox Grid.Row="0" Grid.Column="1" x:Name="BaseUrlBox"/>
+                        <TextBlock Grid.Row="1" Grid.Column="0" Text="Output Folder:" VerticalAlignment="Center"/>
+                        <TextBox Grid.Row="1" Grid.Column="1" x:Name="OutputFolderBox"/>
+                        <TextBlock Grid.Row="2" Grid.Column="0" Text="ComfyUI Folder:" VerticalAlignment="Center"/>
+                        <TextBox Grid.Row="2" Grid.Column="1" x:Name="ComfyUIFolderBox"/>
+                    </Grid>
+                </StackPanel>
+            </Border>
+
+            <Border Background="#F8F9FA" BorderBrush="#DEE2E6" BorderThickness="1" CornerRadius="8" Padding="15">
+                <StackPanel Spacing="10">
+                    <TextBlock Text="LM Studio (Image Analysis)" FontWeight="Bold"/>
+                    <Grid ColumnDefinitions="150,*,100,80" RowDefinitions="Auto">
+                        <TextBlock Grid.Column="0" Text="Server:" VerticalAlignment="Center"/>
+                        <TextBox Grid.Column="1" x:Name="LMStudioServerBox" Margin="0,0,8,0"/>
+                        <TextBlock Grid.Column="2" Text="Port:" VerticalAlignment="Center" Margin="0,0,4,0"/>
+                        <TextBox Grid.Column="3" x:Name="LMStudioPortBox"/>
+                    </Grid>
+                </StackPanel>
+            </Border>
+
+            <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" Spacing="10">
+                <Button Content="Save" Classes="primary" Click="SaveButton_Click"/>
+                <Button Content="Cancel" Click="CancelButton_Click"/>
+            </StackPanel>
+        </StackPanel>
+    </ScrollViewer>
+</Window>

@@ -2662,6 +2662,7 @@ namespace FlipPix.UI.ViewModels.Video
                 return result;
             }
 
+
             // Format A: "Scene N:" headers (written by SaveFinalStoryboard)
             if (Regex.IsMatch(content, @"^Scene\s+\d+:\s*$", RegexOptions.Multiline))
             {

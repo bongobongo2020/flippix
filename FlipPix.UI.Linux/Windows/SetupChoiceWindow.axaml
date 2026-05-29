@@ -1,0 +1,31 @@
+<Window xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        x:Class="FlipPix.UI.Linux.SetupChoiceWindow"
+        Title="FlipPix Setup"
+        Width="500" Height="350"
+        CanResize="False"
+        WindowStartupLocation="CenterScreen">
+    <Grid Background="#1E1E2E" Margin="30">
+        <StackPanel Spacing="20">
+            <TextBlock Text="Welcome to FlipPix" FontSize="24" FontWeight="Bold" Foreground="#FF6B35" HorizontalAlignment="Center"/>
+            <TextBlock Text="How is your ComfyUI installed?" FontSize="14" Foreground="#CCCCCC" HorizontalAlignment="Center" TextWrapping="Wrap"/>
+
+            <Border Background="#2D2D3F" CornerRadius="8" Padding="20" Margin="0,10,0,0">
+                <StackPanel Spacing="15">
+                    <Button x:Name="LocalButton" Content="Local Installation" Classes="primary"
+                            HorizontalAlignment="Stretch" Height="50"
+                            Click="LocalButton_Click"/>
+                    <TextBlock Text="ComfyUI is installed on this machine" Foreground="#888" FontSize="12" HorizontalAlignment="Center"/>
+
+                    <Button x:Name="RemoteButton" Content="Remote Server" Classes="nav"
+                            HorizontalAlignment="Stretch" Height="50"
+                            Click="RemoteButton_Click"/>
+                    <TextBlock Text="Connect to ComfyUI on another machine" Foreground="#888" FontSize="12" HorizontalAlignment="Center"/>
+                </StackPanel>
+            </Border>
+
+            <Button Content="Cancel" Classes="danger" HorizontalAlignment="Right"
+                    Click="CancelButton_Click"/>
+        </StackPanel>
+    </Grid>
+</Window>
