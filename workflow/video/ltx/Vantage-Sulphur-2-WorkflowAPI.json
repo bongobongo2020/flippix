@@ -841,10 +841,6 @@
   },
   "394": {
     "inputs": {
-      "any_01": [
-        "412:390",
-        0
-      ],
       "any_02": [
         "393",
         0
@@ -902,34 +898,17 @@
   },
   "405": {
     "inputs": {
-      "preview_markdown": "Error: API key is missing. Please provide your API key in the node.",
-      "preview_text": "Error: API key is missing. Please provide your API key in the node.",
+      "preview_markdown": "",
+      "preview_text": "",
       "previewMode": null,
       "source": [
-        "412:390",
+        "393",
         0
       ]
     },
     "class_type": "PreviewAny",
     "_meta": {
       "title": "Prompt Preview"
-    }
-  },
-  "412:390": {
-    "inputs": {
-      "api_key": "",
-      "base_url": "raw",
-      "role_prompt": "en",
-      "user_prompt": "W:\\ai-models\\text_encoders\\Qwen3.5-sulphur_prompt_enhancer-Q8_0.gguf",
-      "model": "W:\\ai-models\\text_encoders\\mmproj-SULPHURBF16.gguf",
-      "image": [
-        "312",
-        0
-      ]
-    },
-    "class_type": "VisionLLMNode",
-    "_meta": {
-      "title": "Vision LLM Analyzer"
     }
   }
 }
