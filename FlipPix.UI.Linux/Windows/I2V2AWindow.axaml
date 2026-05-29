@@ -1,0 +1,238 @@
+<Window xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        x:Class="FlipPix.UI.Linux.Windows.I2V2AWindow"
+        Title="FlipPix - Image to Video with Audio (I2V2A)" Height="950" Width="1200"
+        WindowStartupLocation="CenterScreen"
+        MinHeight="850" MinWidth="1000">
+
+    <Grid RowDefinitions="Auto,*,Auto">
+
+        <!-- Navigation Bar -->
+        <Border Grid.Row="0" Background="#343A40" Padding="15,10">
+            <StackPanel Orientation="Horizontal" Spacing="5">
+                <Button Classes="nav" Content="Home" Click="NavigateToHome"/>
+                <Button Classes="nav" Content="Image Gen" Click="NavigateToImageGen"/>
+                <Button Classes="nav" Content="Video Gen" Click="NavigateToVideoGen"/>
+                <Button Classes="nav" Content="I2V2A (Current)" Background="#495057"/>
+                <Button Classes="nav" Content="Settings" Click="NavigateToSettings"/>
+            </StackPanel>
+        </Border>
+
+        <!-- Main Content -->
+        <ScrollViewer Grid.Row="1" Padding="20">
+            <Grid ColumnDefinitions="*,*">
+
+                <!-- Left Column -->
+                <StackPanel Grid.Column="0" Margin="0,0,10,0" Spacing="10">
+
+                    <!-- Input Image Section -->
+                    <Border Background="#F8F9FA" BorderBrush="#DEE2E6" BorderThickness="1" CornerRadius="8" Padding="15">
+                        <StackPanel Spacing="8">
+                            <TextBlock Text="Input Image" FontSize="14" FontWeight="Bold"/>
+                            <Button Content="Select Input Image" Classes="primary"
+                                    Command="{Binding SelectInputImageCommand}"
+                                    HorizontalAlignment="Stretch"/>
+                            <Border BorderBrush="#CCC" BorderThickness="1" CornerRadius="5"
+                                    Background="White" Padding="5" Height="200">
+                                <Grid>
+                                    <Image Source="{Binding InputImageSource, Converter={StaticResource PathToBitmapConverter}}"
+                                           Stretch="Uniform"
+                                           IsVisible="{Binding HasInputImage}"/>
+                                    <TextBlock Text="No image selected"
+                                               HorizontalAlignment="Center"
+                                               VerticalAlignment="Center"
+                                               Foreground="#999"
+                                               IsVisible="{Binding !HasInputImage}"/>
+                                </Grid>
+                            </Border>
+                            <TextBlock Text="{Binding InputImagePath, TargetNullValue='No file selected'}"
+                                       FontSize="12" Foreground="#666"
+                                       TextTrimming="CharacterEllipsis"/>
+                        </StackPanel>
+                    </Border>
+
+                    <!-- Video Generation Settings -->
+                    <Border Background="#F8F9FA" BorderBrush="#DEE2E6" BorderThickness="1" CornerRadius="8" Padding="15">
+                        <StackPanel Spacing="8">
+                            <TextBlock Text="Video Generation Settings" FontSize="14" FontWeight="Bold"/>
+
+                            <Grid ColumnDefinitions="*,*" RowDefinitions="Auto,Auto,Auto,Auto">
+                                <TextBlock Grid.Row="0" Grid.Column="0" Text="Width:" VerticalAlignment="Center"/>
+                                <TextBox Grid.Row="0" Grid.Column="1" Text="{Binding VideoWidth}" Margin="0,0,0,5"/>
+
+                                <TextBlock Grid.Row="1" Grid.Column="0" Text="Height:" VerticalAlignment="Center"/>
+                                <TextBox Grid.Row="1" Grid.Column="1" Text="{Binding VideoHeight}" Margin="0,0,0,5"/>
+
+                                <TextBlock Grid.Row="2" Grid.Column="0" Text="Total Frames:" VerticalAlignment="Center"/>
+                                <TextBox Grid.Row="2" Grid.Column="1" Text="{Binding TotalFrames}" Margin="0,0,0,5"/>
+
+                                <TextBlock Grid.Row="3" Grid.Column="0" Text="FPS:" VerticalAlignment="Center"/>
+                                <TextBox Grid.Row="3" Grid.Column="1" Text="{Binding FPS}"/>
+                            </Grid>
+
+                            <TextBlock Text="Video Prompt:" FontWeight="Bold"/>
+                            <TextBox Text="{Binding VideoPrompt}" Height="60" TextWrapping="Wrap"
+                                     AcceptsReturn="True"/>
+
+                            <TextBlock Text="Negative Prompt:" FontWeight="Bold"/>
+                            <TextBox Text="{Binding NegativePrompt}" Height="60" TextWrapping="Wrap"
+                                     AcceptsReturn="True"/>
+                        </StackPanel>
+                    </Border>
+
+                    <!-- Audio Generation Settings -->
+                    <Border Background="#F8F9FA" BorderBrush="#DEE2E6" BorderThickness="1" CornerRadius="8" Padding="15">
+                        <StackPanel Spacing="8">
+                            <TextBlock Text="Audio Generation Settings" FontSize="14" FontWeight="Bold"/>
+
+                            <Grid ColumnDefinitions="*,*" RowDefinitions="Auto,Auto,Auto">
+                                <TextBlock Grid.Row="0" Grid.Column="0" Text="Duration (sec):" VerticalAlignment="Center"/>
+                                <TextBox Grid.Row="0" Grid.Column="1" Text="{Binding AudioDuration}" Margin="0,0,0,5"/>
+
+                                <TextBlock Grid.Row="1" Grid.Column="0" Text="CFG:" VerticalAlignment="Center"/>
+                                <TextBox Grid.Row="1" Grid.Column="1" Text="{Binding AudioCfg}" Margin="0,0,0,5"/>
+
+                                <TextBlock Grid.Row="2" Grid.Column="0" Text="Steps:" VerticalAlignment="Center"/>
+                                <TextBox Grid.Row="2" Grid.Column="1" Text="{Binding AudioSteps}"/>
+                            </Grid>
+
+                            <TextBlock Text="Audio Prompt:" FontWeight="Bold"/>
+                            <TextBox Text="{Binding AudioPrompt}" Height="60" TextWrapping="Wrap"
+                                     AcceptsReturn="True"/>
+
+                            <TextBlock Text="Audio Negative Prompt:" FontWeight="Bold"/>
+                            <TextBox Text="{Binding AudioNegativePrompt}" Height="60" TextWrapping="Wrap"
+                                     AcceptsReturn="True"/>
+                        </StackPanel>
+                    </Border>
+                </StackPanel>
+
+                <!-- Right Column -->
+                <StackPanel Grid.Column="1" Margin="10,0,0,0" Spacing="10">
+
+                    <!-- Advanced Settings -->
+                    <Border Background="#F8F9FA" BorderBrush="#DEE2E6" BorderThickness="1" CornerRadius="8" Padding="15">
+                        <StackPanel Spacing="8">
+                            <TextBlock Text="Advanced Settings" FontSize="14" FontWeight="Bold"/>
+
+                            <Grid ColumnDefinitions="*,*" RowDefinitions="Auto,Auto,Auto,Auto,Auto">
+                                <TextBlock Grid.Row="0" Grid.Column="0" Text="Steps:" VerticalAlignment="Center"/>
+                                <TextBox Grid.Row="0" Grid.Column="1" Text="{Binding Steps}" Margin="0,0,0,5"/>
+
+                                <TextBlock Grid.Row="1" Grid.Column="0" Text="Step to Swap:" VerticalAlignment="Center"/>
+                                <TextBox Grid.Row="1" Grid.Column="1" Text="{Binding StepToSwap}" Margin="0,0,0,5"/>
+
+                                <TextBlock Grid.Row="2" Grid.Column="0" Text="CFG:" VerticalAlignment="Center"/>
+                                <TextBox Grid.Row="2" Grid.Column="1" Text="{Binding Cfg}" Margin="0,0,0,5"/>
+
+                                <TextBlock Grid.Row="3" Grid.Column="0" Text="Seed (0=Random):" VerticalAlignment="Center"/>
+                                <TextBox Grid.Row="3" Grid.Column="1" Text="{Binding Seed}" Margin="0,0,0,5"/>
+
+                                <TextBlock Grid.Row="4" Grid.Column="0" Text="CRF:" VerticalAlignment="Center"/>
+                                <TextBox Grid.Row="4" Grid.Column="1" Text="{Binding CRF}"/>
+                            </Grid>
+
+                            <!-- LoRA Models -->
+                            <TextBlock Text="LoRA Models:" FontWeight="Bold" Margin="0,10,0,0"/>
+                            <ScrollViewer Height="200">
+                                <ItemsControl ItemsSource="{Binding LoRAItems}">
+                                    <ItemsControl.ItemTemplate>
+                                        <DataTemplate>
+                                            <Border BorderBrush="#E0E0E0" BorderThickness="1" Padding="10" Margin="0,0,0,5" CornerRadius="3">
+                                                <Grid ColumnDefinitions="*,Auto,80">
+                                                    <CheckBox Grid.Column="0"
+                                                              Content="{Binding Name}"
+                                                              IsChecked="{Binding Enabled}"
+                                                              VerticalAlignment="Center"/>
+                                                    <TextBlock Grid.Column="1" Text="Strength:" Margin="0,0,5,0" VerticalAlignment="Center"/>
+                                                    <Slider Grid.Column="2"
+                                                            Value="{Binding Strength}"
+                                                            Minimum="0" Maximum="2"
+                                                            TickFrequency="0.1"
+                                                            IsSnapToTickEnabled="True"
+                                                            VerticalAlignment="Center"/>
+                                                </Grid>
+                                            </Border>
+                                        </DataTemplate>
+                                    </ItemsControl.ItemTemplate>
+                                </ItemsControl>
+                            </ScrollViewer>
+                        </StackPanel>
+                    </Border>
+
+                    <!-- Generation Controls -->
+                    <Border Background="#F8F9FA" BorderBrush="#DEE2E6" BorderThickness="1" CornerRadius="8" Padding="15">
+                        <StackPanel Spacing="8">
+                            <TextBlock Text="Generation Controls" FontSize="14" FontWeight="Bold"/>
+
+                            <Grid ColumnDefinitions="*,*">
+                                <Button Grid.Column="0" Content="Generate Video" Classes="primary"
+                                        Command="{Binding GenerateVideoCommand}" Margin="0,0,5,0"/>
+                                <Button Grid.Column="1" Content="Cancel" Classes="danger"
+                                        Command="{Binding CancelGenerationCommand}" Margin="5,0,0,0"/>
+                            </Grid>
+
+                            <TextBlock Text="{Binding ProcessingStatus}" FontSize="12"
+                                       IsVisible="{Binding IsProcessing}"/>
+                            <ProgressBar Value="{Binding ProcessingProgress}" Maximum="100" Height="20"
+                                         IsVisible="{Binding IsProcessing}"/>
+
+                            <Grid ColumnDefinitions="*,*,*" Margin="0,10,0,0">
+                                <Button Grid.Column="0" Content="Play Video" Classes="secondary"
+                                        Command="{Binding PlayResultVideoCommand}" Margin="0,0,2,0"/>
+                                <Button Grid.Column="1" Content="Open Folder" Classes="secondary"
+                                        Command="{Binding OpenResultFolderCommand}" Margin="2,0,2,0"/>
+                                <Button Grid.Column="2" Content="Clear Logs" Classes="nav"
+                                        Command="{Binding ClearLogsCommand}" Margin="2,0,0,0"/>
+                            </Grid>
+                        </StackPanel>
+                    </Border>
+
+                    <!-- ComfyUI Connection -->
+                    <Border Background="#F8F9FA" BorderBrush="#DEE2E6" BorderThickness="1" CornerRadius="8" Padding="15">
+                        <StackPanel Spacing="8">
+                            <TextBlock Text="ComfyUI Connection" FontSize="14" FontWeight="Bold"/>
+
+                            <Grid ColumnDefinitions="*,Auto">
+                                <StackPanel Grid.Column="0" Spacing="5">
+                                    <Grid ColumnDefinitions="60,*">
+                                        <TextBlock Grid.Column="0" Text="Server:" VerticalAlignment="Center"/>
+                                        <TextBox Grid.Column="1" Text="{Binding ComfyUIServer}"/>
+                                    </Grid>
+                                    <Grid ColumnDefinitions="60,*">
+                                        <TextBlock Grid.Column="0" Text="Port:" VerticalAlignment="Center"/>
+                                        <TextBox Grid.Column="1" Text="{Binding ComfyUIPort}"/>
+                                    </Grid>
+                                </StackPanel>
+                                <Button Grid.Column="1" Content="Test" Classes="secondary"
+                                        Command="{Binding RefreshConnectionCommand}"
+                                        Width="60" Height="50" VerticalAlignment="Top" Margin="8,0,0,0"/>
+                            </Grid>
+                        </StackPanel>
+                    </Border>
+
+                    <!-- Logs -->
+                    <Border Background="#F8F9FA" BorderBrush="#DEE2E6" BorderThickness="1" CornerRadius="8" Padding="15">
+                        <StackPanel Spacing="8">
+                            <TextBlock Text="Generation Logs" FontSize="14" FontWeight="Bold"/>
+                            <TextBox Text="{Binding LogOutput}"
+                                     Height="150"
+                                     IsReadOnly="True"
+                                     Background="#F8F8F8"
+                                     FontFamily="Monospace"
+                                     FontSize="11"/>
+                        </StackPanel>
+                    </Border>
+                </StackPanel>
+            </Grid>
+        </ScrollViewer>
+
+        <!-- Status Bar -->
+        <Border Grid.Row="2" Background="#2C3E50" Height="28">
+            <DockPanel>
+                <TextBlock Text="{Binding StatusBarMessage}" Foreground="White"
+                           VerticalAlignment="Center" Margin="10,0"/>
+            </DockPanel>
+        </Border>
+    </Grid>
+</Window>

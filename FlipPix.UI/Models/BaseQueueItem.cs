@@ -163,6 +163,22 @@ namespace FlipPix.UI.Models
             }
         }
 
+        private BitmapImage? _storyboardThumbnailImage;
+
+        /// <summary>
+        /// Large thumbnail image for the storyboard view (220px height)
+        /// </summary>
+        [JsonIgnore]
+        public BitmapImage? StoryboardThumbnailImage
+        {
+            get => _storyboardThumbnailImage;
+            private set
+            {
+                _storyboardThumbnailImage = value;
+                OnPropertyChanged();
+            }
+        }
+
         /// <summary>
         /// Alias for OutputImageThumbnail (for XAML binding compatibility)
         /// </summary>
@@ -224,6 +240,7 @@ namespace FlipPix.UI.Models
             if (string.IsNullOrEmpty(_outputImagePath) || !File.Exists(_outputImagePath))
             {
                 ThumbnailImage = null;
+                StoryboardThumbnailImage = null;
                 return;
             }
 
@@ -241,6 +258,22 @@ namespace FlipPix.UI.Models
             catch
             {
                 ThumbnailImage = null;
+            }
+
+            try
+            {
+                var largeBitmap = new BitmapImage();
+                largeBitmap.BeginInit();
+                largeBitmap.UriSource = new Uri(_outputImagePath, UriKind.Absolute);
+                largeBitmap.DecodePixelHeight = 220;
+                largeBitmap.CacheOption = BitmapCacheOption.OnLoad;
+                largeBitmap.EndInit();
+                largeBitmap.Freeze();
+                StoryboardThumbnailImage = largeBitmap;
+            }
+            catch
+            {
+                StoryboardThumbnailImage = null;
             }
         }
 

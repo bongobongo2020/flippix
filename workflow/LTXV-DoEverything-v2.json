@@ -135,10 +135,7 @@
   },
   "20": {
     "inputs": {
-      "frame_rate": [
-        "64",
-        0
-      ],
+      "frame_rate": 25,
       "positive": [
         "6",
         0
@@ -292,18 +289,6 @@
       "title": "CONFIG ImageFrameSelect (0:<frame count - 16>*2 or 0:-1 for no cutting)"
     }
   },
-  "64": {
-    "inputs": {
-      "int_value": [
-        "55",
-        0
-      ]
-    },
-    "class_type": "FL_IntToFloat",
-    "_meta": {
-      "title": "FL Int to Float"
-    }
-  },
   "67": {
     "inputs": {
       "value": 48
@@ -365,8 +350,8 @@
   },
   "88": {
     "inputs": {
-      "clip_name1": "gemma3\\gemma_3_12B_it_fp8_e4m3fn.safetensors",
-      "clip_name2": "gemma3\\ltx-2-19b-embeddings_connector_bf16.safetensors",
+      "clip_name1": "gemma3/gemma_3_12B_it_fp8_e4m3fn.safetensors",
+      "clip_name2": "gemma3/ltx-2-19b-embeddings_connector_bf16.safetensors",
       "type": "ltxv",
       "device": "cpu"
     },
@@ -439,7 +424,7 @@
   },
   "106": {
     "inputs": {
-      "image": "Flux2Klein9B-camera-angles-20260222_174639_00001_.png"
+      "image": "AnimateDiff_00006.png"
     },
     "class_type": "LoadImage",
     "_meta": {

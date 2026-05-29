@@ -7,6 +7,7 @@ using System.IO;
 using System.Linq;
 using System.Runtime.CompilerServices;
 using System.Text.Json;
+using System.Text.RegularExpressions;
 using System.Threading;
 using System.Threading.Tasks;
 using System.Windows.Input;
@@ -547,8 +548,6 @@ namespace FlipPix.UI.ViewModels
         private void CancelQueue()
         {
             _queueCancellationTokenSource?.Cancel();
-            foreach (var item in _queue.Where(q => q.Status == "Pending"))
-                item.Status = "Cancelled";
             AddLog("Queue cancellation requested");
         }
 
@@ -620,7 +619,7 @@ namespace FlipPix.UI.ViewModels
                         }
                         catch (OperationCanceledException)
                         {
-                            queueItem.Status = "Cancelled";
+                            queueItem.Status = "Failed";
                             queueItem.ErrorMessage = "Cancelled";
                             SaveQueueToFile();
                             AddLog($"Queue item cancelled: {queueItem.DisplayPrompt}");
@@ -750,17 +749,22 @@ namespace FlipPix.UI.ViewModels
                 ProcessingProgress = 95;
                 AddLog("Looking for generated image...");
 
-                var outputImages = await _imageRetriever.GetOutputImagesAsync(
-                    _comfyUIService.HttpClient,
-                    _settingsService,
-                    _logger,
-                    AddLog,
-                    specificFolder: "ZImage",
-                    expectedPattern: "AmateurImage",
-                    promptId: promptId,
-                    maxRetries: 20,
-                    retryDelayMs: 5000,
-                    ct: _cancellationTokenSource.Token);
+                List<byte[]> outputImages = new();
+                int retryCount = 0;
+                int maxRetries = 20;
+
+                while (retryCount < maxRetries && !outputImages.Any())
+                {
+                    if (retryCount > 0)
+                    {
+                        AddLog($"Retry {retryCount}/{maxRetries} - waiting 5 seconds...");
+                        await Task.Delay(5000, _cancellationTokenSource.Token);
+                    }
+
+                    _cancellationTokenSource.Token.ThrowIfCancellationRequested();
+                    outputImages = await GetOutputImagesFromComfyUI(promptId);
+                    retryCount++;
+                }
 
                 if (outputImages.Any())
                 {
@@ -855,7 +859,7 @@ namespace FlipPix.UI.ViewModels
             // 9. Set fallback LoRA for node 760 (prevents invalid LoRA errors)
             WorkflowNodeUpdater.UpdateNodeInputMultiple(ref workflowJson, "760", new Dictionary<string, object>
             {
-                { "lora_name", $"zimage/{AmateurLoraName}" },
+                { "lora_name", $"zimage\\{AmateurLoraName}" },
                 { "strength_model", 0.0 }
             });
 
@@ -899,6 +903,186 @@ namespace FlipPix.UI.ViewModels
                 4 => ", modern aesthetic, clean lines, vibrant colors",
                 _ => ""
             };
+        }
+
+        private async Task<List<byte[]>> GetOutputImagesFromComfyUI(string promptId)
+        {
+            var images = new List<byte[]>();
+
+            try
+            {
+                var baseUrl = _settingsService.Settings?.BaseUrl;
+                if (string.IsNullOrEmpty(baseUrl))
+                {
+                    _logger.LogWarning("Settings BaseUrl is null or empty, reloading settings");
+                    baseUrl = _settingsService.LoadSettings().BaseUrl;
+                    if (string.IsNullOrEmpty(baseUrl))
+                    {
+                        _logger.LogWarning("Failed to load BaseUrl from settings, using default");
+                        baseUrl = "http://127.0.0.1:8188";
+                    }
+                }
+                var uri = new Uri(baseUrl);
+                var actualServer = uri.Host;
+
+                bool isRemoteComfyUI = _imageRetriever.IsComfyUIRemote(_settingsService);
+
+                AddLog($"ComfyUI server: {actualServer}");
+                AddLog($"Is remote ComfyUI: {isRemoteComfyUI}");
+
+                int retryCount = 0;
+                int maxRetries = 20;
+
+                while (retryCount < maxRetries && !images.Any())
+                {
+                    if (retryCount > 0)
+                    {
+                        AddLog($"Retry {retryCount}/{maxRetries} - waiting 5 seconds before checking again...");
+                        await Task.Delay(5000);
+                    }
+
+                    if (isRemoteComfyUI)
+                    {
+                        AddLog("Detected remote ComfyUI server, downloading generated image...");
+
+                        var outputFiles = await _comfyUIService.HttpClient.GetOutputFilesAsync();
+                        AddLog($"Found {outputFiles.Count} potential output files");
+
+                        var imageFiles = outputFiles.Where(f =>
+                            f.EndsWith(".png") &&
+                            !f.StartsWith("z-image_") &&
+                            !f.StartsWith("temp_"))
+                            .ToList();
+
+                        if (imageFiles.Any())
+                        {
+                            var filename = imageFiles.Last();
+                            AddLog($"Downloading generated image: {filename}");
+
+                            var imageData = await _comfyUIService.HttpClient.DownloadOutputImageAsync(filename);
+                            if (imageData != null)
+                            {
+                                images.Add(imageData);
+                                AddLog($"Successfully downloaded image ({imageData.Length} bytes)");
+                            }
+                        }
+                        else
+                        {
+                            var fallbackImage = await _comfyUIService.HttpClient.TryDownloadRecentOutputAsync(promptId);
+                            if (fallbackImage != null)
+                            {
+                                images.Add(fallbackImage);
+                                AddLog($"Successfully downloaded image via fallback method ({fallbackImage.Length} bytes)");
+                            }
+                        }
+                    }
+                    else
+                    {
+                        var comfyUIOutputDir = _settingsService.Settings?.OutputFolderPath;
+                        if (string.IsNullOrEmpty(comfyUIOutputDir))
+                        {
+                            AddLog("ERROR: ComfyUI output folder not configured");
+                            return images;
+                        }
+
+                        if (!Directory.Exists(comfyUIOutputDir))
+                        {
+                            AddLog($"ERROR: ComfyUI output folder not found: {comfyUIOutputDir}");
+                            return images;
+                        }
+
+                        var searchDirs = new List<string>();
+
+                        var zimageDir = Path.Combine(comfyUIOutputDir, "ZImage");
+                        if (Directory.Exists(zimageDir))
+                        {
+                            searchDirs.Add(zimageDir);
+                            AddLog("Added ZImage folder to search directories");
+                        }
+
+                        searchDirs.Add(comfyUIOutputDir);
+
+                        try
+                        {
+                            var dateFolders = Directory.GetDirectories(comfyUIOutputDir)
+                                .Where(d => Regex.IsMatch(Path.GetFileName(d), @"^\d{4}-\d{2}-\d{2}$"))
+                                .OrderByDescending(d => Directory.GetLastWriteTime(d))
+                                .Take(3);
+
+                            foreach (var dateDir in dateFolders)
+                            {
+                                searchDirs.Add(dateDir);
+                            }
+                        }
+                        catch { }
+
+                        AddLog($"Searching in {searchDirs.Count} directories for output images");
+
+                        foreach (var searchDir in searchDirs)
+                        {
+                            var dirName = Path.GetFileName(searchDir);
+                            var pattern = dirName.Equals("ZImage", StringComparison.OrdinalIgnoreCase) ? "AmateurImage*.png" : "*.png";
+
+                            var recentFiles = Directory.GetFiles(searchDir, pattern)
+                                .Select(f => new FileInfo(f))
+                                .Where(f => (DateTime.Now - f.LastWriteTime).TotalMinutes < 2)
+                                .OrderByDescending(f => f.LastWriteTime)
+                                .ToList();
+
+                            if (recentFiles.Any())
+                            {
+                                AddLog($"Found {recentFiles.Count} recent PNG files in: {dirName}");
+                                var latestFile = recentFiles.First();
+                                AddLog($"Using latest file: {latestFile.Name} (modified: {latestFile.LastWriteTime})");
+                                images.Add(await File.ReadAllBytesAsync(latestFile.FullName));
+                                break;
+                            }
+                        }
+
+                        if (!images.Any())
+                        {
+                            AddLog($"No recent images found in retry {retryCount + 1}");
+
+                            if (retryCount >= 5)
+                            {
+                                foreach (var searchDir in searchDirs)
+                                {
+                                    var dirName = Path.GetFileName(searchDir);
+                                    var pattern = dirName.Equals("ZImage", StringComparison.OrdinalIgnoreCase) ? "AmateurImage*.png" : "*.png";
+
+                                    var olderFiles = Directory.GetFiles(searchDir, pattern)
+                                        .Select(f => new FileInfo(f))
+                                        .Where(f => (DateTime.Now - f.LastWriteTime).TotalMinutes < 10)
+                                        .OrderByDescending(f => f.LastWriteTime)
+                                        .ToList();
+
+                                    if (olderFiles.Any())
+                                    {
+                                        AddLog($"Fallback: Found {olderFiles.Count} PNG files in last 10 minutes in: {dirName}");
+                                        var latestFile = olderFiles.First();
+                                        AddLog($"Using fallback file: {latestFile.Name} (modified: {latestFile.LastWriteTime})");
+                                        images.Add(await File.ReadAllBytesAsync(latestFile.FullName));
+                                        break;
+                                    }
+                                }
+                            }
+                        }
+                    }
+
+                    retryCount++;
+                }
+
+                if (!images.Any())
+                {
+                    AddLog("WARNING: No output images received after all retries");
+                }
+            }
+            catch (Exception ex)
+            {
+                AddLog($"ERROR retrieving output images: {ex.Message}");
+            }
+
+            return images;
         }
 
         private void RemoveNodesFromWorkflow(ref string workflowJson, string[] nodeIds)

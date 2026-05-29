@@ -85,6 +85,9 @@ namespace FlipPix.UI.ViewModels
             ForceCancelQueueCommand = new RelayCommand(ForceCancelQueue, () => IsProcessingQueue || QueueItems.Any(i => i.Status == "Queued" || i.Status == "Processing"));
             PauseQueueCommand = new RelayCommand(PauseQueue, () => IsProcessingQueue && !IsQueuePaused);
             ResumeQueueCommand = new RelayCommand(ResumeQueue, () => IsProcessingQueue && IsQueuePaused);
+            RegenerateItemCommand = new RelayCommand<StoryPromptItem>(RegenerateItem);
+            DeleteItemCommand = new RelayCommand<StoryPromptItem>(DeleteItem);
+            SaveFinalStoryboardCommand = new RelayCommand(SaveFinalStoryboard, () => HasCompletedItems);
 
             // Let subclass do variant-specific init
             InitializeVariant();
@@ -206,6 +209,7 @@ namespace FlipPix.UI.ViewModels
                 if (SetProperty(ref _inputImagePath, value))
                 {
                     OnPropertyChanged(nameof(CanLoadPrompts));
+                    OnPropertyChanged(nameof(FinalFolderName));
                     LoadInputImagePreview();
                     LoadPromptsCommand.NotifyCanExecuteChanged();
                 }
@@ -359,6 +363,22 @@ namespace FlipPix.UI.ViewModels
             set => SetProperty(ref _negativePrompt, value);
         }
 
+        private string? _finalFolderNameOverride;
+
+        public string FinalFolderName
+        {
+            get => _finalFolderNameOverride ??
+                   (string.IsNullOrEmpty(InputImagePath) ? "story" : Path.GetFileNameWithoutExtension(InputImagePath));
+            set
+            {
+                _finalFolderNameOverride = string.IsNullOrEmpty(value) ? null : value;
+                OnPropertyChanged();
+            }
+        }
+
+        public bool HasAnyItems => QueueItems.Any();
+        public bool HasCompletedItems => QueueItems.Any(i => i.Status == "Completed");
+
         // --- Commands ---
 
         public ICommand SelectPromptJsonCommand { get; }
@@ -371,6 +391,9 @@ namespace FlipPix.UI.ViewModels
         public ICommand ForceCancelQueueCommand { get; }
         public ICommand PauseQueueCommand { get; }
         public ICommand ResumeQueueCommand { get; }
+        public ICommand RegenerateItemCommand { get; }
+        public ICommand DeleteItemCommand { get; }
+        public CommunityToolkit.Mvvm.Input.RelayCommand SaveFinalStoryboardCommand { get; }
 
         // --- Shared methods ---
 
@@ -678,7 +701,11 @@ namespace FlipPix.UI.ViewModels
             OnPropertyChanged(nameof(CompletedCount));
             OnPropertyChanged(nameof(FailedCount));
             OnPropertyChanged(nameof(QueueProgressText));
+            OnPropertyChanged(nameof(HasAnyItems));
+            OnPropertyChanged(nameof(HasCompletedItems));
+            (ClearQueueCommand as RelayCommand)?.NotifyCanExecuteChanged();
             (ForceCancelQueueCommand as RelayCommand)?.NotifyCanExecuteChanged();
+            SaveFinalStoryboardCommand.NotifyCanExecuteChanged();
         }
 
         /// <summary>
@@ -713,6 +740,7 @@ namespace FlipPix.UI.ViewModels
             {
                 QueueItems.Clear();
                 SaveQueueToFile();
+                UpdateQueueCountNotifications();
                 AddLog("Queue cleared");
                 CommandManager.InvalidateRequerySuggested();
             }
@@ -889,6 +917,95 @@ namespace FlipPix.UI.ViewModels
         protected string? GetLoraModelPath()
         {
             return _loraManager.ResolveLoraPath();
+        }
+
+        private void RegenerateItem(StoryPromptItem? item)
+        {
+            if (item == null || item.Status == "Processing") return;
+
+            item.Status = "Queued";
+            item.OutputImagePath = null;
+            item.Progress = 0;
+            item.ErrorMessage = null;
+            SaveQueueToFile();
+            UpdateQueueCountNotifications();
+            CommandManager.InvalidateRequerySuggested();
+
+            if (!IsProcessingQueue && CanProcessQueue)
+            {
+                _ = ProcessQueueAsync();
+            }
+        }
+
+        private void DeleteItem(StoryPromptItem? item)
+        {
+            if (item == null || item.Status == "Processing") return;
+
+            QueueItems.Remove(item);
+            SaveQueueToFile();
+            UpdateQueueCountNotifications();
+            CommandManager.InvalidateRequerySuggested();
+        }
+
+        private void SaveFinalStoryboard()
+        {
+            var completedItems = QueueItems
+                .Where(i => i.Status == "Completed" && !string.IsNullOrEmpty(i.OutputImagePath) && File.Exists(i.OutputImagePath))
+                .OrderBy(i => i.Index)
+                .ToList();
+
+            if (!completedItems.Any())
+            {
+                System.Windows.MessageBox.Show("No completed images to save.", "Nothing to Save",
+                    MessageBoxButton.OK, MessageBoxImage.Information);
+                return;
+            }
+
+            var safeName = SanitizeFolderName(FinalFolderName);
+            var finalFolderPath = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "output", OutputFolderName, $"Final-{safeName}");
+
+            try
+            {
+                Directory.CreateDirectory(finalFolderPath);
+
+                for (int i = 0; i < completedItems.Count; i++)
+                {
+                    var destName = $"{safeName}-scene-{(i + 1):D2}.png";
+                    File.Copy(completedItems[i].OutputImagePath!, Path.Combine(finalFolderPath, destName), overwrite: true);
+                }
+
+                // Always write prompts.txt from queue items (covers both JSON-loaded and Qwen VL analyzed prompts)
+                var promptLines = new System.Text.StringBuilder();
+                for (int i = 0; i < completedItems.Count; i++)
+                {
+                    promptLines.AppendLine($"Scene {i + 1}:");
+                    promptLines.AppendLine(completedItems[i].Prompt);
+                    promptLines.AppendLine();
+                }
+                File.WriteAllText(Path.Combine(finalFolderPath, "prompts.txt"), promptLines.ToString());
+
+                if (!string.IsNullOrEmpty(PromptJsonFilePath) && File.Exists(PromptJsonFilePath))
+                    File.Copy(PromptJsonFilePath, Path.Combine(finalFolderPath, "prompts.json"), overwrite: true);
+
+                AddLog($"Saved final storyboard: {finalFolderPath}");
+                System.Windows.MessageBox.Show(
+                    $"Saved {completedItems.Count} images + prompts.txt\n\n{finalFolderPath}",
+                    "Storyboard Saved", MessageBoxButton.OK, MessageBoxImage.Information);
+
+                Process.Start(new ProcessStartInfo { FileName = finalFolderPath, UseShellExecute = true });
+            }
+            catch (Exception ex)
+            {
+                AddLog($"ERROR saving final storyboard: {ex.Message}");
+                System.Windows.MessageBox.Show($"Error saving storyboard:\n\n{ex.Message}", "Error",
+                    MessageBoxButton.OK, MessageBoxImage.Error);
+            }
+        }
+
+        private static string SanitizeFolderName(string name)
+        {
+            var invalid = Path.GetInvalidFileNameChars();
+            return string.Concat(name.Select(c => invalid.Contains(c) ? '_' : c));
         }
 
         public void Dispose()

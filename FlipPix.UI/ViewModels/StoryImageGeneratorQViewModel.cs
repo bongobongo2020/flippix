@@ -1,9 +1,11 @@
 using System;
 using System.Collections.Generic;
+using System.Collections.ObjectModel;
 using System.IO;
 using System.Linq;
 using System.Text.RegularExpressions;
 using System.Text.Json;
+using System.Text.Json.Nodes;
 using System.Threading;
 using System.Threading.Tasks;
 using System.Windows;
@@ -44,6 +46,140 @@ namespace FlipPix.UI.ViewModels
             };
         }
 
+        // --- Workflow mode ---
+
+        public static readonly IReadOnlyList<string> WorkflowModes = new[] { "Qwen", "Klein", "FireRed", "StoryImageZ" };
+
+        private string _selectedWorkflowMode = "Qwen";
+        public string SelectedWorkflowMode
+        {
+            get => _selectedWorkflowMode;
+            set
+            {
+                if (SetProperty(ref _selectedWorkflowMode, value))
+                {
+                    if (value == "Klein")
+                        Steps = 20;
+                    else if (value == "FireRed")
+                        Steps = 8;
+                    else
+                        Steps = DefaultSteps;
+
+                    OnPropertyChanged(nameof(ShowLoRAOption));
+                    OnPropertyChanged(nameof(ShowZOptions));
+                    OnPropertyChanged(nameof(CanLoadPrompts));
+
+                    if (value == "StoryImageZ" && _zAllStyles.Count == 0)
+                        LoadZWorkflowsAndStyles();
+                    if (value == "StoryImageZ" && !_zAvailableLoras.Any())
+                        LoadZAvailableLoras();
+                }
+            }
+        }
+
+        private bool _useLoRA = true;
+        public bool UseLoRA
+        {
+            get => _useLoRA;
+            set => SetProperty(ref _useLoRA, value);
+        }
+
+        public bool ShowLoRAOption => SelectedWorkflowMode == "FireRed";
+
+        public bool ShowZOptions => SelectedWorkflowMode == "StoryImageZ";
+
+        // --- Z workflow fields ---
+
+        private List<StyleInfo> _zAllStyles = new();
+        private int _zSelectedStyleIndex = 0;
+        private ObservableCollection<string> _zAvailableLoras = new();
+        private string _zSelectedLora = string.Empty;
+        private bool _zLoraEnabled = false;
+        private double _zLoraStrengthModel = 1.0;
+        private double _zLoraStrengthClip = 1.0;
+        private string _zSelectedOrientation = "Portrait (944x1408)";
+
+        public static readonly IReadOnlyList<string> ZOrientations = new[]
+        {
+            "Portrait (944x1408)",
+            "Landscape (1408x944)",
+            "Square (1088x1088)"
+        };
+
+        public string ZSelectedOrientation
+        {
+            get => _zSelectedOrientation;
+            set { if (_zSelectedOrientation != value) { _zSelectedOrientation = value; OnPropertyChanged(); } }
+        }
+
+        public string[] ZStyleNames => _zAllStyles.Select(s => s.Name).ToArray();
+
+        public int ZSelectedStyleIndex
+        {
+            get => _zSelectedStyleIndex;
+            set { if (_zSelectedStyleIndex != value) { _zSelectedStyleIndex = value; OnPropertyChanged(); } }
+        }
+
+        public StyleInfo? ZSelectedWorkflowStyle => _zAllStyles.Count > 0
+            ? _zAllStyles[Math.Min(_zSelectedStyleIndex, _zAllStyles.Count - 1)]
+            : null;
+
+        public ObservableCollection<string> ZAvailableLoras
+        {
+            get => _zAvailableLoras;
+            set { if (_zAvailableLoras != value) { _zAvailableLoras = value; OnPropertyChanged(); } }
+        }
+
+        public string ZSelectedLora
+        {
+            get => _zSelectedLora;
+            set
+            {
+                if (_zSelectedLora != value)
+                {
+                    _zSelectedLora = value;
+                    OnPropertyChanged();
+                    SaveZLoraSettings();
+                }
+            }
+        }
+
+        public bool ZLoraEnabled
+        {
+            get => _zLoraEnabled;
+            set
+            {
+                if (_zLoraEnabled != value)
+                {
+                    _zLoraEnabled = value;
+                    OnPropertyChanged();
+                    SaveZLoraSettings();
+                }
+            }
+        }
+
+        public double ZLoraStrengthModel
+        {
+            get => _zLoraStrengthModel;
+            set
+            {
+                if (_zLoraStrengthModel != value)
+                {
+                    _zLoraStrengthModel = value;
+                    OnPropertyChanged();
+                    SaveZLoraSettings();
+                }
+            }
+        }
+
+        public double ZLoraStrengthClip
+        {
+            get => _zLoraStrengthClip;
+            set { if (_zLoraStrengthClip != value) { _zLoraStrengthClip = value; OnPropertyChanged(); } }
+        }
+
+        public ICommand RefreshZLorasCommand { get; private set; } = null!;
+
         // --- Abstract member implementations ---
 
         protected override string VariantDisplayName => "Story Image Generator Q";
@@ -53,6 +189,7 @@ namespace FlipPix.UI.ViewModels
         protected override int DefaultSteps => 8;
         protected override double DefaultCfg => 1.0;
         protected override double DefaultDenoise => 0.98;
+        protected override bool RequiresInputImage => SelectedWorkflowMode != "StoryImageZ";
 
         // --- Variant-specific initialization ---
 
@@ -62,6 +199,10 @@ namespace FlipPix.UI.ViewModels
             AnalyzeImageWithQwenVLCommand = new CommunityToolkit.Mvvm.Input.RelayCommand(
                 async () => await AnalyzeImageWithQwenVLAsync(),
                 () => !string.IsNullOrEmpty(InputImagePath) && File.Exists(InputImagePath) && !IsAnalyzingImage);
+            RefreshZLorasCommand = new CommunityToolkit.Mvvm.Input.RelayCommand(RefreshZLoras);
+            LoadZWorkflowsAndStyles();
+            LoadZAvailableLoras();
+            RestoreZLoraSettings();
         }
 
         // --- Overrides for folder saving ---
@@ -138,9 +279,363 @@ namespace FlipPix.UI.ViewModels
             set => SetProperty(ref _analysisStatus, value);
         }
 
+        private string _storyConcept = string.Empty;
+        public string StoryConcept
+        {
+            get => _storyConcept;
+            set => SetProperty(ref _storyConcept, value);
+        }
+
         private void ToggleSettingsVisibility()
         {
             SettingsVisible = !SettingsVisible;
+        }
+
+        // --- CreateQueueItem override for Z mode ---
+
+        protected override StoryPromptItem CreateQueueItem(int index, string prompt, string inputImagePath)
+        {
+            if (SelectedWorkflowMode == "StoryImageZ")
+            {
+                return new StoryPromptItem
+                {
+                    Index = index,
+                    Prompt = prompt,
+                    InputImagePath = inputImagePath,
+                    Status = "Queued",
+                    StyleName = ZSelectedWorkflowStyle?.Name ?? "",
+                    StyleWorkflowFile = ZSelectedWorkflowStyle?.WorkflowFile ?? "",
+                    LoraEnabled = ZLoraEnabled,
+                    SelectedLora = ZSelectedLora,
+                    LoraStrengthModel = ZLoraStrengthModel,
+                    LoraStrengthClip = ZLoraStrengthClip,
+                    SelectedStyle = "Phone Photo",
+                    SpicyContentEnabled = false,
+                    NegativePrompt = NegativePrompt,
+                    SelectedOrientation = ZSelectedOrientation,
+                };
+            }
+            return base.CreateQueueItem(index, prompt, inputImagePath);
+        }
+
+        // --- Z workflow: style and LoRA loading ---
+
+        private void LoadZWorkflowsAndStyles()
+        {
+            try
+            {
+                _zAllStyles.Clear();
+                var workflowDir = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "workflow", "ZStyles");
+
+                if (!Directory.Exists(workflowDir))
+                {
+                    AddLog($"ZStyles workflow directory not found at {workflowDir}");
+                    OnPropertyChanged(nameof(ZStyleNames));
+                    return;
+                }
+
+                foreach (var workflowFile in Directory.GetFiles(workflowDir, "*.json"))
+                {
+                    var fileName = Path.GetFileNameWithoutExtension(workflowFile);
+                    var styleName = fileName.StartsWith("Z") ? fileName.Substring(1) : fileName;
+                    _zAllStyles.Add(new StyleInfo
+                    {
+                        Name = styleName,
+                        PromptTemplate = "",
+                        WorkflowFile = workflowFile,
+                        NodeId = ""
+                    });
+                }
+
+                _zAllStyles = _zAllStyles.OrderBy(s => s.Name).ToList();
+                AddLog($"Loaded {_zAllStyles.Count} ZStyles workflows for StoryImageZ");
+                OnPropertyChanged(nameof(ZStyleNames));
+                OnPropertyChanged(nameof(ZSelectedWorkflowStyle));
+            }
+            catch (Exception ex)
+            {
+                AddLog($"Error loading ZStyles: {ex.Message}");
+            }
+        }
+
+        private void LoadZAvailableLoras()
+        {
+            try
+            {
+                var overridePath = _settingsService.Settings?.RemoteLoraFolderPath;
+                if (!string.IsNullOrEmpty(overridePath) && Directory.Exists(overridePath))
+                {
+                    LoadZLorasFromDirectory(overridePath);
+                    return;
+                }
+
+                var loraBasePath = GetLoraModelPath();
+                if (!string.IsNullOrEmpty(loraBasePath))
+                {
+                    var zimageLoraPath = Path.Combine(loraBasePath, "zimage");
+                    LoadZLorasFromDirectory(Directory.Exists(zimageLoraPath) ? zimageLoraPath : loraBasePath);
+                    return;
+                }
+
+                LoadZLorasFromDirectory(Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "loras", "zimage"));
+            }
+            catch (Exception ex)
+            {
+                AddLog($"Error loading Z LoRAs: {ex.Message}");
+                _zAvailableLoras.Clear();
+                _zAvailableLoras.Add("Error loading LoRAs");
+            }
+        }
+
+        private void LoadZLorasFromDirectory(string loraPath)
+        {
+            _zAvailableLoras.Clear();
+            if (!Directory.Exists(loraPath))
+            {
+                _zAvailableLoras.Add("No LoRAs available");
+                return;
+            }
+
+            var loraFiles = Directory.GetFiles(loraPath, "*.safetensors", SearchOption.AllDirectories)
+                .Select(f => Path.ChangeExtension(Path.GetRelativePath(loraPath, f), null).Replace('/', '\\'))
+                .Where(name => !string.IsNullOrEmpty(name))
+                .OrderBy(name => name)
+                .ToList();
+
+            if (loraFiles.Any())
+            {
+                foreach (var lora in loraFiles)
+                    _zAvailableLoras.Add(lora);
+                if (string.IsNullOrEmpty(ZSelectedLora))
+                    ZSelectedLora = _zAvailableLoras.First();
+                AddLog($"Loaded {_zAvailableLoras.Count} LoRAs for StoryImageZ");
+            }
+            else
+            {
+                _zAvailableLoras.Add("No LoRAs available");
+            }
+        }
+
+        private void RefreshZLoras()
+        {
+            LoadZAvailableLoras();
+            RestoreZLoraSettings();
+            AddLog("Refreshed Z LoRA list");
+        }
+
+        private void RestoreZLoraSettings()
+        {
+            var s = _settingsService.Settings;
+            if (s == null) return;
+
+            _zLoraEnabled = s.StoryImageQZLoraEnabled;
+            OnPropertyChanged(nameof(ZLoraEnabled));
+
+            _zLoraStrengthModel = s.StoryImageQZLoraStrengthModel > 0 ? s.StoryImageQZLoraStrengthModel : 1.0;
+            OnPropertyChanged(nameof(ZLoraStrengthModel));
+
+            if (!string.IsNullOrEmpty(s.StoryImageQZSelectedLora) && _zAvailableLoras.Contains(s.StoryImageQZSelectedLora))
+            {
+                _zSelectedLora = s.StoryImageQZSelectedLora;
+                OnPropertyChanged(nameof(ZSelectedLora));
+            }
+        }
+
+        private void SaveZLoraSettings()
+        {
+            var s = _settingsService.Settings;
+            if (s == null) return;
+            s.StoryImageQZLoraEnabled = _zLoraEnabled;
+            s.StoryImageQZSelectedLora = _zSelectedLora;
+            s.StoryImageQZLoraStrengthModel = _zLoraStrengthModel;
+            _settingsService.SaveSettings(s);
+        }
+
+        // --- Z workflow processing ---
+
+        private async Task<string> ProcessZQueueItemAsync(StoryPromptItem item, string jsonFileName, CancellationToken cancellationToken)
+        {
+            if (!_comfyUIService.IsConnected)
+                await _comfyUIService.ConnectAsync(cancellationToken);
+
+            cancellationToken.ThrowIfCancellationRequested();
+
+            if (string.IsNullOrEmpty(item.StyleWorkflowFile))
+                throw new InvalidOperationException("No ZStyle selected. Please select a style workflow.");
+
+            if (!File.Exists(item.StyleWorkflowFile))
+                throw new FileNotFoundException($"Workflow file not found: {item.StyleWorkflowFile}");
+
+            AddLog($"Using ZStyle: {item.StyleName}");
+
+            var workflowJson = await File.ReadAllTextAsync(item.StyleWorkflowFile, cancellationToken);
+            var workflow = JsonSerializer.Deserialize<JsonElement>(workflowJson);
+
+            cancellationToken.ThrowIfCancellationRequested();
+
+            // Always sync LoRA state from current ViewModel — item may have been created before the user enabled LoRA
+            item.LoraEnabled = ZLoraEnabled;
+            item.SelectedLora = ZSelectedLora;
+            item.LoraStrengthModel = ZLoraStrengthModel;
+            item.LoraStrengthClip = ZLoraStrengthClip;
+            AddLog($"LoRA state: enabled={item.LoraEnabled}, lora='{item.SelectedLora}', strength={item.LoraStrengthModel:F2}");
+
+            var updatedWorkflow = UpdateZWorkflowParameters(workflow, item);
+            var progress = CreateProgressReporter(item);
+            var promptId = await _comfyUIService.ExecuteWorkflowAsync(updatedWorkflow, progress, cancellationToken);
+
+            var outputImages = await _imageRetriever.GetOutputImagesAsync(
+                _comfyUIService.HttpClient,
+                _settingsService,
+                _logger,
+                AddLog,
+                specificFolder: "ZImage",
+                promptId: promptId,
+                ct: cancellationToken);
+
+            if (!outputImages.Any())
+                throw new InvalidOperationException("No output images were generated");
+
+            var baseOutputDir = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "output", OutputFolderName, jsonFileName);
+            Directory.CreateDirectory(baseOutputDir);
+            var outputPath = Path.Combine(baseOutputDir, $"{jsonFileName}-{item.Index}.png");
+
+            await File.WriteAllBytesAsync(outputPath, outputImages.First());
+            await LocalCopyService.CopyImageAsync(outputPath);
+            AddLog($"Story Q (Z mode) image #{item.Index} saved: {outputPath}");
+            return outputPath;
+        }
+
+        private JsonElement UpdateZWorkflowParameters(JsonElement workflow, StoryPromptItem item)
+        {
+            var workflowJson = workflow.GetRawText();
+
+            WorkflowNodeUpdater.UpdateNodeInput(ref workflowJson, "385", "string", item.Prompt);
+            WorkflowNodeUpdater.UpdateNodeInput(ref workflowJson, "60", "text", item.NegativePrompt);
+
+            var seed = new Random().Next(1, int.MaxValue);
+            WorkflowNodeUpdater.UpdateNodeInput(ref workflowJson, "307", "value", seed);
+
+            var styleTemplate = GetZStyleTemplate(item.SelectedStyle, item.SpicyContentEnabled);
+            WorkflowNodeUpdater.UpdateNodeInput(ref workflowJson, "125", "value", styleTemplate);
+
+            workflowJson = UpdateZLoraSettings(workflowJson, item);
+
+            var timestamp = DateTime.Now.ToString("yyyy_MM_dd");
+            WorkflowNodeUpdater.UpdateNodeInput(ref workflowJson, "9", "filename_prefix", $"ZImage/{timestamp}/ZI");
+
+            workflowJson = UpdateZResolution(workflowJson, item.SelectedOrientation);
+
+            return JsonSerializer.Deserialize<JsonElement>(workflowJson);
+        }
+
+        private string UpdateZLoraSettings(string workflowJson, StoryPromptItem item)
+        {
+            var root = JsonNode.Parse(workflowJson);
+            if (root == null) return workflowJson;
+
+            JsonObject? loraInputs = null;
+            string? foundNodeId = null;
+
+            foreach (var kvp in root.AsObject())
+            {
+                var node = kvp.Value?.AsObject();
+                if (node == null) continue;
+                if (node["class_type"]?.GetValue<string>() != "Power Lora Loader (rgthree)") continue;
+                loraInputs = node["inputs"]?.AsObject();
+                foundNodeId = kvp.Key;
+                break;
+            }
+
+            if (loraInputs == null)
+            {
+                AddLog("WARNING: No 'Power Lora Loader (rgthree)' node found in workflow — LoRA cannot be applied");
+                return workflowJson;
+            }
+
+            AddLog($"Found Power Lora Loader node {foundNodeId}: LoRA enabled={item.LoraEnabled}, lora='{item.SelectedLora}'");
+
+            if (item.LoraEnabled)
+            {
+                bool updated = false;
+                for (int i = 1; i <= 10 && !updated; i++)
+                {
+                    var entry = loraInputs[$"lora_{i}"]?.AsObject();
+                    if (entry == null) continue;
+                    if (entry["on"]?.GetValue<bool>() != true) continue;
+                    entry["lora"] = JsonValue.Create($"zimage/{item.SelectedLora.Replace('\\', '/')}.safetensors");
+                    entry["strength"] = JsonValue.Create(item.LoraStrengthModel);
+                    updated = true;
+                    AddLog($"Updated lora_{i} with LoRA: {item.SelectedLora} (Strength: {item.LoraStrengthModel:F2})");
+                }
+
+                if (!updated)
+                {
+                    var lora1 = loraInputs["lora_1"]?.AsObject();
+                    if (lora1 != null)
+                    {
+                        lora1["on"] = JsonValue.Create(true);
+                        lora1["lora"] = JsonValue.Create($"zimage/{item.SelectedLora.Replace('\\', '/')}.safetensors");
+                        lora1["strength"] = JsonValue.Create(item.LoraStrengthModel);
+                        AddLog($"Enabled lora_1 with LoRA: {item.SelectedLora} (Strength: {item.LoraStrengthModel:F2})");
+                    }
+                }
+            }
+            else
+            {
+                for (int i = 1; i <= 10; i++)
+                {
+                    var entry = loraInputs[$"lora_{i}"]?.AsObject();
+                    if (entry != null)
+                        entry["on"] = JsonValue.Create(false);
+                }
+                AddLog("All LoRAs disabled in workflow");
+            }
+
+            return root.ToJsonString();
+        }
+
+        private string UpdateZResolution(string workflowJson, string orientation)
+        {
+            int width, height;
+            switch (orientation)
+            {
+                case "Landscape (1408x944)": width = 1408; height = 944; break;
+                case "Square (1088x1088)": width = 1088; height = 1088; break;
+                default: width = 944; height = 1408; break;
+            }
+
+            WorkflowNodeUpdater.UpdateNodeInputMultiple(ref workflowJson, "56", new Dictionary<string, object>
+            {
+                { "width", width }, { "height", height }
+            });
+
+            int wSD3 = width == 1408 ? 1600 : (width == 944 ? 1088 : 1088);
+            int hSD3 = height == 1408 ? 1600 : (height == 944 ? 1088 : 1088);
+            WorkflowNodeUpdater.UpdateNodeInput(ref workflowJson, "243", "value", wSD3);
+            WorkflowNodeUpdater.UpdateNodeInput(ref workflowJson, "248", "value", hSD3);
+            WorkflowNodeUpdater.UpdateNodeInputMultiple(ref workflowJson, "244", new Dictionary<string, object>
+            {
+                { "width", wSD3 }, { "height", hSD3 }
+            });
+
+            return workflowJson;
+        }
+
+        private string GetZStyleTemplate(string selectedStyle, bool spicy)
+        {
+            var template = selectedStyle switch
+            {
+                "Oil Painting" => "YOUR CONTEXT:\nYour artwork is a masterful oil painting on canvas.\nYour artwork exhibits {$spicy-content-with} rich brushstrokes, vibrant colors, dramatic lighting, classical composition, and museum-quality technique.\nYOUR ARTWORK:\n{$@}",
+                "Watercolor" => "YOUR CONTEXT:\nYour artwork is a delicate watercolor painting.\nYour artwork exhibits {$spicy-content-with} soft washes, transparent colors, fluid blends, and ethereal atmospheric effects.\nYOUR ARTWORK:\n{$@}",
+                "Vintage Film" => "YOUR CONTEXT:\nYour photographs have vintage film camera quality from the 1970s-80s.\nYour photographs exhibit {$spicy-content-with} film grain, warm color grading, and authentic nostalgic atmosphere.\nYOUR PHOTO:\n{$@}",
+                "Cinematic" => "YOUR CONTEXT:\nYour photographs are cinematic film stills from a high-budget movie.\nYour photographs exhibit {$spicy-content-with} dramatic lighting, rich color grading, and theatrical composition.\nYOUR PHOTO:\n{$@}",
+                "Anime" => "YOUR CONTEXT:\nYour artwork is in the style of high-quality Japanese anime.\nYour artwork exhibits {$spicy-content-with} clean lines, vibrant cel-shaded colors, and polished anime aesthetic.\nYOUR ARTWORK:\n{$@}",
+                _ => "YOUR CONTEXT:\nYour photographs has android phone cam-quality.\nYour photographs exhibit {$spicy-content-with} surprising compositions, natural lighting, and candid moments that feel immediate and authentic.\nYOUR PHOTO:\n{$@}"
+            };
+            return spicy
+                ? template.Replace("{$spicy-content-with}", "erotic, sensual,")
+                : template.Replace("{$spicy-content-with}", "");
         }
 
         // --- Qwen VL Analysis ---
@@ -154,7 +649,7 @@ namespace FlipPix.UI.ViewModels
                 AddLog("Starting image analysis with Qwen VL...");
 
                 // Read system prompt from file
-                var systemPromptPath = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "prompts", "prompt2json", "qwen2512.md");
+                var systemPromptPath = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "prompts", "prompt2json", "story-prompt.md");
                 if (!File.Exists(systemPromptPath))
                 {
                     throw new FileNotFoundException($"System prompt file not found: {systemPromptPath}");
@@ -171,8 +666,10 @@ namespace FlipPix.UI.ViewModels
                     return;
                 }
 
-                // Call LM Studio with system prompt only
-                var userPrompt = string.Empty;
+                // Pass story concept as user message if provided
+                var userPrompt = string.IsNullOrWhiteSpace(StoryConcept)
+                    ? string.Empty
+                    : $"Story concept: {StoryConcept.Trim()}";
 
                 var analysisResult = await _lmStudioService.AnalyzeImageWithSystemPromptAsync(
                     modelName,
@@ -257,46 +754,72 @@ namespace FlipPix.UI.ViewModels
         {
             var prompts = new List<string>();
 
-            // Strategy 1: Split by "Prompt #N:" or "Prompt N:" pattern
-            var pattern = @"Prompt\s*#?\s*(\d+)\s*:\s*";
-            var matches = Regex.Matches(analysisText, pattern, RegexOptions.IgnoreCase);
-
-            for (int i = 0; i < matches.Count; i++)
+            // Strategy 1: "Scene N — Title:" format (VERA/huihui story prompt output)
+            var scenePattern = @"Scene\s+\d+\s*[—–\-][^\n:]*:";
+            var sceneMatches = Regex.Matches(analysisText, scenePattern, RegexOptions.IgnoreCase);
+            if (sceneMatches.Count > 0)
             {
-                var startPos = matches[i].Index + matches[i].Length;
-                var endPos = (i + 1 < matches.Count) ? matches[i + 1].Index : analysisText.Length;
+                for (int i = 0; i < sceneMatches.Count; i++)
+                {
+                    var startPos = sceneMatches[i].Index + sceneMatches[i].Length;
+                    var endPos = (i + 1 < sceneMatches.Count) ? sceneMatches[i + 1].Index : analysisText.Length;
+
+                    var promptText = analysisText.Substring(startPos, endPos - startPos).Trim();
+                    // Strip surrounding quotes if present (VERA wraps prompts in "...")
+                    promptText = promptText.Trim('"').Trim();
+
+                    if (!string.IsNullOrWhiteSpace(promptText))
+                        prompts.Add(promptText);
+                }
+                AddLog($"Strategy 1 (Scene N — Title): parsed {prompts.Count} prompts");
+                AddLog($"Parsed {prompts.Count} prompts from Qwen VL response");
+                return prompts;
+            }
+
+            // Strategy 2: Split by "Prompt #N:" or "Prompt N:" pattern
+            var promptPattern = @"Prompt\s*#?\s*(\d+)\s*:\s*";
+            var promptMatches = Regex.Matches(analysisText, promptPattern, RegexOptions.IgnoreCase);
+
+            for (int i = 0; i < promptMatches.Count; i++)
+            {
+                var startPos = promptMatches[i].Index + promptMatches[i].Length;
+                var endPos = (i + 1 < promptMatches.Count) ? promptMatches[i + 1].Index : analysisText.Length;
 
                 var promptText = analysisText.Substring(startPos, endPos - startPos).Trim();
 
                 if (!string.IsNullOrWhiteSpace(promptText))
-                {
                     prompts.Add(promptText);
-                }
             }
 
-            // Strategy 2 (Fallback): Split by "Subject:" occurrences if no "Prompt #N:" found
-            if (prompts.Count == 0)
+            if (prompts.Count > 0)
             {
-                AddLog("No 'Prompt #N:' labels found, falling back to 'Subject:' delimiter parsing...");
-                var subjectPattern = @"(?=Subject\s*:)";
-                var segments = Regex.Split(analysisText, subjectPattern, RegexOptions.IgnoreCase);
-
-                foreach (var segment in segments)
-                {
-                    var trimmed = segment.Trim();
-                    if (!string.IsNullOrWhiteSpace(trimmed) && trimmed.StartsWith("Subject", StringComparison.OrdinalIgnoreCase))
-                    {
-                        prompts.Add(trimmed);
-                    }
-                }
+                AddLog($"Strategy 2 (Prompt #N): parsed {prompts.Count} prompts");
+                AddLog($"Parsed {prompts.Count} prompts from Qwen VL response");
+                return prompts;
             }
 
-            // Strategy 3 (Last resort): Use PromptParser.ExtractPrompts for generic parsing
-            if (prompts.Count == 0)
+            // Strategy 3: Split by "Subject:" occurrences
+            AddLog("No scene/prompt labels found, falling back to 'Subject:' delimiter parsing...");
+            var subjectPattern = @"(?=Subject\s*:)";
+            var segments = Regex.Split(analysisText, subjectPattern, RegexOptions.IgnoreCase);
+
+            foreach (var segment in segments)
             {
-                AddLog("Fallback: Using generic PromptParser.ExtractPrompts...");
-                prompts = PromptParser.ExtractPrompts(analysisText);
+                var trimmed = segment.Trim();
+                if (!string.IsNullOrWhiteSpace(trimmed) && trimmed.StartsWith("Subject", StringComparison.OrdinalIgnoreCase))
+                    prompts.Add(trimmed);
             }
+
+            if (prompts.Count > 0)
+            {
+                AddLog($"Strategy 3 (Subject:): parsed {prompts.Count} prompts");
+                AddLog($"Parsed {prompts.Count} prompts from Qwen VL response");
+                return prompts;
+            }
+
+            // Strategy 4 (Last resort): generic parsing
+            AddLog("Fallback: Using generic PromptParser.ExtractPrompts...");
+            prompts = PromptParser.ExtractPrompts(analysisText);
 
             AddLog($"Parsed {prompts.Count} prompts from Qwen VL response");
             return prompts;
@@ -311,50 +834,61 @@ namespace FlipPix.UI.ViewModels
             string jsonFileName,
             CancellationToken cancellationToken)
         {
-            // Ensure ComfyUI is connected
             if (!_comfyUIService.IsConnected)
-            {
                 await _comfyUIService.ConnectAsync(cancellationToken);
-            }
 
             cancellationToken.ThrowIfCancellationRequested();
 
-            // Load workflow (RapidEditAIO-API.json - Qwen Rapid Edit workflow)
-            var workflowPath = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "workflow", "RapidEditAIO-API.json");
-            if (!File.Exists(workflowPath))
+            if (SelectedWorkflowMode == "StoryImageZ")
+                return await ProcessZQueueItemAsync(item, jsonFileName, cancellationToken);
+
+            string workflowPath;
+            if (SelectedWorkflowMode == "Klein")
             {
-                throw new FileNotFoundException($"Workflow file not found: {workflowPath}");
+                workflowPath = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "workflow", "klein", "V2-Edit-with-LCS-example-workflowAPI.json");
+                AddLog("Using Klein workflow (Flux2 + LCS)");
             }
+            else if (SelectedWorkflowMode == "FireRed")
+            {
+                workflowPath = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "workflow", "firered-image-edit-1.1API.json");
+                AddLog("Using FireRed workflow");
+            }
+            else
+            {
+                workflowPath = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "workflow", "RapidEditAIO-API.json");
+                AddLog("Using Qwen workflow (RapidEditAIO)");
+            }
+
+            if (!File.Exists(workflowPath))
+                throw new FileNotFoundException($"Workflow file not found: {workflowPath}");
 
             var workflowJson = await File.ReadAllTextAsync(workflowPath, cancellationToken);
             var workflow = JsonSerializer.Deserialize<JsonElement>(workflowJson);
 
             cancellationToken.ThrowIfCancellationRequested();
 
-            // Upload input image
             var uploadedImageName = await _comfyUIService.UploadImageAsync(inputImagePath);
 
-            // Update workflow parameters with image index for unique filenames
-            var updatedWorkflow = UpdateWorkflowParameters(workflow, uploadedImageName, item.Prompt, item.Index, jsonFileName);
+            JsonElement updatedWorkflow;
+            if (SelectedWorkflowMode == "Klein")
+                updatedWorkflow = UpdateKleinWorkflowParameters(workflow, uploadedImageName, item.Prompt, item.Index, jsonFileName);
+            else if (SelectedWorkflowMode == "FireRed")
+                updatedWorkflow = UpdateFireRedWorkflowParameters(workflow, uploadedImageName, item.Prompt, item.Index, jsonFileName);
+            else
+                updatedWorkflow = UpdateQwenWorkflowParameters(workflow, uploadedImageName, item.Prompt, item.Index, jsonFileName);
 
-            // Execute workflow with progress reporting
             var progress = CreateProgressReporter(item);
             var promptId = await _comfyUIService.ExecuteWorkflowAsync(updatedWorkflow, progress, cancellationToken);
 
-            // Get output images
             var outputImages = await GetOutputImagesFromComfyUI(promptId, jsonFileName, item.Index);
             if (!outputImages.Any())
-            {
                 throw new InvalidOperationException("No output images were generated");
-            }
 
             var outputImage = outputImages.First();
 
-            // Create output directory with folder named after the JSON filename
             var baseOutputDir = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "output", OutputFolderName, jsonFileName);
             Directory.CreateDirectory(baseOutputDir);
 
-            // Generate filename using prompt index (all images in the same folder)
             var outputPath = Path.Combine(baseOutputDir, $"{jsonFileName}-{item.Index}.png");
 
             await File.WriteAllBytesAsync(outputPath, outputImage);
@@ -363,32 +897,81 @@ namespace FlipPix.UI.ViewModels
             return outputPath;
         }
 
-        private JsonElement UpdateWorkflowParameters(JsonElement workflow, string inputImageName, string promptText, int imageIndex, string jsonFileName)
+        private JsonElement UpdateQwenWorkflowParameters(JsonElement workflow, string inputImageName, string promptText, int imageIndex, string jsonFileName)
         {
             var workflowJson = workflow.GetRawText();
 
-            // 1. Update the input image (node 213 - LoadImage)
+            // Node 213 - LoadImage
             WorkflowNodeUpdater.UpdateNodeInput(ref workflowJson, "213", "image", inputImageName);
-
-            // 2. Update the positive prompt (node 153 - TextEncodeQwenImageEditPlus)
+            // Node 153 - TextEncodeQwenImageEditPlus (positive)
             WorkflowNodeUpdater.UpdateNodeInput(ref workflowJson, "153", "prompt", promptText);
-
-            // 3. Update the negative prompt (node 154 - TextEncodeQwenImageEditPlus)
+            // Node 154 - TextEncodeQwenImageEditPlus (negative)
             WorkflowNodeUpdater.UpdateNodeInput(ref workflowJson, "154", "prompt", NegativePrompt);
-
-            // 4. Update KSampler settings (node 3)
+            // Node 3 - KSampler
             WorkflowNodeUpdater.UpdateNodeInputMultiple(ref workflowJson, "3", new Dictionary<string, object>
             {
+                { "seed", Random.Shared.NextInt64(0, long.MaxValue) },
                 { "steps", Steps },
                 { "cfg", Cfg },
                 { "denoise", Denoise }
             });
-
-            // 5. Update ModelSamplingAuraFlow shift (node 145)
+            // Node 145 - ModelSamplingAuraFlow
             WorkflowNodeUpdater.UpdateNodeInput(ref workflowJson, "145", "shift", 3.1);
-
-            // 6. Update SaveImage filename prefix (node 218) to use single folder named after JSON file
+            // Node 218 - SaveImage
             WorkflowNodeUpdater.UpdateNodeInput(ref workflowJson, "218", "filename_prefix", $"{jsonFileName}/{jsonFileName}-{imageIndex}");
+
+            return JsonSerializer.Deserialize<JsonElement>(workflowJson);
+        }
+
+        private JsonElement UpdateKleinWorkflowParameters(JsonElement workflow, string inputImageName, string promptText, int imageIndex, string jsonFileName)
+        {
+            var workflowJson = workflow.GetRawText();
+
+            // Node 385 - LoadImage (input reference image)
+            WorkflowNodeUpdater.UpdateNodeInput(ref workflowJson, "385", "image", inputImageName);
+            // Node 407 - CLIPTextEncode (positive prompt)
+            WorkflowNodeUpdater.UpdateNodeInput(ref workflowJson, "407", "text", promptText);
+            // Nodes 386 and 443 - Flux2Scheduler (steps)
+            WorkflowNodeUpdater.UpdateNodeInput(ref workflowJson, "386", "steps", Steps);
+            WorkflowNodeUpdater.UpdateNodeInput(ref workflowJson, "443", "steps", Steps);
+            // Nodes 371 and 435 - CFGGuider (cfg)
+            WorkflowNodeUpdater.UpdateNodeInput(ref workflowJson, "371", "cfg", Cfg);
+            WorkflowNodeUpdater.UpdateNodeInput(ref workflowJson, "435", "cfg", Cfg);
+            // Randomize seed for LCS pipeline (node 439 - RandomNoise; node 387 uses node 160 which is already -1/random)
+            WorkflowNodeUpdater.UpdateNodeInput(ref workflowJson, "439", "noise_seed", Random.Shared.NextInt64(0, long.MaxValue));
+
+            // Inject SaveImage node connected to LCS VAEDecode output (node 433)
+            // The Klein workflow only has a PreviewImage; we add SaveImage with a unique high node ID
+            WorkflowNodeUpdater.AddNode(ref workflowJson, "9000", new
+            {
+                inputs = new
+                {
+                    filename_prefix = $"{jsonFileName}/{jsonFileName}-{imageIndex}",
+                    images = new object[] { "433", 0 }
+                },
+                class_type = "SaveImage",
+                _meta = new { title = "Save Image (FlipPix)" }
+            });
+
+            return JsonSerializer.Deserialize<JsonElement>(workflowJson);
+        }
+
+        private JsonElement UpdateFireRedWorkflowParameters(JsonElement workflow, string inputImageName, string promptText, int imageIndex, string jsonFileName)
+        {
+            var workflowJson = workflow.GetRawText();
+
+            WorkflowNodeUpdater.UpdateNodeInput(ref workflowJson, "143", "image", inputImageName);
+            WorkflowNodeUpdater.UpdateNodeInput(ref workflowJson, "118", "prompt", promptText);
+            if (!string.IsNullOrEmpty(NegativePrompt))
+                WorkflowNodeUpdater.UpdateNodeInput(ref workflowJson, "117", "prompt", NegativePrompt);
+            WorkflowNodeUpdater.UpdateNodeInput(ref workflowJson, "153", "value", UseLoRA);
+            WorkflowNodeUpdater.UpdateNodeInput(ref workflowJson, "155", "value", Steps);
+            WorkflowNodeUpdater.UpdateNodeInput(ref workflowJson, "156", "value", Steps);
+            WorkflowNodeUpdater.UpdateNodeInput(ref workflowJson, "130", "denoise", Denoise);
+            WorkflowNodeUpdater.UpdateNodeInput(ref workflowJson, "130", "seed", Random.Shared.Next());
+            WorkflowNodeUpdater.UpdateNodeInput(ref workflowJson, "9", "filename_prefix", $"{jsonFileName}/{jsonFileName}-{imageIndex}");
+
+            AddLog($"FireRed workflow: LoRA={UseLoRA}, Steps={Steps}, Denoise={Denoise:F2}");
 
             return JsonSerializer.Deserialize<JsonElement>(workflowJson);
         }
