@@ -520,8 +520,8 @@ namespace FlipPix.UI.ViewModels.Video
                 WorkflowNodeUpdater.UpdateNodeInput(ref rawJson, "6", "text", item.Prompt);
                 WorkflowNodeUpdater.UpdateNodeInput(ref rawJson, "57", "noise_seed", seed);
                 WorkflowNodeUpdater.UpdateNodeInput(ref rawJson, "58", "noise_seed", seed);
-                WorkflowNodeUpdater.UpdateNodeInput(ref rawJson, "304", "filename_prefix",
-                    $"{DateTime.Now:yyyyMMdd_HHmmss}_Wan2.2");
+                var filenamePrefix = $"{DateTime.Now:yyyyMMdd_HHmmss}_Wan2.2";
+                WorkflowNodeUpdater.UpdateNodeInput(ref rawJson, "304", "filename_prefix", filenamePrefix);
                 // Match video dimensions to image aspect ratio
                 WorkflowNodeUpdater.UpdateNodeInput(ref rawJson, "131", "value", vidW); // Width constant
                 WorkflowNodeUpdater.UpdateNodeInput(ref rawJson, "130", "value", vidH); // Height constant
@@ -529,8 +529,6 @@ namespace FlipPix.UI.ViewModels.Video
                 WorkflowNodeUpdater.UpdateNodeInput(ref rawJson, "445", "height", vidH);
 
                 var updatedWorkflow = JsonSerializer.Deserialize<JsonElement>(rawJson);
-
-                var generationStart = DateTime.Now.AddSeconds(-2);
 
                 var progress = new Progress<FlipPix.ComfyUI.Models.ProgressMessage>(msg =>
                 {
@@ -546,14 +544,15 @@ namespace FlipPix.UI.ViewModels.Video
                 });
 
                 ProcessingStatus = "Executing workflow...";
+                var afterUtc = DateTime.UtcNow.AddSeconds(-2);
                 var promptId = await _comfyUIService.ExecuteWorkflowAsync(updatedWorkflow, progress);
                 AddLog($"Workflow submitted (prompt ID: {promptId})");
 
                 ProcessingProgress = 95;
                 ProcessingStatus = "Waiting for output video...";
 
-                var outputVideo = await WaitForVideoByTimestampAsync(
-                    generationStart, TimeSpan.FromMinutes(20), TimeSpan.FromSeconds(5));
+                var outputVideo = await WaitForVideoAsync(
+                    filenamePrefix, afterUtc, TimeSpan.FromMinutes(20), TimeSpan.FromSeconds(5));
 
                 if (outputVideo == null || !File.Exists(outputVideo))
                     throw new Exception("No output video was produced within the timeout.");
@@ -584,8 +583,8 @@ namespace FlipPix.UI.ViewModels.Video
             }
         }
 
-        private async Task<string?> WaitForVideoByTimestampAsync(
-            DateTime after, TimeSpan maxWait, TimeSpan checkInterval)
+        private async Task<string?> WaitForVideoAsync(
+            string filenamePrefix, DateTime afterUtc, TimeSpan maxWait, TimeSpan checkInterval)
         {
             var settings = _settingsService.Settings;
             if (settings == null) { AddLog("ERROR: Settings not available"); return null; }
@@ -600,7 +599,7 @@ namespace FlipPix.UI.ViewModels.Video
                 return null;
             }
 
-            AddLog($"Monitoring: {outputFolder}  (files newer than {after:HH:mm:ss})");
+            AddLog($"Monitoring: {outputFolder}  (prefix: {filenamePrefix}, after: {afterUtc:HH:mm:ss} UTC)");
 
             var deadline = DateTime.Now + maxWait;
             while (DateTime.Now < deadline)
@@ -609,10 +608,19 @@ namespace FlipPix.UI.ViewModels.Video
 
                 if (!Directory.Exists(outputFolder)) continue;
 
-                var candidate = Directory.GetFiles(outputFolder, "*.mp4", SearchOption.AllDirectories)
-                    .Where(f => File.GetLastWriteTime(f) > after)
-                    .OrderByDescending(f => File.GetLastWriteTime(f))
+                // Fast path: exact prefix match (avoids timestamp comparison entirely)
+                var candidate = Directory.GetFiles(outputFolder, $"{filenamePrefix}*.mp4", SearchOption.AllDirectories)
+                    .OrderByDescending(f => File.GetLastWriteTimeUtc(f))
                     .FirstOrDefault();
+
+                // Fallback: any new mp4 using UTC timestamps (handles unexpected filename patterns)
+                if (candidate == null)
+                {
+                    candidate = Directory.GetFiles(outputFolder, "*.mp4", SearchOption.AllDirectories)
+                        .Where(f => File.GetLastWriteTimeUtc(f) > afterUtc)
+                        .OrderByDescending(f => File.GetLastWriteTimeUtc(f))
+                        .FirstOrDefault();
+                }
 
                 if (candidate != null)
                 {

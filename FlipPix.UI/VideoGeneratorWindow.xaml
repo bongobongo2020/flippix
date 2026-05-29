@@ -4266,7 +4266,7 @@
                         </Grid>
                     </TabItem>
 
-                    <TabItem Header="⚡ WAN SCAIL 2" FontWeight="Bold" FontSize="13">
+                    <TabItem Header="⚡ WAN SCAIL II" FontWeight="Bold" FontSize="13">
                         <ScrollViewer VerticalScrollBarVisibility="Auto">
                             <StackPanel Margin="10">
 
@@ -4300,34 +4300,34 @@
                                                                     <Style TargetType="TextBlock">
                                                                         <Setter Property="Visibility" Value="Collapsed"/>
                                                                         <Style.Triggers>
-                                                                            <DataTrigger Binding="{Binding WanScailCharacterImagePreview}" Value="{x:Null}">
+                                                                            <DataTrigger Binding="{Binding WanScailGgufCharacterImagePreview}" Value="{x:Null}">
                                                                                 <Setter Property="Visibility" Value="Visible"/>
                                                                             </DataTrigger>
                                                                         </Style.Triggers>
                                                                     </Style>
                                                                 </TextBlock.Style>
                                                             </TextBlock>
-                                                            <Image Source="{Binding WanScailCharacterImagePreview}" Stretch="Uniform"/>
+                                                            <Image Source="{Binding WanScailGgufCharacterImagePreview}" Stretch="Uniform"/>
                                                         </Grid>
                                                     </Border>
                                                     <Button Grid.Column="1"
                                                            Content="Browse..."
                                                            Style="{StaticResource SecondaryButtonStyle}"
-                                                           Command="{Binding SelectWanScailCharacterImageCommand}"
+                                                           Command="{Binding SelectWanScailGgufCharacterImageCommand}"
                                                            Height="35" Width="100"/>
                                                 </Grid>
-                                                <TextBlock Text="{Binding WanScailCharacterImageInfo}"
+                                                <TextBlock Text="{Binding WanScailGgufCharacterImageInfo}"
                                                           FontStyle="Italic" Foreground="#666" FontSize="10" Margin="0,6,0,0"/>
                                                 <StackPanel Orientation="Horizontal" Margin="0,8,0,0">
                                                     <Button Content="🔍 Analyze Image"
                                                             Style="{StaticResource SecondaryButtonStyle}"
-                                                            Command="{Binding AnalyzeWanScailImageCommand}"
-                                                            IsEnabled="{Binding WanScailHasCharacterImage}"
+                                                            Command="{Binding AnalyzeWanScailGgufImageCommand}"
+                                                            IsEnabled="{Binding WanScailGgufHasCharacterImage}"
                                                             Height="32" Padding="12,0" HorizontalAlignment="Left"/>
                                                     <TextBlock Text="Analyzing..."
                                                                FontStyle="Italic" Foreground="#7C3AED" FontSize="11"
                                                                VerticalAlignment="Center" Margin="10,0,0,0"
-                                                               Visibility="{Binding WanScailIsAnalyzing, Converter={StaticResource BooleanToVisibilityConverter}}"/>
+                                                               Visibility="{Binding WanScailGgufIsAnalyzing, Converter={StaticResource BooleanToVisibilityConverter}}"/>
                                                 </StackPanel>
                                             </StackPanel>
                                         </Border>
@@ -4342,7 +4342,7 @@
                                                         <ColumnDefinition Width="Auto"/>
                                                     </Grid.ColumnDefinitions>
                                                     <TextBox Grid.Column="0"
-                                                             Text="{Binding WanScailVideoPath, Mode=TwoWay}"
+                                                             Text="{Binding WanScailGgufVideoPath, Mode=TwoWay}"
                                                              IsReadOnly="True"
                                                              Height="32"
                                                              VerticalContentAlignment="Center"
@@ -4355,10 +4355,10 @@
                                                     <Button Grid.Column="1"
                                                            Content="Browse..."
                                                            Style="{StaticResource SecondaryButtonStyle}"
-                                                           Command="{Binding SelectWanScailVideoCommand}"
+                                                           Command="{Binding SelectWanScailGgufVideoCommand}"
                                                            Height="35" Width="100"/>
                                                 </Grid>
-                                                <TextBlock Text="{Binding WanScailVideoInfo}"
+                                                <TextBlock Text="{Binding WanScailGgufVideoInfo}"
                                                           FontStyle="Italic" Foreground="#666" FontSize="10" Margin="0,6,0,0"/>
                                             </StackPanel>
                                         </Border>
@@ -4372,7 +4372,7 @@
                                         <TextBlock Text="✏️ Motion Prompt" Style="{StaticResource HeaderTextStyle}" Foreground="#7C3AED"/>
 
                                         <TextBlock Text="Positive Prompt" FontWeight="SemiBold" FontSize="11" Margin="0,0,0,5" Foreground="#555"/>
-                                        <TextBox Text="{Binding WanScailPrompt, UpdateSourceTrigger=PropertyChanged}"
+                                        <TextBox Text="{Binding WanScailGgufPrompt, UpdateSourceTrigger=PropertyChanged}"
                                                  TextWrapping="Wrap"
                                                  AcceptsReturn="True"
                                                  Height="90"
@@ -4384,7 +4384,7 @@
                                                  Margin="0,0,0,10"/>
 
                                         <TextBlock Text="Negative Prompt" FontWeight="SemiBold" FontSize="11" Margin="0,0,0,5" Foreground="#555"/>
-                                        <TextBox Text="{Binding WanScailNegativePrompt, UpdateSourceTrigger=PropertyChanged}"
+                                        <TextBox Text="{Binding WanScailGgufNegativePrompt, UpdateSourceTrigger=PropertyChanged}"
                                                  TextWrapping="Wrap"
                                                  AcceptsReturn="True"
                                                  Height="60"
@@ -4416,14 +4416,14 @@
 
                                                 <StackPanel Grid.Column="0" Margin="0,0,8,0">
                                                     <TextBlock Text="Frame Rate (FPS)" FontSize="11" Foreground="#555" Margin="0,0,0,4"/>
-                                                    <TextBox Text="{Binding WanScailFps, UpdateSourceTrigger=PropertyChanged}"
+                                                    <TextBox Text="{Binding WanScailGgufFps, UpdateSourceTrigger=PropertyChanged}"
                                                              Height="30" Padding="6,0" VerticalContentAlignment="Center"
                                                              BorderBrush="#DDD6FE" Background="#FAF5FF" FontSize="12"/>
                                                 </StackPanel>
 
                                                 <StackPanel Grid.Column="1">
                                                     <TextBlock Text="Max Edge (px)" FontSize="11" Foreground="#555" Margin="0,0,0,4"/>
-                                                    <TextBox Text="{Binding WanScailMaxEdge, UpdateSourceTrigger=PropertyChanged}"
+                                                    <TextBox Text="{Binding WanScailGgufMaxEdge, UpdateSourceTrigger=PropertyChanged}"
                                                              Height="30" Padding="6,0" VerticalContentAlignment="Center"
                                                              BorderBrush="#DDD6FE" Background="#FAF5FF" FontSize="12"/>
                                                 </StackPanel>
@@ -4437,13 +4437,13 @@
                                                         <ColumnDefinition Width="Auto"/>
                                                     </Grid.ColumnDefinitions>
                                                     <TextBox Grid.Column="0"
-                                                             Text="{Binding WanScailSeed, UpdateSourceTrigger=PropertyChanged}"
+                                                             Text="{Binding WanScailGgufSeed, UpdateSourceTrigger=PropertyChanged}"
                                                              Height="30" Padding="6,0" VerticalContentAlignment="Center"
                                                              BorderBrush="#DDD6FE" Background="#FAF5FF" FontSize="12"
                                                              Margin="0,0,6,0"/>
                                                     <Button Grid.Column="1"
                                                             Content="🎲 Random"
-                                                            Command="{Binding RandomWanScailSeedCommand}"
+                                                            Command="{Binding RandomWanScailGgufSeedCommand}"
                                                             Height="30" Padding="10,0" FontSize="11"
                                                             Background="#EDE9FE" Foreground="#7C3AED"
                                                             BorderBrush="#DDD6FE" BorderThickness="1"/>
@@ -4457,9 +4457,9 @@
                                                     <Run Text="121-frame windows · Chunk size: 121 frames"/>
                                                     <LineBreak/>
                                                     <Run Text="Chunks: "/>
-                                                    <Run Text="{Binding WanScailTotalChunks, Mode=OneWay}" FontWeight="SemiBold"/>
+                                                    <Run Text="{Binding WanScailGgufTotalChunks, Mode=OneWay}" FontWeight="SemiBold"/>
                                                     <Run Text=" (from "/>
-                                                    <Run Text="{Binding WanScailTotalFrames, Mode=OneWay}" FontWeight="SemiBold"/>
+                                                    <Run Text="{Binding WanScailGgufTotalFrames, Mode=OneWay}" FontWeight="SemiBold"/>
                                                     <Run Text=" frames)"/>
                                                 </TextBlock>
                                             </Border>
@@ -4470,8 +4470,8 @@
                                             <TextBlock Text="🚀 Generate" Style="{StaticResource HeaderTextStyle}" Foreground="#7C3AED"/>
 
                                             <Button Content="⚡ Add to Queue"
-                                                    Command="{Binding GenerateWanScailVideoCommand}"
-                                                    IsEnabled="{Binding WanScailCanAddToQueue}"
+                                                    Command="{Binding GenerateWanScailGgufVideoCommand}"
+                                                    IsEnabled="{Binding WanScailGgufCanAddToQueue}"
                                                     Height="42" FontSize="14" FontWeight="Bold"
                                                     Background="#7C3AED" Foreground="White"
                                                     BorderThickness="0"
@@ -4483,19 +4483,19 @@
                                                     BorderThickness="1"
                                                     CornerRadius="5"
                                                     Padding="12"
-                                                    Visibility="{Binding WanScailIsProcessingQueue, Converter={StaticResource BooleanToVisibilityConverter}}">
+                                                    Visibility="{Binding WanScailGgufIsProcessingQueue, Converter={StaticResource BooleanToVisibilityConverter}}">
                                                 <StackPanel>
-                                                    <TextBlock Text="{Binding WanScailProcessingStatus}"
+                                                    <TextBlock Text="{Binding WanScailGgufProcessingStatus}"
                                                               FontWeight="SemiBold" FontSize="11"
                                                               Margin="0,0,0,5"
                                                               TextAlignment="Center"
                                                               TextWrapping="Wrap"
                                                               Foreground="#7C3AED"/>
-                                                    <ProgressBar Value="{Binding WanScailProcessingProgress, Mode=OneWay}"
+                                                    <ProgressBar Value="{Binding WanScailGgufProcessingProgress, Mode=OneWay}"
                                                                 Height="16"
                                                                 Foreground="#7C3AED"
                                                                 Margin="0,0,0,5"/>
-                                                    <TextBlock Text="{Binding WanScailProgressPercentage}"
+                                                    <TextBlock Text="{Binding WanScailGgufProgressPercentage}"
                                                               HorizontalAlignment="Center"
                                                               FontSize="11" FontWeight="Bold"
                                                               Foreground="#7C3AED"/>
@@ -4507,7 +4507,7 @@
 
                                 <!-- Queue Panel -->
                                 <Border Style="{StaticResource SectionPanelStyle}"
-                                        Visibility="{Binding WanScailHasQueueItems, Converter={StaticResource BooleanToVisibilityConverter}}">
+                                        Visibility="{Binding WanScailGgufHasQueueItems, Converter={StaticResource BooleanToVisibilityConverter}}">
                                     <StackPanel>
                                         <Grid Margin="0,0,0,8">
                                             <Grid.ColumnDefinitions>
@@ -4518,34 +4518,34 @@
                                                 <ColumnDefinition Width="Auto"/>
                                             </Grid.ColumnDefinitions>
                                             <TextBlock Grid.Column="0" Text="⚡ WAN SCAIL Queue" Style="{StaticResource HeaderTextStyle}" Foreground="#7C3AED" VerticalAlignment="Center"/>
-                                            <TextBlock Grid.Column="1" Text="{Binding WanScailQueueStatus}"
+                                            <TextBlock Grid.Column="1" Text="{Binding WanScailGgufQueueStatus}"
                                                       FontStyle="Italic" Foreground="#666" FontSize="11"
                                                       VerticalAlignment="Center" Margin="0,0,8,0"/>
                                             <Button Grid.Column="2"
                                                    Content="🔄 Retry"
-                                                   Command="{Binding ReprocessAllWanScailFailedCommand}"
-                                                   IsEnabled="{Binding WanScailHasFailedItems}"
+                                                   Command="{Binding ReprocessAllWanScailGgufFailedCommand}"
+                                                   IsEnabled="{Binding WanScailGgufHasFailedItems}"
                                                    Height="28" Width="70" FontSize="11"
                                                    Margin="0,0,5,0"
                                                    Background="#7C3AED" Foreground="White"
                                                    BorderThickness="0" FontWeight="SemiBold"/>
                                             <Button Grid.Column="3"
                                                    Content="⏹ Stop"
-                                                   Command="{Binding StopWanScailQueueCommand}"
-                                                   IsEnabled="{Binding WanScailIsProcessingQueue}"
+                                                   Command="{Binding StopWanScailGgufQueueCommand}"
+                                                   IsEnabled="{Binding WanScailGgufIsProcessingQueue}"
                                                    Height="28" Width="65" FontSize="11"
                                                    Margin="0,0,5,0"
                                                    Background="#A78BFA" Foreground="White"
                                                    BorderThickness="0" FontWeight="SemiBold"/>
                                             <Button Grid.Column="4"
                                                    Content="🗑️ Clear"
-                                                   Command="{Binding ClearWanScailQueueCommand}"
+                                                   Command="{Binding ClearWanScailGgufQueueCommand}"
                                                    Height="28" Width="65" FontSize="11"
                                                    Background="#DC3545" Foreground="White"
                                                    BorderThickness="0" FontWeight="SemiBold"/>
                                         </Grid>
 
-                                        <ItemsControl ItemsSource="{Binding WanScailQueue}">
+                                        <ItemsControl ItemsSource="{Binding WanScailGgufQueue}">
                                             <ItemsControl.ItemTemplate>
                                                 <DataTemplate>
                                                     <Border BorderBrush="#DDD6FE" BorderThickness="1" CornerRadius="4"
@@ -4571,7 +4571,7 @@
                                                             <Button Grid.Column="2"
                                                                     Content="✕"
                                                                     Style="{StaticResource SecondaryButtonStyle}"
-                                                                    Command="{Binding DataContext.RemoveWanScailQueueItemCommand, RelativeSource={RelativeSource AncestorType=ItemsControl}}"
+                                                                    Command="{Binding DataContext.RemoveWanScailGgufQueueItemCommand, RelativeSource={RelativeSource AncestorType=ItemsControl}}"
                                                                     CommandParameter="{Binding}"
                                                                     Width="28" Height="28"
                                                                     Padding="0" FontSize="10"/>
@@ -4601,7 +4601,7 @@
                                                         <Style TargetType="TextBlock">
                                                             <Setter Property="Visibility" Value="Collapsed"/>
                                                             <Style.Triggers>
-                                                                <DataTrigger Binding="{Binding HasWanScailResult}" Value="False">
+                                                                <DataTrigger Binding="{Binding HasWanScailGgufResult}" Value="False">
                                                                     <Setter Property="Visibility" Value="Visible"/>
                                                                 </DataTrigger>
                                                             </Style.Triggers>
@@ -4610,11 +4610,11 @@
                                                 </TextBlock>
 
                                                 <MediaElement x:Name="WanScailVideoPlayer2"
-                                                            Source="{Binding WanScailResultPath}"
+                                                            Source="{Binding WanScailGgufResultPath}"
                                                             LoadedBehavior="Manual"
                                                             UnloadedBehavior="Stop"
                                                             Stretch="Uniform"
-                                                            Visibility="{Binding HasWanScailResult, Converter={StaticResource BooleanToVisibilityConverter}}"/>
+                                                            Visibility="{Binding HasWanScailGgufResult, Converter={StaticResource BooleanToVisibilityConverter}}"/>
                                             </Grid>
                                         </Border>
 
@@ -4627,23 +4627,23 @@
                                             <Button Grid.Column="0"
                                                    Content="▶ Play"
                                                    Style="{StaticResource PrimaryButtonStyle}"
-                                                   Command="{Binding PlayWanScailVideoCommand}"
-                                                   IsEnabled="{Binding HasWanScailResult}"
+                                                   Command="{Binding PlayWanScailGgufVideoCommand}"
+                                                   IsEnabled="{Binding HasWanScailGgufResult}"
                                                    Margin="0,0,8,0"/>
                                             <Button Grid.Column="1"
                                                    Content="📁 Open Folder"
                                                    Style="{StaticResource SecondaryButtonStyle}"
-                                                   Command="{Binding OpenWanScailResultFolderCommand}"
-                                                   IsEnabled="{Binding HasWanScailResult}"
+                                                   Command="{Binding OpenWanScailGgufResultFolderCommand}"
+                                                   IsEnabled="{Binding HasWanScailGgufResult}"
                                                    Margin="0,0,8,0"/>
                                             <Button Grid.Column="2"
                                                    Content="📷 Send to Edit Camera"
                                                    Style="{StaticResource SecondaryButtonStyle}"
-                                                   Command="{Binding SendWanScailToEditCameraCommand}"
-                                                   IsEnabled="{Binding HasWanScailResult}"/>
+                                                   Command="{Binding SendWanScailGgufToEditCameraCommand}"
+                                                   IsEnabled="{Binding HasWanScailGgufResult}"/>
                                         </Grid>
 
-                                        <TextBlock Text="{Binding WanScailResultVideoInfo}"
+                                        <TextBlock Text="{Binding WanScailGgufResultVideoInfo}"
                                                   FontStyle="Italic" Foreground="#666" FontSize="11"
                                                   Margin="0,10,0,0"/>
                                     </StackPanel>
@@ -4659,7 +4659,7 @@
                                             Margin="0,8,0,0">
                                         <ScrollViewer MaxHeight="150"
                                                      VerticalScrollBarVisibility="Auto">
-                                            <TextBox Text="{Binding WanScailLogOutput, Mode=OneWay}"
+                                            <TextBox Text="{Binding WanScailGgufLogOutput, Mode=OneWay}"
                                                     TextWrapping="Wrap"
                                                     IsReadOnly="True"
                                                     FontFamily="Consolas"

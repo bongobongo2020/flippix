@@ -22,7 +22,7 @@ namespace FlipPix.UI.ViewModels.Video
     public partial class WanScailViewModel : VideoProcessingBaseViewModel
     {
         private const int FramesPerChunk = 121;
-        private const string WorkflowFileName = "SCAIL+Video+Multi-Character+Motion+Transfer+V1API.json";
+        protected virtual string WorkflowFileName => Path.Combine("video", "wan", "SCAIL+Video+Multi-Character+Motion+Transfer+V1API.json");
         private const string OutputSubfolder = "wan_scail";
 
         private string QueueFilePath => Path.Combine(
@@ -1029,7 +1029,7 @@ namespace FlipPix.UI.ViewModels.Video
             }
         }
 
-        private JsonElement UpdateWorkflowParameters(
+        protected virtual JsonElement UpdateWorkflowParameters(
             JsonElement workflow,
             string characterImageName,
             string videoName,

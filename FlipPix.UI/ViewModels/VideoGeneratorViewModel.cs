@@ -104,6 +104,7 @@ namespace FlipPix.UI.ViewModels
         /// SCAIL Multi-Character Motion Transfer workflow, processed in 121-frame chunks.
         /// </summary>
         public WanScailViewModel WanScailVM { get; }
+        public WanScailGgufViewModel WanScailGgufVM { get; }
 
         // 0 = LTX 2.3, 1 = Wan 2.2 Remix
         private int _singleVideoWorkflowIndex = 0;
@@ -240,6 +241,15 @@ namespace FlipPix.UI.ViewModels
                 _workflowCoordinator,
                 _fileDialogService);
 
+            WanScailGgufVM = new WanScailGgufViewModel(
+                comfyUIService,
+                lmStudioService,
+                logger,
+                settingsService,
+                serviceProvider,
+                _workflowCoordinator,
+                _fileDialogService);
+
             // Forward PlayRequested events from sub-VMs
             MainVM.PlayRequested += (s, e) => PlayRequested?.Invoke(this, e);
             VaceVM.PlayRequested += (s, e) => PlayRequested?.Invoke(this, e);
@@ -252,6 +262,7 @@ namespace FlipPix.UI.ViewModels
             LongVideoVM.PlayRequested += (s, e) => PlayRequested?.Invoke(this, e);
             WanAnimateVM.PlayRequested += (s, e) => PlayRequested?.Invoke(this, e);
             WanScailVM.PlayRequested += (s, e) => PlayRequested?.Invoke(this, e);
+            WanScailGgufVM.PlayRequested += (s, e) => PlayRequested?.Invoke(this, e);
 
             // Forward PropertyChanged events from all sub-VMs for backward compatibility
             MainVM.PropertyChanged += ForwardPropertyChanged;
@@ -265,6 +276,7 @@ namespace FlipPix.UI.ViewModels
             LongVideoVM.PropertyChanged += ForwardPropertyChanged;
             WanAnimateVM.PropertyChanged += ForwardPropertyChanged;
             WanScailVM.PropertyChanged += ForwardPropertyChanged;
+            WanScailGgufVM.PropertyChanged += ForwardPropertyChanged;
 
             _logger.LogInfo("VideoGeneratorViewModel initialized with sub-ViewModels");
         }
@@ -868,6 +880,60 @@ namespace FlipPix.UI.ViewModels
         public string WanScailVideoChunksDisplay => WanScailVM.VideoChunksDisplay;
         public string WanScailChunkSelectionInfo => WanScailVM.ChunkSelectionInfo;
         public ObservableCollection<WanScailChunkItem> WanScailChunkItems => WanScailVM.ChunkItems;
+
+        #endregion
+
+        #region WanScailGgufVM Backward Compatibility Properties
+
+        public string WanScailGgufCharacterImagePath { get => WanScailGgufVM.CharacterImagePath; set => WanScailGgufVM.CharacterImagePath = value; }
+        public System.Windows.Media.Imaging.BitmapImage? WanScailGgufCharacterImagePreview { get => WanScailGgufVM.CharacterImagePreview; set => WanScailGgufVM.CharacterImagePreview = value; }
+        public string WanScailGgufCharacterImageInfo { get => WanScailGgufVM.CharacterImageInfo; set => WanScailGgufVM.CharacterImageInfo = value; }
+        public bool WanScailGgufHasCharacterImage => WanScailGgufVM.HasCharacterImage;
+
+        public string WanScailGgufVideoPath { get => WanScailGgufVM.InputVideoPath; set => WanScailGgufVM.InputVideoPath = value; }
+        public string WanScailGgufVideoInfo { get => WanScailGgufVM.InputVideoInfo; set => WanScailGgufVM.InputVideoInfo = value; }
+        public bool WanScailGgufHasVideo => WanScailGgufVM.HasInputVideo;
+
+        public string WanScailGgufPrompt { get => WanScailGgufVM.Prompt; set => WanScailGgufVM.Prompt = value; }
+        public string WanScailGgufNegativePrompt { get => WanScailGgufVM.NegativePrompt; set => WanScailGgufVM.NegativePrompt = value; }
+        public int WanScailGgufFps { get => WanScailGgufVM.Fps; set => WanScailGgufVM.Fps = value; }
+        public int WanScailGgufMaxEdge { get => WanScailGgufVM.MaxEdge; set => WanScailGgufVM.MaxEdge = value; }
+        public long WanScailGgufSeed { get => WanScailGgufVM.Seed; set => WanScailGgufVM.Seed = value; }
+
+        public int WanScailGgufTotalFrames => WanScailGgufVM.TotalFrames;
+        public int WanScailGgufTotalChunks => WanScailGgufVM.TotalChunks;
+
+        public bool IsProcessingWanScailGguf { get => WanScailGgufVM.IsProcessing; set => WanScailGgufVM.IsProcessing = value; }
+        public string WanScailGgufProcessingStatus => WanScailGgufVM.ProcessingStatus;
+        public double WanScailGgufProcessingProgress => WanScailGgufVM.ProcessingProgress;
+        public string WanScailGgufProgressPercentage => WanScailGgufVM.ProgressPercentage;
+        public string WanScailGgufLogOutput => WanScailGgufVM.LogOutput;
+
+        public bool HasWanScailGgufResult => WanScailGgufVM.HasResult;
+        public string WanScailGgufResultPath => WanScailGgufVM.ResultVideoPath;
+        public string WanScailGgufResultVideoInfo => WanScailGgufVM.ResultVideoInfo;
+
+        public bool WanScailGgufCanAddToQueue => WanScailGgufVM.CanAddToQueue;
+        public bool WanScailGgufIsAnalyzing => WanScailGgufVM.IsAnalyzing;
+
+        public System.Collections.ObjectModel.ObservableCollection<Models.WanScailQueueItem> WanScailGgufQueue => WanScailGgufVM.Queue;
+        public bool WanScailGgufHasQueueItems => WanScailGgufVM.HasQueueItems;
+        public bool WanScailGgufIsProcessingQueue => WanScailGgufVM.IsProcessingQueue;
+        public string WanScailGgufQueueStatus => WanScailGgufVM.QueueStatus;
+        public bool WanScailGgufHasFailedItems => WanScailGgufVM.HasFailedItems;
+
+        public System.Windows.Input.ICommand SelectWanScailGgufCharacterImageCommand => WanScailGgufVM.SelectCharacterImageCommand;
+        public System.Windows.Input.ICommand SelectWanScailGgufVideoCommand => WanScailGgufVM.SelectVideoCommand;
+        public System.Windows.Input.ICommand GenerateWanScailGgufVideoCommand => WanScailGgufVM.GenerateVideoCommand;
+        public System.Windows.Input.ICommand RemoveWanScailGgufQueueItemCommand => WanScailGgufVM.RemoveQueueItemCommand;
+        public System.Windows.Input.ICommand ClearWanScailGgufQueueCommand => WanScailGgufVM.ClearQueueCommand;
+        public System.Windows.Input.ICommand StopWanScailGgufQueueCommand => WanScailGgufVM.StopQueueCommand;
+        public System.Windows.Input.ICommand ReprocessAllWanScailGgufFailedCommand => WanScailGgufVM.ReprocessAllFailedCommand;
+        public System.Windows.Input.ICommand PlayWanScailGgufVideoCommand => WanScailGgufVM.PlayVideoCommand;
+        public System.Windows.Input.ICommand OpenWanScailGgufResultFolderCommand => WanScailGgufVM.OpenResultFolderCommand;
+        public System.Windows.Input.ICommand SendWanScailGgufToEditCameraCommand => WanScailGgufVM.SendToEditCameraCommand;
+        public System.Windows.Input.ICommand AnalyzeWanScailGgufImageCommand => WanScailGgufVM.AnalyzeImageCommand;
+        public System.Windows.Input.ICommand RandomWanScailGgufSeedCommand => WanScailGgufVM.RandomSeedCommand;
 
         #endregion
 
