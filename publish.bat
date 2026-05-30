@@ -1,8 +1,27 @@
 @echo off
 echo Publishing FlipPix Video Processor...
 
-REM Clean previous publish
-if exist publish rmdir /s /q publish
+REM Kill any running FlipPix instances so files are not locked
+echo Checking for running FlipPix instances...
+taskkill /F /IM FlipPix.UI.exe >nul 2>&1
+if %errorlevel% equ 0 (
+    echo Killed running FlipPix.UI.exe — waiting for process to exit...
+    timeout /t 2 /nobreak >nul
+) else (
+    echo No running instances found.
+)
+
+REM Clean previous publish exe so it can be overwritten.
+REM For a PublishSingleFile build the only locked file is the exe itself —
+REM we already killed FlipPix.UI.exe above, so a direct delete is enough.
+REM The publish folder is NOT wiped; dotnet publish overwrites files in place.
+if exist "publish\FlipPix.UI.exe" (
+    del /F /Q "publish\FlipPix.UI.exe" >nul 2>&1
+    if exist "publish\FlipPix.UI.exe" (
+        echo WARNING: Could not delete publish\FlipPix.UI.exe — it may still be locked.
+        echo          Build will attempt to overwrite it anyway.
+    )
+)
 
 REM Clean build artifacts to ensure all changes are compiled
 dotnet clean FlipPix.sln -c Release >nul 2>&1

@@ -773,24 +773,42 @@ namespace FlipPix.UI.Services
         {
             if (string.IsNullOrEmpty(text)) return text;
 
-            // 1. Remove XML think/thinking tags (DeepSeek, Qwen with explicit reasoning tokens)
+            // 1. Paired <think>...</think> tags (DeepSeek / Qwen with reasoning_in_content=true,
+            //    generation prompt provides opening tag so only closing appears in content).
+            //    Try paired first, then orphan closing tag.
             var result = System.Text.RegularExpressions.Regex.Replace(
                 text, @"<think(?:ing)?>[\s\S]*?</think(?:ing)?>", string.Empty,
                 System.Text.RegularExpressions.RegexOptions.IgnoreCase).Trim();
+
+            // 1b. Orphan </think> — server's generation_prompt injects <think>, so the model
+            //     emits content as "[thinking]</think>\n\nAnswer" without an opening tag.
+            //     If we find an orphan closing tag, take only what follows it.
+            if (result == text.Trim()) // nothing was stripped by paired-tag pass
+            {
+                var orphan = System.Text.RegularExpressions.Regex.Match(
+                    result, @"</think(?:ing)?>\s*([\s\S]+)$",
+                    System.Text.RegularExpressions.RegexOptions.IgnoreCase);
+                if (orphan.Success)
+                {
+                    var after = orphan.Groups[1].Value.Trim();
+                    if (after.Length > 0)
+                        result = after;
+                }
+            }
 
             // 2. Qwen3 / gemma4 bold-header markdown thinking.
             var extracted = PromptParser.ExtractFromNumberedMarkdownThinking(result);
             if (extracted != null) return extracted;
 
-            // 3. Plain-text-header thinking (no bold markers): model starts by restating the task
-            //    ("The user wants...", "I need to...") then writes draft sections with plain labels.
-            //    Delegate to PromptParser.StripThinking which handles quoted paragraphs etc.
+            // 3. Plain-text-header thinking — model starts by reasoning aloud.
             if (System.Text.RegularExpressions.Regex.IsMatch(result,
-                    @"^(?:The user wants|I need to|The image shows|Let me analyze|I'll analyze)",
+                    @"^(?:The user wants|The prompt|I need to|The image shows|Let me|I'll analyze|Let's|" +
+                    @"Looking at|Wait[,\.]|I see|Okay[,\.]|Sure[,\.]|Based on|Usually|" +
+                    @"First[,\.]|Alright[,\.]|So[,\s]|Hmm|Actually|Here(?:'s| is))",
                     System.Text.RegularExpressions.RegexOptions.IgnoreCase))
             {
                 var stripped = PromptParser.StripThinking(result);
-                if (stripped.Length > 50 && stripped.Length < result.Length)
+                if (stripped.Length > 30 && stripped.Length < result.Length)
                     return stripped;
             }
 

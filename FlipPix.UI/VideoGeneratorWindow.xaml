@@ -3992,15 +3992,29 @@
                                                             BorderBrush="#DDD6FE" BorderThickness="1"/>
                                                 </Grid>
 
-                                                <StackPanel Orientation="Horizontal">
-                                                    <Button Content="🔍 Analyze Image"
-                                                            Command="{Binding AnalyzeWanScailGgufImageCommand}"
-                                                            IsEnabled="{Binding WanScailGgufHasCharacterImage}"
-                                                            Height="30" Padding="12,0" FontSize="11"
-                                                            Background="#7C3AED" Foreground="White" BorderThickness="0"/>
-                                                    <TextBlock Text="  Analyzing…" FontStyle="Italic" Foreground="#7C3AED"
-                                                               FontSize="11" VerticalAlignment="Center"
-                                                               Visibility="{Binding WanScailGgufIsAnalyzing, Converter={StaticResource BooleanToVisibilityConverter}}"/>
+                                                <StackPanel Orientation="Vertical" Margin="0,0,0,4">
+                                                    <StackPanel Orientation="Horizontal" Margin="0,0,0,4">
+                                                        <Button Content="🔍 Analyze &amp; Generate Prompts"
+                                                                Command="{Binding AnalyzeWanScailGgufImageCommand}"
+                                                                IsEnabled="{Binding WanScailGgufCanAnalyzeImage}"
+                                                                Height="30" Padding="12,0" FontSize="11"
+                                                                Background="#7C3AED" Foreground="White" BorderThickness="0"
+                                                                ToolTip="Extract character appearance from reference image (once), then extract motion from each chunk's frames. Combines both into a prompt per chunk."/>
+                                                        <TextBlock FontStyle="Italic" FontSize="11" VerticalAlignment="Center" Margin="6,0,0,0">
+                                                            <TextBlock.Style>
+                                                                <Style TargetType="TextBlock">
+                                                                    <Setter Property="Foreground" Value="#7C3AED"/>
+                                                                    <Setter Property="Text" Value="{Binding WanScailGgufAnalyzeAllChunksStatus}"/>
+                                                                    <Setter Property="Visibility" Value="Collapsed"/>
+                                                                    <Style.Triggers>
+                                                                        <DataTrigger Binding="{Binding WanScailGgufIsAnalyzing}" Value="True">
+                                                                            <Setter Property="Visibility" Value="Visible"/>
+                                                                        </DataTrigger>
+                                                                    </Style.Triggers>
+                                                                </Style>
+                                                            </TextBlock.Style>
+                                                        </TextBlock>
+                                                    </StackPanel>
                                                 </StackPanel>
                                             </StackPanel>
                                         </Border>

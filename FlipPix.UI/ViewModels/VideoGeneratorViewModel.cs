@@ -922,7 +922,10 @@ namespace FlipPix.UI.ViewModels
         public string WanScailGgufResultVideoInfo => WanScailGgufVM.ResultVideoInfo;
 
         public bool WanScailGgufCanAddToQueue => WanScailGgufVM.CanAddToQueue;
+        public bool WanScailGgufCanAnalyzeImage => WanScailGgufVM.CanAnalyzeImage;
         public bool WanScailGgufIsAnalyzing => WanScailGgufVM.IsAnalyzing;
+        public bool WanScailGgufIsAnalyzingAll => WanScailGgufVM.IsAnalyzingAll;
+        public string WanScailGgufAnalyzeAllChunksStatus => WanScailGgufVM.AnalyzeAllChunksStatus;
 
         public System.Collections.ObjectModel.ObservableCollection<Models.WanScailQueueItem> WanScailGgufQueue => WanScailGgufVM.Queue;
         public bool WanScailGgufHasQueueItems => WanScailGgufVM.HasQueueItems;
@@ -942,6 +945,7 @@ namespace FlipPix.UI.ViewModels
         public System.Windows.Input.ICommand OpenWanScailGgufResultFolderCommand => WanScailGgufVM.OpenResultFolderCommand;
         public System.Windows.Input.ICommand SendWanScailGgufToEditCameraCommand => WanScailGgufVM.SendToEditCameraCommand;
         public System.Windows.Input.ICommand AnalyzeWanScailGgufImageCommand => WanScailGgufVM.AnalyzeImageCommand;
+        public System.Windows.Input.ICommand AnalyzeAllWanScailGgufChunksCommand => WanScailGgufVM.AnalyzeAllChunksCommand;
         public System.Windows.Input.ICommand RandomWanScailGgufSeedCommand => WanScailGgufVM.RandomSeedCommand;
         public System.Windows.Input.ICommand SelectWanScailGgufChunkCommand => WanScailGgufVM.SelectChunkCommand;
         public System.Windows.Input.ICommand ProcessSelectedWanScailGgufChunkCommand => WanScailGgufVM.ProcessSelectedChunkCommand;
