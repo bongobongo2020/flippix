@@ -592,7 +592,7 @@ namespace FlipPix.UI.Linux.ViewModels
                         break;
 
                     case TextGeneratorWorkflow.Klien:
-                        workflowPath = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "workflow", "Klien-Text-API.json");
+                        workflowPath = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "workflow", "klein", "KlienX3n-Text-Ultimate-API.json");
                         AddLog("Using Klien workflow");
                         break;
 
@@ -695,7 +695,7 @@ namespace FlipPix.UI.Linux.ViewModels
                     var prefix = SelectedWorkflow switch
                     {
                         TextGeneratorWorkflow.Qwen2512 => "qwen2512",
-                        TextGeneratorWorkflow.Klien => "flux2-klein",
+                        TextGeneratorWorkflow.Klien => "f2k-txt2img",
                         _ => "z-image"
                     };
                     var outputPath = Path.Combine(outputDir, $"{prefix}_{timestamp}.png");
@@ -1726,7 +1726,11 @@ namespace FlipPix.UI.Linux.ViewModels
 
         private JsonElement UpdateKlienWorkflow(Dictionary<string, JsonElement> workflowDict)
         {
-            // Get resolution from aspect ratio index
+            // KlienX3n-Text-Ultimate-API.json node map:
+            //   10 = CLIPTextEncode (positive prompt) → inputs.text
+            //   12 = KSampler → inputs.seed / steps / cfg
+            //   11 = EmptyLatentImage → inputs.width / height
+
             var resolutions = new[]
             {
                 (1600, 1088), // Landscape
@@ -1735,107 +1739,65 @@ namespace FlipPix.UI.Linux.ViewModels
             };
             var (width, height) = resolutions[Math.Min(AspectRatioIndex, resolutions.Length - 1)];
 
-            // Update prompt (node 76 - PrimitiveStringMultiline)
-            if (workflowDict.ContainsKey("76"))
+            // Update prompt (node 10 - CLIPTextEncode)
+            if (workflowDict.ContainsKey("10"))
             {
-                var node76 = JsonSerializer.Deserialize<Dictionary<string, object>>(workflowDict["76"].GetRawText());
-                if (node76 != null && node76.ContainsKey("inputs"))
+                var node = JsonSerializer.Deserialize<Dictionary<string, object>>(workflowDict["10"].GetRawText());
+                if (node != null && node.ContainsKey("inputs"))
                 {
                     var inputs = JsonSerializer.Deserialize<Dictionary<string, object>>(
-                        JsonSerializer.Serialize(node76["inputs"]));
+                        JsonSerializer.Serialize(node["inputs"]));
                     if (inputs != null)
                     {
-                        inputs["value"] = ImagePrompt;
-                        node76["inputs"] = inputs;
-                        workflowDict["76"] = JsonSerializer.SerializeToElement(node76);
+                        inputs["text"] = ImagePrompt;
+                        node["inputs"] = inputs;
+                        workflowDict["10"] = JsonSerializer.SerializeToElement(node);
                     }
                 }
             }
 
-            // Update seed (node 75:73 - RandomNoise)
-            if (workflowDict.ContainsKey("75:73"))
+            // Update seed, steps, cfg (node 12 - KSampler)
+            if (workflowDict.ContainsKey("12"))
             {
-                var node75_73 = JsonSerializer.Deserialize<Dictionary<string, object>>(workflowDict["75:73"].GetRawText());
-                if (node75_73 != null && node75_73.ContainsKey("inputs"))
+                var node = JsonSerializer.Deserialize<Dictionary<string, object>>(workflowDict["12"].GetRawText());
+                if (node != null && node.ContainsKey("inputs"))
                 {
                     var inputs = JsonSerializer.Deserialize<Dictionary<string, object>>(
-                        JsonSerializer.Serialize(node75_73["inputs"]));
+                        JsonSerializer.Serialize(node["inputs"]));
                     if (inputs != null)
                     {
                         var actualSeed = Seed == 0 ? new Random().NextInt64(0, 999999999999999) : Seed;
-                        inputs["noise_seed"] = actualSeed;
-                        node75_73["inputs"] = inputs;
-                        workflowDict["75:73"] = JsonSerializer.SerializeToElement(node75_73);
-                    }
-                }
-            }
-
-            // Update CFG (node 75:63 - CFGGuider)
-            if (workflowDict.ContainsKey("75:63"))
-            {
-                var node75_63 = JsonSerializer.Deserialize<Dictionary<string, object>>(workflowDict["75:63"].GetRawText());
-                if (node75_63 != null && node75_63.ContainsKey("inputs"))
-                {
-                    var inputs = JsonSerializer.Deserialize<Dictionary<string, object>>(
-                        JsonSerializer.Serialize(node75_63["inputs"]));
-                    if (inputs != null)
-                    {
-                        inputs["cfg"] = Cfg;
-                        node75_63["inputs"] = inputs;
-                        workflowDict["75:63"] = JsonSerializer.SerializeToElement(node75_63);
-                    }
-                }
-            }
-
-            // Update steps (node 75:62 - Flux2Scheduler)
-            if (workflowDict.ContainsKey("75:62"))
-            {
-                var node75_62 = JsonSerializer.Deserialize<Dictionary<string, object>>(workflowDict["75:62"].GetRawText());
-                if (node75_62 != null && node75_62.ContainsKey("inputs"))
-                {
-                    var inputs = JsonSerializer.Deserialize<Dictionary<string, object>>(
-                        JsonSerializer.Serialize(node75_62["inputs"]));
-                    if (inputs != null)
-                    {
+                        inputs["seed"] = actualSeed;
                         inputs["steps"] = Steps;
-                        node75_62["inputs"] = inputs;
-                        workflowDict["75:62"] = JsonSerializer.SerializeToElement(node75_62);
+                        inputs["cfg"] = Cfg;
+                        node["inputs"] = inputs;
+                        workflowDict["12"] = JsonSerializer.SerializeToElement(node);
                     }
                 }
             }
 
-            // Update resolution (nodes 75:68 and 75:69 - Width/Height)
-            if (workflowDict.ContainsKey("75:68"))
+            // Update resolution (node 11 - EmptyLatentImage)
+            if (workflowDict.ContainsKey("11"))
             {
-                var node75_68 = JsonSerializer.Deserialize<Dictionary<string, object>>(workflowDict["75:68"].GetRawText());
-                if (node75_68 != null && node75_68.ContainsKey("inputs"))
+                var node = JsonSerializer.Deserialize<Dictionary<string, object>>(workflowDict["11"].GetRawText());
+                if (node != null && node.ContainsKey("inputs"))
                 {
                     var inputs = JsonSerializer.Deserialize<Dictionary<string, object>>(
-                        JsonSerializer.Serialize(node75_68["inputs"]));
+                        JsonSerializer.Serialize(node["inputs"]));
                     if (inputs != null)
                     {
-                        inputs["value"] = width;
-                        node75_68["inputs"] = inputs;
-                        workflowDict["75:68"] = JsonSerializer.SerializeToElement(node75_68);
+                        inputs["width"] = width;
+                        inputs["height"] = height;
+                        node["inputs"] = inputs;
+                        workflowDict["11"] = JsonSerializer.SerializeToElement(node);
                     }
                 }
             }
 
-            if (workflowDict.ContainsKey("75:69"))
-            {
-                var node75_69 = JsonSerializer.Deserialize<Dictionary<string, object>>(workflowDict["75:69"].GetRawText());
-                if (node75_69 != null && node75_69.ContainsKey("inputs"))
-                {
-                    var inputs = JsonSerializer.Deserialize<Dictionary<string, object>>(
-                        JsonSerializer.Serialize(node75_69["inputs"]));
-                    if (inputs != null)
-                    {
-                        inputs["value"] = height;
-                        node75_69["inputs"] = inputs;
-                        workflowDict["75:69"] = JsonSerializer.SerializeToElement(node75_69);
-                    }
-                }
-            }
+            // Strip the image-refinement subgraph — it requires a pre-existing input image
+            // and is not relevant for text-to-image generation.
+            foreach (var id in new[] { "222", "223", "224", "225", "226", "228", "238", "239", "261", "319", "323" })
+                workflowDict.Remove(id);
 
             return JsonSerializer.SerializeToElement(workflowDict);
         }
@@ -2136,7 +2098,7 @@ namespace FlipPix.UI.Linux.ViewModels
                         var prefix = SelectedWorkflow switch
                         {
                             TextGeneratorWorkflow.Qwen2512 => "qwen2512_",
-                            TextGeneratorWorkflow.Klien => "Flux2-Klein_",  // Note: Klien uses this prefix format
+                            TextGeneratorWorkflow.Klien => "F2K_txt2img_",
                             _ => "z-image_"
                         };
                         imageFiles = Directory.GetFiles(comfyUIOutputDir, $"{prefix}*.png")
@@ -2263,11 +2225,11 @@ namespace FlipPix.UI.Linux.ViewModels
             // Extract number based on the selected workflow
             // Zimage: "z-image_12345_" pattern
             // Qwen: "qwen2512_00001_" pattern (5-digit zero-padded)
-            // Klien: "Flux2-Klein_00001_" pattern (5-digit zero-padded)
+            // Klien: "F2K_txt2img_00001_" pattern (5-digit zero-padded)
             var patterns = SelectedWorkflow switch
             {
                 TextGeneratorWorkflow.Qwen2512 => new[] { @"qwen2512_(\d+)_", @"qwen2512_(\d+)$" },
-                TextGeneratorWorkflow.Klien => new[] { @"Flux2-Klein_(\d+)_", @"Flux2-Klein_(\d+)$" },
+                TextGeneratorWorkflow.Klien => new[] { @"F2K_txt2img_(\d+)_", @"F2K_txt2img_(\d+)$" },
                 _ => new[] { @"z-image_(\d+)_", @"z-image_(\d+)$" }
             };
 
@@ -2995,7 +2957,7 @@ namespace FlipPix.UI.Linux.ViewModels
                         break;
 
                     case TextGeneratorWorkflow.Klien:
-                        workflowPath = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "workflow", "Klien-Text-API.json");
+                        workflowPath = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "workflow", "klein", "KlienX3n-Text-Ultimate-API.json");
                         AddLog("Using Klien workflow");
                         break;
 
@@ -3138,7 +3100,7 @@ namespace FlipPix.UI.Linux.ViewModels
                     var prefix = SelectedWorkflow switch
                     {
                         TextGeneratorWorkflow.Qwen2512 => "qwen2512",
-                        TextGeneratorWorkflow.Klien => "flux2-klein",
+                        TextGeneratorWorkflow.Klien => "f2k-txt2img",
                         _ => "z-image"
                     };
                     var outputPath = Path.Combine(outputDir, $"{prefix}_{timestamp}.png");
