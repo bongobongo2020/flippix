@@ -1454,272 +1454,424 @@
                     </TabItem>
 
                     <!-- Tab 3: VACE Video Generator -->
-                    <TabItem Header="🎭 VACE Video Generator">
-                        <ScrollViewer VerticalScrollBarVisibility="Auto">
-                            <StackPanel Margin="10">
+                    <TabItem Header="🎭 VACE Video Generator" FontWeight="Bold" FontSize="13">
+                        <!-- 2-column layout: left inputs + right video editor -->
+                        <Grid>
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="340"/>
+                                <ColumnDefinition Width="*"/>
+                            </Grid.ColumnDefinitions>
 
-                                <!-- VACE Setup Section -->
-                                <Border Style="{StaticResource SectionPanelStyle}">
-                                    <StackPanel>
-                                        <TextBlock Text="🎬 VACE Video Inputs" Style="{StaticResource HeaderTextStyle}" Foreground="#FF6B35"/>
+                            <!-- ═══ LEFT PANEL ═══════════════════════════════════════════════ -->
+                            <Border Grid.Column="0" BorderBrush="#E5E7EB" BorderThickness="0,0,1,0" Background="#FFF9F0">
+                                <ScrollViewer VerticalScrollBarVisibility="Auto">
+                                    <StackPanel Margin="12">
 
                                         <!-- Reference Image -->
-                                        <Border BorderBrush="#DEE2E6" BorderThickness="1" Background="White" CornerRadius="5" Padding="15" Margin="0,0,0,15">
+                                        <Border Background="White" BorderBrush="#FDBA74" BorderThickness="1"
+                                                CornerRadius="8" Padding="14" Margin="0,0,0,10">
                                             <StackPanel>
-                                                <Grid>
+                                                <StackPanel Orientation="Horizontal" Margin="0,0,0,10">
+                                                    <Ellipse Width="6" Height="6" Fill="#FF6B35" Margin="0,0,6,0" VerticalAlignment="Center"/>
+                                                    <TextBlock Text="REFERENCE IMAGE" FontSize="10" FontWeight="Bold" Foreground="#6B7280"/>
+                                                </StackPanel>
+
+                                                <Border BorderBrush="#FDBA74" BorderThickness="1" CornerRadius="6"
+                                                        Background="#FFF7ED" Height="130" Margin="0,0,0,8">
+                                                    <Grid>
+                                                        <TextBlock Text="No reference image selected"
+                                                                   HorizontalAlignment="Center" VerticalAlignment="Center"
+                                                                   Foreground="#9CA3AF" FontSize="11">
+                                                            <TextBlock.Style>
+                                                                <Style TargetType="TextBlock">
+                                                                    <Setter Property="Visibility" Value="Collapsed"/>
+                                                                    <Style.Triggers>
+                                                                        <DataTrigger Binding="{Binding VaceForegroundImagePreview}" Value="{x:Null}">
+                                                                            <Setter Property="Visibility" Value="Visible"/>
+                                                                        </DataTrigger>
+                                                                    </Style.Triggers>
+                                                                </Style>
+                                                            </TextBlock.Style>
+                                                        </TextBlock>
+                                                        <Image Source="{Binding VaceForegroundImagePreview}" Stretch="Uniform"/>
+                                                    </Grid>
+                                                </Border>
+
+                                                <Grid Margin="0,0,0,8">
                                                     <Grid.ColumnDefinitions>
-                                                        <ColumnDefinition Width="120"/>
                                                         <ColumnDefinition Width="*"/>
                                                         <ColumnDefinition Width="Auto"/>
                                                     </Grid.ColumnDefinitions>
-
-                                                    <TextBlock Grid.Column="0" Text="Reference:" FontWeight="SemiBold" FontSize="12" VerticalAlignment="Center"/>
-                                                    <Border Grid.Column="1"
-                                                            BorderBrush="#DEE2E6" BorderThickness="1"
-                                                            Background="White" Height="80"
-                                                            CornerRadius="3" Margin="0,0,10,0">
-                                                        <Grid>
-                                                            <TextBlock Text="No foreground image selected"
-                                                                      HorizontalAlignment="Center"
-                                                                      VerticalAlignment="Center"
-                                                                      Foreground="#999"
-                                                                      FontStyle="Italic">
-                                                                <TextBlock.Style>
-                                                                    <Style TargetType="TextBlock">
-                                                                        <Setter Property="Visibility" Value="Collapsed"/>
-                                                                        <Style.Triggers>
-                                                                            <DataTrigger Binding="{Binding VaceForegroundImagePreview}" Value="{x:Null}">
-                                                                                <Setter Property="Visibility" Value="Visible"/>
-                                                                            </DataTrigger>
-                                                                        </Style.Triggers>
-                                                                    </Style>
-                                                                </TextBlock.Style>
-                                                            </TextBlock>
-                                                            <Image Source="{Binding VaceForegroundImagePreview}"
-                                                                   Stretch="Uniform"/>
-                                                        </Grid>
-                                                    </Border>
-                                                    <Button Grid.Column="2"
-                                                           Content="Browse..."
-                                                           Style="{StaticResource SecondaryButtonStyle}"
-                                                           Command="{Binding SelectVACEForegroundImageCommand}"
-                                                           Height="35"
-                                                           Width="100"/>
+                                                    <TextBlock Grid.Column="0" Text="{Binding VaceForegroundImageInfo}"
+                                                               FontSize="10" Foreground="#6B7280" FontStyle="Italic"
+                                                               VerticalAlignment="Center" TextTrimming="CharacterEllipsis"/>
+                                                    <Button Grid.Column="1" Content="Browse…"
+                                                            Command="{Binding SelectVACEForegroundImageCommand}"
+                                                            Height="28" Padding="10,0" FontSize="11"
+                                                            Background="#FFF7ED" Foreground="#FF6B35"
+                                                            BorderBrush="#FDBA74" BorderThickness="1"/>
                                                 </Grid>
-                                                <TextBlock Text="{Binding VaceForegroundImageInfo}"
-                                                          FontStyle="Italic"
-                                                          Foreground="#666"
-                                                          FontSize="10"
-                                                          Margin="0,8,0,0"/>
-                                                <!-- Analyze Image Button -->
-                                                <StackPanel Orientation="Horizontal" Margin="0,8,0,0">
-                                                    <Button Content="Analyze Image"
-                                                            Style="{StaticResource SecondaryButtonStyle}"
-                                                            Command="{Binding AnalyzeVACEImageCommand}"
-                                                            IsEnabled="{Binding HasVACEForegroundImage}"
-                                                            Height="32"
-                                                            Padding="12,0"
-                                                            HorizontalAlignment="Left"/>
-                                                    <TextBlock Text="Analyzing image..."
-                                                               FontStyle="Italic"
-                                                               Foreground="#FF6B35"
-                                                               FontSize="11"
-                                                               VerticalAlignment="Center"
-                                                               Margin="10,0,0,0"
-                                                               Visibility="{Binding IsAnalyzingVACE, Converter={StaticResource BooleanToVisibilityConverter}}"/>
+
+                                                <StackPanel Orientation="Horizontal" Margin="0,0,0,4">
+                                                    <Button Content="🔍 Analyze &amp; Generate Prompts"
+                                                            Command="{Binding AnalyzeAllVACEChunksCommand}"
+                                                            IsEnabled="{Binding VaceCanAnalyzeImage}"
+                                                            Height="30" Padding="12,0" FontSize="11"
+                                                            Background="#FF6B35" Foreground="White" BorderThickness="0"
+                                                            ToolTip="Extract character appearance from reference image (once), then extract motion from each chunk's frames. Combines both into a prompt per chunk."/>
+                                                    <TextBlock FontStyle="Italic" FontSize="11" VerticalAlignment="Center" Margin="6,0,0,0">
+                                                        <TextBlock.Style>
+                                                            <Style TargetType="TextBlock">
+                                                                <Setter Property="Foreground" Value="#FF6B35"/>
+                                                                <Setter Property="Text" Value="{Binding VaceAnalyzeAllChunksStatus}"/>
+                                                                <Setter Property="Visibility" Value="Collapsed"/>
+                                                                <Style.Triggers>
+                                                                    <DataTrigger Binding="{Binding IsAnalyzingVACE}" Value="True">
+                                                                        <Setter Property="Visibility" Value="Visible"/>
+                                                                    </DataTrigger>
+                                                                </Style.Triggers>
+                                                            </Style>
+                                                        </TextBlock.Style>
+                                                    </TextBlock>
                                                 </StackPanel>
                                             </StackPanel>
                                         </Border>
 
-                                        <!-- Video Input -->
-                                        <Border BorderBrush="#DEE2E6" BorderThickness="1" Background="White" CornerRadius="5" Padding="15" Margin="0,0,0,0">
+                                        <!-- Input Video -->
+                                        <Border Background="White" BorderBrush="#FDBA74" BorderThickness="1"
+                                                CornerRadius="8" Padding="14" Margin="0,0,0,10">
                                             <StackPanel>
-                                                <Grid>
+                                                <StackPanel Orientation="Horizontal" Margin="0,0,0,10">
+                                                    <Ellipse Width="6" Height="6" Fill="#34D399" Margin="0,0,6,0" VerticalAlignment="Center"/>
+                                                    <TextBlock Text="INPUT VIDEO" FontSize="10" FontWeight="Bold" Foreground="#6B7280"/>
+                                                </StackPanel>
+
+                                                <Grid Margin="0,0,0,6">
                                                     <Grid.ColumnDefinitions>
-                                                        <ColumnDefinition Width="120"/>
                                                         <ColumnDefinition Width="*"/>
                                                         <ColumnDefinition Width="Auto"/>
                                                     </Grid.ColumnDefinitions>
-
-                                                    <TextBlock Grid.Column="0" Text="Input Video:" FontWeight="SemiBold" FontSize="12" VerticalAlignment="Center"/>
-                                                    <TextBox Grid.Column="1"
-                                                            Text="{Binding VaceVideoPath, Mode=TwoWay}"
-                                                            IsReadOnly="True"
-                                                            Padding="10"
-                                                            Background="White"
-                                                            BorderBrush="#CED4DA"
-                                                            FontSize="11"
-                                                            VerticalAlignment="Center"
-                                                            Margin="0,0,10,0"/>
-                                                    <Button Grid.Column="2"
-                                                           Content="Browse..."
-                                                           Style="{StaticResource SecondaryButtonStyle}"
-                                                           Command="{Binding SelectVACEVideoCommand}"
-                                                           Height="35"
-                                                           Width="100"/>
+                                                    <TextBox Grid.Column="0" Text="{Binding VaceVideoPath, Mode=OneWay}"
+                                                             IsReadOnly="True" Height="30"
+                                                             VerticalContentAlignment="Center" Padding="6,0"
+                                                             BorderBrush="#FDBA74" Background="#FFF7ED"
+                                                             FontSize="11" Foreground="#555" Margin="0,0,6,0"/>
+                                                    <Button Grid.Column="1" Content="Browse…"
+                                                            Command="{Binding SelectVACEVideoCommand}"
+                                                            Height="30" Padding="10,0" FontSize="11"
+                                                            Background="#ECFDF5" Foreground="#059669"
+                                                            BorderBrush="#A7F3D0" BorderThickness="1"/>
                                                 </Grid>
                                                 <TextBlock Text="{Binding VaceVideoInfo}"
-                                                          FontStyle="Italic"
-                                                          Foreground="#666"
-                                                          FontSize="10"
-                                                          Margin="0,8,0,0"/>
+                                                           FontSize="10" Foreground="#6B7280" FontStyle="Italic"/>
                                             </StackPanel>
                                         </Border>
-                                    </StackPanel>
-                                </Border>
 
-                                <!-- VACE Prompt Section -->
-                                <Border Style="{StaticResource SectionPanelStyle}">
-                                    <StackPanel>
-                                        <TextBlock Text="📝 VACE Prompt" Style="{StaticResource HeaderTextStyle}" Foreground="#FF6B35"/>
-
-                                        <TextBlock Text="Describe how you want to transform the video:" FontWeight="SemiBold" FontSize="12" Margin="0,0,0,10"/>
-                                        <TextBox Text="{Binding VacePrompt, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
-                                                TextWrapping="Wrap"
-                                                AcceptsReturn="True"
-                                                Height="100"
-                                                Padding="12"
-                                                VerticalScrollBarVisibility="Auto"
-                                                Background="White"
-                                                BorderBrush="#CED4DA"
-                                                FontSize="12"/>
-                                    </StackPanel>
-                                </Border>
-
-                                <!-- VACE Generate Section -->
-                                <Border Style="{StaticResource SectionPanelStyle}">
-                                    <Grid>
-                                        <Grid.ColumnDefinitions>
-                                            <ColumnDefinition Width="2*"/>
-                                            <ColumnDefinition Width="*"/>
-                                        </Grid.ColumnDefinitions>
-
-                                        <!-- Instructions -->
-                                        <StackPanel Grid.Column="0" Margin="0,0,20,0">
-                                            <TextBlock Text="ℹ️ VACE (Video-to-Video with Control)" Style="{StaticResource HeaderTextStyle}" Foreground="#FF6B35"/>
-                                            <TextBlock Text="This workflow uses a reference image and input video to create a processed video using the Wan VACE V2V model." FontSize="11" TextWrapping="Wrap" Foreground="#666" Margin="0,5,0,10"/>
-                                            <TextBlock Text="The model will use pose estimation from the input video and reference images to guide the video generation." FontSize="11" TextWrapping="Wrap" Foreground="#666"/>
-                                        </StackPanel>
-
-                                        <!-- Generate Button and Status -->
-                                        <StackPanel Grid.Column="1" VerticalAlignment="Center">
-                                            <Button Content="➕ Add to VACE Queue"
-                                                   Style="{StaticResource PrimaryButtonStyle}"
-                                                   Command="{Binding GenerateVACEVideoCommand}"
-                                                   IsEnabled="{Binding VaceCanAddToQueue, Mode=OneWay}"
-                                                   HorizontalAlignment="Stretch"
-                                                   Height="55"
-                                                   FontSize="15"
-                                                   Margin="0,0,0,15"/>
-
-                                            <!-- Processing Status -->
-                                            <Border Background="#FFF9F0"
-                                                    BorderBrush="#FFE0B0"
-                                                    BorderThickness="1"
-                                                    CornerRadius="5"
-                                                    Padding="12"
-                                                    Visibility="{Binding IsProcessingVACE, Converter={StaticResource BooleanToVisibilityConverter}}">
-                                                <StackPanel>
-                                                    <TextBlock Text="{Binding VaceProcessingStatus}"
-                                                              FontWeight="SemiBold"
-                                                              FontSize="11"
-                                                              Margin="0,0,0,5"
-                                                              TextAlignment="Center"
-                                                              TextWrapping="Wrap"/>
-                                                    <TextBlock HorizontalAlignment="Center"
-                                                               FontSize="11"
-                                                               Foreground="#FF6B35"
-                                                               Margin="0,0,0,5">
-                                                        <Run Text="Chunks: "/>
-                                                        <Run Text="{Binding VaceTotalChunks, Mode=OneWay}" FontWeight="SemiBold"/>
-                                                        <Run Text=" × 81 frames"/>
-                                                    </TextBlock>
-                                                    <ProgressBar Value="{Binding VaceProcessingProgress, Mode=OneWay}"
-                                                                Height="16"
-                                                                Foreground="#FF6B35"
-                                                                Margin="0,0,0,5"/>
-                                                    <TextBlock Text="{Binding VaceProgressPercentage}"
-                                                              HorizontalAlignment="Center"
-                                                              FontSize="11"
-                                                              FontWeight="Bold"
-                                                              Foreground="#FF6B35"/>
+                                        <!-- Prompt -->
+                                        <Border Background="White" BorderBrush="#FDBA74" BorderThickness="1"
+                                                CornerRadius="8" Padding="14" Margin="0,0,0,10">
+                                            <StackPanel>
+                                                <StackPanel Orientation="Horizontal" Margin="0,0,0,8">
+                                                    <Ellipse Width="6" Height="6" Fill="#818CF8" Margin="0,0,6,0" VerticalAlignment="Center"/>
+                                                    <TextBlock Text="PROMPT" FontSize="10" FontWeight="Bold" Foreground="#6B7280"/>
                                                 </StackPanel>
+                                                <TextBox Text="{Binding VacePrompt, UpdateSourceTrigger=PropertyChanged}"
+                                                         TextWrapping="Wrap" AcceptsReturn="True"
+                                                         Height="90" VerticalScrollBarVisibility="Auto"
+                                                         BorderBrush="#FDBA74" Background="#FFF7ED"
+                                                         FontSize="12" Padding="8"/>
+                                            </StackPanel>
+                                        </Border>
+
+                                    </StackPanel>
+                                </ScrollViewer>
+                            </Border>
+
+                            <!-- ═══ RIGHT PANEL: Video Editor ════════════════════════════════ -->
+                            <Grid Grid.Column="1">
+                                <Grid.RowDefinitions>
+                                    <RowDefinition Height="290"/>  <!-- Reference video area -->
+                                    <RowDefinition Height="Auto"/> <!-- Timeline -->
+                                    <RowDefinition Height="3"/>    <!-- Progress bar -->
+                                    <RowDefinition Height="Auto"/> <!-- Status row -->
+                                    <RowDefinition Height="Auto"/> <!-- Action buttons -->
+                                    <RowDefinition Height="Auto"/> <!-- Queue panel -->
+                                    <RowDefinition Height="Auto"/> <!-- Result output -->
+                                    <RowDefinition Height="Auto"/> <!-- Log -->
+                                </Grid.RowDefinitions>
+
+                                <!-- ─── Reference Video Area ──────────────────────────── -->
+                                <Border Grid.Row="0" Background="#030712">
+                                    <Grid>
+                                        <!-- Idle placeholder -->
+                                        <StackPanel HorizontalAlignment="Center" VerticalAlignment="Center">
+                                            <StackPanel.Style>
+                                                <Style TargetType="StackPanel">
+                                                    <Setter Property="Visibility" Value="Visible"/>
+                                                    <Style.Triggers>
+                                                        <DataTrigger Binding="{Binding HasVACEVideo}" Value="True">
+                                                            <Setter Property="Visibility" Value="Collapsed"/>
+                                                        </DataTrigger>
+                                                    </Style.Triggers>
+                                                </Style>
+                                            </StackPanel.Style>
+                                            <Border Width="64" Height="64" CornerRadius="14"
+                                                    Background="#0A0F1E" BorderBrush="#1F2937" BorderThickness="1"
+                                                    HorizontalAlignment="Center" Margin="0,0,0,10">
+                                                <TextBlock Text="🎭" FontSize="28" HorizontalAlignment="Center" VerticalAlignment="Center"/>
                                             </Border>
+                                            <TextBlock Text="Drop input video here" FontSize="13" FontWeight="SemiBold"
+                                                       Foreground="#4B5563" HorizontalAlignment="Center" Margin="0,0,0,4"/>
+                                            <TextBlock Text="Use Browse button in the Input Video card on the left"
+                                                       FontSize="11" Foreground="#374151" HorizontalAlignment="Center"
+                                                       TextAlignment="Center" TextWrapping="Wrap" MaxWidth="300"/>
                                         </StackPanel>
+
+                                        <!-- Reference video player -->
+                                        <MediaElement x:Name="VaceRefVideoPlayer"
+                                                      Source="{Binding VaceVideoFileUri}"
+                                                      LoadedBehavior="Manual" UnloadedBehavior="Stop"
+                                                      ScrubbingEnabled="True"
+                                                      MediaOpened="VaceRefPlayer_MediaOpened"
+                                                      Stretch="Uniform"
+                                                      Visibility="{Binding HasVACEVideo, Converter={StaticResource BooleanToVisibilityConverter}}"/>
+
+                                        <!-- Info bar overlay -->
+                                        <Border VerticalAlignment="Bottom" Margin="10,0,10,10"
+                                                CornerRadius="8" Padding="12,6"
+                                                Visibility="{Binding VaceHasVideoInfo, Converter={StaticResource BooleanToVisibilityConverter}}">
+                                            <Border.Background>
+                                                <SolidColorBrush Color="#030712" Opacity="0.88"/>
+                                            </Border.Background>
+                                            <Border.BorderBrush>
+                                                <SolidColorBrush Color="#1F2937" Opacity="0.7"/>
+                                            </Border.BorderBrush>
+                                            <Border.BorderThickness>1</Border.BorderThickness>
+                                            <StackPanel Orientation="Horizontal">
+                                                <TextBlock FontSize="10" Foreground="#9CA3AF">
+                                                    <Run Text="Duration "/>
+                                                    <Run Text="{Binding VaceVideoDuration, Mode=OneWay}" FontWeight="Bold" Foreground="#E5E7EB" FontFamily="Consolas"/>
+                                                </TextBlock>
+                                                <Border Width="1" Background="#374151" Margin="10,0"/>
+                                                <TextBlock FontSize="10" Foreground="#9CA3AF">
+                                                    <Run Text="FPS "/>
+                                                    <Run Text="{Binding VaceVideoFpsDisplay, Mode=OneWay}" FontWeight="Bold" Foreground="#E5E7EB" FontFamily="Consolas"/>
+                                                </TextBlock>
+                                                <Border Width="1" Background="#374151" Margin="10,0"/>
+                                                <TextBlock FontSize="10" Foreground="#9CA3AF">
+                                                    <Run Text="Frames "/>
+                                                    <Run Text="{Binding VaceVideoFrameCountDisplay, Mode=OneWay}" FontWeight="Bold" Foreground="#E5E7EB" FontFamily="Consolas"/>
+                                                </TextBlock>
+                                                <Border Width="1" Background="#374151" Margin="10,0"/>
+                                                <TextBlock FontSize="10" FontWeight="Bold" Foreground="#FB923C" FontFamily="Consolas"
+                                                           Text="{Binding VaceVideoChunksDisplay, Mode=OneWay}"/>
+                                            </StackPanel>
+                                        </Border>
                                     </Grid>
                                 </Border>
 
-                                <!-- VACE Queue Panel -->
-                                <Border Style="{StaticResource SectionPanelStyle}"
-                                        Visibility="{Binding VaceHasQueueItems, Converter={StaticResource BooleanToVisibilityConverter}}">
+                                <!-- ─── Timeline ───────────────────────────────────────── -->
+                                <Border Grid.Row="1" Background="#0F172A" BorderBrush="#1F2937"
+                                        BorderThickness="0,1,0,0" Padding="12,10">
                                     <StackPanel>
                                         <Grid Margin="0,0,0,8">
+                                            <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                                                <Ellipse Width="5" Height="5" Fill="#FF6B35" Margin="0,0,6,0" VerticalAlignment="Center"/>
+                                                <TextBlock Text="81-FRAME WINDOWS" FontSize="9" FontWeight="Bold" Foreground="#6B7280"/>
+                                                <TextBlock Text="  · click to seek video" FontSize="9" Foreground="#374151"/>
+                                            </StackPanel>
+                                            <TextBlock HorizontalAlignment="Right" VerticalAlignment="Center"
+                                                       Text="{Binding VaceChunkSelectionInfo, Mode=OneWay}"
+                                                       FontSize="10" Foreground="#6B7280" FontFamily="Consolas"/>
+                                        </Grid>
+
+                                        <ScrollViewer HorizontalScrollBarVisibility="Auto"
+                                                      VerticalScrollBarVisibility="Disabled"
+                                                      Height="58" Background="Transparent">
+                                            <ItemsControl ItemsSource="{Binding VaceChunkItems}">
+                                                <ItemsControl.ItemsPanel>
+                                                    <ItemsPanelTemplate>
+                                                        <StackPanel Orientation="Horizontal"/>
+                                                    </ItemsPanelTemplate>
+                                                </ItemsControl.ItemsPanel>
+                                                <ItemsControl.ItemTemplate>
+                                                    <DataTemplate>
+                                                        <Button Width="62" Height="52" Margin="1,0"
+                                                                Background="{Binding BackgroundColor}"
+                                                                BorderBrush="{Binding BorderColor}"
+                                                                BorderThickness="1.5" Padding="0" Cursor="Hand"
+                                                                Command="{Binding DataContext.SelectVACEChunkCommand, RelativeSource={RelativeSource AncestorType=ItemsControl}}"
+                                                                CommandParameter="{Binding}">
+                                                            <Grid>
+                                                                <StackPanel VerticalAlignment="Center" Margin="2,4,2,6">
+                                                                    <TextBlock Text="{Binding Label}" FontSize="9" FontWeight="Bold"
+                                                                               HorizontalAlignment="Center"
+                                                                               Foreground="{Binding LabelColor}"/>
+                                                                    <TextBlock Text="{Binding FrameRange}" FontSize="7.5"
+                                                                               HorizontalAlignment="Center"
+                                                                               Foreground="{Binding LabelColor}"
+                                                                               FontFamily="Consolas"/>
+                                                                    <TextBlock Text="{Binding StatusDot}" FontSize="9"
+                                                                               HorizontalAlignment="Center" Margin="0,1,0,0"/>
+                                                                </StackPanel>
+                                                                <Border VerticalAlignment="Bottom" Height="3"
+                                                                        Background="{Binding BottomBarColor}"
+                                                                        CornerRadius="0,0,2,2"/>
+                                                            </Grid>
+                                                        </Button>
+                                                    </DataTemplate>
+                                                </ItemsControl.ItemTemplate>
+                                            </ItemsControl>
+                                        </ScrollViewer>
+                                    </StackPanel>
+                                </Border>
+
+                                <!-- ─── Progress bar ───────────────────────────────────── -->
+                                <ProgressBar Grid.Row="2"
+                                             Value="{Binding VaceProcessingProgress, Mode=OneWay}"
+                                             Foreground="#FF6B35" Background="#1F2937" BorderThickness="0"
+                                             Visibility="{Binding VaceIsProcessingQueue, Converter={StaticResource BooleanToVisibilityConverter}}"/>
+
+                                <!-- ─── Status row ─────────────────────────────────────── -->
+                                <Border Grid.Row="3" Background="#111827" BorderBrush="#1F2937"
+                                        BorderThickness="0,1,0,0" Padding="12,5">
+                                    <Grid>
+                                        <StackPanel Orientation="Horizontal">
+                                            <Ellipse Width="5" Height="5" VerticalAlignment="Center" Margin="0,0,7,0">
+                                                <Ellipse.Style>
+                                                    <Style TargetType="Ellipse">
+                                                        <Setter Property="Fill" Value="#374151"/>
+                                                        <Style.Triggers>
+                                                            <DataTrigger Binding="{Binding VaceIsProcessingQueue}" Value="True">
+                                                                <Setter Property="Fill" Value="#F59E0B"/>
+                                                            </DataTrigger>
+                                                        </Style.Triggers>
+                                                    </Style>
+                                                </Ellipse.Style>
+                                            </Ellipse>
+                                            <TextBlock Text="{Binding VaceProcessingStatus}"
+                                                       FontSize="11" Foreground="#6B7280"
+                                                       VerticalAlignment="Center" TextTrimming="CharacterEllipsis"/>
+                                        </StackPanel>
+                                        <TextBlock HorizontalAlignment="Right" VerticalAlignment="Center"
+                                                   Text="{Binding VaceProgressPercentage, Mode=OneWay}"
+                                                   FontSize="11" FontWeight="Bold" Foreground="#FF6B35"
+                                                   FontFamily="Consolas"
+                                                   Visibility="{Binding VaceIsProcessingQueue, Converter={StaticResource BooleanToVisibilityConverter}}"/>
+                                    </Grid>
+                                </Border>
+
+                                <!-- ─── Action Buttons ─────────────────────────────────── -->
+                                <Border Grid.Row="4" Background="#0F172A" BorderBrush="#1F2937"
+                                        BorderThickness="0,1,0,0" Padding="10,8">
+                                    <Grid>
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="*"/>
+                                            <ColumnDefinition Width="*"/>
+                                            <ColumnDefinition Width="Auto"/>
+                                        </Grid.ColumnDefinitions>
+
+                                        <Button Grid.Column="0" Margin="0,0,5,0" Height="40"
+                                                Command="{Binding ProcessSelectedVACEChunkCommand}"
+                                                IsEnabled="{Binding VaceCanAddToQueue}"
+                                                Background="#FF6B35" Foreground="White"
+                                                FontSize="12" FontWeight="Bold" BorderThickness="0">
+                                            <StackPanel Orientation="Horizontal">
+                                                <TextBlock Text="▶ " VerticalAlignment="Center"/>
+                                                <TextBlock Text="Process Selected Chunk" VerticalAlignment="Center"/>
+                                            </StackPanel>
+                                        </Button>
+
+                                        <Button Grid.Column="1" Margin="0,0,5,0" Height="40"
+                                                Command="{Binding GenerateVACEVideoCommand}"
+                                                IsEnabled="{Binding VaceCanAddToQueue}"
+                                                Background="#059669" Foreground="White"
+                                                FontSize="12" FontWeight="Bold" BorderThickness="0">
+                                            <StackPanel Orientation="Horizontal">
+                                                <TextBlock Text="⚡ " VerticalAlignment="Center"/>
+                                                <TextBlock Text="Process Entire Video" VerticalAlignment="Center"/>
+                                            </StackPanel>
+                                        </Button>
+
+                                        <Button Grid.Column="2" Height="40" Width="82"
+                                                Command="{Binding StopVaceQueueCommand}"
+                                                IsEnabled="{Binding VaceIsProcessingQueue}"
+                                                Background="#1F2937" Foreground="#F87171"
+                                                FontSize="11" BorderThickness="0">
+                                            <StackPanel Orientation="Horizontal">
+                                                <TextBlock Text="✕ " VerticalAlignment="Center"/>
+                                                <TextBlock Text="Cancel" VerticalAlignment="Center"/>
+                                            </StackPanel>
+                                        </Button>
+                                    </Grid>
+                                </Border>
+
+                                <!-- ─── Queue Panel ────────────────────────────────────── -->
+                                <Border Grid.Row="5" Background="#FFF9F0" BorderBrush="#FDBA74"
+                                        BorderThickness="0,1,0,0" Padding="12,8"
+                                        Visibility="{Binding VaceHasQueueItems, Converter={StaticResource BooleanToVisibilityConverter}}">
+                                    <StackPanel>
+                                        <Grid Margin="0,0,0,6">
                                             <Grid.ColumnDefinitions>
                                                 <ColumnDefinition Width="*"/>
                                                 <ColumnDefinition Width="Auto"/>
                                                 <ColumnDefinition Width="Auto"/>
                                                 <ColumnDefinition Width="Auto"/>
                                                 <ColumnDefinition Width="Auto"/>
+                                                <ColumnDefinition Width="Auto"/>
                                             </Grid.ColumnDefinitions>
-                                            <TextBlock Grid.Column="0" Text="🎭 VACE Queue" Style="{StaticResource HeaderTextStyle}" Foreground="#FF6B35" VerticalAlignment="Center"/>
+                                            <TextBlock Grid.Column="0" Text="🎭 VACE Queue"
+                                                       FontWeight="Bold" FontSize="12" Foreground="#FF6B35"
+                                                       VerticalAlignment="Center"/>
                                             <TextBlock Grid.Column="1" Text="{Binding VaceQueueStatus}"
-                                                      FontStyle="Italic" Foreground="#666" FontSize="11"
-                                                      VerticalAlignment="Center" Margin="0,0,8,0"/>
-                                            <Button Grid.Column="2"
-                                                   Content="🔄 Retry"
-                                                   Command="{Binding ReprocessAllVaceFailedCommand}"
-                                                   IsEnabled="{Binding VaceHasFailedItems}"
-                                                   Height="28" Width="70" FontSize="11"
-                                                   Margin="0,0,5,0"
-                                                   Background="#FFA500" Foreground="White"
-                                                   BorderThickness="0" FontWeight="SemiBold"/>
-                                            <Button Grid.Column="3"
-                                                   Content="⏹ Stop"
-                                                   Command="{Binding StopVaceQueueCommand}"
-                                                   IsEnabled="{Binding VaceIsProcessingQueue}"
-                                                   Height="28" Width="65" FontSize="11"
-                                                   Margin="0,0,5,0"
-                                                   Background="#F59E0B" Foreground="White"
-                                                   BorderThickness="0" FontWeight="SemiBold"/>
-                                            <Button Grid.Column="4"
-                                                   Content="🗑️ Clear"
-                                                   Command="{Binding ClearVaceQueueCommand}"
-                                                   Height="28" Width="65" FontSize="11"
-                                                   Background="#DC3545" Foreground="White"
-                                                   BorderThickness="0" FontWeight="SemiBold"/>
+                                                       FontStyle="Italic" Foreground="#666" FontSize="11"
+                                                       VerticalAlignment="Center" Margin="0,0,8,0"/>
+                                            <Button Grid.Column="2" Content="🔄 Retry"
+                                                    Command="{Binding ReprocessAllVaceFailedCommand}"
+                                                    IsEnabled="{Binding VaceHasFailedItems}"
+                                                    Height="26" Padding="8,0" FontSize="11" Margin="0,0,5,0"
+                                                    Background="#FF6B35" Foreground="White" BorderThickness="0"/>
+                                            <Button Grid.Column="3" Content="▶ Start"
+                                                    Command="{Binding StartVaceQueueCommand}"
+                                                    Height="26" Padding="8,0" FontSize="11" Margin="0,0,5,0"
+                                                    Background="#34D399" Foreground="White" BorderThickness="0"/>
+                                            <Button Grid.Column="4" Content="⏹ Stop"
+                                                    Command="{Binding StopVaceQueueCommand}"
+                                                    IsEnabled="{Binding VaceIsProcessingQueue}"
+                                                    Height="26" Padding="8,0" FontSize="11" Margin="0,0,5,0"
+                                                    Background="#FB923C" Foreground="White" BorderThickness="0"/>
+                                            <Button Grid.Column="5" Content="🗑️ Clear"
+                                                    Command="{Binding ClearVaceQueueCommand}"
+                                                    Height="26" Padding="8,0" FontSize="11"
+                                                    Background="#DC3545" Foreground="White" BorderThickness="0"/>
                                         </Grid>
 
                                         <ItemsControl ItemsSource="{Binding VaceQueue}">
                                             <ItemsControl.ItemTemplate>
                                                 <DataTemplate>
-                                                    <Border BorderBrush="#DEE2E6" BorderThickness="1" CornerRadius="4"
-                                                            Padding="10,6" Margin="0,0,0,4" Background="White">
+                                                    <Border BorderBrush="#FDBA74" BorderThickness="1" CornerRadius="4"
+                                                            Padding="10,5" Margin="0,0,0,3" Background="White">
                                                         <Grid>
                                                             <Grid.ColumnDefinitions>
                                                                 <ColumnDefinition Width="Auto"/>
                                                                 <ColumnDefinition Width="*"/>
                                                                 <ColumnDefinition Width="Auto"/>
                                                             </Grid.ColumnDefinitions>
-
                                                             <Border Grid.Column="0" CornerRadius="3" Padding="6,2" Margin="0,0,8,0"
                                                                     Background="{Binding StatusColor}">
-                                                                <TextBlock Text="{Binding StatusDisplay}" FontSize="11" FontWeight="SemiBold" Foreground="White"/>
+                                                                <TextBlock Text="{Binding StatusDisplay}" FontSize="10"
+                                                                           FontWeight="SemiBold" Foreground="White"/>
                                                             </Border>
-
                                                             <StackPanel Grid.Column="1" VerticalAlignment="Center">
                                                                 <TextBlock Text="{Binding DisplayText}" FontWeight="SemiBold" FontSize="11"/>
                                                                 <TextBlock Text="{Binding Prompt}" FontSize="10" Foreground="#666"
                                                                            TextTrimming="CharacterEllipsis"/>
                                                             </StackPanel>
-
-                                                            <Button Grid.Column="2"
-                                                                    Content="✕"
+                                                            <Button Grid.Column="2" Content="✕"
                                                                     Style="{StaticResource SecondaryButtonStyle}"
                                                                     Command="{Binding DataContext.RemoveVaceQueueItemCommand, RelativeSource={RelativeSource AncestorType=ItemsControl}}"
                                                                     CommandParameter="{Binding}"
-                                                                    Width="28" Height="28"
-                                                                    Padding="0"
-                                                                    FontSize="10"/>
+                                                                    Width="26" Height="26" Padding="0" FontSize="10"/>
                                                         </Grid>
                                                     </Border>
                                                 </DataTemplate>
@@ -1728,20 +1880,19 @@
                                     </StackPanel>
                                 </Border>
 
-                                <!-- VACE Result Video Section -->
-                                <Border Style="{StaticResource SectionPanelStyle}">
+                                <!-- ─── Result Output ──────────────────────────────────── -->
+                                <Border Grid.Row="6" Background="White" BorderBrush="#FDBA74"
+                                        BorderThickness="0,1,0,0" Padding="12,10">
                                     <StackPanel>
-                                        <TextBlock Text="🎥 Result Video" Style="{StaticResource HeaderTextStyle}" Foreground="#FF6B35"/>
+                                        <TextBlock Text="🎥 Result Video" FontWeight="Bold" FontSize="13"
+                                                   Foreground="#FF6B35" Margin="0,0,0,8"/>
 
-                                        <Border BorderBrush="#DEE2E6" BorderThickness="2"
-                                                Background="White" Height="250"
-                                                CornerRadius="5" Margin="0,0,0,10">
+                                        <Border BorderBrush="#FDBA74" BorderThickness="1" Background="#030712"
+                                                Height="200" CornerRadius="6" Margin="0,0,0,8">
                                             <Grid>
                                                 <TextBlock Text="Video will appear here after generation"
-                                                          HorizontalAlignment="Center"
-                                                          VerticalAlignment="Center"
-                                                          Foreground="#999"
-                                                          FontStyle="Italic">
+                                                           HorizontalAlignment="Center" VerticalAlignment="Center"
+                                                           Foreground="#374151" FontStyle="Italic">
                                                     <TextBlock.Style>
                                                         <Style TargetType="TextBlock">
                                                             <Setter Property="Visibility" Value="Collapsed"/>
@@ -1753,77 +1904,44 @@
                                                         </Style>
                                                     </TextBlock.Style>
                                                 </TextBlock>
-
-                                                <!-- Video Player -->
                                                 <MediaElement x:Name="VACEVideoPlayer"
-                                                            Source="{Binding VaceResultPath}"
-                                                            LoadedBehavior="Manual"
-                                                            UnloadedBehavior="Stop"
-                                                            Stretch="Uniform"
-                                                            Visibility="{Binding HasVACEResult, Converter={StaticResource BooleanToVisibilityConverter}}"/>
+                                                              Source="{Binding VaceResultPath}"
+                                                              LoadedBehavior="Manual" UnloadedBehavior="Stop"
+                                                              Stretch="Uniform"
+                                                              Visibility="{Binding HasVACEResult, Converter={StaticResource BooleanToVisibilityConverter}}"/>
                                             </Grid>
                                         </Border>
 
-                                        <Grid>
-                                            <Grid.ColumnDefinitions>
-                                                <ColumnDefinition Width="*"/>
-                                                <ColumnDefinition Width="Auto"/>
-                                                <ColumnDefinition Width="Auto"/>
-                                            </Grid.ColumnDefinitions>
-
-                                            <Button Grid.Column="0"
-                                                   Content="▶️ Play"
-                                                   Style="{StaticResource SecondaryButtonStyle}"
-                                                   Command="{Binding PlayVACEVideoCommand}"
-                                                   IsEnabled="{Binding HasVACEResult}"
-                                                   Margin="0,0,8,0"/>
-
-                                            <Button Grid.Column="1"
-                                                   Content="📂 Open Folder"
-                                                   Style="{StaticResource SecondaryButtonStyle}"
-                                                   Command="{Binding OpenVACEResultFolderCommand}"
-                                                   IsEnabled="{Binding HasVACEResult}"
-                                                   Margin="0,0,8,0"/>
-
-                                            <Button Grid.Column="2"
-                                                   Content="📷 Send to Edit Camera"
-                                                   Style="{StaticResource SecondaryButtonStyle}"
-                                                   Command="{Binding SendToEditCameraCommand}"
-                                                   IsEnabled="{Binding HasVACEResult}"/>
-                                        </Grid>
-
+                                        <StackPanel Orientation="Horizontal" Margin="0,0,0,6">
+                                            <Button Content="▶ Play" Style="{StaticResource PrimaryButtonStyle}"
+                                                    Command="{Binding PlayVACEVideoCommand}"
+                                                    IsEnabled="{Binding HasVACEResult}" Margin="0,0,8,0"/>
+                                            <Button Content="📁 Open Folder" Style="{StaticResource SecondaryButtonStyle}"
+                                                    Command="{Binding OpenVACEResultFolderCommand}"
+                                                    IsEnabled="{Binding HasVACEResult}" Margin="0,0,8,0"/>
+                                            <Button Content="📷 Send to Edit Camera" Style="{StaticResource SecondaryButtonStyle}"
+                                                    Command="{Binding SendToEditCameraCommand}"
+                                                    IsEnabled="{Binding HasVACEResult}"/>
+                                        </StackPanel>
                                         <TextBlock Text="{Binding VaceResultVideoInfo}"
-                                                  FontStyle="Italic"
-                                                  Foreground="#666"
-                                                  FontSize="11"
-                                                  Margin="0,10,0,0"/>
+                                                   FontStyle="Italic" Foreground="#666" FontSize="11"/>
                                     </StackPanel>
                                 </Border>
 
-                                <!-- VACE Log (Collapsible) -->
-                                <Expander Header="📝 Processing Log"
-                                         IsExpanded="True"
-                                         Margin="0,0,0,0">
-                                    <Border Background="White"
-                                            BorderBrush="#DEE2E6"
-                                            BorderThickness="1"
-                                            Margin="0,8,0,0">
-                                        <ScrollViewer MaxHeight="150"
-                                                     VerticalScrollBarVisibility="Auto">
+                                <!-- ─── Log ────────────────────────────────────────────── -->
+                                <Border Grid.Row="7" Background="White" BorderBrush="#FDBA74" BorderThickness="0,1,0,0">
+                                    <Expander Header="📝 Processing Log" IsExpanded="False" Margin="6">
+                                        <ScrollViewer MaxHeight="130" VerticalScrollBarVisibility="Auto" Margin="0,4,0,0">
                                             <TextBox Text="{Binding VaceLogOutput, Mode=OneWay}"
-                                                    TextWrapping="Wrap"
-                                                    IsReadOnly="True"
-                                                    FontFamily="Consolas"
-                                                    FontSize="10"
-                                                    Background="Transparent"
-                                                    BorderThickness="0"
-                                                    Padding="10"/>
+                                                     TextWrapping="Wrap" IsReadOnly="True"
+                                                     FontFamily="Consolas" FontSize="10"
+                                                     Background="Transparent" BorderThickness="0" Padding="10"/>
                                         </ScrollViewer>
-                                    </Border>
-                                </Expander>
+                                    </Expander>
+                                </Border>
 
-                            </StackPanel>
-                        </ScrollViewer>
+                            </Grid>
+                        </Grid>
                     </TabItem>
 
                     <!-- Tab 5: Single Video -->
