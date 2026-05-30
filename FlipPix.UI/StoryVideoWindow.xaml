@@ -7,13 +7,9 @@
         mc:Ignorable="d"
         Title="FlipPix - Story Video Generator" Height="850" Width="1000"
         WindowStartupLocation="CenterScreen"
-        WindowState="Normal"
         WindowStyle="SingleBorderWindow"
-        MinHeight="750" MinWidth="900"
+        MinHeight="700" MinWidth="860"
         ResizeMode="CanResize">
-
-    <Window.Resources>
-    </Window.Resources>
 
     <Grid>
         <Grid.RowDefinitions>
@@ -30,13 +26,10 @@
                     <GradientStop Color="#E91E63" Offset="1"/>
                 </LinearGradientBrush>
             </Border.Background>
-            <StackPanel Margin="25,20">
-                <TextBlock Text="Story Video Generator"
-                          FontSize="28" FontWeight="Bold"
-                          Foreground="White"/>
-                <TextBlock Text="Load prompts and generate a story video with multiple clips"
-                          FontSize="13" Foreground="#FFFAF0"
-                          Margin="0,5,0,0"/>
+            <StackPanel Margin="25,18">
+                <TextBlock Text="Story Video Generator" FontSize="26" FontWeight="Bold" Foreground="White"/>
+                <TextBlock Text="Queue multiple batches — each with its own prompts and workflow"
+                           FontSize="12" Foreground="#FFFAF0" Margin="0,4,0,0"/>
             </StackPanel>
         </Border>
 
@@ -44,286 +37,241 @@
         <ScrollViewer Grid.Row="1" VerticalScrollBarVisibility="Auto">
             <StackPanel Margin="20,15,20,15">
 
-                <!-- Step 1: Load Prompts -->
+                <!-- ═══ Step 1: Configure a Batch ═══ -->
                 <Border Style="{StaticResource SectionPanelStyle}">
                     <StackPanel>
-                        <TextBlock Text="Step 1: Load Story Prompts" Style="{StaticResource HeaderTextStyle}" Foreground="#9C27B0"/>
-                        <TextBlock Text="Load a JSON file containing your story prompts or manually edit them below"
-                                   FontSize="12"
-                                   Foreground="#666"
-                                   Margin="0,0,0,15"/>
+                        <TextBlock Text="Step 1: Configure a New Batch"
+                                   Style="{StaticResource HeaderTextStyle}" Foreground="#9C27B0"/>
+                        <TextBlock Text="Load a prompts file (.json or .txt), choose a workflow, then add to the queue."
+                                   FontSize="12" Foreground="#666" Margin="0,0,0,15"/>
 
-                        <!-- Save/Load Buttons -->
-                        <StackPanel Orientation="Horizontal" Margin="0,0,0,15">
-                            <Button Content="Load Prompts"
-                                   Style="{StaticResource PrimaryButtonStyle}"
-                                   Command="{Binding LoadPromptsCommand}"
-                                   Width="120"
-                                   Height="35"
-                                   Margin="0,0,10,0"/>
-                            <Button Content="Save Prompts"
-                                   Style="{StaticResource SecondaryButtonStyle}"
-                                   Command="{Binding SavePromptsCommand}"
-                                   Width="120"
-                                   Height="35"/>
-                        </StackPanel>
+                        <!-- Workflow selector -->
+                        <TextBlock Text="Video Workflow" FontWeight="SemiBold" FontSize="12" Margin="0,0,0,5"/>
+                        <ComboBox ItemsSource="{Binding WorkflowNames}"
+                                  SelectedIndex="{Binding SelectedWorkflowIndex, Mode=TwoWay}"
+                                  Height="34" Padding="10,6"
+                                  Background="White" BorderBrush="#CED4DA" FontSize="11"
+                                  Margin="0,0,0,4"/>
+                        <TextBlock FontSize="10" Foreground="#999" Margin="0,0,0,15">
+                            <Run Text="Selected: "/>
+                            <Run Text="{Binding SelectedWorkflowName}" Foreground="#4CAF50" FontWeight="SemiBold"/>
+                        </TextBlock>
 
-                        <!-- Prompts Display -->
-                        <Grid>
+                        <!-- Load prompts file -->
+                        <Grid Margin="0,0,0,10">
                             <Grid.ColumnDefinitions>
                                 <ColumnDefinition Width="*"/>
-                                <ColumnDefinition Width="*"/>
+                                <ColumnDefinition Width="Auto"/>
                             </Grid.ColumnDefinitions>
-                            <Grid.RowDefinitions>
-                                <RowDefinition Height="Auto"/>
-                                <RowDefinition Height="Auto"/>
-                                <RowDefinition Height="Auto"/>
-                                <RowDefinition Height="Auto"/>
-                                <RowDefinition Height="Auto"/>
-                            </Grid.RowDefinitions>
-
-                            <StackPanel Grid.Row="0" Grid.Column="0" Margin="0,0,8,8">
-                                <TextBlock Text="Prompt 1:" FontWeight="SemiBold" FontSize="11" Margin="0,0,0,3"/>
-                                <TextBox Text="{Binding GeneratedPrompt1, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
-                                        TextWrapping="Wrap"
-                                        Height="70"
-                                        Padding="8"
-                                        FontSize="10"
-                                        Background="White"
-                                        BorderBrush="#CED4DA"
-                                        AcceptsReturn="True"
-                                        VerticalScrollBarVisibility="Auto"/>
-                            </StackPanel>
-
-                            <StackPanel Grid.Row="0" Grid.Column="1" Margin="8,0,0,8">
-                                <TextBlock Text="Prompt 2:" FontWeight="SemiBold" FontSize="11" Margin="0,0,0,3"/>
-                                <TextBox Text="{Binding GeneratedPrompt2, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
-                                        TextWrapping="Wrap"
-                                        Height="70"
-                                        Padding="8"
-                                        FontSize="10"
-                                        Background="White"
-                                        BorderBrush="#CED4DA"
-                                        AcceptsReturn="True"
-                                        VerticalScrollBarVisibility="Auto"/>
-                            </StackPanel>
-
-                            <StackPanel Grid.Row="1" Grid.Column="0" Margin="0,0,8,8">
-                                <TextBlock Text="Prompt 3:" FontWeight="SemiBold" FontSize="11" Margin="0,0,0,3"/>
-                                <TextBox Text="{Binding GeneratedPrompt3, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
-                                        TextWrapping="Wrap"
-                                        Height="70"
-                                        Padding="8"
-                                        FontSize="10"
-                                        Background="White"
-                                        BorderBrush="#CED4DA"
-                                        AcceptsReturn="True"
-                                        VerticalScrollBarVisibility="Auto"/>
-                            </StackPanel>
-
-                            <StackPanel Grid.Row="1" Grid.Column="1" Margin="8,0,0,8">
-                                <TextBlock Text="Prompt 4:" FontWeight="SemiBold" FontSize="11" Margin="0,0,0,3"/>
-                                <TextBox Text="{Binding GeneratedPrompt4, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
-                                        TextWrapping="Wrap"
-                                        Height="70"
-                                        Padding="8"
-                                        FontSize="10"
-                                        Background="White"
-                                        BorderBrush="#CED4DA"
-                                        AcceptsReturn="True"
-                                        VerticalScrollBarVisibility="Auto"/>
-                            </StackPanel>
-
-                            <StackPanel Grid.Row="2" Grid.Column="0" Margin="0,0,8,8">
-                                <TextBlock Text="Prompt 5:" FontWeight="SemiBold" FontSize="11" Margin="0,0,0,3"/>
-                                <TextBox Text="{Binding GeneratedPrompt5, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
-                                        TextWrapping="Wrap"
-                                        Height="70"
-                                        Padding="8"
-                                        FontSize="10"
-                                        Background="White"
-                                        BorderBrush="#CED4DA"
-                                        AcceptsReturn="True"
-                                        VerticalScrollBarVisibility="Auto"/>
-                            </StackPanel>
-
-                            <StackPanel Grid.Row="2" Grid.Column="1" Margin="8,0,0,8">
-                                <TextBlock Text="Prompt 6:" FontWeight="SemiBold" FontSize="11" Margin="0,0,0,3"/>
-                                <TextBox Text="{Binding GeneratedPrompt6, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
-                                        TextWrapping="Wrap"
-                                        Height="70"
-                                        Padding="8"
-                                        FontSize="10"
-                                        Background="White"
-                                        BorderBrush="#CED4DA"
-                                        AcceptsReturn="True"
-                                        VerticalScrollBarVisibility="Auto"/>
-                            </StackPanel>
-
-                            <StackPanel Grid.Row="3" Grid.Column="0" Margin="0,0,8,8">
-                                <TextBlock Text="Prompt 7:" FontWeight="SemiBold" FontSize="11" Margin="0,0,0,3"/>
-                                <TextBox Text="{Binding GeneratedPrompt7, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
-                                        TextWrapping="Wrap"
-                                        Height="70"
-                                        Padding="8"
-                                        FontSize="10"
-                                        Background="White"
-                                        BorderBrush="#CED4DA"
-                                        AcceptsReturn="True"
-                                        VerticalScrollBarVisibility="Auto"/>
-                            </StackPanel>
-
-                            <StackPanel Grid.Row="3" Grid.Column="1" Margin="8,0,0,8">
-                                <TextBlock Text="Prompt 8:" FontWeight="SemiBold" FontSize="11" Margin="0,0,0,3"/>
-                                <TextBox Text="{Binding GeneratedPrompt8, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
-                                        TextWrapping="Wrap"
-                                        Height="70"
-                                        Padding="8"
-                                        FontSize="10"
-                                        Background="White"
-                                        BorderBrush="#CED4DA"
-                                        AcceptsReturn="True"
-                                        VerticalScrollBarVisibility="Auto"/>
-                            </StackPanel>
-
-                            <StackPanel Grid.Row="4" Grid.Column="0" Margin="0,0,8,0">
-                                <TextBlock Text="Prompt 9:" FontWeight="SemiBold" FontSize="11" Margin="0,0,0,3"/>
-                                <TextBox Text="{Binding GeneratedPrompt9, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
-                                        TextWrapping="Wrap"
-                                        Height="70"
-                                        Padding="8"
-                                        FontSize="10"
-                                        Background="White"
-                                        BorderBrush="#CED4DA"
-                                        AcceptsReturn="True"
-                                        VerticalScrollBarVisibility="Auto"/>
-                            </StackPanel>
-
-                            <StackPanel Grid.Row="4" Grid.Column="1" Margin="8,0,0,0">
-                                <TextBlock Text="Prompt 10:" FontWeight="SemiBold" FontSize="11" Margin="0,0,0,3"/>
-                                <TextBox Text="{Binding GeneratedPrompt10, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
-                                        TextWrapping="Wrap"
-                                        Height="70"
-                                        Padding="8"
-                                        FontSize="10"
-                                        Background="White"
-                                        BorderBrush="#CED4DA"
-                                        AcceptsReturn="True"
-                                        VerticalScrollBarVisibility="Auto"/>
-                            </StackPanel>
+                            <Border Grid.Column="0" BorderBrush="#CED4DA" BorderThickness="1" CornerRadius="4"
+                                    Background="#F8F9FA" Padding="10,8">
+                                <TextBlock Text="{Binding PendingBatchSummary}" FontSize="11"
+                                           Foreground="#555" TextWrapping="Wrap" VerticalAlignment="Center"/>
+                            </Border>
+                            <Button Grid.Column="1" Content="Load Prompts from File"
+                                    Command="{Binding LoadPromptsCommand}"
+                                    Style="{StaticResource SecondaryButtonStyle}"
+                                    Height="36" Margin="10,0,0,0" Padding="14,0"/>
                         </Grid>
+
+                        <!-- Add to Queue -->
+                        <Button Content="Add to Queue"
+                                Command="{Binding AddToBatchQueueCommand}"
+                                Style="{StaticResource PrimaryButtonStyle}"
+                                Width="180" Height="38" HorizontalAlignment="Left"/>
+
+                        <TextBlock Text="⚠ Each video clip takes 2–10 min depending on hardware"
+                                   FontSize="11" Foreground="#E91E63" FontWeight="SemiBold" Margin="0,10,0,0"/>
                     </StackPanel>
                 </Border>
 
-                <!-- Step 2: Generate Video -->
+                <!-- ═══ Step 2: Batch Queue ═══ -->
                 <Border Style="{StaticResource SectionPanelStyle}">
                     <StackPanel>
-                        <TextBlock Text="Step 2: Generate Story Video" Style="{StaticResource HeaderTextStyle}" Foreground="#9C27B0"/>
-
-                        <!-- Workflow Selection -->
-                        <StackPanel Margin="0,0,0,15">
-                            <TextBlock Text="🎬 Video Workflow" FontWeight="SemiBold" FontSize="12" Margin="0,0,0,5"/>
-                            <ComboBox ItemsSource="{Binding WorkflowNames}"
-                                      SelectedIndex="{Binding SelectedWorkflowIndex, Mode=TwoWay}"
-                                      Padding="10"
-                                      Background="White"
-                                      BorderBrush="#CED4DA"
-                                      FontSize="11"/>
-                            <TextBlock Text="Select the workflow for video generation"
-                                      FontSize="10"
-                                      Foreground="#999"
-                                      Margin="0,5,0,0"/>
-                            <TextBlock>
-                                <Run Text="Currently selected: " FontWeight="SemiBold"/>
-                                <Run Text="{Binding SelectedWorkflowName}" Foreground="#4CAF50"/>
+                        <Grid Margin="0,0,0,10">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="*"/>
+                                <ColumnDefinition Width="Auto"/>
+                            </Grid.ColumnDefinitions>
+                            <TextBlock Grid.Column="0"
+                                       Style="{StaticResource HeaderTextStyle}" Foreground="#9C27B0">
+                                <Run Text="Step 2: Batch Queue"/>
+                                <Run Text=" (" Foreground="#999" FontSize="13" FontWeight="Normal"/>
+                                <Run Text="{Binding BatchQueue.Count}" Foreground="#999" FontSize="13" FontWeight="Normal"/>
+                                <Run Text=" batches)" Foreground="#999" FontSize="13" FontWeight="Normal"/>
                             </TextBlock>
-                        </StackPanel>
+                            <Button Grid.Column="1" Content="Clear Completed"
+                                    Command="{Binding ClearCompletedBatchesCommand}"
+                                    Style="{StaticResource SecondaryButtonStyle}"
+                                    Height="30" Padding="12,0" FontSize="11"/>
+                        </Grid>
 
-                        <TextBlock Text="This will generate video clips for each prompt using the selected workflow"
-                                   FontSize="12"
-                                   Foreground="#666"
-                                   Margin="0,0,0,10"/>
-
-                        <TextBlock Text="⚠ Note: Video generation can take 2-10 minutes per clip depending on your hardware"
-                                   FontSize="11"
-                                   Foreground="#E91E63"
-                                   FontWeight="SemiBold"
-                                   Margin="0,0,0,15"/>
-
-                        <Button Content="Generate Story Video"
-                               Style="{StaticResource PrimaryButtonStyle}"
-                               Command="{Binding GenerateVideoCommand}"
-                               Width="250"
-                               HorizontalAlignment="Left"
-                               Margin="0,0,0,15"/>
-
-                        <!-- Processing Status -->
-                        <Border Background="#FFF9F0"
-                                BorderBrush="#FFE0B0"
-                                BorderThickness="1"
-                                CornerRadius="5"
-                                Padding="15"
-                                Margin="0,0,0,15"
-                                Visibility="{Binding IsProcessing, Converter={StaticResource BooleanToVisibilityConverter}}">
-                            <StackPanel>
-                                <TextBlock Text="{Binding ProcessingStatus}"
-                                          FontWeight="SemiBold"
-                                          FontSize="12"
-                                          Margin="0,0,0,8"
-                                          TextWrapping="Wrap"/>
-                                <ProgressBar Value="{Binding ProcessingProgress}"
-                                            Height="20"
-                                            Foreground="#9C27B0"
-                                            Margin="0,0,0,5"/>
-                                <TextBlock Text="{Binding ProgressPercentage}"
-                                          HorizontalAlignment="Center"
-                                          FontSize="12"
-                                          FontWeight="Bold"
-                                          Foreground="#9C27B0"/>
-                            </StackPanel>
+                        <!-- Empty state -->
+                        <Border Visibility="{Binding HasNoBatchItems, Converter={StaticResource BooleanToVisibilityConverter}}"
+                                Background="#F8F9FA" BorderBrush="#E0E0E0" BorderThickness="1"
+                                CornerRadius="4" Padding="20" Margin="0,0,0,5">
+                            <TextBlock Text="No batches queued yet — configure a batch above and click 'Add to Queue'"
+                                       FontSize="12" Foreground="#999" HorizontalAlignment="Center"/>
                         </Border>
 
-                        <!-- Result Video -->
-                        <StackPanel Visibility="{Binding HasResultVideo, Converter={StaticResource BooleanToVisibilityConverter}}">
-                            <TextBlock Text="✓ Videos Generated Successfully!"
-                                      FontWeight="Bold"
-                                      FontSize="14"
-                                      Foreground="#4CAF50"
-                                      Margin="0,0,0,10"/>
+                        <!-- Queue header row -->
+                        <Grid Visibility="{Binding HasBatchItems, Converter={StaticResource BooleanToVisibilityConverter}}"
+                              Margin="0,0,0,4">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="30"/>
+                                <ColumnDefinition Width="*"/>
+                                <ColumnDefinition Width="130"/>
+                                <ColumnDefinition Width="70"/>
+                                <ColumnDefinition Width="70"/>
+                            </Grid.ColumnDefinitions>
+                            <TextBlock Grid.Column="0" Text="" FontSize="10" Foreground="#999"/>
+                            <TextBlock Grid.Column="1" Text="BATCH" FontSize="10" Foreground="#999" FontWeight="Bold"/>
+                            <TextBlock Grid.Column="2" Text="WORKFLOW" FontSize="10" Foreground="#999" FontWeight="Bold"/>
+                            <TextBlock Grid.Column="3" Text="CLIPS" FontSize="10" Foreground="#999" FontWeight="Bold" HorizontalAlignment="Center"/>
+                            <TextBlock Grid.Column="4" Text="" FontSize="10" Foreground="#999"/>
+                        </Grid>
 
-                            <TextBlock Text="{Binding ResultVideoPath}"
-                                      FontSize="11"
-                                      Foreground="#666"
-                                      TextWrapping="Wrap"
-                                      Margin="0,0,0,10"/>
+                        <!-- Batch rows -->
+                        <ItemsControl ItemsSource="{Binding BatchQueue}"
+                                      Visibility="{Binding HasBatchItems, Converter={StaticResource BooleanToVisibilityConverter}}">
+                            <ItemsControl.ItemTemplate>
+                                <DataTemplate>
+                                    <Border BorderBrush="#E8E8E8" BorderThickness="0,0,0,1" Padding="4,7">
+                                        <Border.Style>
+                                            <Style TargetType="Border">
+                                                <Setter Property="Background" Value="Transparent"/>
+                                                <Style.Triggers>
+                                                    <DataTrigger Binding="{Binding Status}" Value="Processing">
+                                                        <Setter Property="Background" Value="#FFF8E7"/>
+                                                    </DataTrigger>
+                                                    <DataTrigger Binding="{Binding Status}" Value="Done">
+                                                        <Setter Property="Background" Value="#F1F8F1"/>
+                                                    </DataTrigger>
+                                                    <DataTrigger Binding="{Binding Status}" Value="Failed">
+                                                        <Setter Property="Background" Value="#FFF1F1"/>
+                                                    </DataTrigger>
+                                                </Style.Triggers>
+                                            </Style>
+                                        </Border.Style>
+                                        <Grid>
+                                            <Grid.ColumnDefinitions>
+                                                <ColumnDefinition Width="30"/>
+                                                <ColumnDefinition Width="*"/>
+                                                <ColumnDefinition Width="130"/>
+                                                <ColumnDefinition Width="70"/>
+                                                <ColumnDefinition Width="70"/>
+                                            </Grid.ColumnDefinitions>
 
-                            <Button Content="Open Output Folder"
-                                   Style="{StaticResource SecondaryButtonStyle}"
-                                   Command="{Binding OpenResultFolderCommand}"
-                                   Width="200"
-                                   HorizontalAlignment="Left"/>
-                        </StackPanel>
+                                            <!-- Status icon -->
+                                            <TextBlock Grid.Column="0" Text="{Binding StatusIcon}"
+                                                       FontSize="14" VerticalAlignment="Center" HorizontalAlignment="Center">
+                                                <TextBlock.Style>
+                                                    <Style TargetType="TextBlock">
+                                                        <Setter Property="Foreground" Value="#2196F3"/>
+                                                        <Style.Triggers>
+                                                            <DataTrigger Binding="{Binding Status}" Value="Processing">
+                                                                <Setter Property="Foreground" Value="#FF9800"/>
+                                                            </DataTrigger>
+                                                            <DataTrigger Binding="{Binding Status}" Value="Done">
+                                                                <Setter Property="Foreground" Value="#4CAF50"/>
+                                                            </DataTrigger>
+                                                            <DataTrigger Binding="{Binding Status}" Value="Failed">
+                                                                <Setter Property="Foreground" Value="#F44336"/>
+                                                            </DataTrigger>
+                                                        </Style.Triggers>
+                                                    </Style>
+                                                </TextBlock.Style>
+                                            </TextBlock>
+
+                                            <!-- Batch name -->
+                                            <TextBlock Grid.Column="1" Text="{Binding BatchName}"
+                                                       FontSize="12" VerticalAlignment="Center"
+                                                       TextTrimming="CharacterEllipsis" Margin="0,0,8,0"/>
+
+                                            <!-- Workflow -->
+                                            <TextBlock Grid.Column="2" Text="{Binding WorkflowName}"
+                                                       FontSize="11" Foreground="#555" VerticalAlignment="Center"
+                                                       TextTrimming="CharacterEllipsis" Margin="0,0,8,0"/>
+
+                                            <!-- Progress -->
+                                            <TextBlock Grid.Column="3" Text="{Binding ProgressText}"
+                                                       FontSize="11" VerticalAlignment="Center"
+                                                       HorizontalAlignment="Center" FontWeight="SemiBold"/>
+
+                                            <!-- Remove button (only for Queued items) -->
+                                            <Button Grid.Column="4"
+                                                    Content="Remove"
+                                                    FontSize="10" Height="24" Padding="6,0"
+                                                    HorizontalAlignment="Center" VerticalAlignment="Center"
+                                                    Command="{Binding DataContext.RemoveBatchCommand,
+                                                              RelativeSource={RelativeSource AncestorType=Window}}"
+                                                    CommandParameter="{Binding}">
+                                                <Button.Style>
+                                                    <Style TargetType="Button" BasedOn="{StaticResource SecondaryButtonStyle}">
+                                                        <Style.Triggers>
+                                                            <DataTrigger Binding="{Binding IsQueued}" Value="False">
+                                                                <Setter Property="Visibility" Value="Hidden"/>
+                                                            </DataTrigger>
+                                                        </Style.Triggers>
+                                                    </Style>
+                                                </Button.Style>
+                                            </Button>
+                                        </Grid>
+                                    </Border>
+                                </DataTemplate>
+                            </ItemsControl.ItemTemplate>
+                        </ItemsControl>
                     </StackPanel>
                 </Border>
 
-                <!-- Log (Collapsible) -->
-                <Expander Header="Processing Log"
-                         IsExpanded="True"
-                         Margin="0,0,0,0">
-                    <Border Background="White"
-                            BorderBrush="#DEE2E6"
-                            BorderThickness="1"
-                            Margin="0,8,0,0">
-                        <ScrollViewer MaxHeight="200"
-                                     VerticalScrollBarVisibility="Auto">
+                <!-- ═══ Processing Status ═══ -->
+                <Border Style="{StaticResource SectionPanelStyle}"
+                        Visibility="{Binding IsProcessing, Converter={StaticResource BooleanToVisibilityConverter}}">
+                    <StackPanel>
+                        <Grid Margin="0,0,0,12">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="*"/>
+                                <ColumnDefinition Width="Auto"/>
+                            </Grid.ColumnDefinitions>
+                            <TextBlock Grid.Column="0" Text="{Binding ProcessingStatus}"
+                                       FontWeight="SemiBold" FontSize="12" TextWrapping="Wrap"
+                                       VerticalAlignment="Center"/>
+                            <Button Grid.Column="1" Content="Cancel"
+                                    Command="{Binding CancelGenerationCommand}"
+                                    Style="{StaticResource SecondaryButtonStyle}"
+                                    Height="30" Padding="14,0" Margin="12,0,0,0"/>
+                        </Grid>
+                        <ProgressBar Value="{Binding ProcessingProgress}"
+                                     Height="18" Foreground="#9C27B0" Margin="0,0,0,4"/>
+                        <TextBlock Text="{Binding ProgressPercentage}"
+                                   HorizontalAlignment="Center" FontSize="11"
+                                   FontWeight="Bold" Foreground="#9C27B0"/>
+                    </StackPanel>
+                </Border>
+
+                <!-- ═══ Result ═══ -->
+                <Border Style="{StaticResource SectionPanelStyle}"
+                        Visibility="{Binding HasResultVideo, Converter={StaticResource BooleanToVisibilityConverter}}">
+                    <StackPanel>
+                        <TextBlock Text="Videos Generated Successfully"
+                                   FontWeight="Bold" FontSize="14" Foreground="#4CAF50" Margin="0,0,0,6"/>
+                        <TextBlock Text="{Binding ResultVideoPath}" FontSize="11" Foreground="#666"
+                                   TextWrapping="Wrap" Margin="0,0,0,10"/>
+                        <Button Content="Open Output Folder"
+                                Command="{Binding OpenResultFolderCommand}"
+                                Style="{StaticResource SecondaryButtonStyle}"
+                                Width="180" Height="34" HorizontalAlignment="Left"/>
+                    </StackPanel>
+                </Border>
+
+                <!-- ═══ Log ═══ -->
+                <Expander Header="Processing Log" IsExpanded="True">
+                    <Border Background="White" BorderBrush="#DEE2E6" BorderThickness="1" Margin="0,8,0,0">
+                        <ScrollViewer MaxHeight="200" VerticalScrollBarVisibility="Auto">
                             <TextBox Text="{Binding LogOutput}"
-                                    TextWrapping="Wrap"
-                                    IsReadOnly="True"
-                                    FontFamily="Consolas"
-                                    FontSize="10"
-                                    Background="Transparent"
-                                    BorderThickness="0"
-                                    Padding="10"/>
+                                     TextWrapping="Wrap" IsReadOnly="True"
+                                     FontFamily="Consolas" FontSize="10"
+                                     Background="Transparent" BorderThickness="0" Padding="10"/>
                         </ScrollViewer>
                     </Border>
                 </Expander>
@@ -337,6 +285,5 @@
                 <TextBlock Text="{Binding StatusBarMessage}" FontSize="11"/>
             </StatusBarItem>
         </StatusBar>
-
     </Grid>
 </Window>

@@ -460,6 +460,13 @@ namespace FlipPix.UI.ViewModels
 
             cancellationToken.ThrowIfCancellationRequested();
 
+            // Sync style from current ViewModel if item doesn't have one (e.g. created before style was selected, or loaded from old queue)
+            if (string.IsNullOrEmpty(item.StyleWorkflowFile) && ZSelectedWorkflowStyle != null)
+            {
+                item.StyleName = ZSelectedWorkflowStyle.Name;
+                item.StyleWorkflowFile = ZSelectedWorkflowStyle.WorkflowFile;
+            }
+
             if (string.IsNullOrEmpty(item.StyleWorkflowFile))
                 throw new InvalidOperationException("No ZStyle selected. Please select a style workflow.");
 
@@ -473,12 +480,13 @@ namespace FlipPix.UI.ViewModels
 
             cancellationToken.ThrowIfCancellationRequested();
 
-            // Always sync LoRA state from current ViewModel — item may have been created before the user enabled LoRA
+            // Always sync current ViewModel settings — item may have been created before these were changed
+            item.SelectedOrientation = ZSelectedOrientation;
             item.LoraEnabled = ZLoraEnabled;
             item.SelectedLora = ZSelectedLora;
             item.LoraStrengthModel = ZLoraStrengthModel;
             item.LoraStrengthClip = ZLoraStrengthClip;
-            AddLog($"LoRA state: enabled={item.LoraEnabled}, lora='{item.SelectedLora}', strength={item.LoraStrengthModel:F2}");
+            AddLog($"Orientation: {item.SelectedOrientation}, LoRA: enabled={item.LoraEnabled}, lora='{item.SelectedLora}', strength={item.LoraStrengthModel:F2}");
 
             var updatedWorkflow = UpdateZWorkflowParameters(workflow, item);
             var progress = CreateProgressReporter(item);

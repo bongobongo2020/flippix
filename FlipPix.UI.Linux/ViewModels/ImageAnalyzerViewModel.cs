@@ -1792,7 +1792,7 @@ namespace FlipPix.UI.Linux.ViewModels
                         break;
 
                     case TextGeneratorWorkflow.Klien:
-                        workflowPath = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "workflow", "Klien-Text-API.json");
+                        workflowPath = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "workflow", "klein", "KlienX3n-Text-Ultimate-API.json");
                         _logger.LogInfo($"Using Klien workflow");
                         break;
 
@@ -1981,7 +1981,7 @@ namespace FlipPix.UI.Linux.ViewModels
                     var prefix = item.SelectedWorkflow switch
                     {
                         TextGeneratorWorkflow.Qwen2512 => "qwen2512",
-                        TextGeneratorWorkflow.Klien => "flux2-klein",
+                        TextGeneratorWorkflow.Klien => "f2k-txt2img",
                         _ => "z-image"
                     };
                     var outputPath = Path.Combine(outputDir, $"{prefix}_{timestamp}.png");
@@ -3174,7 +3174,7 @@ namespace FlipPix.UI.Linux.ViewModels
                 var filePrefix = workflow switch
                 {
                     TextGeneratorWorkflow.Qwen2512 => "qwen2512_",
-                    TextGeneratorWorkflow.Klien => "Flux2-Klein_",
+                    TextGeneratorWorkflow.Klien => "F2K_txt2img_",
                     _ => ""  // Empty for Zimage (will use ZI/z-image pattern)
                 };
 
