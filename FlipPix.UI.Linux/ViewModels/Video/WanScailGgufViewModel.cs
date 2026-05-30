@@ -23,8 +23,24 @@ namespace FlipPix.UI.Linux.ViewModels.Video
         {
         }
 
+        // 480p short-edge; portrait videos swap to 480×832, landscape to 832×480
+        // RTX VSR then doubles to ~960×1664 (portrait) or ~1664×960 (landscape)
         protected override (int Width, int Height) ComputeOutputResolution(int videoW, int videoH, int maxEdge)
-            => (832, 480);
+        {
+            const int shortEdge = 480;
+            const int longEdge  = 832;
+            const int alignment = 32;
+            if (videoH > videoW)
+            {
+                int h = (int)(Math.Round((double)shortEdge * videoH / videoW / alignment) * alignment);
+                return (shortEdge, Math.Min(h, longEdge));
+            }
+            else
+            {
+                int w = (int)(Math.Round((double)shortEdge * videoW / videoH / alignment) * alignment);
+                return (Math.Min(w, longEdge), shortEdge);
+            }
+        }
 
         protected override JsonElement UpdateWorkflowParameters(
             JsonElement workflow,
@@ -42,7 +58,7 @@ namespace FlipPix.UI.Linux.ViewModels.Video
         {
             var workflowJson = workflow.GetRawText();
             int w = outputWidth > 0 ? outputWidth : maxEdge;
-            int h = outputHeight > 0 ? outputHeight : 480;
+            int h = outputHeight > 0 ? outputHeight : maxEdge;
             AddLog($"Updating GGUF workflow: start={startFrame}, frames={framesInChunk}, fps={fps}, resolution={w}x{h}");
 
             // Node 26: Character reference image

@@ -240,6 +240,7 @@ textarea.streaming{border-color:rgba(192,132,252,.45)!important;
 
 video#vidPlayer{
   width:100%;height:100%;object-fit:contain;display:none;position:absolute;inset:0;
+  background:#000;
 }
 video#vidPlayer.on{display:block}
 
@@ -629,7 +630,7 @@ video#vidPlayer.on{display:block}
           <div class="upl-ring"></div>
           <div class="upl-txt" id="uplTxt">Uploading video…</div>
         </div>
-        <video id="vidPlayer" playsinline controls></video>
+        <video id="vidPlayer" playsinline controls preload="auto"></video>
         <div class="vid-idle" id="vidIdle">
           <div class="vid-idle-ico">
             <svg width="28" height="28" viewBox="0 0 24 24" fill="none">
@@ -746,6 +747,7 @@ const S = {
   analyzeRunning: false,
   cancelFlag: false,
   seeking: false,         // true while video is seeking — suppresses auto-follow
+  scrubTimeout: null,     // pending chunk scrub animation timeout
   outputs: [],
   chunkPrompts: {},       // per-chunk analyzed prompts keyed by chunk index
   vidOrigName: null,      // original filename used as cache key
@@ -888,7 +890,7 @@ async function handleVid(file) {
   vidZone.classList.add('loaded');
 
   player.addEventListener('timeupdate', syncPlayhead, { passive: true });
-  player.addEventListener('seeked', () => { S.seeking = false; }, { passive: true });
+  player.addEventListener('seeked', () => { if (!S.scrubTimeout) S.seeking = false; }, { passive: true });
 
   // Upload overlay
   setOverlay('Uploading video & running ffprobe…');
@@ -918,6 +920,7 @@ async function handleVid(file) {
 
     updateInfoBar();
     buildTimeline();
+    scrubToChunk(0); // show first chunk frames once video data is ready
 
     // Also update fps input to match video
     const detectedFps = Math.round(S.vidInfo.fps);
@@ -1016,11 +1019,34 @@ function selectChunk(idx, e) {
 
 function scrubToChunk(idx) {
   const player = document.getElementById('vidPlayer');
-  if (player.src && S.vidInfo) {
-    const fps = S.vidInfo.fps || parseFloat(document.getElementById('fpsIn').value) || 24;
-    S.seeking = true;
-    player.currentTime = (idx * 121) / fps;
+  if (!player.src || !S.vidInfo) return;
+
+  // Defer until video has enough data to seek
+  if (player.readyState < 2) {
+    player.addEventListener('loadeddata', () => scrubToChunk(idx), { once: true });
+    return;
   }
+
+  // Cancel any in-progress scrub animation
+  if (S.scrubTimeout) { clearTimeout(S.scrubTimeout); S.scrubTimeout = null; }
+
+  const fps = S.vidInfo.fps || parseFloat(document.getElementById('fpsIn').value) || 24;
+  const startFrame = idx * 121;
+  const endFrame = Math.min(startFrame + 120, S.totalFrames - 1);
+  const midFrame = Math.floor((startFrame + endFrame) / 2);
+
+  // Animate: start → middle → end (each ~450 ms apart)
+  S.seeking = true;
+  player.currentTime = startFrame / fps;
+
+  S.scrubTimeout = setTimeout(() => {
+    player.currentTime = midFrame / fps;
+    S.scrubTimeout = setTimeout(() => {
+      player.currentTime = endFrame / fps;
+      S.scrubTimeout = null;
+      S.seeking = false;
+    }, 450);
+  }, 450);
 }
 
 function updateTlInfo() {
@@ -1245,6 +1271,12 @@ async function analyzeImage() {
       ta.scrollTop = ta.scrollHeight;
     }
 
+    // Clean up any markdown labels the LLM may have included
+    if (ta.value.trim()) {
+      ta.value = cleanLLMOutput(ta.value);
+      ta.scrollTop = ta.scrollHeight;
+    }
+
     if (!hadError) {
       // Store result in per-chunk prompts and persist to cache
       if (ta.value.trim()) {
@@ -1339,7 +1371,7 @@ async function collectAnalysis(skipFrames, cap) {
     parseLines(buf.slice(0, nl + 1));
     buf = buf.slice(nl + 1);
   }
-  return text.trim() || reasoning.trim();
+  return cleanLLMOutput(text.trim() || reasoning.trim());
 }
 
 // ── Analyze all chunks ────────────────────────────────────────────────────
@@ -1413,8 +1445,36 @@ function pollStatus(promptId) {
   });
 }
 
+// ── Strip LLM markdown labels from generated prompt text ─────────────────
+function cleanLLMOutput(text) {
+  if (!text) return text;
+  // Remove **bold** markers
+  text = text.replace(/\*\*/g, '');
+  // Remove leading "Prompt:" label (any case/spacing)
+  text = text.replace(/^\s*prompt\s*:\s*/i, '');
+  return text.trim();
+}
+
+// ── Output resolution: 480p short-edge, portrait-aware, aligned to 32 ────
+function computeOutputResolution(vw, vh) {
+  if (!vw || !vh) return [832, 480];
+  const shortEdge = 480, longEdge = 832, align = 32;
+  if (vh > vw) {
+    // Portrait: width = short edge, height scaled from AR
+    const h = Math.min(Math.round(shortEdge * vh / vw / align) * align, longEdge);
+    return [shortEdge, h];
+  } else {
+    // Landscape or square: height = short edge, width scaled from AR
+    const w = Math.min(Math.round(shortEdge * vw / vh / align) * align, longEdge);
+    return [w, shortEdge];
+  }
+}
+
 // ── Shared payload builder ────────────────────────────────────────────────
 function buildPayload(skipFirstFrames, frameLoadCap, promptOverride) {
+  const vw = S.vidInfo?.width  || 0;
+  const vh = S.vidInfo?.height || 0;
+  const [ow, oh] = computeOutputResolution(vw, vh);
   return {
     image: S.imgComfy,
     video: S.vidComfy,
@@ -1422,9 +1482,11 @@ function buildPayload(skipFirstFrames, frameLoadCap, promptOverride) {
     skip_first_frames: skipFirstFrames,
     frame_load_cap: frameLoadCap,
     fps: parseInt(document.getElementById('fpsIn').value) || 24,
-    resolution: parseInt(document.getElementById('resIn').value) || 1280,
-    vid_width:  S.vidInfo?.width  || 0,
-    vid_height: S.vidInfo?.height || 0,
+    resolution: parseInt(document.getElementById('resIn').value) || 832,
+    vid_width:  vw,
+    vid_height: vh,
+    output_width:  ow,
+    output_height: oh,
     seed: parseInt(document.getElementById('seedIn').value) ?? -1,
   };
 }

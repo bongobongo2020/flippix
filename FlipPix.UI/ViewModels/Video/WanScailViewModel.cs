@@ -242,7 +242,7 @@ namespace FlipPix.UI.ViewModels.Video
         public bool HasCharacterImage => !string.IsNullOrEmpty(CharacterImagePath) && File.Exists(CharacterImagePath);
         public bool HasInputVideo => !string.IsNullOrEmpty(InputVideoPath) && File.Exists(InputVideoPath);
 
-        public bool CanAddToQueue => HasCharacterImage && HasInputVideo && !string.IsNullOrWhiteSpace(Prompt);
+        public bool CanAddToQueue => HasCharacterImage && HasInputVideo;
         public bool CanAnalyzeImage => HasCharacterImage && !IsAnalyzing && !IsProcessing;
 
         public bool IsAnalyzing
@@ -539,7 +539,7 @@ namespace FlipPix.UI.ViewModels.Video
                 }
 
                 AddLog($"Sending image to LM Studio (model: {selectedModel})...");
-                var systemPrompt = "Describe the character in this image — their appearance, pose, and the scene. Focus on describing the motion and movement that would make a compelling video. Output a concise prompt suitable for WAN SCAIL motion-transfer video generation.";
+                var systemPrompt = "Describe the character in this image — their appearance, pose, and the scene. Focus on describing the motion and movement that would make a compelling video. Output ONLY the prompt text itself with no labels, headers, asterisks, or markdown formatting. Start directly with the description.";
 
                 var result = await _lmStudioService.AnalyzeImageWithSystemPromptAsync(
                     selectedModel,
@@ -547,7 +547,7 @@ namespace FlipPix.UI.ViewModels.Video
                     "Analyze this character image and generate a motion description prompt.",
                     systemPrompt);
 
-                Prompt = result;
+                Prompt = CleanLLMOutput(result);
                 AddLog("Image analysis complete. Prompt updated.");
             }
             catch (Exception ex)
@@ -613,11 +613,14 @@ namespace FlipPix.UI.ViewModels.Video
 
         private void EnqueueItem(int? singleChunkIndex)
         {
+            var effectivePrompt = string.IsNullOrWhiteSpace(Prompt)
+                ? "character motion transfer, smooth movement, high quality"
+                : Prompt;
             var item = new WanScailQueueItem
             {
                 CharacterImagePath = CharacterImagePath,
                 InputVideoPath = InputVideoPath,
-                Prompt = Prompt,
+                Prompt = effectivePrompt,
                 NegativePrompt = NegativePrompt,
                 Fps = Fps,
                 MaxEdge = MaxEdge,
@@ -1168,6 +1171,19 @@ namespace FlipPix.UI.ViewModels.Video
         }
 
         #endregion
+
+        protected static string CleanLLMOutput(string text)
+        {
+            if (string.IsNullOrWhiteSpace(text)) return text;
+            // Strip **bold** markdown markers
+            text = text.Replace("**", "");
+            // Strip leading "Prompt:" or "Prompt :" label (any case)
+            var trimmed = text.TrimStart();
+            var lower = trimmed.ToLowerInvariant();
+            if (lower.StartsWith("prompt:") || lower.StartsWith("prompt :"))
+                trimmed = trimmed.Substring(trimmed.IndexOf(':') + 1);
+            return trimmed.Trim();
+        }
 
         protected override void OnCanExecuteChanged()
         {
