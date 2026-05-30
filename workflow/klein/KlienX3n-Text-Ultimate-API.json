@@ -1,0 +1,368 @@
+{
+  "1": {
+    "inputs": {
+      "unet_name": "klein/x3n0666_x3n0666Fp16.safetensors",
+      "weight_dtype": "default"
+    },
+    "class_type": "UNETLoader",
+    "_meta": {
+      "title": "🔷 UNET (Flux2 Klein 9B)"
+    }
+  },
+  "2": {
+    "inputs": {
+      "clip_name": "qwen38BFluxKlein9BTE_38b.safetensors",
+      "type": "flux2",
+      "device": "default"
+    },
+    "class_type": "CLIPLoader",
+    "_meta": {
+      "title": "🔷 CLIP (Qwen 3 8B)"
+    }
+  },
+  "3": {
+    "inputs": {
+      "vae_name": "flux2-vae.safetensors"
+    },
+    "class_type": "VAELoader",
+    "_meta": {
+      "title": "🔷 VAE (Flux2)"
+    }
+  },
+  "10": {
+    "inputs": {
+      "text": "In a dramatic arena, a muscular, shirtless man in a red cape blocks a high kick from a fit woman in a white tank top and grey shorts. The scene is defined by the striking contrast between the vibrant red cape and the dark, hazy background, creating a sense of ancient gladiatorial combat. The mood is intense and dynamic, capturing a frozen moment of high-stakes martial action.",
+      "clip": [
+        "264",
+        1
+      ]
+    },
+    "class_type": "CLIPTextEncode",
+    "_meta": {
+      "title": "✏️ Prompt"
+    }
+  },
+  "11": {
+    "inputs": {
+      "width": 1536,
+      "height": 840,
+      "batch_size": 1
+    },
+    "class_type": "EmptyLatentImage",
+    "_meta": {
+      "title": "📐 Latent"
+    }
+  },
+  "12": {
+    "inputs": {
+      "seed": 758525059241400,
+      "steps": 4,
+      "cfg": 1,
+      "sampler_name": "res_2m",
+      "scheduler": "bong_tangent",
+      "denoise": 1,
+      "model": [
+        "264",
+        0
+      ],
+      "positive": [
+        "10",
+        0
+      ],
+      "negative": [
+        "15",
+        0
+      ],
+      "latent_image": [
+        "11",
+        0
+      ]
+    },
+    "class_type": "KSampler",
+    "_meta": {
+      "title": "🎲 KSampler"
+    }
+  },
+  "13": {
+    "inputs": {
+      "tile_size": 512,
+      "overlap": 64,
+      "temporal_size": 64,
+      "temporal_overlap": 8,
+      "samples": [
+        "12",
+        0
+      ],
+      "vae": [
+        "3",
+        0
+      ]
+    },
+    "class_type": "VAEDecodeTiled",
+    "_meta": {
+      "title": "🖼️ Decode"
+    }
+  },
+  "14": {
+    "inputs": {
+      "filename_prefix": "F2K_txt2img",
+      "images": [
+        "13",
+        0
+      ]
+    },
+    "class_type": "SaveImage",
+    "_meta": {
+      "title": "💾 Save"
+    }
+  },
+  "15": {
+    "inputs": {
+      "text": "",
+      "clip": [
+        "264",
+        1
+      ]
+    },
+    "class_type": "CLIPTextEncode",
+    "_meta": {
+      "title": "❌ Neg"
+    }
+  },
+  "212": {
+    "inputs": {
+      "lora_name": "klein/klein_slider_anatomy.safetensors",
+      "strength_model": 2.09,
+      "strength_clip": 1,
+      "model": [
+        "1",
+        0
+      ],
+      "clip": [
+        "2",
+        0
+      ]
+    },
+    "class_type": "LoraLoader",
+    "_meta": {
+      "title": "🔗 LoRA Slot (Optional — Add Your LoRA Here)"
+    }
+  },
+  "222": {
+    "inputs": {
+      "upscale_method": "bilinear",
+      "scale_by": 1,
+      "image": [
+        "238",
+        0
+      ]
+    },
+    "class_type": "ImageScaleBy",
+    "_meta": {
+      "title": "Upscale Image By"
+    }
+  },
+  "223": {
+    "inputs": {
+      "pixels": [
+        "222",
+        0
+      ],
+      "vae": [
+        "3",
+        0
+      ]
+    },
+    "class_type": "VAEEncode",
+    "_meta": {
+      "title": "VAE Encode"
+    }
+  },
+  "224": {
+    "inputs": {
+      "text": "Cinematic studio lighting, dramatic rim lighting with soft key light, professional photography setup. Subject maintains exact original skin tone, identical facial features, and the precise original pose. Maintain the original framing and distance, High contrast, deep shadows. Background is a heavy Gaussian blur with elegant ring bokeh. Sharp focus on the foreground, 85mm lens aesthetic, ultra-realistic skin texture, 8k resolution, moody atmosphere. \nkeep the original zoom.",
+      "clip": [
+        "264",
+        1
+      ]
+    },
+    "class_type": "CLIPTextEncode",
+    "_meta": {
+      "title": "CLIP Text Encode (Prompt)"
+    }
+  },
+  "225": {
+    "inputs": {
+      "seed": 183350079100403,
+      "steps": 4,
+      "cfg": 1,
+      "sampler_name": "euler",
+      "scheduler": "simple",
+      "denoise": 1,
+      "model": [
+        "264",
+        0
+      ],
+      "positive": [
+        "261",
+        0
+      ],
+      "negative": [
+        "226",
+        0
+      ],
+      "latent_image": [
+        "223",
+        0
+      ]
+    },
+    "class_type": "KSampler",
+    "_meta": {
+      "title": "KSampler"
+    }
+  },
+  "226": {
+    "inputs": {
+      "conditioning": [
+        "224",
+        0
+      ]
+    },
+    "class_type": "ConditioningZeroOut",
+    "_meta": {
+      "title": "⭕ Zero Neg"
+    }
+  },
+  "228": {
+    "inputs": {
+      "tile_size": 512,
+      "overlap": 64,
+      "temporal_size": 64,
+      "temporal_overlap": 8,
+      "samples": [
+        "225",
+        0
+      ],
+      "vae": [
+        "3",
+        0
+      ]
+    },
+    "class_type": "VAEDecodeTiled",
+    "_meta": {
+      "title": "VAE Decode (Tiled)"
+    }
+  },
+  "238": {
+    "inputs": {
+      "image": "F2K_refined_00091_.png"
+    },
+    "class_type": "LoadImage",
+    "_meta": {
+      "title": "image 1"
+    }
+  },
+  "239": {
+    "inputs": {
+      "filename_prefix": "F2K_refined",
+      "images": [
+        "228",
+        0
+      ]
+    },
+    "class_type": "SaveImage",
+    "_meta": {
+      "title": "refined"
+    }
+  },
+  "261": {
+    "inputs": {
+      "conditioning": [
+        "224",
+        0
+      ],
+      "latent": [
+        "223",
+        0
+      ]
+    },
+    "class_type": "ReferenceLatent",
+    "_meta": {
+      "title": "image 1"
+    }
+  },
+  "264": {
+    "inputs": {
+      "lora_name": "klein/klein_9b_enhancer_v2.safetensors",
+      "strength_model": 0.7,
+      "strength_clip": 0.7,
+      "model": [
+        "212",
+        0
+      ],
+      "clip": [
+        "212",
+        1
+      ]
+    },
+    "class_type": "LoraLoader",
+    "_meta": {
+      "title": "🔗 LoRA"
+    }
+  },
+  "266": {
+    "inputs": {
+      "scale": 5,
+      "tau": 2.5,
+      "alpha": 0.5,
+      "sigma_start": -1,
+      "sigma_end": -1,
+      "unet_block_list": ""
+    },
+    "class_type": "NormalizedAttentionGuidance",
+    "_meta": {
+      "title": "🧭 NAG (Single-Ref Edit)"
+    }
+  },
+  "278": {
+    "inputs": {
+      "width": 720,
+      "height": 1024,
+      "batch_size": 1
+    },
+    "class_type": "EmptyLatentImage",
+    "_meta": {
+      "title": "📐 custom size/ attach to KSampler"
+    }
+  },
+  "319": {
+    "inputs": {
+      "Blend Mode": "normal",
+      "compare_controls": null,
+      "image_a": [
+        "228",
+        0
+      ],
+      "image_b": [
+        "222",
+        0
+      ]
+    },
+    "class_type": "EsesImageCompare",
+    "_meta": {
+      "title": "Eses Image Compare"
+    }
+  },
+  "323": {
+    "inputs": {
+      "images": [
+        "228",
+        0
+      ]
+    },
+    "class_type": "PreviewImage",
+    "_meta": {
+      "title": "output colors"
+    }
+  }
+}

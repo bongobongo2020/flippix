@@ -713,6 +713,159 @@ namespace FlipPix.UI.Linux.ViewModels.Video
         }
 
         /// <summary>
+        /// Gets video width and height using ffprobe.
+        /// </summary>
+        protected (int Width, int Height) GetVideoDimensions(string videoPath)
+        {
+            try
+            {
+                var ffmpegPath = FindFFmpeg();
+                if (ffmpegPath == null) return (0, 0);
+
+                var ffprobePath = ffmpegPath.Replace("ffmpeg.exe", "ffprobe.exe");
+                if (File.Exists(ffprobePath))
+                {
+                    var startInfo = new ProcessStartInfo
+                    {
+                        FileName = ffprobePath,
+                        Arguments = $"-v error -select_streams v:0 -show_entries stream=width,height -of csv=p=0 \"{videoPath}\"",
+                        UseShellExecute = false,
+                        RedirectStandardOutput = true,
+                        CreateNoWindow = true
+                    };
+                    using var process = Process.Start(startInfo);
+                    if (process != null)
+                    {
+                        var output = process.StandardOutput.ReadToEnd().Trim();
+                        process.WaitForExit(10000);
+                        var parts = output.Split(',');
+                        if (parts.Length >= 2 &&
+                            int.TryParse(parts[0], out int w) &&
+                            int.TryParse(parts[1], out int h))
+                            return (w, h);
+                    }
+                }
+
+                // Fallback: parse "1280x480" from ffmpeg -i stderr
+                var fallback = new ProcessStartInfo
+                {
+                    FileName = ffmpegPath,
+                    Arguments = $"-i \"{videoPath}\" -hide_banner",
+                    UseShellExecute = false,
+                    RedirectStandardError = true,
+                    CreateNoWindow = true
+                };
+                using var fb = Process.Start(fallback);
+                if (fb != null)
+                {
+                    var err = fb.StandardError.ReadToEnd();
+                    fb.WaitForExit(10000);
+                    var m = System.Text.RegularExpressions.Regex.Match(err, @" (\d{2,5})x(\d{2,5})[, ]");
+                    if (m.Success &&
+                        int.TryParse(m.Groups[1].Value, out int fw) &&
+                        int.TryParse(m.Groups[2].Value, out int fh))
+                        return (fw, fh);
+                }
+            }
+            catch (Exception ex)
+            {
+                AddLog($"Error getting video dimensions: {ex.Message}");
+            }
+            return (0, 0);
+        }
+
+        /// <summary>
+        /// Center-crops an image to match targetWidth:targetHeight aspect ratio using FFmpeg.
+        /// Returns a temp file path, or null if the image is already close enough or cropping fails.
+        /// Caller is responsible for deleting the temp file.
+        /// </summary>
+        protected string? CropImageToAspectRatio(string imagePath, int targetWidth, int targetHeight)
+        {
+            try
+            {
+                if (targetWidth <= 0 || targetHeight <= 0) return null;
+
+                var ffmpegPath = FindFFmpeg();
+                if (ffmpegPath == null) return null;
+
+                // Get source dimensions via ffprobe
+                var ffprobePath = ffmpegPath.Replace("ffmpeg.exe", "ffprobe.exe");
+                int imgW = 0, imgH = 0;
+                if (File.Exists(ffprobePath))
+                {
+                    var pi = new ProcessStartInfo
+                    {
+                        FileName = ffprobePath,
+                        Arguments = $"-v error -select_streams v:0 -show_entries stream=width,height -of csv=p=0 \"{imagePath}\"",
+                        UseShellExecute = false,
+                        RedirectStandardOutput = true,
+                        CreateNoWindow = true
+                    };
+                    using var pp = Process.Start(pi);
+                    if (pp != null)
+                    {
+                        var o = pp.StandardOutput.ReadToEnd().Trim();
+                        pp.WaitForExit(10000);
+                        var parts = o.Split(',');
+                        if (parts.Length >= 2)
+                        {
+                            int.TryParse(parts[0], out imgW);
+                            int.TryParse(parts[1], out imgH);
+                        }
+                    }
+                }
+
+                if (imgW <= 0 || imgH <= 0) return null;
+
+                double imageAr = (double)imgW / imgH;
+                double targetAr = (double)targetWidth / targetHeight;
+
+                // Skip if already within 1% of target aspect ratio
+                if (Math.Abs(imageAr - targetAr) / targetAr < 0.01) return null;
+
+                int cropW, cropH, cropX, cropY;
+                if (imageAr > targetAr)
+                {
+                    cropH = imgH;
+                    cropW = (int)Math.Round(imgH * targetAr);
+                    cropX = (imgW - cropW) / 2;
+                    cropY = 0;
+                }
+                else
+                {
+                    cropW = imgW;
+                    cropH = (int)Math.Round(imgW / targetAr);
+                    cropX = 0;
+                    cropY = (imgH - cropH) / 2;
+                }
+
+                var ext = Path.GetExtension(imagePath).ToLowerInvariant();
+                if (string.IsNullOrEmpty(ext)) ext = ".png";
+                var tempPath = Path.Combine(Path.GetTempPath(), $"flippix_crop_{Guid.NewGuid():N}{ext}");
+
+                var startInfo = new ProcessStartInfo
+                {
+                    FileName = ffmpegPath,
+                    Arguments = $"-i \"{imagePath}\" -vf \"crop={cropW}:{cropH}:{cropX}:{cropY}\" -y \"{tempPath}\"",
+                    UseShellExecute = false,
+                    RedirectStandardError = true,
+                    CreateNoWindow = true
+                };
+                using var process = Process.Start(startInfo);
+                if (process == null) return null;
+                process.WaitForExit(30000);
+
+                if (File.Exists(tempPath) && new FileInfo(tempPath).Length > 0)
+                    return tempPath;
+            }
+            catch (Exception ex)
+            {
+                AddLog($"Error cropping image: {ex.Message}");
+            }
+            return null;
+        }
+
+        /// <summary>
         /// Gets video frame count using FFmpeg.
         /// </summary>
         protected int GetVideoFrameCount(string videoPath)

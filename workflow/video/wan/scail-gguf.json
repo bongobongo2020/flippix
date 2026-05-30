@@ -1,7 +1,7 @@
 {
   "2": {
     "inputs": {
-      "value": 121
+      "value": 81
     },
     "class_type": "INTConstant",
     "_meta": {
@@ -51,7 +51,7 @@
   },
   "14": {
     "inputs": {
-      "blocks_to_swap": 10,
+      "blocks_to_swap": 20,
       "offload_img_emb": true,
       "offload_txt_emb": false,
       "use_non_blocking": true,
@@ -287,6 +287,21 @@
       "title": "WanVideo Decode"
     }
   },
+  "300": {
+    "inputs": {
+      "scale_method": "scale by multiplier",
+      "scale_multiplier": 2,
+      "quality": "ULTRA",
+      "images": [
+        "111",
+        0
+      ]
+    },
+    "class_type": "RTXVideoSuperResolution",
+    "_meta": {
+      "title": "RTX Video Super Resolution 2x"
+    }
+  },
   "87": {
     "inputs": {
       "frame_rate": [
@@ -294,7 +309,7 @@
         0
       ],
       "loop_count": 0,
-      "filename_prefix": "onetoall/v",
+      "filename_prefix": "wan_scail/v",
       "format": "video/h264-mp4",
       "pix_fmt": "yuv420p",
       "crf": 19,
@@ -303,7 +318,7 @@
       "pingpong": false,
       "save_output": true,
       "images": [
-        "111",
+        "300",
         0
       ],
       "audio": [

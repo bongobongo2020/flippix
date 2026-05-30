@@ -22,6 +22,7 @@ namespace FlipPix.UI
             // Wire up video player controls
             _viewModel.PlayRequested += OnPlayRequested;
             _viewModel.WanScailVM.SeekRequested += OnWanScailSeekRequested;
+            _viewModel.WanScailGgufVM.SeekRequested += OnWanScailGgufSeekRequested;
         }
 
         private void OnLoaded(object sender, RoutedEventArgs e)
@@ -63,6 +64,12 @@ namespace FlipPix.UI
                 WanScailVideoPlayer.Position = System.TimeSpan.Zero;
                 WanScailVideoPlayer.Play();
             }
+
+            if (WanScailGgufVideoPlayer != null && WanScailGgufVideoPlayer.Source != null)
+            {
+                WanScailGgufVideoPlayer.Position = System.TimeSpan.Zero;
+                WanScailGgufVideoPlayer.Play();
+            }
         }
 
         private void OnWanScailSeekRequested(object? sender, System.TimeSpan position)
@@ -70,6 +77,14 @@ namespace FlipPix.UI
             if (WanScailRefVideoPlayer != null && WanScailRefVideoPlayer.Source != null)
             {
                 WanScailRefVideoPlayer.Position = position;
+            }
+        }
+
+        private void OnWanScailGgufSeekRequested(object? sender, System.TimeSpan position)
+        {
+            if (WanScailGgufRefVideoPlayer != null && WanScailGgufRefVideoPlayer.Source != null)
+            {
+                WanScailGgufRefVideoPlayer.Position = position;
             }
         }
 
@@ -95,7 +110,16 @@ namespace FlipPix.UI
             {
                 WanScailRefVideoPlayer.Stop();
             }
+            if (WanScailGgufVideoPlayer != null)
+            {
+                WanScailGgufVideoPlayer.Stop();
+            }
+            if (WanScailGgufRefVideoPlayer != null)
+            {
+                WanScailGgufRefVideoPlayer.Stop();
+            }
             _viewModel.WanScailVM.SeekRequested -= OnWanScailSeekRequested;
+            _viewModel.WanScailGgufVM.SeekRequested -= OnWanScailGgufSeekRequested;
             _viewModel.PlayRequested -= OnPlayRequested;
 
             // Dispose the ViewModel if it implements IDisposable

@@ -23,6 +23,9 @@ namespace FlipPix.UI.Linux.ViewModels.Video
         {
         }
 
+        protected override (int Width, int Height) ComputeOutputResolution(int videoW, int videoH, int maxEdge)
+            => (832, 480);
+
         protected override JsonElement UpdateWorkflowParameters(
             JsonElement workflow,
             string characterImageName,
@@ -33,10 +36,14 @@ namespace FlipPix.UI.Linux.ViewModels.Video
             string negativePrompt,
             int fps,
             int maxEdge,
-            long seed)
+            long seed,
+            int outputWidth = 0,
+            int outputHeight = 0)
         {
             var workflowJson = workflow.GetRawText();
-            AddLog($"Updating GGUF workflow: start={startFrame}, frames={framesInChunk}, fps={fps}, maxEdge={maxEdge}");
+            int w = outputWidth > 0 ? outputWidth : maxEdge;
+            int h = outputHeight > 0 ? outputHeight : 480;
+            AddLog($"Updating GGUF workflow: start={startFrame}, frames={framesInChunk}, fps={fps}, resolution={w}x{h}");
 
             // Node 26: Character reference image
             WorkflowNodeUpdater.UpdateNodeInput(ref workflowJson, "26", "image", characterImageName);
@@ -59,8 +66,9 @@ namespace FlipPix.UI.Linux.ViewModels.Video
             // Node 52: FPS
             WorkflowNodeUpdater.UpdateNodeInput(ref workflowJson, "52", "value", fps);
 
-            // Node 8: Width (maxEdge)
-            WorkflowNodeUpdater.UpdateNodeInput(ref workflowJson, "8", "value", maxEdge);
+            // Node 8: Width, Node 10: Height — both derived from video aspect ratio
+            WorkflowNodeUpdater.UpdateNodeInput(ref workflowJson, "8", "value", w);
+            WorkflowNodeUpdater.UpdateNodeInput(ref workflowJson, "10", "value", h);
 
             // Node 218: Seed
             WorkflowNodeUpdater.UpdateNodeInput(ref workflowJson, "218", "seed", seed);
