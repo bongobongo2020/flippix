@@ -289,8 +289,8 @@
   },
   "300": {
     "inputs": {
-      "scale_method": "scale by multiplier",
-      "scale_multiplier": 2,
+      "resize_type": "scale by multiplier",
+      "resize_type.scale": 2,
       "quality": "ULTRA",
       "images": [
         "111",
