@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.Collections.ObjectModel;
+using System.Diagnostics;
 using System.IO;
 using System.Linq;
 using System.Text.Json;
@@ -62,8 +63,12 @@ namespace FlipPix.UI.ViewModels.Video
         // ── State ──────────────────────────────────────────────────────────────
         private readonly IFileDialogService _fileDialogService;
         private readonly LMStudioService _lmStudioService;
+        private readonly ChunkPromptCacheService _promptCache = new();
+        private readonly Dictionary<int, string> _chunkPrompts = new();
         private readonly ObservableCollection<WanScailQueueItem> _queue = new();
         private CancellationTokenSource? _queueCts;
+        private CancellationTokenSource? _analyzeCts;
+        private bool _isAnalyzingAll;
 
         public event EventHandler<TimeSpan>? SeekRequested;
 
@@ -94,6 +99,7 @@ namespace FlipPix.UI.ViewModels.Video
             OpenResultFolderCommand = new RelayCommand(OpenResultFolder, () => HasResult);
             SendToEditCameraCommand = new RelayCommand(SendToEditCamera, () => HasResult);
             AnalyzeImageCommand = new RelayCommand(async () => await AnalyzeImageAsync(), () => CanAnalyzeImage);
+            AnalyzeAllChunksCommand = new RelayCommand(async () => await AnalyzeAllChunksAsync(), () => CanAnalyzeAllChunks);
             RandomSeedCommand = new RelayCommand(() => Seed = new Random().NextInt64(0, long.MaxValue));
 
             _queue.CollectionChanged += (s, e) =>
@@ -123,6 +129,7 @@ namespace FlipPix.UI.ViewModels.Video
         public RelayCommand OpenResultFolderCommand { get; }
         public RelayCommand SendToEditCameraCommand { get; }
         public RelayCommand AnalyzeImageCommand { get; }
+        public RelayCommand AnalyzeAllChunksCommand { get; }
         public RelayCommand RandomSeedCommand { get; }
 
         public bool HasFailedItems => _queue.Any(x => x.ItemStatus == QueueItemStatus.Failed);
@@ -172,6 +179,8 @@ namespace FlipPix.UI.ViewModels.Video
                     OnPropertyChanged();
                     OnPropertyChanged(nameof(HasInputVideo));
                     OnPropertyChanged(nameof(CanAddToQueue));
+                    OnPropertyChanged(nameof(CanAnalyzeImage));
+                    OnPropertyChanged(nameof(CanAnalyzeAllChunks));
                     LoadVideoInfoAsync();
                     OnCanExecuteChanged();
                 }
@@ -243,7 +252,8 @@ namespace FlipPix.UI.ViewModels.Video
         public bool HasInputVideo => !string.IsNullOrEmpty(InputVideoPath) && File.Exists(InputVideoPath);
 
         public bool CanAddToQueue => HasCharacterImage && HasInputVideo;
-        public bool CanAnalyzeImage => HasCharacterImage && !IsAnalyzing && !IsProcessing;
+        public bool CanAnalyzeImage => HasCharacterImage && HasInputVideo && _chunkItems.Any() && !IsAnalyzing && !IsAnalyzingAll && !IsProcessing;
+        public bool CanAnalyzeAllChunks => CanAnalyzeImage && !IsProcessingQueue;
 
         public bool IsAnalyzing
         {
@@ -255,10 +265,29 @@ namespace FlipPix.UI.ViewModels.Video
                     _isAnalyzing = value;
                     OnPropertyChanged();
                     OnPropertyChanged(nameof(CanAnalyzeImage));
+                    OnPropertyChanged(nameof(CanAnalyzeAllChunks));
                     OnCanExecuteChanged();
                 }
             }
         }
+
+        public bool IsAnalyzingAll
+        {
+            get => _isAnalyzingAll;
+            private set
+            {
+                if (_isAnalyzingAll != value)
+                {
+                    _isAnalyzingAll = value;
+                    OnPropertyChanged();
+                    OnPropertyChanged(nameof(CanAnalyzeImage));
+                    OnPropertyChanged(nameof(CanAnalyzeAllChunks));
+                    OnCanExecuteChanged();
+                }
+            }
+        }
+
+        public string AnalyzeAllChunksStatus { get; private set; } = string.Empty;
 
         #endregion
 
@@ -436,11 +465,21 @@ namespace FlipPix.UI.ViewModels.Video
         private void BuildChunkTimeline()
         {
             _chunkItems.Clear();
+            _chunkPrompts.Clear();
             if (TotalChunks <= 0)
             {
                 ChunkSelectionInfo = "No frames detected — ffmpeg may not be installed";
+                OnPropertyChanged(nameof(CanAnalyzeAllChunks));
+                OnCanExecuteChanged();
                 return;
             }
+
+            // Load cached prompts for this video from SQLite
+            var cached = _promptCache.GetAllPrompts(InputVideoPath);
+            foreach (var (k, v) in cached)
+                _chunkPrompts[k] = v;
+            if (cached.Count > 0)
+                AddLog($"Loaded {cached.Count} cached chunk prompt(s) from database");
 
             for (int i = 0; i < TotalChunks; i++)
             {
@@ -452,12 +491,16 @@ namespace FlipPix.UI.ViewModels.Video
                     StartFrame = start,
                     EndFrame = end,
                     IsSelected = i == 0,
-                    Status = WanScailChunkStatus.Idle
+                    Status = WanScailChunkStatus.Idle,
+                    HasCachedPrompt = cached.ContainsKey(i),
                 });
             }
 
             _selectedChunkIndex = 0;
             UpdateChunkSelectionInfo();
+            OnPropertyChanged(nameof(CanAnalyzeImage));
+            OnPropertyChanged(nameof(CanAnalyzeAllChunks));
+            OnCanExecuteChanged();
         }
 
         private void OnChunkSelected(WanScailChunkItem? chunk)
@@ -465,12 +508,15 @@ namespace FlipPix.UI.ViewModels.Video
             if (chunk == null) return;
             var index = chunk.Index;
 
-            // Update selection: only clear non-processing/done/failed chunks
             foreach (var c in _chunkItems)
                 c.IsSelected = c.Index == index;
 
             _selectedChunkIndex = index;
             UpdateChunkSelectionInfo();
+
+            // Load this chunk's cached prompt if available
+            if (_chunkPrompts.TryGetValue(index, out var cachedPrompt) && !string.IsNullOrWhiteSpace(cachedPrompt))
+                Prompt = cachedPrompt;
 
             // Seek video to this chunk's start frame
             if (Fps > 0 && TotalFrames > 0)
@@ -515,52 +561,211 @@ namespace FlipPix.UI.ViewModels.Video
         private async Task AnalyzeImageAsync()
         {
             if (!CanAnalyzeImage) return;
+
+            if (_chunkPrompts.Count > 0)
+            {
+                var answer = MessageBox.Show(
+                    $"{_chunkPrompts.Count} of {_chunkItems.Count} chunk(s) already have prompts.\n\nOverwrite all with fresh analysis?",
+                    "Overwrite Cached Prompts?",
+                    MessageBoxButton.YesNo,
+                    MessageBoxImage.Question);
+                if (answer != MessageBoxResult.Yes) return;
+            }
+
+            IsAnalyzing = true;
+            _analyzeCts?.Dispose();
+            _analyzeCts = new CancellationTokenSource();
+            var token = _analyzeCts.Token;
+
             try
             {
-                IsAnalyzing = true;
-                AddLog("=== Analyzing character image with LM Studio ===");
-
-                var models = await _lmStudioService.GetAvailableModelsAsync();
-                string selectedModel = _settingsService.Settings?.LMStudioSettings?.SelectedModel ?? string.Empty;
-
+                var models = await _lmStudioService.GetAvailableModelsAsync(token);
+                var selectedModel = _settingsService.Settings?.LMStudioSettings?.SelectedModel ?? string.Empty;
                 if (string.IsNullOrEmpty(selectedModel) && models.Count > 0)
-                {
-                    var m = models.First();
-                    selectedModel = !string.IsNullOrEmpty(m.Name) ? m.Name : m.Id;
-                }
+                    selectedModel = models.First().Name.Length > 0 ? models.First().Name : models.First().Id;
 
                 if (string.IsNullOrEmpty(selectedModel))
                 {
                     AddLog("ERROR: No LM Studio model available");
-                    MessageBox.Show(
-                        "No LM Studio model available. Please ensure LM Studio is running and a model is loaded.",
+                    MessageBox.Show("No LM Studio model available. Please ensure LM Studio is running and a model is loaded.",
                         "LM Studio Unavailable", MessageBoxButton.OK, MessageBoxImage.Warning);
                     return;
                 }
 
-                AddLog($"Sending image to LM Studio (model: {selectedModel})...");
-                var systemPrompt = "Describe the character in this image — their appearance, pose, and the scene. Focus on describing the motion and movement that would make a compelling video. Output ONLY the prompt text itself with no labels, headers, asterisks, or markdown formatting. Start directly with the description.";
+                AddLog($"=== WAN SCAIL analysis started (model: {selectedModel}) ===");
 
-                var result = await _lmStudioService.AnalyzeImageWithSystemPromptAsync(
+                // Step 1: Extract character appearance from the reference image (once, reused for every chunk)
+                const string appearanceSystemPrompt =
+                    "Describe only what the person is wearing and their physical appearance in this image. " +
+                    "Include clothing (style and colors), hairstyle, and body type. " +
+                    "Do not describe what they are doing, their pose, their expression, or any action. " +
+                    "Write one or two sentences. Output only the description as plain text — no labels, no headers, no markdown.";
+
+                AddLog("Step 1: Extracting character appearance from reference image…");
+                var appearanceRaw = await _lmStudioService.AnalyzeImageWithSystemPromptAsync(
                     selectedModel,
                     CharacterImagePath,
-                    "Analyze this character image and generate a motion description prompt.",
-                    systemPrompt);
+                    "Describe this character's appearance.",
+                    appearanceSystemPrompt,
+                    maxTokens: 2000,
+                    cancellationToken: token);
 
-                Prompt = CleanLLMOutput(result);
-                AddLog("Image analysis complete. Prompt updated.");
+                var appearanceDescription = CleanLLMOutput(appearanceRaw);
+                if (string.IsNullOrWhiteSpace(appearanceDescription))
+                {
+                    AddLog("ERROR: Could not extract character appearance from reference image");
+                    return;
+                }
+                var apPreview = appearanceDescription.Length > 120 ? appearanceDescription.Substring(0, 120) + "…" : appearanceDescription;
+                AddLog($"Appearance: {apPreview}");
+
+                // Step 2: For each chunk, extract motion from frames and combine with appearance
+                const string motionSystemPrompt =
+                    "Describe only the body movement and actions visible in these sequential video frames. " +
+                    "Focus on what the person is doing: their poses, gestures, and direction of motion from frame to frame. " +
+                    "Do not mention clothing, hair, skin color, or any aspect of appearance. " +
+                    "Write one or two sentences. Output only the movement description as plain text — no labels, no headers, no markdown.";
+
+                int totalChunks = _chunkItems.Count;
+                int done = 0;
+
+                for (int i = 0; i < totalChunks; i++)
+                {
+                    if (token.IsCancellationRequested) break;
+
+                    AnalyzeAllChunksStatus = $"Analyzing chunk {i + 1}/{totalChunks}…";
+                    OnPropertyChanged(nameof(AnalyzeAllChunksStatus));
+                    AddLog($"Step 2 — Chunk {i + 1}/{totalChunks}: extracting motion…");
+
+                    List<string> framePaths = new();
+                    try
+                    {
+                        framePaths = await ExtractChunkFramesAsync(InputVideoPath, i, token);
+                        AddLog($"Chunk {i + 1}: extracted {framePaths.Count} frame(s)");
+                        if (framePaths.Count == 0)
+                        {
+                            AddLog($"Chunk {i + 1}: no frames extracted, skipping");
+                            continue;
+                        }
+
+                        var motionRaw = await _lmStudioService.AnalyzeMultipleImagesWithSystemPromptAsync(
+                            selectedModel,
+                            framePaths,
+                            "Describe the movement in these video frames.",
+                            motionSystemPrompt,
+                            maxTokens: 2000,
+                            cancellationToken: token);
+
+                        var motionDescription = CleanLLMOutput(motionRaw);
+                        if (string.IsNullOrWhiteSpace(motionDescription))
+                        {
+                            AddLog($"Chunk {i + 1}: motion description was empty, skipping");
+                            continue;
+                        }
+
+                        // Combine: character appearance (constant) + motion (per chunk)
+                        var combinedPrompt = $"{appearanceDescription}, {motionDescription}";
+
+                        _chunkPrompts[i] = combinedPrompt;
+                        _promptCache.SavePrompt(InputVideoPath, i, combinedPrompt);
+                        done++;
+
+                        var chunkIdx = i; // capture for lambda
+                        Application.Current.Dispatcher.Invoke(() =>
+                        {
+                            var tile = _chunkItems.FirstOrDefault(c => c.Index == chunkIdx);
+                            if (tile != null) tile.HasCachedPrompt = true;
+                            if (chunkIdx == _selectedChunkIndex)
+                                Prompt = combinedPrompt;
+                        });
+
+                        var motPreview = motionDescription.Length > 100 ? motionDescription.Substring(0, 100) + "…" : motionDescription;
+                        AddLog($"Chunk {i + 1} motion: {motPreview}");
+                    }
+                    catch (OperationCanceledException) { break; }
+                    catch (Exception ex)
+                    {
+                        AddLog($"Chunk {i + 1} failed: {ex.Message}");
+                    }
+                    finally
+                    {
+                        foreach (var f in framePaths)
+                            try { File.Delete(f); } catch { }
+                    }
+                }
+
+                AnalyzeAllChunksStatus = token.IsCancellationRequested
+                    ? $"Cancelled — {done}/{totalChunks} chunks analyzed"
+                    : $"Done — {done}/{totalChunks} chunks analyzed";
+                OnPropertyChanged(nameof(AnalyzeAllChunksStatus));
+                AddLog($"=== WAN SCAIL analysis complete: {done}/{totalChunks} chunks ===");
             }
+            catch (OperationCanceledException) { }
             catch (Exception ex)
             {
-                AddLog($"ERROR during image analysis: {ex.Message}");
-                MessageBox.Show(
-                    $"Image analysis failed:\n{ex.Message}",
-                    "Error", MessageBoxButton.OK, MessageBoxImage.Error);
+                AddLog($"ERROR during analysis: {ex.Message}");
+                MessageBox.Show($"Analysis failed:\n{ex.Message}", "Error", MessageBoxButton.OK, MessageBoxImage.Error);
             }
             finally
             {
                 IsAnalyzing = false;
+                _analyzeCts?.Dispose();
+                _analyzeCts = null;
             }
+        }
+
+        #endregion
+
+        #region Analyze All Chunks
+
+        private async Task AnalyzeAllChunksAsync() => await AnalyzeImageAsync();
+
+        private async Task<List<string>> ExtractChunkFramesAsync(string videoPath, int chunkIndex, CancellationToken token)
+        {
+            var frames = new List<string>();
+            var ffmpegPath = FindFFmpeg();
+            if (ffmpegPath == null) return frames;
+
+            var fps = Fps > 0 ? (double)Fps : 24.0;
+            var startFrame = chunkIndex * FramesPerChunk;
+            var endFrame = Math.Min(startFrame + FramesPerChunk - 1, TotalFrames - 1);
+            int numFrames = Math.Min(4, endFrame - startFrame + 1);
+
+            for (int f = 0; f < numFrames; f++)
+            {
+                if (token.IsCancellationRequested) break;
+
+                var frameIdx = numFrames == 1
+                    ? startFrame
+                    : startFrame + (int)Math.Round((double)(endFrame - startFrame) * f / (numFrames - 1));
+                var timeSec = frameIdx / fps;
+                var tempFile = Path.Combine(Path.GetTempPath(), $"wanscail_frame_{Guid.NewGuid():N}.jpg");
+
+                await Task.Run(() =>
+                {
+                    var si = new ProcessStartInfo
+                    {
+                        FileName = ffmpegPath,
+                        // -loglevel quiet suppresses all stderr output; -nostats removes progress lines.
+                        // Not redirecting stderr avoids the pipe-buffer deadlock where ffmpeg blocks
+                        // waiting for the consumer to drain the pipe before our WaitForExit returns.
+                        Arguments = $"-loglevel quiet -nostats -ss {timeSec:F3} -i \"{videoPath}\" " +
+                                    $"-frames:v 1 -q:v 3 " +
+                                    $"-vf \"scale=512:512:force_original_aspect_ratio=decrease\" \"{tempFile}\" -y",
+                        UseShellExecute = false,
+                        RedirectStandardError = false,
+                        CreateNoWindow = true,
+                    };
+                    using var proc = Process.Start(si);
+                    if (proc != null && !proc.WaitForExit(30000))
+                        try { proc.Kill(); } catch { }
+                }, token);
+
+                if (File.Exists(tempFile))
+                    frames.Add(tempFile);
+            }
+
+            return frames;
         }
 
         #endregion
@@ -949,13 +1154,19 @@ namespace FlipPix.UI.ViewModels.Video
                             await _comfyUIService.ConnectAsync();
                         }
 
+                        // Use per-chunk cached prompt if available, fall back to queue-item prompt
+                        var chunkPrompt = _chunkPrompts.TryGetValue(chunkIndex, out var cp) && !string.IsNullOrWhiteSpace(cp)
+                            ? cp : item.Prompt;
+                        if (_chunkPrompts.ContainsKey(chunkIndex))
+                            AddLog($"Chunk {chunkIndex + 1}: using cached per-chunk prompt");
+
                         var updatedWorkflow = UpdateWorkflowParameters(
                             workflow,
                             uploadedImageName,
                             uploadedVideoName,
                             startFrame,
                             framesInChunk,
-                            item.Prompt,
+                            chunkPrompt,
                             item.NegativePrompt,
                             item.Fps,
                             item.MaxEdge,
@@ -1175,9 +1386,7 @@ namespace FlipPix.UI.ViewModels.Video
         protected static string CleanLLMOutput(string text)
         {
             if (string.IsNullOrWhiteSpace(text)) return text;
-            // Strip **bold** markdown markers
             text = text.Replace("**", "");
-            // Strip leading "Prompt:" or "Prompt :" label (any case)
             var trimmed = text.TrimStart();
             var lower = trimmed.ToLowerInvariant();
             if (lower.StartsWith("prompt:") || lower.StartsWith("prompt :"))
@@ -1199,6 +1408,7 @@ namespace FlipPix.UI.ViewModels.Video
             OpenResultFolderCommand.NotifyCanExecuteChanged();
             SendToEditCameraCommand.NotifyCanExecuteChanged();
             AnalyzeImageCommand.NotifyCanExecuteChanged();
+            AnalyzeAllChunksCommand.NotifyCanExecuteChanged();
         }
     }
 }
