@@ -458,25 +458,42 @@ namespace FlipPix.UI.ViewModels
         public string VaceResultPath => VaceVM.ResultVideoPath;
         public bool CanGenerateVACEVideo => VaceVM.CanGenerateVideo;
         public bool IsAnalyzingVACE => VaceVM.IsAnalyzing;
+        public bool IsAnalyzingAllVACE => VaceVM.IsAnalyzingAll;
+        public string VaceAnalyzeAllChunksStatus => VaceVM.AnalyzeAllChunksStatus;
         public int VaceTotalFrames => VaceVM.TotalFrames;
         public int VaceTotalChunks => VaceVM.TotalChunks;
         public string VaceProgressPercentage => VaceVM.ProgressPercentage;
         public string VaceResultVideoInfo => VaceVM.ResultVideoInfo;
         public ICommand AnalyzeVACEImageCommand => VaceVM.AnalyzeImageCommand;
+        public ICommand AnalyzeAllVACEChunksCommand => VaceVM.AnalyzeAllChunksCommand;
 
         public bool VaceCanAddToQueue => VaceVM.CanAddToQueue;
+        public bool VaceCanAnalyzeImage => VaceVM.CanAnalyzeImage;
         public ObservableCollection<VaceQueueItem> VaceQueue => VaceVM.Queue;
         public bool VaceHasQueueItems => VaceVM.HasQueueItems;
         public bool VaceIsProcessingQueue => VaceVM.IsProcessingQueue;
         public string VaceQueueStatus => VaceVM.QueueStatus;
 
+        // Video editor / chunk timeline
+        public string? VaceVideoFileUri => VaceVM.VideoFileUri;
+        public bool VaceHasVideoInfo => VaceVM.HasVideoInfo;
+        public string VaceVideoDuration => VaceVM.VideoDuration;
+        public string VaceVideoFpsDisplay => VaceVM.VideoFpsDisplay;
+        public string VaceVideoFrameCountDisplay => VaceVM.VideoFrameCountDisplay;
+        public string VaceVideoChunksDisplay => VaceVM.VideoChunksDisplay;
+        public string VaceChunkSelectionInfo => VaceVM.ChunkSelectionInfo;
+        public ObservableCollection<WanScailChunkItem> VaceChunkItems => VaceVM.ChunkItems;
+
         // VaceVM Commands
         public ICommand SelectVACEForegroundImageCommand => VaceVM.SelectForegroundImageCommand;
         public ICommand SelectVACEVideoCommand => VaceVM.SelectVideoCommand;
         public ICommand GenerateVACEVideoCommand => VaceVM.GenerateVideoCommand;
+        public ICommand ProcessSelectedVACEChunkCommand => VaceVM.ProcessSelectedChunkCommand;
+        public ICommand SelectVACEChunkCommand => VaceVM.SelectChunkCommand;
         public ICommand RemoveVaceQueueItemCommand => VaceVM.RemoveQueueItemCommand;
         public ICommand ClearVaceQueueCommand => VaceVM.ClearQueueCommand;
         public ICommand StopVaceQueueCommand => VaceVM.StopQueueCommand;
+        public ICommand StartVaceQueueCommand => VaceVM.StartQueueCommand;
         public ICommand ReprocessAllVaceFailedCommand => VaceVM.ReprocessAllFailedCommand;
         public bool VaceHasFailedItems => VaceVM.HasFailedItems;
         public ICommand PlayVACEVideoCommand => VaceVM.PlayVideoCommand;

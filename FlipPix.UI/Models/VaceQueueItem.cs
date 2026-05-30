@@ -11,6 +11,7 @@ namespace FlipPix.UI.Models
         public string InputVideoPath { get; set; } = string.Empty;
         public string Prompt { get; set; } = string.Empty;
         public string? OutputVideoPath { get; set; }
+        public int? SingleChunkIndex { get; set; }
 
         public string DisplayText =>
             !string.IsNullOrEmpty(ForegroundImagePath)

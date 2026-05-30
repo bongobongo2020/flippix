@@ -14,6 +14,7 @@ namespace FlipPix.UI
         private readonly WindowPositionService _windowPositionService;
 
         private DispatcherTimer? _scrubTimerGguf;
+        private DispatcherTimer? _scrubTimerVace;
 
         public VideoGeneratorWindow(VideoGeneratorViewModel viewModel, WindowPositionService windowPositionService)
         {
@@ -25,6 +26,7 @@ namespace FlipPix.UI
 
             _viewModel.PlayRequested += OnPlayRequested;
             _viewModel.WanScailGgufVM.SeekRequested += OnWanScailGgufSeekRequested;
+            _viewModel.VaceVM.SeekRequested += OnVaceSeekRequested;
         }
 
         private void OnLoaded(object sender, RoutedEventArgs e)
@@ -63,6 +65,12 @@ namespace FlipPix.UI
                 WanScailGgufVideoPlayer.Position = System.TimeSpan.Zero;
                 WanScailGgufVideoPlayer.Play();
             }
+
+            if (VACEVideoPlayer != null && VACEVideoPlayer.Source != null)
+            {
+                VACEVideoPlayer.Position = System.TimeSpan.Zero;
+                VACEVideoPlayer.Play();
+            }
         }
 
         // ── MediaOpened: enter Paused state so ScrubbingEnabled can render frames ──
@@ -71,6 +79,12 @@ namespace FlipPix.UI
         {
             WanScailGgufRefVideoPlayer.Play();
             WanScailGgufRefVideoPlayer.Pause();
+        }
+
+        private void VaceRefPlayer_MediaOpened(object sender, RoutedEventArgs e)
+        {
+            VaceRefVideoPlayer.Play();
+            VaceRefVideoPlayer.Pause();
         }
 
         // ── Chunk seek with start → mid → end scrub animation ────────────────
@@ -103,17 +117,49 @@ namespace FlipPix.UI
             _scrubTimerGguf.Start();
         }
 
+        private void OnVaceSeekRequested(object? sender, System.TimeSpan startPos)
+        {
+            var player = VaceRefVideoPlayer;
+            if (player?.Source == null) return;
+
+            _scrubTimerVace?.Stop();
+
+            var vm = _viewModel.VaceVM;
+            var chunk = vm.ChunkItems.FirstOrDefault(c => c.IsSelected);
+            const double fps = 24.0;
+            var endPos = chunk != null
+                ? TimeSpan.FromSeconds(chunk.EndFrame / fps)
+                : startPos + TimeSpan.FromSeconds(4);
+            var midPos = TimeSpan.FromTicks((startPos.Ticks + endPos.Ticks) / 2);
+
+            player.Position = startPos;
+
+            var step = 0;
+            _scrubTimerVace = new DispatcherTimer { Interval = TimeSpan.FromMilliseconds(450) };
+            _scrubTimerVace.Tick += (s, e) =>
+            {
+                step++;
+                if (step == 1) player.Position = midPos;
+                else { player.Position = endPos; _scrubTimerVace!.Stop(); }
+            };
+            _scrubTimerVace.Start();
+        }
+
         protected override void OnClosed(EventArgs e)
         {
             _scrubTimerGguf?.Stop();
+            _scrubTimerVace?.Stop();
 
             VideoPlayer?.Stop();
             LongVideoPlayer?.Stop();
             WanAnimateVideoPlayer?.Stop();
             WanScailGgufVideoPlayer?.Stop();
             WanScailGgufRefVideoPlayer?.Stop();
+            VaceRefVideoPlayer?.Stop();
+            VACEVideoPlayer?.Stop();
 
             _viewModel.WanScailGgufVM.SeekRequested -= OnWanScailGgufSeekRequested;
+            _viewModel.VaceVM.SeekRequested -= OnVaceSeekRequested;
             _viewModel.PlayRequested -= OnPlayRequested;
 
             if (_viewModel is IDisposable disposable)
