@@ -54,12 +54,6 @@ namespace FlipPix.UI
                 LongVideoPlayer.Play();
             }
 
-            if (WanAnimateVideoPlayer != null && WanAnimateVideoPlayer.Source != null)
-            {
-                WanAnimateVideoPlayer.Position = System.TimeSpan.Zero;
-                WanAnimateVideoPlayer.Play();
-            }
-
             if (WanScailGgufVideoPlayer != null && WanScailGgufVideoPlayer.Source != null)
             {
                 WanScailGgufVideoPlayer.Position = System.TimeSpan.Zero;
@@ -152,7 +146,6 @@ namespace FlipPix.UI
 
             VideoPlayer?.Stop();
             LongVideoPlayer?.Stop();
-            WanAnimateVideoPlayer?.Stop();
             WanScailGgufVideoPlayer?.Stop();
             WanScailGgufRefVideoPlayer?.Stop();
             VaceRefVideoPlayer?.Stop();
