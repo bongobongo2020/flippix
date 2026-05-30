@@ -1052,25 +1052,19 @@ namespace FlipPix.UI.ViewModels.Video
                     throw new Exception("Failed to upload video to ComfyUI.");
                 AddLog($"Video uploaded: {uploadedVideoName}");
 
-                int outputWidth = 576, outputHeight = 1024;
-                try
+                int outputWidth = 480, outputHeight = 832;
+                var (videoW, videoH) = GetVideoDimensions(item.InputVideoPath);
+                if (videoW > 0 && videoH > 0)
                 {
-                    var bitmap = new BitmapImage();
-                    bitmap.BeginInit();
-                    bitmap.CacheOption = BitmapCacheOption.OnLoad;
-                    bitmap.UriSource = new Uri(item.ForegroundImagePath, UriKind.Absolute);
-                    bitmap.EndInit();
-                    bitmap.Freeze();
-
-                    double ar = (double)bitmap.PixelWidth / bitmap.PixelHeight;
+                    double ar = (double)videoW / videoH;
                     if (ar > 1.2) { outputWidth = 832; outputHeight = 480; }
                     else if (ar >= 0.85) { outputWidth = 704; outputHeight = 704; }
                     else { outputWidth = 480; outputHeight = 832; }
-                    AddLog($"Output dimensions: {outputWidth}x{outputHeight} (AR: {ar:F2})");
+                    AddLog($"Output dimensions: {outputWidth}x{outputHeight} (video AR: {ar:F2})");
                 }
-                catch (Exception ex)
+                else
                 {
-                    AddLog($"Warning: Could not read image dimensions, using defaults: {ex.Message}");
+                    AddLog("Warning: Could not read video dimensions, defaulting to portrait 480x832");
                 }
 
                 var numChunks = endChunk - startChunk;
