@@ -86,6 +86,7 @@ namespace FlipPix.UI.Linux.ViewModels.Video
             RemoveQueueItemCommand = new RelayCommand<WanScailQueueItem>(RemoveQueueItem);
             ClearQueueCommand = new RelayCommand(ClearQueue, () => _queue.Any());
             StopQueueCommand = new RelayCommand(StopQueue, () => IsProcessingQueue);
+            StartQueueCommand = new RelayCommand(async () => await ProcessQueueAsync(), () => HasQueueItems && !IsProcessingQueue);
             ReprocessAllFailedCommand = new RelayCommand(async () => await ReprocessAllFailedAsync(), () => HasFailedItems);
             PlayVideoCommand = new RelayCommand(PlayVideo, () => HasResult);
             OpenResultFolderCommand = new RelayCommand(OpenResultFolder, () => HasResult);
@@ -114,6 +115,7 @@ namespace FlipPix.UI.Linux.ViewModels.Video
         public RelayCommand<WanScailQueueItem> RemoveQueueItemCommand { get; }
         public RelayCommand ClearQueueCommand { get; }
         public RelayCommand StopQueueCommand { get; }
+        public RelayCommand StartQueueCommand { get; }
         public RelayCommand ReprocessAllFailedCommand { get; }
         public RelayCommand PlayVideoCommand { get; }
         public RelayCommand OpenResultFolderCommand { get; }
@@ -404,14 +406,18 @@ namespace FlipPix.UI.Linux.ViewModels.Video
             HasVideoInfo = false;
 
             var path = InputVideoPath; // capture before await
-            var frameCount = await Task.Run(() => GetVideoFrameCount(path));
+            // Use duration × target FPS so chunk boundaries match what the workflow sees after force_rate
+            var duration = await Task.Run(() => GetVideoDuration(path));
+            var frameCount = duration > 0 && Fps > 0
+                ? (int)Math.Floor(duration * Fps)
+                : await Task.Run(() => GetVideoFrameCount(path));
 
             // Guard: if video changed while we were analyzing, discard result
             if (path != InputVideoPath) return;
 
             TotalFrames = frameCount > 0 ? frameCount : 0;
 
-            var estimatedDuration = Fps > 0 && TotalFrames > 0 ? (double)TotalFrames / Fps : 0;
+            var estimatedDuration = duration > 0 ? duration : (Fps > 0 && TotalFrames > 0 ? (double)TotalFrames / Fps : 0);
             VideoDuration = estimatedDuration > 0 ? $"{estimatedDuration:F1}s" : "—";
             VideoFpsDisplay = Fps.ToString();
             VideoFrameCountDisplay = TotalFrames > 0 ? TotalFrames.ToString("N0") : "—";
@@ -791,6 +797,13 @@ namespace FlipPix.UI.Linux.ViewModels.Video
                 }
                 UpdateQueueStatus();
                 AddLog($"WAN SCAIL queue loaded: {_queue.Count} items");
+
+                var pending = _queue.Count(x => x.ItemStatus == QueueItemStatus.Pending);
+                if (pending > 0 && !IsProcessingQueue)
+                {
+                    AddLog($"Auto-resuming queue: {pending} pending item(s) from previous session");
+                    _ = ProcessQueueAsync();
+                }
             }
             catch (Exception ex) { AddLog($"Error loading queue: {ex.Message}"); }
         }
@@ -866,8 +879,33 @@ namespace FlipPix.UI.Linux.ViewModels.Video
                 ProcessingStatus = "Uploading assets to ComfyUI...";
                 ProcessingProgress = 10;
 
+                // Get video dimensions — used for both cropping and output resolution
+                var (videoW, videoH) = GetVideoDimensions(item.InputVideoPath);
+
+                int outputWidth = 0, outputHeight = 0;
+                if (videoW > 0 && videoH > 0)
+                {
+                    (outputWidth, outputHeight) = ComputeOutputResolution(videoW, videoH, item.MaxEdge);
+                    AddLog($"Output resolution: {outputWidth}x{outputHeight}");
+                }
+
+                // Crop character image to match output aspect ratio before uploading
+                string imageToUpload = item.CharacterImagePath;
+                string? croppedImageTemp = null;
+                if (outputWidth > 0 && outputHeight > 0)
+                {
+                    croppedImageTemp = CropImageToAspectRatio(item.CharacterImagePath, outputWidth, outputHeight);
+                    if (croppedImageTemp != null)
+                    {
+                        imageToUpload = croppedImageTemp;
+                        AddLog($"Character image cropped to {outputWidth}:{outputHeight} aspect ratio");
+                    }
+                }
+
                 AddLog("Uploading character image...");
-                var uploadedImageName = await _comfyUIService.UploadImageAsync(item.CharacterImagePath);
+                var uploadedImageName = await _comfyUIService.UploadImageAsync(imageToUpload);
+                if (!string.IsNullOrEmpty(croppedImageTemp))
+                    try { File.Delete(croppedImageTemp); } catch { }
                 if (string.IsNullOrEmpty(uploadedImageName))
                     throw new Exception("Failed to upload character image to ComfyUI.");
                 AddLog($"Character image uploaded: {uploadedImageName}");
@@ -916,7 +954,9 @@ namespace FlipPix.UI.Linux.ViewModels.Video
                             item.NegativePrompt,
                             item.Fps,
                             item.MaxEdge,
-                            runSeed + chunkIndex);
+                            runSeed + chunkIndex,
+                            outputWidth,
+                            outputHeight);
 
                         var progress = new Progress<FlipPix.ComfyUI.Models.ProgressMessage>(progressMsg =>
                         {
@@ -1027,6 +1067,16 @@ namespace FlipPix.UI.Linux.ViewModels.Video
             }
         }
 
+        protected virtual (int Width, int Height) ComputeOutputResolution(int videoW, int videoH, int maxEdge)
+        {
+            const int shortEdge = 480;
+            const int alignment = 32;
+            if (videoW <= videoH)
+                return (shortEdge, (int)(Math.Round((double)shortEdge * videoH / videoW / alignment) * alignment));
+            else
+                return ((int)(Math.Round((double)shortEdge * videoW / videoH / alignment) * alignment), shortEdge);
+        }
+
         protected virtual JsonElement UpdateWorkflowParameters(
             JsonElement workflow,
             string characterImageName,
@@ -1037,7 +1087,9 @@ namespace FlipPix.UI.Linux.ViewModels.Video
             string negativePrompt,
             int fps,
             int maxEdge,
-            long seed)
+            long seed,
+            int outputWidth = 0,
+            int outputHeight = 0)
         {
             var workflowJson = workflow.GetRawText();
             AddLog($"Updating workflow: start={startFrame}, frames={framesInChunk}, fps={fps}, maxEdge={maxEdge}");
@@ -1121,6 +1173,7 @@ namespace FlipPix.UI.Linux.ViewModels.Video
             RemoveQueueItemCommand.NotifyCanExecuteChanged();
             ClearQueueCommand.NotifyCanExecuteChanged();
             StopQueueCommand.NotifyCanExecuteChanged();
+            StartQueueCommand.NotifyCanExecuteChanged();
             ReprocessAllFailedCommand.NotifyCanExecuteChanged();
             PlayVideoCommand.NotifyCanExecuteChanged();
             OpenResultFolderCommand.NotifyCanExecuteChanged();

@@ -382,6 +382,13 @@ namespace FlipPix.UI.ViewModels
         public string WorkflowIndicator => MainVM.WorkflowIndicator;
         public int SelectedWorkflowIndex { get => MainVM.SelectedWorkflowIndex; set => MainVM.SelectedWorkflowIndex = value; }
 
+        // Story Video Generator Workflow (Tab 2)
+        public int SelectedStoryWorkflowIndex
+        {
+            get => MainVM.SelectedStoryWorkflowIndex;
+            set => MainVM.SelectedStoryWorkflowIndex = value;
+        }
+
         // Single Video Generator Workflow (Tab 1) - separate from Story Video (Tab 2)
         public VideoGeneratorMainViewModel.SingleVideoWorkflow SelectedSingleWorkflow
         {
@@ -864,6 +871,7 @@ namespace FlipPix.UI.ViewModels
         public ICommand RemoveWanScailQueueItemCommand => WanScailVM.RemoveQueueItemCommand;
         public ICommand ClearWanScailQueueCommand => WanScailVM.ClearQueueCommand;
         public ICommand StopWanScailQueueCommand => WanScailVM.StopQueueCommand;
+        public ICommand StartWanScailQueueCommand => WanScailVM.StartQueueCommand;
         public ICommand ReprocessAllWanScailFailedCommand => WanScailVM.ReprocessAllFailedCommand;
         public ICommand PlayWanScailVideoCommand => WanScailVM.PlayVideoCommand;
         public ICommand OpenWanScailResultFolderCommand => WanScailVM.OpenResultFolderCommand;
@@ -928,12 +936,25 @@ namespace FlipPix.UI.ViewModels
         public System.Windows.Input.ICommand RemoveWanScailGgufQueueItemCommand => WanScailGgufVM.RemoveQueueItemCommand;
         public System.Windows.Input.ICommand ClearWanScailGgufQueueCommand => WanScailGgufVM.ClearQueueCommand;
         public System.Windows.Input.ICommand StopWanScailGgufQueueCommand => WanScailGgufVM.StopQueueCommand;
+        public System.Windows.Input.ICommand StartWanScailGgufQueueCommand => WanScailGgufVM.StartQueueCommand;
         public System.Windows.Input.ICommand ReprocessAllWanScailGgufFailedCommand => WanScailGgufVM.ReprocessAllFailedCommand;
         public System.Windows.Input.ICommand PlayWanScailGgufVideoCommand => WanScailGgufVM.PlayVideoCommand;
         public System.Windows.Input.ICommand OpenWanScailGgufResultFolderCommand => WanScailGgufVM.OpenResultFolderCommand;
         public System.Windows.Input.ICommand SendWanScailGgufToEditCameraCommand => WanScailGgufVM.SendToEditCameraCommand;
         public System.Windows.Input.ICommand AnalyzeWanScailGgufImageCommand => WanScailGgufVM.AnalyzeImageCommand;
         public System.Windows.Input.ICommand RandomWanScailGgufSeedCommand => WanScailGgufVM.RandomSeedCommand;
+        public System.Windows.Input.ICommand SelectWanScailGgufChunkCommand => WanScailGgufVM.SelectChunkCommand;
+        public System.Windows.Input.ICommand ProcessSelectedWanScailGgufChunkCommand => WanScailGgufVM.ProcessSelectedChunkCommand;
+
+        // Video editor
+        public string? WanScailGgufVideoFileUri => WanScailGgufVM.VideoFileUri;
+        public bool WanScailGgufHasVideoInfo => WanScailGgufVM.HasVideoInfo;
+        public string WanScailGgufVideoDuration => WanScailGgufVM.VideoDuration;
+        public string WanScailGgufVideoFpsDisplay => WanScailGgufVM.VideoFpsDisplay;
+        public string WanScailGgufVideoFrameCountDisplay => WanScailGgufVM.VideoFrameCountDisplay;
+        public string WanScailGgufVideoChunksDisplay => WanScailGgufVM.VideoChunksDisplay;
+        public string WanScailGgufChunkSelectionInfo => WanScailGgufVM.ChunkSelectionInfo;
+        public ObservableCollection<WanScailChunkItem> WanScailGgufChunkItems => WanScailGgufVM.ChunkItems;
 
         #endregion
 
