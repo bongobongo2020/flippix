@@ -4160,6 +4160,8 @@
                                         <MediaElement x:Name="WanScailRefVideoPlayer"
                                                       Source="{Binding WanScailVideoFileUri}"
                                                       LoadedBehavior="Manual" UnloadedBehavior="Stop"
+                                                      ScrubbingEnabled="True"
+                                                      MediaOpened="WanScailRefPlayer_MediaOpened"
                                                       Stretch="Uniform"
                                                       Visibility="{Binding WanScailHasVideo, Converter={StaticResource BooleanToVisibilityConverter}}"/>
 
@@ -4696,6 +4698,8 @@
                                         <MediaElement x:Name="WanScailGgufRefVideoPlayer"
                                                       Source="{Binding WanScailGgufVideoFileUri}"
                                                       LoadedBehavior="Manual" UnloadedBehavior="Stop"
+                                                      ScrubbingEnabled="True"
+                                                      MediaOpened="WanScailGgufRefPlayer_MediaOpened"
                                                       Stretch="Uniform"
                                                       Visibility="{Binding WanScailGgufHasVideo, Converter={StaticResource BooleanToVisibilityConverter}}"/>
 
