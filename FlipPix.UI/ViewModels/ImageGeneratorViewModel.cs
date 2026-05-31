@@ -2400,11 +2400,42 @@ namespace FlipPix.UI.ViewModels
             try
             {
                 var videoWindow = _serviceProvider.GetService(typeof(VideoGeneratorWindow)) as VideoGeneratorWindow;
-                videoWindow?.Show();
+
+                if (videoWindow == null)
+                {
+                    AddLog("ERROR: Could not create Video Generator window");
+                    System.Windows.MessageBox.Show(
+                        "Could not open Video Generator. Please check the log for details.",
+                        "Navigation Error", System.Windows.MessageBoxButton.OK, System.Windows.MessageBoxImage.Warning);
+                    return;
+                }
+
+                if (videoWindow.IsVisible)
+                {
+                    videoWindow.WindowState = System.Windows.WindowState.Normal;
+                    videoWindow.Activate();
+                    videoWindow.Focus();
+                    return;
+                }
+
+                videoWindow.WindowState = System.Windows.WindowState.Normal;
+
+                var screenW = System.Windows.SystemParameters.PrimaryScreenWidth;
+                var screenH = System.Windows.SystemParameters.PrimaryScreenHeight;
+                videoWindow.Left = Math.Max(50, (screenW - videoWindow.Width) / 2);
+                videoWindow.Top = Math.Max(50, (screenH - videoWindow.Height) / 2);
+
+                videoWindow.Show();
+                videoWindow.Activate();
             }
             catch (Exception ex)
             {
-                AddLog($"ERROR navigating to Video Generator: {ex.Message}");
+                var inner = ex.InnerException;
+                var detail = inner != null ? $"\n\nCause: {inner.Message}" : string.Empty;
+                AddLog($"ERROR navigating to Video Generator: {ex.Message}{(inner != null ? $" → {inner.Message}" : "")}");
+                System.Windows.MessageBox.Show(
+                    $"Could not open Video Generator:\n{ex.Message}{detail}",
+                    "Navigation Error", System.Windows.MessageBoxButton.OK, System.Windows.MessageBoxImage.Error);
             }
         }
 
