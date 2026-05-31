@@ -15,6 +15,7 @@ namespace FlipPix.UI
 
         private DispatcherTimer? _scrubTimerGguf;
         private DispatcherTimer? _scrubTimerVace;
+        private DispatcherTimer? _scrubTimerCharReplace;
 
         public VideoGeneratorWindow(VideoGeneratorViewModel viewModel, WindowPositionService windowPositionService)
         {
@@ -27,6 +28,7 @@ namespace FlipPix.UI
             _viewModel.PlayRequested += OnPlayRequested;
             _viewModel.WanScailGgufVM.SeekRequested += OnWanScailGgufSeekRequested;
             _viewModel.VaceVM.SeekRequested += OnVaceSeekRequested;
+            _viewModel.WanCharReplaceVM.SeekRequested += OnWanCharReplaceSeekRequested;
         }
 
         private void OnLoaded(object sender, RoutedEventArgs e)
@@ -65,6 +67,12 @@ namespace FlipPix.UI
                 VACEVideoPlayer.Position = System.TimeSpan.Zero;
                 VACEVideoPlayer.Play();
             }
+
+            if (WanCharReplaceVideoPlayer != null && WanCharReplaceVideoPlayer.Source != null)
+            {
+                WanCharReplaceVideoPlayer.Position = System.TimeSpan.Zero;
+                WanCharReplaceVideoPlayer.Play();
+            }
         }
 
         // ── MediaOpened: enter Paused state so ScrubbingEnabled can render frames ──
@@ -79,6 +87,12 @@ namespace FlipPix.UI
         {
             VaceRefVideoPlayer.Play();
             VaceRefVideoPlayer.Pause();
+        }
+
+        private void WanCharReplaceRefPlayer_MediaOpened(object sender, RoutedEventArgs e)
+        {
+            WanCharReplaceRefVideoPlayer.Play();
+            WanCharReplaceRefVideoPlayer.Pause();
         }
 
         // ── Chunk seek with start → mid → end scrub animation ────────────────
@@ -139,10 +153,39 @@ namespace FlipPix.UI
             _scrubTimerVace.Start();
         }
 
+        private void OnWanCharReplaceSeekRequested(object? sender, System.TimeSpan startPos)
+        {
+            var player = WanCharReplaceRefVideoPlayer;
+            if (player?.Source == null) return;
+
+            _scrubTimerCharReplace?.Stop();
+
+            var vm = _viewModel.WanCharReplaceVM;
+            var fps = vm.Fps > 0 ? vm.Fps : 16.0;
+            var chunk = vm.ChunkItems.FirstOrDefault(c => c.IsSelected);
+            var endPos = chunk != null
+                ? TimeSpan.FromSeconds(chunk.EndFrame / fps)
+                : startPos + TimeSpan.FromSeconds(4);
+            var midPos = TimeSpan.FromTicks((startPos.Ticks + endPos.Ticks) / 2);
+
+            player.Position = startPos;
+
+            var step = 0;
+            _scrubTimerCharReplace = new DispatcherTimer { Interval = TimeSpan.FromMilliseconds(450) };
+            _scrubTimerCharReplace.Tick += (s, e) =>
+            {
+                step++;
+                if (step == 1) player.Position = midPos;
+                else { player.Position = endPos; _scrubTimerCharReplace!.Stop(); }
+            };
+            _scrubTimerCharReplace.Start();
+        }
+
         protected override void OnClosed(EventArgs e)
         {
             _scrubTimerGguf?.Stop();
             _scrubTimerVace?.Stop();
+            _scrubTimerCharReplace?.Stop();
 
             VideoPlayer?.Stop();
             LongVideoPlayer?.Stop();
@@ -150,9 +193,12 @@ namespace FlipPix.UI
             WanScailGgufRefVideoPlayer?.Stop();
             VaceRefVideoPlayer?.Stop();
             VACEVideoPlayer?.Stop();
+            WanCharReplaceRefVideoPlayer?.Stop();
+            WanCharReplaceVideoPlayer?.Stop();
 
             _viewModel.WanScailGgufVM.SeekRequested -= OnWanScailGgufSeekRequested;
             _viewModel.VaceVM.SeekRequested -= OnVaceSeekRequested;
+            _viewModel.WanCharReplaceVM.SeekRequested -= OnWanCharReplaceSeekRequested;
             _viewModel.PlayRequested -= OnPlayRequested;
 
             if (_viewModel is IDisposable disposable)

@@ -98,6 +98,7 @@ namespace FlipPix.UI.ViewModels
         /// </summary>
         public WanScailViewModel WanScailVM { get; }
         public WanScailGgufViewModel WanScailGgufVM { get; }
+        public WanCharReplaceViewModel WanCharReplaceVM { get; }
 
         // 0 = LTX 2.3, 1 = Wan 2.2 Remix
         private int _singleVideoWorkflowIndex = 0;
@@ -234,6 +235,15 @@ namespace FlipPix.UI.ViewModels
                 _workflowCoordinator,
                 _fileDialogService);
 
+            WanCharReplaceVM = new WanCharReplaceViewModel(
+                comfyUIService,
+                lmStudioService,
+                logger,
+                settingsService,
+                serviceProvider,
+                _workflowCoordinator,
+                _fileDialogService);
+
             // Forward PlayRequested events from sub-VMs
             MainVM.PlayRequested += (s, e) => PlayRequested?.Invoke(this, e);
             VaceVM.PlayRequested += (s, e) => PlayRequested?.Invoke(this, e);
@@ -246,6 +256,7 @@ namespace FlipPix.UI.ViewModels
             LongVideoVM.PlayRequested += (s, e) => PlayRequested?.Invoke(this, e);
             WanScailVM.PlayRequested += (s, e) => PlayRequested?.Invoke(this, e);
             WanScailGgufVM.PlayRequested += (s, e) => PlayRequested?.Invoke(this, e);
+            WanCharReplaceVM.PlayRequested += (s, e) => PlayRequested?.Invoke(this, e);
 
             // Forward PropertyChanged events from all sub-VMs for backward compatibility
             MainVM.PropertyChanged += ForwardPropertyChanged;
@@ -259,6 +270,7 @@ namespace FlipPix.UI.ViewModels
             LongVideoVM.PropertyChanged += ForwardPropertyChanged;
             WanScailVM.PropertyChanged += ForwardPropertyChanged;
             WanScailGgufVM.PropertyChanged += ForwardPropertyChanged;
+            WanCharReplaceVM.PropertyChanged += ForwardPropertyChanged;
 
             _logger.LogInfo("VideoGeneratorViewModel initialized with sub-ViewModels");
         }
@@ -903,6 +915,79 @@ namespace FlipPix.UI.ViewModels
 
         #endregion
 
+        #region WanCharReplaceVM Backward Compatibility Properties
+
+        public string WanCharReplaceCharacterImagePath { get => WanCharReplaceVM.CharacterImagePath; set => WanCharReplaceVM.CharacterImagePath = value; }
+        public System.Windows.Media.Imaging.BitmapImage? WanCharReplaceCharacterImagePreview { get => WanCharReplaceVM.CharacterImagePreview; set => WanCharReplaceVM.CharacterImagePreview = value; }
+        public string WanCharReplaceCharacterImageInfo { get => WanCharReplaceVM.CharacterImageInfo; set => WanCharReplaceVM.CharacterImageInfo = value; }
+        public bool WanCharReplaceHasCharacterImage => WanCharReplaceVM.HasCharacterImage;
+
+        public string WanCharReplaceVideoPath { get => WanCharReplaceVM.InputVideoPath; set => WanCharReplaceVM.InputVideoPath = value; }
+        public string WanCharReplaceVideoInfo { get => WanCharReplaceVM.InputVideoInfo; set => WanCharReplaceVM.InputVideoInfo = value; }
+        public bool WanCharReplaceHasVideo => WanCharReplaceVM.HasInputVideo;
+
+        public string WanCharReplacePrompt { get => WanCharReplaceVM.Prompt; set => WanCharReplaceVM.Prompt = value; }
+        public string WanCharReplaceNegativePrompt { get => WanCharReplaceVM.NegativePrompt; set => WanCharReplaceVM.NegativePrompt = value; }
+        public int WanCharReplaceFps { get => WanCharReplaceVM.Fps; set => WanCharReplaceVM.Fps = value; }
+        public int WanCharReplaceSteps { get => WanCharReplaceVM.Steps; set => WanCharReplaceVM.Steps = value; }
+        public long WanCharReplaceSeed { get => WanCharReplaceVM.Seed; set => WanCharReplaceVM.Seed = value; }
+        public bool WanCharReplaceUseRtxUpscale { get => WanCharReplaceVM.UseRtxUpscale; set => WanCharReplaceVM.UseRtxUpscale = value; }
+
+        public int WanCharReplaceTotalFrames => WanCharReplaceVM.TotalFrames;
+        public int WanCharReplaceTotalChunks => WanCharReplaceVM.TotalChunks;
+
+        public bool IsProcessingWanCharReplace { get => WanCharReplaceVM.IsProcessing; set => WanCharReplaceVM.IsProcessing = value; }
+        public string WanCharReplaceProcessingStatus => WanCharReplaceVM.ProcessingStatus;
+        public double WanCharReplaceProcessingProgress => WanCharReplaceVM.ProcessingProgress;
+        public string WanCharReplaceProgressPercentage => WanCharReplaceVM.ProgressPercentage;
+        public string WanCharReplaceLogOutput => WanCharReplaceVM.LogOutput;
+
+        public bool HasWanCharReplaceResult => WanCharReplaceVM.HasResult;
+        public string WanCharReplaceResultPath => WanCharReplaceVM.ResultVideoPath;
+        public string WanCharReplaceResultVideoInfo => WanCharReplaceVM.ResultVideoInfo;
+
+        public bool WanCharReplaceCanAddToQueue => WanCharReplaceVM.CanAddToQueue;
+        public bool WanCharReplaceCanAnalyzeImage => WanCharReplaceVM.CanAnalyzeImage;
+        public bool WanCharReplaceIsAnalyzing => WanCharReplaceVM.IsAnalyzing;
+        public bool WanCharReplaceIsAnalyzingAll => WanCharReplaceVM.IsAnalyzingAll;
+        public string WanCharReplaceAnalyzeAllChunksStatus => WanCharReplaceVM.AnalyzeAllChunksStatus;
+
+        public ObservableCollection<WanCharReplaceQueueItem> WanCharReplaceQueue => WanCharReplaceVM.Queue;
+        public bool WanCharReplaceHasQueueItems => WanCharReplaceVM.HasQueueItems;
+        public bool WanCharReplaceIsProcessingQueue => WanCharReplaceVM.IsProcessingQueue;
+        public string WanCharReplaceQueueStatus => WanCharReplaceVM.QueueStatus;
+        public bool WanCharReplaceHasFailedItems => WanCharReplaceVM.HasFailedItems;
+
+        public string? WanCharReplaceVideoFileUri => WanCharReplaceVM.VideoFileUri;
+        public bool WanCharReplaceHasVideoInfo => WanCharReplaceVM.HasVideoInfo;
+        public string WanCharReplaceVideoDuration => WanCharReplaceVM.VideoDuration;
+        public string WanCharReplaceVideoFpsDisplay => WanCharReplaceVM.VideoFpsDisplay;
+        public string WanCharReplaceVideoFrameCountDisplay => WanCharReplaceVM.VideoFrameCountDisplay;
+        public string WanCharReplaceVideoChunksDisplay => WanCharReplaceVM.VideoChunksDisplay;
+        public string WanCharReplaceChunkSelectionInfo => WanCharReplaceVM.ChunkSelectionInfo;
+        public ObservableCollection<WanScailChunkItem> WanCharReplaceChunkItems => WanCharReplaceVM.ChunkItems;
+
+        // Commands
+        public System.Windows.Input.ICommand SelectWanCharReplaceCharacterImageCommand => WanCharReplaceVM.SelectCharacterImageCommand;
+        public System.Windows.Input.ICommand SelectWanCharReplaceVideoCommand => WanCharReplaceVM.SelectVideoCommand;
+        public System.Windows.Input.ICommand GenerateWanCharReplaceVideoCommand => WanCharReplaceVM.GenerateVideoCommand;
+        public System.Windows.Input.ICommand ProcessSelectedWanCharReplaceChunkCommand => WanCharReplaceVM.ProcessSelectedChunkCommand;
+        public System.Windows.Input.ICommand SelectWanCharReplaceChunkCommand => WanCharReplaceVM.SelectChunkCommand;
+        public System.Windows.Input.ICommand RemoveWanCharReplaceQueueItemCommand => WanCharReplaceVM.RemoveQueueItemCommand;
+        public System.Windows.Input.ICommand ClearWanCharReplaceQueueCommand => WanCharReplaceVM.ClearQueueCommand;
+        public System.Windows.Input.ICommand StopWanCharReplaceQueueCommand => WanCharReplaceVM.StopQueueCommand;
+        public System.Windows.Input.ICommand StartWanCharReplaceQueueCommand => WanCharReplaceVM.StartQueueCommand;
+        public System.Windows.Input.ICommand ReprocessAllWanCharReplaceFailedCommand => WanCharReplaceVM.ReprocessAllFailedCommand;
+        public System.Windows.Input.ICommand PlayWanCharReplaceVideoCommand => WanCharReplaceVM.PlayVideoCommand;
+        public System.Windows.Input.ICommand OpenWanCharReplaceResultFolderCommand => WanCharReplaceVM.OpenResultFolderCommand;
+        public System.Windows.Input.ICommand SendWanCharReplaceToEditCameraCommand => WanCharReplaceVM.SendToEditCameraCommand;
+        public System.Windows.Input.ICommand AnalyzeWanCharReplaceImageCommand => WanCharReplaceVM.AnalyzeImageCommand;
+        public System.Windows.Input.ICommand AnalyzeAllWanCharReplaceChunksCommand => WanCharReplaceVM.AnalyzeAllChunksCommand;
+        public System.Windows.Input.ICommand RandomWanCharReplaceSeedCommand => WanCharReplaceVM.RandomSeedCommand;
+        public System.Windows.Input.ICommand ToggleWanCharReplaceRtxUpscaleCommand => WanCharReplaceVM.ToggleRtxUpscaleCommand;
+
+        #endregion
+
         #region Public Methods
 
         /// <summary>
@@ -932,6 +1017,7 @@ namespace FlipPix.UI.ViewModels
                 Wan22SingleVM.PropertyChanged -= ForwardPropertyChanged;
                 LongVideoVM.PropertyChanged -= ForwardPropertyChanged;
                 WanScailVM.PropertyChanged -= ForwardPropertyChanged;
+                WanCharReplaceVM.PropertyChanged -= ForwardPropertyChanged;
 
                 // Dispose all sub-ViewModels
                 (MainVM as IDisposable)?.Dispose();
