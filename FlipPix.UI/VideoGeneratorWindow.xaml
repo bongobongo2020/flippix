@@ -4186,6 +4186,568 @@
                         </Grid>
                     </TabItem>
 
+                    <!-- Tab: Character Replacement -->
+                    <TabItem Header="🧑‍🎨 Char Replace" FontWeight="Bold" FontSize="13">
+                        <Grid>
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="350"/>
+                                <ColumnDefinition Width="*"/>
+                            </Grid.ColumnDefinitions>
+
+                            <!-- ═══ LEFT PANEL ═══════════════════════════════════════════════ -->
+                            <Border Grid.Column="0" BorderBrush="#E5E7EB" BorderThickness="0,0,1,0" Background="#F9FAFB">
+                                <ScrollViewer VerticalScrollBarVisibility="Auto">
+                                    <StackPanel Margin="12">
+
+                                        <!-- CHARACTER IMAGE -->
+                                        <Border Background="White" BorderBrush="#99F6E4" BorderThickness="1"
+                                                CornerRadius="8" Padding="14" Margin="0,0,0,10">
+                                            <StackPanel>
+                                                <StackPanel Orientation="Horizontal" Margin="0,0,0,8">
+                                                    <Ellipse Width="6" Height="6" Fill="#0D9488" Margin="0,0,6,0" VerticalAlignment="Center"/>
+                                                    <TextBlock Text="REPLACEMENT CHARACTER IMAGE" FontSize="10" FontWeight="Bold" Foreground="#6B7280"/>
+                                                </StackPanel>
+                                                <Border BorderBrush="#99F6E4" BorderThickness="1" CornerRadius="6"
+                                                        Background="#F0FDFA" Height="110" Margin="0,0,0,8">
+                                                    <Grid>
+                                                        <TextBlock Text="No character image selected"
+                                                                   HorizontalAlignment="Center" VerticalAlignment="Center"
+                                                                   Foreground="#9CA3AF" FontSize="11">
+                                                            <TextBlock.Style>
+                                                                <Style TargetType="TextBlock">
+                                                                    <Setter Property="Visibility" Value="Collapsed"/>
+                                                                    <Style.Triggers>
+                                                                        <DataTrigger Binding="{Binding WanCharReplaceCharacterImagePreview}" Value="{x:Null}">
+                                                                            <Setter Property="Visibility" Value="Visible"/>
+                                                                        </DataTrigger>
+                                                                    </Style.Triggers>
+                                                                </Style>
+                                                            </TextBlock.Style>
+                                                        </TextBlock>
+                                                        <Image Source="{Binding WanCharReplaceCharacterImagePreview}" Stretch="Uniform"/>
+                                                    </Grid>
+                                                </Border>
+                                                <Grid>
+                                                    <Grid.ColumnDefinitions>
+                                                        <ColumnDefinition Width="*"/>
+                                                        <ColumnDefinition Width="Auto"/>
+                                                    </Grid.ColumnDefinitions>
+                                                    <TextBlock Grid.Column="0" Text="{Binding WanCharReplaceCharacterImageInfo}"
+                                                               FontSize="10" Foreground="#6B7280" FontStyle="Italic"
+                                                               VerticalAlignment="Center" TextTrimming="CharacterEllipsis"/>
+                                                    <Button Grid.Column="1" Content="Browse…"
+                                                            Command="{Binding SelectWanCharReplaceCharacterImageCommand}"
+                                                            Height="28" Padding="10,0" FontSize="11"
+                                                            Background="#CCFBF1" Foreground="#0D9488"
+                                                            BorderBrush="#99F6E4" BorderThickness="1"/>
+                                                </Grid>
+                                            </StackPanel>
+                                        </Border>
+
+                                        <!-- REFERENCE VIDEO -->
+                                        <Border Background="White" BorderBrush="#99F6E4" BorderThickness="1"
+                                                CornerRadius="8" Padding="14" Margin="0,0,0,10">
+                                            <StackPanel>
+                                                <StackPanel Orientation="Horizontal" Margin="0,0,0,8">
+                                                    <Ellipse Width="6" Height="6" Fill="#34D399" Margin="0,0,6,0" VerticalAlignment="Center"/>
+                                                    <TextBlock Text="REFERENCE VIDEO (source character + motion)" FontSize="10" FontWeight="Bold" Foreground="#6B7280"/>
+                                                </StackPanel>
+                                                <Grid Margin="0,0,0,6">
+                                                    <Grid.ColumnDefinitions>
+                                                        <ColumnDefinition Width="*"/>
+                                                        <ColumnDefinition Width="Auto"/>
+                                                    </Grid.ColumnDefinitions>
+                                                    <TextBox Grid.Column="0" Text="{Binding WanCharReplaceVideoPath, Mode=OneWay}"
+                                                             IsReadOnly="True" Height="30"
+                                                             VerticalContentAlignment="Center" Padding="6,0"
+                                                             BorderBrush="#99F6E4" Background="#F0FDFA"
+                                                             FontSize="11" Foreground="#555" Margin="0,0,6,0"/>
+                                                    <Button Grid.Column="1" Content="Browse…"
+                                                            Command="{Binding SelectWanCharReplaceVideoCommand}"
+                                                            Height="30" Padding="10,0" FontSize="11"
+                                                            Background="#CCFBF1" Foreground="#059669"
+                                                            BorderBrush="#99F6E4" BorderThickness="1"/>
+                                                </Grid>
+                                                <TextBlock Text="{Binding WanCharReplaceVideoInfo}"
+                                                           FontSize="10" Foreground="#6B7280" FontStyle="Italic"/>
+                                            </StackPanel>
+                                        </Border>
+
+                                        <!-- ANALYZE -->
+                                        <Border Background="White" BorderBrush="#99F6E4" BorderThickness="1"
+                                                CornerRadius="8" Padding="14" Margin="0,0,0,10">
+                                            <StackPanel>
+                                                <StackPanel Orientation="Horizontal" Margin="0,0,0,4">
+                                                    <Button Content="🔍 Analyze &amp; Generate Prompts"
+                                                            Command="{Binding AnalyzeWanCharReplaceImageCommand}"
+                                                            IsEnabled="{Binding WanCharReplaceCanAnalyzeImage}"
+                                                            Height="30" Padding="12,0" FontSize="11"
+                                                            Background="#0D9488" Foreground="White" BorderThickness="0"
+                                                            ToolTip="Extracts replacement character appearance then motion per chunk."/>
+                                                    <TextBlock FontStyle="Italic" FontSize="11" VerticalAlignment="Center" Margin="6,0,0,0">
+                                                        <TextBlock.Style>
+                                                            <Style TargetType="TextBlock">
+                                                                <Setter Property="Foreground" Value="#0D9488"/>
+                                                                <Setter Property="Text" Value="{Binding WanCharReplaceAnalyzeAllChunksStatus}"/>
+                                                                <Setter Property="Visibility" Value="Collapsed"/>
+                                                                <Style.Triggers>
+                                                                    <DataTrigger Binding="{Binding WanCharReplaceIsAnalyzing}" Value="True">
+                                                                        <Setter Property="Visibility" Value="Visible"/>
+                                                                    </DataTrigger>
+                                                                </Style.Triggers>
+                                                            </Style>
+                                                        </TextBlock.Style>
+                                                    </TextBlock>
+                                                </StackPanel>
+                                            </StackPanel>
+                                        </Border>
+
+                                        <!-- PROMPT -->
+                                        <Border Background="White" BorderBrush="#99F6E4" BorderThickness="1"
+                                                CornerRadius="8" Padding="14" Margin="0,0,0,10">
+                                            <StackPanel>
+                                                <StackPanel Orientation="Horizontal" Margin="0,0,0,8">
+                                                    <Ellipse Width="6" Height="6" Fill="#0D9488" Margin="0,0,6,0" VerticalAlignment="Center"/>
+                                                    <TextBlock Text="POSITIVE PROMPT" FontSize="10" FontWeight="Bold" Foreground="#6B7280"/>
+                                                </StackPanel>
+                                                <TextBox Text="{Binding WanCharReplacePrompt, UpdateSourceTrigger=PropertyChanged}"
+                                                         TextWrapping="Wrap" AcceptsReturn="True"
+                                                         Height="80" VerticalScrollBarVisibility="Auto"
+                                                         BorderBrush="#99F6E4" Background="#F0FDFA"
+                                                         FontSize="12" Padding="8" Margin="0,0,0,10"/>
+                                                <StackPanel Orientation="Horizontal" Margin="0,0,0,8">
+                                                    <Ellipse Width="6" Height="6" Fill="#34D399" Margin="0,0,6,0" VerticalAlignment="Center"/>
+                                                    <TextBlock Text="NEGATIVE PROMPT" FontSize="10" FontWeight="Bold" Foreground="#6B7280"/>
+                                                </StackPanel>
+                                                <TextBox Text="{Binding WanCharReplaceNegativePrompt, UpdateSourceTrigger=PropertyChanged}"
+                                                         TextWrapping="Wrap" AcceptsReturn="True"
+                                                         Height="50" VerticalScrollBarVisibility="Auto"
+                                                         BorderBrush="#99F6E4" Background="#F0FDFA"
+                                                         FontSize="11" Padding="8"/>
+                                            </StackPanel>
+                                        </Border>
+
+                                        <!-- SETTINGS -->
+                                        <Border Background="White" BorderBrush="#99F6E4" BorderThickness="1"
+                                                CornerRadius="8" Padding="14">
+                                            <StackPanel>
+                                                <StackPanel Orientation="Horizontal" Margin="0,0,0,10">
+                                                    <Ellipse Width="6" Height="6" Fill="#34D399" Margin="0,0,6,0" VerticalAlignment="Center"/>
+                                                    <TextBlock Text="SETTINGS" FontSize="10" FontWeight="Bold" Foreground="#6B7280"/>
+                                                </StackPanel>
+                                                <Grid Margin="0,0,0,10">
+                                                    <Grid.ColumnDefinitions>
+                                                        <ColumnDefinition Width="*"/>
+                                                        <ColumnDefinition Width="8"/>
+                                                        <ColumnDefinition Width="*"/>
+                                                    </Grid.ColumnDefinitions>
+                                                    <StackPanel Grid.Column="0">
+                                                        <TextBlock Text="Frame Rate (FPS)" FontSize="10" Foreground="#6B7280" Margin="0,0,0,4"/>
+                                                        <TextBox Text="{Binding WanCharReplaceFps, UpdateSourceTrigger=PropertyChanged}"
+                                                                 Height="30" Padding="6,0" VerticalContentAlignment="Center"
+                                                                 BorderBrush="#99F6E4" Background="#F0FDFA"
+                                                                 FontSize="12" FontFamily="Consolas"/>
+                                                    </StackPanel>
+                                                    <StackPanel Grid.Column="2">
+                                                        <TextBlock Text="Steps (4=fast, 6=quality)" FontSize="10" Foreground="#6B7280" Margin="0,0,0,4"/>
+                                                        <TextBox Text="{Binding WanCharReplaceSteps, UpdateSourceTrigger=PropertyChanged}"
+                                                                 Height="30" Padding="6,0" VerticalContentAlignment="Center"
+                                                                 BorderBrush="#99F6E4" Background="#F0FDFA"
+                                                                 FontSize="12" FontFamily="Consolas"/>
+                                                    </StackPanel>
+                                                </Grid>
+                                                <TextBlock Text="Seed (-1 = random)" FontSize="10" Foreground="#6B7280" Margin="0,0,0,4"/>
+                                                <Grid>
+                                                    <Grid.ColumnDefinitions>
+                                                        <ColumnDefinition Width="*"/>
+                                                        <ColumnDefinition Width="Auto"/>
+                                                    </Grid.ColumnDefinitions>
+                                                    <TextBox Grid.Column="0"
+                                                             Text="{Binding WanCharReplaceSeed, UpdateSourceTrigger=PropertyChanged}"
+                                                             Height="30" Padding="6,0" VerticalContentAlignment="Center"
+                                                             BorderBrush="#99F6E4" Background="#F0FDFA"
+                                                             FontSize="12" FontFamily="Consolas" Margin="0,0,6,0"/>
+                                                    <Button Grid.Column="1" Content="🎲"
+                                                            Command="{Binding RandomWanCharReplaceSeedCommand}"
+                                                            Height="30" Width="36" FontSize="14"
+                                                            Background="#CCFBF1" Foreground="#0D9488"
+                                                            BorderBrush="#99F6E4" BorderThickness="1"/>
+                                                </Grid>
+
+                                                <!-- RTX Upscale toggle -->
+                                                <Border Margin="0,10,0,0" CornerRadius="4" Padding="8,6"
+                                                        Cursor="Hand">
+                                                    <Border.Style>
+                                                        <Style TargetType="Border">
+                                                            <Setter Property="Background" Value="#F0FDFA"/>
+                                                            <Setter Property="BorderBrush" Value="#99F6E4"/>
+                                                            <Setter Property="BorderThickness" Value="1"/>
+                                                            <Style.Triggers>
+                                                                <DataTrigger Binding="{Binding WanCharReplaceUseRtxUpscale}" Value="True">
+                                                                    <Setter Property="Background" Value="#CCFBF1"/>
+                                                                    <Setter Property="BorderBrush" Value="#0D9488"/>
+                                                                </DataTrigger>
+                                                            </Style.Triggers>
+                                                        </Style>
+                                                    </Border.Style>
+                                                    <Border.InputBindings>
+                                                        <MouseBinding MouseAction="LeftClick"
+                                                                      Command="{Binding ToggleWanCharReplaceRtxUpscaleCommand}"/>
+                                                    </Border.InputBindings>
+                                                    <StackPanel Orientation="Horizontal">
+                                                        <CheckBox IsChecked="{Binding WanCharReplaceUseRtxUpscale}"
+                                                                  IsHitTestVisible="False"
+                                                                  VerticalAlignment="Center" Margin="0,0,6,0"/>
+                                                        <StackPanel>
+                                                            <TextBlock Text="NVIDIA RTX 2x Upscale" FontSize="11"
+                                                                       FontWeight="SemiBold" Foreground="#0D9488"/>
+                                                            <TextBlock Text="Doubles output resolution after decode (480p → 960p)"
+                                                                       FontSize="9" Foreground="#6B7280"/>
+                                                        </StackPanel>
+                                                    </StackPanel>
+                                                </Border>
+                                            </StackPanel>
+                                        </Border>
+
+                                    </StackPanel>
+                                </ScrollViewer>
+                            </Border>
+
+                            <!-- ═══ RIGHT PANEL ═══════════════════════════════════════════════ -->
+                            <Grid Grid.Column="1">
+                                <Grid.RowDefinitions>
+                                    <RowDefinition Height="240"/>  <!-- Reference video -->
+                                    <RowDefinition Height="Auto"/> <!-- Timeline -->
+                                    <RowDefinition Height="3"/>    <!-- Progress bar -->
+                                    <RowDefinition Height="Auto"/> <!-- Status row -->
+                                    <RowDefinition Height="Auto"/> <!-- Action buttons -->
+                                    <RowDefinition Height="Auto"/> <!-- Queue panel -->
+                                    <RowDefinition Height="Auto"/> <!-- Result output -->
+                                    <RowDefinition Height="Auto"/> <!-- Log -->
+                                </Grid.RowDefinitions>
+
+                                <!-- ─── Reference Video ──────────────────────────────── -->
+                                <Border Grid.Row="0" Background="#030712">
+                                    <Grid>
+                                        <StackPanel HorizontalAlignment="Center" VerticalAlignment="Center">
+                                            <StackPanel.Style>
+                                                <Style TargetType="StackPanel">
+                                                    <Setter Property="Visibility" Value="Visible"/>
+                                                    <Style.Triggers>
+                                                        <DataTrigger Binding="{Binding WanCharReplaceHasVideo}" Value="True">
+                                                            <Setter Property="Visibility" Value="Collapsed"/>
+                                                        </DataTrigger>
+                                                    </Style.Triggers>
+                                                </Style>
+                                            </StackPanel.Style>
+                                            <Border Width="56" Height="56" CornerRadius="12"
+                                                    Background="#0A0F1E" BorderBrush="#1F2937" BorderThickness="1"
+                                                    HorizontalAlignment="Center" Margin="0,0,0,8">
+                                                <TextBlock Text="🧑‍🎨" FontSize="26" HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                                            </Border>
+                                            <TextBlock Text="Drop reference video" FontSize="12" FontWeight="SemiBold"
+                                                       Foreground="#4B5563" HorizontalAlignment="Center" Margin="0,0,0,4"/>
+                                            <TextBlock Text="Use Browse in the Reference Video card" FontSize="10"
+                                                       Foreground="#374151" HorizontalAlignment="Center"/>
+                                        </StackPanel>
+                                        <MediaElement x:Name="WanCharReplaceRefVideoPlayer"
+                                                      Source="{Binding WanCharReplaceVideoFileUri}"
+                                                      LoadedBehavior="Manual" UnloadedBehavior="Stop"
+                                                      ScrubbingEnabled="True"
+                                                      MediaOpened="WanCharReplaceRefPlayer_MediaOpened"
+                                                      Stretch="Uniform"
+                                                      Visibility="{Binding WanCharReplaceHasVideo, Converter={StaticResource BooleanToVisibilityConverter}}"/>
+                                        <!-- Info overlay -->
+                                        <Border VerticalAlignment="Bottom" Margin="8,0,8,8" CornerRadius="8" Padding="10,5"
+                                                Visibility="{Binding WanCharReplaceHasVideoInfo, Converter={StaticResource BooleanToVisibilityConverter}}">
+                                            <Border.Background><SolidColorBrush Color="#030712" Opacity="0.88"/></Border.Background>
+                                            <Border.BorderBrush><SolidColorBrush Color="#1F2937" Opacity="0.7"/></Border.BorderBrush>
+                                            <Border.BorderThickness>1</Border.BorderThickness>
+                                            <StackPanel Orientation="Horizontal">
+                                                <TextBlock FontSize="10" Foreground="#9CA3AF">
+                                                    <Run Text="Duration "/>
+                                                    <Run Text="{Binding WanCharReplaceVideoDuration, Mode=OneWay}" FontWeight="Bold" Foreground="#E5E7EB" FontFamily="Consolas"/>
+                                                </TextBlock>
+                                                <Border Width="1" Background="#374151" Margin="10,0"/>
+                                                <TextBlock FontSize="10" Foreground="#9CA3AF">
+                                                    <Run Text="FPS "/>
+                                                    <Run Text="{Binding WanCharReplaceVideoFpsDisplay, Mode=OneWay}" FontWeight="Bold" Foreground="#E5E7EB" FontFamily="Consolas"/>
+                                                </TextBlock>
+                                                <Border Width="1" Background="#374151" Margin="10,0"/>
+                                                <TextBlock FontSize="10" Foreground="#9CA3AF">
+                                                    <Run Text="Frames "/>
+                                                    <Run Text="{Binding WanCharReplaceVideoFrameCountDisplay, Mode=OneWay}" FontWeight="Bold" Foreground="#E5E7EB" FontFamily="Consolas"/>
+                                                </TextBlock>
+                                                <Border Width="1" Background="#374151" Margin="10,0"/>
+                                                <TextBlock FontSize="10" FontWeight="Bold" Foreground="#2DD4BF" FontFamily="Consolas"
+                                                           Text="{Binding WanCharReplaceVideoChunksDisplay, Mode=OneWay}"/>
+                                            </StackPanel>
+                                        </Border>
+                                    </Grid>
+                                </Border>
+
+                                <!-- ─── Chunk Timeline ─────────────────────────────── -->
+                                <Border Grid.Row="1" Background="#0F172A" BorderBrush="#1F2937"
+                                        BorderThickness="0,1,0,0" Padding="12,8">
+                                    <StackPanel>
+                                        <Grid Margin="0,0,0,6">
+                                            <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                                                <Ellipse Width="5" Height="5" Fill="#0D9488" Margin="0,0,6,0" VerticalAlignment="Center"/>
+                                                <TextBlock Text="77-FRAME CHUNKS" FontSize="9" FontWeight="Bold" Foreground="#6B7280"/>
+                                                <TextBlock Text="  · click to select &amp; seek" FontSize="9" Foreground="#374151"/>
+                                            </StackPanel>
+                                            <TextBlock HorizontalAlignment="Right" VerticalAlignment="Center"
+                                                       Text="{Binding WanCharReplaceChunkSelectionInfo, Mode=OneWay}"
+                                                       FontSize="10" Foreground="#6B7280" FontFamily="Consolas"/>
+                                        </Grid>
+                                        <ScrollViewer HorizontalScrollBarVisibility="Auto"
+                                                      VerticalScrollBarVisibility="Disabled" Height="58">
+                                            <ItemsControl ItemsSource="{Binding WanCharReplaceChunkItems}">
+                                                <ItemsControl.ItemsPanel>
+                                                    <ItemsPanelTemplate>
+                                                        <StackPanel Orientation="Horizontal"/>
+                                                    </ItemsPanelTemplate>
+                                                </ItemsControl.ItemsPanel>
+                                                <ItemsControl.ItemTemplate>
+                                                    <DataTemplate>
+                                                        <Button Width="62" Height="52" Margin="1,0"
+                                                                Background="{Binding BackgroundColor}"
+                                                                BorderBrush="{Binding BorderColor}"
+                                                                BorderThickness="1.5" Padding="0" Cursor="Hand"
+                                                                Command="{Binding DataContext.SelectWanCharReplaceChunkCommand, RelativeSource={RelativeSource AncestorType=ItemsControl}}"
+                                                                CommandParameter="{Binding}">
+                                                            <Grid>
+                                                                <StackPanel VerticalAlignment="Center" Margin="2,4,2,6">
+                                                                    <TextBlock Text="{Binding Label}" FontSize="9" FontWeight="Bold"
+                                                                               HorizontalAlignment="Center" Foreground="{Binding LabelColor}"/>
+                                                                    <TextBlock Text="{Binding FrameRange}" FontSize="7.5"
+                                                                               HorizontalAlignment="Center" Foreground="{Binding LabelColor}"
+                                                                               FontFamily="Consolas"/>
+                                                                    <TextBlock Text="{Binding StatusDot}" FontSize="9"
+                                                                               HorizontalAlignment="Center" Margin="0,1,0,0"/>
+                                                                </StackPanel>
+                                                                <Border VerticalAlignment="Bottom" Height="3"
+                                                                        Background="{Binding BottomBarColor}" CornerRadius="0,0,2,2"/>
+                                                            </Grid>
+                                                        </Button>
+                                                    </DataTemplate>
+                                                </ItemsControl.ItemTemplate>
+                                            </ItemsControl>
+                                        </ScrollViewer>
+                                    </StackPanel>
+                                </Border>
+
+                                <!-- ─── Progress bar ─────────────────────────────────── -->
+                                <ProgressBar Grid.Row="2"
+                                             Value="{Binding WanCharReplaceProcessingProgress, Mode=OneWay}"
+                                             Foreground="#0D9488" Background="#1F2937" BorderThickness="0"
+                                             Visibility="{Binding WanCharReplaceIsProcessingQueue, Converter={StaticResource BooleanToVisibilityConverter}}"/>
+
+                                <!-- ─── Status row ───────────────────────────────────── -->
+                                <Border Grid.Row="3" Background="#111827" BorderBrush="#1F2937"
+                                        BorderThickness="0,1,0,0" Padding="12,5">
+                                    <Grid>
+                                        <StackPanel Orientation="Horizontal">
+                                            <Ellipse Width="5" Height="5" VerticalAlignment="Center" Margin="0,0,7,0">
+                                                <Ellipse.Style>
+                                                    <Style TargetType="Ellipse">
+                                                        <Setter Property="Fill" Value="#374151"/>
+                                                        <Style.Triggers>
+                                                            <DataTrigger Binding="{Binding WanCharReplaceIsProcessingQueue}" Value="True">
+                                                                <Setter Property="Fill" Value="#2DD4BF"/>
+                                                            </DataTrigger>
+                                                        </Style.Triggers>
+                                                    </Style>
+                                                </Ellipse.Style>
+                                            </Ellipse>
+                                            <TextBlock Text="{Binding WanCharReplaceProcessingStatus}"
+                                                       FontSize="11" Foreground="#6B7280" VerticalAlignment="Center"
+                                                       TextTrimming="CharacterEllipsis"/>
+                                        </StackPanel>
+                                        <TextBlock HorizontalAlignment="Right" VerticalAlignment="Center"
+                                                   Text="{Binding WanCharReplaceProgressPercentage, Mode=OneWay}"
+                                                   FontSize="11" FontWeight="Bold" Foreground="#0D9488"
+                                                   FontFamily="Consolas"
+                                                   Visibility="{Binding WanCharReplaceIsProcessingQueue, Converter={StaticResource BooleanToVisibilityConverter}}"/>
+                                    </Grid>
+                                </Border>
+
+                                <!-- ─── Action Buttons ──────────────────────────────── -->
+                                <Border Grid.Row="4" Background="#0F172A" BorderBrush="#1F2937"
+                                        BorderThickness="0,1,0,0" Padding="10,8">
+                                    <Grid>
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="*"/>
+                                            <ColumnDefinition Width="*"/>
+                                            <ColumnDefinition Width="Auto"/>
+                                        </Grid.ColumnDefinitions>
+                                        <Button Grid.Column="0" Margin="0,0,5,0" Height="40"
+                                                Command="{Binding ProcessSelectedWanCharReplaceChunkCommand}"
+                                                IsEnabled="{Binding WanCharReplaceCanAddToQueue}"
+                                                Background="#0D9488" Foreground="White"
+                                                FontSize="12" FontWeight="Bold" BorderThickness="0">
+                                            <StackPanel Orientation="Horizontal">
+                                                <TextBlock Text="▶ " VerticalAlignment="Center"/>
+                                                <TextBlock Text="Process Selected Chunk" VerticalAlignment="Center"/>
+                                            </StackPanel>
+                                        </Button>
+                                        <Button Grid.Column="1" Margin="0,0,5,0" Height="40"
+                                                Command="{Binding GenerateWanCharReplaceVideoCommand}"
+                                                IsEnabled="{Binding WanCharReplaceCanAddToQueue}"
+                                                Background="#059669" Foreground="White"
+                                                FontSize="12" FontWeight="Bold" BorderThickness="0">
+                                            <StackPanel Orientation="Horizontal">
+                                                <TextBlock Text="🧑‍🎨 " VerticalAlignment="Center"/>
+                                                <TextBlock Text="Replace Full Video" VerticalAlignment="Center"/>
+                                            </StackPanel>
+                                        </Button>
+                                        <Button Grid.Column="2" Height="40" Width="82"
+                                                Command="{Binding StopWanCharReplaceQueueCommand}"
+                                                IsEnabled="{Binding WanCharReplaceIsProcessingQueue}"
+                                                Background="#1F2937" Foreground="#F87171"
+                                                FontSize="11" BorderThickness="0">
+                                            <StackPanel Orientation="Horizontal">
+                                                <TextBlock Text="✕ " VerticalAlignment="Center"/>
+                                                <TextBlock Text="Cancel" VerticalAlignment="Center"/>
+                                            </StackPanel>
+                                        </Button>
+                                    </Grid>
+                                </Border>
+
+                                <!-- ─── Queue Panel ──────────────────────────────────── -->
+                                <Border Grid.Row="5" Background="#F0FDFA" BorderBrush="#99F6E4"
+                                        BorderThickness="0,1,0,0" Padding="12,8"
+                                        Visibility="{Binding WanCharReplaceHasQueueItems, Converter={StaticResource BooleanToVisibilityConverter}}">
+                                    <StackPanel>
+                                        <Grid Margin="0,0,0,6">
+                                            <Grid.ColumnDefinitions>
+                                                <ColumnDefinition Width="*"/>
+                                                <ColumnDefinition Width="Auto"/>
+                                                <ColumnDefinition Width="Auto"/>
+                                                <ColumnDefinition Width="Auto"/>
+                                                <ColumnDefinition Width="Auto"/>
+                                                <ColumnDefinition Width="Auto"/>
+                                            </Grid.ColumnDefinitions>
+                                            <TextBlock Grid.Column="0" Text="🧑‍🎨 Character Replace Queue"
+                                                       FontWeight="Bold" FontSize="12" Foreground="#0D9488" VerticalAlignment="Center"/>
+                                            <TextBlock Grid.Column="1" Text="{Binding WanCharReplaceQueueStatus}"
+                                                       FontStyle="Italic" Foreground="#666" FontSize="11"
+                                                       VerticalAlignment="Center" Margin="0,0,8,0"/>
+                                            <Button Grid.Column="2" Content="🔄 Retry"
+                                                    Command="{Binding ReprocessAllWanCharReplaceFailedCommand}"
+                                                    IsEnabled="{Binding WanCharReplaceHasFailedItems}"
+                                                    Height="26" Padding="8,0" FontSize="11" Margin="0,0,5,0"
+                                                    Background="#0D9488" Foreground="White" BorderThickness="0"/>
+                                            <Button Grid.Column="3" Content="▶ Start"
+                                                    Command="{Binding StartWanCharReplaceQueueCommand}"
+                                                    Height="26" Padding="8,0" FontSize="11" Margin="0,0,5,0"
+                                                    Background="#34D399" Foreground="White" BorderThickness="0"/>
+                                            <Button Grid.Column="4" Content="⏹ Stop"
+                                                    Command="{Binding StopWanCharReplaceQueueCommand}"
+                                                    IsEnabled="{Binding WanCharReplaceIsProcessingQueue}"
+                                                    Height="26" Padding="8,0" FontSize="11" Margin="0,0,5,0"
+                                                    Background="#2DD4BF" Foreground="White" BorderThickness="0"/>
+                                            <Button Grid.Column="5" Content="🗑️ Clear"
+                                                    Command="{Binding ClearWanCharReplaceQueueCommand}"
+                                                    Height="26" Padding="8,0" FontSize="11"
+                                                    Background="#DC3545" Foreground="White" BorderThickness="0"/>
+                                        </Grid>
+                                        <ItemsControl ItemsSource="{Binding WanCharReplaceQueue}">
+                                            <ItemsControl.ItemTemplate>
+                                                <DataTemplate>
+                                                    <Border BorderBrush="#99F6E4" BorderThickness="1" CornerRadius="4"
+                                                            Padding="10,5" Margin="0,0,0,3" Background="White">
+                                                        <Grid>
+                                                            <Grid.ColumnDefinitions>
+                                                                <ColumnDefinition Width="Auto"/>
+                                                                <ColumnDefinition Width="*"/>
+                                                                <ColumnDefinition Width="Auto"/>
+                                                            </Grid.ColumnDefinitions>
+                                                            <Border Grid.Column="0" CornerRadius="3" Padding="6,2" Margin="0,0,8,0"
+                                                                    Background="{Binding StatusColor}">
+                                                                <TextBlock Text="{Binding StatusDisplay}" FontSize="10"
+                                                                           FontWeight="SemiBold" Foreground="White"/>
+                                                            </Border>
+                                                            <StackPanel Grid.Column="1" VerticalAlignment="Center">
+                                                                <TextBlock Text="{Binding DisplayText}" FontWeight="SemiBold" FontSize="11"/>
+                                                                <TextBlock Text="{Binding Prompt}" FontSize="10" Foreground="#666"
+                                                                           TextTrimming="CharacterEllipsis"/>
+                                                            </StackPanel>
+                                                            <Button Grid.Column="2" Content="✕"
+                                                                    Style="{StaticResource SecondaryButtonStyle}"
+                                                                    Command="{Binding DataContext.RemoveWanCharReplaceQueueItemCommand, RelativeSource={RelativeSource AncestorType=ItemsControl}}"
+                                                                    CommandParameter="{Binding}"
+                                                                    Width="26" Height="26" Padding="0" FontSize="10"/>
+                                                        </Grid>
+                                                    </Border>
+                                                </DataTemplate>
+                                            </ItemsControl.ItemTemplate>
+                                        </ItemsControl>
+                                    </StackPanel>
+                                </Border>
+
+                                <!-- ─── Result Output ──────────────────────────────── -->
+                                <Border Grid.Row="6" Background="White" BorderBrush="#99F6E4"
+                                        BorderThickness="0,1,0,0" Padding="12,10">
+                                    <StackPanel>
+                                        <TextBlock Text="🎥 Result Video" FontWeight="Bold" FontSize="13"
+                                                   Foreground="#0D9488" Margin="0,0,0,8"/>
+                                        <Border BorderBrush="#99F6E4" BorderThickness="1" Background="#030712"
+                                                Height="200" CornerRadius="6" Margin="0,0,0,8">
+                                            <Grid>
+                                                <TextBlock Text="Video will appear here after generation"
+                                                           HorizontalAlignment="Center" VerticalAlignment="Center"
+                                                           Foreground="#374151" FontStyle="Italic">
+                                                    <TextBlock.Style>
+                                                        <Style TargetType="TextBlock">
+                                                            <Setter Property="Visibility" Value="Collapsed"/>
+                                                            <Style.Triggers>
+                                                                <DataTrigger Binding="{Binding HasWanCharReplaceResult}" Value="False">
+                                                                    <Setter Property="Visibility" Value="Visible"/>
+                                                                </DataTrigger>
+                                                            </Style.Triggers>
+                                                        </Style>
+                                                    </TextBlock.Style>
+                                                </TextBlock>
+                                                <MediaElement x:Name="WanCharReplaceVideoPlayer"
+                                                              Source="{Binding WanCharReplaceResultPath}"
+                                                              LoadedBehavior="Manual" UnloadedBehavior="Stop"
+                                                              Stretch="Uniform"
+                                                              Visibility="{Binding HasWanCharReplaceResult, Converter={StaticResource BooleanToVisibilityConverter}}"/>
+                                            </Grid>
+                                        </Border>
+                                        <StackPanel Orientation="Horizontal" Margin="0,0,0,6">
+                                            <Button Content="▶ Play" Style="{StaticResource PrimaryButtonStyle}"
+                                                    Command="{Binding PlayWanCharReplaceVideoCommand}"
+                                                    IsEnabled="{Binding HasWanCharReplaceResult}" Margin="0,0,8,0"/>
+                                            <Button Content="📁 Open Folder" Style="{StaticResource SecondaryButtonStyle}"
+                                                    Command="{Binding OpenWanCharReplaceResultFolderCommand}"
+                                                    IsEnabled="{Binding HasWanCharReplaceResult}" Margin="0,0,8,0"/>
+                                            <Button Content="📷 Send to Edit Camera" Style="{StaticResource SecondaryButtonStyle}"
+                                                    Command="{Binding SendWanCharReplaceToEditCameraCommand}"
+                                                    IsEnabled="{Binding HasWanCharReplaceResult}"/>
+                                        </StackPanel>
+                                        <TextBlock Text="{Binding WanCharReplaceResultVideoInfo}"
+                                                   FontStyle="Italic" Foreground="#666" FontSize="11"/>
+                                    </StackPanel>
+                                </Border>
+
+                                <!-- ─── Log ──────────────────────────────────────────── -->
+                                <Border Grid.Row="7" Background="White" BorderBrush="#99F6E4" BorderThickness="0,1,0,0">
+                                    <Expander Header="📝 Processing Log" IsExpanded="False" Margin="6">
+                                        <ScrollViewer MaxHeight="130" VerticalScrollBarVisibility="Auto" Margin="0,4,0,0">
+                                            <TextBox Text="{Binding WanCharReplaceLogOutput, Mode=OneWay}"
+                                                     TextWrapping="Wrap" IsReadOnly="True"
+                                                     FontFamily="Consolas" FontSize="10"
+                                                     Background="Transparent" BorderThickness="0" Padding="10"/>
+                                        </ScrollViewer>
+                                    </Expander>
+                                </Border>
+
+                            </Grid>
+                        </Grid>
+                    </TabItem>
+
                 </TabControl>
             </StackPanel>
         </ScrollViewer>
