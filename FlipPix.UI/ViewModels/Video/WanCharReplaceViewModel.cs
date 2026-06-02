@@ -1333,27 +1333,20 @@ namespace FlipPix.UI.ViewModels.Video
                     class_type = "RTXVideoSuperResolution",
                     _meta = new { title = "RTX Video Super Resolution 2x" }
                 });
-                // Route node 186 images through the RTX upscaler instead of node 42
-                WorkflowNodeUpdater.UpdateNodeInput(ref wfJson, "186", "images", new object[] { "cr_rtx", 0 });
+                // Route node 1860 (CreateVideo) images through the RTX upscaler instead of node 42
+                WorkflowNodeUpdater.UpdateNodeInput(ref wfJson, "1860", "images", new object[] { "cr_rtx", 0 });
                 AddLog("RTX 2x upscale enabled — node cr_rtx inserted");
             }
 
-            // Node 186: main output — clean animation (no reference overlay)
-            // trim_to_audio: false so VHS outputs all WAN frames; duration is controlled by
-            // the num_frames override on node 62 instead of relying on audio trimming.
-            WorkflowNodeUpdater.UpdateNodeInputMultiple(ref wfJson, "186", new Dictionary<string, object>
-            {
-                { "filename_prefix", $"{OutputSubfolder}/CharReplace" },
-                { "frame_rate", fps },
-                { "trim_to_audio", false },
-            });
+            // Node 186 (SaveVideo): main output — set filename prefix
+            WorkflowNodeUpdater.UpdateNodeInput(ref wfJson, "186", "filename_prefix", $"{OutputSubfolder}/CharReplace");
+            // Node 1860 (CreateVideo): set fps for main output
+            WorkflowNodeUpdater.UpdateNodeInput(ref wfJson, "1860", "fps", fps);
 
-            // Node 30: comparison/debug output
-            WorkflowNodeUpdater.UpdateNodeInputMultiple(ref wfJson, "30", new Dictionary<string, object>
-            {
-                { "filename_prefix", $"{TmpOutputSubfolder}/CharReplace_cmp" },
-                { "frame_rate", fps },
-            });
+            // Node 30 (SaveVideo): comparison/debug output — set filename prefix
+            WorkflowNodeUpdater.UpdateNodeInput(ref wfJson, "30", "filename_prefix", $"{TmpOutputSubfolder}/CharReplace_cmp");
+            // Node 300 (CreateVideo): set fps for comparison output
+            WorkflowNodeUpdater.UpdateNodeInput(ref wfJson, "300", "fps", fps);
 
             AddLog($"Workflow: skip={skipFrames}, res={width}x{height}, fps={fps}, steps={steps}, seed={seed}, rtx={UseRtxUpscale}");
             return JsonSerializer.Deserialize<JsonElement>(wfJson);

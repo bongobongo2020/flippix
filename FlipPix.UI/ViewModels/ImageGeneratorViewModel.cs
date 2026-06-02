@@ -3048,6 +3048,7 @@ namespace FlipPix.UI.ViewModels
                 var originalDenoise = Denoise;
                 var originalLoraEnabled = LoraEnabled;
                 var originalSelectedLora = SelectedLora;
+                var originalSelectedWorkflow = SelectedWorkflow;
 
                 ImagePrompt = queueItem.Prompt;
                 AspectRatioIndex = queueItem.AspectRatioIndex;
@@ -3057,6 +3058,7 @@ namespace FlipPix.UI.ViewModels
                 Denoise = queueItem.Denoise;
                 LoraEnabled = queueItem.LoraEnabled;
                 SelectedLora = queueItem.SelectedLora;
+                SelectedWorkflow = queueItem.SelectedWorkflow;
 
                 var updatedWorkflow = UpdateWorkflowParameters(workflow);
                 _lastWorkflow = updatedWorkflow; // needed by GetOutputImagesFromComfyUI for workflow detection
@@ -3070,6 +3072,7 @@ namespace FlipPix.UI.ViewModels
                 Denoise = originalDenoise;
                 LoraEnabled = originalLoraEnabled;
                 SelectedLora = originalSelectedLora;
+                SelectedWorkflow = originalSelectedWorkflow;
 
                 // Execute workflow
                 ProcessingStatus = "Generating image...";

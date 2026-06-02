@@ -228,23 +228,39 @@ namespace FlipPix.UI.ViewModels
             _allWorkflows.Clear();
             WorkflowNames.Clear();
 
-            var workflowDir = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "workflow");
+            var baseDir = AppDomain.CurrentDomain.BaseDirectory;
+            var workflowDir = Path.Combine(baseDir, "workflow");
             if (!Directory.Exists(workflowDir))
             {
                 AddLog($"Workflow directory not found: {workflowDir}");
                 return;
             }
 
-            var files = Directory.GetFiles(workflowDir, "*.json")
+            var rootFiles = Directory.GetFiles(workflowDir, "*.json")
                 .Where(f => !Path.GetDirectoryName(f)!.EndsWith("ZStyles", StringComparison.OrdinalIgnoreCase))
-                .OrderBy(f => Path.GetFileNameWithoutExtension(f))
-                .ToArray();
+                .OrderBy(f => Path.GetFileNameWithoutExtension(f));
 
-            foreach (var file in files)
+            foreach (var file in rootFiles)
             {
                 var name = Path.GetFileNameWithoutExtension(file);
                 _allWorkflows.Add(new WorkflowInfo { Name = name, WorkflowFile = file });
                 WorkflowNames.Add(name);
+            }
+
+            // Also include story-specific workflows from workflow/video/story/
+            var storyDir = Path.Combine(workflowDir, "video", "story");
+            AddLog($"Story workflow dir: {storyDir} | exists={Directory.Exists(storyDir)}");
+            if (Directory.Exists(storyDir))
+            {
+                var storyFiles = Directory.GetFiles(storyDir, "*.json")
+                    .OrderBy(f => Path.GetFileNameWithoutExtension(f));
+
+                foreach (var file in storyFiles)
+                {
+                    var name = $"[Story] {Path.GetFileNameWithoutExtension(file)}";
+                    _allWorkflows.Add(new WorkflowInfo { Name = name, WorkflowFile = file });
+                    WorkflowNames.Add(name);
+                }
             }
 
             AddLog($"Loaded {_allWorkflows.Count} workflows");
@@ -613,9 +629,26 @@ namespace FlipPix.UI.ViewModels
                     }
                 }
             }
+            else if (workflowDict.ContainsKey("6"))
+            {
+                // painteri2v / CLIPTextEncode workflow: node "6" is the positive prompt
+                var node = JsonSerializer.Deserialize<Dictionary<string, object>>(workflowDict["6"].GetRawText());
+                if (node != null && node.ContainsKey("inputs"))
+                {
+                    var inputs = JsonSerializer.Deserialize<Dictionary<string, object>>(
+                        JsonSerializer.Serialize(node["inputs"]));
+                    if (inputs != null && inputs.ContainsKey("text"))
+                    {
+                        inputs["text"] = prompt;
+                        node["inputs"] = inputs;
+                        workflowDict["6"] = JsonSerializer.SerializeToElement(node);
+                        AddLog($"Injected prompt into node 6 (CLIPTextEncode)");
+                    }
+                }
+            }
             else
             {
-                AddLog("⚠ Node 177:109 not found — prompt not injected (check workflow format)");
+                AddLog("⚠ No supported prompt node found — prompt not injected (check workflow format)");
             }
 
             return JsonSerializer.SerializeToElement(workflowDict);
@@ -636,7 +669,7 @@ namespace FlipPix.UI.ViewModels
                     return string.Empty;
                 }
 
-                var videoFiles = Directory.GetFiles(comfyUIOutputDir, "LTX-2*.mp4")
+                var videoFiles = Directory.GetFiles(comfyUIOutputDir, "*.mp4", SearchOption.AllDirectories)
                     .OrderByDescending(f => File.GetLastWriteTime(f))
                     .ToList();
 
@@ -656,12 +689,12 @@ namespace FlipPix.UI.ViewModels
                     }
                     else
                     {
-                        AddLog($"Latest LTX-2 file is {age.TotalMinutes:F1} min old — skipping");
+                        AddLog($"Latest video is {age.TotalMinutes:F1} min old — skipping");
                     }
                 }
                 else
                 {
-                    AddLog("No LTX-2*.mp4 files found in ComfyUI output folder");
+                    AddLog("No .mp4 files found in ComfyUI output folder");
                 }
             }
             catch (Exception ex)

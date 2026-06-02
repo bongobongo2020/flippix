@@ -116,7 +116,8 @@ namespace FlipPix.UI.ViewModels.Video
             VantageSulphur2,
             Eros10S,
             LTX22B,
-            Painter
+            Painter,
+            PainterEnhanced
         }
 
         // UI state
@@ -836,7 +837,7 @@ namespace FlipPix.UI.ViewModels.Video
                 if (_selectedStoryWorkflow != value)
                 {
                     _selectedStoryWorkflow = value;
-                    _useLTXWorkflow = value != StoryVideoWorkflow.Painter;
+                    _useLTXWorkflow = value != StoryVideoWorkflow.Painter && value != StoryVideoWorkflow.PainterEnhanced;
                     OnPropertyChanged();
                     OnPropertyChanged(nameof(UseLTXWorkflow));
                     OnPropertyChanged(nameof(WorkflowDisplay));
@@ -859,6 +860,7 @@ namespace FlipPix.UI.ViewModels.Video
             StoryVideoWorkflow.Eros10S => "10Eros InstantAction (10Eros_10SNodes_InstantAction_I2VAPI.json)",
             StoryVideoWorkflow.LTX22B => "LTX-22-B (LTX-22-B.json)",
             StoryVideoWorkflow.Painter => "Painter (painteri2vAPI.json)",
+            StoryVideoWorkflow.PainterEnhanced => "Painter Enhanced NSFW-HL (painteri2vAPI-enhancednsfw-HL.json)",
             _ => "Vantage Sulphur 2 (Vantage-Sulphur-2-WorkflowAPI.json)"
         };
 
@@ -1759,6 +1761,7 @@ namespace FlipPix.UI.ViewModels.Video
                         StoryVideoWorkflow.Eros10S => Path.Combine("video", "ltx", "10Eros_10SNodes_InstantAction_I2VAPI.json"),
                         StoryVideoWorkflow.LTX22B => Path.Combine("video", "ltx", "LTX-22-B.json"),
                         StoryVideoWorkflow.Painter => "painteri2vAPI.json",
+                        StoryVideoWorkflow.PainterEnhanced => Path.Combine("video", "story", "painteri2vAPI-enhancednsfw-HL.json"),
                         _ => Path.Combine("video", "ltx", "Vantage-Sulphur-2-WorkflowAPI.json")
                     };
                 }
@@ -1897,7 +1900,7 @@ namespace FlipPix.UI.ViewModels.Video
             // Determine which workflow to use:
             // - Story video: SelectedStoryWorkflow (VantageSulphur2, Eros10S, LTX22B, or Painter)
             // - Single video: SelectedSingleWorkflow (LTX2V or Wan22)
-            bool isStoryLtx = _isStoryVideoMode && _selectedStoryWorkflow != StoryVideoWorkflow.Painter;
+            bool isStoryLtx = _isStoryVideoMode && _selectedStoryWorkflow != StoryVideoWorkflow.Painter && _selectedStoryWorkflow != StoryVideoWorkflow.PainterEnhanced;
             bool isLTXV = !_isStoryVideoMode && SelectedSingleWorkflow == SingleVideoWorkflow.LTX2V;
             bool isWan22 = !_isStoryVideoMode && SelectedSingleWorkflow == SingleVideoWorkflow.Wan22;
 

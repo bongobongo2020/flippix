@@ -68,18 +68,9 @@
       "title": "WanVideo Decode"
     }
   },
-  "30": {
+  "300": {
     "inputs": {
-      "frame_rate": 16,
-      "loop_count": 0,
-      "filename_prefix": "Wanimate",
-      "format": "video/h264-mp4",
-      "pix_fmt": "yuv420p",
-      "crf": 19,
-      "save_metadata": true,
-      "trim_to_audio": true,
-      "pingpong": false,
-      "save_output": true,
+      "fps": 16,
       "images": [
         "66",
         0
@@ -89,9 +80,24 @@
         2
       ]
     },
-    "class_type": "VHS_VideoCombine",
+    "class_type": "CreateVideo",
     "_meta": {
-      "title": "Video Combine 🎥🅥🅗🅢"
+      "title": "Create Video"
+    }
+  },
+  "30": {
+    "inputs": {
+      "filename_prefix": "Wanimate",
+      "format": "auto",
+      "codec": "auto",
+      "video": [
+        "300",
+        0
+      ]
+    },
+    "class_type": "SaveVideo",
+    "_meta": {
+      "title": "Save Video"
     }
   },
   "38": {
@@ -343,26 +349,32 @@
       "title": "Load CLIP Vision"
     }
   },
-  "75": {
+  "750": {
     "inputs": {
-      "frame_rate": 16,
-      "loop_count": 0,
-      "filename_prefix": "WanVideo2_1_T2V",
-      "format": "video/h264-mp4",
-      "pix_fmt": "yuv420p",
-      "crf": 19,
-      "save_metadata": true,
-      "trim_to_audio": false,
-      "pingpong": false,
-      "save_output": false,
+      "fps": 16,
       "images": [
         "99",
         0
       ]
     },
-    "class_type": "VHS_VideoCombine",
+    "class_type": "CreateVideo",
     "_meta": {
-      "title": "Video Combine 🎥🅥🅗🅢"
+      "title": "Create Video"
+    }
+  },
+  "75": {
+    "inputs": {
+      "filename_prefix": "WanVideo2_1_T2V",
+      "format": "auto",
+      "codec": "auto",
+      "video": [
+        "750",
+        0
+      ]
+    },
+    "class_type": "SaveVideo",
+    "_meta": {
+      "title": "Save Video"
     }
   },
   "77": {
@@ -561,26 +573,32 @@
       "title": "Draw ViT Pose"
     }
   },
-  "174": {
+  "1740": {
     "inputs": {
-      "frame_rate": 16,
-      "loop_count": 0,
-      "filename_prefix": "vitpose",
-      "format": "video/h264-mp4",
-      "pix_fmt": "yuv420p",
-      "crf": 19,
-      "save_metadata": true,
-      "trim_to_audio": false,
-      "pingpong": false,
-      "save_output": false,
+      "fps": 16,
       "images": [
         "172",
         1
       ]
     },
-    "class_type": "VHS_VideoCombine",
+    "class_type": "CreateVideo",
     "_meta": {
-      "title": "Video Combine 🎥🅥🅗🅢"
+      "title": "Create Video"
+    }
+  },
+  "174": {
+    "inputs": {
+      "filename_prefix": "vitpose",
+      "format": "auto",
+      "codec": "auto",
+      "video": [
+        "1740",
+        0
+      ]
+    },
+    "class_type": "SaveVideo",
+    "_meta": {
+      "title": "Save Video"
     }
   },
   "178": {
@@ -606,26 +624,32 @@
       "title": "Get Image Size & Count"
     }
   },
-  "181": {
+  "1810": {
     "inputs": {
-      "frame_rate": 16,
-      "loop_count": 0,
-      "filename_prefix": "WanVideo2_1_T2V",
-      "format": "video/h264-mp4",
-      "pix_fmt": "yuv420p",
-      "crf": 19,
-      "save_metadata": true,
-      "trim_to_audio": false,
-      "pingpong": false,
-      "save_output": false,
+      "fps": 16,
       "images": [
         "173",
         0
       ]
     },
-    "class_type": "VHS_VideoCombine",
+    "class_type": "CreateVideo",
     "_meta": {
-      "title": "Video Combine 🎥🅥🅗🅢"
+      "title": "Create Video"
+    }
+  },
+  "181": {
+    "inputs": {
+      "filename_prefix": "WanVideo2_1_T2V",
+      "format": "auto",
+      "codec": "auto",
+      "video": [
+        "1810",
+        0
+      ]
+    },
+    "class_type": "SaveVideo",
+    "_meta": {
+      "title": "Save Video"
     }
   },
   "182": {
@@ -648,18 +672,9 @@
       "title": "Grow Mask With Blur"
     }
   },
-  "186": {
+  "1860": {
     "inputs": {
-      "frame_rate": 16,
-      "loop_count": 0,
-      "filename_prefix": "Wanimate",
-      "format": "video/h264-mp4",
-      "pix_fmt": "yuv420p",
-      "crf": 19,
-      "save_metadata": true,
-      "trim_to_audio": true,
-      "pingpong": false,
-      "save_output": true,
+      "fps": 16,
       "images": [
         "42",
         0
@@ -669,9 +684,24 @@
         2
       ]
     },
-    "class_type": "VHS_VideoCombine",
+    "class_type": "CreateVideo",
     "_meta": {
-      "title": "Video Combine 🎥🅥🅗🅢"
+      "title": "Create Video"
+    }
+  },
+  "186": {
+    "inputs": {
+      "filename_prefix": "Wanimate",
+      "format": "auto",
+      "codec": "auto",
+      "video": [
+        "1860",
+        0
+      ]
+    },
+    "class_type": "SaveVideo",
+    "_meta": {
+      "title": "Save Video"
     }
   },
   "187": {

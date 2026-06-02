@@ -335,24 +335,6 @@
       "title": "📐 custom size/ attach to KSampler"
     }
   },
-  "319": {
-    "inputs": {
-      "Blend Mode": "normal",
-      "compare_controls": null,
-      "image_a": [
-        "228",
-        0
-      ],
-      "image_b": [
-        "222",
-        0
-      ]
-    },
-    "class_type": "EsesImageCompare",
-    "_meta": {
-      "title": "Eses Image Compare"
-    }
-  },
   "323": {
     "inputs": {
       "images": [

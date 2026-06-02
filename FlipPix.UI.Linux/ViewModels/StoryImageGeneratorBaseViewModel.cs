@@ -554,6 +554,8 @@ namespace FlipPix.UI.Linux.ViewModels
                 QueueProgress = 0;
 
                 var jsonFileName = Path.GetFileNameWithoutExtension(PromptJsonFilePath);
+                if (string.IsNullOrWhiteSpace(jsonFileName) || jsonFileName.IndexOfAny(Path.GetInvalidFileNameChars()) >= 0)
+                    jsonFileName = "output";
                 string? sessionOutputDir = null;
 
                 if (UseSessionOutputFolder)

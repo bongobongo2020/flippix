@@ -94,18 +94,6 @@
       "title": "VAE Encode"
     }
   },
-  "109": {
-    "inputs": {
-      "anything": [
-        "8",
-        0
-      ]
-    },
-    "class_type": "easy cleanGpuUsed",
-    "_meta": {
-      "title": "Clean VRAM Used"
-    }
-  },
   "145": {
     "inputs": {
       "shift": 3.1,
