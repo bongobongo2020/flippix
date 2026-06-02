@@ -240,26 +240,32 @@
       "title": "Load Image"
     }
   },
-  "304": {
+  "3040": {
     "inputs": {
-      "frame_rate": 21,
-      "loop_count": 0,
-      "filename_prefix": "2026-04-01/20260401_203521_Wan2.2",
-      "format": "video/h264-mp4",
-      "pix_fmt": "yuv420p",
-      "crf": 19,
-      "save_metadata": true,
-      "trim_to_audio": false,
-      "pingpong": false,
-      "save_output": true,
+      "fps": 21,
       "images": [
         "8",
         0
       ]
     },
-    "class_type": "VHS_VideoCombine",
+    "class_type": "CreateVideo",
     "_meta": {
-      "title": "Video Combine 🎥🅥🅗🅢"
+      "title": "Create Video"
+    }
+  },
+  "304": {
+    "inputs": {
+      "filename_prefix": "2026-04-01/20260401_203521_Wan2.2",
+      "format": "auto",
+      "codec": "auto",
+      "video": [
+        "3040",
+        0
+      ]
+    },
+    "class_type": "SaveVideo",
+    "_meta": {
+      "title": "Save Video"
     }
   },
   "421": {

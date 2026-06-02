@@ -558,6 +558,33 @@ public class ComfyUIService : IDisposable
                     }
                     break;
 
+                case "execution_error":
+                    try
+                    {
+                        using var errDoc = System.Text.Json.JsonDocument.Parse(message.RawData);
+                        if (errDoc.RootElement.TryGetProperty("data", out var errData))
+                        {
+                            var errorPromptId = errData.TryGetProperty("prompt_id", out var pidEl) ? pidEl.GetString() : null;
+                            var errorNode = errData.TryGetProperty("node_id", out var nodeEl) ? nodeEl.GetString() : "unknown";
+                            var errorMsg = errData.TryGetProperty("exception_message", out var msgEl) ? msgEl.GetString() : "Unknown error";
+                            _logger.LogError($"ComfyUI execution error on node {errorNode}: {errorMsg}");
+                            if (!string.IsNullOrEmpty(errorPromptId))
+                            {
+                                var errorComplete = new ExecutionCompleteMessage
+                                {
+                                    Type = "execution_error",
+                                    Data = new ExecutionCompleteData { PromptId = errorPromptId }
+                                };
+                                ExecutionCompleted?.Invoke(this, errorComplete);
+                            }
+                        }
+                    }
+                    catch (Exception parseEx)
+                    {
+                        _logger.LogWarning("Failed to parse execution_error message: " + parseEx.Message);
+                    }
+                    break;
+
                 // Silently ignore these common but unimportant message types
                 case "execution_start":
                 case "execution_cached":

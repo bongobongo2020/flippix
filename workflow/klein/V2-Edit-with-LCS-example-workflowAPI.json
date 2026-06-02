@@ -38,21 +38,20 @@
     "inputs": {
       "clip_name": "qwen_3_8b.safetensors",
       "type": "flux2",
-      "device": "cuda:0"
+      "device": "default"
     },
-    "class_type": "CLIPLoaderMultiGPU",
+    "class_type": "CLIPLoader",
     "_meta": {
-      "title": "CLIPLoaderMultiGPU"
+      "title": "Load CLIP"
     }
   },
   "153": {
     "inputs": {
-      "vae_name": "flux2-vae.safetensors",
-      "device": "cuda:0"
+      "vae_name": "flux2-vae.safetensors"
     },
-    "class_type": "VAELoaderMultiGPU",
+    "class_type": "VAELoader",
     "_meta": {
-      "title": "VAELoaderMultiGPU"
+      "title": "Load VAE"
     }
   },
   "160": {
@@ -67,12 +66,11 @@
   "359": {
     "inputs": {
       "unet_name": "klein/x3n0666_x3n0666Fp16.safetensors",
-      "weight_dtype": "default",
-      "device": "cuda:0"
+      "weight_dtype": "default"
     },
-    "class_type": "UNETLoaderMultiGPU",
+    "class_type": "UNETLoader",
     "_meta": {
-      "title": "UNETLoaderMultiGPU"
+      "title": "Load Diffusion Model"
     }
   },
   "371": {
@@ -98,7 +96,7 @@
   },
   "372": {
     "inputs": {
-      "sampler_name": "res_2m"
+      "sampler_name": "res_multistep"
     },
     "class_type": "KSamplerSelect",
     "_meta": {
@@ -228,7 +226,7 @@
   },
   "385": {
     "inputs": {
-      "image": "00000_00012_-12_00001_.png"
+      "image": "-38_2.png"
     },
     "class_type": "LoadImage",
     "_meta": {
@@ -304,44 +302,6 @@
       "title": "CLIP Text Encode (Positive Prompt)"
     }
   },
-  "431": {
-    "inputs": {
-      "vae": [
-        "153",
-        0
-      ]
-    },
-    "class_type": "LCSLoadData",
-    "_meta": {
-      "title": "LCS Load Data"
-    }
-  },
-  "432": {
-    "inputs": {
-      "mode": "auto",
-      "intensity": 1,
-      "model": [
-        "359",
-        0
-      ],
-      "lcs_data": [
-        "431",
-        0
-      ],
-      "vae": [
-        "153",
-        0
-      ],
-      "reference_image": [
-        "388",
-        0
-      ]
-    },
-    "class_type": "LCSColorAnchor",
-    "_meta": {
-      "title": "LCS Color Anchor"
-    }
-  },
   "433": {
     "inputs": {
       "samples": [
@@ -390,7 +350,7 @@
     "inputs": {
       "cfg": 1,
       "model": [
-        "442",
+        "359",
         0
       ],
       "positive": [
@@ -421,42 +381,11 @@
   },
   "439": {
     "inputs": {
-      "noise_seed": 437981058906333
+      "noise_seed": 873334354371256
     },
     "class_type": "RandomNoise",
     "_meta": {
       "title": "RandomNoise"
-    }
-  },
-  "441": {
-    "inputs": {
-      "vae": [
-        "153",
-        0
-      ]
-    },
-    "class_type": "LCSSharpnessCalibrate",
-    "_meta": {
-      "title": "LCS Sharpness Calibrate"
-    }
-  },
-  "442": {
-    "inputs": {
-      "strength": 2,
-      "start_step": 5,
-      "end_step": 15,
-      "model": [
-        "432",
-        0
-      ],
-      "sharpness_data": [
-        "441",
-        0
-      ]
-    },
-    "class_type": "LCSSharpnessIntervene",
-    "_meta": {
-      "title": "LCS Sharpness Intervene"
     }
   },
   "443": {

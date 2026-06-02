@@ -835,6 +835,12 @@
                                                     <TextBlock Text="painteri2vAPI.json" Foreground="#6C757D" FontSize="11" VerticalAlignment="Center"/>
                                                 </StackPanel>
                                             </ComboBoxItem>
+                                            <ComboBoxItem>
+                                                <StackPanel Orientation="Horizontal">
+                                                    <TextBlock Text="🔥 Painter Enhanced" FontWeight="SemiBold" Margin="0,0,8,0"/>
+                                                    <TextBlock Text="painteri2vAPI-enhancednsfw-HL.json" Foreground="#6C757D" FontSize="11" VerticalAlignment="Center"/>
+                                                </StackPanel>
+                                            </ComboBoxItem>
                                         </ComboBox>
                                     </StackPanel>
                                 </Border>

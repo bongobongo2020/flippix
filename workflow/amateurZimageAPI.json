@@ -57,7 +57,7 @@
   },
   "105": {
     "inputs": {
-      "lora_name": "zimage\\amateur_photography_zimage_v1.safetensors",
+      "lora_name": "zimage/amateur_photography_zimage_v1.safetensors",
       "strength_model": 0.4,
       "model": [
         "760",
@@ -71,7 +71,7 @@
   },
   "107": {
     "inputs": {
-      "image": "",
+      "image": "-39.png",
       "emoji_in_readable_text": false,
       "show_info": "disabled"
     },
@@ -82,7 +82,7 @@
   },
   "109": {
     "inputs": {
-      "textDisplay": "=== ComfyUI Generation Parameters ===\n\n[Node Reference: 57]x[Node Reference: 57] | 0.00MP | Ratio: N/A | 0.94MB\n\n🧠 MODEL: z_image_turbo_bf16.safetensors (UNET)\n\n🎯 SAMPLING SETTINGS:\n  Seed: 768995963258494\n  Steps: 9\n  CFG Scale: 1.5\n  Sampler: uni_pc\n  Scheduler: simple\n  Denoise: 1.0\n\n📝 PROMPTS:\n  Positive: This is a promotional photograph, likely for a website, with a clear focus on the subject’s feet. The image is shot from a low angle, looking up at the woman, which creates a sense of prominence and intimacy.\n\n**Subject and Composition:**\nThe central figure is a young woman with dark hair , posing with one leg raised. Her pose is confident and playful: she stands with one hand on her hip, while her other leg is bent and lifted, with her foot prominently displayed in the foreground. The composition uses the low angle to emphasize the size of her foot, which dominates the lower half of the frame. Her body is angled slightly, drawing the viewer’s eye from her face down to her foot.\n\n**Color Palette:**\nThe image features a warm, sunlit color scheme. The woman’s red bikini is the most striking color, creating a bold contrast against the more neutral background. Her skin tone is a natural, light beige, and the green foliage provides a fresh, natural contrast. The background wall is a muted beige or light tan, and the sky is a very bright, washed-out white, suggesting a bright, possibly overcast day.\n\n**Objects and Details:**\n- **Woman:** She is wearing a red bikini top and matching briefs. She has dark, short tomboy hair . A thin, delicate necklace is visible around her neck. Her expression is a subtle, confident smile.\n- **Foot:** The raised foot is the focal point. It is shown in a close-up, with the sole facing the camera. The skin is smooth, sweaty and oily, and the foot has a natural, slightly tanned appearance. The toes are slightly curled, and the sole has visible lines and creases.\n- **Background:** The background is a simple, beige brick wall. To the left and bottom, there is lush green foliage, including a plant with spiky, broad leaves (possibly a type of palm) and some flowering shrubs with reddish-pink blooms. The top of the image shows a white, possibly concrete, ledge or border.\n\n**Mood and Tone:**\nThe mood is playful, sensual, and confident. The low-angle shot and the focus on the foot create an intimate, almost voyeuristic feel. The bright, sunlit setting and the woman’s confident pose suggest a carefree, summery atmosphere. The overall tone is suggestive, with the emphasis on the foot serving as a focal point.\n\n🎨 LORA MODELS:\n  zimage_gilliananderson_v1.safetensors (Strength: 1)\n  zimage_tinafey_v1.safetensors (Strength: 1.0)\n\n🧠 MODELS & COMPONENTS:\n  UNET: z_image_turbo_bf16.safetensors\n  CLIP: qwen_3_4b.safetensors\n  VAE: ae.safetensors\n",
+      "textDisplay": "=== ComfyUI Generation Parameters ===\n\n1088x1600 | 1.74MP | Ratio: 17:25 or 0.68:1 | 2.52MB\n\n MODEL: z_image_turbo-Q8_0.gguf (UNET)\n\n SAMPLING SETTINGS:\n  Seed: N/A\n  Steps: 8\n  CFG Scale: N/A\n  Sampler: euler\n  Scheduler: N/A\n  Denoise: N/A\n\n PROMPTS: |If empty, Check fail-safe below|\n\n  Positive:\n           A woman with short, spiky blonde hair is depicted from the chest up, aiming a large, dark gray firearm. Her hair is tousled and appears to be catching the light. She has blue eyes and shadow on her cheeks. She is wearing a white tank top with one strap visibly off her right shoulder. The firearm she holds is dark gray and appears to be a heavy weapon. A dark ancient castle is visible in the background on the right side. Her attire includes dark, torn shorts and ripped, dark stockings or tights on her legs.\n\n\n LORA MODELS:\n  sridevi-zimage.safetensors (Strength: 0.65)\n\n MODELS & COMPONENTS:\n  UNET: z_image_turbo-Q8_0.gguf\n  CLIP: Qwen3-4B.i1-Q5_K_S.gguf\n  VAE: ae.safetensors\n\n\n=== ALL DETECTED TEXT IN WORKFLOW ===\n(Fail-safe dump of all text-like values)\n\n[PrimitiveInt (ID 243)]\n1088\n\n------\n\n[PrimitiveInt (ID 248)]\n1600\n\n------\n\n[PrimitiveInt (ID 307)]\n1002070948\n\n------\n\n[StringTrim (ID 385)]\nA medium shot shows a lithe warrior woman with tanned skin and long dark hair, wearing a bronze two-piece bikini armor with leather straps, dark bracers on her forearms, and thigh-high leather greaves, with black tribal stripes painted across her hips and a face mask painted on her right cheek, pulling her dagger free from the dead gladiator's neck, blood dripping from the blade onto the sand, her expression calm but exhausted, her muscles tense, the dead body lies twisted in the dust behind her, the light has shifted to a fiery sunset red, melancholic and triumphant.\n\n------\n\n[CLIPTextEncode (ID 54)]\nA woman with short, spiky blonde hair is depicted from the chest up, aiming a large, dark gray firearm. Her hair is tousled and appears to be catching the light. She has blue eyes and shadow on her cheeks. She is wearing a white tank top with one strap visibly off her right shoulder. The firearm she holds is dark gray and appears to be a heavy weapon. A dark ancient castle is visible in the background on the right side. Her attire includes dark, torn shorts and ripped, dark stockings or tights on her legs.\n\n------\n\n[PrimitiveString (ID 90)]\n{$@}\n\n------\n\n[PrimitiveStringMultiline (ID 122)]\nA cinematic shot from a classic film with deep black shadows and warm earth tones. The film grain is visible. The scene, imbued with profound emotion, depicts: {$@}",
       "text": [
         "107",
         0
@@ -123,7 +123,7 @@
   },
   "506": {
     "inputs": {
-      "sage_attention": "sageattn_qk_int8_pv_fp16_triton",
+      "sage_attention": "auto",
       "allow_compile": true,
       "model": [
         "16",
@@ -638,7 +638,7 @@
   },
   "752": {
     "inputs": {
-      "lora_name": "zimage\\amateur_photography_zimage_v1.safetensors",
+      "lora_name": "zimage/amateur_photography_zimage_v1.safetensors",
       "strength_model": 0.9,
       "model": [
         "507",
@@ -737,8 +737,8 @@
   },
   "760": {
     "inputs": {
-      "lora_name": "zimage\\amateur_photography_zimage_v1.safetensors",
-      "strength_model": 0.0,
+      "lora_name": "zimage/amateur_photography_zimage_v1.safetensors",
+      "strength_model": 0,
       "model": [
         "507",
         0

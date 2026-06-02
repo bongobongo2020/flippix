@@ -678,7 +678,7 @@
                                         <TextBlock Text="Actions" Style="{StaticResource HeaderTextStyle}" Foreground="#6366F1"/>
                                         <Button Content="Generate Image"
                                                Style="{StaticResource PrimaryButtonStyle}"
-                                               Command="{Binding Analyzer.GenerateImageCommand}"
+                                               Command="{Binding Analyzer.AddToQueueAndStartCommand}"
                                                HorizontalAlignment="Stretch"
                                                Height="42"
                                                FontSize="14"
@@ -1162,6 +1162,16 @@
                                                     </Button.Style>
                                                 </Button>
                                             </Grid>
+
+                                            <!-- Retry Failed Button -->
+                                            <Button Content="🔄 Retry Failed"
+                                                   Command="{Binding Analyzer.ReprocessAllFailedCommand}"
+                                                   Style="{StaticResource SecondaryButtonStyle}"
+                                                   Margin="0,8,0,0"
+                                                   Height="28"
+                                                   FontSize="11"
+                                                   Background="#FFA500"
+                                                   Padding="12,4"/>
                                         </StackPanel>
                                     </Border>
                                 </StackPanel>

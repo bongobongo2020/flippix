@@ -749,22 +749,8 @@ namespace FlipPix.UI.ViewModels
                 ProcessingProgress = 95;
                 AddLog("Looking for generated image...");
 
-                List<byte[]> outputImages = new();
-                int retryCount = 0;
-                int maxRetries = 20;
-
-                while (retryCount < maxRetries && !outputImages.Any())
-                {
-                    if (retryCount > 0)
-                    {
-                        AddLog($"Retry {retryCount}/{maxRetries} - waiting 5 seconds...");
-                        await Task.Delay(5000, _cancellationTokenSource.Token);
-                    }
-
-                    _cancellationTokenSource.Token.ThrowIfCancellationRequested();
-                    outputImages = await GetOutputImagesFromComfyUI(promptId);
-                    retryCount++;
-                }
+                _cancellationTokenSource.Token.ThrowIfCancellationRequested();
+                var outputImages = await GetOutputImagesFromComfyUI(promptId);
 
                 if (outputImages.Any())
                 {
@@ -828,6 +814,7 @@ namespace FlipPix.UI.ViewModels
             {
                 { "denoise", 0.5 },
                 { "steps", queueItem.Steps },
+                { "steps_to_run", queueItem.Steps },
                 { "cfg", queueItem.Cfg }
             });
 
@@ -991,79 +978,52 @@ namespace FlipPix.UI.ViewModels
                             return images;
                         }
 
-                        var searchDirs = new List<string>();
+                        // First: ask ComfyUI history for the exact output file for this prompt
+                        AddLog("Querying ComfyUI history for exact output files...");
+                        var historyFiles = await _comfyUIService.HttpClient.GetOutputFilesForPromptAsync(promptId);
 
-                        var zimageDir = Path.Combine(comfyUIOutputDir, "ZImage");
-                        if (Directory.Exists(zimageDir))
+                        if (historyFiles.Any())
                         {
-                            searchDirs.Add(zimageDir);
-                            AddLog("Added ZImage folder to search directories");
-                        }
+                            AddLog($"History returned {historyFiles.Count} output file(s)");
 
-                        searchDirs.Add(comfyUIOutputDir);
-
-                        try
-                        {
-                            var dateFolders = Directory.GetDirectories(comfyUIOutputDir)
-                                .Where(d => Regex.IsMatch(Path.GetFileName(d), @"^\d{4}-\d{2}-\d{2}$"))
-                                .OrderByDescending(d => Directory.GetLastWriteTime(d))
-                                .Take(3);
-
-                            foreach (var dateDir in dateFolders)
-                            {
-                                searchDirs.Add(dateDir);
-                            }
-                        }
-                        catch { }
-
-                        AddLog($"Searching in {searchDirs.Count} directories for output images");
-
-                        foreach (var searchDir in searchDirs)
-                        {
-                            var dirName = Path.GetFileName(searchDir);
-                            var pattern = dirName.Equals("ZImage", StringComparison.OrdinalIgnoreCase) ? "AmateurImage*.png" : "*.png";
-
-                            var recentFiles = Directory.GetFiles(searchDir, pattern)
-                                .Select(f => new FileInfo(f))
-                                .Where(f => (DateTime.Now - f.LastWriteTime).TotalMinutes < 2)
-                                .OrderByDescending(f => f.LastWriteTime)
+                            // Prefer SaveImage outputs (AmateurImage prefix), skip PreviewImage temp files
+                            var candidates = historyFiles
+                                .Where(f => f.EndsWith(".png", StringComparison.OrdinalIgnoreCase)
+                                         && !Path.GetFileName(f).StartsWith("temp_", StringComparison.OrdinalIgnoreCase))
+                                .OrderByDescending(f => f.Contains("AmateurImage", StringComparison.OrdinalIgnoreCase))
                                 .ToList();
 
-                            if (recentFiles.Any())
+                            foreach (var relativePath in candidates)
                             {
-                                AddLog($"Found {recentFiles.Count} recent PNG files in: {dirName}");
-                                var latestFile = recentFiles.First();
-                                AddLog($"Using latest file: {latestFile.Name} (modified: {latestFile.LastWriteTime})");
-                                images.Add(await File.ReadAllBytesAsync(latestFile.FullName));
-                                break;
+                                var fullPath = Path.Combine(comfyUIOutputDir, relativePath.Replace('/', Path.DirectorySeparatorChar));
+                                if (File.Exists(fullPath))
+                                {
+                                    AddLog($"Loading output from history: {relativePath}");
+                                    images.Add(await File.ReadAllBytesAsync(fullPath));
+                                    break;
+                                }
                             }
                         }
 
+                        // Fallback: scan ZImage folder for files written after workflow started
                         if (!images.Any())
                         {
-                            AddLog($"No recent images found in retry {retryCount + 1}");
+                            AddLog($"History lookup yielded no file, scanning ZImage folder (retry {retryCount + 1})...");
 
-                            if (retryCount >= 5)
+                            var zimageDir = Path.Combine(comfyUIOutputDir, "ZImage");
+                            if (Directory.Exists(zimageDir))
                             {
-                                foreach (var searchDir in searchDirs)
+                                var recentFiles = Directory.GetFiles(zimageDir, "AmateurImage*.png")
+                                    .Select(f => new FileInfo(f))
+                                    .Where(f => (DateTime.Now - f.LastWriteTime).TotalMinutes < 3)
+                                    .OrderByDescending(f => f.LastWriteTime)
+                                    .ToList();
+
+                                if (recentFiles.Any())
                                 {
-                                    var dirName = Path.GetFileName(searchDir);
-                                    var pattern = dirName.Equals("ZImage", StringComparison.OrdinalIgnoreCase) ? "AmateurImage*.png" : "*.png";
-
-                                    var olderFiles = Directory.GetFiles(searchDir, pattern)
-                                        .Select(f => new FileInfo(f))
-                                        .Where(f => (DateTime.Now - f.LastWriteTime).TotalMinutes < 10)
-                                        .OrderByDescending(f => f.LastWriteTime)
-                                        .ToList();
-
-                                    if (olderFiles.Any())
-                                    {
-                                        AddLog($"Fallback: Found {olderFiles.Count} PNG files in last 10 minutes in: {dirName}");
-                                        var latestFile = olderFiles.First();
-                                        AddLog($"Using fallback file: {latestFile.Name} (modified: {latestFile.LastWriteTime})");
-                                        images.Add(await File.ReadAllBytesAsync(latestFile.FullName));
-                                        break;
-                                    }
+                                    var latestFile = recentFiles.First();
+                                    AddLog($"Fallback: using recent file {latestFile.Name} (modified: {latestFile.LastWriteTime})");
+                                    images.Add(await File.ReadAllBytesAsync(latestFile.FullName));
                                 }
                             }
                         }

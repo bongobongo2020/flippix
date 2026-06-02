@@ -121,7 +121,7 @@
   },
   "319": {
     "inputs": {
-      "lora_name": "qwen\\Qwen-Image-2512-Lightning-8steps-V1.0-bf16.safetensors",
+      "lora_name": "qwen/Qwen-Image-2512-Lightning-8steps-V1.0-bf16.safetensors",
       "strength_model": 0.45,
       "model": [
         "341",
