@@ -2452,12 +2452,12 @@ namespace FlipPix.UI.ViewModels
                 string promptNodeId = selectedWorkflow switch
                 {
                     TextGeneratorWorkflow.Qwen2512 => "71",
-                    TextGeneratorWorkflow.Klien => "76",
+                    TextGeneratorWorkflow.Klien => "10",
                     _ => ""  // Empty for Zimage (will use generic search)
                 };
 
                 // Determine the input key for the prompt (text vs value)
-                string promptInputKey = selectedWorkflow == TextGeneratorWorkflow.Klien ? "value" : "text";
+                string promptInputKey = "text";
 
                 if (!string.IsNullOrEmpty(promptNodeId) && workflow.ContainsKey(promptNodeId))
                 {
@@ -2510,9 +2510,8 @@ namespace FlipPix.UI.ViewModels
                         }
                         else if (selectedWorkflow == TextGeneratorWorkflow.Klien)
                         {
-                            // Klien uses separate PrimitiveInt nodes for width and height
-                            string widthNodeId = "75:68";
-                            string heightNodeId = "75:69";
+                            // KlienX3n-Text-Ultimate-API.json: node 11 = EmptyLatentImage
+                            string latentNodeId = "11";
 
                             var resolutions = new[]
                             {
@@ -2522,36 +2521,19 @@ namespace FlipPix.UI.ViewModels
                             };
                             var (width, height) = resolutions[Math.Min(AspectRatioIndex, resolutions.Length - 1)];
 
-                            // Update width node
-                            if (workflow.ContainsKey(widthNodeId))
+                            if (workflow.ContainsKey(latentNodeId))
                             {
-                                var widthNode = JsonSerializer.Deserialize<Dictionary<string, object>>(JsonSerializer.Serialize(workflow[widthNodeId]));
-                                if (widthNode != null && widthNode.ContainsKey("inputs"))
+                                var latentNode = JsonSerializer.Deserialize<Dictionary<string, object>>(JsonSerializer.Serialize(workflow[latentNodeId]));
+                                if (latentNode != null && latentNode.ContainsKey("inputs"))
                                 {
-                                    var inputs = JsonSerializer.Deserialize<Dictionary<string, object>>(JsonSerializer.Serialize(widthNode["inputs"]));
-                                    if (inputs != null && inputs.ContainsKey("value"))
+                                    var inputs = JsonSerializer.Deserialize<Dictionary<string, object>>(JsonSerializer.Serialize(latentNode["inputs"]));
+                                    if (inputs != null)
                                     {
-                                        inputs["value"] = width;
-                                        widthNode["inputs"] = inputs;
-                                        workflow[widthNodeId] = widthNode;
-                                        _logger.LogInfo($"✓ Updated node {widthNodeId} with width: {width}");
-                                    }
-                                }
-                            }
-
-                            // Update height node
-                            if (workflow.ContainsKey(heightNodeId))
-                            {
-                                var heightNode = JsonSerializer.Deserialize<Dictionary<string, object>>(JsonSerializer.Serialize(workflow[heightNodeId]));
-                                if (heightNode != null && heightNode.ContainsKey("inputs"))
-                                {
-                                    var inputs = JsonSerializer.Deserialize<Dictionary<string, object>>(JsonSerializer.Serialize(heightNode["inputs"]));
-                                    if (inputs != null && inputs.ContainsKey("value"))
-                                    {
-                                        inputs["value"] = height;
-                                        heightNode["inputs"] = inputs;
-                                        workflow[heightNodeId] = heightNode;
-                                        _logger.LogInfo($"✓ Updated node {heightNodeId} with height: {height}");
+                                        inputs["width"] = width;
+                                        inputs["height"] = height;
+                                        latentNode["inputs"] = inputs;
+                                        workflow[latentNodeId] = latentNode;
+                                        _logger.LogInfo($"✓ Updated node {latentNodeId} with resolution: {width}x{height}");
                                     }
                                 }
                             }
@@ -2583,22 +2565,31 @@ namespace FlipPix.UI.ViewModels
                     }
                     else if (selectedWorkflow == TextGeneratorWorkflow.Klien)
                     {
-                        // Node 75:73 is RandomNoise - provides noise for the sampler
-                        string seedNodeId = "75:73";
-                        if (workflow.ContainsKey(seedNodeId))
+                        // KlienX3n-Text-Ultimate-API.json: node 12 = KSampler
+                        string samplerNodeId = "12";
+                        if (workflow.ContainsKey(samplerNodeId))
                         {
-                            var seedNode = JsonSerializer.Deserialize<Dictionary<string, object>>(JsonSerializer.Serialize(workflow[seedNodeId]));
-                            if (seedNode != null && seedNode.ContainsKey("inputs"))
+                            var samplerNode = JsonSerializer.Deserialize<Dictionary<string, object>>(JsonSerializer.Serialize(workflow[samplerNodeId]));
+                            if (samplerNode != null && samplerNode.ContainsKey("inputs"))
                             {
-                                var inputs = JsonSerializer.Deserialize<Dictionary<string, object>>(JsonSerializer.Serialize(seedNode["inputs"]));
+                                var inputs = JsonSerializer.Deserialize<Dictionary<string, object>>(JsonSerializer.Serialize(samplerNode["inputs"]));
                                 if (inputs != null)
                                 {
-                                    inputs["noise_seed"] = randomSeed;
-                                    seedNode["inputs"] = inputs;
-                                    workflow[seedNodeId] = seedNode;
-                                    _logger.LogInfo($"✓ Updated Klien seed node {seedNodeId} with noise_seed: {randomSeed}");
+                                    inputs["seed"] = randomSeed;
+                                    inputs["steps"] = Steps;
+                                    inputs["cfg"] = Cfg;
+                                    samplerNode["inputs"] = inputs;
+                                    workflow[samplerNodeId] = samplerNode;
+                                    _logger.LogInfo($"✓ Updated Klien sampler node {samplerNodeId} with seed: {randomSeed}, steps: {Steps}, cfg: {Cfg}");
                                 }
                             }
+                        }
+
+                        // Strip the image-refinement subgraph — requires a pre-existing input image
+                        foreach (var id in new[] { "222", "223", "224", "225", "226", "228", "238", "239", "261", "323" })
+                        {
+                            workflow.Remove(id);
+                            _logger.LogInfo($"✓ Stripped refinement node {id}");
                         }
                     }
 
@@ -2740,62 +2731,72 @@ namespace FlipPix.UI.ViewModels
                     }
                     else if (classType == "Power Lora Loader (rgthree)" && nodeElement.TryGetProperty("inputs", out var loraInputsProp))
                     {
-                        // Update LORA node — set selected LORA if enabled, or disable if not
                         _logger.LogInfo($"→ Found Power Lora Loader node {kvp.Key}, LoraEnabled={LoraEnabled}, SelectedLora={SelectedLora}");
 
-                        var nodeDict = JsonSerializer.Deserialize<Dictionary<string, object>>(nodeElement.GetRawText());
-                        if (nodeDict != null && nodeDict.TryGetValue("inputs", out var loraInputsObj))
+                        if (LoraEnabled && !string.IsNullOrEmpty(SelectedLora))
                         {
-                            Dictionary<string, object>? loraInputs = null;
+                            var nodeDict = JsonSerializer.Deserialize<Dictionary<string, object>>(nodeElement.GetRawText());
+                            if (nodeDict != null && nodeDict.TryGetValue("inputs", out var loraInputsObj))
+                            {
+                                Dictionary<string, object>? loraInputs = null;
 
-                            // Handle both Dictionary and JsonElement cases
-                            if (loraInputsObj is Dictionary<string, object> dictLoraInputs)
-                            {
-                                loraInputs = dictLoraInputs;
-                            }
-                            else if (loraInputsObj is JsonElement loraElementInputs && loraElementInputs.ValueKind == JsonValueKind.Object)
-                            {
-                                loraInputs = JsonSerializer.Deserialize<Dictionary<string, object>>(loraElementInputs.GetRawText());
-                            }
+                                if (loraInputsObj is Dictionary<string, object> dictLoraInputs)
+                                    loraInputs = dictLoraInputs;
+                                else if (loraInputsObj is JsonElement loraElementInputs && loraElementInputs.ValueKind == JsonValueKind.Object)
+                                    loraInputs = JsonSerializer.Deserialize<Dictionary<string, object>>(loraElementInputs.GetRawText());
 
-                            if (loraInputs != null)
-                            {
-                                // Update lora_1 object
-                                if (loraInputs.TryGetValue("lora_1", out var lora1Obj))
+                                if (loraInputs != null && loraInputs.TryGetValue("lora_1", out var lora1Obj))
                                 {
                                     Dictionary<string, object>? lora1Dict = null;
 
                                     if (lora1Obj is Dictionary<string, object> dictLora1)
-                                    {
                                         lora1Dict = dictLora1;
-                                    }
                                     else if (lora1Obj is JsonElement lora1Element && lora1Element.ValueKind == JsonValueKind.Object)
-                                    {
                                         lora1Dict = JsonSerializer.Deserialize<Dictionary<string, object>>(lora1Element.GetRawText());
-                                    }
 
                                     if (lora1Dict != null)
                                     {
-                                        if (LoraEnabled && !string.IsNullOrEmpty(SelectedLora))
-                                        {
-                                            // Set selected LORA
-                                            lora1Dict["lora"] = $"zimage\\{SelectedLora}.safetensors";
-                                            lora1Dict["on"] = true;
-                                            _logger.LogInfo($"✓ Updated LORA node {kvp.Key} with {SelectedLora}.safetensors");
-                                        }
-                                        else
-                                        {
-                                            // Disable LORA — clear any hardcoded lora from the workflow file
-                                            lora1Dict["lora"] = "None";
-                                            lora1Dict["on"] = false;
-                                            _logger.LogInfo($"✓ Disabled LORA in node {kvp.Key}");
-                                        }
-
+                                        lora1Dict["lora"] = $"zimage/{SelectedLora}.safetensors";
+                                        lora1Dict["on"] = true;
                                         loraInputs["lora_1"] = lora1Dict;
                                         nodeDict["inputs"] = loraInputs;
                                         modifiedWorkflow[kvp.Key] = nodeDict;
                                         updatedNodes++;
+                                        _logger.LogInfo($"✓ Updated Power Lora Loader node {kvp.Key} with {SelectedLora}.safetensors");
                                     }
+                                }
+                            }
+                        }
+
+                        if (!modifiedWorkflow.ContainsKey(kvp.Key))
+                        {
+                            // LoRA disabled — preserve workflow's default LoRA unchanged
+                            modifiedWorkflow[kvp.Key] = nodeValue;
+                        }
+                    }
+                    else if (classType == "LoraLoaderModelOnly")
+                    {
+                        _logger.LogInfo($"→ Found LoraLoaderModelOnly node {kvp.Key}, LoraEnabled={LoraEnabled}, SelectedLora={SelectedLora}");
+
+                        if (LoraEnabled && !string.IsNullOrEmpty(SelectedLora))
+                        {
+                            var nodeDict = JsonSerializer.Deserialize<Dictionary<string, object>>(nodeElement.GetRawText());
+                            if (nodeDict != null && nodeDict.TryGetValue("inputs", out var loraModelInputsObj))
+                            {
+                                Dictionary<string, object>? loraModelInputs = null;
+
+                                if (loraModelInputsObj is Dictionary<string, object> dictLoraModelInputs)
+                                    loraModelInputs = dictLoraModelInputs;
+                                else if (loraModelInputsObj is JsonElement loraModelElement && loraModelElement.ValueKind == JsonValueKind.Object)
+                                    loraModelInputs = JsonSerializer.Deserialize<Dictionary<string, object>>(loraModelElement.GetRawText());
+
+                                if (loraModelInputs != null)
+                                {
+                                    loraModelInputs["lora_name"] = $"zimage/{SelectedLora}.safetensors";
+                                    nodeDict["inputs"] = loraModelInputs;
+                                    modifiedWorkflow[kvp.Key] = nodeDict;
+                                    updatedNodes++;
+                                    _logger.LogInfo($"✓ Updated LoraLoaderModelOnly node {kvp.Key} with {SelectedLora}.safetensors");
                                 }
                             }
                         }
