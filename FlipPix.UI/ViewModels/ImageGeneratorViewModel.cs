@@ -81,6 +81,8 @@ namespace FlipPix.UI.ViewModels
         private StoryImageGeneratorAmateurViewModel _storyGeneratorAmateur;
         private AmateurGeneratorViewModel _amateurGenerator;
         private CameraAngleViewModel _cameraAngle;
+        private InpaintEditorViewModel _inpaintEditor;
+        private KleinInpaintViewModel _kleinInpaintEditor;
 
 
         public ImageGeneratorViewModel(FlipPix.ComfyUI.Services.ComfyUIService comfyUIService, IAppLogger logger, FlipPix.Core.Services.SettingsService settingsService, IServiceProvider? serviceProvider = null, IPromptService? promptService = null)
@@ -107,6 +109,8 @@ namespace FlipPix.UI.ViewModels
             _storyGeneratorAmateur = new StoryImageGeneratorAmateurViewModel(comfyUIService, logger, settingsService, _workflowCoordinator, fileDialogService, loraManager, imageRetriever);
             _amateurGenerator = new AmateurGeneratorViewModel(comfyUIService, logger, settingsService, promptService, loraManager, imageRetriever, _workflowCoordinator, lmStudioService, fileDialogService);
             _cameraAngle = new CameraAngleViewModel(comfyUIService, logger, settingsService, fileDialogService, imageRetriever);
+            _inpaintEditor = new InpaintEditorViewModel(comfyUIService, logger, settingsService, fileDialogService);
+            _kleinInpaintEditor = new KleinInpaintViewModel(comfyUIService, logger, settingsService, fileDialogService);
 
             // Initialize commands
             GenerateImageCommand = new RelayCommand(async () => await GenerateImageAsync(), () => CanGenerate);
@@ -125,6 +129,7 @@ namespace FlipPix.UI.ViewModels
             // Queue commands
             AddToQueueCommand = new RelayCommand(AddToQueue, () => CanAddToQueue);
             RemoveFromQueueCommand = new RelayCommand<ImagePromptQueueItem>(RemoveFromQueue, (item) => item != null);
+            RetryQueueItemCommand = new RelayCommand<ImagePromptQueueItem>(RetryQueueItem, (item) => item != null);
             ClearQueueCommand = new RelayCommand(ClearQueue, () => CanClearQueue);
             ProcessQueueCommand = new RelayCommand(async () =>
             {
@@ -244,6 +249,8 @@ namespace FlipPix.UI.ViewModels
         public StoryImageGeneratorAmateurViewModel StoryGeneratorAmateur => _storyGeneratorAmateur;
         public AmateurGeneratorViewModel AmateurGenerator => _amateurGenerator;
         public CameraAngleViewModel CameraAngle => _cameraAngle;
+        public InpaintEditorViewModel InpaintEditor => _inpaintEditor;
+        public KleinInpaintViewModel KleinInpaintEditor => _kleinInpaintEditor;
 
         public string ProcessingStatus
         {
@@ -436,6 +443,7 @@ namespace FlipPix.UI.ViewModels
         // Queue commands
         public RelayCommand AddToQueueCommand { get; }
         public ICommand RemoveFromQueueCommand { get; }
+        public ICommand RetryQueueItemCommand { get; }
         public ICommand ClearQueueCommand { get; }
         public RelayCommand ProcessQueueCommand { get; }
         public ICommand CancelQueueCommand { get; }
@@ -1505,7 +1513,7 @@ namespace FlipPix.UI.ViewModels
                     if (inputs != null)
                     {
                         // Use amateur photography LoRA with minimal strength as fallback
-                        inputs["lora_name"] = "zimage\\amateur_photography_zimage_v1.safetensors";
+                        inputs["lora_name"] = "zimage/amateur_photography_zimage_v1.safetensors";
                         inputs["strength_model"] = 0.0;
                         node760["inputs"] = inputs;
                         workflowDict["760"] = JsonSerializer.SerializeToElement(node760);
@@ -1847,7 +1855,7 @@ namespace FlipPix.UI.ViewModels
                     {
                         inputs = new
                         {
-                            lora_name = $"zimage\\{loraName}.safetensors",
+                            lora_name = $"zimage/{loraName}.safetensors",
                             strength_model = 1.0,
                             strength_clip = 1.0,
                             model = new object[] { "46", 0 }, // Connect to UNETLoader (node 46)
@@ -2800,6 +2808,26 @@ namespace FlipPix.UI.ViewModels
             OnPropertyChanged(nameof(QueueCount));
             OnPropertyChanged(nameof(PendingQueueCount));
             NotifyActionCommands();
+        }
+
+        private void RetryQueueItem(ImagePromptQueueItem? item)
+        {
+            if (item == null) return;
+
+            item.Status = "Pending";
+            item.ErrorMessage = null;
+            item.Progress = 0;
+            SaveQueueToFile();
+            AddLog($"Retrying queue item: {item.DisplayPrompt}");
+            StatusBarMessage = $"Item queued for retry";
+
+            OnPropertyChanged(nameof(PendingQueueCount));
+            NotifyActionCommands();
+
+            if (!IsProcessingQueue && PromptQueue.Any(q => q.Status == "Pending"))
+            {
+                _ = ProcessQueueAsync();
+            }
         }
 
         private void ClearQueue()

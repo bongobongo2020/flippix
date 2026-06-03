@@ -2780,7 +2780,7 @@ namespace FlipPix.UI.Linux.ViewModels
                                         if (LoraEnabled && !string.IsNullOrEmpty(SelectedLora))
                                         {
                                             // Set selected LORA
-                                            lora1Dict["lora"] = $"zimage\\{SelectedLora}.safetensors";
+                                            lora1Dict["lora"] = $"zimage/{SelectedLora}.safetensors";
                                             lora1Dict["on"] = true;
                                             _logger.LogInfo($"✓ Updated LORA node {kvp.Key} with {SelectedLora}.safetensors");
                                         }
