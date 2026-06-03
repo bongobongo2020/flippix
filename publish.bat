@@ -79,4 +79,5 @@ echo - prompts\prompt2json\*.md (system prompts)
 echo - prompts\prompt2json\*.json (config files)
 echo - workflow\*.json (workflow files)
 echo ============================================
-pause
+echo Launching FlipPix.UI.exe...
+start "" "publish\FlipPix.UI.exe"

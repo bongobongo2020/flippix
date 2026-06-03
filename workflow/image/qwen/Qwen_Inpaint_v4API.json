@@ -1,0 +1,771 @@
+{
+  "500": {
+    "inputs": {
+      "seed": 42,
+      "steps": 4,
+      "cfg": 1,
+      "sampler_name": "res_3m",
+      "scheduler": "bong_tangent",
+      "denoise": 1,
+      "model": ["293", 0],
+      "positive": ["472", 0],
+      "negative": ["449", 0],
+      "latent_image": ["474", 0]
+    },
+    "class_type": "KSampler",
+    "_meta": { "title": "KSampler" }
+  },
+  "6": {
+    "inputs": {
+      "text": "change clothes to jeans",
+      "clip": [
+        "406",
+        0
+      ]
+    },
+    "class_type": "CLIPTextEncode",
+    "_meta": {
+      "title": "Positive Prompt"
+    }
+  },
+  "7": {
+    "inputs": {
+      "text": "",
+      "clip": [
+        "406",
+        0
+      ]
+    },
+    "class_type": "CLIPTextEncode",
+    "_meta": {
+      "title": "Negative Prompt (Only for NAG)"
+    }
+  },
+  "82": {
+    "inputs": {
+      "vae_name": "qwen_image_vae.safetensors"
+    },
+    "class_type": "VAELoader",
+    "_meta": {
+      "title": "Load VAE"
+    }
+  },
+  "122": {
+    "inputs": {
+      "fill": "neutral",
+      "falloff": 10,
+      "image": [
+        "358:118",
+        0
+      ],
+      "mask": [
+        "358:145",
+        0
+      ]
+    },
+    "class_type": "INPAINT_MaskedFill",
+    "_meta": {
+      "title": "Fill Masked Area"
+    }
+  },
+  "157": {
+    "inputs": {
+      "samples": [
+        "359",
+        0
+      ],
+      "vae": [
+        "82",
+        0
+      ]
+    },
+    "class_type": "VAEDecode",
+    "_meta": {
+      "title": "VAE Decode"
+    }
+  },
+  "187": {
+    "inputs": {
+      "use_zero_init": false,
+      "zero_init_steps": 0,
+      "model": [
+        "451",
+        0
+      ]
+    },
+    "class_type": "CFGZeroStarAndInit",
+    "_meta": {
+      "title": "CFG Zero Star/Init"
+    }
+  },
+  "197": {
+    "inputs": {
+      "value": 1
+    },
+    "class_type": "INTConstant",
+    "_meta": {
+      "title": "Batch"
+    }
+  },
+  "199": {
+    "inputs": {
+      "value": 4
+    },
+    "class_type": "INTConstant",
+    "_meta": {
+      "title": "Base steps"
+    }
+  },
+  "249": {
+    "inputs": {
+      "value": 1
+    },
+    "class_type": "FloatConstant",
+    "_meta": {
+      "title": "Denoise"
+    }
+  },
+  "288": {
+    "inputs": {
+      "value": 1
+    },
+    "class_type": "FloatConstant",
+    "_meta": {
+      "title": "CFG"
+    }
+  },
+  "293": {
+    "inputs": {
+      "strength": 1,
+      "model": [
+        "187",
+        0
+      ]
+    },
+    "class_type": "DifferentialDiffusion",
+    "_meta": {
+      "title": "Differential Diffusion"
+    }
+  },
+  "309": {
+    "inputs": {
+      "image": [
+        "157",
+        0
+      ],
+      "alpha": [
+        "317",
+        0
+      ]
+    },
+    "class_type": "JoinImageWithAlpha",
+    "_meta": {
+      "title": "Join Image with Alpha"
+    }
+  },
+  "310": {
+    "inputs": {
+      "resize_behavior": "keep_ratio_fill",
+      "image_base": [
+        "435",
+        0
+      ],
+      "image_to_paste": [
+        "309",
+        0
+      ],
+      "mask": [
+        "358:113",
+        0
+      ]
+    },
+    "class_type": "Paste By Mask",
+    "_meta": {
+      "title": "Paste By Mask"
+    }
+  },
+  "316": {
+    "inputs": {
+      "mask": [
+        "322",
+        0
+      ]
+    },
+    "class_type": "MaskToImage",
+    "_meta": {
+      "title": "Convert Mask to Image"
+    }
+  },
+  "317": {
+    "inputs": {
+      "method": "intensity",
+      "image": [
+        "318",
+        0
+      ]
+    },
+    "class_type": "Image To Mask",
+    "_meta": {
+      "title": "Image To Mask"
+    }
+  },
+  "318": {
+    "inputs": {
+      "amount": [
+        "197",
+        0
+      ],
+      "image": [
+        "316",
+        0
+      ]
+    },
+    "class_type": "RepeatImageBatch",
+    "_meta": {
+      "title": "Repeat Image Batch"
+    }
+  },
+  "322": {
+    "inputs": {
+      "mask": [
+        "358:111",
+        0
+      ]
+    },
+    "class_type": "InvertMask",
+    "_meta": {
+      "title": "Invert Mask"
+    }
+  },
+  "323": {
+    "inputs": {
+      "images": [
+        "358:113",
+        0
+      ]
+    },
+    "class_type": "PreviewImage",
+    "_meta": {
+      "title": "Preview Image"
+    }
+  },
+  "359": {
+    "inputs": {
+      "any_01": ["500", 0],
+      "any_04": [
+        "474",
+        0
+      ]
+    },
+    "class_type": "Any Switch (rgthree)",
+    "_meta": {
+      "title": "Any Switch (rgthree)"
+    }
+  },
+  "378": {
+    "inputs": {
+      "filename_prefix": "z-image",
+      "images": [
+        "310",
+        0
+      ]
+    },
+    "class_type": "SaveImage",
+    "_meta": {
+      "title": "Save Image"
+    }
+  },
+  "386": {
+    "inputs": {
+      "mask_opacity": 0.5,
+      "mask_color": "255, 1, 1",
+      "pass_through": false,
+      "image": [
+        "420",
+        0
+      ],
+      "mask": [
+        "358:111",
+        0
+      ]
+    },
+    "class_type": "ImageAndMaskPreview",
+    "_meta": {
+      "title": "ImageAndMaskPreview"
+    }
+  },
+  "405": {
+    "inputs": {
+      "rgthree_comparer": {
+        "images": [
+          {
+            "name": "A",
+            "selected": true,
+            "url": "/api/view?filename=rgthree.compare._temp_rleno_00003_.png&type=temp&subfolder=&rand=0.7095055366797948"
+          },
+          {
+            "name": "B",
+            "selected": true,
+            "url": "/api/view?filename=rgthree.compare._temp_rleno_00004_.png&type=temp&subfolder=&rand=0.8663594896759748"
+          }
+        ]
+      },
+      "image_a": [
+        "310",
+        0
+      ],
+      "image_b": [
+        "435",
+        0
+      ]
+    },
+    "class_type": "Image Comparer (rgthree)",
+    "_meta": {
+      "title": "Image Comparer (rgthree)"
+    }
+  },
+  "406": {
+    "inputs": {
+      "clip_name": "qwen_2.5_vl_7b_fp8_scaled.safetensors",
+      "type": "qwen_image"
+    },
+    "class_type": "CLIPLoader",
+    "_meta": {
+      "title": "CLIPLoader"
+    }
+  },
+  "418": {
+    "inputs": {
+      "shift": 3.1,
+      "model": [
+        "477",
+        0
+      ]
+    },
+    "class_type": "ModelSamplingAuraFlow",
+    "_meta": {
+      "title": "ModelSamplingAuraFlow"
+    }
+  },
+  "420": {
+    "inputs": {
+      "switch": false,
+      "on_false": [
+        "358:118",
+        0
+      ],
+      "on_true": [
+        "122",
+        0
+      ]
+    },
+    "class_type": "ComfySwitchNode",
+    "_meta": {
+      "title": "Fill Masked Area?"
+    }
+  },
+  "426": {
+    "inputs": {
+      "images": [
+        "157",
+        0
+      ]
+    },
+    "class_type": "PreviewImage",
+    "_meta": {
+      "title": "Preview Image"
+    }
+  },
+  "435": {
+    "inputs": {
+      "image": "clipspace/clipspace-painted-masked-1780445610462.png [input]",
+      "resize": false,
+      "width": 512,
+      "height": 512,
+      "repeat": 1,
+      "keep_proportion": false,
+      "divisible_by": 2,
+      "mask_channel": "alpha",
+      "background_color": ""
+    },
+    "class_type": "LoadAndResizeImage",
+    "_meta": {
+      "title": "Load & Resize Image"
+    }
+  },
+  "449": {
+    "inputs": {
+      "conditioning": [
+        "472",
+        1
+      ]
+    },
+    "class_type": "ConditioningZeroOut",
+    "_meta": {
+      "title": "ConditioningZeroOut"
+    }
+  },
+  "451": {
+    "inputs": {
+      "lora_name": "qwen/Wuli-Qwen-Image-2512-Turbo-LoRA-4steps-V3.0-bf16.safetensors",
+      "strength_model": 1,
+      "model": [
+        "418",
+        0
+      ]
+    },
+    "class_type": "LoraLoaderModelOnly",
+    "_meta": {
+      "title": "Load LoRA"
+    }
+  },
+  "462": {
+    "inputs": {
+      "control_net_name": "Qwen-Image-InstantX-ControlNet-Inpainting.safetensors"
+    },
+    "class_type": "ControlNetLoader",
+    "_meta": {
+      "title": "Load ControlNet Model"
+    }
+  },
+  "472": {
+    "inputs": {
+      "strength": 1,
+      "start_percent": 0,
+      "end_percent": 1,
+      "positive": [
+        "6",
+        0
+      ],
+      "negative": [
+        "7",
+        0
+      ],
+      "control_net": [
+        "462",
+        0
+      ],
+      "vae": [
+        "82",
+        0
+      ],
+      "image": [
+        "420",
+        0
+      ],
+      "mask": [
+        "358:111",
+        0
+      ]
+    },
+    "class_type": "ControlNetInpaintingAliMamaApply",
+    "_meta": {
+      "title": "ControlNetInpaintingAliMamaApply"
+    }
+  },
+  "473": {
+    "inputs": {
+      "pixels": [
+        "420",
+        0
+      ],
+      "vae": [
+        "82",
+        0
+      ]
+    },
+    "class_type": "VAEEncode",
+    "_meta": {
+      "title": "VAE Encode"
+    }
+  },
+  "474": {
+    "inputs": {
+      "samples": [
+        "473",
+        0
+      ],
+      "mask": [
+        "358:111",
+        0
+      ]
+    },
+    "class_type": "SetLatentNoiseMask",
+    "_meta": {
+      "title": "Set Latent Noise Mask"
+    }
+  },
+  "477": {
+    "inputs": {
+      "model_name": "Real-Qwen-Image-V2-2512-Q8_0.gguf",
+      "extra_model_name": "none",
+      "dequant_dtype": "default",
+      "patch_dtype": "default",
+      "patch_on_device": false,
+      "enable_fp16_accumulation": false,
+      "attention_override": "none"
+    },
+    "class_type": "GGUFLoaderKJ",
+    "_meta": {
+      "title": "GGUFLoaderKJ"
+    }
+  },
+  "358:117": {
+    "inputs": {
+      "upscale_method": "lanczos",
+      "width": [
+        "358:121",
+        0
+      ],
+      "height": [
+        "358:121",
+        1
+      ],
+      "crop": "disabled",
+      "image": [
+        "358:116",
+        0
+      ]
+    },
+    "class_type": "ImageScale",
+    "_meta": {
+      "title": "Upscale Image"
+    }
+  },
+  "358:116": {
+    "inputs": {
+      "force_resize_width": 0,
+      "force_resize_height": 0,
+      "image": [
+        "435",
+        0
+      ],
+      "mask": [
+        "358:113",
+        0
+      ]
+    },
+    "class_type": "Cut By Mask",
+    "_meta": {
+      "title": "Cut By Mask"
+    }
+  },
+  "358:119": {
+    "inputs": {
+      "method": "intensity",
+      "image": [
+        "358:120",
+        0
+      ]
+    },
+    "class_type": "Image To Mask",
+    "_meta": {
+      "title": "Image To Mask"
+    }
+  },
+  "358:124": {
+    "inputs": {
+      "mask": [
+        "435",
+        1
+      ]
+    },
+    "class_type": "MaskToImage",
+    "_meta": {
+      "title": "Convert Mask to Image"
+    }
+  },
+  "358:145": {
+    "inputs": {
+      "value": 0.5,
+      "mask": [
+        "358:119",
+        0
+      ]
+    },
+    "class_type": "ThresholdMask",
+    "_meta": {
+      "title": "ThresholdMask"
+    }
+  },
+  "358:113": {
+    "inputs": {
+      "padding": [
+        "358:423",
+        1
+      ],
+      "constraints": "ignore",
+      "constraint_x": [
+        "358:109",
+        1
+      ],
+      "constraint_y": [
+        "358:109",
+        2
+      ],
+      "min_width": 0,
+      "min_height": 0,
+      "batch_behavior": "match_ratio",
+      "mask": [
+        "358:124",
+        0
+      ]
+    },
+    "class_type": "Mask To Region",
+    "_meta": {
+      "title": "Mask To Region"
+    }
+  },
+  "358:121": {
+    "inputs": {
+      "base_resolution": [
+        "358:371",
+        0
+      ],
+      "width_ratio": [
+        "358:126",
+        0
+      ],
+      "height_ratio": [
+        "358:126",
+        1
+      ],
+      "overextend": false,
+      "constant_resolution": true,
+      "resolution_printout": "resolution: 1232x850 (~1.00 Mpx)\nratio: ~1.45"
+    },
+    "class_type": "YARSAdv",
+    "_meta": {
+      "title": "yaResolution Selector (Advanced)"
+    }
+  },
+  "358:120": {
+    "inputs": {
+      "upscale_method": "lanczos",
+      "width": [
+        "358:121",
+        0
+      ],
+      "height": [
+        "358:121",
+        1
+      ],
+      "crop": "disabled",
+      "image": [
+        "358:125",
+        0
+      ]
+    },
+    "class_type": "ImageScale",
+    "_meta": {
+      "title": "Upscale Image"
+    }
+  },
+  "358:118": {
+    "inputs": {
+      "kind": "RGB",
+      "image": [
+        "358:117",
+        0
+      ]
+    },
+    "class_type": "Change Channel Count",
+    "_meta": {
+      "title": "Change Channel Count"
+    }
+  },
+  "358:109": {
+    "inputs": {
+      "image": [
+        "358:124",
+        0
+      ]
+    },
+    "class_type": "GetImageSizeAndCount",
+    "_meta": {
+      "title": "Get Image Size & Count"
+    }
+  },
+  "358:125": {
+    "inputs": {
+      "force_resize_width": 0,
+      "force_resize_height": 0,
+      "image": [
+        "358:124",
+        0
+      ],
+      "mask": [
+        "358:113",
+        0
+      ]
+    },
+    "class_type": "Cut By Mask",
+    "_meta": {
+      "title": "Cut By Mask"
+    }
+  },
+  "358:126": {
+    "inputs": {
+      "image": [
+        "358:125",
+        0
+      ]
+    },
+    "class_type": "Get Image Size",
+    "_meta": {
+      "title": "Get Image Size"
+    }
+  },
+  "358:110": {
+    "inputs": {
+      "value": 256
+    },
+    "class_type": "INTConstant",
+    "_meta": {
+      "title": "Padding - Context"
+    }
+  },
+  "358:371": {
+    "inputs": {
+      "value": 1024
+    },
+    "class_type": "INTConstant",
+    "_meta": {
+      "title": "Base Resolution"
+    }
+  },
+  "358:111": {
+    "inputs": {
+      "expand": 8,
+      "incremental_expandrate": 0,
+      "tapered_corners": true,
+      "flip_input": false,
+      "blur_radius": 4,
+      "lerp_alpha": 1,
+      "decay_factor": 1,
+      "fill_holes": false,
+      "mask": [
+        "358:119",
+        0
+      ]
+    },
+    "class_type": "GrowMaskWithBlur",
+    "_meta": {
+      "title": "Grow Mask With Blur"
+    }
+  },
+  "358:423": {
+    "inputs": {
+      "expression": "a + b",
+      "values.a": 8,
+      "values.b": [
+        "358:110",
+        0
+      ]
+    },
+    "class_type": "ComfyMathExpression",
+    "_meta": {
+      "title": "Math Expression"
+    }
+  }
+}
