@@ -838,7 +838,7 @@ namespace FlipPix.UI.ViewModels.Video
             ProcessingStatus = $"[{iteration}/{MaxIterations}] Waiting for output video...";
 
             var outputVideo = await WaitForVideoByTimestampAsync(
-                generationStart, TimeSpan.FromMinutes(20), TimeSpan.FromSeconds(5));
+                generationStart, TimeSpan.FromMinutes(60), TimeSpan.FromSeconds(5));
 
             if (outputVideo == null || !File.Exists(outputVideo))
                 throw new Exception("No output video was produced within the timeout.");
