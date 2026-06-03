@@ -860,7 +860,7 @@ namespace FlipPix.UI.Linux.ViewModels
             // 9. Set fallback LoRA for node 760 (prevents invalid LoRA errors)
             WorkflowNodeUpdater.UpdateNodeInputMultiple(ref workflowJson, "760", new Dictionary<string, object>
             {
-                { "lora_name", $"zimage\\{AmateurLoraName}" },
+                { "lora_name", $"zimage/{AmateurLoraName}" },
                 { "strength_model", 0.0 }
             });
 
@@ -946,18 +946,18 @@ namespace FlipPix.UI.Linux.ViewModels
                     {
                         AddLog("Detected remote ComfyUI server, downloading generated image...");
 
-                        var outputFiles = await _comfyUIService.HttpClient.GetOutputFilesAsync();
-                        AddLog($"Found {outputFiles.Count} potential output files");
+                        var historyFiles = await _comfyUIService.HttpClient.GetOutputFilesForPromptAsync(promptId);
+                        AddLog($"History returned {historyFiles.Count} output file(s) for prompt");
 
-                        var imageFiles = outputFiles.Where(f =>
-                            f.EndsWith(".png") &&
-                            !f.StartsWith("z-image_") &&
-                            !f.StartsWith("temp_"))
+                        var candidates = historyFiles
+                            .Where(f => f.EndsWith(".png", StringComparison.OrdinalIgnoreCase)
+                                     && !Path.GetFileName(f).StartsWith("temp_", StringComparison.OrdinalIgnoreCase))
+                            .OrderByDescending(f => f.Contains("AmateurImage", StringComparison.OrdinalIgnoreCase))
                             .ToList();
 
-                        if (imageFiles.Any())
+                        if (candidates.Any())
                         {
-                            var filename = imageFiles.Last();
+                            var filename = candidates.First();
                             AddLog($"Downloading generated image: {filename}");
 
                             var imageData = await _comfyUIService.HttpClient.DownloadOutputImageAsync(filename);

@@ -398,9 +398,22 @@
       "title": "ModelSamplingAuraFlow"
     }
   },
-  "629": {
+  "800": {
     "inputs": {
-      "scale_method": "nearest-exact",
+      "upscale_method": "nearest-exact",
+      "scale_by": 2,
+      "samples": [
+        "754",
+        0
+      ]
+    },
+    "class_type": "LatentUpscaleBy",
+    "_meta": {
+      "title": "Upscale Latent By"
+    }
+  },
+  "801": {
+    "inputs": {
       "seed": [
         "28",
         0
@@ -410,14 +423,8 @@
       "sampler_name": "euler",
       "scheduler": "ddim_uniform",
       "denoise": 0.6,
-      "use_tiled_vae": false,
-      "tile_size": 512,
       "model": [
         "628",
-        0
-      ],
-      "vae": [
-        "257",
         0
       ],
       "positive": [
@@ -427,38 +434,21 @@
       "negative": [
         "7",
         0
-      ]
-    },
-    "class_type": "PixelKSampleUpscalerProvider",
-    "_meta": {
-      "title": "PixelKSampleUpscalerProvider"
-    }
-  },
-  "630": {
-    "inputs": {
-      "upscale_factor": 2,
-      "steps": 4,
-      "temp_prefix": "",
-      "step_mode": "simple",
-      "vae_compression": 8,
-      "samples": [
-        "754",
-        0
       ],
-      "upscaler": [
-        "629",
+      "latent_image": [
+        "800",
         0
       ]
     },
-    "class_type": "IterativeLatentUpscale",
+    "class_type": "KSampler",
     "_meta": {
-      "title": "Iterative Upscale (Latent/on Pixel Space)"
+      "title": "KSampler"
     }
   },
   "633": {
     "inputs": {
       "samples": [
-        "630",
+        "801",
         0
       ],
       "vae": [
@@ -517,7 +507,7 @@
       "upscale_method": "nearest-exact",
       "scale_by": 2,
       "samples": [
-        "630",
+        "801",
         0
       ]
     },

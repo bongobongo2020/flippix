@@ -336,20 +336,20 @@ namespace FlipPix.UI.Linux.ViewModels
             // 9. Update character LoRA (node 760) - always set a valid LoRA to avoid validation errors
             if (CharacterLoraEnabled && !string.IsNullOrEmpty(SelectedCharacterLora) && SelectedCharacterLora != "No LoRAs available")
             {
-                AddLog($"Setting character LoRA: zimage\\{SelectedCharacterLora}.safetensors with strength {CharacterLoraStrength}");
+                AddLog($"Setting character LoRA: zimage/{SelectedCharacterLora}.safetensors with strength {CharacterLoraStrength}");
                 WorkflowNodeUpdater.UpdateNodeInputMultiple(ref workflowJson, "760", new Dictionary<string, object>
                 {
-                    { "lora_name", $"zimage\\{SelectedCharacterLora}.safetensors" },
+                    { "lora_name", $"zimage/{SelectedCharacterLora}.safetensors" },
                     { "strength_model", CharacterLoraStrength }
                 });
             }
             else
             {
                 // Use amateur LoRA with minimal strength as fallback (prevents invalid LoRA errors)
-                AddLog($"Using fallback LoRA: zimage\\{AmateurLoraName} with strength 0.0");
+                AddLog($"Using fallback LoRA: zimage/{AmateurLoraName} with strength 0.0");
                 WorkflowNodeUpdater.UpdateNodeInputMultiple(ref workflowJson, "760", new Dictionary<string, object>
                 {
-                    { "lora_name", $"zimage\\{AmateurLoraName}" },
+                    { "lora_name", $"zimage/{AmateurLoraName}" },
                     { "strength_model", 0.0 }
                 });
             }
