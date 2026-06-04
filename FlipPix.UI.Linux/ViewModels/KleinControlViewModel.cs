@@ -688,21 +688,29 @@ namespace FlipPix.UI.Linux.ViewModels
 
         private static string StripThinkingTokens(string text)
         {
+            var opts = System.Text.RegularExpressions.RegexOptions.IgnoreCase;
+            // Remove explicit <think>...</think> blocks
             var result = System.Text.RegularExpressions.Regex.Replace(
-                text, @"<think>[\s\S]*?</think>", string.Empty,
-                System.Text.RegularExpressions.RegexOptions.IgnoreCase).Trim();
+                text, @"<think>[\s\S]*?</think>", string.Empty, opts).Trim();
             var lines = result.Split('\n');
             var kept = new System.Collections.Generic.List<string>();
-            var opts = System.Text.RegularExpressions.RegexOptions.IgnoreCase;
+            bool hasContent = false;
             foreach (var line in lines)
             {
                 var t = line.Trim();
+                // First blank line after content = end of the clean paragraph
+                if (hasContent && string.IsNullOrWhiteSpace(t)) break;
+                if (string.IsNullOrWhiteSpace(t)) continue;
+                // Known meta-commentary openers
+                if (System.Text.RegularExpressions.Regex.IsMatch(t, @"^\(?(Note|Note:)\b", opts)) break;
                 if (System.Text.RegularExpressions.Regex.IsMatch(t, @"^\(\d+\)\s+The (input|output)\b", opts)) break;
-                if (System.Text.RegularExpressions.Regex.IsMatch(t, @"^(Therefore|However|Note:|Additionally|The original|I'll ensure|Since we must)\b", opts)) break;
+                if (System.Text.RegularExpressions.Regex.IsMatch(t, @"^(Therefore|However|Additionally|The original|I'll ensure|Since we must|Corrected version)\b", opts)) break;
+                if (System.Text.RegularExpressions.Regex.IsMatch(t, @"(corrected version should read|per instructions|based on instruction)", opts)) break;
                 if (System.Text.RegularExpressions.Regex.IsMatch(t, @"\*\*(her|his|their)\s+\w+\s+is\s+now\b", opts)) break;
-                if (kept.Count > 0 && t.Length > 40 && kept.Any(k => k.Contains(t.Substring(0, Math.Min(40, t.Length))))) break;
-                var clean = System.Text.RegularExpressions.Regex.Replace(line, @"\*\*", string.Empty);
-                kept.Add(clean);
+                // Duplicate paragraph guard
+                if (hasContent && t.Length > 40 && kept.Any(k => k.Contains(t.Substring(0, Math.Min(40, t.Length))))) break;
+                hasContent = true;
+                kept.Add(System.Text.RegularExpressions.Regex.Replace(line, @"\*\*", string.Empty));
             }
             return string.Join("\n", kept).Trim();
         }
