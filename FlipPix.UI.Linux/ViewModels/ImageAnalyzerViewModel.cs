@@ -485,12 +485,15 @@ namespace FlipPix.UI.Linux.ViewModels
                 OnPropertyChanged();
                 OnPropertyChanged(nameof(ShowLoraOptions));
                 OnPropertyChanged(nameof(ShowStyleOptions));
+                OnPropertyChanged(nameof(ShowSamplerSettings));
             }
         }
 
         public bool ShowLoraOptions => SelectedWorkflow == TextGeneratorWorkflow.Zimage;
 
         public bool ShowStyleOptions => SelectedWorkflow == TextGeneratorWorkflow.Zimage;
+
+        public bool ShowSamplerSettings => SelectedWorkflow != TextGeneratorWorkflow.Anima;
 
         public int SelectedWorkflowIndex
         {
@@ -1364,14 +1367,32 @@ namespace FlipPix.UI.Linux.ViewModels
                 }
 
                 // Use LM Studio for image analysis
-                var analysisPrompt = "Describe this image concisely in 2-3 sentences: subject, setting, colors, and mood.";
-
-                var analysisResult = await _lmStudioService.AnalyzeImageAsync(
-                    modelToUse,
-                    SourceImagePath,
-                    analysisPrompt,
-                    maxTokens: 2000,
-                    _cancellationTokenSource.Token);
+                string analysisResult;
+                if (SelectedWorkflow == TextGeneratorWorkflow.Anima)
+                {
+                    var systemPromptPath = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "workflow", "image", "anima", "anima-system-prompt.md");
+                    var systemPrompt = File.Exists(systemPromptPath)
+                        ? await File.ReadAllTextAsync(systemPromptPath, _cancellationTokenSource.Token)
+                        : "Generate an Anima anime image prompt from this image using Danbooru tags.";
+                    _logger.LogInfo("Using Anima system prompt for image analysis");
+                    analysisResult = await _lmStudioService.AnalyzeImageWithSystemPromptAsync(
+                        modelToUse,
+                        SourceImagePath,
+                        "Generate an Anima prompt for this image.",
+                        systemPrompt,
+                        maxTokens: 2000,
+                        _cancellationTokenSource.Token);
+                }
+                else
+                {
+                    var analysisPrompt = "Describe this image concisely in 2-3 sentences: subject, setting, colors, and mood.";
+                    analysisResult = await _lmStudioService.AnalyzeImageAsync(
+                        modelToUse,
+                        SourceImagePath,
+                        analysisPrompt,
+                        maxTokens: 2000,
+                        _cancellationTokenSource.Token);
+                }
 
                 if (!string.IsNullOrEmpty(analysisResult))
                 {
@@ -1794,6 +1815,11 @@ namespace FlipPix.UI.Linux.ViewModels
                     case TextGeneratorWorkflow.Klien:
                         workflowPath = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "workflow", "klein", "KlienX3n-Text-Ultimate-API.json");
                         _logger.LogInfo($"Using Klien workflow");
+                        break;
+
+                    case TextGeneratorWorkflow.Anima:
+                        workflowPath = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "workflow", "image", "anima", "Anima.json");
+                        _logger.LogInfo($"Using Anima workflow");
                         break;
 
                     case TextGeneratorWorkflow.Zimage:
@@ -2454,6 +2480,7 @@ namespace FlipPix.UI.Linux.ViewModels
                 {
                     TextGeneratorWorkflow.Qwen2512 => "71",
                     TextGeneratorWorkflow.Klien => "76",
+                    TextGeneratorWorkflow.Anima => "60:11",
                     _ => ""  // Empty for Zimage (will use generic search)
                 };
 
@@ -2557,6 +2584,36 @@ namespace FlipPix.UI.Linux.ViewModels
                                 }
                             }
                         }
+                        else if (selectedWorkflow == TextGeneratorWorkflow.Anima)
+                        {
+                            // Anima.json: node 60:28 = EmptyLatentImage
+                            string latentNodeId = "60:28";
+
+                            var resolutions = new[]
+                            {
+                                (1024, 768),  // Landscape
+                                (768, 1024),  // Portrait
+                                (1024, 1024), // Square
+                            };
+                            var (width, height) = resolutions[Math.Min(AspectRatioIndex, resolutions.Length - 1)];
+
+                            if (workflow.ContainsKey(latentNodeId))
+                            {
+                                var latentNode = JsonSerializer.Deserialize<Dictionary<string, object>>(JsonSerializer.Serialize(workflow[latentNodeId]));
+                                if (latentNode != null && latentNode.ContainsKey("inputs"))
+                                {
+                                    var inputs = JsonSerializer.Deserialize<Dictionary<string, object>>(JsonSerializer.Serialize(latentNode["inputs"]));
+                                    if (inputs != null)
+                                    {
+                                        inputs["width"] = width;
+                                        inputs["height"] = height;
+                                        latentNode["inputs"] = inputs;
+                                        workflow[latentNodeId] = latentNode;
+                                        _logger.LogInfo($"✓ Updated node {latentNodeId} with resolution: {width}x{height}");
+                                    }
+                                }
+                            }
+                        }
                     }
 
                     // Randomize seed for non-Zimage workflows
@@ -2598,6 +2655,26 @@ namespace FlipPix.UI.Linux.ViewModels
                                     seedNode["inputs"] = inputs;
                                     workflow[seedNodeId] = seedNode;
                                     _logger.LogInfo($"✓ Updated Klien seed node {seedNodeId} with noise_seed: {randomSeed}");
+                                }
+                            }
+                        }
+                    }
+                    else if (selectedWorkflow == TextGeneratorWorkflow.Anima)
+                    {
+                        // Anima.json: node 60:19 = KSampler — only update seed; steps/cfg/sampler/scheduler fixed in workflow
+                        string samplerNodeId = "60:19";
+                        if (workflow.ContainsKey(samplerNodeId))
+                        {
+                            var samplerNode = JsonSerializer.Deserialize<Dictionary<string, object>>(JsonSerializer.Serialize(workflow[samplerNodeId]));
+                            if (samplerNode != null && samplerNode.ContainsKey("inputs"))
+                            {
+                                var inputs = JsonSerializer.Deserialize<Dictionary<string, object>>(JsonSerializer.Serialize(samplerNode["inputs"]));
+                                if (inputs != null)
+                                {
+                                    inputs["seed"] = randomSeed;
+                                    samplerNode["inputs"] = inputs;
+                                    workflow[samplerNodeId] = samplerNode;
+                                    _logger.LogInfo($"✓ Updated Anima sampler node {samplerNodeId} with seed: {randomSeed}");
                                 }
                             }
                         }

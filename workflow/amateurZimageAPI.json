@@ -303,11 +303,25 @@
       "title": "Upscale Image (using Model)"
     }
   },
+  "802": {
+    "inputs": {
+      "lora_name": "zimage/amateur_photography_zimage_v1.safetensors",
+      "strength_model": 0,
+      "model": [
+        "507",
+        0
+      ]
+    },
+    "class_type": "LoraLoaderModelOnly",
+    "_meta": {
+      "title": "Character LoRA"
+    }
+  },
   "617": {
     "inputs": {
       "shift": 7,
       "model": [
-        "507",
+        "802",
         0
       ]
     },
@@ -631,7 +645,7 @@
       "lora_name": "zimage/amateur_photography_zimage_v1.safetensors",
       "strength_model": 0.9,
       "model": [
-        "507",
+        "802",
         0
       ]
     },
@@ -730,7 +744,7 @@
       "lora_name": "zimage/amateur_photography_zimage_v1.safetensors",
       "strength_model": 0,
       "model": [
-        "507",
+        "802",
         0
       ]
     },

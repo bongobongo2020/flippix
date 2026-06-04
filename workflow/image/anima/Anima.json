@@ -1,0 +1,128 @@
+{
+  "46": {
+    "inputs": {
+      "filename_prefix": "Anima",
+      "images": [
+        "60:8",
+        0
+      ]
+    },
+    "class_type": "SaveImage",
+    "_meta": {
+      "title": "Save Image"
+    }
+  },
+  "60:15": {
+    "inputs": {
+      "vae_name": "qwen_image_vae.safetensors"
+    },
+    "class_type": "VAELoader",
+    "_meta": {
+      "title": "Load VAE"
+    }
+  },
+  "60:28": {
+    "inputs": {
+      "width": 1024,
+      "height": 1024,
+      "batch_size": 1
+    },
+    "class_type": "EmptyLatentImage",
+    "_meta": {
+      "title": "Empty Latent Image"
+    }
+  },
+  "60:44": {
+    "inputs": {
+      "unet_name": "anima/anima-base-v1.0.safetensors",
+      "weight_dtype": "default"
+    },
+    "class_type": "UNETLoader",
+    "_meta": {
+      "title": "Load Diffusion Model"
+    }
+  },
+  "60:45": {
+    "inputs": {
+      "clip_name": "qwen_3_06b_base.safetensors",
+      "type": "stable_diffusion",
+      "device": "default"
+    },
+    "class_type": "CLIPLoader",
+    "_meta": {
+      "title": "Load CLIP"
+    }
+  },
+  "60:12": {
+    "inputs": {
+      "text": "worst quality, low quality, score_1, score_2, score_3, blurry, jpeg artifacts, sepia",
+      "clip": [
+        "60:45",
+        0
+      ]
+    },
+    "class_type": "CLIPTextEncode",
+    "_meta": {
+      "title": "CLIP Text Encode (Negative Prompt)"
+    }
+  },
+  "60:11": {
+    "inputs": {
+      "text": "AThis is a full-body photograph of a young woman posing outdoors in an athletic stance, set against a sunlit grassy park background.\n\n**Subject:**\nThe central figure is a woman with long, dark brown hair that falls over her shoulders. She has a focused, intense expression, looking directly at the camera with a determined gaze. Her body language conveys readiness and power; she is in a dynamic martial arts pose, balancing on one leg while raising the other knee high, as if preparing to deliver a kick or demonstrating a technique. Both of her fists are clenched and held near her face.\n\nShe is wearing athletic attire: a lime green sports bra that contrasts with her skin tone, and black shorts with white trim along the waistband and leg edges. A dark-colored wristband adorns her right wrist. Her pose emphasizes her toned physique and the strength required for martial arts or fitness training.\n\n**Setting & Environment:**\nThe woman is standing on a vibrant green lawn. The grass is scattered with dry, brown leaves, suggesting an autumnal season or that the area has been recently disturbed. Patches of dappled sunlight and deep shadows from surrounding trees create a textured, naturalistic backdrop. In the upper right corner of the frame, a chain-link fence is visible, indicating a park or recreational facility boundary.\n\n**Composition & Lighting:**\nThe photograph uses a medium shot that captures the woman from her head to her knees, making her the undeniable focal point. The lighting is bright and direct, characteristic of midday sunlight, which highlights the contours of her muscles and creates sharp shadows on the grass. This strong contrast adds depth and drama to the image.\n\n**Mood & Atmosphere:**\nThe overall mood is one of energy, confidence, and athletic discipline. The woman’s intense gaze and powerful pose suggest she is not merely posing for a photo but demonstrating skill or preparing for action. The natural, sun-drenched park setting provides an authentic, grounded contrast to the dynamic, almost martial arts-inspired pose.\n, sharp domineering cool style, textured anime brushwork, faint circuit background, high contrast chiaroscuro lighting, immersive cinematic shadows, ultra fine details, 8K high-def render, futuristic dystopian mood",
+      "clip": [
+        "60:45",
+        0
+      ]
+    },
+    "class_type": "CLIPTextEncode",
+    "_meta": {
+      "title": "CLIP Text Encode (Positive Prompt)"
+    }
+  },
+  "60:19": {
+    "inputs": {
+      "seed": 389414718129258,
+      "steps": 30,
+      "cfg": 4,
+      "sampler_name": "res_2m",
+      "scheduler": "bong_tangent",
+      "denoise": 1,
+      "model": [
+        "60:44",
+        0
+      ],
+      "positive": [
+        "60:11",
+        0
+      ],
+      "negative": [
+        "60:12",
+        0
+      ],
+      "latent_image": [
+        "60:28",
+        0
+      ]
+    },
+    "class_type": "KSampler",
+    "_meta": {
+      "title": "KSampler"
+    }
+  },
+  "60:8": {
+    "inputs": {
+      "samples": [
+        "60:19",
+        0
+      ],
+      "vae": [
+        "60:15",
+        0
+      ]
+    },
+    "class_type": "VAEDecode",
+    "_meta": {
+      "title": "VAE Decode"
+    }
+  }
+}

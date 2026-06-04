@@ -58,6 +58,7 @@ namespace FlipPix.UI.Models
             TextGeneratorWorkflow.Zimage => "Z",
             TextGeneratorWorkflow.Qwen2512 => "Q",
             TextGeneratorWorkflow.Klien => "K",
+            TextGeneratorWorkflow.Anima => "A",
             _ => "?"
         };
 
@@ -67,6 +68,7 @@ namespace FlipPix.UI.Models
             TextGeneratorWorkflow.Zimage => "#6366F1",
             TextGeneratorWorkflow.Qwen2512 => "#10B981",
             TextGeneratorWorkflow.Klien => "#F59E0B",
+            TextGeneratorWorkflow.Anima => "#EC4899",
             _ => "#6C757D"
         };
 
