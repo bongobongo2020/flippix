@@ -100,6 +100,12 @@ namespace FlipPix.UI.ViewModels
         public WanScailGgufViewModel WanScailGgufVM { get; }
         public WanCharReplaceViewModel WanCharReplaceVM { get; }
 
+        /// <summary>
+        /// LTX Control ViewModel - handles reference image + reference video for IC-LoRA
+        /// control-signal-based video generation (pose, depth, canny edge).
+        /// </summary>
+        public LtxControlViewModel LtxControlVM { get; }
+
         // 0 = LTX 2.3, 1 = Wan 2.2 Remix
         private int _singleVideoWorkflowIndex = 0;
         public int SingleVideoWorkflowIndex
@@ -244,6 +250,15 @@ namespace FlipPix.UI.ViewModels
                 _workflowCoordinator,
                 _fileDialogService);
 
+            LtxControlVM = new LtxControlViewModel(
+                comfyUIService,
+                lmStudioService,
+                logger,
+                settingsService,
+                serviceProvider,
+                _workflowCoordinator,
+                _fileDialogService);
+
             // Forward PlayRequested events from sub-VMs
             MainVM.PlayRequested += (s, e) => PlayRequested?.Invoke(this, e);
             VaceVM.PlayRequested += (s, e) => PlayRequested?.Invoke(this, e);
@@ -257,6 +272,7 @@ namespace FlipPix.UI.ViewModels
             WanScailVM.PlayRequested += (s, e) => PlayRequested?.Invoke(this, e);
             WanScailGgufVM.PlayRequested += (s, e) => PlayRequested?.Invoke(this, e);
             WanCharReplaceVM.PlayRequested += (s, e) => PlayRequested?.Invoke(this, e);
+            LtxControlVM.PlayRequested += (s, e) => PlayRequested?.Invoke(this, e);
 
             // Forward PropertyChanged events from all sub-VMs for backward compatibility
             MainVM.PropertyChanged += ForwardPropertyChanged;
@@ -271,6 +287,7 @@ namespace FlipPix.UI.ViewModels
             WanScailVM.PropertyChanged += ForwardPropertyChanged;
             WanScailGgufVM.PropertyChanged += ForwardPropertyChanged;
             WanCharReplaceVM.PropertyChanged += ForwardPropertyChanged;
+            LtxControlVM.PropertyChanged += ForwardPropertyChanged;
 
             _logger.LogInfo("VideoGeneratorViewModel initialized with sub-ViewModels");
         }
@@ -988,6 +1005,58 @@ namespace FlipPix.UI.ViewModels
 
         #endregion
 
+        #region LtxControlVM Backward Compatibility Properties
+
+        public string LtxControlRefImagePath { get => LtxControlVM.RefImagePath; set => LtxControlVM.RefImagePath = value; }
+        public System.Windows.Media.Imaging.BitmapImage? LtxControlRefImagePreview { get => LtxControlVM.RefImagePreview; set => LtxControlVM.RefImagePreview = value; }
+        public string LtxControlRefImageInfo { get => LtxControlVM.RefImageInfo; set => LtxControlVM.RefImageInfo = value; }
+        public bool LtxControlHasRefImage => LtxControlVM.HasRefImage;
+
+        public string LtxControlRefVideoPath { get => LtxControlVM.RefVideoPath; set => LtxControlVM.RefVideoPath = value; }
+        public string LtxControlRefVideoInfo { get => LtxControlVM.RefVideoInfo; set => LtxControlVM.RefVideoInfo = value; }
+        public bool LtxControlHasRefVideo => LtxControlVM.HasRefVideo;
+        public string? LtxControlRefVideoFileUri => LtxControlVM.RefVideoFileUri;
+
+        public string LtxControlPrompt { get => LtxControlVM.Prompt; set => LtxControlVM.Prompt = value; }
+        public string LtxControlNegativePrompt { get => LtxControlVM.NegativePrompt; set => LtxControlVM.NegativePrompt = value; }
+        public long LtxControlSeed { get => LtxControlVM.Seed; set => LtxControlVM.Seed = value; }
+
+        public bool LtxControlCanAddToQueue => LtxControlVM.CanAddToQueue;
+        public bool LtxControlCanAnalyze => LtxControlVM.CanAnalyze;
+        public bool LtxControlIsAnalyzing => LtxControlVM.IsAnalyzing;
+
+        public bool IsProcessingLtxControl { get => LtxControlVM.IsProcessing; set => LtxControlVM.IsProcessing = value; }
+        public string LtxControlProcessingStatus => LtxControlVM.ProcessingStatus;
+        public double LtxControlProcessingProgress => LtxControlVM.ProcessingProgress;
+        public string LtxControlProgressPercentage => LtxControlVM.ProgressPercentage;
+        public string LtxControlLogOutput => LtxControlVM.LogOutput;
+
+        public bool HasLtxControlResult => LtxControlVM.HasResult;
+        public string LtxControlResultPath => LtxControlVM.ResultVideoPath;
+        public string LtxControlResultVideoInfo => LtxControlVM.ResultVideoInfo;
+
+        public System.Collections.ObjectModel.ObservableCollection<Models.LtxControlQueueItem> LtxControlQueue => LtxControlVM.Queue;
+        public bool LtxControlHasQueueItems => LtxControlVM.HasQueueItems;
+        public bool LtxControlIsProcessingQueue => LtxControlVM.IsProcessingQueue;
+        public string LtxControlQueueStatus => LtxControlVM.QueueStatus;
+        public bool LtxControlHasFailedItems => LtxControlVM.HasFailedItems;
+
+        public System.Windows.Input.ICommand SelectLtxControlRefImageCommand => LtxControlVM.SelectRefImageCommand;
+        public System.Windows.Input.ICommand SelectLtxControlRefVideoCommand => LtxControlVM.SelectRefVideoCommand;
+        public System.Windows.Input.ICommand AnalyzeLtxControlCommand => LtxControlVM.AnalyzeCommand;
+        public System.Windows.Input.ICommand GenerateLtxControlVideoCommand => LtxControlVM.GenerateVideoCommand;
+        public System.Windows.Input.ICommand RemoveLtxControlQueueItemCommand => LtxControlVM.RemoveQueueItemCommand;
+        public System.Windows.Input.ICommand ClearLtxControlQueueCommand => LtxControlVM.ClearQueueCommand;
+        public System.Windows.Input.ICommand StopLtxControlQueueCommand => LtxControlVM.StopQueueCommand;
+        public System.Windows.Input.ICommand StartLtxControlQueueCommand => LtxControlVM.StartQueueCommand;
+        public System.Windows.Input.ICommand ReprocessAllLtxControlFailedCommand => LtxControlVM.ReprocessAllFailedCommand;
+        public System.Windows.Input.ICommand PlayLtxControlVideoCommand => LtxControlVM.PlayVideoCommand;
+        public System.Windows.Input.ICommand OpenLtxControlResultFolderCommand => LtxControlVM.OpenResultFolderCommand;
+        public System.Windows.Input.ICommand SendLtxControlToEditCameraCommand => LtxControlVM.SendToEditCameraCommand;
+        public System.Windows.Input.ICommand RandomLtxControlSeedCommand => LtxControlVM.RandomSeedCommand;
+
+        #endregion
+
         #region Public Methods
 
         /// <summary>
@@ -1018,6 +1087,7 @@ namespace FlipPix.UI.ViewModels
                 LongVideoVM.PropertyChanged -= ForwardPropertyChanged;
                 WanScailVM.PropertyChanged -= ForwardPropertyChanged;
                 WanCharReplaceVM.PropertyChanged -= ForwardPropertyChanged;
+                LtxControlVM.PropertyChanged -= ForwardPropertyChanged;
 
                 // Dispose all sub-ViewModels
                 (MainVM as IDisposable)?.Dispose();

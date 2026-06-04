@@ -692,6 +692,68 @@
                         </ScrollViewer>
                     </TabItem>
 
+                    <!-- Tab: LTX Control -->
+                    <TabItem Header="LTX Control" FontWeight="Bold" FontSize="13">
+                        <ScrollViewer>
+                            <StackPanel Margin="10" Spacing="15">
+                                <Border Background="#F8F9FA" BorderBrush="#BFDBFE" BorderThickness="1" CornerRadius="8" Padding="15">
+                                    <StackPanel Spacing="8">
+                                        <TextBlock Text="LTX IC-LoRA Control" FontSize="14" FontWeight="Bold" Foreground="#2563EB"/>
+
+                                        <!-- Reference Image -->
+                                        <TextBlock Text="Reference Image (subject &amp; aesthetics)" FontWeight="SemiBold" FontSize="11"/>
+                                        <Border BorderBrush="#BFDBFE" BorderThickness="1" Background="White" Height="120" CornerRadius="5">
+                                            <Grid>
+                                                <TextBlock Text="No image" HorizontalAlignment="Center" VerticalAlignment="Center"
+                                                           Foreground="#999" IsVisible="{Binding LtxControlVM.!HasRefImage}"/>
+                                                <Image Source="{Binding LtxControlVM.RefImagePreview}"
+                                                       Stretch="Uniform" IsVisible="{Binding LtxControlVM.HasRefImage}"/>
+                                            </Grid>
+                                        </Border>
+                                        <Button Content="Browse Reference Image" Classes="secondary"
+                                                Command="{Binding LtxControlVM.SelectRefImageCommand}" HorizontalAlignment="Left"/>
+                                        <TextBlock Text="{Binding LtxControlVM.RefImageInfo}" FontSize="10" Foreground="#666"/>
+
+                                        <!-- Reference Video -->
+                                        <TextBlock Text="Reference Video (motion &amp; structure)" FontWeight="SemiBold" FontSize="11"/>
+                                        <Grid ColumnDefinitions="*,Auto">
+                                            <TextBox Grid.Column="0" Text="{Binding LtxControlVM.RefVideoPath}" IsReadOnly="True" Padding="8"/>
+                                            <Button Grid.Column="1" Content="Browse" Classes="secondary"
+                                                    Command="{Binding LtxControlVM.SelectRefVideoCommand}" Margin="8,0,0,0"/>
+                                        </Grid>
+                                        <TextBlock Text="{Binding LtxControlVM.RefVideoInfo}" FontSize="10" Foreground="#666"/>
+
+                                        <!-- Analyze -->
+                                        <Button Content="🔍 Analyze Image" Classes="primary"
+                                                Command="{Binding LtxControlVM.AnalyzeCommand}"
+                                                IsEnabled="{Binding LtxControlVM.CanAnalyze}"
+                                                HorizontalAlignment="Left" Height="36"
+                                                ToolTip.Tip="Analyzes the reference image to generate an IC-LoRA aesthetic prompt."/>
+
+                                        <!-- Prompt -->
+                                        <TextBlock Text="Prompt" FontWeight="SemiBold" FontSize="11"/>
+                                        <TextBox Text="{Binding LtxControlVM.Prompt, Mode=TwoWay}"
+                                                 TextWrapping="Wrap" AcceptsReturn="True" Height="80" Padding="8" FontSize="11"/>
+
+                                        <!-- Actions -->
+                                        <Grid ColumnDefinitions="*,Auto">
+                                            <Button Grid.Column="0" Content="⚡ Generate Video" Classes="primary"
+                                                    Command="{Binding LtxControlVM.GenerateVideoCommand}"
+                                                    IsEnabled="{Binding LtxControlVM.CanAddToQueue}" Margin="0,0,5,0" Height="40"/>
+                                            <Button Grid.Column="1" Content="Cancel" Classes="danger"
+                                                    Command="{Binding LtxControlVM.StopQueueCommand}"
+                                                    IsEnabled="{Binding LtxControlVM.IsProcessingQueue}" Margin="5,0,0,0" Height="40"/>
+                                        </Grid>
+                                        <ProgressBar Value="{Binding LtxControlVM.ProcessingProgress}" Maximum="100" Height="14"
+                                                     IsVisible="{Binding LtxControlVM.IsProcessing}"/>
+                                        <TextBlock Text="{Binding LtxControlVM.ProcessingStatus}" FontSize="11"
+                                                   IsVisible="{Binding LtxControlVM.IsProcessing}"/>
+                                    </StackPanel>
+                                </Border>
+                            </StackPanel>
+                        </ScrollViewer>
+                    </TabItem>
+
                 </TabControl>
             </StackPanel>
         </ScrollViewer>
