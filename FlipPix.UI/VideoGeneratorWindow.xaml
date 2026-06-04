@@ -4192,6 +4192,455 @@
                         </Grid>
                     </TabItem>
 
+                    <!-- Tab: LTX Control -->
+                    <TabItem Header="🎛️ LTX Control" FontWeight="Bold" FontSize="13">
+                        <Grid>
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="340"/>
+                                <ColumnDefinition Width="*"/>
+                            </Grid.ColumnDefinitions>
+
+                            <!-- ═══ LEFT PANEL ═══════════════════════════════════════════════ -->
+                            <Border Grid.Column="0" BorderBrush="#E5E7EB" BorderThickness="0,0,1,0" Background="#F9FAFB">
+                                <ScrollViewer VerticalScrollBarVisibility="Auto">
+                                    <StackPanel Margin="12">
+
+                                        <!-- Reference Image -->
+                                        <Border Background="White" BorderBrush="#BFDBFE" BorderThickness="1"
+                                                CornerRadius="8" Padding="14" Margin="0,0,0,10">
+                                            <StackPanel>
+                                                <StackPanel Orientation="Horizontal" Margin="0,0,0,10">
+                                                    <Ellipse Width="6" Height="6" Fill="#2563EB" Margin="0,0,6,0" VerticalAlignment="Center"/>
+                                                    <TextBlock Text="REFERENCE IMAGE" FontSize="10" FontWeight="Bold" Foreground="#6B7280"/>
+                                                    <TextBlock Text="  · subject &amp; aesthetics" FontSize="10" Foreground="#9CA3AF"/>
+                                                </StackPanel>
+
+                                                <Border BorderBrush="#BFDBFE" BorderThickness="1" CornerRadius="6"
+                                                        Background="#EFF6FF" Height="130" Margin="0,0,0,8">
+                                                    <Grid>
+                                                        <TextBlock Text="No image selected"
+                                                                   HorizontalAlignment="Center" VerticalAlignment="Center"
+                                                                   Foreground="#9CA3AF" FontSize="11">
+                                                            <TextBlock.Style>
+                                                                <Style TargetType="TextBlock">
+                                                                    <Setter Property="Visibility" Value="Collapsed"/>
+                                                                    <Style.Triggers>
+                                                                        <DataTrigger Binding="{Binding LtxControlRefImagePreview}" Value="{x:Null}">
+                                                                            <Setter Property="Visibility" Value="Visible"/>
+                                                                        </DataTrigger>
+                                                                    </Style.Triggers>
+                                                                </Style>
+                                                            </TextBlock.Style>
+                                                        </TextBlock>
+                                                        <Image Source="{Binding LtxControlRefImagePreview}" Stretch="Uniform"/>
+                                                    </Grid>
+                                                </Border>
+
+                                                <Grid>
+                                                    <Grid.ColumnDefinitions>
+                                                        <ColumnDefinition Width="*"/>
+                                                        <ColumnDefinition Width="Auto"/>
+                                                    </Grid.ColumnDefinitions>
+                                                    <TextBlock Grid.Column="0" Text="{Binding LtxControlRefImageInfo}"
+                                                               FontSize="10" Foreground="#6B7280" FontStyle="Italic"
+                                                               VerticalAlignment="Center" TextTrimming="CharacterEllipsis"/>
+                                                    <Button Grid.Column="1" Content="Browse…"
+                                                            Command="{Binding SelectLtxControlRefImageCommand}"
+                                                            Height="28" Padding="10,0" FontSize="11"
+                                                            Background="#DBEAFE" Foreground="#2563EB"
+                                                            BorderBrush="#BFDBFE" BorderThickness="1"/>
+                                                </Grid>
+                                            </StackPanel>
+                                        </Border>
+
+                                        <!-- Reference Video -->
+                                        <Border Background="White" BorderBrush="#BFDBFE" BorderThickness="1"
+                                                CornerRadius="8" Padding="14" Margin="0,0,0,10">
+                                            <StackPanel>
+                                                <StackPanel Orientation="Horizontal" Margin="0,0,0,8">
+                                                    <Ellipse Width="6" Height="6" Fill="#34D399" Margin="0,0,6,0" VerticalAlignment="Center"/>
+                                                    <TextBlock Text="REFERENCE VIDEO" FontSize="10" FontWeight="Bold" Foreground="#6B7280"/>
+                                                    <TextBlock Text="  · motion &amp; structure" FontSize="10" Foreground="#9CA3AF"/>
+                                                </StackPanel>
+                                                <Grid Margin="0,0,0,6">
+                                                    <Grid.ColumnDefinitions>
+                                                        <ColumnDefinition Width="*"/>
+                                                        <ColumnDefinition Width="Auto"/>
+                                                    </Grid.ColumnDefinitions>
+                                                    <TextBox Grid.Column="0" Text="{Binding LtxControlRefVideoPath, Mode=OneWay}"
+                                                             IsReadOnly="True" Height="30"
+                                                             VerticalContentAlignment="Center" Padding="6,0"
+                                                             BorderBrush="#BFDBFE" Background="#F0FDF4"
+                                                             FontSize="11" Foreground="#555" Margin="0,0,6,0"/>
+                                                    <Button Grid.Column="1" Content="Browse…"
+                                                            Command="{Binding SelectLtxControlRefVideoCommand}"
+                                                            Height="30" Padding="10,0" FontSize="11"
+                                                            Background="#ECFDF5" Foreground="#059669"
+                                                            BorderBrush="#A7F3D0" BorderThickness="1"/>
+                                                </Grid>
+                                                <TextBlock Text="{Binding LtxControlRefVideoInfo}"
+                                                           FontSize="10" Foreground="#6B7280" FontStyle="Italic"/>
+                                            </StackPanel>
+                                        </Border>
+
+                                        <!-- Analyze -->
+                                        <Border Background="White" BorderBrush="#BFDBFE" BorderThickness="1"
+                                                CornerRadius="8" Padding="14" Margin="0,0,0,10">
+                                            <StackPanel>
+                                                <StackPanel Orientation="Horizontal">
+                                                    <Button Content="🔍 Analyze Image"
+                                                            Command="{Binding AnalyzeLtxControlCommand}"
+                                                            IsEnabled="{Binding LtxControlCanAnalyze}"
+                                                            Height="32" Padding="14,0" FontSize="11"
+                                                            Background="#2563EB" Foreground="White" BorderThickness="0"
+                                                            ToolTip="Analyzes the reference image to generate an IC-LoRA aesthetic prompt. The reference video provides structural control signals automatically."/>
+                                                    <TextBlock FontStyle="Italic" FontSize="11" VerticalAlignment="Center" Margin="8,0,0,0"
+                                                               Text="Analyzing…" Foreground="#2563EB">
+                                                        <TextBlock.Style>
+                                                            <Style TargetType="TextBlock">
+                                                                <Setter Property="Visibility" Value="Collapsed"/>
+                                                                <Style.Triggers>
+                                                                    <DataTrigger Binding="{Binding LtxControlIsAnalyzing}" Value="True">
+                                                                        <Setter Property="Visibility" Value="Visible"/>
+                                                                    </DataTrigger>
+                                                                </Style.Triggers>
+                                                            </Style>
+                                                        </TextBlock.Style>
+                                                    </TextBlock>
+                                                </StackPanel>
+                                                <TextBlock Margin="0,6,0,0" FontSize="10" Foreground="#9CA3AF" TextWrapping="Wrap"
+                                                           Text="Generates an aesthetic prompt from the reference image. The video's pose, depth, and edge maps are extracted automatically."/>
+                                            </StackPanel>
+                                        </Border>
+
+                                        <!-- Prompt -->
+                                        <Border Background="White" BorderBrush="#BFDBFE" BorderThickness="1"
+                                                CornerRadius="8" Padding="14" Margin="0,0,0,10">
+                                            <StackPanel>
+                                                <StackPanel Orientation="Horizontal" Margin="0,0,0,8">
+                                                    <Ellipse Width="6" Height="6" Fill="#818CF8" Margin="0,0,6,0" VerticalAlignment="Center"/>
+                                                    <TextBlock Text="POSITIVE PROMPT" FontSize="10" FontWeight="Bold" Foreground="#6B7280"/>
+                                                </StackPanel>
+                                                <TextBox Text="{Binding LtxControlPrompt, UpdateSourceTrigger=PropertyChanged}"
+                                                         TextWrapping="Wrap" AcceptsReturn="True"
+                                                         Height="90" VerticalScrollBarVisibility="Auto"
+                                                         BorderBrush="#BFDBFE" Background="#EFF6FF"
+                                                         FontSize="12" Padding="8" Margin="0,0,0,10"/>
+
+                                                <StackPanel Orientation="Horizontal" Margin="0,0,0,8">
+                                                    <Ellipse Width="6" Height="6" Fill="#34D399" Margin="0,0,6,0" VerticalAlignment="Center"/>
+                                                    <TextBlock Text="NEGATIVE PROMPT" FontSize="10" FontWeight="Bold" Foreground="#6B7280"/>
+                                                </StackPanel>
+                                                <TextBox Text="{Binding LtxControlNegativePrompt, UpdateSourceTrigger=PropertyChanged}"
+                                                         TextWrapping="Wrap" AcceptsReturn="True"
+                                                         Height="55" VerticalScrollBarVisibility="Auto"
+                                                         BorderBrush="#BFDBFE" Background="#EFF6FF"
+                                                         FontSize="11" Padding="8"/>
+                                            </StackPanel>
+                                        </Border>
+
+                                        <!-- Settings -->
+                                        <Border Background="White" BorderBrush="#BFDBFE" BorderThickness="1"
+                                                CornerRadius="8" Padding="14">
+                                            <StackPanel>
+                                                <StackPanel Orientation="Horizontal" Margin="0,0,0,10">
+                                                    <Ellipse Width="6" Height="6" Fill="#34D399" Margin="0,0,6,0" VerticalAlignment="Center"/>
+                                                    <TextBlock Text="SETTINGS" FontSize="10" FontWeight="Bold" Foreground="#6B7280"/>
+                                                </StackPanel>
+
+                                                <TextBlock Text="Seed (-1 = random)" FontSize="10" Foreground="#6B7280" Margin="0,0,0,4"/>
+                                                <Grid>
+                                                    <Grid.ColumnDefinitions>
+                                                        <ColumnDefinition Width="*"/>
+                                                        <ColumnDefinition Width="Auto"/>
+                                                    </Grid.ColumnDefinitions>
+                                                    <TextBox Grid.Column="0"
+                                                             Text="{Binding LtxControlSeed, UpdateSourceTrigger=PropertyChanged}"
+                                                             Height="30" Padding="6,0" VerticalContentAlignment="Center"
+                                                             BorderBrush="#BFDBFE" Background="#EFF6FF"
+                                                             FontSize="12" FontFamily="Consolas" Margin="0,0,6,0"/>
+                                                    <Button Grid.Column="1" Content="🎲"
+                                                            Command="{Binding RandomLtxControlSeedCommand}"
+                                                            Height="30" Width="36" FontSize="14"
+                                                            Background="#DBEAFE" Foreground="#2563EB"
+                                                            BorderBrush="#BFDBFE" BorderThickness="1"/>
+                                                </Grid>
+                                            </StackPanel>
+                                        </Border>
+
+                                    </StackPanel>
+                                </ScrollViewer>
+                            </Border>
+
+                            <!-- ═══ RIGHT PANEL ═══════════════════════════════════════════════ -->
+                            <Grid Grid.Column="1">
+                                <Grid.RowDefinitions>
+                                    <RowDefinition Height="290"/>  <!-- Reference video preview -->
+                                    <RowDefinition Height="3"/>    <!-- Progress bar -->
+                                    <RowDefinition Height="Auto"/> <!-- Status row -->
+                                    <RowDefinition Height="Auto"/> <!-- Action buttons -->
+                                    <RowDefinition Height="Auto"/> <!-- Queue panel -->
+                                    <RowDefinition Height="Auto"/> <!-- Result output -->
+                                    <RowDefinition Height="Auto"/> <!-- Log -->
+                                </Grid.RowDefinitions>
+
+                                <!-- ─── Reference Video Preview ───────────────────────────── -->
+                                <Border Grid.Row="0" Background="#030712">
+                                    <Grid>
+                                        <!-- Idle placeholder -->
+                                        <StackPanel HorizontalAlignment="Center" VerticalAlignment="Center">
+                                            <StackPanel.Style>
+                                                <Style TargetType="StackPanel">
+                                                    <Setter Property="Visibility" Value="Visible"/>
+                                                    <Style.Triggers>
+                                                        <DataTrigger Binding="{Binding LtxControlHasRefVideo}" Value="True">
+                                                            <Setter Property="Visibility" Value="Collapsed"/>
+                                                        </DataTrigger>
+                                                    </Style.Triggers>
+                                                </Style>
+                                            </StackPanel.Style>
+                                            <Border Width="64" Height="64" CornerRadius="14"
+                                                    Background="#0A0F1E" BorderBrush="#1F2937" BorderThickness="1"
+                                                    HorizontalAlignment="Center" Margin="0,0,0,10">
+                                                <TextBlock Text="🎛️" FontSize="28" HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                                            </Border>
+                                            <TextBlock Text="Drop reference video here" FontSize="13" FontWeight="SemiBold"
+                                                       Foreground="#4B5563" HorizontalAlignment="Center" Margin="0,0,0,4"/>
+                                            <TextBlock Text="Upload → Analyze → Generate"
+                                                       FontSize="11" Foreground="#374151" HorizontalAlignment="Center"/>
+                                        </StackPanel>
+
+                                        <!-- Reference video player -->
+                                        <MediaElement x:Name="LtxControlRefVideoPlayer"
+                                                      Source="{Binding LtxControlRefVideoFileUri}"
+                                                      LoadedBehavior="Manual" UnloadedBehavior="Stop"
+                                                      ScrubbingEnabled="True"
+                                                      MediaOpened="LtxControlRefPlayer_MediaOpened"
+                                                      Stretch="Uniform"
+                                                      Visibility="{Binding LtxControlHasRefVideo, Converter={StaticResource BooleanToVisibilityConverter}}"/>
+
+                                        <!-- Info bar overlay -->
+                                        <Border VerticalAlignment="Bottom" Margin="10,0,10,10"
+                                                CornerRadius="8" Padding="12,6"
+                                                Visibility="{Binding LtxControlHasRefVideo, Converter={StaticResource BooleanToVisibilityConverter}}">
+                                            <Border.Background>
+                                                <SolidColorBrush Color="#030712" Opacity="0.88"/>
+                                            </Border.Background>
+                                            <Border.BorderBrush>
+                                                <SolidColorBrush Color="#1F2937" Opacity="0.7"/>
+                                            </Border.BorderBrush>
+                                            <Border.BorderThickness>1</Border.BorderThickness>
+                                            <StackPanel Orientation="Horizontal">
+                                                <TextBlock FontSize="10" Foreground="#9CA3AF">
+                                                    <Run Text="IC-LoRA Control  "/>
+                                                    <Run Text="pose · depth · canny" FontWeight="Bold" Foreground="#60A5FA" FontFamily="Consolas"/>
+                                                </TextBlock>
+                                            </StackPanel>
+                                        </Border>
+                                    </Grid>
+                                </Border>
+
+                                <!-- ─── Progress bar ──────────────────────────────────────── -->
+                                <ProgressBar Grid.Row="1"
+                                             Value="{Binding LtxControlProcessingProgress, Mode=OneWay}"
+                                             Foreground="#2563EB" Background="#1F2937" BorderThickness="0"
+                                             Visibility="{Binding LtxControlIsProcessingQueue, Converter={StaticResource BooleanToVisibilityConverter}}"/>
+
+                                <!-- ─── Status row ────────────────────────────────────────── -->
+                                <Border Grid.Row="2" Background="#111827" BorderBrush="#1F2937"
+                                        BorderThickness="0,1,0,0" Padding="12,5">
+                                    <Grid>
+                                        <StackPanel Orientation="Horizontal">
+                                            <Ellipse Width="5" Height="5" VerticalAlignment="Center" Margin="0,0,7,0">
+                                                <Ellipse.Style>
+                                                    <Style TargetType="Ellipse">
+                                                        <Setter Property="Fill" Value="#374151"/>
+                                                        <Style.Triggers>
+                                                            <DataTrigger Binding="{Binding LtxControlIsProcessingQueue}" Value="True">
+                                                                <Setter Property="Fill" Value="#60A5FA"/>
+                                                            </DataTrigger>
+                                                        </Style.Triggers>
+                                                    </Style>
+                                                </Ellipse.Style>
+                                            </Ellipse>
+                                            <TextBlock Text="{Binding LtxControlProcessingStatus}"
+                                                       FontSize="11" Foreground="#6B7280"
+                                                       VerticalAlignment="Center" TextTrimming="CharacterEllipsis"/>
+                                        </StackPanel>
+                                        <TextBlock HorizontalAlignment="Right" VerticalAlignment="Center"
+                                                   Text="{Binding LtxControlProgressPercentage, Mode=OneWay}"
+                                                   FontSize="11" FontWeight="Bold" Foreground="#2563EB"
+                                                   FontFamily="Consolas"
+                                                   Visibility="{Binding LtxControlIsProcessingQueue, Converter={StaticResource BooleanToVisibilityConverter}}"/>
+                                    </Grid>
+                                </Border>
+
+                                <!-- ─── Action Buttons ────────────────────────────────────── -->
+                                <Border Grid.Row="3" Background="#0F172A" BorderBrush="#1F2937"
+                                        BorderThickness="0,1,0,0" Padding="10,8">
+                                    <Grid>
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="*"/>
+                                            <ColumnDefinition Width="Auto"/>
+                                        </Grid.ColumnDefinitions>
+
+                                        <Button Grid.Column="0" Margin="0,0,8,0" Height="40"
+                                                Command="{Binding GenerateLtxControlVideoCommand}"
+                                                IsEnabled="{Binding LtxControlCanAddToQueue}"
+                                                Background="#2563EB" Foreground="White"
+                                                FontSize="12" FontWeight="Bold" BorderThickness="0">
+                                            <StackPanel Orientation="Horizontal">
+                                                <TextBlock Text="⚡ " VerticalAlignment="Center"/>
+                                                <TextBlock Text="Generate Video" VerticalAlignment="Center"/>
+                                            </StackPanel>
+                                        </Button>
+
+                                        <Button Grid.Column="1" Height="40" Width="82"
+                                                Command="{Binding StopLtxControlQueueCommand}"
+                                                IsEnabled="{Binding LtxControlIsProcessingQueue}"
+                                                Background="#1F2937" Foreground="#F87171"
+                                                FontSize="11" BorderThickness="0">
+                                            <StackPanel Orientation="Horizontal">
+                                                <TextBlock Text="✕ " VerticalAlignment="Center"/>
+                                                <TextBlock Text="Cancel" VerticalAlignment="Center"/>
+                                            </StackPanel>
+                                        </Button>
+                                    </Grid>
+                                </Border>
+
+                                <!-- ─── Queue Panel ───────────────────────────────────────── -->
+                                <Border Grid.Row="4" Background="#EFF6FF" BorderBrush="#BFDBFE"
+                                        BorderThickness="0,1,0,0" Padding="12,8"
+                                        Visibility="{Binding LtxControlHasQueueItems, Converter={StaticResource BooleanToVisibilityConverter}}">
+                                    <StackPanel>
+                                        <Grid Margin="0,0,0,6">
+                                            <Grid.ColumnDefinitions>
+                                                <ColumnDefinition Width="*"/>
+                                                <ColumnDefinition Width="Auto"/>
+                                                <ColumnDefinition Width="Auto"/>
+                                                <ColumnDefinition Width="Auto"/>
+                                                <ColumnDefinition Width="Auto"/>
+                                            </Grid.ColumnDefinitions>
+                                            <TextBlock Grid.Column="0" Text="🎛️ LTX Control Queue"
+                                                       FontWeight="Bold" FontSize="12" Foreground="#2563EB"
+                                                       VerticalAlignment="Center"/>
+                                            <TextBlock Grid.Column="1" Text="{Binding LtxControlQueueStatus}"
+                                                       FontStyle="Italic" Foreground="#666" FontSize="11"
+                                                       VerticalAlignment="Center" Margin="0,0,8,0"/>
+                                            <Button Grid.Column="2" Content="🔄 Retry"
+                                                    Command="{Binding ReprocessAllLtxControlFailedCommand}"
+                                                    IsEnabled="{Binding LtxControlHasFailedItems}"
+                                                    Height="26" Padding="8,0" FontSize="11" Margin="0,0,5,0"
+                                                    Background="#2563EB" Foreground="White" BorderThickness="0"/>
+                                            <Button Grid.Column="3" Content="⏹ Stop"
+                                                    Command="{Binding StopLtxControlQueueCommand}"
+                                                    IsEnabled="{Binding LtxControlIsProcessingQueue}"
+                                                    Height="26" Padding="8,0" FontSize="11" Margin="0,0,5,0"
+                                                    Background="#60A5FA" Foreground="White" BorderThickness="0"/>
+                                            <Button Grid.Column="4" Content="🗑️ Clear"
+                                                    Command="{Binding ClearLtxControlQueueCommand}"
+                                                    Height="26" Padding="8,0" FontSize="11"
+                                                    Background="#DC3545" Foreground="White" BorderThickness="0"/>
+                                        </Grid>
+
+                                        <ItemsControl ItemsSource="{Binding LtxControlQueue}">
+                                            <ItemsControl.ItemTemplate>
+                                                <DataTemplate>
+                                                    <Border BorderBrush="#BFDBFE" BorderThickness="1" CornerRadius="4"
+                                                            Padding="10,5" Margin="0,0,0,3" Background="White">
+                                                        <Grid>
+                                                            <Grid.ColumnDefinitions>
+                                                                <ColumnDefinition Width="Auto"/>
+                                                                <ColumnDefinition Width="*"/>
+                                                                <ColumnDefinition Width="Auto"/>
+                                                            </Grid.ColumnDefinitions>
+                                                            <Border Grid.Column="0" CornerRadius="3" Padding="6,2" Margin="0,0,8,0"
+                                                                    Background="{Binding StatusColor}">
+                                                                <TextBlock Text="{Binding StatusDisplay}" FontSize="10"
+                                                                           FontWeight="SemiBold" Foreground="White"/>
+                                                            </Border>
+                                                            <StackPanel Grid.Column="1" VerticalAlignment="Center">
+                                                                <TextBlock Text="{Binding DisplayText}" FontWeight="SemiBold" FontSize="11"/>
+                                                                <TextBlock Text="{Binding Prompt}" FontSize="10" Foreground="#666"
+                                                                           TextTrimming="CharacterEllipsis"/>
+                                                            </StackPanel>
+                                                            <Button Grid.Column="2" Content="✕"
+                                                                    Style="{StaticResource SecondaryButtonStyle}"
+                                                                    Command="{Binding DataContext.RemoveLtxControlQueueItemCommand, RelativeSource={RelativeSource AncestorType=ItemsControl}}"
+                                                                    CommandParameter="{Binding}"
+                                                                    Width="26" Height="26" Padding="0" FontSize="10"/>
+                                                        </Grid>
+                                                    </Border>
+                                                </DataTemplate>
+                                            </ItemsControl.ItemTemplate>
+                                        </ItemsControl>
+                                    </StackPanel>
+                                </Border>
+
+                                <!-- ─── Result Output ──────────────────────────────────────── -->
+                                <Border Grid.Row="5" Background="White" BorderBrush="#BFDBFE"
+                                        BorderThickness="0,1,0,0" Padding="12,10">
+                                    <StackPanel>
+                                        <TextBlock Text="🎥 Result Video" FontWeight="Bold" FontSize="13"
+                                                   Foreground="#2563EB" Margin="0,0,0,8"/>
+
+                                        <Border BorderBrush="#BFDBFE" BorderThickness="1" Background="#030712"
+                                                Height="200" CornerRadius="6" Margin="0,0,0,8">
+                                            <Grid>
+                                                <TextBlock Text="Video will appear here after generation"
+                                                           HorizontalAlignment="Center" VerticalAlignment="Center"
+                                                           Foreground="#374151" FontStyle="Italic">
+                                                    <TextBlock.Style>
+                                                        <Style TargetType="TextBlock">
+                                                            <Setter Property="Visibility" Value="Collapsed"/>
+                                                            <Style.Triggers>
+                                                                <DataTrigger Binding="{Binding HasLtxControlResult}" Value="False">
+                                                                    <Setter Property="Visibility" Value="Visible"/>
+                                                                </DataTrigger>
+                                                            </Style.Triggers>
+                                                        </Style>
+                                                    </TextBlock.Style>
+                                                </TextBlock>
+                                                <MediaElement x:Name="LtxControlVideoPlayer"
+                                                              Source="{Binding LtxControlResultPath}"
+                                                              LoadedBehavior="Manual" UnloadedBehavior="Stop"
+                                                              Stretch="Uniform"
+                                                              Visibility="{Binding HasLtxControlResult, Converter={StaticResource BooleanToVisibilityConverter}}"/>
+                                            </Grid>
+                                        </Border>
+
+                                        <StackPanel Orientation="Horizontal" Margin="0,0,0,6">
+                                            <Button Content="▶ Play" Style="{StaticResource PrimaryButtonStyle}"
+                                                    Command="{Binding PlayLtxControlVideoCommand}"
+                                                    IsEnabled="{Binding HasLtxControlResult}" Margin="0,0,8,0"/>
+                                            <Button Content="📁 Open Folder" Style="{StaticResource SecondaryButtonStyle}"
+                                                    Command="{Binding OpenLtxControlResultFolderCommand}"
+                                                    IsEnabled="{Binding HasLtxControlResult}" Margin="0,0,8,0"/>
+                                            <Button Content="📷 Send to Edit Camera" Style="{StaticResource SecondaryButtonStyle}"
+                                                    Command="{Binding SendLtxControlToEditCameraCommand}"
+                                                    IsEnabled="{Binding HasLtxControlResult}"/>
+                                        </StackPanel>
+                                        <TextBlock Text="{Binding LtxControlResultVideoInfo}"
+                                                   FontStyle="Italic" Foreground="#666" FontSize="11"/>
+                                    </StackPanel>
+                                </Border>
+
+                                <!-- ─── Log ───────────────────────────────────────────────── -->
+                                <Border Grid.Row="6" Background="White" BorderBrush="#BFDBFE" BorderThickness="0,1,0,0">
+                                    <Expander Header="📝 Processing Log" IsExpanded="False" Margin="6">
+                                        <ScrollViewer MaxHeight="130" VerticalScrollBarVisibility="Auto" Margin="0,4,0,0">
+                                            <TextBox Text="{Binding LtxControlLogOutput, Mode=OneWay}"
+                                                     TextWrapping="Wrap" IsReadOnly="True"
+                                                     FontFamily="Consolas" FontSize="10"
+                                                     Background="Transparent" BorderThickness="0" Padding="10"/>
+                                        </ScrollViewer>
+                                    </Expander>
+                                </Border>
+
+                            </Grid>
+                        </Grid>
+                    </TabItem>
+
                     <!-- Tab: Character Replacement -->
                     <TabItem Header="🧑‍🎨 Char Replace" FontWeight="Bold" FontSize="13">
                         <Grid>

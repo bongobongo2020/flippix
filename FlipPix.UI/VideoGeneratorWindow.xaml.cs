@@ -73,6 +73,12 @@ namespace FlipPix.UI
                 WanCharReplaceVideoPlayer.Position = System.TimeSpan.Zero;
                 WanCharReplaceVideoPlayer.Play();
             }
+
+            if (LtxControlVideoPlayer != null && LtxControlVideoPlayer.Source != null)
+            {
+                LtxControlVideoPlayer.Position = System.TimeSpan.Zero;
+                LtxControlVideoPlayer.Play();
+            }
         }
 
         // ── MediaOpened: enter Paused state so ScrubbingEnabled can render frames ──
@@ -93,6 +99,12 @@ namespace FlipPix.UI
         {
             WanCharReplaceRefVideoPlayer.Play();
             WanCharReplaceRefVideoPlayer.Pause();
+        }
+
+        private void LtxControlRefPlayer_MediaOpened(object sender, RoutedEventArgs e)
+        {
+            LtxControlRefVideoPlayer.Play();
+            LtxControlRefVideoPlayer.Pause();
         }
 
         // ── Chunk seek with start → mid → end scrub animation ────────────────
@@ -195,6 +207,8 @@ namespace FlipPix.UI
             VACEVideoPlayer?.Stop();
             WanCharReplaceRefVideoPlayer?.Stop();
             WanCharReplaceVideoPlayer?.Stop();
+            LtxControlRefVideoPlayer?.Stop();
+            LtxControlVideoPlayer?.Stop();
 
             _viewModel.WanScailGgufVM.SeekRequested -= OnWanScailGgufSeekRequested;
             _viewModel.VaceVM.SeekRequested -= OnVaceSeekRequested;
