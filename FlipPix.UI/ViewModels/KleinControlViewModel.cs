@@ -597,8 +597,9 @@ namespace FlipPix.UI.ViewModels
                 var promptText = await GetTextFromHistoryAsync(promptId, "59", _cts.Token);
                 if (!string.IsNullOrWhiteSpace(promptText))
                 {
-                    WpfApp.Current?.Dispatcher.Invoke(() => Prompt = promptText);
-                    AddLog($"Got prompt ({promptText.Length} chars)");
+                    var cleaned = StripThinkingTokens(promptText);
+                    WpfApp.Current?.Dispatcher.Invoke(() => Prompt = cleaned);
+                    AddLog($"Got prompt ({cleaned.Length} chars)");
                 }
                 else
                 {
@@ -891,6 +892,27 @@ namespace FlipPix.UI.ViewModels
         {
             if (!string.IsNullOrEmpty(ResultImagePath) && File.Exists(ResultImagePath))
                 Process.Start(new ProcessStartInfo(ResultImagePath) { UseShellExecute = true });
+        }
+
+        private static string StripThinkingTokens(string text)
+        {
+            var result = System.Text.RegularExpressions.Regex.Replace(
+                text, @"<think>[\s\S]*?</think>", string.Empty,
+                System.Text.RegularExpressions.RegexOptions.IgnoreCase).Trim();
+            var lines = result.Split('\n');
+            var kept = new System.Collections.Generic.List<string>();
+            var opts = System.Text.RegularExpressions.RegexOptions.IgnoreCase;
+            foreach (var line in lines)
+            {
+                var t = line.Trim();
+                if (System.Text.RegularExpressions.Regex.IsMatch(t, @"^\(\d+\)\s+The (input|output)\b", opts)) break;
+                if (System.Text.RegularExpressions.Regex.IsMatch(t, @"^(Therefore|However|Note:|Additionally|The original|I'll ensure|Since we must)\b", opts)) break;
+                if (System.Text.RegularExpressions.Regex.IsMatch(t, @"\*\*(her|his|their)\s+\w+\s+is\s+now\b", opts)) break;
+                if (kept.Count > 0 && t.Length > 40 && kept.Any(k => k.Contains(t.Substring(0, Math.Min(40, t.Length))))) break;
+                var clean = System.Text.RegularExpressions.Regex.Replace(line, @"\*\*", string.Empty);
+                kept.Add(clean);
+            }
+            return string.Join("\n", kept).Trim();
         }
 
         private void AddLog(string message)

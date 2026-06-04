@@ -361,12 +361,12 @@
     "inputs": {
       "model_name": "Qwen3VL-4B-Instruct-Q4_K_M.gguf",
       "preset_prompt": "🪄 Prompt Refine & Expand",
-      "custom_prompt": "",
-      "max_tokens": 512,
+      "custom_prompt": "/no_think\nDescribe ONLY what is visible in this reference image. Output ONE paragraph, nothing else — no thinking, no analysis, no commentary, no invented details. Structure: face first (skin tone, exact eye color and shape, nose, lips, expression, hair color/style/length, accessories); then each clothing item (exact specific color adjectives like 'deep matte black' or 'vivid crimson red', garment type, material texture, fit, any logos or patterns); then standing pose and environment; then lighting; then camera shot type and depth of field; then mood. Do not mention anything not visible in the image. Do not add books, furniture, or rooms.",
+      "max_tokens": 600,
       "keep_model_loaded": true,
       "seed": 2191792731,
       "image": [
-        "19",
+        "5",
         0
       ]
     },
@@ -387,8 +387,8 @@
         0
       ],
       "enhancement_style": "📝 Enhance",
-      "custom_system_prompt": "",
-      "max_tokens": 256,
+      "custom_system_prompt": "/no_think\nYou refine image generation prompts. Output ONLY the final paragraph — no thinking, no verification, no numbered analysis, no commentary, no extra sentences. Preserve every specific clothing color, material, and facial feature from the input unchanged. Only add cinematic lighting, camera lens, and depth-of-field details if missing. One paragraph, nothing else.",
+      "max_tokens": 350,
       "temperature": 0.7,
       "top_p": 0.9,
       "repetition_penalty": 1.1,
@@ -403,7 +403,7 @@
   "59": {
     "inputs": {
       "text": [
-        "58",
+        "57",
         0
       ]
     },
@@ -467,7 +467,7 @@
   },
   "8:17": {
     "inputs": {
-      "steps": 4,
+      "steps": 8,
       "width": [
         "45",
         0

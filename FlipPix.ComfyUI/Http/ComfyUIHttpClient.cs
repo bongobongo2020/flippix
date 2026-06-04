@@ -324,7 +324,7 @@ public class ComfyUIHttpClient : IDisposable
                 {
                     ExtraPnginfo = new Dictionary<string, object>
                     {
-                        ["workflow"] = workflow
+                        ["workflow"] = BuildUiWorkflow(workflow)
                     }
                 }
             };
@@ -356,6 +356,35 @@ public class ComfyUIHttpClient : IDisposable
         {
             _logger.LogError(ex, "Failed to submit workflow");
             throw;
+        }
+    }
+
+    // ShowText|pysssss requires extra_pnginfo.workflow to have a "nodes" array (UI format).
+    // The API format is a flat dict keyed by node ID, so we convert it here.
+    private static object BuildUiWorkflow(object workflow)
+    {
+        try
+        {
+            var json = workflow is JsonElement je ? je.GetRawText() : JsonSerializer.Serialize(workflow);
+            var dict = JsonSerializer.Deserialize<Dictionary<string, JsonElement>>(json);
+            if (dict == null) return workflow;
+
+            var nodes = dict.Select(kv =>
+            {
+                var node = new Dictionary<string, object> { ["id"] = kv.Key };
+                if (kv.Value.TryGetProperty("class_type", out var ct))
+                    node["type"] = ct.GetString() ?? string.Empty;
+                if (kv.Value.TryGetProperty("_meta", out var meta) &&
+                    meta.TryGetProperty("title", out var title))
+                    node["title"] = title.GetString() ?? string.Empty;
+                return (object)node;
+            }).ToList();
+
+            return new Dictionary<string, object> { ["nodes"] = nodes, ["links"] = new List<object>() };
+        }
+        catch
+        {
+            return workflow;
         }
     }
 
