@@ -144,7 +144,8 @@
                         </Border>
 
                         <!-- Advanced Settings -->
-                        <Expander Header="⚙️ Advanced Settings" IsExpanded="False" Margin="0,0,0,15">
+                        <Expander Header="⚙️ Advanced Settings" IsExpanded="False" Margin="0,0,0,15"
+                                  IsVisible="{Binding ShowSamplerSettings}">
                             <Border Background="#F8F9FA" BorderBrush="#DEE2E6" BorderThickness="1" CornerRadius="5" Padding="15" Margin="0,8,0,0">
                                 <Grid ColumnDefinitions="*,*,*">
                                     <StackPanel Grid.Column="0" Margin="0,0,15,0">
@@ -676,6 +677,7 @@
                                         <ComboBoxItem Content="Zimage (with LoRA support)"/>
                                         <ComboBoxItem Content="Qwen 2512"/>
                                         <ComboBoxItem Content="Klien (Flux2)"/>
+                                        <ComboBoxItem Content="Anima"/>
                                     </ComboBox>
 
                                     <StackPanel IsVisible="{Binding Analyzer.ShowStyleOptions}" Margin="0,0,0,10">
@@ -707,7 +709,8 @@
                                             Command="{Binding Analyzer.AddToQueueCommand}"
                                             HorizontalAlignment="Stretch" Height="36" FontSize="13" Margin="0,0,0,8"/>
 
-                                    <Expander Header="⚙️ Advanced" IsExpanded="False">
+                                    <Expander Header="⚙️ Advanced" IsExpanded="False"
+                                              IsVisible="{Binding Analyzer.ShowSamplerSettings}">
                                         <StackPanel Margin="0,8,0,0" Spacing="10">
                                             <StackPanel>
                                                 <TextBlock Text="Steps" FontWeight="SemiBold" FontSize="11" Margin="0,0,0,4"/>
@@ -727,6 +730,238 @@
                                     </Expander>
                                 </StackPanel>
                             </Border>
+                        </StackPanel>
+
+                    </Grid>
+                </ScrollViewer>
+            </TabItem>
+
+            <!-- Control Tab: Klein Flux 2 Control Net -->
+            <TabItem Header="🎛️ Control">
+                <ScrollViewer HorizontalScrollBarVisibility="Disabled">
+                    <Grid ColumnDefinitions="*,15,*" Margin="20,15">
+
+                        <!-- Left: image uploads + analyze + prompt editor -->
+                        <StackPanel Grid.Column="0" Spacing="12">
+
+                            <!-- Info badge -->
+                            <Border Background="#EFF6FF" BorderBrush="#BFDBFE" BorderThickness="1" CornerRadius="8" Padding="14">
+                                <StackPanel>
+                                    <TextBlock Text="🎛️ Klein Flux 2 — Control Net" FontWeight="Bold" FontSize="14" Foreground="#1D4ED8" Margin="0,0,0,4"/>
+                                    <TextBlock FontSize="11" Foreground="#3B82F6" TextWrapping="Wrap">
+                                        Upload a reference image (subject) and a pose image. Click Analyze to let
+                                        QwenVL generate a prompt, edit it, then Generate.
+                                    </TextBlock>
+                                </StackPanel>
+                            </Border>
+
+                            <!-- Reference image -->
+                            <Border Background="#F8F9FA" BorderBrush="#DEE2E6" BorderThickness="1" CornerRadius="8" Padding="14">
+                                <StackPanel>
+                                    <TextBlock Text="Reference Image (subject)" FontWeight="SemiBold" FontSize="13" Foreground="#1D4ED8" Margin="0,0,0,8"/>
+                                    <Grid ColumnDefinitions="*,Auto" Margin="0,0,0,8">
+                                        <TextBox Grid.Column="0" Text="{Binding KleinControl.RefImagePath}" IsReadOnly="True" Padding="8" FontSize="11" Height="30"/>
+                                        <Button Grid.Column="1" Content="Browse" Classes="secondary" Margin="6,0,0,0" Height="30"
+                                                Command="{Binding KleinControl.BrowseRefImageCommand}"
+                                                IsEnabled="{Binding !KleinControl.IsBusy}"/>
+                                    </Grid>
+                                    <Border BorderBrush="#DEE2E6" BorderThickness="2" Background="White" Height="160" CornerRadius="5">
+                                        <Grid>
+                                            <TextBlock Text="👤 Reference image" HorizontalAlignment="Center" VerticalAlignment="Center"
+                                                       Foreground="#999" FontStyle="Italic" FontSize="13"
+                                                       IsVisible="{Binding !KleinControl.HasRefImage}"/>
+                                            <Image Source="{Binding KleinControl.RefImagePath, Converter={StaticResource PathToBitmapConverter}}"
+                                                   Stretch="Uniform" Margin="5"
+                                                   IsVisible="{Binding KleinControl.HasRefImage}"/>
+                                        </Grid>
+                                    </Border>
+                                </StackPanel>
+                            </Border>
+
+                            <!-- Pose image / video picker -->
+                            <Border Background="#F8F9FA" BorderBrush="#DEE2E6" BorderThickness="1" CornerRadius="8" Padding="14">
+                                <StackPanel>
+                                    <TextBlock Text="Pose Image / Video (DWPose source + analysis)" FontWeight="SemiBold" FontSize="13" Foreground="#7C3AED" Margin="0,0,0,8"/>
+
+                                    <!-- Browse buttons row -->
+                                    <StackPanel Orientation="Horizontal" Spacing="8" Margin="0,0,0,10">
+                                        <Button Content="📂 Image" Classes="secondary" Height="30" Padding="12,0"
+                                                Command="{Binding KleinControl.BrowsePoseImageCommand}"
+                                                IsEnabled="{Binding !KleinControl.IsBusy}"/>
+                                        <Button Content="🎬 Video" Height="30" Padding="12,0"
+                                                Background="#4F46E5" Foreground="White" BorderThickness="0" CornerRadius="4"
+                                                Command="{Binding KleinControl.BrowseVideoCommand}"
+                                                IsEnabled="{Binding !KleinControl.IsBusy}"/>
+                                    </StackPanel>
+
+                                    <!-- IMAGE MODE -->
+                                    <StackPanel IsVisible="{Binding KleinControl.NoVideo}">
+                                        <TextBox Text="{Binding KleinControl.PoseImagePath}" IsReadOnly="True"
+                                                 Padding="8" FontSize="11" Height="30" Margin="0,0,0,8"/>
+                                        <Border BorderBrush="#DEE2E6" BorderThickness="2" Background="White" Height="160" CornerRadius="5">
+                                            <Grid>
+                                                <TextBlock Text="🕴️ Browse an image or video" HorizontalAlignment="Center" VerticalAlignment="Center"
+                                                           Foreground="#999" FontStyle="Italic" FontSize="13"
+                                                           IsVisible="{Binding !KleinControl.HasPoseImage}"/>
+                                                <Image Source="{Binding KleinControl.PoseImagePath, Converter={StaticResource PathToBitmapConverter}}"
+                                                       Stretch="Uniform" Margin="5"
+                                                       IsVisible="{Binding KleinControl.HasPoseImage}"/>
+                                            </Grid>
+                                        </Border>
+                                    </StackPanel>
+
+                                    <!-- VIDEO MODE -->
+                                    <StackPanel IsVisible="{Binding KleinControl.HasVideo}" Spacing="8">
+
+                                        <!-- Video info badge -->
+                                        <Border Background="#EDE9FE" BorderBrush="#C4B5FD" BorderThickness="1" CornerRadius="4" Padding="8,5">
+                                            <TextBlock Text="{Binding KleinControl.VideoInfoText}" FontSize="11" Foreground="#5B21B6"/>
+                                        </Border>
+
+                                        <!-- Frame preview -->
+                                        <Border BorderBrush="#DEE2E6" BorderThickness="2" Background="#1A1A2E" Height="200" CornerRadius="5">
+                                            <Grid>
+                                                <TextBlock Text="🎞️ Loading frame..." HorizontalAlignment="Center" VerticalAlignment="Center"
+                                                           Foreground="#9CA3AF" FontSize="13"
+                                                           IsVisible="{Binding KleinControl.NoFramePreview}"/>
+                                                <Image Source="{Binding KleinControl.FramePreviewPath, Converter={StaticResource PathToBitmapConverter}}"
+                                                       Stretch="Uniform" Margin="2"
+                                                       IsVisible="{Binding KleinControl.HasFramePreview}"/>
+                                                <!-- Extracting overlay -->
+                                                <Border Background="#CC000000" CornerRadius="4"
+                                                        IsVisible="{Binding KleinControl.IsExtractingFrame}">
+                                                    <TextBlock Text="⏳ Extracting..." FontSize="13" Foreground="White"
+                                                               HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                                                </Border>
+                                            </Grid>
+                                        </Border>
+
+                                        <!-- Seek slider -->
+                                        <Slider Value="{Binding KleinControl.FramePositionSeconds, Mode=TwoWay}"
+                                                Minimum="0" Maximum="{Binding KleinControl.VideoDurationSeconds}"/>
+                                        <TextBlock Text="{Binding KleinControl.FramePositionText}"
+                                                   FontSize="11" Foreground="#6B7280" HorizontalAlignment="Center"/>
+
+                                        <!-- Use This Frame + set indicator -->
+                                        <StackPanel Orientation="Horizontal" Spacing="8">
+                                            <Button Content="📌 Use This Frame"
+                                                    Command="{Binding KleinControl.UseFrameCommand}"
+                                                    IsEnabled="{Binding KleinControl.UseFrameCommand}"
+                                                    Background="#7C3AED" Foreground="White"
+                                                    BorderThickness="0" CornerRadius="4" Padding="12,7" FontWeight="SemiBold"/>
+                                            <Border Background="#ECFDF5" BorderBrush="#6EE7B7" BorderThickness="1"
+                                                    CornerRadius="4" Padding="8,4"
+                                                    IsVisible="{Binding KleinControl.HasPoseImage}">
+                                                <TextBlock Text="✓ Frame set" FontSize="11" Foreground="#059669" FontWeight="SemiBold"/>
+                                            </Border>
+                                        </StackPanel>
+
+                                    </StackPanel>
+                                </StackPanel>
+                            </Border>
+
+                            <!-- Step 1: Analyze -->
+                            <Border Background="#F0FDF4" BorderBrush="#BBF7D0" BorderThickness="1" CornerRadius="8" Padding="14">
+                                <StackPanel>
+                                    <TextBlock Text="Step 1 — Analyze" FontWeight="SemiBold" FontSize="13" Foreground="#059669" Margin="0,0,0,6"/>
+                                    <TextBlock FontSize="11" Foreground="#6B7280" Margin="0,0,0,8" TextWrapping="Wrap">
+                                        QwenVL (inside ComfyUI) analyzes the pose image and generates a prompt.
+                                    </TextBlock>
+                                    <Button Content="🔍 Analyze"
+                                            Command="{Binding KleinControl.AnalyzeCommand}"
+                                            IsEnabled="{Binding KleinControl.CanAnalyze}"
+                                            HorizontalAlignment="Stretch" Height="38"
+                                            Background="#059669" Foreground="White"
+                                            BorderThickness="0" FontSize="13" FontWeight="SemiBold" CornerRadius="6" Margin="0,0,0,6"/>
+                                    <Border Background="#FEF3C7" BorderBrush="#FCD34D" BorderThickness="2" CornerRadius="6" Padding="10"
+                                            IsVisible="{Binding KleinControl.IsAnalyzing}">
+                                        <StackPanel>
+                                            <TextBlock Text="Analyzing + generating..." FontWeight="Bold" FontSize="11"
+                                                       TextAlignment="Center" Foreground="#92400E" Margin="0,0,0,5"/>
+                                            <ProgressBar IsIndeterminate="True" Height="14" Foreground="#F59E0B"/>
+                                        </StackPanel>
+                                    </Border>
+                                </StackPanel>
+                            </Border>
+
+                            <!-- Step 2: Edit prompt -->
+                            <Border Background="#F8F9FA" BorderBrush="#DEE2E6" BorderThickness="1" CornerRadius="8" Padding="14">
+                                <StackPanel>
+                                    <TextBlock Text="Step 2 — Edit Prompt" FontWeight="SemiBold" FontSize="13" Foreground="#D97706" Margin="0,0,0,6"/>
+                                    <TextBox Text="{Binding KleinControl.Prompt, Mode=TwoWay}"
+                                             AcceptsReturn="True" Height="100" Padding="10" FontSize="12"
+                                             Watermark="Prompt will appear here after analyzing..."/>
+                                </StackPanel>
+                            </Border>
+
+                            <!-- Step 3: Generate -->
+                            <Border Background="#FFF1F2" BorderBrush="#FECDD3" BorderThickness="1" CornerRadius="8" Padding="14">
+                                <StackPanel>
+                                    <TextBlock Text="Step 3 — Generate" FontWeight="SemiBold" FontSize="13" Foreground="#DC2626" Margin="0,0,0,6"/>
+                                    <Button Content="🚀 Generate"
+                                            Command="{Binding KleinControl.GenerateCommand}"
+                                            IsEnabled="{Binding KleinControl.CanGenerate}"
+                                            HorizontalAlignment="Stretch" Height="40"
+                                            Background="#DC2626" Foreground="White"
+                                            BorderThickness="0" FontSize="14" FontWeight="SemiBold" CornerRadius="6" Margin="0,0,0,8"/>
+                                    <TextBlock Text="{Binding KleinControl.StatusMessage}" FontSize="11" Foreground="#374151" TextWrapping="Wrap" Margin="0,0,0,4"/>
+                                    <ProgressBar Value="{Binding KleinControl.Progress}" Maximum="100" Height="8" Foreground="#DC2626"/>
+                                </StackPanel>
+                            </Border>
+
+                        </StackPanel>
+
+                        <!-- Right: result image + log -->
+                        <StackPanel Grid.Column="2" Spacing="12">
+
+                            <!-- Pipeline info -->
+                            <Border Background="#F0FDF4" BorderBrush="#BBF7D0" BorderThickness="1" CornerRadius="8" Padding="14">
+                                <StackPanel>
+                                    <TextBlock Text="Klein Flux 2 — Control Net Pipeline" FontWeight="SemiBold" FontSize="12" Foreground="#15803D" Margin="0,0,0,4"/>
+                                    <TextBlock FontSize="11" Foreground="#166534" TextWrapping="Wrap">
+                                        QwenVL analyzes pose image → DWPose extracts skeleton →
+                                        Klein Flux 2 generates your reference subject in the target pose
+                                    </TextBlock>
+                                </StackPanel>
+                            </Border>
+
+                            <!-- Result image -->
+                            <Border Background="#F8F9FA" BorderBrush="#DEE2E6" BorderThickness="1" CornerRadius="8" Padding="14">
+                                <StackPanel>
+                                    <TextBlock Text="Result" FontWeight="SemiBold" FontSize="13" Foreground="#1D4ED8" Margin="0,0,0,8"/>
+                                    <Border BorderBrush="#DEE2E6" BorderThickness="2" Background="#1A1A2E" Height="360" CornerRadius="5" Margin="0,0,0,8">
+                                        <Grid>
+                                            <TextBlock Text="🖼️ Result will appear here" HorizontalAlignment="Center" VerticalAlignment="Center"
+                                                       Foreground="#9CA3AF" FontSize="14"
+                                                       IsVisible="{Binding !KleinControl.HasResult}"/>
+                                            <Image Source="{Binding KleinControl.ResultImagePath, Converter={StaticResource PathToBitmapConverter}}"
+                                                   Stretch="Uniform" Margin="5"
+                                                   IsVisible="{Binding KleinControl.HasResult}"/>
+                                        </Grid>
+                                    </Border>
+                                    <TextBlock Text="{Binding KleinControl.ResultImagePath}" FontSize="10" Foreground="#6B7280"
+                                               TextTrimming="CharacterEllipsis" Margin="0,0,0,8"/>
+                                    <Grid ColumnDefinitions="*,*">
+                                        <Button Grid.Column="0" Content="📁 Open Folder" Classes="secondary"
+                                                Command="{Binding KleinControl.OpenResultFolderCommand}"
+                                                IsEnabled="{Binding KleinControl.HasResult}" Margin="0,0,4,0"/>
+                                        <Button Grid.Column="1" Content="🖼️ Open Image" Classes="secondary"
+                                                Command="{Binding KleinControl.OpenResultImageCommand}"
+                                                IsEnabled="{Binding KleinControl.HasResult}" Margin="4,0,0,0"/>
+                                    </Grid>
+                                </StackPanel>
+                            </Border>
+
+                            <!-- Log -->
+                            <Expander Header="📝 Log" IsExpanded="True">
+                                <Border Background="#1E1E2E" BorderBrush="#374151" BorderThickness="1" CornerRadius="6" Padding="10" Margin="0,6,0,0">
+                                    <TextBox Text="{Binding KleinControl.LogOutput}" IsReadOnly="True"
+                                             AcceptsReturn="True" FontFamily="Monospace" FontSize="11"
+                                             Background="#1E1E2E" Foreground="#AAF"
+                                             BorderThickness="0" Height="200"/>
+                                </Border>
+                            </Expander>
+
                         </StackPanel>
 
                     </Grid>

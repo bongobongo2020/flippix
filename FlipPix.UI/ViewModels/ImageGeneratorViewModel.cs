@@ -26,7 +26,8 @@ namespace FlipPix.UI.ViewModels
     {
         Zimage,
         Qwen2512,
-        Klien
+        Klien,
+        Anima
     }
 
     public class ImageGeneratorViewModel : BasePromptViewModel, IDisposable
@@ -83,6 +84,7 @@ namespace FlipPix.UI.ViewModels
         private CameraAngleViewModel _cameraAngle;
         private InpaintEditorViewModel _inpaintEditor;
         private KleinInpaintViewModel _kleinInpaintEditor;
+        private KleinControlViewModel _kleinControl;
 
 
         public ImageGeneratorViewModel(FlipPix.ComfyUI.Services.ComfyUIService comfyUIService, IAppLogger logger, FlipPix.Core.Services.SettingsService settingsService, IServiceProvider? serviceProvider = null, IPromptService? promptService = null)
@@ -111,6 +113,8 @@ namespace FlipPix.UI.ViewModels
             _cameraAngle = new CameraAngleViewModel(comfyUIService, logger, settingsService, fileDialogService, imageRetriever);
             _inpaintEditor = new InpaintEditorViewModel(comfyUIService, logger, settingsService, fileDialogService);
             _kleinInpaintEditor = new KleinInpaintViewModel(comfyUIService, logger, settingsService, fileDialogService);
+            var videoAnalysisService = serviceProvider?.GetRequiredService<VideoAnalysisService>() ?? throw new InvalidOperationException("VideoAnalysisService is required");
+            _kleinControl = new KleinControlViewModel(comfyUIService, logger, settingsService, fileDialogService, videoAnalysisService);
 
             // Initialize commands
             GenerateImageCommand = new RelayCommand(async () => await GenerateImageAsync(), () => CanGenerate);
@@ -251,6 +255,7 @@ namespace FlipPix.UI.ViewModels
         public CameraAngleViewModel CameraAngle => _cameraAngle;
         public InpaintEditorViewModel InpaintEditor => _inpaintEditor;
         public KleinInpaintViewModel KleinInpaintEditor => _kleinInpaintEditor;
+        public KleinControlViewModel KleinControl => _kleinControl;
 
         public string ProcessingStatus
         {
@@ -401,6 +406,7 @@ namespace FlipPix.UI.ViewModels
                     OnPropertyChanged();
                     OnPropertyChanged(nameof(ShowLoraOptions));
                     OnPropertyChanged(nameof(ShowStyleOptions));
+                    OnPropertyChanged(nameof(ShowSamplerSettings));
                 }
             }
         }
@@ -409,6 +415,8 @@ namespace FlipPix.UI.ViewModels
 
         // Style properties (for Zimage ZStyles)
         public bool ShowStyleOptions => SelectedWorkflow == TextGeneratorWorkflow.Zimage;
+
+        public bool ShowSamplerSettings => SelectedWorkflow != TextGeneratorWorkflow.Anima;
 
         public int SelectedStyleIndex
         {
@@ -602,6 +610,11 @@ namespace FlipPix.UI.ViewModels
                         AddLog("Using Klien workflow");
                         break;
 
+                    case TextGeneratorWorkflow.Anima:
+                        workflowPath = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "workflow", "image", "anima", "Anima.json");
+                        AddLog("Using Anima workflow");
+                        break;
+
                     case TextGeneratorWorkflow.Zimage:
                     default:
                         if (SelectedStyle != null)
@@ -702,6 +715,7 @@ namespace FlipPix.UI.ViewModels
                     {
                         TextGeneratorWorkflow.Qwen2512 => "qwen2512",
                         TextGeneratorWorkflow.Klien => "f2k-txt2img",
+                        TextGeneratorWorkflow.Anima => "anima",
                         _ => "z-image"
                     };
                     var outputPath = Path.Combine(outputDir, $"{prefix}_{timestamp}.png");
@@ -1117,6 +1131,8 @@ namespace FlipPix.UI.ViewModels
                     return UpdateQwen2512Workflow(workflowDict);
                 case TextGeneratorWorkflow.Klien:
                     return UpdateKlienWorkflow(workflowDict);
+                case TextGeneratorWorkflow.Anima:
+                    return UpdateAnimaWorkflow(workflowDict);
                 default:
                     return workflow;
             }
@@ -1808,6 +1824,72 @@ namespace FlipPix.UI.ViewModels
             return JsonSerializer.SerializeToElement(workflowDict);
         }
 
+        private JsonElement UpdateAnimaWorkflow(Dictionary<string, JsonElement> workflowDict)
+        {
+            // Anima.json node map:
+            //   60:11 = CLIPTextEncode (positive prompt) → inputs.text
+            //   60:19 = KSampler → inputs.seed / steps / cfg
+            //   60:28 = EmptyLatentImage → inputs.width / height
+
+            var resolutions = new[]
+            {
+                (1024, 768),  // Landscape
+                (768, 1024),  // Portrait
+                (1024, 1024), // Square
+            };
+            var (width, height) = resolutions[Math.Min(AspectRatioIndex, resolutions.Length - 1)];
+
+            if (workflowDict.ContainsKey("60:11"))
+            {
+                var node = JsonSerializer.Deserialize<Dictionary<string, object>>(workflowDict["60:11"].GetRawText());
+                if (node != null && node.ContainsKey("inputs"))
+                {
+                    var inputs = JsonSerializer.Deserialize<Dictionary<string, object>>(JsonSerializer.Serialize(node["inputs"]));
+                    if (inputs != null)
+                    {
+                        inputs["text"] = ImagePrompt;
+                        node["inputs"] = inputs;
+                        workflowDict["60:11"] = JsonSerializer.SerializeToElement(node);
+                    }
+                }
+            }
+
+            if (workflowDict.ContainsKey("60:19"))
+            {
+                var node = JsonSerializer.Deserialize<Dictionary<string, object>>(workflowDict["60:19"].GetRawText());
+                if (node != null && node.ContainsKey("inputs"))
+                {
+                    var inputs = JsonSerializer.Deserialize<Dictionary<string, object>>(JsonSerializer.Serialize(node["inputs"]));
+                    if (inputs != null)
+                    {
+                        var actualSeed = Seed == 0 ? new Random().NextInt64(0, 999999999999999) : Seed;
+                        inputs["seed"] = actualSeed;
+                        // steps, cfg, sampler_name, scheduler, denoise kept exactly as workflow specifies
+                        node["inputs"] = inputs;
+                        workflowDict["60:19"] = JsonSerializer.SerializeToElement(node);
+                    }
+                }
+            }
+
+            if (workflowDict.ContainsKey("60:28"))
+            {
+                var node = JsonSerializer.Deserialize<Dictionary<string, object>>(workflowDict["60:28"].GetRawText());
+                if (node != null && node.ContainsKey("inputs"))
+                {
+                    var inputs = JsonSerializer.Deserialize<Dictionary<string, object>>(JsonSerializer.Serialize(node["inputs"]));
+                    if (inputs != null)
+                    {
+                        inputs["width"] = width;
+                        inputs["height"] = height;
+                        node["inputs"] = inputs;
+                        workflowDict["60:28"] = JsonSerializer.SerializeToElement(node);
+                    }
+                }
+            }
+
+            return JsonSerializer.SerializeToElement(workflowDict);
+        }
+
         private Dictionary<string, JsonElement> AddLoraToWorkflow(Dictionary<string, JsonElement> workflowDict, string loraName)
         {
             try
@@ -2105,6 +2187,7 @@ namespace FlipPix.UI.ViewModels
                         {
                             TextGeneratorWorkflow.Qwen2512 => "qwen2512_",
                             TextGeneratorWorkflow.Klien => "F2K_txt2img_",
+                            TextGeneratorWorkflow.Anima => "Anima_",
                             _ => "z-image_"
                         };
                         imageFiles = Directory.GetFiles(comfyUIOutputDir, $"{prefix}*.png")
@@ -2236,6 +2319,7 @@ namespace FlipPix.UI.ViewModels
             {
                 TextGeneratorWorkflow.Qwen2512 => new[] { @"qwen2512_(\d+)_", @"qwen2512_(\d+)$" },
                 TextGeneratorWorkflow.Klien => new[] { @"F2K_txt2img_(\d+)_", @"F2K_txt2img_(\d+)$" },
+                TextGeneratorWorkflow.Anima => new[] { @"Anima_(\d+)_", @"Anima_(\d+)$" },
                 _ => new[] { @"z-image_(\d+)_", @"z-image_(\d+)$" }
             };
 
@@ -3024,6 +3108,11 @@ namespace FlipPix.UI.ViewModels
                         AddLog("Using Klien workflow");
                         break;
 
+                    case TextGeneratorWorkflow.Anima:
+                        workflowPath = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "workflow", "image", "anima", "Anima.json");
+                        AddLog("Using Anima workflow");
+                        break;
+
                     case TextGeneratorWorkflow.Zimage:
                     default:
                         // Use ZStyle workflow file if a style was selected
@@ -3167,6 +3256,7 @@ namespace FlipPix.UI.ViewModels
                     {
                         TextGeneratorWorkflow.Qwen2512 => "qwen2512",
                         TextGeneratorWorkflow.Klien => "f2k-txt2img",
+                        TextGeneratorWorkflow.Anima => "anima",
                         _ => "z-image"
                     };
                     var outputPath = Path.Combine(outputDir, $"{prefix}_{timestamp}.png");
