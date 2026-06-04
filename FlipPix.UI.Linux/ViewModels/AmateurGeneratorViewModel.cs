@@ -60,6 +60,13 @@ namespace FlipPix.UI.Linux.ViewModels
         private const double AmateurLoraStrength1 = 0.4; // Node 105
         private const double AmateurLoraStrength2 = 0.9; // Node 752
 
+        // Character LoRA (optional, node 802)
+        private readonly LoraManager? _loraManager;
+        private ObservableCollection<string> _availableLoras = new();
+        private string _selectedLora = string.Empty;
+        private bool _loraEnabled = false;
+        private double _loraStrength = 0.8;
+
         // Orientation and Style options
         private ObservableCollection<string> _orientations = new(new[] { "Landscape", "Portrait" });
         private ObservableCollection<string> _styles = new(new[] { "Natural", "Cinematic", "Dramatic", "Vintage", "Modern" });
@@ -89,8 +96,10 @@ namespace FlipPix.UI.Linux.ViewModels
             _workflowCoordinator = workflowCoordinator ?? new WorkflowQueueCoordinator();
             _lmStudioService = lmStudioService;
             _fileDialogService = fileDialogService;
+            _loraManager = loraManager;
 
             // Initialize commands
+            RefreshLorasCommand = new RelayCommand(RefreshLoras);
             AddToQueueCommand = new RelayCommand(AddToQueue, () => CanAddToQueue);
             RemoveFromQueueCommand = new RelayCommand<AmateurQueueItem>(RemoveFromQueue);
             ClearQueueCommand = new RelayCommand(ClearQueue, () => _queue.Any());
@@ -104,7 +113,117 @@ namespace FlipPix.UI.Linux.ViewModels
             AnalyzeImageCommand = new RelayCommand(async () => await AnalyzeImageAndEnhancePromptAsync(), () => HasSourceImage && !IsAnalyzingImage);
 
             LoadQueueFromFile();
+            LoadAvailableLoras();
             AddLog("Amateur Generator initialized");
+        }
+
+        // LoRA properties
+        public ICommand RefreshLorasCommand { get; private set; } = null!;
+
+        public ObservableCollection<string> AvailableLoras
+        {
+            get => _availableLoras;
+            set { _availableLoras = value; OnPropertyChanged(); }
+        }
+
+        public string SelectedLora
+        {
+            get => _selectedLora;
+            set { if (_selectedLora != value) { _selectedLora = value; OnPropertyChanged(); } }
+        }
+
+        public bool LoraEnabled
+        {
+            get => _loraEnabled;
+            set { if (_loraEnabled != value) { _loraEnabled = value; OnPropertyChanged(); } }
+        }
+
+        public double LoraStrength
+        {
+            get => _loraStrength;
+            set { if (_loraStrength != value) { _loraStrength = value; OnPropertyChanged(); } }
+        }
+
+        private void RefreshLoras()
+        {
+            LoadAvailableLoras();
+            AddLog("Refreshed LoRA list");
+        }
+
+        private string? ResolveLoraBasePath()
+        {
+            var explicit_ = _settingsService.Settings?.RemoteLoraFolderPath;
+            if (!string.IsNullOrEmpty(explicit_) && Directory.Exists(explicit_))
+                return explicit_;
+
+            foreach (var outputPath in new[]
+            {
+                _settingsService.Settings?.RemoteOutputFolderPath,
+                _settingsService.Settings?.OutputFolderPath
+            })
+            {
+                if (string.IsNullOrEmpty(outputPath)) continue;
+                var root = Path.GetDirectoryName(outputPath.TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar));
+                if (string.IsNullOrEmpty(root)) continue;
+                var derived = Path.Combine(root, "models", "loras");
+                if (Directory.Exists(derived))
+                    return derived;
+            }
+
+            return _loraManager?.ResolveLoraPath();
+        }
+
+        private void LoadAvailableLoras()
+        {
+            try
+            {
+                var loraBasePath = ResolveLoraBasePath();
+
+                if (string.IsNullOrEmpty(loraBasePath))
+                {
+                    _availableLoras.Clear();
+                    _availableLoras.Add("No LoRAs available");
+                    return;
+                }
+
+                var zimageLoraPath = Path.Combine(loraBasePath, "zimage");
+                var scanPath = Directory.Exists(zimageLoraPath) ? zimageLoraPath : loraBasePath;
+
+                _availableLoras.Clear();
+
+                if (!Directory.Exists(scanPath))
+                {
+                    _availableLoras.Add("No LoRAs available");
+                    return;
+                }
+
+                var loraFiles = Directory.GetFiles(scanPath, "*.safetensors")
+                    .Select(Path.GetFileNameWithoutExtension)
+                    .Where(name => !string.IsNullOrEmpty(name) &&
+                                   !name.Equals("amateur_photography_zimage_v1", StringComparison.OrdinalIgnoreCase))
+                    .OrderBy(name => name)
+                    .ToList();
+
+                if (loraFiles.Any())
+                {
+                    foreach (var lora in loraFiles)
+                        if (!string.IsNullOrEmpty(lora)) _availableLoras.Add(lora);
+
+                    if (string.IsNullOrEmpty(_selectedLora) && _availableLoras.Any())
+                        SelectedLora = _availableLoras.First();
+
+                    AddLog($"Loaded {_availableLoras.Count} LoRAs from zimage folder");
+                }
+                else
+                {
+                    _availableLoras.Add("No LoRAs available");
+                }
+            }
+            catch (Exception ex)
+            {
+                AddLog($"Error loading LoRAs: {ex.Message}");
+                _availableLoras.Add("Error loading LoRAs");
+            }
         }
 
         // Properties
@@ -857,7 +976,26 @@ namespace FlipPix.UI.Linux.ViewModels
             WorkflowNodeUpdater.UpdateNodeInput(ref workflowJson, "105", "strength_model", AmateurLoraStrength1);
             WorkflowNodeUpdater.UpdateNodeInput(ref workflowJson, "752", "strength_model", AmateurLoraStrength2);
 
-            // 9. Set fallback LoRA for node 760 (prevents invalid LoRA errors)
+            // 9. Apply character LoRA (node 802) if enabled, otherwise keep strength 0
+            if (_loraEnabled && !string.IsNullOrEmpty(_selectedLora) && _selectedLora != "No LoRAs available")
+            {
+                AddLog($"Applying character LoRA: zimage/{_selectedLora}.safetensors (strength {_loraStrength})");
+                WorkflowNodeUpdater.UpdateNodeInputMultiple(ref workflowJson, "802", new Dictionary<string, object>
+                {
+                    { "lora_name", $"zimage/{_selectedLora}.safetensors" },
+                    { "strength_model", _loraStrength }
+                });
+            }
+            else
+            {
+                WorkflowNodeUpdater.UpdateNodeInputMultiple(ref workflowJson, "802", new Dictionary<string, object>
+                {
+                    { "lora_name", $"zimage/{AmateurLoraName}" },
+                    { "strength_model", 0.0 }
+                });
+            }
+
+            // Keep node 760 as no-op (amateur LoRA placeholder, strength 0)
             WorkflowNodeUpdater.UpdateNodeInputMultiple(ref workflowJson, "760", new Dictionary<string, object>
             {
                 { "lora_name", $"zimage/{AmateurLoraName}" },
