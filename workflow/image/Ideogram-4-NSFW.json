@@ -1,1639 +1,331 @@
 {
-  "id": "fdcfc2b2-168f-4f3d-a1d0-6986b802fce5",
-  "revision": 0,
-  "last_node_id": 209,
-  "last_link_id": 301,
-  "nodes": [
-    {
-      "id": 184,
-      "type": "CFGOverride",
-      "pos": [
-        6576,
-        112
-      ],
-      "size": [
-        272,
-        176
-      ],
-      "flags": {},
-      "order": 19,
-      "mode": 0,
-      "inputs": [
-        {
-          "name": "model",
-          "type": "MODEL",
-          "link": 291
-        }
-      ],
-      "outputs": [
-        {
-          "name": "MODEL",
-          "type": "MODEL",
-          "links": [
-            257
-          ]
-        }
-      ],
-      "properties": {
-        "cnr_id": "comfy-core",
-        "ver": "0.23.0",
-        "Node name for S&R": "CFGOverride",
-        "ue_properties": {
-          "widget_ue_connectable": {},
-          "version": "7.8",
-          "input_ue_unconnectable": {}
-        },
-        "enableTabs": false,
-        "tabWidth": 65,
-        "tabXOffset": 10,
-        "hasSecondTab": false,
-        "secondTabText": "Send Back",
-        "secondTabOffset": 80,
-        "secondTabWidth": 65
-      },
-      "widgets_values": [
-        3,
-        0.9,
-        1
-      ]
+  "158": {
+    "inputs": {
+      "vae_name": "flux2-vae.safetensors"
     },
-    {
-      "id": 165,
-      "type": "RandomNoise",
-      "pos": [
-        6576,
-        -32
-      ],
-      "size": [
-        272,
-        112
-      ],
-      "flags": {},
-      "order": 18,
-      "mode": 0,
-      "inputs": [
-        {
-          "name": "noise_seed",
-          "type": "INT",
-          "widget": {
-            "name": "noise_seed"
-          },
-          "link": 280
-        }
-      ],
-      "outputs": [
-        {
-          "name": "NOISE",
-          "type": "NOISE",
-          "links": [
-            227
-          ]
-        }
-      ],
-      "properties": {
-        "cnr_id": "comfy-core",
-        "ver": "0.8.2",
-        "Node name for S&R": "RandomNoise",
-        "ue_properties": {
-          "widget_ue_connectable": {},
-          "version": "7.8",
-          "input_ue_unconnectable": {}
-        },
-        "enableTabs": false,
-        "tabWidth": 65,
-        "tabXOffset": 10,
-        "hasSecondTab": false,
-        "secondTabText": "Send Back",
-        "secondTabOffset": 80,
-        "secondTabWidth": 65
-      },
-      "widgets_values": [
-        1335735769456,
-        "fixed"
-      ]
-    },
-    {
-      "id": 163,
-      "type": "KSamplerSelect",
-      "pos": [
-        6576,
-        576
-      ],
-      "size": [
-        272,
-        112
-      ],
-      "flags": {},
-      "order": 0,
-      "mode": 0,
-      "inputs": [],
-      "outputs": [
-        {
-          "name": "SAMPLER",
-          "type": "SAMPLER",
-          "links": [
-            228
-          ]
-        }
-      ],
-      "properties": {
-        "cnr_id": "comfy-core",
-        "ver": "0.8.2",
-        "Node name for S&R": "KSamplerSelect",
-        "ue_properties": {
-          "widget_ue_connectable": {},
-          "version": "7.8",
-          "input_ue_unconnectable": {}
-        },
-        "enableTabs": false,
-        "tabWidth": 65,
-        "tabXOffset": 10,
-        "hasSecondTab": false,
-        "secondTabText": "Send Back",
-        "secondTabOffset": 80,
-        "secondTabWidth": 65
-      },
-      "widgets_values": [
-        "euler"
-      ]
-    },
-    {
-      "id": 167,
-      "type": "CLIPTextEncode",
-      "pos": [
-        5849.556819899222,
-        305.277806957434
-      ],
-      "size": [
-        448,
-        96
-      ],
-      "flags": {
-        "collapsed": false
-      },
-      "order": 21,
-      "mode": 0,
-      "inputs": [
-        {
-          "name": "clip",
-          "type": "CLIP",
-          "link": 279
-        },
-        {
-          "name": "text",
-          "type": "STRING",
-          "widget": {
-            "name": "text"
-          },
-          "link": 285
-        }
-      ],
-      "outputs": [
-        {
-          "name": "CONDITIONING",
-          "type": "CONDITIONING",
-          "slot_index": 0,
-          "links": [
-            224,
-            252
-          ]
-        }
-      ],
-      "title": "CLIP Text Encode (Positive Prompt)",
-      "properties": {
-        "cnr_id": "comfy-core",
-        "ver": "0.8.2",
-        "Node name for S&R": "CLIPTextEncode",
-        "ue_properties": {
-          "widget_ue_connectable": {},
-          "version": "7.8",
-          "input_ue_unconnectable": {}
-        },
-        "enableTabs": false,
-        "tabWidth": 65,
-        "tabXOffset": 10,
-        "hasSecondTab": false,
-        "secondTabText": "Send Back",
-        "secondTabOffset": 80,
-        "secondTabWidth": 65
-      },
-      "widgets_values": [
-        ""
-      ],
-      "color": "#232",
-      "bgcolor": "#353"
-    },
-    {
-      "id": 168,
-      "type": "CLIPLoader",
-      "pos": [
-        5310.156554872702,
-        303.4647455676621
-      ],
-      "size": [
-        464,
-        112
-      ],
-      "flags": {
-        "collapsed": false
-      },
-      "order": 1,
-      "mode": 0,
-      "inputs": [],
-      "outputs": [
-        {
-          "name": "CLIP",
-          "type": "CLIP",
-          "links": [
-            279
-          ]
-        }
-      ],
-      "properties": {
-        "cnr_id": "comfy-core",
-        "ver": "0.8.2",
-        "Node name for S&R": "CLIPLoader",
-        "ue_properties": {
-          "widget_ue_connectable": {},
-          "version": "7.8",
-          "input_ue_unconnectable": {}
-        },
-        "enableTabs": false,
-        "tabWidth": 65,
-        "tabXOffset": 10,
-        "hasSecondTab": false,
-        "secondTabText": "Send Back",
-        "secondTabOffset": 80,
-        "secondTabWidth": 65,
-        "models": [
-          {
-            "name": "qwen3vl_8b_fp8_scaled.safetensors",
-            "url": "https://huggingface.co/Comfy-Org/Qwen3-VL/resolve/main/text_encoders/qwen3vl_8b_fp8_scaled.safetensors",
-            "directory": "text_encoders"
-          }
-        ]
-      },
-      "widgets_values": [
-        "qwen3vl_8b_fp8_scaled.safetensors",
-        "ideogram4",
-        "default"
-      ]
-    },
-    {
-      "id": 181,
-      "type": "UNETLoader",
-      "pos": [
-        5242.002175939673,
-        479.50494749137397
-      ],
-      "size": [
-        528.5187020732983,
-        91.60807079600193
-      ],
-      "flags": {
-        "collapsed": false
-      },
-      "order": 2,
-      "mode": 0,
-      "showAdvanced": true,
-      "inputs": [],
-      "outputs": [
-        {
-          "name": "MODEL",
-          "type": "MODEL",
-          "links": [
-            278
-          ]
-        }
-      ],
-      "properties": {
-        "cnr_id": "comfy-core",
-        "ver": "0.8.2",
-        "Node name for S&R": "UNETLoader",
-        "ue_properties": {
-          "widget_ue_connectable": {},
-          "version": "7.8",
-          "input_ue_unconnectable": {}
-        },
-        "enableTabs": false,
-        "tabWidth": 65,
-        "tabXOffset": 10,
-        "hasSecondTab": false,
-        "secondTabText": "Send Back",
-        "secondTabOffset": 80,
-        "secondTabWidth": 65,
-        "models": [
-          {
-            "name": "ideogram4_unconditional_fp8_scaled.safetensors",
-            "url": "https://huggingface.co/Comfy-Org/Ideogram-4/resolve/main/diffusion_models/ideogram4_unconditional_fp8_scaled.safetensors",
-            "directory": "diffusion_models"
-          }
-        ]
-      },
-      "widgets_values": [
-        "ideogram4_unconditional_fp8_scaled.safetensors",
-        "default"
-      ]
-    },
-    {
-      "id": 198,
-      "type": "ModelSamplingAuraFlow",
-      "pos": [
-        6136.140030488587,
-        116.84154906963765
-      ],
-      "size": [
-        272,
-        64
-      ],
-      "flags": {},
-      "order": 14,
-      "mode": 0,
-      "inputs": [
-        {
-          "name": "model",
-          "type": "MODEL",
-          "link": 293
-        }
-      ],
-      "outputs": [
-        {
-          "name": "MODEL",
-          "type": "MODEL",
-          "links": [
-            291,
-            292
-          ]
-        }
-      ],
-      "properties": {
-        "cnr_id": "comfy-core",
-        "ver": "0.24.0",
-        "Node name for S&R": "ModelSamplingAuraFlow",
-        "ue_properties": {
-          "widget_ue_connectable": {},
-          "input_ue_unconnectable": {},
-          "version": "7.8"
-        }
-      },
-      "widgets_values": [
-        3.88
-      ]
-    },
-    {
-      "id": 166,
-      "type": "UNETLoader",
-      "pos": [
-        5319.89223024497,
-        112.91283930571724
-      ],
-      "size": [
-        451.71998995351623,
-        98.19110999483519
-      ],
-      "flags": {
-        "collapsed": false
-      },
-      "order": 3,
-      "mode": 0,
-      "showAdvanced": true,
-      "inputs": [],
-      "outputs": [
-        {
-          "name": "MODEL",
-          "type": "MODEL",
-          "links": [
-            293
-          ]
-        }
-      ],
-      "properties": {
-        "cnr_id": "comfy-core",
-        "ver": "0.8.2",
-        "Node name for S&R": "UNETLoader",
-        "ue_properties": {
-          "widget_ue_connectable": {},
-          "version": "7.8",
-          "input_ue_unconnectable": {}
-        },
-        "enableTabs": false,
-        "tabWidth": 65,
-        "tabXOffset": 10,
-        "hasSecondTab": false,
-        "secondTabText": "Send Back",
-        "secondTabOffset": 80,
-        "secondTabWidth": 65,
-        "models": [
-          {
-            "name": "ideogram4_fp8_scaled.safetensors",
-            "url": "https://huggingface.co/Comfy-Org/Ideogram-4/resolve/main/diffusion_models/ideogram4_fp8_scaled.safetensors",
-            "directory": "diffusion_models"
-          }
-        ]
-      },
-      "widgets_values": [
-        "ideogram4_fp8_scaled.safetensors",
-        "default"
-      ]
-    },
-    {
-      "id": 159,
-      "type": "ConditioningZeroOut",
-      "pos": [
-        6346.304233370917,
-        431.690501691331
-      ],
-      "size": [
-        256,
-        80
-      ],
-      "flags": {
-        "collapsed": true
-      },
-      "order": 24,
-      "mode": 0,
-      "inputs": [
-        {
-          "name": "conditioning",
-          "type": "CONDITIONING",
-          "link": 224
-        }
-      ],
-      "outputs": [
-        {
-          "name": "CONDITIONING",
-          "type": "CONDITIONING",
-          "links": [
-            253
-          ]
-        }
-      ],
-      "properties": {
-        "cnr_id": "comfy-core",
-        "ver": "0.9.1",
-        "Node name for S&R": "ConditioningZeroOut",
-        "ue_properties": {
-          "widget_ue_connectable": {},
-          "version": "7.8",
-          "input_ue_unconnectable": {}
-        },
-        "enableTabs": false,
-        "tabWidth": 65,
-        "tabXOffset": 10,
-        "hasSecondTab": false,
-        "secondTabText": "Send Back",
-        "secondTabOffset": 80,
-        "secondTabWidth": 65
-      },
-      "widgets_values": []
-    },
-    {
-      "id": 160,
-      "type": "EmptyFlux2LatentImage",
-      "pos": [
-        6578.713143011899,
-        904.2009264520407
-      ],
-      "size": [
-        272,
-        176
-      ],
-      "flags": {
-        "collapsed": false
-      },
-      "order": 15,
-      "mode": 0,
-      "inputs": [
-        {
-          "name": "width",
-          "type": "INT",
-          "widget": {
-            "name": "width"
-          },
-          "link": 283
-        },
-        {
-          "name": "height",
-          "type": "INT",
-          "widget": {
-            "name": "height"
-          },
-          "link": 284
-        }
-      ],
-      "outputs": [
-        {
-          "name": "LATENT",
-          "type": "LATENT",
-          "links": [
-            230
-          ]
-        }
-      ],
-      "properties": {
-        "cnr_id": "comfy-core",
-        "ver": "0.8.2",
-        "Node name for S&R": "EmptyFlux2LatentImage",
-        "ue_properties": {
-          "widget_ue_connectable": {},
-          "version": "7.8",
-          "input_ue_unconnectable": {}
-        },
-        "enableTabs": false,
-        "tabWidth": 65,
-        "tabXOffset": 10,
-        "hasSecondTab": false,
-        "secondTabText": "Send Back",
-        "secondTabOffset": 80,
-        "secondTabWidth": 65
-      },
-      "widgets_values": [
-        1024,
-        1024,
-        1
-      ]
-    },
-    {
-      "id": 161,
-      "type": "SamplerCustomAdvanced",
-      "pos": [
-        6998.798683591537,
-        130.44546097580746
-      ],
-      "size": [
-        304,
-        336
-      ],
-      "flags": {},
-      "order": 26,
-      "mode": 0,
-      "inputs": [
-        {
-          "name": "noise",
-          "type": "NOISE",
-          "link": 227
-        },
-        {
-          "name": "guider",
-          "type": "GUIDER",
-          "link": 254
-        },
-        {
-          "name": "sampler",
-          "type": "SAMPLER",
-          "link": 228
-        },
-        {
-          "name": "sigmas",
-          "type": "SIGMAS",
-          "link": 264
-        },
-        {
-          "name": "latent_image",
-          "type": "LATENT",
-          "link": 230
-        }
-      ],
-      "outputs": [
-        {
-          "name": "output",
-          "type": "LATENT",
-          "links": [
-            231
-          ]
-        },
-        {
-          "name": "denoised_output",
-          "type": "LATENT",
-          "links": []
-        }
-      ],
-      "properties": {
-        "cnr_id": "comfy-core",
-        "ver": "0.8.2",
-        "Node name for S&R": "SamplerCustomAdvanced",
-        "ue_properties": {
-          "widget_ue_connectable": {},
-          "version": "7.8",
-          "input_ue_unconnectable": {}
-        },
-        "enableTabs": false,
-        "tabWidth": 65,
-        "tabXOffset": 10,
-        "hasSecondTab": false,
-        "secondTabText": "Send Back",
-        "secondTabOffset": 80,
-        "secondTabWidth": 65
-      },
-      "widgets_values": []
-    },
-    {
-      "id": 158,
-      "type": "VAELoader",
-      "pos": [
-        6995.711150616586,
-        -23.14331505765486
-      ],
-      "size": [
-        317.31534424638903,
-        90.78026229300713
-      ],
-      "flags": {
-        "collapsed": false
-      },
-      "order": 4,
-      "mode": 0,
-      "inputs": [],
-      "outputs": [
-        {
-          "name": "VAE",
-          "type": "VAE",
-          "links": [
-            232
-          ]
-        }
-      ],
-      "properties": {
-        "cnr_id": "comfy-core",
-        "ver": "0.8.2",
-        "Node name for S&R": "VAELoader",
-        "ue_properties": {
-          "widget_ue_connectable": {},
-          "version": "7.8",
-          "input_ue_unconnectable": {}
-        },
-        "enableTabs": false,
-        "tabWidth": 65,
-        "tabXOffset": 10,
-        "hasSecondTab": false,
-        "secondTabText": "Send Back",
-        "secondTabOffset": 80,
-        "secondTabWidth": 65,
-        "models": [
-          {
-            "name": "flux2-vae.safetensors",
-            "url": "https://huggingface.co/Comfy-Org/flux2-dev/resolve/main/split_files/vae/flux2-vae.safetensors",
-            "directory": "vae"
-          }
-        ]
-      },
-      "widgets_values": [
-        "flux2-vae.safetensors"
-      ]
-    },
-    {
-      "id": 162,
-      "type": "VAEDecode",
-      "pos": [
-        7015.985669934473,
-        532.5226202035267
-      ],
-      "size": [
-        240,
-        112
-      ],
-      "flags": {
-        "collapsed": true
-      },
-      "order": 27,
-      "mode": 0,
-      "inputs": [
-        {
-          "name": "samples",
-          "type": "LATENT",
-          "link": 231
-        },
-        {
-          "name": "vae",
-          "type": "VAE",
-          "link": 232
-        }
-      ],
-      "outputs": [
-        {
-          "name": "IMAGE",
-          "type": "IMAGE",
-          "slot_index": 0,
-          "links": [
-            301
-          ]
-        }
-      ],
-      "properties": {
-        "cnr_id": "comfy-core",
-        "ver": "0.8.2",
-        "Node name for S&R": "VAEDecode",
-        "ue_properties": {
-          "widget_ue_connectable": {},
-          "version": "7.8",
-          "input_ue_unconnectable": {}
-        },
-        "enableTabs": false,
-        "tabWidth": 65,
-        "tabXOffset": 10,
-        "hasSecondTab": false,
-        "secondTabText": "Send Back",
-        "secondTabOffset": 80,
-        "secondTabWidth": 65
-      },
-      "widgets_values": []
-    },
-    {
-      "id": 189,
-      "type": "SigmasPreview",
-      "pos": [
-        6981.233134006046,
-        744.943026640933
-      ],
-      "size": [
-        272,
-        304
-      ],
-      "flags": {},
-      "order": 23,
-      "mode": 0,
-      "inputs": [
-        {
-          "name": "sigmas",
-          "type": "SIGMAS",
-          "link": 263
-        }
-      ],
-      "outputs": [
-        {
-          "name": "IMAGE",
-          "type": "IMAGE",
-          "links": null
-        }
-      ],
-      "properties": {
-        "cnr_id": "RES4LYF",
-        "ver": "119679d8d8d26e6db52757e705488abb6399d7d4",
-        "Node name for S&R": "SigmasPreview",
-        "ue_properties": {
-          "widget_ue_connectable": {},
-          "input_ue_unconnectable": {},
-          "version": "7.8"
-        }
-      },
-      "widgets_values": [
-        false,
-        "blue"
-      ]
-    },
-    {
-      "id": 190,
-      "type": "BasicScheduler",
-      "pos": [
-        6576,
-        736
-      ],
-      "size": [
-        272,
-        112
-      ],
-      "flags": {},
-      "order": 20,
-      "mode": 0,
-      "inputs": [
-        {
-          "name": "model",
-          "type": "MODEL",
-          "link": 292
-        }
-      ],
-      "outputs": [
-        {
-          "name": "SIGMAS",
-          "type": "SIGMAS",
-          "links": [
-            263,
-            264
-          ]
-        }
-      ],
-      "properties": {
-        "cnr_id": "comfy-core",
-        "ver": "0.24.0",
-        "Node name for S&R": "BasicScheduler",
-        "ue_properties": {
-          "widget_ue_connectable": {},
-          "input_ue_unconnectable": {},
-          "version": "7.8"
-        }
-      },
-      "widgets_values": [
-        "simple",
-        12,
-        1
-      ]
-    },
-    {
-      "id": 182,
-      "type": "DualModelGuider",
-      "pos": [
-        6576,
-        336
-      ],
-      "size": [
-        272,
-        192
-      ],
-      "flags": {},
-      "order": 25,
-      "mode": 0,
-      "inputs": [
-        {
-          "name": "model",
-          "type": "MODEL",
-          "link": 257
-        },
-        {
-          "name": "positive",
-          "type": "CONDITIONING",
-          "link": 252
-        },
-        {
-          "name": "model_negative",
-          "shape": 7,
-          "type": "MODEL",
-          "link": 278
-        },
-        {
-          "name": "negative",
-          "shape": 7,
-          "type": "CONDITIONING",
-          "link": 253
-        }
-      ],
-      "outputs": [
-        {
-          "name": "GUIDER",
-          "type": "GUIDER",
-          "links": [
-            254
-          ]
-        }
-      ],
-      "properties": {
-        "cnr_id": "comfy-core",
-        "ver": "0.23.0",
-        "Node name for S&R": "DualModelGuider",
-        "ue_properties": {
-          "widget_ue_connectable": {},
-          "version": "7.8",
-          "input_ue_unconnectable": {}
-        },
-        "enableTabs": false,
-        "tabWidth": 65,
-        "tabXOffset": 10,
-        "hasSecondTab": false,
-        "secondTabText": "Send Back",
-        "secondTabOffset": 80,
-        "secondTabWidth": 65
-      },
-      "widgets_values": [
-        3.5
-      ]
-    },
-    {
-      "id": 202,
-      "type": "PreviewImage",
-      "pos": [
-        7335.420888865176,
-        20.48126399862305
-      ],
-      "size": [
-        1232,
-        1056
-      ],
-      "flags": {},
-      "order": 28,
-      "mode": 0,
-      "inputs": [
-        {
-          "name": "images",
-          "type": "IMAGE",
-          "link": 301
-        }
-      ],
-      "outputs": [],
-      "properties": {
-        "cnr_id": "comfy-core",
-        "ver": "0.24.0",
-        "Node name for S&R": "PreviewImage"
-      },
-      "widgets_values": []
-    },
-    {
-      "id": 191,
-      "type": "FluxResolutionNode",
-      "pos": [
-        4572.189803053498,
-        765.4145795035864
-      ],
-      "size": [
-        288,
-        224
-      ],
-      "flags": {},
-      "order": 5,
-      "mode": 0,
-      "inputs": [],
-      "outputs": [
-        {
-          "name": "width",
-          "type": "INT",
-          "links": [
-            283,
-            286
-          ]
-        },
-        {
-          "name": "height",
-          "type": "INT",
-          "links": [
-            284,
-            287
-          ]
-        },
-        {
-          "name": "resolution",
-          "type": "STRING",
-          "links": [
-            268
-          ]
-        },
-        {
-          "name": "preview",
-          "type": "IMAGE",
-          "links": null
-        }
-      ],
-      "properties": {
-        "cnr_id": "controlaltai-nodes",
-        "ver": "721492b66c9cede8ae23ae10615462ad80cfd061",
-        "Node name for S&R": "FluxResolutionNode",
-        "ue_properties": {
-          "widget_ue_connectable": {},
-          "input_ue_unconnectable": {},
-          "version": "7.8"
-        }
-      },
-      "widgets_values": [
-        "1.0",
-        "4:5 (Artistic Frame)",
-        "16",
-        false,
-        "1:1"
-      ],
-      "color": "#232",
-      "bgcolor": "#353"
-    },
-    {
-      "id": 192,
-      "type": "easy showAnything",
-      "pos": [
-        4907.014905444461,
-        559.3911997751185
-      ],
-      "size": [
-        288,
-        176
-      ],
-      "flags": {},
-      "order": 17,
-      "mode": 0,
-      "inputs": [
-        {
-          "name": "anything",
-          "shape": 7,
-          "type": "*",
-          "link": 268
-        }
-      ],
-      "outputs": [
-        {
-          "name": "output",
-          "type": "*",
-          "links": null
-        }
-      ],
-      "properties": {
-        "cnr_id": "comfyui-easy-use",
-        "ver": "130c1b5796d9876a5f853fa0bea88e808cfda4ad",
-        "Node name for S&R": "easy showAnything",
-        "aux_id": "yolain/ComfyUI-Easy-Use",
-        "ue_properties": {
-          "widget_ue_connectable": {},
-          "input_ue_unconnectable": {},
-          "version": "7.8"
-        }
-      },
-      "widgets_values": [
-        "896 x 1120"
-      ]
-    },
-    {
-      "id": 203,
-      "type": "PrimitiveStringMultiline",
-      "pos": [
-        6692.548481855563,
-        -1260.1051064000858
-      ],
-      "size": [
-        944.7038525903336,
-        448.98024004691615
-      ],
-      "flags": {},
-      "order": 6,
-      "mode": 0,
-      "inputs": [],
-      "outputs": [
-        {
-          "name": "STRING",
-          "type": "STRING",
-          "links": []
-        }
-      ],
-      "properties": {
-        "cnr_id": "comfy-core",
-        "ver": "0.24.0",
-        "Node name for S&R": "PrimitiveStringMultiline"
-      },
-      "widgets_values": [
-        "{\n  \"high_level_description\": \"A photograph of a quiet West Village side street on an early autumn morning, with 19th-century brownstones along the left, fallen ginkgo and maple leaves scattered across the sidewalk, a half-bare street tree mid-frame, parked cars along the curb, and a lone figure walking away toward a distant intersection.\",\n  \"compositional_deconstruction\": {\n    \"background\": \"A quiet New York City side street in the West Village on an early autumn morning, shot on a 50mm lens at eye level. The street recedes diagonally from the lower-right foreground toward a vanishing point in the upper-left third. Cool open shade fills the street itself, with soft north-facing morning daylight just clipping the top-floor cornices on the left. Cool grey asphalt and concrete sidewalk surfaces drift with mustard, burnt-orange, and oxblood leaves, especially against the curb and gutters. Sky overhead is a flat pale cool blue-grey, glimpsed between bare branches. Fine Kodak Portra grain throughout.\",\n    \"elements\": [\n      {\n        \"type\": \"obj\",\n        \"desc\": \"Far intersection in the deep background at the upper-left third vanishing point. Cross-street recedes perpendicular to the camera, with a lamppost on the far corner and low storefronts beyond. Cool open shade, slightly hazy with distance.\"\n      },\n      {\n        \"type\": \"obj\",\n        \"desc\": \"A cyclist crossing the far intersection in the deep background, small in the frame, viewed in profile from the side, moving left to right. Dark jacket and pants, head down, gaze directed forward across the intersection. Softly rendered at distance.\"\n      },\n      {\n        \"type\": \"obj\",\n        \"desc\": \"Row of 19th-century brownstone facades lining the entire left side of the street, four to five stories tall, receding into the distance. Weathered terracotta-red and chocolate-brown stone, carved cornices catching low morning sun at the top floors, tall double-hung windows, stoops with wrought-iron railings descending to garden-level entrances, planter boxes at garden-level windows. Lower floors in cool shade.\"\n      },\n      {\n        \"type\": \"obj\",\n        \"desc\": \"Garden-level café entrance set into one of the brownstones on the left, midground. Recessed doorway down a few steps, a dark-painted wood door with a small glass pane, a window beside it with a planter box. Warm interior light barely visible through the glass.\"\n      },\n      {\n        \"type\": \"obj\",\n        \"desc\": \"A mature street tree at mid-frame, trunk ringed by a low black iron tree guard at the sidewalk edge. Bare branches reaching up and outward, still holding scattered clusters of yellow leaves in the upper canopy. In sharp focus as the midground anchor.\"\n      },\n      {\n        \"type\": \"obj\",\n        \"desc\": \"A dark forest-green Subaru wagon parked along the curb on the right side of the street, nearest the camera, in three-quarter rear view facing away from camera down the street. Fallen yellow and orange leaves collected on the windshield and hood. Slightly soft in focus.\"\n      },\n      {\n        \"type\": \"obj\",\n        \"desc\": \"A silver four-door sedan parked along the curb farther down the street beyond the green Subaru, in three-quarter rear view facing away from camera. Smaller in the frame, slightly softer focus.\"\n      },\n      {\n        \"type\": \"obj\",\n        \"desc\": \"A lone figure in the mid-distance walking away from camera down the center of the sidewalk on the left, seen from behind. Long charcoal-grey wool coat reaching below the knee, dark trousers, a brown canvas tote bag slung over the right shoulder. Face not visible to the camera.\"\n      },\n      {\n        \"type\": \"obj\",\n        \"desc\": \"Sidewalk along the left side of the street, cool grey concrete slabs, thickly scattered with fallen ginkgo and maple leaves in mustard yellow, burnt orange, and oxblood. Leaves drift against the curb and pile in the gutters.\"\n      },\n      {\n        \"type\": \"obj\",\n        \"desc\": \"A few out-of-focus fallen leaves caught mid-fall at the lower-left frame edge in the immediate foreground, in mustard yellow and burnt orange, softly blurred.\"\n      }\n    ]\n  }\n}\n"
-      ]
-    },
-    {
-      "id": 204,
-      "type": "PrimitiveStringMultiline",
-      "pos": [
-        6071.757047549393,
-        -1413.0690179698859
-      ],
-      "size": [
-        443.93558398495225,
-        601.9756987987444
-      ],
-      "flags": {},
-      "order": 7,
-      "mode": 0,
-      "inputs": [],
-      "outputs": [
-        {
-          "name": "STRING",
-          "type": "STRING",
-          "links": []
-        }
-      ],
-      "properties": {
-        "cnr_id": "comfy-core",
-        "ver": "0.24.0",
-        "Node name for S&R": "PrimitiveStringMultiline"
-      },
-      "widgets_values": [
-        "{\n  \"high_level_description\": \"A casual iPhone snapshot of a toddler's bedroom mid-afternoon after play, with an unmade twin bed anchoring the upper third and scattered toys filling the lower two-thirds in chaotic disarray.\",\n  \"compositional_deconstruction\": {\n    \"background\": \"A toddler's bedroom interior in mid-afternoon. Pale neutral walls with cool-toned ambient daylight spilling in from an unseen window on the left side, casting soft even light across the room. Light beige low-pile carpet covers the floor, slightly rumpled from activity. The wall carries faint scuff marks at child height. Neutral cool white balance throughout, no warm grading. Fine phone-snapshot grain consistent across the frame.\",\n    \"elements\": [\n      {\n        \"type\": \"obj\",\n        \"bbox\": [120, 150, 430, 720],\n        \"desc\": \"Unmade twin bed anchoring the upper third of the frame, headboard against the back wall. Rumpled pastel-blue duvet half-kicked off the mattress, bunched toward the foot. Two stuffed animals slumped against the wooden headboard — a worn brown teddy bear on the left, a pink bunny on the right with floppy ears.\"\n      },\n      {\n        \"type\": \"obj\",\n        \"bbox\": [300, 700, 600, 990],\n        \"desc\": \"Plastic toy kitchen pushed against the right wall, primary colors — red oven door hanging open, yellow cabinets, blue sink area. A small plastic frying pan dangles from the oven handle by its loop.\"\n      },\n      {\n        \"type\": \"obj\",\n        \"bbox\": [610, 760, 800, 990],\n        \"desc\": \"Wooden dresser drawer pulled halfway out on the right side, light oak finish. Socks and underwear tumbling onto the carpet below — a pair of striped socks, a green tee, and folded underwear spilling over the front edge.\"\n      },\n      {\n        \"type\": \"obj\",\n        \"bbox\": [360, 20, 545, 210],\n        \"desc\": \"Nightstand beside the bed on the left, light wood. A white ceramic plate holds three half-eaten apple slices with crumbs scattered around them. A blue sippy cup tipped on its side next to the plate, lid still attached.\"\n      },\n      {\n        \"type\": \"obj\",\n        \"bbox\": [710, 360, 920, 710],\n        \"desc\": \"Wooden train set tracks tangled across the carpet in the center-left foreground, interlocking brown rails forming loops and crossings. Three wooden locomotives derailed at different angles — one upright, one on its side showing painted wheels, one tipped backward.\"\n      },\n      {\n        \"type\": \"obj\",\n        \"bbox\": [560, 380, 705, 610],\n        \"desc\": \"Collapsed tower of mismatched building blocks near the rug edge, individual cubes in red, yellow, blue, and green scattered outward in a radial pattern across the carpet. Larger blocks clustered at the center, smaller ones fanning out.\"\n      },\n      {\n        \"type\": \"obj\",\n        \"bbox\": [625, 640, 790, 880],\n        \"desc\": \"Open cardboard box of crayons tipped on its side, wax crayons in assorted bright colors spilling out across an unrolled coloring book. Pages show crayon marks in waxy streaks, partially filled drawings visible.\"\n      },\n      {\n        \"type\": \"obj\",\n        \"bbox\": [725, 30, 985, 350],\n        \"desc\": \"Small wooden rocking horse in the foreground left, painted cream with a soft yarn mane and curved red rockers, facing right.\"\n      },\n      {\n        \"type\": \"text\",\n        \"bbox\": [800, 430, 865, 670],\n        \"text\": \"LEARNING EXPRESS\",\n        \"desc\": \"Small printed label on the side of the largest wooden train car in the center-left. Black sans-serif font on a cream-colored rectangular sticker, horizontal, oriented along the length of the train car.\"\n      },\n      {\n        \"type\": \"text\",\n        \"bbox\": [600, 250, 745, 350],\n        \"text\": \"ABC\",\n        \"desc\": \"Bold lettering on the spine of a picture book lying face-down near the block tower. Large red serif capitals on a white spine, vertical orientation along the book's length.\"\n      }\n    ]\n  }\n}\n"
-      ]
-    },
-    {
-      "id": 206,
-      "type": "PrimitiveStringMultiline",
-      "pos": [
-        5104.1949855830435,
-        -1362.3993991950629
-      ],
-      "size": [
-        377.42763607043435,
-        485.216392110431
-      ],
-      "flags": {},
-      "order": 8,
-      "mode": 0,
-      "inputs": [],
-      "outputs": [
-        {
-          "name": "STRING",
-          "type": "STRING",
-          "links": []
-        }
-      ],
-      "properties": {
-        "cnr_id": "comfy-core",
-        "ver": "0.24.0",
-        "Node name for S&R": "PrimitiveStringMultiline"
-      },
-      "widgets_values": [
-        "{\n  \"high_level_description\": \"A retro-style square 1:1 poster for a \\\"Mango Sago Social\\\" team tasting event, featuring bold red typography on a salmon pink background with illustrations of a tall glass of mango sago dessert, fresh mangoes, and scattered sago pearls, composed for a square format.\",\n  \"compositional_deconstruction\": {\n    \"background\": \"Solid salmon-pink background with scattered decorative elements including small yellow and white confetti-like shapes and thin wavy lines. A stylized sunburst effect radiates from behind the central glass dessert.\",\n    \"elements\": [\n      {\n        \"type\": \"text\",\n        \"bbox\": [70, 270, 470, 730],\n        \"text\": \"MANGO\\nSAGO\\nSOCIAL\",\n        \"desc\": \"Large, bold, blocky sans-serif text in a deep reddish-orange color. The words are stacked vertically in the upper half of the poster. The letters have a slightly distressed or textured appearance.\"\n      },\n      {\n        \"type\": \"text\",\n        \"bbox\": [490, 210, 565, 790],\n        \"text\": \"TEAM TASTING EVENT\",\n        \"desc\": \"Medium-sized sans-serif text in white, centered within a horizontal reddish-orange banner ribbon located below the main title.\"\n      },\n      {\n        \"type\": \"text\",\n        \"bbox\": [580, 170, 700, 830],\n        \"text\": \"FRIDAY · JULY 18 · 4–6 PM\\nTHE PANTRY · 5TH FLOOR LOUNGE\",\n        \"desc\": \"Small sans-serif text in white. The first line is on a horizontal reddish-orange banner ribbon. The second line is directly below it on the same color background.\"\n      },\n      {\n        \"type\": \"obj\",\n        \"desc\": \"A tall glass filled with an orange-colored beverage containing numerous small translucent spheres (sago pearls). The drink is topped with whipped cream and diced mango pieces. A whole mango sits to the right of the glass.\"\n      },\n      {\n        \"type\": \"obj\",\n        \"desc\": \"A halved peach or nectarine lying on its side at the bottom left foreground, showing its pit and juicy interior.\"\n      },\n      {\n        \"type\": \"obj\",\n        \"desc\": \">~25 small translucent sago pearls scattered around the base of the glass dessert and near the halved fruit.\"\n      },\n      {\n        \"type\": \"text\",\n        \"bbox\": [905, 680, 965, 965],\n        \"text\": \">RSVP BY JULY 15<\",\n        \"desc\": \">Small sans-serif text in white within a rounded rectangular button shape with a dark reddish-brown border located at the bottom right corner.\"\n      },\n      {\n        \"type\": \"text\",\n        \"bbox\": [855, 200, 905, 800],\n        \"text\": \">Bring your appetite – pearls included<\",\n        \"desc\": \">Small cursive script text in dark reddish-brown at the bottom center of the poster.\"\n      },\n      {\n        \"type\": \"text\",\n        \"bbox\": [915, 230, 960, 660],\n        \"text\": \">HOSTED BY THE PEOPLE TEAM<\",\n        \"desc\": \">Small all-caps sans-serif text in white at the very bottom center of the poster.\"\n      }\n    ]\n  }\n}\n"
-      ]
-    },
-    {
-      "id": 207,
-      "type": "PrimitiveStringMultiline",
-      "pos": [
-        5103.285145977563,
-        -800.8895030119344
-      ],
-      "size": [
-        377.42763607043435,
-        485.216392110431
-      ],
-      "flags": {},
-      "order": 9,
-      "mode": 0,
-      "inputs": [],
-      "outputs": [
-        {
-          "name": "STRING",
-          "type": "STRING",
-          "links": []
-        }
-      ],
-      "properties": {
-        "cnr_id": "comfy-core",
-        "ver": "0.24.0",
-        "Node name for S&R": "PrimitiveStringMultiline"
-      },
-      "widgets_values": [
-        "{\n  \"high_level_description\": \"A soft contemporary illustration of a cozy late-afternoon living room with a young woman curled sideways on a mustard-yellow sofa reading a paperback, a tall window to her right showing rooftops and a tree branch, a tabby cat asleep nearby, and warm daylight pouring across the rug.\",\n  \"compositional_deconstruction\": {\n    \"background\": \"Warm off-white interior walls in a cozy living room rendered in soft contemporary illustration style with clean confident linework, flat-but-warm color fills, and light cel-shading. A woven jute area rug anchors the seating arrangement, its edge slicing into the lower-left foreground. Daylight pours in from the right window casting a soft elongated rectangle of light across the rug and the woman's lap; the rest of the room sits in quiet ambient warmth. Palette of mustard yellow, cream, walnut brown, sage green, and pale sky blue. Slight paper-grain texture across the whole image.\",\n    \"elements\": [\n      {\n        \"type\": \"obj\",\n        \"bbox\": [40, 660, 835, 990],\n        \"desc\": \"Tall floor-to-ceiling window filling the right third of the frame, thin black mullions dividing six panes in a 2x3 grid. Sheer white curtains pulled aside at each side. Through the glass: a leafy sage-green tree branch crossing the foreground pane, a row of red-tiled rooftops in the midground, and a pale sky-blue expanse above with two small dark birds drifting across.\"\n      },\n      {\n        \"type\": \"obj\",\n        \"desc\": \"Framed botanical print mounted on the wall above the sofa, simple thin black rectangular frame around a cream background with a single sage-green leafy stem illustration centered inside.\"\n      },\n      {\n        \"type\": \"obj\",\n        \"desc\": \"Mustard-yellow linen sofa anchored slightly left of center, low back and rounded arms, viewed in three-quarter front view facing the camera. Soft cel-shaded folds in the cushions, warm ambient tone across the body with a brighter patch where daylight falls.\"\n      },\n      {\n        \"type\": \"obj\",\n        \"bbox\": [295, 150, 660, 480],\n        \"desc\": \"Young woman seated sideways on the sofa, body angled toward the window at right, legs tucked under her. Soft brown hair loose over one shoulder, fair skin, wearing a cream cable-knit sweater and dark olive joggers, bare feet peeking out. Both hands hold an open paperback at chest height, head tilted down toward the page, gaze directed at the book. A soft rectangle of window light falls across her lap.\"\n      },\n      {\n        \"type\": \"obj\",\n        \"bbox\": [560, 535, 890, 655],\n        \"desc\": \"Small potted monstera beside the window on the floor, terracotta pot with a flared rim, broad split sage-green leaves rising upward and catching bright daylight along their upper edges.\"\n      },\n      {\n        \"type\": \"obj\",\n        \"desc\": \"Round walnut coffee table in front of the sofa, rich brown wood grain visible on the top surface, slim tapered legs. On its surface: a half-full cream ceramic mug at the left, a small stack of three books in muted spines (sage, cream, walnut) at the back, and a brass candlestick holding a lit taper with a small warm flame at the right.\"\n      },\n      {\n        \"type\": \"obj\",\n        \"bbox\": [775, 90, 905, 340],\n        \"desc\": \"Tabby cat curled asleep on the jute rug near the woman's feet, orange-brown striped fur with darker bands, eyes closed, tail wrapped neatly around its front paws, body forming a compact oval.\"\n      }\n    ]\n  }\n}\n"
-      ]
-    },
-    {
-      "id": 205,
-      "type": "PrimitiveStringMultiline",
-      "pos": [
-        5591.702303812038,
-        -1390.972764408073
-      ],
-      "size": [
-        377.42763607043435,
-        485.216392110431
-      ],
-      "flags": {},
-      "order": 10,
-      "mode": 0,
-      "inputs": [],
-      "outputs": [
-        {
-          "name": "STRING",
-          "type": "STRING",
-          "links": []
-        }
-      ],
-      "properties": {
-        "cnr_id": "comfy-core",
-        "ver": "0.24.0",
-        "Node name for S&R": "PrimitiveStringMultiline"
-      },
-      "widgets_values": [
-        "{\n  \"high_level_description\": \"A macro photograph of a dragonfly perched on the curled tip of a fiddlehead fern at first light, dew droplets beaded along the fern spine and wing membranes, set against a clear blue sky.\",\n  \"compositional_deconstruction\": {\n    \"background\": \"A clear, cloudless blue sky fills the entire background, bright and evenly lit, graduating from a deeper blue at the top to a paler blue toward the bottom. Smooth and uniform with no clouds, the fern and dragonfly standing out crisply against the open sky. Neutral-cool white balance, clean clarity with no grain.\",\n    \"elements\": [\n      {\n        \"type\": \"obj\",\n        \"desc\": \"Fiddlehead fern rising diagonally from lower-right to upper-left, tightly curled into its characteristic shepherd's crook shape at the top. Fuzzy brown scales cling along the stem, deep green frond unfurling below. The primary perch for the dragonfly.\"\n      },\n      {\n        \"type\": \"obj\",\n        \"desc\": \"Dragonfly perched in profile on the coiled tip of the fiddlehead, positioned slightly right of center on the rule-of-thirds line, body oriented leftward. Iridescent teal-and-cobalt wings held flat and slightly translucent with fine venation visible. Segmented emerald abdomen with thin black banding. Large compound eyes catching pinpoint highlights. Six slender legs gripping the fern spine. Head and thorax in critical focus; abdomen and far wing tips fall into gentle defocus.\"\n      },\n      {\n        \"type\": \"obj\",\n        \"desc\": \"Cluster of spherical dew droplets beaded along the fern spine and across the dragonfly's wing membranes. Each droplet holds a tiny inverted reflection of the surrounding foliage, surface tension clearly defined.\"\n      }\n    ]\n  }\n}\n"
-      ]
-    },
-    {
-      "id": 197,
-      "type": "Seed (rgthree)",
-      "pos": [
-        6514.770003778299,
-        1221.4683802641632
-      ],
-      "size": [
-        320,
-        144
-      ],
-      "flags": {},
-      "order": 11,
-      "mode": 0,
-      "inputs": [],
-      "outputs": [
-        {
-          "dir": 4,
-          "name": "SEED",
-          "shape": 3,
-          "type": "INT",
-          "links": [
-            280
-          ]
-        }
-      ],
-      "properties": {
-        "cnr_id": "rgthree-comfy",
-        "ver": "738105af5fb14e96fbecaf406dc356e284797e8c",
-        "randomMax": 1125899906842624,
-        "randomMin": 0,
-        "ue_properties": {
-          "widget_ue_connectable": {},
-          "input_ue_unconnectable": {},
-          "version": "7.8"
-        }
-      },
-      "widgets_values": [
-        140842286664370,
-        "",
-        "",
-        ""
-      ],
-      "color": "#232",
-      "bgcolor": "#353"
-    },
-    {
-      "id": 199,
-      "type": "PreviewAny",
-      "pos": [
-        5833.361681927686,
-        820.6887975547422
-      ],
-      "size": [
-        370.3961582848551,
-        575.4657301677873
-      ],
-      "flags": {},
-      "order": 22,
-      "mode": 0,
-      "inputs": [
-        {
-          "name": "source",
-          "type": "*",
-          "link": 294
-        }
-      ],
-      "outputs": [
-        {
-          "name": "STRING",
-          "type": "STRING",
-          "links": null
-        }
-      ],
-      "properties": {
-        "cnr_id": "comfy-core",
-        "ver": "0.24.0",
-        "Node name for S&R": "PreviewAny",
-        "ue_properties": {
-          "widget_ue_connectable": {},
-          "input_ue_unconnectable": {}
-        }
-      },
-      "widgets_values": [
-        null,
-        null,
-        null
-      ]
-    },
-    {
-      "id": 209,
-      "type": "Note",
-      "pos": [
-        4839.664151957778,
-        1285.469469925434
-      ],
-      "size": [
-        347.27864115843477,
-        136.44214823381435
-      ],
-      "flags": {},
-      "order": 12,
-      "mode": 0,
-      "inputs": [],
-      "outputs": [],
-      "title": "Ideogram 4 Prompt Builder KJ",
-      "properties": {},
-      "widgets_values": [
-        "drag in the canvas to add, then type in the box. \n\nRight click on the box to remove\n\n\nGet the orignal WF with prompt\nhttps://pastebin.com/xpYezwZp"
-      ],
-      "color": "#432",
-      "bgcolor": "#653"
-    },
-    {
-      "id": 185,
-      "type": "Ideogram4PromptBuilderKJ",
-      "pos": [
-        5235.405623106298,
-        722.1975125503538
-      ],
-      "size": [
-        544,
-        1147
-      ],
-      "flags": {
-        "collapsed": false
-      },
-      "order": 16,
-      "mode": 0,
-      "inputs": [
-        {
-          "name": "import_json",
-          "shape": 7,
-          "type": "STRING",
-          "link": null
-        },
-        {
-          "name": "width",
-          "type": "INT",
-          "widget": {
-            "name": "width"
-          },
-          "link": 286
-        },
-        {
-          "name": "height",
-          "type": "INT",
-          "widget": {
-            "name": "height"
-          },
-          "link": 287
-        }
-      ],
-      "outputs": [
-        {
-          "name": "prompt",
-          "type": "STRING",
-          "links": [
-            285,
-            294
-          ]
-        },
-        {
-          "name": "preview",
-          "type": "IMAGE",
-          "links": null
-        }
-      ],
-      "properties": {
-        "cnr_id": "comfyui-kjnodes",
-        "ver": "16890aa76b7cd39c68205d84cf7f4a029d8f4669",
-        "Node name for S&R": "Ideogram4PromptBuilderKJ",
-        "ue_properties": {
-          "widget_ue_connectable": {},
-          "input_ue_unconnectable": {},
-          "version": "7.8"
-        }
-      },
-      "widgets_values": [
-        1024,
-        1024,
-        "professional photoshoot, a full-color Japanese girl with cat ears in a rusty tub in the middle of a grayscale grass meadow. High quality UHD high resolution photo.",
-        "natural sunlight, pitch-black sky, a close-up of dusty Mars planet rises above the horizon, the tub is framed in the middle of the picture. UHD. Intrinsic details.",
-        "photo",
-        "DSLR photography",
-        "beautiful girl, perfect body",
-        "dim cool night light, high contrast",
-        "photography",
-        "",
-        "[{\"x\":0.13964639558014036,\"y\":0.13844675394329287,\"w\":0.34817135563061563,\"h\":0.3787638178408371,\"type\":\"obj\",\"text\":\"\",\"desc\":\"test - 1\\n\",\"palette\":[]}]",
-        ""
-      ]
-    },
-    {
-      "id": 208,
-      "type": "MarkdownNote",
-      "pos": [
-        4704.964243238054,
-        -43.203954178884665
-      ],
-      "size": [
-        503.6484247760118,
-        477.8560943428913
-      ],
-      "flags": {},
-      "order": 13,
-      "mode": 0,
-      "inputs": [],
-      "outputs": [],
-      "title": "Note: Model link",
-      "properties": {},
-      "widgets_values": [
-        "## YouTube Video : [Link](https://youtu.be/egGvUpYgJPw)\n\n----\n\n## Model Links (for Local Users)\n\n**vae**\n\n- [flux2-vae.safetensors](https://huggingface.co/Comfy-Org/flux2-dev/resolve/main/split_files/vae/flux2-vae.safetensors)\n\n**diffusion_models**\n\n- [ideogram4_fp8_scaled.safetensors](https://huggingface.co/Comfy-Org/Ideogram-4/resolve/main/diffusion_models/ideogram4_fp8_scaled.safetensors)\n- [ideogram4_unconditional_fp8_scaled.safetensors](https://huggingface.co/Comfy-Org/Ideogram-4/resolve/main/diffusion_models/ideogram4_unconditional_fp8_scaled.safetensors)\n\n**text_encoders**\n\n- [qwen3vl_8b_fp8_scaled.safetensors](https://huggingface.co/Comfy-Org/Qwen3-VL/resolve/main/text_encoders/qwen3vl_8b_fp8_scaled.safetensors)\n- [gemma4_e4b_it_fp8_scaled.safetensors](https://huggingface.co/Comfy-Org/gemma-4/resolve/main/text_encoders/gemma4_e4b_it_fp8_scaled.safetensors)\n\n\n## Model Storage Location\n\n```\n📂 ComfyUI/\n├── 📂 models/\n│   ├── 📂 vae/\n│   │   └── flux2-vae.safetensors\n│   ├── 📂 diffusion_models/\n│   │   ├── ideogram4_fp8_scaled.safetensors\n│   │   └── ideogram4_unconditional_fp8_scaled.safetensors\n│   └── 📂 text_encoders/\n│       ├── qwen3vl_8b_fp8_scaled.safetensors\n│       └── gemma4_e4b_it_fp8_scaled.safetensors\n```\n\n## "
-      ],
-      "color": "#222",
-      "bgcolor": "#000"
+    "class_type": "VAELoader",
+    "_meta": {
+      "title": "Load VAE"
     }
-  ],
-  "links": [
-    [
-      224,
-      167,
-      0,
-      159,
-      0,
-      "CONDITIONING"
-    ],
-    [
-      227,
-      165,
-      0,
-      161,
-      0,
-      "NOISE"
-    ],
-    [
-      228,
-      163,
-      0,
-      161,
-      2,
-      "SAMPLER"
-    ],
-    [
-      230,
-      160,
-      0,
-      161,
-      4,
-      "LATENT"
-    ],
-    [
-      231,
-      161,
-      0,
-      162,
-      0,
-      "LATENT"
-    ],
-    [
-      232,
-      158,
-      0,
-      162,
-      1,
-      "VAE"
-    ],
-    [
-      252,
-      167,
-      0,
-      182,
-      1,
-      "CONDITIONING"
-    ],
-    [
-      253,
-      159,
-      0,
-      182,
-      3,
-      "CONDITIONING"
-    ],
-    [
-      254,
-      182,
-      0,
-      161,
-      1,
-      "GUIDER"
-    ],
-    [
-      257,
-      184,
-      0,
-      182,
-      0,
-      "MODEL"
-    ],
-    [
-      263,
-      190,
-      0,
-      189,
-      0,
-      "SIGMAS"
-    ],
-    [
-      264,
-      190,
-      0,
-      161,
-      3,
-      "SIGMAS"
-    ],
-    [
-      268,
-      191,
-      2,
-      192,
-      0,
-      "STRING"
-    ],
-    [
-      278,
-      181,
-      0,
-      182,
-      2,
-      "MODEL"
-    ],
-    [
-      279,
-      168,
-      0,
-      167,
-      0,
-      "CLIP"
-    ],
-    [
-      280,
-      197,
-      0,
-      165,
-      0,
-      "INT"
-    ],
-    [
-      283,
-      191,
-      0,
-      160,
-      0,
-      "INT"
-    ],
-    [
-      284,
-      191,
-      1,
-      160,
-      1,
-      "INT"
-    ],
-    [
-      285,
-      185,
-      0,
-      167,
-      1,
-      "STRING"
-    ],
-    [
-      286,
-      191,
-      0,
-      185,
-      1,
-      "INT"
-    ],
-    [
-      287,
-      191,
-      1,
-      185,
-      2,
-      "INT"
-    ],
-    [
-      291,
-      198,
-      0,
-      184,
-      0,
-      "MODEL"
-    ],
-    [
-      292,
-      198,
-      0,
-      190,
-      0,
-      "MODEL"
-    ],
-    [
-      293,
-      166,
-      0,
-      198,
-      0,
-      "MODEL"
-    ],
-    [
-      294,
-      185,
-      0,
-      199,
-      0,
-      "STRING"
-    ],
-    [
-      301,
-      162,
-      0,
-      202,
-      0,
-      "IMAGE"
-    ]
-  ],
-  "groups": [],
-  "config": {},
-  "extra": {
-    "ds": {
-      "scale": 0.6111279185497455,
-      "offset": [
-        -4007.7892580191615,
-        918.5138269418628
+  },
+  "159": {
+    "inputs": {
+      "conditioning": [
+        "167",
+        0
       ]
     },
-    "frontendVersion": "1.44.19",
-    "VHS_latentpreview": false,
-    "VHS_latentpreviewrate": 0,
-    "VHS_MetadataImage": true,
-    "VHS_KeepIntermediate": true,
-    "ue_links": [],
-    "links_added_by_ue": []
+    "class_type": "ConditioningZeroOut",
+    "_meta": {
+      "title": "ConditioningZeroOut"
+    }
   },
-  "version": 0.4
+  "160": {
+    "inputs": {
+      "width": [
+        "191",
+        0
+      ],
+      "height": [
+        "191",
+        1
+      ],
+      "batch_size": 1
+    },
+    "class_type": "EmptyFlux2LatentImage",
+    "_meta": {
+      "title": "Empty Flux 2 Latent"
+    }
+  },
+  "161": {
+    "inputs": {
+      "noise": [
+        "165",
+        0
+      ],
+      "guider": [
+        "182",
+        0
+      ],
+      "sampler": [
+        "163",
+        0
+      ],
+      "sigmas": [
+        "190",
+        0
+      ],
+      "latent_image": [
+        "160",
+        0
+      ]
+    },
+    "class_type": "SamplerCustomAdvanced",
+    "_meta": {
+      "title": "SamplerCustomAdvanced"
+    }
+  },
+  "162": {
+    "inputs": {
+      "samples": [
+        "161",
+        0
+      ],
+      "vae": [
+        "158",
+        0
+      ]
+    },
+    "class_type": "VAEDecode",
+    "_meta": {
+      "title": "VAE Decode"
+    }
+  },
+  "163": {
+    "inputs": {
+      "sampler_name": "euler"
+    },
+    "class_type": "KSamplerSelect",
+    "_meta": {
+      "title": "KSamplerSelect"
+    }
+  },
+  "165": {
+    "inputs": {
+      "noise_seed": [
+        "197",
+        0
+      ]
+    },
+    "class_type": "RandomNoise",
+    "_meta": {
+      "title": "RandomNoise"
+    }
+  },
+  "166": {
+    "inputs": {
+      "unet_name": "ideogram4_fp8_scaled.safetensors",
+      "weight_dtype": "default"
+    },
+    "class_type": "UNETLoader",
+    "_meta": {
+      "title": "Load Diffusion Model"
+    }
+  },
+  "167": {
+    "inputs": {
+      "text": [
+        "199",
+        0
+      ],
+      "clip": [
+        "168",
+        0
+      ]
+    },
+    "class_type": "CLIPTextEncode",
+    "_meta": {
+      "title": "CLIP Text Encode (Positive Prompt)"
+    }
+  },
+  "168": {
+    "inputs": {
+      "clip_name": "qwen3vl_8b_fp8_scaled.safetensors",
+      "type": "ideogram4",
+      "device": "default"
+    },
+    "class_type": "CLIPLoader",
+    "_meta": {
+      "title": "Load CLIP"
+    }
+  },
+  "181": {
+    "inputs": {
+      "unet_name": "ideogram4_unconditional_fp8_scaled.safetensors",
+      "weight_dtype": "default"
+    },
+    "class_type": "UNETLoader",
+    "_meta": {
+      "title": "Load Diffusion Model"
+    }
+  },
+  "182": {
+    "inputs": {
+      "cfg": 3.5,
+      "model": [
+        "184",
+        0
+      ],
+      "positive": [
+        "167",
+        0
+      ],
+      "model_negative": [
+        "181",
+        0
+      ],
+      "negative": [
+        "159",
+        0
+      ]
+    },
+    "class_type": "DualModelGuider",
+    "_meta": {
+      "title": "Dual Model CFG Guider"
+    }
+  },
+  "184": {
+    "inputs": {
+      "cfg": 3,
+      "start_percent": 0.9,
+      "end_percent": 1,
+      "model": [
+        "198",
+        0
+      ]
+    },
+    "class_type": "CFGOverride",
+    "_meta": {
+      "title": "CFG Override"
+    }
+  },
+  "185": {
+    "inputs": {
+      "width": [
+        "191",
+        0
+      ],
+      "height": [
+        "191",
+        1
+      ],
+      "high_level_description": "A dynamic low-angle action photograph of a fierce female boxer mid-air delivering a powerful high kick directly toward the viewer. She wears glossy crimson red boxing gloves and satin-finish red athletic shorts with black trim over a sleek black sports bra. Her athletic physique is sharply defined, featuring intricate tattoos on her forearms and an intense, focused gaze with her hair pulled back tightly. The composition utilizes dramatic foreshortening to emphasize the extended leg, highlighting the detailed sole of her foot and visible muscle tension. Set against a clean, minimalist white studio backdrop, Frozen in peak motion, high-energy sports photography aesthetic, sharp focus, vibrant color contrast.",
+      "background": "UHD. Intrinsic details.",
+      "style": "photo",
+      "style.photo": "DSLR photography",
+      "aesthetics": "beautiful girl, perfect body",
+      "lighting": "dim cool night light, high contrast",
+      "medium": "photography",
+      "style_palette_data": "",
+      "elements_data": "[{\"x\":0.010618517685645805,\"y\":0.010856248251729074,\"w\":0.9893814823143542,\"h\":0.989143751748271,\"type\":\"obj\",\"text\":\"\",\"desc\":\"A dynamic low-angle action photograph of a fierce female boxer mid-air delivering a powerful high kick directly toward the viewer. She wears glossy crimson red boxing gloves and satin-finish red athletic shorts with black trim over a sleek black sports bra. Her athletic physique is sharply defined, featuring intricate tattoos on her forearms and an intense, focused gaze with her hair pulled back tightly. The composition utilizes dramatic foreshortening to emphasize the extended leg, highlighting the detailed sole of her foot and visible muscle tension. Set against a clean, minimalist white studio backdrop, Frozen in peak motion, high-energy sports photography aesthetic, sharp focus, vibrant color contrast.\",\"palette\":[]}]"
+    },
+    "class_type": "Ideogram4PromptBuilderKJ",
+    "_meta": {
+      "title": "Ideogram 4 Prompt Builder KJ"
+    }
+  },
+  "189": {
+    "inputs": {
+      "print_as_list": false,
+      "line_color": "blue",
+      "sigmas": [
+        "190",
+        0
+      ]
+    },
+    "class_type": "SigmasPreview",
+    "_meta": {
+      "title": "SigmasPreview"
+    }
+  },
+  "190": {
+    "inputs": {
+      "scheduler": "simple",
+      "steps": 12,
+      "denoise": 1,
+      "model": [
+        "198",
+        0
+      ]
+    },
+    "class_type": "BasicScheduler",
+    "_meta": {
+      "title": "BasicScheduler"
+    }
+  },
+  "191": {
+    "inputs": {
+      "megapixel": "2.5",
+      "aspect_ratio": "16:9 (Panorama)",
+      "divisible_by": "16",
+      "custom_ratio": false,
+      "custom_aspect_ratio": "1:1"
+    },
+    "class_type": "FluxResolutionNode",
+    "_meta": {
+      "title": "Flux Resolution Calc"
+    }
+  },
+  "192": {
+    "inputs": {
+      "text": "2112 x 1184",
+      "anything": [
+        "191",
+        2
+      ]
+    },
+    "class_type": "easy showAnything",
+    "_meta": {
+      "title": "Show Any"
+    }
+  },
+  "197": {
+    "inputs": {
+      "seed": -1
+    },
+    "class_type": "Seed (rgthree)",
+    "_meta": {
+      "title": "Seed (rgthree)"
+    }
+  },
+  "198": {
+    "inputs": {
+      "shift": 3.88,
+      "model": [
+        "166",
+        0
+      ]
+    },
+    "class_type": "ModelSamplingAuraFlow",
+    "_meta": {
+      "title": "ModelSamplingAuraFlow"
+    }
+  },
+  "199": {
+    "inputs": {
+      "source": [
+        "185",
+        0
+      ]
+    },
+    "class_type": "PreviewAny",
+    "_meta": {
+      "title": "Preview as Text"
+    }
+  },
+  "202": {
+    "inputs": {
+      "images": [
+        "162",
+        0
+      ]
+    },
+    "class_type": "PreviewImage",
+    "_meta": {
+      "title": "Preview Image"
+    }
+  },
+  "203": {
+    "inputs": {
+      "filename_prefix": "gram",
+      "images": [
+        "162",
+        0
+      ]
+    },
+    "class_type": "SaveImage",
+    "_meta": {
+      "title": "Save Image"
+    }
+  }
 }
