@@ -74,7 +74,7 @@
   },
   "70": {
     "inputs": {
-      "seed": 930863054883824,
+      "seed": 1049222425173063,
       "steps": 8,
       "cfg": 1,
       "sampler_name": "er_sde",
@@ -129,7 +129,7 @@
   "75": {
     "inputs": {
       "add_noise": true,
-      "noise_seed": 817215001545701,
+      "noise_seed": 415659423663410,
       "cfg": 1,
       "model": [
         "82",
@@ -208,18 +208,6 @@
     "class_type": "VAEDecode",
     "_meta": {
       "title": "VAE Decode"
-    }
-  },
-  "80": {
-    "inputs": {
-      "images": [
-        "79",
-        0
-      ]
-    },
-    "class_type": "PreviewImage",
-    "_meta": {
-      "title": "Preview Image"
     }
   },
   "81": {
@@ -329,6 +317,19 @@
     "class_type": "LoraLoaderModelOnly",
     "_meta": {
       "title": "Load LoRA"
+    }
+  },
+  "100": {
+    "inputs": {
+      "filename_prefix": "4k",
+      "images": [
+        "79",
+        0
+      ]
+    },
+    "class_type": "SaveImage",
+    "_meta": {
+      "title": "Save Image"
     }
   }
 }

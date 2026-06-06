@@ -4555,6 +4555,318 @@
                 </Grid>
             </TabItem>
 
+            <!-- ===== IDEOGRAM: Image → LLM prompt → Ideogram v4 generation ===== -->
+            <TabItem Header="🔤 Ideogram" FontWeight="Bold" FontSize="13">
+                <Grid Margin="0">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="*" MinWidth="340"/>
+                        <ColumnDefinition Width="2"/>
+                        <ColumnDefinition Width="*" MinWidth="340"/>
+                    </Grid.ColumnDefinitions>
+
+                    <!-- LEFT COLUMN: Inputs -->
+                    <ScrollViewer Grid.Column="0" VerticalScrollBarVisibility="Auto" Padding="12,12,12,12">
+                        <StackPanel>
+
+                            <!-- Input image -->
+                            <Border Style="{StaticResource SectionPanelStyle}" Margin="0,0,0,10" Padding="12">
+                                <StackPanel>
+                                    <TextBlock Text="Input Image" Style="{StaticResource HeaderTextStyle}" Foreground="#E11D48"/>
+                                    <TextBlock Text="{Binding Ideogram.InputImagePath, FallbackValue='No image selected'}"
+                                               FontSize="11" Foreground="#6B7280" TextTrimming="CharacterEllipsis" Margin="0,0,0,6"/>
+                                    <Button Content="📂 Browse Image"
+                                            Command="{Binding Ideogram.BrowseImageCommand}"
+                                            Style="{StaticResource SecondaryButtonStyle}"
+                                            Background="#E11D48" Padding="12,8" FontSize="12" Margin="0,0,0,8"/>
+                                    <Border BorderBrush="#CED4DA" BorderThickness="1" CornerRadius="4"
+                                            Background="#1A1A2E" Height="200" ClipToBounds="True">
+                                        <Grid>
+                                            <Image Source="{Binding Ideogram.InputImageSource}"
+                                                   Stretch="Uniform" RenderOptions.BitmapScalingMode="HighQuality"/>
+                                            <StackPanel HorizontalAlignment="Center" VerticalAlignment="Center"
+                                                        Visibility="{Binding Ideogram.NoInputImage, Converter={StaticResource BooleanToVisibilityConverter}}">
+                                                <TextBlock Text="🖼️" FontSize="36" HorizontalAlignment="Center"/>
+                                                <TextBlock Text="Upload an image to analyze" FontSize="12" Foreground="#9CA3AF"
+                                                           HorizontalAlignment="Center" Margin="0,6,0,0"/>
+                                            </StackPanel>
+                                        </Grid>
+                                    </Border>
+                                </StackPanel>
+                            </Border>
+
+                            <!-- LLM Model -->
+                            <Border Style="{StaticResource SectionPanelStyle}" Margin="0,0,0,10" Padding="12">
+                                <StackPanel>
+                                    <TextBlock Text="LLM Model" Style="{StaticResource HeaderTextStyle}" Foreground="#7C3AED"/>
+                                    <Grid Margin="0,0,0,0">
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="*"/>
+                                            <ColumnDefinition Width="Auto"/>
+                                        </Grid.ColumnDefinitions>
+                                        <ComboBox ItemsSource="{Binding Ideogram.AvailableModels}"
+                                                  SelectedItem="{Binding Ideogram.SelectedLlmModel}"
+                                                  FontSize="12" Padding="6,4" Margin="0,0,6,0"/>
+                                        <Button Grid.Column="1" Content="🔄"
+                                                Command="{Binding Ideogram.LoadModelsCommand}"
+                                                FontSize="14" Padding="8,4" ToolTip="Refresh models"
+                                                Style="{StaticResource SecondaryButtonStyle}"
+                                                Background="#7C3AED"/>
+                                    </Grid>
+                                </StackPanel>
+                            </Border>
+
+                            <!-- Analyze -->
+                            <Border Style="{StaticResource SectionPanelStyle}" Margin="0,0,0,10" Padding="12">
+                                <StackPanel>
+                                    <TextBlock Text="Step 1 — Analyze Image" Style="{StaticResource HeaderTextStyle}" Foreground="#059669"/>
+                                    <TextBlock FontSize="11" Foreground="#6B7280" Margin="0,0,0,8" TextWrapping="Wrap">
+                                        Sends the image to the LLM with the Ideogram prompt optimizer. Returns an enhanced prompt.
+                                    </TextBlock>
+                                    <Button Content="🔍 Analyze"
+                                            Command="{Binding Ideogram.AnalyzeCommand}"
+                                            IsEnabled="{Binding Ideogram.CanAnalyze}"
+                                            Style="{StaticResource PrimaryButtonStyle}"
+                                            Background="#059669" Padding="16,10" FontSize="13"
+                                            HorizontalAlignment="Stretch"/>
+                                    <StackPanel Orientation="Horizontal" Margin="0,8,0,0"
+                                                Visibility="{Binding Ideogram.IsAnalyzing, Converter={StaticResource BooleanToVisibilityConverter}}">
+                                        <TextBlock Text="⏳ " FontSize="13"/>
+                                        <TextBlock Text="{Binding Ideogram.StatusMessage}" FontSize="12" Foreground="#374151"/>
+                                    </StackPanel>
+                                </StackPanel>
+                            </Border>
+
+                            <!-- Prompt editor -->
+                            <Border Style="{StaticResource SectionPanelStyle}" Margin="0,0,0,10" Padding="12">
+                                <StackPanel>
+                                    <TextBlock Text="Step 2 — Edit Prompt" Style="{StaticResource HeaderTextStyle}" Foreground="#D97706"/>
+                                    <TextBlock FontSize="11" Foreground="#6B7280" Margin="0,0,0,4">
+                                        <Run Text="Detected aspect ratio: "/><Run Text="{Binding Ideogram.DetectedAspectRatio, Mode=OneWay}" FontWeight="Bold"/>
+                                    </TextBlock>
+                                    <TextBox Text="{Binding Ideogram.IdeogramPrompt, UpdateSourceTrigger=PropertyChanged}"
+                                             TextWrapping="Wrap" AcceptsReturn="True"
+                                             MinLines="5" MaxLines="12"
+                                             VerticalScrollBarVisibility="Auto"
+                                             FontSize="12" Padding="8"
+                                             Margin="0,0,0,0"/>
+                                </StackPanel>
+                            </Border>
+
+                            <!-- Generate -->
+                            <Border Style="{StaticResource SectionPanelStyle}" Margin="0,0,0,10" Padding="12">
+                                <StackPanel>
+                                    <TextBlock Text="Step 3 — Generate" Style="{StaticResource HeaderTextStyle}" Foreground="#DC2626"/>
+                                    <TextBlock FontSize="11" Foreground="#6B7280" Margin="0,0,0,8" TextWrapping="Wrap">
+                                        Sends the prompt to ComfyUI with the Ideogram v4 workflow.
+                                    </TextBlock>
+                                    <Button Content="🚀 Generate"
+                                            Command="{Binding Ideogram.GenerateCommand}"
+                                            IsEnabled="{Binding Ideogram.CanGenerate}"
+                                            Style="{StaticResource PrimaryButtonStyle}"
+                                            Background="#DC2626" Padding="16,10" FontSize="13"
+                                            HorizontalAlignment="Stretch"/>
+                                    <StackPanel Margin="0,8,0,0">
+                                        <TextBlock Text="{Binding Ideogram.StatusMessage}"
+                                                   FontSize="12" Foreground="#374151" TextWrapping="Wrap"/>
+                                        <ProgressBar Value="{Binding Ideogram.Progress}" Maximum="100" Height="6"
+                                                     Margin="0,4,0,0" Background="#E5E7EB" Foreground="#DC2626"/>
+                                    </StackPanel>
+                                </StackPanel>
+                            </Border>
+
+                            <!-- Queue Section -->
+                            <Border Style="{StaticResource SectionPanelStyle}" Margin="0,0,0,10" Padding="12">
+                                <StackPanel>
+                                    <TextBlock Text="Queue" Style="{StaticResource HeaderTextStyle}" Foreground="#6366F1"/>
+
+                                    <!-- Queue buttons -->
+                                    <Grid Margin="0,0,0,8">
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="*"/>
+                                            <ColumnDefinition Width="Auto"/>
+                                            <ColumnDefinition Width="Auto"/>
+                                        </Grid.ColumnDefinitions>
+                                        <Button Content="➕ Add to Queue"
+                                                Command="{Binding Ideogram.AddToQueueCommand}"
+                                                Style="{StaticResource PrimaryButtonStyle}"
+                                                Background="#6366F1" Padding="10,8" FontSize="12"
+                                                HorizontalAlignment="Stretch"/>
+                                        <Button Grid.Column="1" Content="▶ Start"
+                                                Command="{Binding Ideogram.ProcessQueueCommand}"
+                                                Style="{StaticResource SecondaryButtonStyle}"
+                                                Background="#059669" Padding="12,8" FontSize="12" Margin="6,0,0,0"/>
+                                        <Button Grid.Column="2" Content="⏹ Stop"
+                                                Command="{Binding Ideogram.CancelQueueCommand}"
+                                                Style="{StaticResource SecondaryButtonStyle}"
+                                                Background="#DC2626" Padding="10,8" FontSize="12" Margin="6,0,0,0"/>
+                                    </Grid>
+
+                                    <!-- Queue status -->
+                                    <StackPanel Orientation="Horizontal" Margin="0,0,0,6">
+                                        <Border Background="#6366F1" CornerRadius="10" Padding="6,2">
+                                            <TextBlock Text="{Binding Ideogram.QueueCount}" FontSize="11" FontWeight="Bold" Foreground="White"/>
+                                        </Border>
+                                        <TextBlock Text="waiting..."
+                                                   FontSize="11" Foreground="#6366F1" FontStyle="Italic" Margin="8,0,0,0"
+                                                   Visibility="{Binding Ideogram.IsWaitingForLease, Converter={StaticResource BooleanToVisibilityConverter}}"/>
+                                        <TextBlock Text="processing..."
+                                                   FontSize="11" Foreground="#059669" FontStyle="Italic" Margin="8,0,0,0"
+                                                   Visibility="{Binding Ideogram.IsProcessingQueue, Converter={StaticResource BooleanToVisibilityConverter}}"/>
+                                    </StackPanel>
+
+                                    <!-- Queue items list -->
+                                    <ScrollViewer VerticalScrollBarVisibility="Auto" MaxHeight="200">
+                                        <ItemsControl ItemsSource="{Binding Ideogram.Queue}">
+                                            <ItemsControl.ItemTemplate>
+                                                <DataTemplate>
+                                                    <Border BorderBrush="#F3F4F6" BorderThickness="0,0,0,1" Padding="0,6">
+                                                        <Grid>
+                                                            <Grid.ColumnDefinitions>
+                                                                <ColumnDefinition Width="*"/>
+                                                                <ColumnDefinition Width="Auto"/>
+                                                                <ColumnDefinition Width="Auto"/>
+                                                            </Grid.ColumnDefinitions>
+
+                                                            <!-- Item info -->
+                                                            <StackPanel Grid.Column="0" VerticalAlignment="Center">
+                                                                <TextBlock Text="{Binding DisplayPrompt}" FontSize="11" FontWeight="Medium"
+                                                                           TextTrimming="CharacterEllipsis"/>
+                                                                <StackPanel Orientation="Horizontal" Margin="0,2,0,0">
+                                                                    <TextBlock Text="{Binding RatioDisplay}" FontSize="10" Foreground="#6B7280"/>
+                                                                </StackPanel>
+                                                            </StackPanel>
+
+                                                            <!-- Status -->
+                                                            <TextBlock Grid.Column="1" Text="{Binding StatusDisplay}"
+                                                                       FontSize="10" FontWeight="Bold"
+                                                                       Foreground="{Binding StatusColor}" VerticalAlignment="Center" Margin="8,0"/>
+                                                            <ProgressBar Grid.Column="1" Value="{Binding Progress}" Width="40" Height="8" Margin="8,0">
+                                                                <ProgressBar.Style>
+                                                                    <Style TargetType="ProgressBar">
+                                                                        <Setter Property="Visibility" Value="Collapsed"/>
+                                                                        <Style.Triggers>
+                                                                            <DataTrigger Binding="{Binding Status}" Value="Processing">
+                                                                                <Setter Property="Visibility" Value="Visible"/>
+                                                                            </DataTrigger>
+                                                                        </Style.Triggers>
+                                                                    </Style>
+                                                                </ProgressBar.Style>
+                                                            </ProgressBar>
+
+                                                            <!-- Actions -->
+                                                            <StackPanel Grid.Column="2" Orientation="Horizontal" VerticalAlignment="Center">
+                                                                <Button Content="🖼️" Command="{Binding OpenImageCommand}" FontSize="12"
+                                                                        Background="Transparent" BorderThickness="0" Cursor="Hand" Padding="2"
+                                                                        ToolTip="Open image">
+                                                                    <Button.Style>
+                                                                        <Style TargetType="Button">
+                                                                            <Setter Property="Visibility" Value="Collapsed"/>
+                                                                            <Style.Triggers>
+                                                                                <DataTrigger Binding="{Binding Status}" Value="Completed">
+                                                                                    <Setter Property="Visibility" Value="Visible"/>
+                                                                                </DataTrigger>
+                                                                            </Style.Triggers>
+                                                                        </Style>
+                                                                    </Button.Style>
+                                                                </Button>
+                                                                <Button Content="✕" FontSize="11" Foreground="#EF4444" FontWeight="Bold"
+                                                                        Background="Transparent" BorderThickness="0" Cursor="Hand" Padding="4,0"
+                                                                        ToolTip="Remove">
+                                                                    <Button.InputBindings>
+                                                                        <MouseBinding Gesture="LeftClick"/>
+                                                                    </Button.InputBindings>
+                                                                </Button>
+                                                            </StackPanel>
+                                                        </Grid>
+                                                    </Border>
+                                                </DataTemplate>
+                                            </ItemsControl.ItemTemplate>
+                                        </ItemsControl>
+                                    </ScrollViewer>
+
+                                    <Button Content="Clear All" Command="{Binding Ideogram.ClearQueueCommand}"
+                                            HorizontalAlignment="Right" Background="#6B7280" Foreground="White"
+                                            BorderThickness="0" Padding="8,3" FontSize="10" Cursor="Hand" Margin="0,4,0,0">
+                                        <Button.Template>
+                                            <ControlTemplate TargetType="Button">
+                                                <Border Background="{TemplateBinding Background}" CornerRadius="4" Padding="{TemplateBinding Padding}">
+                                                    <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                                                </Border>
+                                            </ControlTemplate>
+                                        </Button.Template>
+                                    </Button>
+                                </StackPanel>
+                            </Border>
+
+                        </StackPanel>
+                    </ScrollViewer>
+
+                    <!-- Column separator -->
+                    <Border Grid.Column="1" Background="#E5E7EB" Margin="0,10,0,10"/>
+
+                    <!-- RIGHT COLUMN: Result -->
+                    <ScrollViewer Grid.Column="2" VerticalScrollBarVisibility="Auto" Padding="12,12,12,12">
+                        <StackPanel>
+
+                            <!-- Result image -->
+                            <Border Style="{StaticResource SectionPanelStyle}" Margin="0,0,0,10">
+                                <StackPanel>
+                                    <TextBlock Text="Result" Style="{StaticResource HeaderTextStyle}" Foreground="#E11D48"/>
+                                    <Border BorderBrush="#CED4DA" BorderThickness="1" CornerRadius="4"
+                                            Background="#1A1A2E" Height="420" ClipToBounds="True">
+                                        <Grid>
+                                            <Image Source="{Binding Ideogram.ResultImageSource}"
+                                                   Stretch="Uniform" RenderOptions.BitmapScalingMode="HighQuality"/>
+                                            <StackPanel HorizontalAlignment="Center" VerticalAlignment="Center"
+                                                        Visibility="{Binding Ideogram.NoResult, Converter={StaticResource BooleanToVisibilityConverter}}">
+                                                <TextBlock Text="🖼️" FontSize="48" HorizontalAlignment="Center"/>
+                                                <TextBlock Text="Result will appear here" FontSize="14"
+                                                           Foreground="#9CA3AF" HorizontalAlignment="Center" Margin="0,8,0,0"/>
+                                            </StackPanel>
+                                        </Grid>
+                                    </Border>
+                                </StackPanel>
+                            </Border>
+
+                            <!-- Actions -->
+                            <Border Style="{StaticResource SectionPanelStyle}" Margin="0,0,0,10">
+                                <StackPanel>
+                                    <TextBlock Text="Output" Style="{StaticResource HeaderTextStyle}" Foreground="#E11D48"/>
+                                    <TextBlock Text="{Binding Ideogram.ResultImagePath, FallbackValue='—'}"
+                                               FontSize="11" Foreground="#6B7280" TextTrimming="CharacterEllipsis"
+                                               Margin="0,0,0,10"/>
+                                    <StackPanel Orientation="Horizontal">
+                                        <Button Content="📁 Open Folder"
+                                                Command="{Binding Ideogram.OpenResultFolderCommand}"
+                                                Style="{StaticResource SecondaryButtonStyle}"
+                                                Background="#E11D48" Padding="12,8" FontSize="12" Margin="0,0,8,0"/>
+                                        <Button Content="🖼️ Open Image"
+                                                Command="{Binding Ideogram.OpenResultImageCommand}"
+                                                Style="{StaticResource SecondaryButtonStyle}"
+                                                Background="#10B981" Padding="12,8" FontSize="12"/>
+                                    </StackPanel>
+                                </StackPanel>
+                            </Border>
+
+                            <!-- Log -->
+                            <Border Background="#111827" BorderBrush="#374151" BorderThickness="1" CornerRadius="6" Padding="10">
+                                <StackPanel>
+                                    <TextBlock Text="Log" FontSize="12" FontWeight="SemiBold" Foreground="#9CA3AF" Margin="0,0,0,6"/>
+                                    <TextBox Text="{Binding Ideogram.LogOutput}"
+                                             IsReadOnly="True" TextWrapping="Wrap"
+                                             VerticalScrollBarVisibility="Auto"
+                                             Background="#111827" Foreground="#9CA3AF"
+                                             BorderThickness="0" FontFamily="Consolas"
+                                             FontSize="11" Padding="4" Height="200"/>
+                                </StackPanel>
+                            </Border>
+
+                        </StackPanel>
+                    </ScrollViewer>
+
+                </Grid>
+            </TabItem>
+
         </TabControl>
 
         <!-- Status Bar -->

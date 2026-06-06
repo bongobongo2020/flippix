@@ -85,6 +85,7 @@ namespace FlipPix.UI.ViewModels
         private InpaintEditorViewModel _inpaintEditor;
         private KleinInpaintViewModel _kleinInpaintEditor;
         private KleinControlViewModel _kleinControl;
+        private IdeogramViewModel _ideogram;
 
 
         public ImageGeneratorViewModel(FlipPix.ComfyUI.Services.ComfyUIService comfyUIService, IAppLogger logger, FlipPix.Core.Services.SettingsService settingsService, IServiceProvider? serviceProvider = null, IPromptService? promptService = null)
@@ -115,6 +116,7 @@ namespace FlipPix.UI.ViewModels
             _kleinInpaintEditor = new KleinInpaintViewModel(comfyUIService, logger, settingsService, fileDialogService);
             var videoAnalysisService = serviceProvider?.GetRequiredService<VideoAnalysisService>() ?? throw new InvalidOperationException("VideoAnalysisService is required");
             _kleinControl = new KleinControlViewModel(comfyUIService, logger, settingsService, fileDialogService, videoAnalysisService);
+            _ideogram = new IdeogramViewModel(comfyUIService, logger, settingsService, fileDialogService, lmStudioService ?? throw new InvalidOperationException("LMStudioService is required"), _workflowCoordinator);
 
             // Initialize commands
             GenerateImageCommand = new RelayCommand(async () => await GenerateImageAsync(), () => CanGenerate);
@@ -256,6 +258,7 @@ namespace FlipPix.UI.ViewModels
         public InpaintEditorViewModel InpaintEditor => _inpaintEditor;
         public KleinInpaintViewModel KleinInpaintEditor => _kleinInpaintEditor;
         public KleinControlViewModel KleinControl => _kleinControl;
+        public IdeogramViewModel Ideogram => _ideogram;
 
         public string ProcessingStatus
         {
@@ -1172,16 +1175,32 @@ namespace FlipPix.UI.ViewModels
                             }
                             else
                             {
-                                // Disable lora_1
+                                // Disable lora_1 — keep a valid lora name to avoid rgthree "None" warning
+                                var existingLoraName = "";
+                                if (inputs.ContainsKey("lora_1"))
+                                {
+                                    try
+                                    {
+                                        var lora1Obj = inputs["lora_1"];
+                                        if (lora1Obj is JsonElement lora1Elem && lora1Elem.ValueKind == JsonValueKind.Object)
+                                        {
+                                            var lora1Dict = JsonSerializer.Deserialize<Dictionary<string, object>>(lora1Elem.GetRawText());
+                                            if (lora1Dict != null && lora1Dict.ContainsKey("lora"))
+                                                existingLoraName = lora1Dict["lora"]?.ToString() ?? "";
+                                        }
+                                    }
+                                    catch { }
+                                }
+
                                 var lora1Config = new
                                 {
                                     on = false,
-                                    lora = "",
+                                    lora = !string.IsNullOrEmpty(existingLoraName) ? existingLoraName : "zimage/zimage_anushkasharma_v2_onetrainer.safetensors",
                                     strength = 0.0
                                 };
                                 inputs["lora_1"] = JsonSerializer.Deserialize<object>(
                                     JsonSerializer.Serialize(lora1Config))!;
-                                AddLog("LoRA disabled");
+                                AddLog("LoRA disabled (Power Lora Loader)");
                             }
 
                             node583["inputs"] = inputs;
@@ -1196,51 +1215,98 @@ namespace FlipPix.UI.ViewModels
             }
             else
             {
-                // Legacy workflow - use old LoRA handling
-                if (LoraEnabled && !string.IsNullOrEmpty(SelectedLora) && SelectedLora != "No Loras available")
+                // Check for LoraLoaderModelOnly nodes (Z4k and similar workflows)
+                // These workflows have a built-in LoRA node that we update directly
+                bool handledLoraLoaderModelOnly = false;
+                var loraModifications = new List<KeyValuePair<string, Dictionary<string, object>>>();
+
+                // First pass: identify LoraLoaderModelOnly nodes (don't modify dict during enumeration)
+                foreach (var kvp in workflowDict)
                 {
-                    workflowDict = AddLoraToWorkflow(workflowDict, SelectedLora);
+                    var nodeObj = JsonSerializer.Deserialize<Dictionary<string, object>>(kvp.Value.GetRawText());
+                    if (nodeObj == null) continue;
+                    var ct = nodeObj.ContainsKey("class_type") ? nodeObj["class_type"]?.ToString() ?? "" : "";
+                    if (ct != "LoraLoaderModelOnly") continue;
+
+                    handledLoraLoaderModelOnly = true;
+
+                    if (!nodeObj.ContainsKey("inputs")) continue;
+                    var inputs = JsonSerializer.Deserialize<Dictionary<string, object>>(
+                        JsonSerializer.Serialize(nodeObj["inputs"]));
+                    if (inputs == null) continue;
+
+                    if (LoraEnabled && !string.IsNullOrEmpty(SelectedLora) && SelectedLora != "No Loras available")
+                    {
+                        inputs["lora_name"] = $"zimage/{SelectedLora}.safetensors";
+                        inputs["strength_model"] = 1.0;
+                        nodeObj["inputs"] = inputs;
+                        loraModifications.Add(new KeyValuePair<string, Dictionary<string, object>>(kvp.Key, nodeObj));
+                        AddLog($"Updated LoraLoaderModelOnly node {kvp.Key}: zimage/{SelectedLora}.safetensors");
+                    }
+                    else
+                    {
+                        // Disable LoRA by setting strength to 0 (preserves node connections)
+                        inputs["strength_model"] = 0.0;
+                        nodeObj["inputs"] = inputs;
+                        loraModifications.Add(new KeyValuePair<string, Dictionary<string, object>>(kvp.Key, nodeObj));
+                        AddLog($"Disabled LoraLoaderModelOnly node {kvp.Key} (strength=0)");
+                    }
                 }
-                else
+
+                // Second pass: apply modifications outside the enumeration loop
+                foreach (var mod in loraModifications)
                 {
-                    // LoRA disabled: bypass the existing LoRA node (58) by connecting directly to model/clip loaders
-                    // Update ModelSamplingAuraFlow (node 47) to connect directly to UNETLoader (node 46)
-                    if (workflowDict.ContainsKey("47"))
+                    workflowDict[mod.Key] = JsonSerializer.SerializeToElement(mod.Value);
+                }
+
+                if (!handledLoraLoaderModelOnly)
+                {
+                    // Legacy workflow - use old LoRA handling
+                    if (LoraEnabled && !string.IsNullOrEmpty(SelectedLora) && SelectedLora != "No Loras available")
                     {
-                        var node47 = JsonSerializer.Deserialize<Dictionary<string, object>>(workflowDict["47"].GetRawText());
-                        if (node47 != null && node47.ContainsKey("inputs"))
+                        workflowDict = AddLoraToWorkflow(workflowDict, SelectedLora);
+                    }
+                    else
+                    {
+                        // LoRA disabled: bypass the existing LoRA node (58) by connecting directly to model/clip loaders
+                        // Update ModelSamplingAuraFlow (node 47) to connect directly to UNETLoader (node 46)
+                        if (workflowDict.ContainsKey("47"))
                         {
-                            var inputs = JsonSerializer.Deserialize<Dictionary<string, object>>(
-                                JsonSerializer.Serialize(node47["inputs"]));
-                            if (inputs != null)
+                            var node47 = JsonSerializer.Deserialize<Dictionary<string, object>>(workflowDict["47"].GetRawText());
+                            if (node47 != null && node47.ContainsKey("inputs"))
                             {
-                                inputs["model"] = new object[] { "46", 0 }; // Connect directly to UNETLoader
-                                node47["inputs"] = inputs;
-                                workflowDict["47"] = JsonSerializer.SerializeToElement(node47);
+                                var inputs47 = JsonSerializer.Deserialize<Dictionary<string, object>>(
+                                    JsonSerializer.Serialize(node47["inputs"]));
+                                if (inputs47 != null)
+                                {
+                                    inputs47["model"] = new object[] { "46", 0 }; // Connect directly to UNETLoader
+                                    node47["inputs"] = inputs47;
+                                    workflowDict["47"] = JsonSerializer.SerializeToElement(node47);
+                                }
                             }
                         }
-                    }
 
-                    // Update CLIPTextEncode (node 45) to connect directly to CLIPLoader (node 39)
-                    if (workflowDict.ContainsKey("45"))
-                    {
-                        var node45 = JsonSerializer.Deserialize<Dictionary<string, object>>(workflowDict["45"].GetRawText());
-                        if (node45 != null && node45.ContainsKey("inputs"))
+                        // Update CLIPTextEncode (node 45) to connect directly to CLIPLoader (node 39)
+                        if (workflowDict.ContainsKey("45"))
                         {
-                            var inputs = JsonSerializer.Deserialize<Dictionary<string, object>>(
-                                JsonSerializer.Serialize(node45["inputs"]));
-                            if (inputs != null)
+                            var node45 = JsonSerializer.Deserialize<Dictionary<string, object>>(workflowDict["45"].GetRawText());
+                            if (node45 != null && node45.ContainsKey("inputs"))
                             {
-                                inputs["clip"] = new object[] { "39", 0 }; // Connect directly to CLIPLoader
-                                node45["inputs"] = inputs;
-                                workflowDict["45"] = JsonSerializer.SerializeToElement(node45);
+                                var inputs45 = JsonSerializer.Deserialize<Dictionary<string, object>>(
+                                    JsonSerializer.Serialize(node45["inputs"]));
+                                if (inputs45 != null)
+                                {
+                                    inputs45["clip"] = new object[] { "39", 0 }; // Connect directly to CLIPLoader
+                                    node45["inputs"] = inputs45;
+                                    workflowDict["45"] = JsonSerializer.SerializeToElement(node45);
+                                }
                             }
                         }
-                    }
 
-                    // Remove the orphaned LoRA node (58) from the workflow
-                    workflowDict.Remove("58");
-                    AddLog("LoRA disabled: bypassing built-in LoRA node");
+                        // Remove the orphaned LoRA node (58) from the workflow
+                        workflowDict.Remove("58");
+                        AddLog("LoRA disabled: bypassing built-in LoRA node");
+                    }
                 }
             }
 
@@ -1323,9 +1389,34 @@ namespace FlipPix.UI.ViewModels
                 }
             }
 
+            // Strategy 4: Scan for PrimitiveStringMultiline nodes — Z Turbo PiT Nvidia 4k etc.
+            // These workflows use PrimitiveStringMultiline for the positive prompt (e.g. node 92)
             if (!promptUpdated)
             {
-                AddLog("WARNING: Could not find prompt node (checked nodes 385, 443, 6)");
+                foreach (var kvp in workflowDict)
+                {
+                    var nodeObj = JsonSerializer.Deserialize<Dictionary<string, object>>(kvp.Value.GetRawText());
+                    if (nodeObj == null) continue;
+                    var ct = nodeObj.ContainsKey("class_type") ? nodeObj["class_type"]?.ToString() ?? "" : "";
+                    if (ct != "PrimitiveStringMultiline") continue;
+
+                    if (!nodeObj.ContainsKey("inputs")) continue;
+                    var inputs = JsonSerializer.Deserialize<Dictionary<string, object>>(
+                        JsonSerializer.Serialize(nodeObj["inputs"]));
+                    if (inputs == null || !inputs.ContainsKey("value")) continue;
+
+                    inputs["value"] = ImagePrompt;
+                    nodeObj["inputs"] = inputs;
+                    workflowDict[kvp.Key] = JsonSerializer.SerializeToElement(nodeObj);
+                    AddLog($"Updated positive prompt via PrimitiveStringMultiline (node {kvp.Key})");
+                    promptUpdated = true;
+                    break;
+                }
+            }
+
+            if (!promptUpdated)
+            {
+                AddLog("WARNING: Could not find prompt node (checked nodes 385, 443, 6, PrimitiveStringMultiline)");
             }
 
             // Zib-Zit workflow uses different node IDs:
@@ -1349,6 +1440,45 @@ namespace FlipPix.UI.ViewModels
                         node569["inputs"] = inputs;
                         workflowDict["569"] = JsonSerializer.SerializeToElement(node569);
                         AddLog($"Updated seed: {actualSeed}");
+                    }
+                }
+            }
+
+            // Z4k workflow seeds: node 70 (KSampler) and node 75 (SamplerCustom)
+            var actualSeed70 = Seed == 0 ? new Random().NextInt64(0, 999999999999999) : Seed;
+            if (workflowDict.ContainsKey("70") &&
+                workflowDict["70"].TryGetProperty("class_type", out var ct70) &&
+                ct70.GetString() == "KSampler")
+            {
+                var node70 = JsonSerializer.Deserialize<Dictionary<string, object>>(workflowDict["70"].GetRawText());
+                if (node70 != null && node70.ContainsKey("inputs"))
+                {
+                    var inputs = JsonSerializer.Deserialize<Dictionary<string, object>>(
+                        JsonSerializer.Serialize(node70["inputs"]));
+                    if (inputs != null)
+                    {
+                        inputs["seed"] = (long)actualSeed70;
+                        node70["inputs"] = inputs;
+                        workflowDict["70"] = JsonSerializer.SerializeToElement(node70);
+                        AddLog($"Updated KSampler (node 70) seed: {actualSeed70}");
+                    }
+                }
+            }
+            if (workflowDict.ContainsKey("75") &&
+                workflowDict["75"].TryGetProperty("class_type", out var ct75) &&
+                ct75.GetString() == "SamplerCustom")
+            {
+                var node75 = JsonSerializer.Deserialize<Dictionary<string, object>>(workflowDict["75"].GetRawText());
+                if (node75 != null && node75.ContainsKey("inputs"))
+                {
+                    var inputs = JsonSerializer.Deserialize<Dictionary<string, object>>(
+                        JsonSerializer.Serialize(node75["inputs"]));
+                    if (inputs != null)
+                    {
+                        inputs["noise_seed"] = (long)actualSeed70;
+                        node75["inputs"] = inputs;
+                        workflowDict["75"] = JsonSerializer.SerializeToElement(node75);
+                        AddLog($"Updated SamplerCustom (node 75) noise_seed: {actualSeed70}");
                     }
                 }
             }
