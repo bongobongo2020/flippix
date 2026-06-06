@@ -99,7 +99,7 @@
   },
   "524": {
     "inputs": {
-      "seed": 470198111161973
+      "seed": -1
     },
     "class_type": "Seed (rgthree)",
     "_meta": {
@@ -129,7 +129,7 @@
   },
   "528": {
     "inputs": {
-      "image": "flux2-klein_20260305_062349.png"
+      "image": "flux2-klein_20260215_102709.png"
     },
     "class_type": "LoadImage",
     "_meta": {
@@ -139,7 +139,7 @@
   "529": {
     "inputs": {
       "resize_type": "scale total pixels",
-      "resize_type.megapixels": 1.3999999999999997,
+      "resize_type.megapixels": 1.4,
       "scale_method": "area",
       "input": [
         "528",
@@ -594,7 +594,7 @@
   },
   "616": {
     "inputs": {
-      "text_encoder": "gemma3/gemma_3_12B_it_fp8_e4m3fn.safetensors",
+      "text_encoder": "gemma_3_12B_it_fp8_scaled.safetensors",
       "ckpt_name": "ltx-2.3_text_projection_bf16.safetensors",
       "device": "default"
     },
@@ -814,10 +814,10 @@
   },
   "731": {
     "inputs": {
-      "strength": 0.11000000000000001,
+      "strength": 0.11,
       "cache_at_step": 6,
       "similarity_threshold": 0.5,
-      "decay_with_distance": 0.15000000000000002,
+      "decay_with_distance": 0.15,
       "energy_threshold": 0.25,
       "bypass": false,
       "debug": false,
@@ -979,7 +979,7 @@
   "753": {
     "inputs": {
       "text_amplification": 1.3,
-      "spatial_focus": 0.15000000000000002,
+      "spatial_focus": 0.15,
       "block_index_filter": "38-42",
       "bypass": false,
       "debug": true,
@@ -995,8 +995,7 @@
   },
   "755": {
     "inputs": {
-      "resize_type": "scale by multiplier",
-      "resize_type.scale": 1.3,
+      "scale": 2,
       "quality": "MEDIUM",
       "images": [
         "740",
@@ -1011,7 +1010,7 @@
   "756": {
     "inputs": {
       "base_sharpen": 0,
-      "motion_sharpen": 0.35000000000000003,
+      "motion_sharpen": 0.35,
       "motion_thresh": 0.04,
       "temporal_smooth_mask": true,
       "latent": [
@@ -1021,7 +1020,7 @@
     },
     "class_type": "LatentMotionSharpener",
     "_meta": {
-      "title": "⚡ Latent Motion Sharpener"
+      "title": "Latent Motion Sharpener"
     }
   },
   "757": {
