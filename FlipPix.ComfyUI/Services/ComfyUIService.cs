@@ -20,6 +20,8 @@ public class ComfyUIService : IDisposable
     public event EventHandler<ProgressMessage>? ProgressUpdated;
     public event EventHandler<ExecutionCompleteMessage>? ExecutionCompleted;
     public event EventHandler<string>? ConnectionStatusChanged;
+    /// <summary>Raised for each node's "executed" message (node finished + produced output).</summary>
+    public event EventHandler<NodeExecutedEventArgs>? NodeExecuted;
 
     public bool IsConnected => _webSocketClient.IsConnected;
 
@@ -537,13 +539,9 @@ public class ComfyUIService : IDisposable
                     break;
 
                 case "executed":
-                    // Some workflows send "executed" instead of "execution_complete"
-                    // Treat this as completion
-                    if (message is ExecutionCompleteMessage execMsg)
-                    {
-                        _logger.LogInfo($"Execution completed via 'executed' message for prompt: {execMsg.Data?.PromptId}");
-                        ExecutionCompleted?.Invoke(this, execMsg);
-                    }
+                    // "executed" is emitted per node when it finishes and produces output.
+                    // Parse the node id + output media and surface it so callers can react live.
+                    TryRaiseNodeExecuted(message.RawData);
                     break;
 
                 case "execution_complete":
@@ -609,6 +607,56 @@ public class ComfyUIService : IDisposable
     private void OnConnectionStatusChanged(object? sender, string status)
     {
         ConnectionStatusChanged?.Invoke(this, status);
+    }
+
+    /// <summary>
+    /// Parses a raw "executed" websocket message ({"data":{"node","prompt_id","output":{...}}})
+    /// and raises <see cref="NodeExecuted"/> with the node's output media (images/videos/gifs).
+    /// </summary>
+    private void TryRaiseNodeExecuted(string? rawData)
+    {
+        if (NodeExecuted == null || string.IsNullOrEmpty(rawData)) return;
+        try
+        {
+            using var doc = System.Text.Json.JsonDocument.Parse(rawData);
+            if (!doc.RootElement.TryGetProperty("data", out var data)) return;
+
+            var args = new NodeExecutedEventArgs
+            {
+                NodeId = data.TryGetProperty("node", out var n) ? (n.GetString() ?? "") : "",
+                PromptId = data.TryGetProperty("prompt_id", out var p) ? (p.GetString() ?? "") : ""
+            };
+            if (string.IsNullOrEmpty(args.NodeId)) return;
+
+            if (data.TryGetProperty("output", out var output) &&
+                output.ValueKind == System.Text.Json.JsonValueKind.Object)
+            {
+                foreach (var key in new[] { "images", "videos", "gifs", "files" })
+                {
+                    if (!output.TryGetProperty(key, out var arr) ||
+                        arr.ValueKind != System.Text.Json.JsonValueKind.Array)
+                        continue;
+                    foreach (var item in arr.EnumerateArray())
+                    {
+                        if (!item.TryGetProperty("filename", out var fn)) continue;
+                        var filename = fn.GetString();
+                        if (string.IsNullOrEmpty(filename)) continue;
+                        args.Files.Add(new OutputFileRef
+                        {
+                            Filename = filename,
+                            Subfolder = item.TryGetProperty("subfolder", out var sf) ? (sf.GetString() ?? "") : "",
+                            Type = item.TryGetProperty("type", out var t) ? (t.GetString() ?? "output") : "output"
+                        });
+                    }
+                }
+            }
+
+            NodeExecuted?.Invoke(this, args);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogDebug($"Failed to parse 'executed' message: {ex.Message}");
+        }
     }
 
     private async Task<T> RetryAsync<T>(

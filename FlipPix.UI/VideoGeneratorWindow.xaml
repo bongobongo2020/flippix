@@ -4641,6 +4641,300 @@
                         </Grid>
                     </TabItem>
 
+                    <!-- Tab: Seedhunt -->
+                    <TabItem Header="🎯 Seedhunt" FontWeight="Bold" FontSize="13">
+                        <Grid DataContext="{Binding SeedHuntVM}" Background="#FFFBEB">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="370"/>
+                                <ColumnDefinition Width="*"/>
+                            </Grid.ColumnDefinitions>
+
+                            <!-- ═══ Left: inputs ═══ -->
+                            <Border Grid.Column="0" Background="White" BorderBrush="#FCD34D" BorderThickness="0,0,1,0">
+                                <ScrollViewer VerticalScrollBarVisibility="Auto" Padding="14">
+                                    <StackPanel>
+                                        <TextBlock Text="🎯 Seedhunt" FontSize="18" FontWeight="Bold" Foreground="#92400E"/>
+                                        <TextBlock Text="Upload → analyze → hunt 4 samples → finish the one you like."
+                                                   TextWrapping="Wrap" Foreground="#A16207" FontSize="11" Margin="0,2,0,12"/>
+
+                                        <!-- Image -->
+                                        <TextBlock Text="Source Image" FontWeight="SemiBold" Foreground="#92400E" Margin="0,0,0,4"/>
+                                        <Border Height="190" Background="#FEF3C7" CornerRadius="6" BorderBrush="#FCD34D" BorderThickness="1">
+                                            <Grid>
+                                                <TextBlock Text="No image selected" HorizontalAlignment="Center"
+                                                           VerticalAlignment="Center" Foreground="#A16207" FontStyle="Italic">
+                                                    <TextBlock.Style>
+                                                        <Style TargetType="TextBlock">
+                                                            <Setter Property="Visibility" Value="Collapsed"/>
+                                                            <Style.Triggers>
+                                                                <DataTrigger Binding="{Binding ImagePreview}" Value="{x:Null}">
+                                                                    <Setter Property="Visibility" Value="Visible"/>
+                                                                </DataTrigger>
+                                                            </Style.Triggers>
+                                                        </Style>
+                                                    </TextBlock.Style>
+                                                </TextBlock>
+                                                <Image Source="{Binding ImagePreview}" Stretch="Uniform" Margin="4"/>
+                                            </Grid>
+                                        </Border>
+                                        <TextBlock Text="{Binding ImageInfo}" FontSize="10" Foreground="#A16207" Margin="0,3,0,6"/>
+                                        <Button Content="📂 Select Image" Command="{Binding SelectImageCommand}"
+                                                Height="30" Background="#F59E0B" Foreground="White" BorderThickness="0"
+                                                FontWeight="SemiBold" Margin="0,0,0,10"/>
+
+                                        <!-- Analysis template -->
+                                        <TextBlock Text="Analysis Template" FontWeight="SemiBold" Foreground="#92400E" Margin="0,0,0,4"/>
+                                        <ComboBox ItemsSource="{Binding PromptTemplates}"
+                                                  SelectedItem="{Binding SelectedPromptTemplate, Mode=TwoWay}"
+                                                  DisplayMemberPath="DisplayName"
+                                                  Height="28" Margin="0,0,0,10"
+                                                  ToolTip="System prompt sent to llama-server. The final prompt is guided by elements from the analyzed image."/>
+
+                                        <!-- Analyze -->
+                                        <Button Command="{Binding AnalyzeCommand}" IsEnabled="{Binding CanAnalyze}"
+                                                Height="32" Background="#D97706" Foreground="White" BorderThickness="0"
+                                                FontWeight="Bold" Margin="0,0,0,10">
+                                            <Button.Style>
+                                                <Style TargetType="Button">
+                                                    <Setter Property="Content" Value="🧠 Analyze Image → Prompt"/>
+                                                    <Style.Triggers>
+                                                        <DataTrigger Binding="{Binding IsAnalyzing}" Value="True">
+                                                            <Setter Property="Content" Value="⏳ Analyzing..."/>
+                                                        </DataTrigger>
+                                                    </Style.Triggers>
+                                                </Style>
+                                            </Button.Style>
+                                        </Button>
+
+                                        <!-- Prompt -->
+                                        <TextBlock Text="Combat Prompt" FontWeight="SemiBold" Foreground="#92400E" Margin="0,0,0,4"/>
+                                        <TextBox Text="{Binding Prompt, UpdateSourceTrigger=PropertyChanged}"
+                                                 AcceptsReturn="True" TextWrapping="Wrap" Height="120"
+                                                 VerticalScrollBarVisibility="Auto" Padding="6" FontSize="11"
+                                                 BorderBrush="#FCD34D" Margin="0,0,0,10"/>
+
+                                        <!-- Length -->
+                                        <TextBlock Text="Video Length (seconds)" FontWeight="SemiBold" Foreground="#92400E" Margin="0,0,0,4"/>
+                                        <TextBox Text="{Binding LengthSeconds, UpdateSourceTrigger=PropertyChanged}"
+                                                 Height="28" Padding="6,0" VerticalContentAlignment="Center"
+                                                 BorderBrush="#FCD34D" Margin="0,0,0,12"
+                                                 ToolTip="1–60 seconds. Applies to both samples and the final video."/>
+
+                                        <!-- Character LoRA (optional) -->
+                                        <TextBlock Text="Character LoRA (optional)" FontWeight="SemiBold" Foreground="#92400E" Margin="0,0,0,4"/>
+                                        <Grid Margin="0,0,0,6">
+                                            <Grid.ColumnDefinitions>
+                                                <ColumnDefinition Width="*"/>
+                                                <ColumnDefinition Width="Auto"/>
+                                            </Grid.ColumnDefinitions>
+                                            <ComboBox Grid.Column="0" ItemsSource="{Binding CharacterLoras}"
+                                                      SelectedItem="{Binding SelectedCharacterLora, Mode=TwoWay}"
+                                                      DisplayMemberPath="DisplayName"
+                                                      Height="28" VerticalContentAlignment="Center"
+                                                      ToolTip="Scanned from ComfyUI loras/LTX-23/characters. Leave on (none) to skip."/>
+                                            <Button Grid.Column="1" Content="🔄" Command="{Binding RefreshLorasCommand}"
+                                                    Width="36" Height="28" Margin="6,0,0,0"
+                                                    Background="#F59E0B" Foreground="White" BorderThickness="0"
+                                                    ToolTip="Rescan the characters folder"/>
+                                        </Grid>
+                                        <Grid Margin="0,0,0,12"
+                                              Visibility="{Binding HasCharacterLora, Converter={StaticResource BooleanToVisibilityConverter}}">
+                                            <Grid.ColumnDefinitions>
+                                                <ColumnDefinition Width="Auto"/>
+                                                <ColumnDefinition Width="*"/>
+                                            </Grid.ColumnDefinitions>
+                                            <TextBlock Grid.Column="0" Text="Strength" VerticalAlignment="Center"
+                                                       Foreground="#A16207" FontSize="11" Margin="0,0,8,0"/>
+                                            <TextBox Grid.Column="1" Text="{Binding CharacterLoraStrength, UpdateSourceTrigger=PropertyChanged}"
+                                                     Height="26" Padding="6,0" VerticalContentAlignment="Center"
+                                                     BorderBrush="#FCD34D" ToolTip="LoRA strength (0–3, default 1)."/>
+                                        </Grid>
+
+                                        <!-- Base seed -->
+                                        <TextBlock Text="Batch Seed (Stage 1)" FontWeight="SemiBold" Foreground="#92400E" Margin="0,0,0,4"/>
+                                        <Grid Margin="0,0,0,12">
+                                            <Grid.ColumnDefinitions>
+                                                <ColumnDefinition Width="*"/>
+                                                <ColumnDefinition Width="Auto"/>
+                                            </Grid.ColumnDefinitions>
+                                            <TextBox Grid.Column="0" Text="{Binding BaseSeed, UpdateSourceTrigger=PropertyChanged}"
+                                                     Height="28" Padding="6,0" VerticalContentAlignment="Center"
+                                                     BorderBrush="#FCD34D"/>
+                                            <Button Grid.Column="1" Content="🎲" Command="{Binding RandomSeedCommand}"
+                                                    Width="36" Height="28" Margin="6,0,0,0"
+                                                    Background="#F59E0B" Foreground="White" BorderThickness="0"
+                                                    ToolTip="New random batch seed (-1 = auto each hunt)"/>
+                                        </Grid>
+
+                                        <!-- Hunt -->
+                                        <Button Content="{Binding HuntButtonText}" Command="{Binding HuntCommand}"
+                                                IsEnabled="{Binding CanHunt}" Height="40" FontSize="14" FontWeight="Bold"
+                                                Background="#B45309" Foreground="White" BorderThickness="0" Margin="0,0,0,8"/>
+
+                                        <!-- Finish -->
+                                        <Button Content="{Binding FinishButtonText}" Command="{Binding FinishCommand}"
+                                                IsEnabled="{Binding CanFinish}" Height="38" FontSize="13" FontWeight="Bold"
+                                                Background="#16A34A" Foreground="White" BorderThickness="0" Margin="0,0,0,8"/>
+
+                                        <!-- Stop -->
+                                        <Button Content="⏹ Stop" Command="{Binding StopCommand}"
+                                                Height="28" Background="#DC2626" Foreground="White" BorderThickness="0"
+                                                Visibility="{Binding IsProcessing, Converter={StaticResource BooleanToVisibilityConverter}}"/>
+
+                                        <!-- Progress -->
+                                        <ProgressBar Height="8" Margin="0,12,0,4" Minimum="0" Maximum="100"
+                                                     Value="{Binding ProcessingProgress, Mode=OneWay}" Foreground="#D97706"
+                                                     Visibility="{Binding IsProcessing, Converter={StaticResource BooleanToVisibilityConverter}}"/>
+                                        <TextBlock Text="{Binding ProcessingStatus}" FontSize="11" Foreground="#92400E" TextWrapping="Wrap"/>
+                                    </StackPanel>
+                                </ScrollViewer>
+                            </Border>
+
+                            <!-- ═══ Right: samples + result ═══ -->
+                            <Grid Grid.Column="1" Margin="12">
+                                <Grid.RowDefinitions>
+                                    <RowDefinition Height="Auto"/>
+                                    <RowDefinition Height="*"/>
+                                    <RowDefinition Height="Auto"/>
+                                    <RowDefinition Height="Auto"/>
+                                </Grid.RowDefinitions>
+
+                                <TextBlock Grid.Row="0" Text="Samples — click to preview • check the box to queue • Finish runs them in order"
+                                           FontWeight="Bold" Foreground="#92400E" FontSize="13" Margin="0,0,0,8" TextWrapping="Wrap"/>
+
+                                <ItemsControl Grid.Row="1" ItemsSource="{Binding Samples}">
+                                    <ItemsControl.ItemsPanel>
+                                        <ItemsPanelTemplate>
+                                            <UniformGrid Columns="2" Rows="2"/>
+                                        </ItemsPanelTemplate>
+                                    </ItemsControl.ItemsPanel>
+                                    <ItemsControl.ItemTemplate>
+                                        <DataTemplate>
+                                            <Border Margin="4" CornerRadius="6" Background="#1F2937" BorderThickness="3">
+                                                <Border.Style>
+                                                    <Style TargetType="Border">
+                                                        <Setter Property="BorderBrush" Value="#FCD34D"/>
+                                                        <Style.Triggers>
+                                                            <DataTrigger Binding="{Binding IsSelected}" Value="True">
+                                                                <Setter Property="BorderBrush" Value="#16A34A"/>
+                                                            </DataTrigger>
+                                                        </Style.Triggers>
+                                                    </Style>
+                                                </Border.Style>
+                                                <Grid>
+                                                    <TextBlock Text="{Binding Label}" HorizontalAlignment="Center"
+                                                               VerticalAlignment="Center" Foreground="#9CA3AF" FontStyle="Italic">
+                                                        <TextBlock.Style>
+                                                            <Style TargetType="TextBlock">
+                                                                <Setter Property="Visibility" Value="Collapsed"/>
+                                                                <Style.Triggers>
+                                                                    <DataTrigger Binding="{Binding ThumbnailImage}" Value="{x:Null}">
+                                                                        <Setter Property="Visibility" Value="Visible"/>
+                                                                    </DataTrigger>
+                                                                </Style.Triggers>
+                                                            </Style>
+                                                        </TextBlock.Style>
+                                                    </TextBlock>
+                                                    <Image Source="{Binding ThumbnailImage}" Stretch="Uniform"/>
+                                                    <!-- header chip -->
+                                                    <Border VerticalAlignment="Top" HorizontalAlignment="Left"
+                                                            Background="#CC000000" CornerRadius="0,0,6,0" Padding="6,2">
+                                                        <TextBlock Text="{Binding Label}" Foreground="White" FontSize="11" FontWeight="SemiBold"/>
+                                                    </Border>
+                                                    <!-- click-to-preview overlay (selection is the checkbox below) -->
+                                                    <Button Background="Transparent" BorderThickness="0" Cursor="Hand"
+                                                            ToolTip="Click to preview in the player below"
+                                                            Command="{Binding DataContext.PreviewSampleCommand,
+                                                                       RelativeSource={RelativeSource AncestorType=ItemsControl}}"
+                                                            CommandParameter="{Binding}"
+                                                            Visibility="{Binding HasVideo, Converter={StaticResource BooleanToVisibilityConverter}}">
+                                                        <Button.Template>
+                                                            <ControlTemplate TargetType="Button">
+                                                                <Border Background="Transparent"/>
+                                                            </ControlTemplate>
+                                                        </Button.Template>
+                                                    </Button>
+                                                    <!-- queue checkbox (on top so it stays clickable) -->
+                                                    <Border VerticalAlignment="Top" HorizontalAlignment="Right"
+                                                            Background="#CC000000" CornerRadius="0,6,0,6" Padding="6,3"
+                                                            Visibility="{Binding HasVideo, Converter={StaticResource BooleanToVisibilityConverter}}">
+                                                        <CheckBox IsChecked="{Binding IsSelected, Mode=TwoWay}"
+                                                                  Foreground="White" FontSize="10" FontWeight="Bold"
+                                                                  Content="Queue" Cursor="Hand"/>
+                                                    </Border>
+                                                </Grid>
+                                            </Border>
+                                        </DataTemplate>
+                                    </ItemsControl.ItemTemplate>
+                                </ItemsControl>
+
+                                <!-- Shared player: selected sample, then the final video -->
+                                <Border Grid.Row="2" Height="260" Margin="4,10,4,0" CornerRadius="6"
+                                        Background="#111827" BorderBrush="#16A34A" BorderThickness="1">
+                                    <Grid>
+                                        <TextBlock Text="Click a sample to preview it here • the final video plays here after Finish"
+                                                   HorizontalAlignment="Center" VerticalAlignment="Center" TextAlignment="Center"
+                                                   TextWrapping="Wrap" Margin="20,0" Foreground="#9CA3AF" FontStyle="Italic">
+                                            <TextBlock.Style>
+                                                <Style TargetType="TextBlock">
+                                                    <Setter Property="Visibility" Value="Collapsed"/>
+                                                    <Style.Triggers>
+                                                        <DataTrigger Binding="{Binding HasActivePreview}" Value="False">
+                                                            <Setter Property="Visibility" Value="Visible"/>
+                                                        </DataTrigger>
+                                                    </Style.Triggers>
+                                                </Style>
+                                            </TextBlock.Style>
+                                        </TextBlock>
+                                        <MediaElement x:Name="SeedHuntResultPlayer" Source="{Binding ActivePreviewUri}"
+                                                      Stretch="Uniform" LoadedBehavior="Manual" UnloadedBehavior="Stop"
+                                                      IsMuted="{Binding IsPreviewMuted}"
+                                                      MediaOpened="SeedHuntResult_MediaOpened"
+                                                      MediaEnded="SeedHuntResult_MediaEnded"
+                                                      Visibility="{Binding HasActivePreview, Converter={StaticResource BooleanToVisibilityConverter}}"/>
+                                    </Grid>
+                                </Border>
+                                <StackPanel Grid.Row="3" Margin="4,8,0,0">
+                                    <!-- Finished results — click one to play it in the player above -->
+                                    <StackPanel Orientation="Horizontal" Margin="0,0,0,6"
+                                                Visibility="{Binding HasResult, Converter={StaticResource BooleanToVisibilityConverter}}">
+                                        <TextBlock Text="Results:" VerticalAlignment="Center" FontWeight="SemiBold"
+                                                   Foreground="#92400E" FontSize="11" Margin="0,0,8,0"/>
+                                        <ItemsControl ItemsSource="{Binding Results}">
+                                            <ItemsControl.ItemsPanel>
+                                                <ItemsPanelTemplate><WrapPanel/></ItemsPanelTemplate>
+                                            </ItemsControl.ItemsPanel>
+                                            <ItemsControl.ItemTemplate>
+                                                <DataTemplate>
+                                                    <Button Content="{Binding Label}" ToolTip="{Binding Info}"
+                                                            Command="{Binding DataContext.PlayResultCommand,
+                                                                       RelativeSource={RelativeSource AncestorType=ItemsControl}}"
+                                                            CommandParameter="{Binding}"
+                                                            Height="26" Padding="10,0" Margin="0,0,6,0"
+                                                            Background="#15803D" Foreground="White" BorderThickness="0"/>
+                                                </DataTemplate>
+                                            </ItemsControl.ItemTemplate>
+                                        </ItemsControl>
+                                    </StackPanel>
+                                    <StackPanel Orientation="Horizontal">
+                                        <Button Content="▶ Replay" Click="SeedHuntReplay_Click"
+                                                IsEnabled="{Binding HasActivePreview}" Height="28" Padding="10,0" Margin="0,0,8,0"
+                                                Background="#16A34A" Foreground="White" BorderThickness="0"/>
+                                        <Button Content="{Binding MuteIcon}" Command="{Binding ToggleMuteCommand}"
+                                                Height="28" Padding="10,0" Margin="0,0,8,0"
+                                                Background="#B45309" Foreground="White" BorderThickness="0"
+                                                ToolTip="Mute/unmute the preview player"/>
+                                        <Button Content="📁 Open Folder" Command="{Binding OpenResultFolderCommand}"
+                                                IsEnabled="{Binding HasResult}" Height="28" Padding="10,0" Margin="0,0,8,0"
+                                                Background="#6B7280" Foreground="White" BorderThickness="0"/>
+                                        <TextBlock Text="{Binding ResultVideoInfo}" VerticalAlignment="Center"
+                                                   FontStyle="Italic" Foreground="#92400E" FontSize="11"/>
+                                    </StackPanel>
+                                </StackPanel>
+                            </Grid>
+                        </Grid>
+                    </TabItem>
+
                     <!-- Tab: Character Replacement -->
                     <TabItem Header="🧑‍🎨 Char Replace" FontWeight="Bold" FontSize="13">
                         <Grid>
