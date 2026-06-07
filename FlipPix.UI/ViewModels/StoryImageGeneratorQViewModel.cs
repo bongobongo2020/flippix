@@ -516,6 +516,15 @@ namespace FlipPix.UI.ViewModels
 
         private JsonElement UpdateZWorkflowParameters(JsonElement workflow, StoryPromptItem item)
         {
+            // Detect workflow variant by checking for characteristic node IDs
+            bool isZ4k = workflow.TryGetProperty("92", out var node92) &&
+                         node92.TryGetProperty("class_type", out var ct92) &&
+                         ct92.GetString() == "PrimitiveStringMultiline";
+
+            if (isZ4k)
+                return UpdateZ4kWorkflowParameters(workflow, item);
+
+            // Standard ZStyle workflow (nodes 385, 60, 307, 9, 56)
             var workflowJson = workflow.GetRawText();
 
             WorkflowNodeUpdater.UpdateNodeInput(ref workflowJson, "385", "string", item.Prompt);
@@ -535,6 +544,73 @@ namespace FlipPix.UI.ViewModels
             workflowJson = UpdateZResolution(workflowJson, item.SelectedOrientation);
 
             return JsonSerializer.Deserialize<JsonElement>(workflowJson);
+        }
+
+        /// <summary>
+        /// Z4k uses a two-pass pipeline (KSampler → PiD upscaling to 4096×4096)
+        /// with completely different node IDs than the standard ZStyle template.
+        /// </summary>
+        private JsonElement UpdateZ4kWorkflowParameters(JsonElement workflow, StoryPromptItem item)
+        {
+            var workflowJson = workflow.GetRawText();
+
+            // Node 92 - PrimitiveStringMultiline (prompt)
+            WorkflowNodeUpdater.UpdateNodeInput(ref workflowJson, "92", "value", item.Prompt);
+
+            // Node 73 - CLIPTextEncode (negative prompt, has good default)
+            if (!string.IsNullOrEmpty(item.NegativePrompt))
+                WorkflowNodeUpdater.UpdateNodeInput(ref workflowJson, "73", "text", item.NegativePrompt);
+
+            // Seeds — two-pass pipeline needs both randomized
+            var seed = Random.Shared.NextInt64(1, long.MaxValue);
+            // Node 70 - KSampler seed (first pass: base generation)
+            WorkflowNodeUpdater.UpdateNodeInput(ref workflowJson, "70", "seed", seed);
+            // Node 75 - SamplerCustom noise_seed (second pass: PiD upscale)
+            WorkflowNodeUpdater.UpdateNodeInput(ref workflowJson, "75", "noise_seed", seed);
+
+            // Node 100 - SaveImage (output filename)
+            var timestamp = DateTime.Now.ToString("yyyy_MM_dd");
+            WorkflowNodeUpdater.UpdateNodeInput(ref workflowJson, "100", "filename_prefix", $"ZImage/{timestamp}/ZI");
+
+            // LoRA — Z4k uses LoraLoaderModelOnly, not Power Lora Loader
+            workflowJson = UpdateZ4kLoraSettings(workflowJson, item);
+
+            AddLog($"Z4k workflow: seed={seed}, LoRA enabled={item.LoraEnabled}");
+
+            return JsonSerializer.Deserialize<JsonElement>(workflowJson);
+        }
+
+        private string UpdateZ4kLoraSettings(string workflowJson, StoryPromptItem item)
+        {
+            var root = JsonNode.Parse(workflowJson);
+            if (root == null) return workflowJson;
+
+            // Find LoraLoaderModelOnly node (node 99 in Z4k)
+            foreach (var kvp in root.AsObject())
+            {
+                var node = kvp.Value?.AsObject();
+                if (node == null) continue;
+                if (node["class_type"]?.GetValue<string>() != "LoraLoaderModelOnly") continue;
+
+                var inputs = node["inputs"]?.AsObject();
+                if (inputs == null) break;
+
+                if (item.LoraEnabled && !string.IsNullOrEmpty(item.SelectedLora))
+                {
+                    inputs["lora_name"] = JsonValue.Create($"zimage/{item.SelectedLora.Replace('\\', '/')}.safetensors");
+                    inputs["strength_model"] = JsonValue.Create(item.LoraStrengthModel);
+                    AddLog($"Z4k LoRA: {item.SelectedLora} (strength: {item.LoraStrengthModel:F2})");
+                }
+                else
+                {
+                    // Disable LoRA by setting strength to 0
+                    inputs["strength_model"] = JsonValue.Create(0.0);
+                    AddLog("Z4k LoRA: disabled (strength=0)");
+                }
+                break;
+            }
+
+            return root.ToJsonString();
         }
 
         private string UpdateZLoraSettings(string workflowJson, StoryPromptItem item)

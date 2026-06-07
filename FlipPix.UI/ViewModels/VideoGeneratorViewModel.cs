@@ -106,6 +106,12 @@ namespace FlipPix.UI.ViewModels
         /// </summary>
         public LtxControlViewModel LtxControlVM { get; }
 
+        /// <summary>
+        /// Seedhunt ViewModel - upload an image, analyze into a combat prompt, generate a batch of
+        /// 4 fast samples (reroll for more), then finish the chosen one through Stage 2/3.
+        /// </summary>
+        public SeedHuntViewModel SeedHuntVM { get; }
+
         // 0 = LTX 2.3, 1 = Wan 2.2 Remix
         private int _singleVideoWorkflowIndex = 0;
         public int SingleVideoWorkflowIndex
@@ -259,6 +265,15 @@ namespace FlipPix.UI.ViewModels
                 _workflowCoordinator,
                 _fileDialogService);
 
+            SeedHuntVM = new SeedHuntViewModel(
+                comfyUIService,
+                lmStudioService,
+                logger,
+                settingsService,
+                serviceProvider,
+                _workflowCoordinator,
+                _fileDialogService);
+
             // Forward PlayRequested events from sub-VMs
             MainVM.PlayRequested += (s, e) => PlayRequested?.Invoke(this, e);
             VaceVM.PlayRequested += (s, e) => PlayRequested?.Invoke(this, e);
@@ -273,6 +288,7 @@ namespace FlipPix.UI.ViewModels
             WanScailGgufVM.PlayRequested += (s, e) => PlayRequested?.Invoke(this, e);
             WanCharReplaceVM.PlayRequested += (s, e) => PlayRequested?.Invoke(this, e);
             LtxControlVM.PlayRequested += (s, e) => PlayRequested?.Invoke(this, e);
+            SeedHuntVM.PlayRequested += (s, e) => PlayRequested?.Invoke(this, e);
 
             // Forward PropertyChanged events from all sub-VMs for backward compatibility
             MainVM.PropertyChanged += ForwardPropertyChanged;
@@ -288,6 +304,7 @@ namespace FlipPix.UI.ViewModels
             WanScailGgufVM.PropertyChanged += ForwardPropertyChanged;
             WanCharReplaceVM.PropertyChanged += ForwardPropertyChanged;
             LtxControlVM.PropertyChanged += ForwardPropertyChanged;
+            SeedHuntVM.PropertyChanged += ForwardPropertyChanged;
 
             _logger.LogInfo("VideoGeneratorViewModel initialized with sub-ViewModels");
         }
@@ -1088,6 +1105,7 @@ namespace FlipPix.UI.ViewModels
                 WanScailVM.PropertyChanged -= ForwardPropertyChanged;
                 WanCharReplaceVM.PropertyChanged -= ForwardPropertyChanged;
                 LtxControlVM.PropertyChanged -= ForwardPropertyChanged;
+                SeedHuntVM.PropertyChanged -= ForwardPropertyChanged;
 
                 // Dispose all sub-ViewModels
                 (MainVM as IDisposable)?.Dispose();

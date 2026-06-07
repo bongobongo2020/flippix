@@ -852,6 +852,87 @@ public class ComfyUIHttpClient : IDisposable
         return files;
     }
 
+    /// <summary>
+    /// Returns this prompt's output media grouped by the node that produced them.
+    /// Each value is a list of "subfolder/filename" strings. Reads images, videos, gifs
+    /// (VHS_VideoCombine reports mp4/webm under "gifs") and files.
+    /// </summary>
+    public async Task<Dictionary<string, List<string>>> GetOutputsByNodeAsync(string promptId, CancellationToken cancellationToken = default)
+    {
+        var result = new Dictionary<string, List<string>>();
+        try
+        {
+            var response = await _httpClient.GetAsync("/history", cancellationToken);
+            if (!response.IsSuccessStatusCode) return result;
+
+            var content = await response.Content.ReadAsStringAsync(cancellationToken);
+            var history = JsonSerializer.Deserialize<Dictionary<string, JsonElement>>(content);
+            if (history == null || !history.TryGetValue(promptId, out var entry)) return result;
+
+            JsonElement outputs;
+            if (!entry.TryGetProperty("outputs", out outputs) &&
+                !(entry.TryGetProperty("result", out var r) && r.TryGetProperty("outputs", out outputs)))
+                return result;
+
+            foreach (var node in outputs.EnumerateObject())
+            {
+                var files = new List<string>();
+                foreach (var key in new[] { "images", "videos", "gifs", "files" })
+                {
+                    if (!node.Value.TryGetProperty(key, out var arr) || arr.ValueKind != JsonValueKind.Array)
+                        continue;
+                    foreach (var item in arr.EnumerateArray())
+                    {
+                        if (!item.TryGetProperty("filename", out var fnProp)) continue;
+                        var filename = fnProp.GetString();
+                        if (string.IsNullOrEmpty(filename)) continue;
+                        var subfolder = item.TryGetProperty("subfolder", out var sfProp) ? sfProp.GetString() ?? "" : "";
+                        files.Add(string.IsNullOrEmpty(subfolder) ? filename : $"{subfolder}/{filename}");
+                    }
+                }
+                if (files.Count > 0) result[node.Name] = files;
+            }
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Failed to get node outputs for prompt: {PromptId}", promptId);
+        }
+        return result;
+    }
+
+    /// <summary>
+    /// Downloads a file from ComfyUI's /view endpoint using an explicit type ("output"/"temp"/"input").
+    /// Falls back to the multi-pattern <see cref="DownloadOutputVideoAsync"/> if the direct request fails.
+    /// </summary>
+    public async Task<byte[]?> DownloadViewFileAsync(string filename, string subfolder, string type, CancellationToken cancellationToken = default)
+    {
+        try
+        {
+            var url = $"/view?filename={Uri.EscapeDataString(filename)}" +
+                      $"&subfolder={Uri.EscapeDataString(subfolder ?? "")}" +
+                      $"&type={Uri.EscapeDataString(string.IsNullOrEmpty(type) ? "output" : type)}";
+            var response = await _httpClient.GetAsync(url, cancellationToken);
+            if (response.IsSuccessStatusCode)
+            {
+                var bytes = await response.Content.ReadAsByteArrayAsync(cancellationToken);
+                if (bytes.Length > 0)
+                {
+                    _logger.LogInfo($"Downloaded {filename} ({bytes.Length} bytes, type={type})");
+                    return bytes;
+                }
+            }
+            else
+            {
+                _logger.LogWarning($"/view {filename} (type={type}) returned {response.StatusCode}");
+            }
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning($"DownloadViewFileAsync failed for {filename}: {ex.Message}");
+        }
+        return await DownloadOutputVideoAsync(filename, subfolder ?? "", cancellationToken);
+    }
+
     public async Task<byte[]?> TryDownloadRecentOutputAsync(string promptId, CancellationToken cancellationToken = default)
     {
         try
@@ -993,6 +1074,52 @@ public class ComfyUIHttpClient : IDisposable
             _logger.LogError(ex, "Failed to test video endpoints");
             return false;
         }
+    }
+
+    /// <summary>
+    /// Returns every LoRA filename ComfyUI exposes (from /object_info/LoraLoader's lora_name enum).
+    /// These are paths relative to the loras root, exactly as the server resolves them (so they work
+    /// even when the loras live on a remote/mounted drive the client can't see on disk).
+    /// </summary>
+    public async Task<List<string>> GetLoraFilenamesAsync(CancellationToken cancellationToken = default)
+    {
+        var result = new List<string>();
+        try
+        {
+            using var cts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+            cts.CancelAfter(TimeSpan.FromSeconds(15));
+            var response = await _httpClient.GetAsync("/object_info/LoraLoader", cts.Token);
+            if (!response.IsSuccessStatusCode)
+            {
+                _logger.LogInfo($"GetLoraFilenamesAsync: /object_info/LoraLoader returned {response.StatusCode}");
+                return result;
+            }
+
+            var json = await response.Content.ReadAsStringAsync(cts.Token);
+            using var doc = JsonDocument.Parse(json);
+
+            // Shape: { "LoraLoader": { "input": { "required": { "lora_name": [ [names...], {..} ] } } } }
+            if (doc.RootElement.TryGetProperty("LoraLoader", out var node) &&
+                node.TryGetProperty("input", out var input) &&
+                input.TryGetProperty("required", out var required) &&
+                required.TryGetProperty("lora_name", out var loraName) &&
+                loraName.ValueKind == JsonValueKind.Array && loraName.GetArrayLength() > 0)
+            {
+                var names = loraName[0];
+                if (names.ValueKind == JsonValueKind.Array)
+                {
+                    foreach (var item in names.EnumerateArray())
+                        if (item.ValueKind == JsonValueKind.String)
+                            result.Add(item.GetString()!);
+                }
+            }
+            _logger.LogInfo($"GetLoraFilenamesAsync: {result.Count} LoRAs reported by ComfyUI");
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning($"GetLoraFilenamesAsync failed: {ex.Message}");
+        }
+        return result;
     }
 
     public async Task<byte[]?> TryDownloadRecentVideoAsync(string promptId, CancellationToken cancellationToken = default)

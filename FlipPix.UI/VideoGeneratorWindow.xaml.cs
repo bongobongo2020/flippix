@@ -107,6 +107,26 @@ namespace FlipPix.UI
             LtxControlRefVideoPlayer.Pause();
         }
 
+        // ── Seedhunt shared player playback (auto-loop) ──────────────────────
+
+        private void SeedHuntResult_MediaOpened(object sender, RoutedEventArgs e)
+        {
+            SeedHuntResultPlayer.Play();
+        }
+
+        private void SeedHuntResult_MediaEnded(object sender, RoutedEventArgs e)
+        {
+            SeedHuntResultPlayer.Position = System.TimeSpan.FromMilliseconds(1);
+            SeedHuntResultPlayer.Play();
+        }
+
+        private void SeedHuntReplay_Click(object sender, RoutedEventArgs e)
+        {
+            if (SeedHuntResultPlayer.Source == null) return;
+            SeedHuntResultPlayer.Position = System.TimeSpan.Zero;
+            SeedHuntResultPlayer.Play();
+        }
+
         // ── Chunk seek with start → mid → end scrub animation ────────────────
 
         private void OnWanScailGgufSeekRequested(object? sender, System.TimeSpan startPos)
@@ -209,6 +229,7 @@ namespace FlipPix.UI
             WanCharReplaceVideoPlayer?.Stop();
             LtxControlRefVideoPlayer?.Stop();
             LtxControlVideoPlayer?.Stop();
+            SeedHuntResultPlayer?.Stop();
 
             _viewModel.WanScailGgufVM.SeekRequested -= OnWanScailGgufSeekRequested;
             _viewModel.VaceVM.SeekRequested -= OnVaceSeekRequested;
