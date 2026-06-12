@@ -1,0 +1,481 @@
+{
+  "105": {
+    "inputs": {
+      "width": 1024,
+      "height": 1024,
+      "high_level_description": "A photorealistic portrait.",
+      "background": "",
+      "style": "photo",
+      "style.photo": "",
+      "aesthetics": "",
+      "lighting": "",
+      "medium": "",
+      "style_palette_data": "",
+      "elements_data": "[{\"x\":0.0,\"y\":0.0,\"w\":1.0,\"h\":1.0,\"type\":\"obj\",\"text\":\"\",\"desc\":\"A photorealistic portrait.\",\"palette\":[]}]",
+      "bg_brightness": 0,
+      "import_mode": "when empty"
+    },
+    "class_type": "Ideogram4PromptBuilderKJ",
+    "_meta": {
+      "title": "Ideogram 4 Prompt Builder KJ"
+    }
+  },
+  "4": {
+    "inputs": {
+      "noise_seed": 601690253413758
+    },
+    "class_type": "RandomNoise",
+    "_meta": {
+      "title": "RandomNoise"
+    }
+  },
+  "221": {
+    "inputs": {
+      "clip_name": "qwen_3_8b.safetensors",
+      "type": "ideogram4",
+      "device": "default"
+    },
+    "class_type": "CLIPLoader",
+    "_meta": {
+      "title": "Load CLIP"
+    }
+  },
+  "224": {
+    "inputs": {
+      "text": [
+        "105",
+        0
+      ],
+      "clip": [
+        "221",
+        0
+      ]
+    },
+    "class_type": "CLIPTextEncode",
+    "_meta": {
+      "title": "CLIP Text Encode (Positive Prompt)"
+    }
+  },
+  "225": {
+    "inputs": {
+      "conditioning": [
+        "224",
+        0
+      ]
+    },
+    "class_type": "ConditioningZeroOut",
+    "_meta": {
+      "title": "ConditioningZeroOut"
+    }
+  },
+  "219": {
+    "inputs": {
+      "unet_name": "ideogram4_fp8_scaled.safetensors",
+      "weight_dtype": "default"
+    },
+    "class_type": "UNETLoader",
+    "_meta": {
+      "title": "Load Diffusion Model"
+    }
+  },
+  "220": {
+    "inputs": {
+      "shift": 5,
+      "model": [
+        "219",
+        0
+      ]
+    },
+    "class_type": "ModelSamplingAuraFlow",
+    "_meta": {
+      "title": "ModelSamplingAuraFlow"
+    }
+  },
+  "254": {
+    "inputs": {
+      "lora_name": "ideogram/Realism_Engine_Ideogram4_beta.safetensors",
+      "strength_model": 0.5,
+      "model": [
+        "220",
+        0
+      ]
+    },
+    "class_type": "LoraLoaderModelOnly",
+    "_meta": {
+      "title": "Load LoRA"
+    }
+  },
+  "223": {
+    "inputs": {
+      "cfg": 3,
+      "start_percent": 0.7,
+      "end_percent": 1,
+      "model": [
+        "254",
+        0
+      ]
+    },
+    "class_type": "CFGOverride",
+    "_meta": {
+      "title": "CFG Override"
+    }
+  },
+  "208": {
+    "inputs": {
+      "unet_name": "ideogram4_unconditional_fp8_scaled.safetensors",
+      "weight_dtype": "default"
+    },
+    "class_type": "UNETLoader",
+    "_meta": {
+      "title": "Load Diffusion Model"
+    }
+  },
+  "229": {
+    "inputs": {
+      "cfg": 7,
+      "model": [
+        "223",
+        0
+      ],
+      "positive": [
+        "224",
+        0
+      ],
+      "model_negative": [
+        "208",
+        0
+      ],
+      "negative": [
+        "225",
+        0
+      ]
+    },
+    "class_type": "DualModelGuider",
+    "_meta": {
+      "title": "Dual Model CFG Guider"
+    }
+  },
+  "217": {
+    "inputs": {
+      "sampler_name": "res_2s"
+    },
+    "class_type": "KSamplerSelect",
+    "_meta": {
+      "title": "KSamplerSelect"
+    }
+  },
+  "213": {
+    "inputs": {
+      "steps": 12,
+      "width": [
+        "105",
+        3
+      ],
+      "height": [
+        "105",
+        4
+      ],
+      "mu": 0.5,
+      "std": 1.75
+    },
+    "class_type": "Ideogram4Scheduler",
+    "_meta": {
+      "title": "Ideogram 4 Scheduler"
+    }
+  },
+  "201": {
+    "inputs": {
+      "width": [
+        "105",
+        3
+      ],
+      "height": [
+        "105",
+        4
+      ],
+      "batch_size": 1
+    },
+    "class_type": "EmptyFlux2LatentImage",
+    "_meta": {
+      "title": "Empty Flux 2 Latent"
+    }
+  },
+  "202": {
+    "inputs": {
+      "noise": [
+        "4",
+        0
+      ],
+      "guider": [
+        "229",
+        0
+      ],
+      "sampler": [
+        "217",
+        0
+      ],
+      "sigmas": [
+        "213",
+        0
+      ],
+      "latent_image": [
+        "201",
+        0
+      ]
+    },
+    "class_type": "SamplerCustomAdvanced",
+    "_meta": {
+      "title": "SamplerCustomAdvanced"
+    }
+  },
+  "239": {
+    "inputs": {
+      "vae_name": "flux2-vae.safetensors"
+    },
+    "class_type": "VAELoader",
+    "_meta": {
+      "title": "Load VAE"
+    }
+  },
+  "227": {
+    "inputs": {
+      "samples": [
+        "202",
+        0
+      ],
+      "vae": [
+        "239",
+        0
+      ]
+    },
+    "class_type": "VAEDecode",
+    "_meta": {
+      "title": "VAE Decode"
+    }
+  },
+  "179": {
+    "inputs": {
+      "filename_prefix": "ideao",
+      "images": [
+        "227",
+        0
+      ]
+    },
+    "class_type": "SaveImage",
+    "_meta": {
+      "title": "Save Image"
+    }
+  },
+  "106": {
+    "inputs": {
+      "images": [
+        "105",
+        1
+      ]
+    },
+    "class_type": "PreviewImage",
+    "_meta": {
+      "title": "Preview Image"
+    }
+  },
+  "74": {
+    "inputs": {
+      "clip_name": "gemma_2_2b_it_elm_bf16.safetensors",
+      "type": "pixeldit",
+      "device": "default"
+    },
+    "class_type": "CLIPLoader",
+    "_meta": {
+      "title": "Load CLIP (PiD)"
+    }
+  },
+  "82": {
+    "inputs": {
+      "unet_name": "nvidia-pid/model_ema_bf16.pth",
+      "weight_dtype": "default"
+    },
+    "class_type": "UNETLoader",
+    "_meta": {
+      "title": "Load Diffusion Model (Nvidia PiD)"
+    }
+  },
+  "78": {
+    "inputs": {
+      "vae_name": "pixel_space"
+    },
+    "class_type": "VAELoader",
+    "_meta": {
+      "title": "Load VAE (pixel_space)"
+    }
+  },
+  "85": {
+    "inputs": {
+      "text": [
+        "105",
+        0
+      ],
+      "clip": [
+        "74",
+        0
+      ]
+    },
+    "class_type": "CLIPTextEncode",
+    "_meta": {
+      "title": "CLIP Text Encode (PiD Prompt)"
+    }
+  },
+  "81": {
+    "inputs": {
+      "conditioning": [
+        "85",
+        0
+      ]
+    },
+    "class_type": "ConditioningZeroOut",
+    "_meta": {
+      "title": "ConditioningZeroOut"
+    }
+  },
+  "87": {
+    "inputs": {
+      "vae_name": "ae.safetensors"
+    },
+    "class_type": "VAELoader",
+    "_meta": {
+      "title": "Load VAE (Flux.1 16ch)"
+    }
+  },
+  "88": {
+    "inputs": {
+      "pixels": [
+        "227",
+        0
+      ],
+      "vae": [
+        "87",
+        0
+      ]
+    },
+    "class_type": "VAEEncode",
+    "_meta": {
+      "title": "VAE Encode (Flux.1 → 16ch latent)"
+    }
+  },
+  "86": {
+    "inputs": {
+      "latent_format": "flux",
+      "degrade_sigma": 0,
+      "positive": [
+        "85",
+        0
+      ],
+      "latent": [
+        "88",
+        0
+      ]
+    },
+    "class_type": "PiDConditioning",
+    "_meta": {
+      "title": "PiD Conditioning"
+    }
+  },
+  "84": {
+    "inputs": {
+      "width": 4096,
+      "height": 4096,
+      "batch_size": 1
+    },
+    "class_type": "EmptyChromaRadianceLatentImage",
+    "_meta": {
+      "title": "EmptyChromaRadianceLatentImage (4K)"
+    }
+  },
+  "76": {
+    "inputs": {
+      "sampler_name": "lcm"
+    },
+    "class_type": "KSamplerSelect",
+    "_meta": {
+      "title": "KSamplerSelect"
+    }
+  },
+  "77": {
+    "inputs": {
+      "scheduler": "simple",
+      "steps": 4,
+      "denoise": 1,
+      "model": [
+        "82",
+        0
+      ]
+    },
+    "class_type": "BasicScheduler",
+    "_meta": {
+      "title": "BasicScheduler"
+    }
+  },
+  "75": {
+    "inputs": {
+      "add_noise": true,
+      "noise_seed": 415659423663410,
+      "cfg": 1,
+      "model": [
+        "82",
+        0
+      ],
+      "positive": [
+        "86",
+        0
+      ],
+      "negative": [
+        "81",
+        0
+      ],
+      "sampler": [
+        "76",
+        0
+      ],
+      "sigmas": [
+        "77",
+        0
+      ],
+      "latent_image": [
+        "84",
+        0
+      ]
+    },
+    "class_type": "SamplerCustom",
+    "_meta": {
+      "title": "SamplerCustom (PiD 4K)"
+    }
+  },
+  "79": {
+    "inputs": {
+      "samples": [
+        "75",
+        0
+      ],
+      "vae": [
+        "78",
+        0
+      ]
+    },
+    "class_type": "VAEDecode",
+    "_meta": {
+      "title": "VAE Decode (pixel_space)"
+    }
+  },
+  "100": {
+    "inputs": {
+      "filename_prefix": "ideao_4k",
+      "images": [
+        "79",
+        0
+      ]
+    },
+    "class_type": "SaveImage",
+    "_meta": {
+      "title": "Save Image (4K)"
+    }
+  }
+}
