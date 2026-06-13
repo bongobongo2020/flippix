@@ -1246,7 +1246,8 @@ namespace FlipPix.UI.ViewModels
 
                 var path = await _fileDialogService.OpenFileDialogAsync(
                     "Select Image for Analysis",
-                    "Image Files|*.jpg;*.jpeg;*.png;*.bmp;*.gif;*.webp|All Files|*.*");
+                    "Image Files|*.jpg;*.jpeg;*.png;*.bmp;*.gif;*.webp|All Files|*.*",
+                    persistKey: "amateur.image");
 
                 if (string.IsNullOrEmpty(path)) return;
 

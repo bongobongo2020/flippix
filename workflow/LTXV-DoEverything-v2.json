@@ -75,7 +75,7 @@
         "83",
         0
       ],
-      "format": "video/nvenc_h264-mp4",
+      "format": "video/h264-mp4",
       "pix_fmt": "yuv420p",
       "bitrate": 5,
       "megabit": true,

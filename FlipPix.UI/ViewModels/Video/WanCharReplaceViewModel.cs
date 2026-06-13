@@ -395,7 +395,8 @@ namespace FlipPix.UI.ViewModels.Video
             var filePath = await _fileDialogService.OpenFileDialogAsync(
                 "Select Replacement Character Image",
                 "Image Files|*.jpg;*.jpeg;*.png;*.bmp;*.webp|All Files|*.*",
-                initialDirectory);
+                initialDirectory,
+                persistKey: "wancharreplace.image");
 
             if (filePath != null)
             {
@@ -413,7 +414,8 @@ namespace FlipPix.UI.ViewModels.Video
             var filePath = await _fileDialogService.OpenFileDialogAsync(
                 "Select Reference Video (source character + motion)",
                 "Video Files|*.mp4;*.avi;*.mov;*.mkv;*.webm|All Files|*.*",
-                initialDirectory);
+                initialDirectory,
+                persistKey: "wancharreplace.video");
 
             if (filePath != null)
             {

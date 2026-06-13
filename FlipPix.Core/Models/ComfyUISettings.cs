@@ -17,6 +17,14 @@ public class ComfyUISettings
     public List<SavedCameraPrompt> SavedCameraPrompts { get; set; } = new();
     public LMStudioSettings LMStudioSettings { get; set; } = new LMStudioSettings();
 
+    /// <summary>
+    /// Last-used browse folder per dialog context, keyed by an arbitrary caller key
+    /// (e.g. "wanscail.image", "wanscail.video"). Lets each browse button reopen where it
+    /// was last used, persisted across app restarts. The reserved key "__global__" holds the
+    /// most-recent folder across all callers and is used as a fallback for keyless dialogs.
+    /// </summary>
+    public Dictionary<string, string> LastBrowseFolders { get; set; } = new();
+
     // ComfyUI crash detection and restart settings
     public bool AutoRestartComfyUI { get; set; } = true;
     public string ComfyUIRestartScriptPath { get; set; } = string.Empty;

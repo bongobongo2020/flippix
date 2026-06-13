@@ -517,7 +517,8 @@ namespace FlipPix.UI.ViewModels.Video
             var filePath = await _fileDialogService.OpenFileDialogAsync(
                 "Select Character Image",
                 "Image Files|*.jpg;*.jpeg;*.png;*.bmp;*.webp|All Files|*.*",
-                initialDirectory);
+                initialDirectory,
+                persistKey: "wananimate.character-image");
 
             if (filePath != null)
             {
@@ -535,7 +536,8 @@ namespace FlipPix.UI.ViewModels.Video
             var filePath = await _fileDialogService.OpenFileDialogAsync(
                 "Select Face Image (optional — overrides Character Image as the reference)",
                 "Image Files|*.jpg;*.jpeg;*.png;*.bmp;*.webp|All Files|*.*",
-                initialDirectory);
+                initialDirectory,
+                persistKey: "wananimate.face-image");
 
             if (filePath != null)
             {
@@ -553,7 +555,8 @@ namespace FlipPix.UI.ViewModels.Video
             var filePath = await _fileDialogService.OpenFileDialogAsync(
                 "Select Reference Video (provides motion)",
                 "Video Files|*.mp4;*.avi;*.mov;*.mkv;*.webm|All Files|*.*",
-                initialDirectory);
+                initialDirectory,
+                persistKey: "wananimate.video");
 
             if (filePath != null)
             {

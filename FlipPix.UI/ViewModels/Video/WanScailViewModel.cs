@@ -22,8 +22,16 @@ namespace FlipPix.UI.ViewModels.Video
 {
     public partial class WanScailViewModel : VideoProcessingBaseViewModel
     {
-        private const int FramesPerChunk = 121;
+        // Number of frames per externally-sliced chunk. Subclasses whose workflow loops
+        // over the whole video internally override this to force a single-shot run.
+        protected virtual int FramesPerChunk => 121;
         protected virtual string WorkflowFileName => Path.Combine("video", "wan", "SCAIL+Video+Multi-Character+Motion+Transfer+V1API.json");
+
+        // Client-side ceiling for a single ComfyUI prompt. The SCAIL II "simple" workflow runs
+        // the whole video in one prompt (segments loop inside SCAIL2SimpleVideo), so it can far
+        // exceed the default 30 min on longer clips. Real completion is detected via /history,
+        // so this is just a safety net — keep it generous.
+        protected virtual TimeSpan ExecutionTimeout => TimeSpan.FromHours(3);
         private const string OutputSubfolder = "wan_scail";
 
         private string QueueFilePath => Path.Combine(
@@ -72,6 +80,142 @@ namespace FlipPix.UI.ViewModels.Video
 
         public event EventHandler<TimeSpan>? SeekRequested;
 
+        // ── Generation wall-clock timer (for A/B comparing settings like the VRAM toggle) ──
+        private readonly Stopwatch _genStopwatch = new();
+        private System.Windows.Threading.DispatcherTimer? _genTimer;
+        private string _generationTimer = "—";
+        /// <summary>
+        /// Live "mm:ss" wall-clock elapsed while a generation runs, then a final
+        /// "✓ Done in mm:ss" / "✗ Stopped at mm:ss" once it finishes. Lets the VRAM toggle's
+        /// effect on speed be compared at a glance.
+        /// </summary>
+        public string GenerationTimer
+        {
+            get => _generationTimer;
+            private set { if (_generationTimer != value) { _generationTimer = value; OnPropertyChanged(); } }
+        }
+
+        private static string FormatElapsed(TimeSpan t) =>
+            t.TotalHours >= 1
+                ? $"{(int)t.TotalHours}:{t.Minutes:D2}:{t.Seconds:D2}"
+                : $"{t.Minutes:D2}:{t.Seconds:D2}";
+
+        private void StartGenerationTimer() => Application.Current?.Dispatcher.Invoke(() =>
+        {
+            _genStopwatch.Restart();
+            GenerationTimer = "⏱ 00:00";
+            if (_genTimer == null)
+            {
+                _genTimer = new System.Windows.Threading.DispatcherTimer { Interval = TimeSpan.FromSeconds(1) };
+                _genTimer.Tick += (_, _) => GenerationTimer = $"⏱ {FormatElapsed(_genStopwatch.Elapsed)}";
+            }
+            _genTimer.Start();
+        });
+
+        private void StopGenerationTimer(bool success) => Application.Current?.Dispatcher.Invoke(() =>
+        {
+            _genTimer?.Stop();
+            _genStopwatch.Stop();
+            GenerationTimer = $"{(success ? "✓ Done in" : "✗ Stopped at")} {FormatElapsed(_genStopwatch.Elapsed)}";
+        });
+
+        // ── Trim / scrub / ETA (let the user shorten the clip before processing) ──────────
+        // Seconds-per-frame estimate for the ETA. Seeded from an ~81-frame window taking
+        // ~4.5 min (≈3.3 s/frame), then recalibrated from the actual elapsed time after each
+        // run so the estimate converges to this machine + resolution.
+        private static double _secondsPerFrame = 270.0 / 81.0;
+
+        private double _videoDurationSeconds;
+        public double VideoDurationSeconds
+        {
+            get => _videoDurationSeconds;
+            private set { if (Math.Abs(_videoDurationSeconds - value) > 0.001) { _videoDurationSeconds = value; OnPropertyChanged(); RaiseTrimDerived(); } }
+        }
+
+        private double _trimInSeconds;
+        /// <summary>Start of the kept range, in seconds. Clamped to [0, TrimOut].</summary>
+        public double TrimInSeconds
+        {
+            get => _trimInSeconds;
+            set
+            {
+                var v = Math.Max(0, value);
+                if (_trimOutSeconds > 0) v = Math.Min(v, _trimOutSeconds);
+                if (Math.Abs(_trimInSeconds - v) > 0.001) { _trimInSeconds = v; OnPropertyChanged(); RaiseTrimDerived(); }
+            }
+        }
+
+        private double _trimOutSeconds;
+        /// <summary>End of the kept range, in seconds. 0/duration means "to the end".</summary>
+        public double TrimOutSeconds
+        {
+            get => _trimOutSeconds;
+            set
+            {
+                var v = value <= 0 ? VideoDurationSeconds : Math.Min(value, VideoDurationSeconds);
+                if (v < _trimInSeconds) v = _trimInSeconds;
+                if (Math.Abs(_trimOutSeconds - v) > 0.001) { _trimOutSeconds = v; OnPropertyChanged(); RaiseTrimDerived(); }
+            }
+        }
+
+        private double _playbackPositionSeconds;
+        /// <summary>Two-way bound to the scrub slider / media element position.</summary>
+        public double PlaybackPositionSeconds
+        {
+            get => _playbackPositionSeconds;
+            set { if (Math.Abs(_playbackPositionSeconds - value) > 0.001) { _playbackPositionSeconds = value; OnPropertyChanged(); } }
+        }
+
+        public double TrimmedDurationSeconds =>
+            Math.Max(0, (TrimOutSeconds > 0 ? TrimOutSeconds : VideoDurationSeconds) - TrimInSeconds);
+
+        /// <summary>Frame count of the kept range at the target FPS — what actually gets processed.</summary>
+        public int TrimmedFrames => Fps > 0 ? (int)Math.Round(TrimmedDurationSeconds * Fps) : 0;
+
+        public bool IsTrimmed =>
+            TrimInSeconds > 0.05 || (VideoDurationSeconds > 0 && TrimOutSeconds > 0 && TrimOutSeconds < VideoDurationSeconds - 0.05);
+
+        public string TrimInfo =>
+            VideoDurationSeconds <= 0
+                ? "Load a video to set in/out"
+                : $"In {TrimInSeconds:F1}s · Out {(TrimOutSeconds > 0 ? TrimOutSeconds : VideoDurationSeconds):F1}s  →  {TrimmedDurationSeconds:F1}s / {TrimmedFrames:N0} frames";
+
+        public string EstimatedTime
+        {
+            get
+            {
+                if (TrimmedFrames <= 0) return "—";
+                var t = TimeSpan.FromSeconds(TrimmedFrames * _secondsPerFrame);
+                return t.TotalHours >= 1 ? $"≈ {(int)t.TotalHours}h {t.Minutes:D2}m" : $"≈ {t.Minutes}m {t.Seconds:D2}s";
+            }
+        }
+
+        private void RaiseTrimDerived()
+        {
+            OnPropertyChanged(nameof(TrimmedDurationSeconds));
+            OnPropertyChanged(nameof(TrimmedFrames));
+            OnPropertyChanged(nameof(IsTrimmed));
+            OnPropertyChanged(nameof(TrimInfo));
+            OnPropertyChanged(nameof(EstimatedTime));
+        }
+
+        private void MarkIn() => TrimInSeconds = PlaybackPositionSeconds;
+        private void MarkOut() => TrimOutSeconds = PlaybackPositionSeconds;
+        private void ResetTrim() { _trimInSeconds = 0; _trimOutSeconds = VideoDurationSeconds; OnPropertyChanged(nameof(TrimInSeconds)); OnPropertyChanged(nameof(TrimOutSeconds)); RaiseTrimDerived(); }
+
+        // Skip / cap (in target-FPS frames) for VHS_LoadVideo, derived from the trim range.
+        protected int TrimSkipFrames => Fps > 0 ? (int)Math.Round(TrimInSeconds * Fps) : 0;
+        protected int TrimFrameCap => IsTrimmed ? TrimmedFrames : 0; // 0 = load all
+
+        private void RecalibrateEta(int framesProcessed)
+        {
+            if (framesProcessed > 0 && _genStopwatch.Elapsed.TotalSeconds > 10)
+            {
+                _secondsPerFrame = _genStopwatch.Elapsed.TotalSeconds / framesProcessed;
+                Application.Current?.Dispatcher.Invoke(() => OnPropertyChanged(nameof(EstimatedTime)));
+            }
+        }
+
         public WanScailViewModel(
             ComfyUIService comfyUIService,
             LMStudioService lmStudioService,
@@ -101,6 +245,9 @@ namespace FlipPix.UI.ViewModels.Video
             AnalyzeImageCommand = new RelayCommand(async () => await AnalyzeImageAsync(), () => CanAnalyzeImage);
             AnalyzeAllChunksCommand = new RelayCommand(async () => await AnalyzeAllChunksAsync(), () => CanAnalyzeAllChunks);
             RandomSeedCommand = new RelayCommand(() => Seed = new Random().NextInt64(0, long.MaxValue));
+            MarkInCommand = new RelayCommand(MarkIn);
+            MarkOutCommand = new RelayCommand(MarkOut);
+            ResetTrimCommand = new RelayCommand(ResetTrim);
 
             _queue.CollectionChanged += (s, e) =>
             {
@@ -131,6 +278,9 @@ namespace FlipPix.UI.ViewModels.Video
         public RelayCommand AnalyzeImageCommand { get; }
         public RelayCommand AnalyzeAllChunksCommand { get; }
         public RelayCommand RandomSeedCommand { get; }
+        public RelayCommand MarkInCommand { get; }
+        public RelayCommand MarkOutCommand { get; }
+        public RelayCommand ResetTrimCommand { get; }
 
         public bool HasFailedItems => _queue.Any(x => x.ItemStatus == QueueItemStatus.Failed);
 
@@ -384,7 +534,8 @@ namespace FlipPix.UI.ViewModels.Video
             var filePath = await _fileDialogService.OpenFileDialogAsync(
                 "Select Character Image",
                 "Image Files|*.jpg;*.jpeg;*.png;*.bmp;*.webp|All Files|*.*",
-                initialDirectory);
+                initialDirectory,
+                persistKey: "wanscail.image");
 
             if (filePath != null)
             {
@@ -402,7 +553,8 @@ namespace FlipPix.UI.ViewModels.Video
             var filePath = await _fileDialogService.OpenFileDialogAsync(
                 "Select Reference Video",
                 "Video Files|*.mp4;*.avi;*.mov;*.mkv;*.webm|All Files|*.*",
-                initialDirectory);
+                initialDirectory,
+                persistKey: "wanscail.video");
 
             if (filePath != null)
             {
@@ -449,6 +601,13 @@ namespace FlipPix.UI.ViewModels.Video
             TotalFrames = frameCount > 0 ? frameCount : 0;
 
             var estimatedDuration = duration > 0 ? duration : (Fps > 0 && TotalFrames > 0 ? (double)TotalFrames / Fps : 0);
+            // Seed the trim range to the whole clip so ETA/scrub work immediately.
+            VideoDurationSeconds = estimatedDuration;
+            _trimInSeconds = 0;
+            _trimOutSeconds = estimatedDuration;
+            OnPropertyChanged(nameof(TrimInSeconds));
+            OnPropertyChanged(nameof(TrimOutSeconds));
+            RaiseTrimDerived();
             VideoDuration = estimatedDuration > 0 ? $"{estimatedDuration:F1}s" : "—";
             VideoFpsDisplay = Fps.ToString();
             VideoFrameCountDisplay = TotalFrames > 0 ? TotalFrames.ToString("N0") : "—";
@@ -834,6 +993,9 @@ namespace FlipPix.UI.ViewModels.Video
                 ItemStatus = QueueItemStatus.Pending
             };
 
+            // Let subclasses stamp workflow-specific fields (e.g. SCAIL II subject / replacement mode)
+            OnEnqueue(item);
+
             _queue.Add(item);
             SaveQueueToFile();
             var desc = singleChunkIndex.HasValue ? $"chunk {singleChunkIndex.Value + 1}" : "all chunks";
@@ -843,6 +1005,12 @@ namespace FlipPix.UI.ViewModels.Video
             if (!IsProcessingQueue)
                 _ = ProcessQueueAsync();
         }
+
+        /// <summary>
+        /// Hook for subclasses to stamp workflow-specific fields onto a freshly built
+        /// queue item before it is enqueued. Base implementation does nothing.
+        /// </summary>
+        protected virtual void OnEnqueue(WanScailQueueItem item) { }
 
         private void RemoveQueueItem(WanScailQueueItem? item)
         {
@@ -1024,6 +1192,8 @@ namespace FlipPix.UI.ViewModels.Video
 
         private async Task GenerateSingleVideoAsync(WanScailQueueItem item)
         {
+            bool success = false;
+            StartGenerationTimer();
             try
             {
                 AddLog($"=== Starting WAN SCAIL generation: {item.DisplayText} ===");
@@ -1172,7 +1342,8 @@ namespace FlipPix.UI.ViewModels.Video
                             item.MaxEdge,
                             runSeed + chunkIndex,
                             outputWidth,
-                            outputHeight);
+                            outputHeight,
+                            item);
 
                         var progress = new Progress<FlipPix.ComfyUI.Models.ProgressMessage>(progressMsg =>
                         {
@@ -1188,7 +1359,8 @@ namespace FlipPix.UI.ViewModels.Video
                         });
 
                         var existingFiles = GetExistingVideoFiles("*.mp4", OutputSubfolder);
-                        var promptId = await _comfyUIService.ExecuteWorkflowAsync(updatedWorkflow, progress);
+                        var promptId = await _comfyUIService.ExecuteWorkflowAsync(
+                            updatedWorkflow, progress, executionTimeout: ExecutionTimeout);
                         AddLog($"Chunk {chunkIndex + 1} submitted, prompt ID: {promptId}");
 
                         var outputVideo = await TryGetVideoFromHistoryAsync(promptId);
@@ -1198,7 +1370,7 @@ namespace FlipPix.UI.ViewModels.Video
                             AddLog("History API returned no result, falling back to filesystem polling...");
                             outputVideo = await WaitForNewVideoAsync(
                                 existingFiles, "*.mp4",
-                                TimeSpan.FromMinutes(30),
+                                ExecutionTimeout,
                                 TimeSpan.FromSeconds(5),
                                 OutputSubfolder);
                         }
@@ -1261,6 +1433,8 @@ namespace FlipPix.UI.ViewModels.Video
                     ResultVideoInfo = $"WAN SCAIL Video • {fi.Length / 1024 / 1024:F1}MB";
                     ProcessingProgress = 100;
                     ProcessingStatus = "WAN SCAIL Complete!";
+                    success = true;
+                    RecalibrateEta(TrimmedFrames > 0 ? TrimmedFrames : TotalFrames);
                     AddLog($"=== WAN SCAIL generation complete: {finalPath} ===");
                 }
                 else
@@ -1279,6 +1453,7 @@ namespace FlipPix.UI.ViewModels.Video
             }
             finally
             {
+                StopGenerationTimer(success);
                 IsProcessing = false;
             }
         }
@@ -1307,7 +1482,8 @@ namespace FlipPix.UI.ViewModels.Video
             int maxEdge,
             long seed,
             int outputWidth = 0,
-            int outputHeight = 0)
+            int outputHeight = 0,
+            WanScailQueueItem? item = null)
         {
             var workflowJson = workflow.GetRawText();
             AddLog($"Updating workflow: start={startFrame}, frames={framesInChunk}, fps={fps}, maxEdge={maxEdge}");

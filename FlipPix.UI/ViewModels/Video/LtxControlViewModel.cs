@@ -258,7 +258,8 @@ namespace FlipPix.UI.ViewModels.Video
             var path = await _fileDialogService.OpenFileDialogAsync(
                 "Select Reference Image",
                 "Image Files|*.jpg;*.jpeg;*.png;*.bmp;*.webp|All Files|*.*",
-                initialDir);
+                initialDir,
+                persistKey: "ltxcontrol.image");
 
             if (path != null)
             {
@@ -276,7 +277,8 @@ namespace FlipPix.UI.ViewModels.Video
             var path = await _fileDialogService.OpenFileDialogAsync(
                 "Select Reference Video",
                 "Video Files|*.mp4;*.avi;*.mov;*.mkv;*.webm|All Files|*.*",
-                initialDir);
+                initialDir,
+                persistKey: "ltxcontrol.video");
 
             if (path != null)
             {

@@ -377,6 +377,11 @@ public class ComfyUIHttpClient : IDisposable
                 if (kv.Value.TryGetProperty("_meta", out var meta) &&
                     meta.TryGetProperty("title", out var title))
                     node["title"] = title.GetString() ?? string.Empty;
+                // UI-format nodes always carry inputs/outputs slot arrays. Some nodes
+                // (e.g. Impact-Pack "Switch (Any)") iterate node['inputs'] on the
+                // extra_pnginfo workflow, so the key must exist to avoid KeyError.
+                node["inputs"] = new List<object>();
+                node["outputs"] = new List<object>();
                 return (object)node;
             }).ToList();
 

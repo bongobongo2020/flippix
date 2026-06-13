@@ -172,7 +172,8 @@ namespace FlipPix.UI.ViewModels
         {
             var path = await _fileDialogService.OpenFileDialogAsync(
                 "Select Source Image",
-                "Image Files|*.png;*.jpg;*.jpeg;*.bmp;*.webp");
+                "Image Files|*.png;*.jpg;*.jpeg;*.bmp;*.webp",
+                persistKey: "inpainteditor.image");
             if (!string.IsNullOrEmpty(path))
                 SetSourceImage(path);
         }

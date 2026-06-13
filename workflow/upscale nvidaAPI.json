@@ -1,8 +1,7 @@
 {
   "1": {
     "inputs": {
-      "resize_type": "scale by multiplier",
-      "resize_type.scale": 2,
+      "scale": 2,
       "quality": "ULTRA",
       "images": [
         "2",
@@ -39,10 +38,9 @@
       "frame_rate": 60,
       "loop_count": 0,
       "filename_prefix": "upscale",
-      "format": "video/nvenc_hevc-mp4",
+      "format": "video/h264-mp4",
       "pix_fmt": "yuv420p",
-      "bitrate": 10,
-      "megabit": true,
+      "crf": 14,
       "save_metadata": true,
       "pingpong": false,
       "save_output": true,

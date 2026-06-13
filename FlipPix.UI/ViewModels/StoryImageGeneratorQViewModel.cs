@@ -557,6 +557,20 @@ namespace FlipPix.UI.ViewModels
             // Node 92 - PrimitiveStringMultiline (prompt)
             WorkflowNodeUpdater.UpdateNodeInput(ref workflowJson, "92", "value", item.Prompt);
 
+            // Resolution — Z4k has two hardcoded square latents that must follow the
+            // selected orientation: node 68 (EmptySD3LatentImage, base pass) and node 84
+            // (EmptyChromaRadianceLatentImage, PiD 4K pass that produces the saved image).
+            var (baseW, baseH, k4W, k4H) = GetZ4kResolution(item.SelectedOrientation);
+            WorkflowNodeUpdater.UpdateNodeInputMultiple(ref workflowJson, "68", new Dictionary<string, object>
+            {
+                { "width", baseW }, { "height", baseH }
+            });
+            WorkflowNodeUpdater.UpdateNodeInputMultiple(ref workflowJson, "84", new Dictionary<string, object>
+            {
+                { "width", k4W }, { "height", k4H }
+            });
+            AddLog($"Z4k resolution: base {baseW}x{baseH}, 4K {k4W}x{k4H} ({item.SelectedOrientation})");
+
             // Node 73 - CLIPTextEncode (negative prompt, has good default)
             if (!string.IsNullOrEmpty(item.NegativePrompt))
                 WorkflowNodeUpdater.UpdateNodeInput(ref workflowJson, "73", "text", item.NegativePrompt);
@@ -579,6 +593,20 @@ namespace FlipPix.UI.ViewModels
 
             return JsonSerializer.Deserialize<JsonElement>(workflowJson);
         }
+
+        /// <summary>
+        /// Maps the selected orientation to Z4k's base-pass and 4K-pass dimensions.
+        /// The PiD upscaler (node 82 + the fixed ManualSigmas schedule) is tuned for an
+        /// exactly 4x linear upscale from a ~1 MP base, so every orientation keeps the
+        /// 4K dims = 4x base and a ~1024 base long edge (square is the original 1024→4096).
+        /// Changing the ratio or pushing the base higher softens the result.
+        /// </summary>
+        private static (int baseW, int baseH, int k4W, int k4H) GetZ4kResolution(string orientation) => orientation switch
+        {
+            "Landscape (1408x944)" => (1024, 688, 4096, 2752),
+            "Square (1088x1088)" => (1024, 1024, 4096, 4096),
+            _ => (688, 1024, 2752, 4096),   // Portrait (default)
+        };
 
         private string UpdateZ4kLoraSettings(string workflowJson, StoryPromptItem item)
         {

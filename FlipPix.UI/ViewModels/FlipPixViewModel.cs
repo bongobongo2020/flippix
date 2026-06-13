@@ -600,7 +600,8 @@ namespace FlipPix.UI.ViewModels
         {
             var filePath = await _fileDialogService.OpenFileDialogAsync(
                 "Select Input Image",
-                "Image Files (*.jpg;*.jpeg;*.png;*.bmp)|*.jpg;*.jpeg;*.png;*.bmp|All Files (*.*)|*.*");
+                "Image Files (*.jpg;*.jpeg;*.png;*.bmp)|*.jpg;*.jpeg;*.png;*.bmp|All Files (*.*)|*.*",
+                persistKey: "flippix.image");
 
             if (filePath != null)
             {

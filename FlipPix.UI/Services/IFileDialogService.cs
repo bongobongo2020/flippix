@@ -14,8 +14,12 @@ namespace FlipPix.UI.Services
         /// <param name="title">Dialog title</param>
         /// <param name="filter">File filter (e.g., "Image Files|*.jpg;*.png|All Files|*.*")</param>
         /// <param name="initialDirectory">Starting directory (optional)</param>
+        /// <param name="persistKey">
+        /// Optional context key (e.g. "wanscail.image"). When set, the dialog reopens at the
+        /// folder last used for that key and persists the new choice across app restarts.
+        /// </param>
         /// <returns>Selected file path, or null if cancelled</returns>
-        Task<string?> OpenFileDialogAsync(string title, string filter, string? initialDirectory = null);
+        Task<string?> OpenFileDialogAsync(string title, string filter, string? initialDirectory = null, string? persistKey = null);
 
         /// <summary>
         /// Opens a file dialog for selecting multiple files.
@@ -23,8 +27,9 @@ namespace FlipPix.UI.Services
         /// <param name="title">Dialog title</param>
         /// <param name="filter">File filter</param>
         /// <param name="initialDirectory">Starting directory (optional)</param>
+        /// <param name="persistKey">Optional context key; see <see cref="OpenFileDialogAsync"/>.</param>
         /// <returns>Array of selected file paths, or empty array if cancelled</returns>
-        Task<string[]> OpenFilesDialogAsync(string title, string filter, string? initialDirectory = null);
+        Task<string[]> OpenFilesDialogAsync(string title, string filter, string? initialDirectory = null, string? persistKey = null);
 
         /// <summary>
         /// Opens a save file dialog.
@@ -33,8 +38,9 @@ namespace FlipPix.UI.Services
         /// <param name="filter">File filter</param>
         /// <param name="defaultFileName">Suggested file name</param>
         /// <param name="initialDirectory">Starting directory (optional)</param>
+        /// <param name="persistKey">Optional context key; see <see cref="OpenFileDialogAsync"/>.</param>
         /// <returns>Selected file path, or null if cancelled</returns>
-        Task<string?> SaveFileDialogAsync(string title, string filter, string defaultFileName, string? initialDirectory = null);
+        Task<string?> SaveFileDialogAsync(string title, string filter, string defaultFileName, string? initialDirectory = null, string? persistKey = null);
 
         /// <summary>
         /// Opens a folder browser dialog.
@@ -42,7 +48,8 @@ namespace FlipPix.UI.Services
         /// <param name="title">Dialog title</param>
         /// <param name="initialDirectory">Starting directory (optional)</param>
         /// <param name="showNewFolderButton">Whether to show "New Folder" button</param>
+        /// <param name="persistKey">Optional context key; see <see cref="OpenFileDialogAsync"/>.</param>
         /// <returns>Selected folder path, or null if cancelled</returns>
-        Task<string?> OpenFolderDialogAsync(string title, string? initialDirectory = null, bool showNewFolderButton = false);
+        Task<string?> OpenFolderDialogAsync(string title, string? initialDirectory = null, bool showNewFolderButton = false, string? persistKey = null);
     }
 }

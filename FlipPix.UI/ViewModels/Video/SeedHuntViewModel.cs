@@ -378,7 +378,8 @@ namespace FlipPix.UI.ViewModels.Video
             var path = await _fileDialogService.OpenFileDialogAsync(
                 "Select Image",
                 "Image Files|*.jpg;*.jpeg;*.png;*.bmp;*.webp|All Files|*.*",
-                initialDir);
+                initialDir,
+                persistKey: "seedhunt.image");
 
             if (path != null)
             {

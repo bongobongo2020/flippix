@@ -242,7 +242,8 @@ namespace FlipPix.UI.ViewModels.Video
             var filePath = await _fileDialogService.OpenFileDialogAsync(
                 "Select Input Video",
                 "Video Files|*.mp4;*.mov;*.avi;*.mkv;*.webm|All Files|*.*",
-                initialDirectory);
+                initialDirectory,
+                persistKey: "longvideo.video");
 
             if (filePath != null)
             {

@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using System.IO;
 using System.Text.Json;
 using System.Threading;
@@ -73,6 +74,62 @@ namespace FlipPix.Core.Services
             catch (Exception ex)
             {
                 throw new Exception($"Failed to save settings: {ex.Message}", ex);
+            }
+            finally
+            {
+                _lock.ExitWriteLock();
+            }
+        }
+
+        private const string GlobalBrowseKey = "__global__";
+
+        /// <summary>
+        /// Returns the remembered browse folder for <paramref name="key"/>, falling back to the
+        /// global last-used folder. Null if neither is set or the folder no longer exists.
+        /// </summary>
+        public string? GetLastBrowseFolder(string? key)
+        {
+            _lock.EnterReadLock();
+            try
+            {
+                var folders = _settings.LastBrowseFolders;
+                if (folders != null)
+                {
+                    if (!string.IsNullOrEmpty(key) && folders.TryGetValue(key, out var dir) && Directory.Exists(dir))
+                        return dir;
+                    if (folders.TryGetValue(GlobalBrowseKey, out var global) && Directory.Exists(global))
+                        return global;
+                }
+            }
+            finally
+            {
+                _lock.ExitReadLock();
+            }
+            return null;
+        }
+
+        /// <summary>
+        /// Records <paramref name="folder"/> as the last-used browse folder for <paramref name="key"/>
+        /// (and as the global fallback) and persists it. Cheap no-op if the folder is invalid.
+        /// </summary>
+        public void SetLastBrowseFolder(string? key, string? folder)
+        {
+            if (string.IsNullOrEmpty(folder) || !Directory.Exists(folder)) return;
+
+            _lock.EnterWriteLock();
+            try
+            {
+                _settings.LastBrowseFolders ??= new Dictionary<string, string>();
+                if (!string.IsNullOrEmpty(key))
+                    _settings.LastBrowseFolders[key] = folder;
+                _settings.LastBrowseFolders[GlobalBrowseKey] = folder;
+
+                var json = JsonSerializer.Serialize(_settings, new JsonSerializerOptions { WriteIndented = true });
+                File.WriteAllText(_settingsFilePath, json);
+            }
+            catch (Exception ex)
+            {
+                _logger?.LogWarning($"Failed to persist last browse folder: {ex.Message}");
             }
             finally
             {

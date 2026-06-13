@@ -355,7 +355,8 @@ namespace FlipPix.UI.ViewModels
         {
             var path = await _fileDialogService.OpenFileDialogAsync(
                 "Select Reference Image",
-                "Image Files|*.png;*.jpg;*.jpeg;*.bmp;*.webp");
+                "Image Files|*.png;*.jpg;*.jpeg;*.bmp;*.webp",
+                persistKey: "kleincontrol.reference-image");
             if (!string.IsNullOrEmpty(path))
                 SetRefImage(path);
         }
@@ -364,7 +365,8 @@ namespace FlipPix.UI.ViewModels
         {
             var path = await _fileDialogService.OpenFileDialogAsync(
                 "Select Pose Image",
-                "Image Files|*.png;*.jpg;*.jpeg;*.bmp;*.webp");
+                "Image Files|*.png;*.jpg;*.jpeg;*.bmp;*.webp",
+                persistKey: "kleincontrol.pose-image");
             if (!string.IsNullOrEmpty(path))
             {
                 ClearVideo();
@@ -376,7 +378,8 @@ namespace FlipPix.UI.ViewModels
         {
             var path = await _fileDialogService.OpenFileDialogAsync(
                 "Select Video",
-                "Video Files|*.mp4;*.avi;*.mov;*.mkv;*.webm;*.wmv");
+                "Video Files|*.mp4;*.avi;*.mov;*.mkv;*.webm;*.wmv",
+                persistKey: "kleincontrol.video");
             if (!string.IsNullOrEmpty(path))
                 await LoadVideoAsync(path);
         }

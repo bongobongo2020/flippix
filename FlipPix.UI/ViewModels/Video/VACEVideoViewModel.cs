@@ -356,7 +356,8 @@ namespace FlipPix.UI.ViewModels.Video
             var filePath = await _fileDialogService.OpenFileDialogAsync(
                 "Select Reference Image",
                 "Image Files|*.jpg;*.jpeg;*.png;*.bmp|All Files|*.*",
-                initialDirectory);
+                initialDirectory,
+                persistKey: "vace.image");
 
             if (filePath != null)
             {
@@ -374,7 +375,8 @@ namespace FlipPix.UI.ViewModels.Video
             var filePath = await _fileDialogService.OpenFileDialogAsync(
                 "Select Input Video",
                 "Video Files|*.mp4;*.avi;*.mov;*.mkv|All Files|*.*",
-                initialDirectory);
+                initialDirectory,
+                persistKey: "vace.video");
 
             if (filePath != null)
             {

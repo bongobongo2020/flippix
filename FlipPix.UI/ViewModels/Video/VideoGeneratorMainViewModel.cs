@@ -1041,7 +1041,8 @@ namespace FlipPix.UI.ViewModels.Video
             var filePath = await _fileDialogService.OpenFileDialogAsync(
                 "Select Input Image",
                 "Image Files|*.jpg;*.jpeg;*.png;*.bmp|All Files|*.*",
-                initialDirectory);
+                initialDirectory,
+                persistKey: "videomain.image");
 
             if (filePath != null)
             {
@@ -1062,7 +1063,8 @@ namespace FlipPix.UI.ViewModels.Video
             var filePath = await _fileDialogService.OpenFileDialogAsync(
                 "Select First Frame Image",
                 "Image Files|*.jpg;*.jpeg;*.png;*.bmp|All Files|*.*",
-                initialDirectory);
+                initialDirectory,
+                persistKey: "videomain.first-frame");
 
             if (filePath != null)
             {
@@ -1083,7 +1085,8 @@ namespace FlipPix.UI.ViewModels.Video
             var filePath = await _fileDialogService.OpenFileDialogAsync(
                 "Select Last Frame Image",
                 "Image Files|*.jpg;*.jpeg;*.png;*.bmp|All Files|*.*",
-                initialDirectory);
+                initialDirectory,
+                persistKey: "videomain.last-frame");
 
             if (filePath != null)
             {
@@ -2452,7 +2455,8 @@ namespace FlipPix.UI.ViewModels.Video
             var filePath = await _fileDialogService.OpenFileDialogAsync(
                 "Select Story Prompts File",
                 "Prompt Files (*.json;*.txt)|*.json;*.txt|JSON Files (*.json)|*.json|Text Files (*.txt)|*.txt|All Files (*.*)|*.*",
-                initialDirectory);
+                initialDirectory,
+                persistKey: "videomain.story-prompts");
 
             if (filePath != null)
             {
@@ -2491,7 +2495,8 @@ namespace FlipPix.UI.ViewModels.Video
             var selectedPath = await _fileDialogService.OpenFolderDialogAsync(
                 "Select the folder containing the story images",
                 !string.IsNullOrEmpty(initialPath) && Directory.Exists(initialPath) ? initialPath : null,
-                false);
+                false,
+                persistKey: "videomain.story-images-folder");
 
             if (selectedPath != null)
             {
