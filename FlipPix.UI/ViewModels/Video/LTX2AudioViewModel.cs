@@ -283,7 +283,8 @@ namespace FlipPix.UI.ViewModels.Video
             var filePath = await _fileDialogService.OpenFileDialogAsync(
                 "Select Source Image",
                 "Image Files|*.jpg;*.jpeg;*.png;*.bmp|All Files|*.*",
-                initialDirectory);
+                initialDirectory,
+                persistKey: "ltx2audio.image");
 
             if (filePath != null)
             {
@@ -304,7 +305,8 @@ namespace FlipPix.UI.ViewModels.Video
             var filePath = await _fileDialogService.OpenFileDialogAsync(
                 "Select Audio File",
                 "Audio Files|*.mp3;*.wav;*.ogg;*.flac;*.m4a|All Files|*.*",
-                initialDirectory);
+                initialDirectory,
+                persistKey: "ltx2audio.audio");
 
             if (filePath != null)
             {

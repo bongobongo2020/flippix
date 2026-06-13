@@ -1,0 +1,335 @@
+{
+  "158": {
+    "inputs": {
+      "vae_name": "flux2-vae.safetensors"
+    },
+    "class_type": "VAELoader",
+    "_meta": {
+      "title": "Load VAE"
+    }
+  },
+  "159": {
+    "inputs": {
+      "conditioning": [
+        "167",
+        0
+      ]
+    },
+    "class_type": "ConditioningZeroOut",
+    "_meta": {
+      "title": "ConditioningZeroOut"
+    }
+  },
+  "160": {
+    "inputs": {
+      "width": [
+        "191",
+        0
+      ],
+      "height": [
+        "191",
+        1
+      ],
+      "batch_size": 1
+    },
+    "class_type": "EmptyFlux2LatentImage",
+    "_meta": {
+      "title": "Empty Flux 2 Latent"
+    }
+  },
+  "161": {
+    "inputs": {
+      "noise": [
+        "165",
+        0
+      ],
+      "guider": [
+        "230",
+        0
+      ],
+      "sampler": [
+        "163",
+        0
+      ],
+      "sigmas": [
+        "190",
+        0
+      ],
+      "latent_image": [
+        "160",
+        0
+      ]
+    },
+    "class_type": "SamplerCustomAdvanced",
+    "_meta": {
+      "title": "SamplerCustomAdvanced"
+    }
+  },
+  "162": {
+    "inputs": {
+      "samples": [
+        "161",
+        0
+      ],
+      "vae": [
+        "158",
+        0
+      ]
+    },
+    "class_type": "VAEDecode",
+    "_meta": {
+      "title": "VAE Decode"
+    }
+  },
+  "163": {
+    "inputs": {
+      "sampler_name": "euler"
+    },
+    "class_type": "KSamplerSelect",
+    "_meta": {
+      "title": "KSamplerSelect"
+    }
+  },
+  "165": {
+    "inputs": {
+      "noise_seed": [
+        "197",
+        0
+      ]
+    },
+    "class_type": "RandomNoise",
+    "_meta": {
+      "title": "RandomNoise"
+    }
+  },
+  "166": {
+    "inputs": {
+      "unet_name": "ideogram4_fp8_scaled.safetensors",
+      "weight_dtype": "default"
+    },
+    "class_type": "UNETLoader",
+    "_meta": {
+      "title": "Load Diffusion Model"
+    }
+  },
+  "167": {
+    "inputs": {
+      "text": [
+        "223",
+        0
+      ],
+      "clip": [
+        "168",
+        0
+      ]
+    },
+    "class_type": "CLIPTextEncode",
+    "_meta": {
+      "title": "CLIP Text Encode (Positive Prompt)"
+    }
+  },
+  "168": {
+    "inputs": {
+      "clip_name": "qwen3vl_8b_fp8_scaled.safetensors",
+      "type": "ideogram4",
+      "device": "default"
+    },
+    "class_type": "CLIPLoader",
+    "_meta": {
+      "title": "Load CLIP"
+    }
+  },
+  "181": {
+    "inputs": {
+      "unet_name": "ideogram4_unconditional_fp8_scaled.safetensors",
+      "weight_dtype": "default"
+    },
+    "class_type": "UNETLoader",
+    "_meta": {
+      "title": "Load Diffusion Model"
+    }
+  },
+  "189": {
+    "inputs": {
+      "print_as_list": false,
+      "line_color": "blue",
+      "sigmas": [
+        "190",
+        0
+      ]
+    },
+    "class_type": "SigmasPreview",
+    "_meta": {
+      "title": "SigmasPreview"
+    }
+  },
+  "190": {
+    "inputs": {
+      "scheduler": "simple",
+      "steps": 28,
+      "denoise": 1,
+      "model": [
+        "198",
+        0
+      ]
+    },
+    "class_type": "BasicScheduler",
+    "_meta": {
+      "title": "BasicScheduler"
+    }
+  },
+  "191": {
+    "inputs": {
+      "megapixel": "1.5",
+      "aspect_ratio": "2:3 (Classic Portrait)",
+      "divisible_by": "16",
+      "custom_ratio": false,
+      "custom_aspect_ratio": "1:1"
+    },
+    "class_type": "FluxResolutionNode",
+    "_meta": {
+      "title": "Flux Resolution Calc"
+    }
+  },
+  "192": {
+    "inputs": {
+      "text": "992 x 1504",
+      "anything": [
+        "191",
+        2
+      ]
+    },
+    "class_type": "easy showAnything",
+    "_meta": {
+      "title": "Show Any"
+    }
+  },
+  "197": {
+    "inputs": {
+      "seed": 132324943319318
+    },
+    "class_type": "Seed (rgthree)",
+    "_meta": {
+      "title": "Seed (rgthree)"
+    }
+  },
+  "198": {
+    "inputs": {
+      "shift": 5,
+      "model": [
+        "166",
+        0
+      ]
+    },
+    "class_type": "ModelSamplingAuraFlow",
+    "_meta": {
+      "title": "ModelSamplingAuraFlow"
+    }
+  },
+  "200": {
+    "inputs": {
+      "filename_prefix": "ideogram/ideo",
+      "images": [
+        "220",
+        0
+      ]
+    },
+    "class_type": "SaveImage",
+    "_meta": {
+      "title": "Save Image"
+    }
+  },
+  "211": {
+    "inputs": {
+      "shift": 5,
+      "model": [
+        "181",
+        0
+      ]
+    },
+    "class_type": "ModelSamplingAuraFlow",
+    "_meta": {
+      "title": "ModelSamplingAuraFlow"
+    }
+  },
+  "216": {
+    "inputs": {
+      "text_0": "{\n    \"high_level_description\": \"A high-quality photograph of a beautiful, lifelike ball-jointed doll (BJD) with long brown hair, wearing an elegant pink off-the-shoulder dress, posed in a charming, vintage-style tea room.\",\n    \"style_description\": {\n        \"aesthetics\": \"elegant, soft, dreamy, romantic, doll-like perfection\",\n        \"lighting\": \"soft, diffused indoor lighting with a warm glow from an overhead light source\",\n        \"photo\": \"85mm, f/1.8, shallow depth of field, soft bokeh\",\n        \"medium\": \"photograph\",\n        \"color_palette\": [\"#FADADD\", \"#F5F5DC\", \"#FFFFFF\", \"#D2B48C\", \"#E6E6FA\"]\n    },\n    \"compositional_deconstruction\": {\n        \"background\": \"A cozy, vintage-style interior with a white display cabinet, floral wallpaper, and a table set with flowers.\",\n        \"elements\": [\n            {\n                \"type\": \"obj\",\n                \"bbox\": [173, 156, 1000, 806],\n                \"desc\": \"A lifelike ball-jointed doll with long, straight brown hair, large expressive eyes, and a delicate facial structure, posing gracefully.\",\n                \"color_palette\": [\"#4B3621\", \"#FADADD\", \"#FFFFFF\"]\n            },\n            {\n                \"type\": \"obj\",\n                \"bbox\": [471, 223, 1000, 804],\n                \"desc\": \"An elegant pink off-the-shoulder dress with a white faux-fur trim around the neckline.\",\n                \"color_palette\": [\"#F4C2C2\", \"#FFFFFF\"]\n            },\n            {\n                \"type\": \"obj\",\n                \"bbox\": [240, 177, 552, 917],\n                \"desc\": \"A white wooden display cabinet with glass panes, containing various decorative items.\",\n                \"color_palette\": [\"#FFFFFF\", \"#F5F5F5\"]\n            },\n            {\n                \"type\": \"obj\",\n                \"bbox\": [708, 0, 1000, 340],\n                \"desc\": \"A round table covered with a vintage floral patterned tablecloth.\",\n                \"color_palette\": [\"#D2B48C\", \"#E6E6FA\"]\n            },\n            {\n                \"type\": \"obj\",\n                \"bbox\": [616, 54, 708, 231],\n                \"desc\": \"A bouquet of pink hydrangeas in a clear glass vase.\",\n                \"color_palette\": [\"#FFB7C5\", \"#FFFFFF\"]\n            },\n            {\n                \"type\": \"obj\",\n                \"bbox\": [684, 752, 1000, 936],\n                \"desc\": \"A vintage-style wooden chair with floral upholstery.\",\n                \"color_palette\": [\"#D2B48C\", \"#FFB7C5\"]\n            },\n            {\n                \"type\": \"obj\",\n                \"bbox\": [324, 366, 356, 389],\n                \"desc\": \"A small pearl earring worn by the doll.\",\n                \"color_palette\": [\"#FFFFFF\"]\n            },\n            {\n                \"type\": \"obj\",\n                \"bbox\": [0, 197, 34, 278],\n                \"desc\": \"A warm overhead light source creating a soft glow.\",\n                \"color_palette\": [\"#FFFACD\"]\n            }\n        ]\n    }\n}",
+      "text": [
+        "223",
+        0
+      ]
+    },
+    "class_type": "ShowText|pysssss",
+    "_meta": {
+      "title": "Show Text 🐍"
+    }
+  },
+  "220": {
+    "inputs": {
+      "anything": [
+        "162",
+        0
+      ]
+    },
+    "class_type": "easy cleanGpuUsed",
+    "_meta": {
+      "title": "Clean VRAM Used"
+    }
+  },
+  "223": {
+    "inputs": {
+      "width": [
+        "191",
+        0
+      ],
+      "height": [
+        "191",
+        1
+      ],
+      "high_level_description": "A high-quality photograph of a beautiful, lifelike ball-jointed doll (BJD) with long brown hair, wearing an elegant pink off-the-shoulder dress, posed in a charming, vintage-style tea room.",
+      "background": "A cozy, vintage-style interior with a white display cabinet, floral wallpaper, and a table set with flowers.",
+      "style": "photo",
+      "style.photo": "85mm, f/1.8, shallow depth of field, soft bokeh",
+      "aesthetics": "elegant, soft, dreamy, romantic, doll-like perfection",
+      "lighting": "soft, diffused indoor lighting with a warm glow from an overhead light source",
+      "medium": "photograph",
+      "style_palette_data": "[\"#FADADD\",\"#F5F5DC\",\"#FFFFFF\",\"#D2B48C\",\"#E6E6FA\"]",
+      "elements_data": "[{\"type\":\"obj\",\"text\":\"\",\"desc\":\"A lifelike ball-jointed doll with long, straight brown hair, large expressive eyes, and a delicate facial structure, posing gracefully.\",\"palette\":[\"#4B3621\",\"#FADADD\",\"#FFFFFF\"],\"x\":0.156,\"y\":0.173,\"w\":0.65,\"h\":0.827},{\"type\":\"obj\",\"text\":\"\",\"desc\":\"An elegant pink off-the-shoulder dress with a white faux-fur trim around the neckline.\",\"palette\":[\"#F4C2C2\",\"#FFFFFF\"],\"x\":0.22272399667240092,\"y\":0.471,\"w\":0.581,\"h\":0.529},{\"type\":\"obj\",\"text\":\"\",\"desc\":\"A white wooden display cabinet with glass panes, containing various decorative items.\",\"palette\":[\"#FFFFFF\",\"#F5F5F5\"],\"x\":0.177,\"y\":0.24,\"w\":0.74,\"h\":0.312},{\"type\":\"obj\",\"text\":\"\",\"desc\":\"A round table covered with a vintage floral patterned tablecloth.\",\"palette\":[\"#D2B48C\",\"#E6E6FA\"],\"x\":0,\"y\":0.708,\"w\":0.34,\"h\":0.292},{\"type\":\"obj\",\"text\":\"\",\"desc\":\"A bouquet of pink hydrangeas in a clear glass vase.\",\"palette\":[\"#FFB7C5\",\"#FFFFFF\"],\"x\":0.054,\"y\":0.616,\"w\":0.177,\"h\":0.092},{\"type\":\"obj\",\"text\":\"\",\"desc\":\"A vintage-style wooden chair with floral upholstery.\",\"palette\":[\"#D2B48C\",\"#FFB7C5\"],\"x\":0.752,\"y\":0.684,\"w\":0.184,\"h\":0.316},{\"type\":\"obj\",\"text\":\"\",\"desc\":\"A small pearl earring worn by the doll.\",\"palette\":[\"#FFFFFF\"],\"x\":0.366,\"y\":0.324,\"w\":0.023,\"h\":0.032},{\"type\":\"obj\",\"text\":\"\",\"desc\":\"A warm overhead light source creating a soft glow.\",\"palette\":[\"#FFFACD\"],\"x\":0.197,\"y\":0,\"w\":0.081,\"h\":0.034}]",
+      "ai_state": "{\"backend\":\"ollama\",\"idea\":\"\",\"local_model\":\"huihui-ai/Huihui-Qwen3-VL-4B-Instruct-abliterated\",\"gemini_model\":\"gemini-3.1-flash-lite\",\"unload_after\":true,\"four_bit\":false,\"density\":\"high\",\"attn\":\"sdpa\",\"ollama_host\":\"http://localhost:11434\",\"ollama_model\":\"\",\"think\":true}"
+    },
+    "class_type": "Ideogram4Autoprompter",
+    "_meta": {
+      "title": "Ideogram 4 Autoprompter"
+    }
+  },
+  "230": {
+    "inputs": {
+      "cfg": 4,
+      "channelwise_strength": 0.5,
+      "apg_eta": 0.4,
+      "apg_norm_threshold": 0,
+      "momentum": 0,
+      "model_cond": [
+        "198",
+        0
+      ],
+      "model_uncond": [
+        "211",
+        0
+      ],
+      "positive": [
+        "167",
+        0
+      ],
+      "negative": [
+        "159",
+        0
+      ]
+    },
+    "class_type": "IdeogramDualModelGuider",
+    "_meta": {
+      "title": "Ideogram DualModelGuider (channelwise + APG)"
+    }
+  }
+}

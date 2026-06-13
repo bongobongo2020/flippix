@@ -279,7 +279,8 @@ namespace FlipPix.UI.ViewModels
                 var filePath = await _fileDialogService.OpenFileDialogAsync(
                     "Load Prompts",
                     "Prompt Files|*.json;*.txt|JSON Files|*.json|Text Files|*.txt|All Files|*.*",
-                    PromptsFolderPath);
+                    PromptsFolderPath,
+                    persistKey: "storyvideo.prompts");
 
                 if (filePath == null) return;
 

@@ -231,7 +231,8 @@ namespace FlipPix.UI.ViewModels.Video
             var path = await _fileDialogService.OpenFileDialogAsync(
                 "Select Video to Interpolate",
                 "Video Files|*.mp4;*.avi;*.mov;*.mkv|All Files|*.*",
-                initial);
+                initial,
+                persistKey: "videoenhance.interpolate-video");
 
             if (path != null)
             {
@@ -250,7 +251,8 @@ namespace FlipPix.UI.ViewModels.Video
             var path = await _fileDialogService.OpenFileDialogAsync(
                 "Select Video to Upscale",
                 "Video Files|*.mp4;*.avi;*.mov;*.mkv|All Files|*.*",
-                initial);
+                initial,
+                persistKey: "videoenhance.upscale-video");
 
             if (path != null)
             {

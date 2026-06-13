@@ -51,7 +51,7 @@
       "frame_rate": 60,
       "loop_count": 0,
       "filename_prefix": "AnimateDiff",
-      "format": "video/nvenc_h264-mp4",
+      "format": "video/h264-mp4",
       "pix_fmt": "yuv420p",
       "bitrate": 10,
       "megabit": true,

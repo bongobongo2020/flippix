@@ -326,7 +326,8 @@ namespace FlipPix.UI.ViewModels
             {
                 var filePath = await _fileDialogService.OpenFileDialogAsync(
                     "Select Input Image for Video Generation",
-                    "Image Files (*.png;*.jpg;*.jpeg;*.bmp;*.tiff;*.webp)|*.png;*.jpg;*.jpeg;*.bmp;*.tiff;*.webp|All Files (*.*)|*.*");
+                    "Image Files (*.png;*.jpg;*.jpeg;*.bmp;*.tiff;*.webp)|*.png;*.jpg;*.jpeg;*.bmp;*.tiff;*.webp|All Files (*.*)|*.*",
+                    persistKey: "i2v2a.image");
 
                 if (filePath != null)
                 {

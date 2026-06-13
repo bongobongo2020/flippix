@@ -1301,7 +1301,8 @@ namespace FlipPix.UI.ViewModels
         {
             var filePath = await _fileDialogService.OpenFileDialogAsync(
                 "Select an Image to Analyze",
-                "Image Files|*.png;*.jpg;*.jpeg;*.bmp;*.gif;*.webp|All Files|*.*");
+                "Image Files|*.png;*.jpg;*.jpeg;*.bmp;*.gif;*.webp|All Files|*.*",
+                persistKey: "imageanalyzer.image");
 
             if (filePath != null)
             {

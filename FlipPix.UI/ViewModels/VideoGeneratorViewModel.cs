@@ -107,10 +107,28 @@ namespace FlipPix.UI.ViewModels
         public LtxControlViewModel LtxControlVM { get; }
 
         /// <summary>
+        /// LTX Director ViewModel - timeline of images, each with its own prompt + duration,
+        /// generated as a multi-shot video via the LTXDirector node.
+        /// </summary>
+        public LtxDirectorViewModel LtxDirectorVM { get; }
+
+        /// <summary>
+        /// VR 180 ViewModel - converts a flat video into a 360° equirectangular VR panorama
+        /// by outpainting each frame with the LTX-2.3-22B equirect IC-LoRA.
+        /// </summary>
+        public Vr180ViewModel Vr180VM { get; }
+
+        /// <summary>
         /// Seedhunt ViewModel - upload an image, analyze into a combat prompt, generate a batch of
         /// 4 fast samples (reroll for more), then finish the chosen one through Stage 2/3.
         /// </summary>
         public SeedHuntViewModel SeedHuntVM { get; }
+
+        /// <summary>
+        /// Seed Director ViewModel - LTX Director timeline fused with SeedHunt: per-shot 4-seed
+        /// previews, pick seeds per shot, then high-res finish + FFmpeg concat into one joined video.
+        /// </summary>
+        public SeedDirectorViewModel SeedDirectorVM { get; }
 
         // 0 = LTX 2.3, 1 = Wan 2.2 Remix
         private int _singleVideoWorkflowIndex = 0;
@@ -265,7 +283,34 @@ namespace FlipPix.UI.ViewModels
                 _workflowCoordinator,
                 _fileDialogService);
 
+            LtxDirectorVM = new LtxDirectorViewModel(
+                comfyUIService,
+                lmStudioService,
+                logger,
+                settingsService,
+                serviceProvider,
+                _workflowCoordinator,
+                _fileDialogService);
+
+            Vr180VM = new Vr180ViewModel(
+                comfyUIService,
+                lmStudioService,
+                logger,
+                settingsService,
+                serviceProvider,
+                _workflowCoordinator,
+                _fileDialogService);
+
             SeedHuntVM = new SeedHuntViewModel(
+                comfyUIService,
+                lmStudioService,
+                logger,
+                settingsService,
+                serviceProvider,
+                _workflowCoordinator,
+                _fileDialogService);
+
+            SeedDirectorVM = new SeedDirectorViewModel(
                 comfyUIService,
                 lmStudioService,
                 logger,
@@ -288,7 +333,10 @@ namespace FlipPix.UI.ViewModels
             WanScailGgufVM.PlayRequested += (s, e) => PlayRequested?.Invoke(this, e);
             WanCharReplaceVM.PlayRequested += (s, e) => PlayRequested?.Invoke(this, e);
             LtxControlVM.PlayRequested += (s, e) => PlayRequested?.Invoke(this, e);
+            LtxDirectorVM.PlayRequested += (s, e) => PlayRequested?.Invoke(this, e);
+            Vr180VM.PlayRequested += (s, e) => PlayRequested?.Invoke(this, e);
             SeedHuntVM.PlayRequested += (s, e) => PlayRequested?.Invoke(this, e);
+            SeedDirectorVM.PlayRequested += (s, e) => PlayRequested?.Invoke(this, e);
 
             // Forward PropertyChanged events from all sub-VMs for backward compatibility
             MainVM.PropertyChanged += ForwardPropertyChanged;
@@ -304,7 +352,10 @@ namespace FlipPix.UI.ViewModels
             WanScailGgufVM.PropertyChanged += ForwardPropertyChanged;
             WanCharReplaceVM.PropertyChanged += ForwardPropertyChanged;
             LtxControlVM.PropertyChanged += ForwardPropertyChanged;
+            LtxDirectorVM.PropertyChanged += ForwardPropertyChanged;
+            Vr180VM.PropertyChanged += ForwardPropertyChanged;
             SeedHuntVM.PropertyChanged += ForwardPropertyChanged;
+            SeedDirectorVM.PropertyChanged += ForwardPropertyChanged;
 
             _logger.LogInfo("VideoGeneratorViewModel initialized with sub-ViewModels");
         }
@@ -891,6 +942,22 @@ namespace FlipPix.UI.ViewModels
 
         public string WanScailGgufPrompt { get => WanScailGgufVM.Prompt; set => WanScailGgufVM.Prompt = value; }
         public string WanScailGgufNegativePrompt { get => WanScailGgufVM.NegativePrompt; set => WanScailGgufVM.NegativePrompt = value; }
+        public string WanScailGgufSubject { get => WanScailGgufVM.Subject; set => WanScailGgufVM.Subject = value; }
+        public bool WanScailGgufReplaceBackground { get => WanScailGgufVM.ReplaceBackground; set => WanScailGgufVM.ReplaceBackground = value; }
+        public bool WanScailGgufOptimizeVram { get => WanScailGgufVM.OptimizeVram; set => WanScailGgufVM.OptimizeVram = value; }
+        public string WanScailGgufGenerationTimer => WanScailGgufVM.GenerationTimer;
+
+        // Trim / scrub / ETA
+        public double WanScailGgufVideoDurationSeconds => WanScailGgufVM.VideoDurationSeconds;
+        public double WanScailGgufTrimInSeconds { get => WanScailGgufVM.TrimInSeconds; set => WanScailGgufVM.TrimInSeconds = value; }
+        public double WanScailGgufTrimOutSeconds { get => WanScailGgufVM.TrimOutSeconds; set => WanScailGgufVM.TrimOutSeconds = value; }
+        public double WanScailGgufPlaybackPositionSeconds { get => WanScailGgufVM.PlaybackPositionSeconds; set => WanScailGgufVM.PlaybackPositionSeconds = value; }
+        public string WanScailGgufTrimInfo => WanScailGgufVM.TrimInfo;
+        public string WanScailGgufEstimatedTime => WanScailGgufVM.EstimatedTime;
+        public bool WanScailGgufIsTrimmed => WanScailGgufVM.IsTrimmed;
+        public System.Windows.Input.ICommand WanScailGgufMarkInCommand => WanScailGgufVM.MarkInCommand;
+        public System.Windows.Input.ICommand WanScailGgufMarkOutCommand => WanScailGgufVM.MarkOutCommand;
+        public System.Windows.Input.ICommand WanScailGgufResetTrimCommand => WanScailGgufVM.ResetTrimCommand;
         public int WanScailGgufFps { get => WanScailGgufVM.Fps; set => WanScailGgufVM.Fps = value; }
         public int WanScailGgufMaxEdge { get => WanScailGgufVM.MaxEdge; set => WanScailGgufVM.MaxEdge = value; }
         public long WanScailGgufSeed { get => WanScailGgufVM.Seed; set => WanScailGgufVM.Seed = value; }
@@ -1105,6 +1172,8 @@ namespace FlipPix.UI.ViewModels
                 WanScailVM.PropertyChanged -= ForwardPropertyChanged;
                 WanCharReplaceVM.PropertyChanged -= ForwardPropertyChanged;
                 LtxControlVM.PropertyChanged -= ForwardPropertyChanged;
+                LtxDirectorVM.PropertyChanged -= ForwardPropertyChanged;
+                Vr180VM.PropertyChanged -= ForwardPropertyChanged;
                 SeedHuntVM.PropertyChanged -= ForwardPropertyChanged;
 
                 // Dispose all sub-ViewModels
@@ -1118,6 +1187,10 @@ namespace FlipPix.UI.ViewModels
                 (Wan22SingleVM as IDisposable)?.Dispose();
                 (LongVideoVM as IDisposable)?.Dispose();
                 (WanScailVM as IDisposable)?.Dispose();
+                (LtxControlVM as IDisposable)?.Dispose();
+                (LtxDirectorVM as IDisposable)?.Dispose();
+                (Vr180VM as IDisposable)?.Dispose();
+                (SeedDirectorVM as IDisposable)?.Dispose();
 
                 _disposed = true;
             }

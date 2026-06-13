@@ -196,7 +196,8 @@ namespace FlipPix.UI.ViewModels.Video
             var filePath = await _fileDialogService.OpenFileDialogAsync(
                 "Select Source Video",
                 "Video Files|*.mp4;*.avi;*.mov;*.mkv;*.webm|All Files|*.*",
-                initialDirectory);
+                initialDirectory,
+                persistKey: "mocha.video");
 
             if (filePath != null)
             {
@@ -222,7 +223,8 @@ namespace FlipPix.UI.ViewModels.Video
             var filePath = await _fileDialogService.OpenFileDialogAsync(
                 "Select Reference Image",
                 "Image Files|*.jpg;*.jpeg;*.png;*.bmp|All Files|*.*",
-                initialDirectory);
+                initialDirectory,
+                persistKey: "mocha.image");
 
             if (filePath != null)
             {

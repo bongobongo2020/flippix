@@ -69,6 +69,40 @@ namespace FlipPix.UI
             });
         }
 
+        // ── Ideogram composition-region canvas (drag / resize) ──────────────
+        private const double IdeogramMinRegionSize = 24;
+
+        private static void RegionFromSender(object sender, out FlipPix.UI.Models.IdeogramRegion? region)
+            => region = (sender as System.Windows.Controls.Primitives.Thumb)?.DataContext as FlipPix.UI.Models.IdeogramRegion;
+
+        private void Region_DragStarted(object sender, System.Windows.Controls.Primitives.DragStartedEventArgs e)
+        {
+            RegionFromSender(sender, out var region);
+            if (region != null)
+                _viewModel.Ideogram.SelectRegionCommand.Execute(region);
+        }
+
+        private void RegionMove_DragDelta(object sender, System.Windows.Controls.Primitives.DragDeltaEventArgs e)
+        {
+            RegionFromSender(sender, out var region);
+            if (region == null) return;
+            double cw = _viewModel.Ideogram.CanvasWidth, ch = _viewModel.Ideogram.CanvasHeight;
+            region.X = Clamp(region.X + e.HorizontalChange, 0, cw - region.Width);
+            region.Y = Clamp(region.Y + e.VerticalChange, 0, ch - region.Height);
+        }
+
+        private void RegionResize_DragDelta(object sender, System.Windows.Controls.Primitives.DragDeltaEventArgs e)
+        {
+            RegionFromSender(sender, out var region);
+            if (region == null) return;
+            double cw = _viewModel.Ideogram.CanvasWidth, ch = _viewModel.Ideogram.CanvasHeight;
+            region.Width = Clamp(region.Width + e.HorizontalChange, IdeogramMinRegionSize, cw - region.X);
+            region.Height = Clamp(region.Height + e.VerticalChange, IdeogramMinRegionSize, ch - region.Y);
+        }
+
+        private static double Clamp(double v, double min, double max)
+            => max < min ? min : v < min ? min : v > max ? max : v;
+
         private void Header_MouseLeftButtonDown(object sender, MouseButtonEventArgs e)
         {
             if (e.ButtonState == MouseButtonState.Pressed)

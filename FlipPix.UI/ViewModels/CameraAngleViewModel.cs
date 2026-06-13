@@ -143,7 +143,8 @@ namespace FlipPix.UI.ViewModels
             var filePath = await _fileDialogService.OpenFileDialogAsync(
                 "Select Input Image for Camera Angle Generation",
                 "Image Files (*.jpg;*.jpeg;*.png;*.bmp)|*.jpg;*.jpeg;*.png;*.bmp|All Files (*.*)|*.*",
-                initialDirectory);
+                initialDirectory,
+                persistKey: "camera.image");
 
             if (filePath != null)
             {

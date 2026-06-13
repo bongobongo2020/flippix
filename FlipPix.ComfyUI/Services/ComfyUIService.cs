@@ -362,7 +362,8 @@ public class ComfyUIService : IDisposable
     public async Task<string> ExecuteWorkflowAsync(
         object workflow,
         IProgress<ProgressMessage>? progress = null,
-        CancellationToken cancellationToken = default)
+        CancellationToken cancellationToken = default,
+        TimeSpan? executionTimeout = null)
     {
         try
         {
@@ -428,8 +429,12 @@ public class ComfyUIService : IDisposable
             ProgressUpdated += OnProgressUpdate;
             ExecutionCompleted += OnExecutionComplete;
 
-            // Wait for completion or timeout
-            var timeout = TimeSpan.FromMinutes(30);
+            // Wait for completion or timeout. Default 30 min; callers running a single long
+            // whole-video prompt (e.g. SCAIL II, whose SCAIL2SimpleVideo node loops every
+            // segment internally) pass a larger ceiling so the client doesn't abort while
+            // ComfyUI is still working. Real completion is detected within ~5s via /history,
+            // so a generous ceiling costs nothing for normal jobs.
+            var timeout = executionTimeout ?? TimeSpan.FromMinutes(30);
             using var timeoutCts = new CancellationTokenSource(timeout);
             using var combinedCts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken, timeoutCts.Token);
 
@@ -448,6 +453,39 @@ public class ComfyUIService : IDisposable
                     }
                 }
             }, cancellationToken);
+
+            // Poll /history as a primary completion signal. Remote ComfyUI servers
+            // frequently drop the final "executing node=null" WebSocket message, which
+            // would otherwise leave this call (and the global workflow lease it holds)
+            // hung until the 600s fallback. ComfyUI only records a prompt in /history
+            // once it has fully finished, so its presence there means we are done.
+            var historyPollTask = Task.Run(async () =>
+            {
+                while (!isCompleted)
+                {
+                    try
+                    {
+                        await Task.Delay(TimeSpan.FromSeconds(5), combinedCts.Token);
+                        if (isCompleted) return;
+                        var files = await _httpClient.GetOutputFilesForPromptAsync(promptId, combinedCts.Token);
+                        if (files.Count > 0)
+                        {
+                            lock (lockObj)
+                            {
+                                if (!isCompleted)
+                                {
+                                    isCompleted = true;
+                                    _logger.LogInfo("Completion detected via /history poll for prompt: {PromptId}", promptId);
+                                    completionSource.TrySetResult(promptId);
+                                }
+                            }
+                            return;
+                        }
+                    }
+                    catch (OperationCanceledException) { return; }
+                    catch (Exception ex) { _logger.LogDebug("History poll error: " + ex.Message); }
+                }
+            }, combinedCts.Token);
 
             try
             {

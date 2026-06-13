@@ -210,7 +210,7 @@
       "frame_rate": 24,
       "loop_count": 0,
       "filename_prefix": "Wan_Animate_V2",
-      "format": "video/nvenc_h264-mp4",
+      "format": "video/h264-mp4",
       "pix_fmt": "yuv420p",
       "bitrate": 19,
       "megabit": true,

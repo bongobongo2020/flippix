@@ -5,13 +5,10 @@ using System.ComponentModel;
 using System.Diagnostics;
 using System.IO;
 using System.Linq;
-using System.Net.Http;
 using System.Runtime.CompilerServices;
-using System.Text;
 using System.Text.Json;
 using System.Threading;
 using System.Threading.Tasks;
-using System.Windows;
 using WpfApp = System.Windows.Application;
 using System.Windows.Media.Imaging;
 using CommunityToolkit.Mvvm.Input;
@@ -23,11 +20,23 @@ using FlipPix.UI.Services;
 
 namespace FlipPix.UI.ViewModels
 {
+    /// <summary>
+    /// Ideogram v4 tab: a high-level scene prompt plus an optional set of
+    /// bounding-box composition regions drawn on a canvas, rendered to a base
+    /// image and optionally upscaled to a 4K image via the PiD path. Aspect
+    /// ratio (square / widescreen / portrait) drives both the base and 4K sizes.
+    /// Workflow: workflow/image/Ideogram4workflowAPI.json.
+    /// </summary>
     public class IdeogramViewModel : INotifyPropertyChanged
     {
-        private const string WorkflowFile = "workflow/image/Ideogram-4-NSFW.json";
+        private const string WorkflowFile = "workflow/image/Ideogram4workflowAPI.json";
         private const string PromptFile = "prompts/prompt2json/ideagram.md";
-        private const string SavePrefix = "ideogram4";
+        private const string BasePrefix = "ideao";
+        private const string Prefix4K = "ideao_4k";
+
+        // PiD 4K-only nodes pruned when the user disables the 4K upscale.
+        private static readonly string[] PiD4KNodeIds =
+            { "74", "75", "76", "77", "78", "79", "81", "82", "84", "85", "86", "87", "88", "100" };
 
         private readonly ComfyUIService _comfyUIService;
         private readonly SettingsService _settingsService;
@@ -37,33 +46,39 @@ namespace FlipPix.UI.ViewModels
         private readonly WorkflowQueueCoordinator _workflowCoordinator;
 
         // Queue fields
-        private ObservableCollection<IdeogramQueueItem> _queue = new();
-        private bool _isProcessingQueue = false;
-        private bool _isWaitingForLease = false;
+        private readonly ObservableCollection<IdeogramQueueItem> _queue = new();
+        private bool _isProcessingQueue;
+        private bool _isWaitingForLease;
         private readonly ManualResetEventSlim _pauseEvent = new(true);
         private CancellationTokenSource? _queueCts;
 
-        // Input image
+        // Input image (for optional LLM analysis only)
         private string _inputImagePath = string.Empty;
         private BitmapImage? _inputImageSource;
         private bool _hasInputImage;
 
         // LLM
-        private ObservableCollection<string> _availableModels = new();
+        private readonly ObservableCollection<string> _availableModels = new();
         private string _selectedLlmModel = string.Empty;
         private bool _isLoadingModels;
 
-        // Prompt
-        private string _ideogramPrompt = string.Empty;
-        private string _detectedAspectRatio = "1:1";
+        // Composition
+        private string _highLevelPrompt = string.Empty;
+        private string _selectedAspectRatio = "Square";
+        private bool _generate4K = true;
+        private readonly ObservableCollection<IdeogramRegion> _regions = new();
 
         // Workflow state
         private bool _isAnalyzing;
         private bool _isGenerating;
         private double _progress;
-        private string _statusMessage = "Upload an image to begin";
+        private string _statusMessage = "Describe a scene, optionally add regions, then Generate";
         private string _logOutput = string.Empty;
         private CancellationTokenSource? _cts;
+        // Separate from _cts so analyzing a new image never tears down the
+        // cancellation source a concurrent manual Generate is still using.
+        private CancellationTokenSource? _analyzeCts;
+        private DateTime _lastProgressLog = DateTime.MinValue;
 
         // Result
         private BitmapImage? _resultImageSource;
@@ -89,23 +104,31 @@ namespace FlipPix.UI.ViewModels
             _lmStudioService = lmStudioService ?? throw new ArgumentNullException(nameof(lmStudioService));
             _workflowCoordinator = workflowCoordinator ?? throw new ArgumentNullException(nameof(workflowCoordinator));
 
-            BrowseImageCommand = new RelayCommand(async () => await BrowseImageAsync(), () => true);
-            LoadModelsCommand = new RelayCommand(async () => await LoadModelsAsync(), () => !IsBusy && !IsLoadingModels);
+            BrowseImageCommand = new RelayCommand(async () => await BrowseImageAsync());
+            // Analysis hits the LLM (LM Studio), independent of ComfyUI generation,
+            // so it is gated only against another analyze — not against a running
+            // generate/queue. This lets the user prep & queue more images while a
+            // batch is processing.
+            BrowseAndAnalyzeCommand = new RelayCommand(async () => await BrowseAndAnalyzeAsync(), () => !IsAnalyzing);
+            LoadModelsCommand = new RelayCommand(async () => await LoadModelsAsync(), () => !IsAnalyzing && !IsLoadingModels);
             AnalyzeCommand = new RelayCommand(async () => await AnalyzeAsync(), () => CanAnalyze);
             GenerateCommand = new RelayCommand(async () => await GenerateAsync(), () => CanGenerate);
             OpenResultFolderCommand = new RelayCommand(OpenResultFolder, () => HasResult);
             OpenResultImageCommand = new RelayCommand(OpenResultImage, () => HasResult);
 
-            // Queue commands
+            SetAspectCommand = new RelayCommand<string>(SetAspect);
+            AddRegionCommand = new RelayCommand(AddRegion);
+            RemoveRegionCommand = new RelayCommand<IdeogramRegion>(RemoveRegion);
+            ClearRegionsCommand = new RelayCommand(ClearRegions, () => _regions.Any());
+            SelectRegionCommand = new RelayCommand<IdeogramRegion>(SelectRegion);
+
             AddToQueueCommand = new RelayCommand(AddToQueue, () => CanAddToQueue);
             RemoveFromQueueCommand = new RelayCommand<IdeogramQueueItem>(RemoveFromQueue);
-            ClearQueueCommand = new RelayCommand(ClearQueue, () => Queue.Any());
+            ClearQueueCommand = new RelayCommand(ClearQueue, () => _queue.Any());
             ProcessQueueCommand = new RelayCommand(async () => await ProcessQueueAsync(), () => CanProcessQueue);
             CancelQueueCommand = new RelayCommand(CancelQueue, () => IsProcessingQueue);
 
-            // Load available models on startup
             _ = LoadModelsAsync();
-
             LoadQueueFromFile();
         }
 
@@ -131,18 +154,14 @@ namespace FlipPix.UI.ViewModels
                 OnPropertyChanged();
                 OnPropertyChanged(nameof(NoInputImage));
                 OnPropertyChanged(nameof(CanAnalyze));
-                NotifyCommands();
+                AnalyzeCommand.NotifyCanExecuteChanged();
             }
         }
 
         public bool NoInputImage => !_hasInputImage;
 
         // ── LLM Model ────────────────────────────────────────────────────
-        public ObservableCollection<string> AvailableModels
-        {
-            get => _availableModels;
-            set { _availableModels = value; OnPropertyChanged(); }
-        }
+        public ObservableCollection<string> AvailableModels => _availableModels;
 
         public string SelectedLlmModel
         {
@@ -152,26 +171,23 @@ namespace FlipPix.UI.ViewModels
                 _selectedLlmModel = value;
                 OnPropertyChanged();
                 OnPropertyChanged(nameof(CanAnalyze));
+                AnalyzeCommand.NotifyCanExecuteChanged();
             }
         }
 
         public bool IsLoadingModels
         {
             get => _isLoadingModels;
-            set
-            {
-                _isLoadingModels = value;
-                OnPropertyChanged();
-            }
+            set { _isLoadingModels = value; OnPropertyChanged(); }
         }
 
-        // ── Prompt ───────────────────────────────────────────────────────
-        public string IdeogramPrompt
+        // ── Composition: prompt ──────────────────────────────────────────
+        public string HighLevelPrompt
         {
-            get => _ideogramPrompt;
+            get => _highLevelPrompt;
             set
             {
-                _ideogramPrompt = value;
+                _highLevelPrompt = value;
                 OnPropertyChanged();
                 OnPropertyChanged(nameof(CanGenerate));
                 OnPropertyChanged(nameof(CanAddToQueue));
@@ -180,11 +196,74 @@ namespace FlipPix.UI.ViewModels
             }
         }
 
-        public string DetectedAspectRatio
+        // ── Composition: aspect ratio ────────────────────────────────────
+        public string SelectedAspectRatio
         {
-            get => _detectedAspectRatio;
-            set { _detectedAspectRatio = value; OnPropertyChanged(); }
+            get => _selectedAspectRatio;
+            private set
+            {
+                _selectedAspectRatio = value;
+                OnPropertyChanged();
+                OnPropertyChanged(nameof(IsSquare));
+                OnPropertyChanged(nameof(IsWidescreen));
+                OnPropertyChanged(nameof(IsPortrait));
+                OnPropertyChanged(nameof(CanvasWidth));
+                OnPropertyChanged(nameof(CanvasHeight));
+                OnPropertyChanged(nameof(AspectSummary));
+            }
         }
+
+        public bool IsSquare => _selectedAspectRatio == "Square";
+        public bool IsWidescreen => _selectedAspectRatio == "Widescreen";
+        public bool IsPortrait => _selectedAspectRatio == "Portrait";
+
+        // Editor canvas display size (px) for the current aspect.
+        public double CanvasWidth => _selectedAspectRatio switch
+        {
+            "Widescreen" => 344,
+            "Portrait" => 194,
+            _ => 320,
+        };
+
+        public double CanvasHeight => _selectedAspectRatio switch
+        {
+            "Widescreen" => 194,
+            "Portrait" => 344,
+            _ => 320,
+        };
+
+        // Base generation size (node 105) for the current aspect.
+        private (int W, int H) BaseSize => _selectedAspectRatio switch
+        {
+            "Widescreen" => (1024, 576),
+            "Portrait" => (576, 1024),
+            _ => (1024, 1024),
+        };
+
+        // Final 4K canvas size (node 84) = 4× base for the current aspect.
+        private (int W, int H) Size4K
+        {
+            get { var (w, h) = BaseSize; return (w * 4, h * 4); }
+        }
+
+        public string AspectSummary
+        {
+            get
+            {
+                var (bw, bh) = BaseSize;
+                var (kw, kh) = Size4K;
+                return Generate4K ? $"{bw}×{bh} → {kw}×{kh}" : $"{bw}×{bh}";
+            }
+        }
+
+        public bool Generate4K
+        {
+            get => _generate4K;
+            set { _generate4K = value; OnPropertyChanged(); OnPropertyChanged(nameof(AspectSummary)); }
+        }
+
+        public ObservableCollection<IdeogramRegion> Regions => _regions;
+        public bool HasRegions => _regions.Any();
 
         // ── Workflow state ────────────────────────────────────────────────
         public bool IsAnalyzing
@@ -266,18 +345,29 @@ namespace FlipPix.UI.ViewModels
         }
 
         // ── CanExecute ────────────────────────────────────────────────────
-        public bool CanAnalyze => HasInputImage && !string.IsNullOrWhiteSpace(SelectedLlmModel) && !IsBusy;
-        public bool CanGenerate => HasInputImage && !string.IsNullOrWhiteSpace(IdeogramPrompt) && !IsBusy;
+        // Only block on a concurrent analyze; a running generate/queue must not
+        // disable analysis (different backend, no shared live state — the queue
+        // builds from each item's stored values).
+        public bool CanAnalyze => HasInputImage && !string.IsNullOrWhiteSpace(SelectedLlmModel) && !IsAnalyzing;
+        public bool CanGenerate => !string.IsNullOrWhiteSpace(HighLevelPrompt) && !IsBusy;
+        public bool CanAddToQueue => !string.IsNullOrWhiteSpace(HighLevelPrompt);
+        public bool CanProcessQueue => _queue.Any(q => q.Status == "Pending") && !IsProcessingQueue;
 
         // ── Commands ──────────────────────────────────────────────────────
         public RelayCommand BrowseImageCommand { get; }
+        public RelayCommand BrowseAndAnalyzeCommand { get; }
         public RelayCommand LoadModelsCommand { get; }
         public RelayCommand AnalyzeCommand { get; }
         public RelayCommand GenerateCommand { get; }
         public RelayCommand OpenResultFolderCommand { get; }
         public RelayCommand OpenResultImageCommand { get; }
 
-        // Queue commands
+        public RelayCommand<string> SetAspectCommand { get; }
+        public RelayCommand AddRegionCommand { get; }
+        public RelayCommand<IdeogramRegion> RemoveRegionCommand { get; }
+        public RelayCommand ClearRegionsCommand { get; }
+        public RelayCommand<IdeogramRegion> SelectRegionCommand { get; }
+
         public RelayCommand AddToQueueCommand { get; }
         public RelayCommand<IdeogramQueueItem> RemoveFromQueueCommand { get; }
         public RelayCommand ClearQueueCommand { get; }
@@ -294,30 +384,20 @@ namespace FlipPix.UI.ViewModels
         public bool IsProcessingQueue
         {
             get => _isProcessingQueue;
-            set
-            {
-                _isProcessingQueue = value;
-                OnPropertyChanged();
-                NotifyQueueCommands();
-            }
+            set { _isProcessingQueue = value; OnPropertyChanged(); NotifyQueueCommands(); }
         }
 
         public bool IsWaitingForLease
         {
             get => _isWaitingForLease;
-            set
-            {
-                _isWaitingForLease = value;
-                OnPropertyChanged();
-            }
+            set { _isWaitingForLease = value; OnPropertyChanged(); }
         }
-
-        public bool CanAddToQueue => HasInputImage && !string.IsNullOrWhiteSpace(IdeogramPrompt);
-        public bool CanProcessQueue => _queue.Any(q => q.Status == "Pending") && !IsProcessingQueue;
 
         private void NotifyCommands()
         {
             AnalyzeCommand.NotifyCanExecuteChanged();
+            BrowseAndAnalyzeCommand.NotifyCanExecuteChanged();
+            LoadModelsCommand.NotifyCanExecuteChanged();
             GenerateCommand.NotifyCanExecuteChanged();
             AddToQueueCommand.NotifyCanExecuteChanged();
         }
@@ -327,18 +407,115 @@ namespace FlipPix.UI.ViewModels
             AddToQueueCommand.NotifyCanExecuteChanged();
             ProcessQueueCommand.NotifyCanExecuteChanged();
             CancelQueueCommand.NotifyCanExecuteChanged();
+            ClearQueueCommand.NotifyCanExecuteChanged();
             OnPropertyChanged(nameof(HasQueueItems));
             OnPropertyChanged(nameof(QueueCount));
             OnPropertyChanged(nameof(PendingQueueCount));
             OnPropertyChanged(nameof(CompletedQueueCount));
         }
 
+        // ── Aspect ratio ──────────────────────────────────────────────────
+        private void SetAspect(string? aspect)
+        {
+            if (string.IsNullOrEmpty(aspect) || aspect == _selectedAspectRatio) return;
+
+            double oldW = CanvasWidth, oldH = CanvasHeight;
+            SelectedAspectRatio = aspect;
+            double newW = CanvasWidth, newH = CanvasHeight;
+
+            // Preserve each region's relative position/size across the resized canvas.
+            if (oldW > 0 && oldH > 0)
+            {
+                double sx = newW / oldW, sy = newH / oldH;
+                foreach (var r in _regions)
+                {
+                    r.X *= sx; r.Width *= sx;
+                    r.Y *= sy; r.Height *= sy;
+                }
+            }
+        }
+
+        // ── Regions ───────────────────────────────────────────────────────
+        private void AddRegion()
+        {
+            double w = CanvasWidth * 0.4, h = CanvasHeight * 0.4;
+            var region = new IdeogramRegion
+            {
+                Width = w,
+                Height = h,
+                X = (CanvasWidth - w) / 2,
+                Y = (CanvasHeight - h) / 2,
+            };
+            _regions.Add(region);
+            ReindexRegions();
+            SelectRegion(region);
+            ClearRegionsCommand.NotifyCanExecuteChanged();
+            OnPropertyChanged(nameof(HasRegions));
+        }
+
+        private void RemoveRegion(IdeogramRegion? region)
+        {
+            if (region == null) return;
+            _regions.Remove(region);
+            ReindexRegions();
+            ClearRegionsCommand.NotifyCanExecuteChanged();
+            OnPropertyChanged(nameof(HasRegions));
+        }
+
+        private void ClearRegions()
+        {
+            _regions.Clear();
+            ClearRegionsCommand.NotifyCanExecuteChanged();
+            OnPropertyChanged(nameof(HasRegions));
+        }
+
+        private void SelectRegion(IdeogramRegion? region)
+        {
+            foreach (var r in _regions)
+                r.IsSelected = ReferenceEquals(r, region);
+        }
+
+        /// <summary>
+        /// Sets region 1's description from an analyzed prompt, creating a
+        /// full-frame region 1 if none exist yet.
+        /// </summary>
+        private void PopulateRegionOne(string desc)
+        {
+            if (_regions.Count == 0)
+            {
+                var region = new IdeogramRegion
+                {
+                    X = 0,
+                    Y = 0,
+                    Width = CanvasWidth,
+                    Height = CanvasHeight,
+                    Description = desc,
+                };
+                _regions.Add(region);
+                ReindexRegions();
+                SelectRegion(region);
+                ClearRegionsCommand.NotifyCanExecuteChanged();
+                OnPropertyChanged(nameof(HasRegions));
+            }
+            else
+            {
+                _regions[0].Description = desc;
+            }
+        }
+
+        private void ReindexRegions()
+        {
+            for (int i = 0; i < _regions.Count; i++)
+                _regions[i].Index = i + 1;
+        }
+
         // ── Browse ────────────────────────────────────────────────────────
         private async Task BrowseImageAsync()
         {
             var path = await _fileDialogService.OpenFileDialogAsync(
-                "Select Image",
-                "Image Files|*.png;*.jpg;*.jpeg;*.bmp;*.webp");
+                "Select Reference Image",
+                "Image Files|*.png;*.jpg;*.jpeg;*.bmp;*.webp",
+                persistKey: "ideogram.image");
             if (!string.IsNullOrEmpty(path))
                 SetInputImage(path);
         }
@@ -349,12 +526,33 @@ namespace FlipPix.UI.ViewModels
             InputImagePath = path;
             try
             {
-                var bmp = LoadBitmap(path);
-                InputImageSource = bmp;
+                InputImageSource = LoadBitmap(path);
                 HasInputImage = true;
-                AddLog($"Image: {Path.GetFileName(path)}");
+                AddLog($"Reference image: {Path.GetFileName(path)}");
             }
             catch (Exception ex) { AddLog($"ERROR loading image: {ex.Message}"); }
+        }
+
+        /// <summary>
+        /// Browse for a reference image and immediately analyze it so the
+        /// high-level prompt (and region 1) are populated in one step.
+        /// </summary>
+        private async Task BrowseAndAnalyzeAsync()
+        {
+            var path = await _fileDialogService.OpenFileDialogAsync(
+                "Select Reference Image",
+                "Image Files|*.png;*.jpg;*.jpeg;*.bmp;*.webp",
+                persistKey: "ideogram.image");
+            if (string.IsNullOrEmpty(path)) return;
+            SetInputImage(path);
+
+            if (string.IsNullOrWhiteSpace(SelectedLlmModel))
+            {
+                StatusMessage = "Pick an LLM model, then click Analyze";
+                AddLog("No LLM model selected — image loaded but not analyzed");
+                return;
+            }
+            await AnalyzeAsync();
         }
 
         // ── Load Models ───────────────────────────────────────────────────
@@ -366,11 +564,11 @@ namespace FlipPix.UI.ViewModels
                 var models = await _lmStudioService.GetAvailableModelsAsync();
                 WpfApp.Current?.Dispatcher.Invoke(() =>
                 {
-                    AvailableModels.Clear();
+                    _availableModels.Clear();
                     foreach (var m in models)
-                        AvailableModels.Add(m.Id);
-                    if (string.IsNullOrEmpty(SelectedLlmModel) && AvailableModels.Any())
-                        SelectedLlmModel = AvailableModels[0];
+                        _availableModels.Add(m.Id);
+                    if (string.IsNullOrEmpty(SelectedLlmModel) && _availableModels.Any())
+                        SelectedLlmModel = _availableModels[0];
                 });
                 AddLog($"Loaded {models.Count} LLM models");
             }
@@ -388,17 +586,16 @@ namespace FlipPix.UI.ViewModels
         private async Task AnalyzeAsync()
         {
             if (!CanAnalyze) return;
-            _cts?.Dispose();
-            _cts = CancellationTokenSource.CreateLinkedTokenSource(App.ShutdownToken);
+            _analyzeCts?.Dispose();
+            _analyzeCts = CancellationTokenSource.CreateLinkedTokenSource(App.ShutdownToken);
 
             try
             {
                 IsAnalyzing = true;
-                Progress = 0;
+                SetAnalyzeProgress(0);
                 StatusMessage = "Loading system prompt...";
                 AddLog("=== Analyze ===");
 
-                // Load system prompt
                 var promptPath = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, PromptFile);
                 if (!File.Exists(promptPath))
                 {
@@ -406,10 +603,9 @@ namespace FlipPix.UI.ViewModels
                     StatusMessage = "Error: System prompt file not found";
                     return;
                 }
-                var systemPrompt = await File.ReadAllTextAsync(promptPath, _cts.Token);
-                AddLog($"System prompt loaded ({systemPrompt.Length} chars)");
+                var systemPrompt = await File.ReadAllTextAsync(promptPath, _analyzeCts.Token);
 
-                Progress = 10;
+                SetAnalyzeProgress(10);
                 StatusMessage = "Sending image to LLM...";
                 AddLog($"Using model: {SelectedLlmModel}");
 
@@ -418,40 +614,38 @@ namespace FlipPix.UI.ViewModels
                     InputImagePath,
                     "Analyze this image and generate an Ideogram v4 prompt.",
                     systemPrompt,
-                    cancellationToken: _cts.Token);
+                    cancellationToken: _analyzeCts.Token);
 
-                Progress = 60;
+                SetAnalyzeProgress(60);
                 StatusMessage = "Parsing LLM response...";
-                AddLog($"LLM response ({result.Length} chars)");
 
-                // Parse JSON response
                 var parsed = ParseIdeogramResponse(result);
-                if (parsed != null)
+                WpfApp.Current?.Dispatcher.Invoke(() =>
                 {
-                    WpfApp.Current?.Dispatcher.Invoke(() =>
+                    if (parsed != null)
                     {
-                        IdeogramPrompt = parsed.Value.Prompt;
-                        DetectedAspectRatio = parsed.Value.AspectRatio;
-                    });
-                    AddLog($"Prompt: {parsed.Value.Prompt.Substring(0, Math.Min(200, parsed.Value.Prompt.Length))}...");
-                    AddLog($"Aspect ratio: {parsed.Value.AspectRatio}");
-                    StatusMessage = "Prompt ready — edit if needed, then click Generate";
-                }
-                else
-                {
-                    // If JSON parsing fails, use raw response as prompt
-                    WpfApp.Current?.Dispatcher.Invoke(() => IdeogramPrompt = result);
-                    AddLog("WARNING: Could not parse JSON, using raw response as prompt");
-                    StatusMessage = "Raw prompt loaded — edit if needed, then click Generate";
-                }
+                        HighLevelPrompt = parsed.Value.Prompt;
+                        SelectedAspectRatio = MapAspect(parsed.Value.AspectRatio);
+                        PopulateRegionOne(parsed.Value.Prompt);
+                        AddLog($"Aspect ratio: {parsed.Value.AspectRatio} → {SelectedAspectRatio}");
+                        StatusMessage = "Prompt ready — adjust regions if needed, then Generate";
+                    }
+                    else
+                    {
+                        HighLevelPrompt = result;
+                        PopulateRegionOne(result);
+                        AddLog("WARNING: Could not parse JSON, using raw response as prompt");
+                        StatusMessage = "Raw prompt loaded — edit if needed, then Generate";
+                    }
+                });
 
-                Progress = 100;
+                SetAnalyzeProgress(100);
             }
             catch (OperationCanceledException)
             {
                 StatusMessage = "Cancelled";
                 AddLog("Cancelled");
-                Progress = 0;
+                SetAnalyzeProgress(0);
             }
             catch (Exception ex)
             {
@@ -466,6 +660,14 @@ namespace FlipPix.UI.ViewModels
             }
         }
 
+        // Analyze shares the Progress bar with generation. When a generate/queue
+        // is running, leave its progress untouched so analyzing a new image
+        // doesn't reset or flicker the generation progress.
+        private void SetAnalyzeProgress(double value)
+        {
+            if (!IsGenerating) Progress = value;
+        }
+
         // ── Generate ──────────────────────────────────────────────────────
         private async Task GenerateAsync()
         {
@@ -477,10 +679,14 @@ namespace FlipPix.UI.ViewModels
             {
                 IsGenerating = true;
                 Progress = 0;
-                StatusMessage = "Connecting to ComfyUI...";
                 AddLog("=== Generate ===");
-                AddLog($"Prompt: {IdeogramPrompt}");
 
+                // Serialize against the queue (and other tabs) so a manual generate
+                // never double-submits to ComfyUI alongside a running queue item.
+                StatusMessage = "Waiting for other workflows to finish...";
+                using var lease = await _workflowCoordinator.AcquireAsync("Ideogram", _cts.Token);
+
+                StatusMessage = "Connecting to ComfyUI...";
                 if (!_comfyUIService.IsConnected)
                 {
                     await _comfyUIService.ConnectAsync(_cts.Token);
@@ -489,21 +695,9 @@ namespace FlipPix.UI.ViewModels
 
                 Progress = 8;
                 StatusMessage = "Building workflow...";
-
                 var workflow = BuildWorkflow();
 
-                var progressReporter = new Progress<FlipPix.ComfyUI.Models.ProgressMessage>(msg =>
-                {
-                    if (msg.Data?.Value != null && msg.Data?.Max != null && msg.Data.Max > 0)
-                    {
-                        var pct = (double)msg.Data.Value / msg.Data.Max * 100;
-                        WpfApp.Current?.Dispatcher.Invoke(() =>
-                        {
-                            Progress = 18 + pct * 0.74;
-                            StatusMessage = $"Generating: {msg.Data.Value}/{msg.Data.Max}";
-                        });
-                    }
-                });
+                var progressReporter = MakeProgressReporter(null);
 
                 StatusMessage = "Running ComfyUI...";
                 var promptId = await _comfyUIService.ExecuteWorkflowAsync(workflow, progressReporter, _cts.Token);
@@ -511,7 +705,7 @@ namespace FlipPix.UI.ViewModels
 
                 Progress = 94;
                 StatusMessage = "Retrieving image...";
-                var bytes = await RetrieveOutputImageAsync(promptId, _cts.Token);
+                var bytes = await RetrieveOutputImageAsync(promptId, Generate4K ? Prefix4K : BasePrefix, _cts.Token);
                 if (bytes != null)
                 {
                     await SaveAndDisplayResultAsync(bytes, _cts.Token);
@@ -543,6 +737,29 @@ namespace FlipPix.UI.ViewModels
             }
         }
 
+        private Progress<FlipPix.ComfyUI.Models.ProgressMessage> MakeProgressReporter(IdeogramQueueItem? queueItem)
+            => new(msg =>
+            {
+                if (msg.Data?.Value != null && msg.Data?.Max != null && msg.Data.Max > 0)
+                {
+                    var pct = (double)msg.Data.Value / msg.Data.Max * 100;
+                    WpfApp.Current?.Dispatcher.Invoke(() =>
+                    {
+                        Progress = 18 + pct * 0.74;
+                        StatusMessage = $"Generating: {msg.Data.Value}/{msg.Data.Max}";
+                        if (queueItem != null) queueItem.Progress = Progress;
+                    });
+
+                    // Heartbeat to the log so a slow remote generation is visibly alive
+                    // (otherwise the log is silent for minutes and looks frozen).
+                    if ((DateTime.Now - _lastProgressLog).TotalSeconds >= 15)
+                    {
+                        _lastProgressLog = DateTime.Now;
+                        AddLog($"Generating: {msg.Data.Value}/{msg.Data.Max} ({pct:F0}%)");
+                    }
+                }
+            });
+
         // ── Workflow building ─────────────────────────────────────────────
         private JsonElement BuildWorkflow()
         {
@@ -553,57 +770,97 @@ namespace FlipPix.UI.ViewModels
             var dict = JsonSerializer.Deserialize<Dictionary<string, JsonElement>>(File.ReadAllText(workflowPath))
                 ?? throw new InvalidOperationException("Failed to parse workflow JSON");
 
-            var seed = new Random().NextInt64(0, 999_999_999_999_999L);
+            var rng = new Random();
+            var (baseW, baseH) = BaseSize;
+            var elementsJson = BuildElementsJson();
 
-            // Node 197: Seed (rgthree) — set random seed
-            UpdateNode(dict, "197", inputs => inputs["seed"] = seed);
+            // Node 4 / 75 — fresh random seeds for the base and 4K samplers.
+            UpdateNode(dict, "4", inputs => inputs["noise_seed"] = rng.NextInt64(0, 999_999_999_999_999L));
+            UpdateNode(dict, "75", inputs => inputs["noise_seed"] = rng.NextInt64(0, 999_999_999_999_999L));
 
-            // Node 191: FluxResolutionNode — set aspect ratio via custom_ratio mode
-            // Use custom_ratio so any aspect ratio from the LLM works without needing exact preset strings
-            var ratio = SanitizeAspectRatio(DetectedAspectRatio);
-            UpdateNode(dict, "191", inputs =>
+            // Node 105 — Ideogram4PromptBuilderKJ: prompt + regions + base resolution.
+            UpdateNode(dict, "105", inputs =>
             {
-                inputs["custom_ratio"] = true;
-                inputs["custom_aspect_ratio"] = ratio;
+                inputs["high_level_description"] = HighLevelPrompt;
+                inputs["width"] = baseW;
+                inputs["height"] = baseH;
+                inputs["elements_data"] = elementsJson;
             });
 
-            // Node 185: Ideogram4PromptBuilderKJ — set the enhanced prompt in both places:
-            // 1. high_level_description (top input box)
-            // 2. regions_json with a full-frame region containing the prompt as desc
-            var escapedPrompt = IdeogramPrompt.Replace("\\", "\\\\").Replace("\"", "\\\"").Replace("\n", "\\n").Replace("\r", "\\r");
-            var regionJson = $"[{{\"x\":0.0,\"y\":0.0,\"w\":1.0,\"h\":1.0,\"type\":\"obj\",\"text\":\"\",\"desc\":\"{escapedPrompt}\",\"palette\":[]}}]";
-            UpdateNode(dict, "185", inputs =>
+            if (Generate4K)
             {
-                inputs["high_level_description"] = IdeogramPrompt;
-                inputs["regions_json"] = regionJson;
-            });
-
-            // Add a SaveImage node so the output is retrievable from history.
-            // The workflow's PreviewImage (node 202) doesn't register in /history for file retrieval.
-            // SaveImage takes VAEDecode output (node 162, output 0 = IMAGE).
-            var saveNode = new Dictionary<string, object>
-            {
-                ["class_type"] = "SaveImage",
-                ["inputs"] = new Dictionary<string, object>
+                // Node 84 — EmptyChromaRadianceLatentImage: final 4K canvas (= 4× base).
+                var (w4k, h4k) = Size4K;
+                UpdateNode(dict, "84", inputs =>
                 {
-                    ["images"] = new object[] { "162", 0 },
-                    ["filename_prefix"] = SavePrefix
-                },
-                ["_meta"] = new Dictionary<string, object?> { ["title"] = "Save Ideogram Image" }
-            };
-            dict["210"] = JsonSerializer.SerializeToElement(saveNode);
+                    inputs["width"] = w4k;
+                    inputs["height"] = h4k;
+                });
+                AddLog($"Base {baseW}×{baseH} → 4K {w4k}×{h4k}");
+            }
+            else
+            {
+                // No upscale: drop the PiD path so ComfyUI only renders the base image.
+                foreach (var id in PiD4KNodeIds)
+                    dict.Remove(id);
+                AddLog($"Base only: {baseW}×{baseH}");
+            }
 
             return JsonSerializer.SerializeToElement(dict);
         }
 
-        private static string SanitizeAspectRatio(string aspectRatio)
+        /// <summary>
+        /// Normalized elements_data for node 105. Each region's pixel rect is divided
+        /// by the editor canvas size. With no regions, a single full-frame region
+        /// carries the high-level prompt (matching the workflow's default).
+        /// </summary>
+        private string BuildElementsJson()
         {
-            // Ensure the ratio is in W:H format (e.g. "16:9", "1:1", "4:3")
-            var r = (aspectRatio ?? "1:1").Trim();
-            if (!System.Text.RegularExpressions.Regex.IsMatch(r, @"^\d+:\d+$"))
-                r = "1:1";
-            return r;
+            var elements = new List<Dictionary<string, object>>();
+
+            if (_regions.Any())
+            {
+                double cw = CanvasWidth, ch = CanvasHeight;
+                foreach (var r in _regions)
+                {
+                    double x = Clamp01(r.X / cw);
+                    double y = Clamp01(r.Y / ch);
+                    double w = Clamp01(r.Width / cw);
+                    double h = Clamp01(r.Height / ch);
+                    if (x + w > 1) w = 1 - x;
+                    if (y + h > 1) h = 1 - y;
+                    elements.Add(new Dictionary<string, object>
+                    {
+                        ["x"] = x,
+                        ["y"] = y,
+                        ["w"] = w,
+                        ["h"] = h,
+                        ["type"] = "obj",
+                        ["text"] = "",
+                        ["desc"] = string.IsNullOrWhiteSpace(r.Description) ? HighLevelPrompt : r.Description,
+                        ["palette"] = Array.Empty<object>(),
+                    });
+                }
+            }
+            else
+            {
+                elements.Add(new Dictionary<string, object>
+                {
+                    ["x"] = 0.0,
+                    ["y"] = 0.0,
+                    ["w"] = 1.0,
+                    ["h"] = 1.0,
+                    ["type"] = "obj",
+                    ["text"] = "",
+                    ["desc"] = HighLevelPrompt,
+                    ["palette"] = Array.Empty<object>(),
+                });
+            }
+
+            return JsonSerializer.Serialize(elements);
         }
+
+        private static double Clamp01(double v) => v < 0 ? 0 : v > 1 ? 1 : v;
 
         private static void UpdateNode(
             Dictionary<string, JsonElement> dict,
@@ -620,8 +877,21 @@ namespace FlipPix.UI.ViewModels
             dict[nodeId] = JsonSerializer.SerializeToElement(node);
         }
 
-        // ── Queue Management ─────────────────────────────────────────────
+        // ── Aspect helpers ────────────────────────────────────────────────
+        private static string MapAspect(string aspectRatio)
+        {
+            var r = (aspectRatio ?? "1:1").Trim();
+            var m = System.Text.RegularExpressions.Regex.Match(r, @"^(\d+)\s*:\s*(\d+)$");
+            if (!m.Success) return "Square";
+            if (!double.TryParse(m.Groups[1].Value, out var w) || !double.TryParse(m.Groups[2].Value, out var h) || h == 0)
+                return "Square";
+            var ratio = w / h;
+            if (ratio > 1.15) return "Widescreen";
+            if (ratio < 0.87) return "Portrait";
+            return "Square";
+        }
 
+        // ── Queue Management ─────────────────────────────────────────────
         private string QueueFilePath => Path.Combine(
             Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData),
             "FlipPix", "queue", "ideogram_queue.json");
@@ -633,15 +903,16 @@ namespace FlipPix.UI.ViewModels
             var queueItem = new IdeogramQueueItem
             {
                 InputImagePath = InputImagePath,
-                Prompt = IdeogramPrompt,
-                AspectRatio = DetectedAspectRatio,
+                Prompt = HighLevelPrompt,
+                RegionsJson = BuildElementsJson(),
+                AspectRatio = SelectedAspectRatio,
+                Generate4K = Generate4K,
                 LlmModel = SelectedLlmModel
             };
             _queue.Add(queueItem);
             NotifyQueueCommands();
             AddLog($"Added to queue: {queueItem.DisplayPrompt}");
 
-            // Auto-start if not already running
             if (!IsProcessingQueue && _queue.Any(q => q.Status == "Pending"))
                 _ = ProcessQueueAsync();
         }
@@ -724,7 +995,6 @@ namespace FlipPix.UI.ViewModels
                             OnPropertyChanged(nameof(PendingQueueCount));
 
                             AddLog($"Processing: {queueItem.DisplayPrompt}");
-
                             await ProcessQueueItemAsync(queueItem);
 
                             queueItem.Status = "Completed";
@@ -773,23 +1043,22 @@ namespace FlipPix.UI.ViewModels
 
         private async Task ProcessQueueItemAsync(IdeogramQueueItem queueItem)
         {
-            _cts?.Dispose();
-            _cts = _queueCts != null
+            // Scope the token to this item so we never dispose a CancellationTokenSource
+            // that a concurrent manual Generate/Analyze still owns via _cts. Cancellation
+            // still flows in through _queueCts (CancelQueue cancels it).
+            using var itemCts = _queueCts != null
                 ? CancellationTokenSource.CreateLinkedTokenSource(App.ShutdownToken, _queueCts.Token)
                 : CancellationTokenSource.CreateLinkedTokenSource(App.ShutdownToken);
-            var token = _cts.Token;
+            var token = itemCts.Token;
 
             try
             {
                 IsGenerating = true;
 
-                // Apply queue item settings
-                IdeogramPrompt = queueItem.Prompt;
-                DetectedAspectRatio = queueItem.AspectRatio;
-
-                // Load input image if different
-                if (!string.IsNullOrEmpty(queueItem.InputImagePath) && File.Exists(queueItem.InputImagePath))
-                    SetInputImage(queueItem.InputImagePath);
+                // Apply queue item settings into the live composition state.
+                HighLevelPrompt = queueItem.Prompt;
+                SelectedAspectRatio = queueItem.AspectRatio;
+                Generate4K = queueItem.Generate4K;
 
                 Progress = 0;
                 StatusMessage = "Connecting to ComfyUI...";
@@ -802,22 +1071,9 @@ namespace FlipPix.UI.ViewModels
 
                 Progress = 8;
                 StatusMessage = "Building workflow...";
+                var workflow = BuildQueuedWorkflow(queueItem);
 
-                var workflow = BuildWorkflow();
-
-                var progressReporter = new Progress<FlipPix.ComfyUI.Models.ProgressMessage>(msg =>
-                {
-                    if (msg.Data?.Value != null && msg.Data?.Max != null && msg.Data.Max > 0)
-                    {
-                        var pct = (double)msg.Data.Value / msg.Data.Max * 100;
-                        WpfApp.Current?.Dispatcher.Invoke(() =>
-                        {
-                            Progress = 18 + pct * 0.74;
-                            StatusMessage = $"Generating: {msg.Data.Value}/{msg.Data.Max}";
-                            queueItem.Progress = Progress;
-                        });
-                    }
-                });
+                var progressReporter = MakeProgressReporter(queueItem);
 
                 StatusMessage = "Running ComfyUI...";
                 var promptId = await _comfyUIService.ExecuteWorkflowAsync(workflow, progressReporter, token);
@@ -825,13 +1081,10 @@ namespace FlipPix.UI.ViewModels
 
                 Progress = 94;
                 StatusMessage = "Retrieving image...";
-                var bytes = await RetrieveOutputImageAsync(promptId, token);
+                var bytes = await RetrieveOutputImageAsync(promptId, queueItem.Generate4K ? Prefix4K : BasePrefix, token);
                 if (bytes != null)
                 {
-                    var outputDir = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "output", "ideogram");
-                    Directory.CreateDirectory(outputDir);
-                    var path = Path.Combine(outputDir, $"ideogram4_{DateTime.Now:yyyyMMdd_HHmmss}.png");
-                    await File.WriteAllBytesAsync(path, bytes, token);
+                    var path = await WriteOutputAsync(bytes, token);
                     ResultImagePath = path;
                     WpfApp.Current?.Dispatcher.Invoke(() => LoadResultImage(path));
                     HasResult = true;
@@ -851,6 +1104,59 @@ namespace FlipPix.UI.ViewModels
                 IsGenerating = false;
             }
         }
+
+        /// <summary>
+        /// Builds the workflow from a queued item's stored settings (regions are
+        /// taken from the item's RegionsJson rather than the live canvas).
+        /// </summary>
+        private JsonElement BuildQueuedWorkflow(IdeogramQueueItem queueItem)
+        {
+            var workflowPath = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, WorkflowFile);
+            if (!File.Exists(workflowPath))
+                throw new FileNotFoundException($"Workflow not found: {workflowPath}");
+
+            var dict = JsonSerializer.Deserialize<Dictionary<string, JsonElement>>(File.ReadAllText(workflowPath))
+                ?? throw new InvalidOperationException("Failed to parse workflow JSON");
+
+            var rng = new Random();
+            var (baseW, baseH) = AspectToBaseSize(queueItem.AspectRatio);
+            var elementsJson = string.IsNullOrWhiteSpace(queueItem.RegionsJson)
+                ? BuildElementsJson()
+                : queueItem.RegionsJson;
+
+            UpdateNode(dict, "4", inputs => inputs["noise_seed"] = rng.NextInt64(0, 999_999_999_999_999L));
+            UpdateNode(dict, "75", inputs => inputs["noise_seed"] = rng.NextInt64(0, 999_999_999_999_999L));
+            UpdateNode(dict, "105", inputs =>
+            {
+                inputs["high_level_description"] = queueItem.Prompt;
+                inputs["width"] = baseW;
+                inputs["height"] = baseH;
+                inputs["elements_data"] = elementsJson;
+            });
+
+            if (queueItem.Generate4K)
+            {
+                UpdateNode(dict, "84", inputs =>
+                {
+                    inputs["width"] = baseW * 4;
+                    inputs["height"] = baseH * 4;
+                });
+            }
+            else
+            {
+                foreach (var id in PiD4KNodeIds)
+                    dict.Remove(id);
+            }
+
+            return JsonSerializer.SerializeToElement(dict);
+        }
+
+        private static (int W, int H) AspectToBaseSize(string aspect) => aspect switch
+        {
+            "Widescreen" => (1024, 576),
+            "Portrait" => (576, 1024),
+            _ => (1024, 1024),
+        };
 
         private void SaveQueueToFile()
         {
@@ -897,7 +1203,6 @@ namespace FlipPix.UI.ViewModels
         {
             try
             {
-                // Strip markdown code fences if present
                 var json = response.Trim();
                 if (json.StartsWith("```"))
                 {
@@ -915,7 +1220,6 @@ namespace FlipPix.UI.ViewModels
                 var prompt = root.TryGetProperty("ideogram_prompt", out var promptEl)
                     ? promptEl.GetString() ?? ""
                     : "";
-
                 var aspectRatio = root.TryGetProperty("aspect_ratio", out var arEl)
                     ? arEl.GetString() ?? "1:1"
                     : "1:1";
@@ -931,7 +1235,7 @@ namespace FlipPix.UI.ViewModels
         }
 
         // ── Output image retrieval ────────────────────────────────────────
-        private async Task<byte[]?> RetrieveOutputImageAsync(string promptId, CancellationToken token)
+        private async Task<byte[]?> RetrieveOutputImageAsync(string promptId, string savePrefix, CancellationToken token)
         {
             var baseUrl = _settingsService.Settings?.BaseUrl ?? "http://127.0.0.1:8188";
             Uri uri;
@@ -939,7 +1243,7 @@ namespace FlipPix.UI.ViewModels
             bool isRemote = !string.Equals(uri.Host, "127.0.0.1", StringComparison.OrdinalIgnoreCase)
                          && !string.Equals(uri.Host, "localhost", StringComparison.OrdinalIgnoreCase);
 
-            const int maxRetries = 20;
+            const int maxRetries = 30;
             const int retryDelayMs = 5000;
 
             if (isRemote)
@@ -949,68 +1253,69 @@ namespace FlipPix.UI.ViewModels
                     if (i > 0) { AddLog($"Retry {i}/{maxRetries}..."); await Task.Delay(retryDelayMs, token); }
                     token.ThrowIfCancellationRequested();
                     var files = await _comfyUIService.HttpClient.GetOutputFilesForPromptAsync(promptId);
-                    AddLog($"History: {files.Count} file(s)");
-
-                    // Log filenames on first attempt to help debug
                     if (i == 0)
                         foreach (var f in files)
                             AddLog($"  file: {f}");
 
-                    // Try prefix match first, then fall back to any non-temp image
                     var imgFile = files.FirstOrDefault(f =>
-                        Path.GetFileName(f).StartsWith(SavePrefix, StringComparison.OrdinalIgnoreCase) && IsImageExt(f));
+                        Path.GetFileName(f).StartsWith(savePrefix, StringComparison.OrdinalIgnoreCase) && IsImageExt(f));
                     imgFile ??= files.FirstOrDefault(f =>
                         IsImageExt(f) && !Path.GetFileName(f).StartsWith("ComfyUI_temp_", StringComparison.OrdinalIgnoreCase));
-                    // Last resort: any image file at all
-                    imgFile ??= files.FirstOrDefault(f => IsImageExt(f));
+                    imgFile ??= files.FirstOrDefault(IsImageExt);
 
                     if (imgFile != null)
                     {
                         AddLog($"Downloading: {imgFile}");
                         var data = await _comfyUIService.HttpClient.DownloadOutputImageAsync(imgFile);
                         if (data != null) { AddLog($"Downloaded {data.Length} bytes"); return data; }
-                        else { AddLog($"Download returned null for: {imgFile}"); }
                     }
                 }
                 return null;
             }
-            else
-            {
-                var outputDir = _settingsService.Settings?.OutputFolderPath;
-                if (string.IsNullOrEmpty(outputDir)) { AddLog("ERROR: Output folder not configured"); return null; }
-                for (int i = 0; i < maxRetries; i++)
-                {
-                    if (i > 0) { AddLog($"Retry {i}/{maxRetries}..."); await Task.Delay(retryDelayMs, token); }
-                    token.ThrowIfCancellationRequested();
 
-                    // Search for any recently created image in the output folder
-                    var files = Directory.GetFiles(outputDir, "*.png", SearchOption.AllDirectories)
+            var outputDir = _settingsService.Settings?.OutputFolderPath;
+            if (string.IsNullOrEmpty(outputDir)) { AddLog("ERROR: Output folder not configured"); return null; }
+            for (int i = 0; i < maxRetries; i++)
+            {
+                if (i > 0) { AddLog($"Retry {i}/{maxRetries}..."); await Task.Delay(retryDelayMs, token); }
+                token.ThrowIfCancellationRequested();
+
+                var files = Directory.GetFiles(outputDir, $"{savePrefix}*.png", SearchOption.AllDirectories)
+                    .Where(f => !Path.GetFileName(f).StartsWith("ComfyUI_temp_", StringComparison.OrdinalIgnoreCase))
+                    .OrderByDescending(File.GetLastWriteTime).ToList();
+                if (!files.Any())
+                    files = Directory.GetFiles(outputDir, "*.png", SearchOption.AllDirectories)
                         .Where(f => !Path.GetFileName(f).StartsWith("ComfyUI_temp_", StringComparison.OrdinalIgnoreCase))
                         .OrderByDescending(File.GetLastWriteTime).ToList();
 
-                    if (files.Any())
-                    {
-                        var latest = files[0];
-                        var age = DateTime.Now - File.GetLastWriteTime(latest);
-                        AddLog($"Found: {Path.GetFileName(latest)} ({age.TotalSeconds:F0}s old)");
-                        if (age.TotalSeconds < 120) return await File.ReadAllBytesAsync(latest, token);
-                    }
+                if (files.Any())
+                {
+                    var latest = files[0];
+                    var age = DateTime.Now - File.GetLastWriteTime(latest);
+                    AddLog($"Found: {Path.GetFileName(latest)} ({age.TotalSeconds:F0}s old)");
+                    if (age.TotalSeconds < 180) return await File.ReadAllBytesAsync(latest, token);
                 }
-                return null;
             }
+            return null;
         }
 
         // ── Helpers ───────────────────────────────────────────────────────
         private async Task SaveAndDisplayResultAsync(byte[] bytes, CancellationToken token)
         {
-            var outputDir = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "output", "ideogram");
-            Directory.CreateDirectory(outputDir);
-            var path = Path.Combine(outputDir, $"ideogram4_{DateTime.Now:yyyyMMdd_HHmmss}.png");
-            await File.WriteAllBytesAsync(path, bytes, token);
+            var path = await WriteOutputAsync(bytes, token);
             ResultImagePath = path;
             WpfApp.Current?.Dispatcher.Invoke(() => LoadResultImage(path));
             HasResult = true;
             AddLog($"Saved: {path}");
+        }
+
+        private async Task<string> WriteOutputAsync(byte[] bytes, CancellationToken token)
+        {
+            var outputDir = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "output", "ideogram");
+            Directory.CreateDirectory(outputDir);
+            var path = Path.Combine(outputDir, $"ideogram4_{DateTime.Now:yyyyMMdd_HHmmss}.png");
+            await File.WriteAllBytesAsync(path, bytes, token);
+            return path;
         }
 
         private void LoadResultImage(string path)

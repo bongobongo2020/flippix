@@ -1481,6 +1481,63 @@ namespace FlipPix.UI.Linux.ViewModels
                 }
             }
 
+            // Z Turbo PiT Nvidia 4k workflow latents:
+            //   Node 68 (EmptySD3LatentImage)        — base/guidance latent feeding KSampler 70
+            //   Node 84 (EmptyChromaRadianceLatentImage) — 4K canvas feeding SamplerCustom 75
+            // Both are hardcoded square in the source workflow, so aspect ratio was never applied.
+            // Node 84 must stay exactly 4× node 68 to preserve the PiD guidance scale relationship.
+            {
+                var pitBaseResolutions = new[]
+                {
+                    (1280, 720),   // Landscape (16:9)
+                    (720, 1280),   // Portrait
+                    (1024, 1024),  // Square
+                };
+                var (wBase, hBase) = pitBaseResolutions[Math.Min(AspectRatioIndex, pitBaseResolutions.Length - 1)];
+
+                // Node 68: base latent
+                if (workflowDict.ContainsKey("68") &&
+                    workflowDict["68"].TryGetProperty("class_type", out var node68Class) &&
+                    node68Class.GetString() == "EmptySD3LatentImage")
+                {
+                    var node68 = JsonSerializer.Deserialize<Dictionary<string, object>>(workflowDict["68"].GetRawText());
+                    if (node68 != null && node68.ContainsKey("inputs"))
+                    {
+                        var inputs = JsonSerializer.Deserialize<Dictionary<string, object>>(
+                            JsonSerializer.Serialize(node68["inputs"]));
+                        if (inputs != null)
+                        {
+                            inputs["width"] = wBase;
+                            inputs["height"] = hBase;
+                            node68["inputs"] = inputs;
+                            workflowDict["68"] = JsonSerializer.SerializeToElement(node68);
+                            AddLog($"Updated node 68 (EmptySD3LatentImage) resolution: {wBase}x{hBase}");
+                        }
+                    }
+                }
+
+                // Node 84: 4K canvas (4× base)
+                if (workflowDict.ContainsKey("84") &&
+                    workflowDict["84"].TryGetProperty("class_type", out var node84Class) &&
+                    node84Class.GetString() == "EmptyChromaRadianceLatentImage")
+                {
+                    var node84 = JsonSerializer.Deserialize<Dictionary<string, object>>(workflowDict["84"].GetRawText());
+                    if (node84 != null && node84.ContainsKey("inputs"))
+                    {
+                        var inputs = JsonSerializer.Deserialize<Dictionary<string, object>>(
+                            JsonSerializer.Serialize(node84["inputs"]));
+                        if (inputs != null)
+                        {
+                            inputs["width"] = wBase * 4;
+                            inputs["height"] = hBase * 4;
+                            node84["inputs"] = inputs;
+                            workflowDict["84"] = JsonSerializer.SerializeToElement(node84);
+                            AddLog($"Updated node 84 (EmptyChromaRadianceLatentImage) resolution: {wBase * 4}x{hBase * 4}");
+                        }
+                    }
+                }
+            }
+
             // Node 9: SaveImage — update filename_prefix date so output lands in today's folder
             if (workflowDict.ContainsKey("9"))
             {

@@ -212,7 +212,8 @@ namespace FlipPix.UI.ViewModels.Video
             var filePath = await _fileDialogService.OpenFileDialogAsync(
                 "Select Reference Image",
                 "Image Files|*.jpg;*.jpeg;*.png;*.bmp|All Files|*.*",
-                initialDirectory);
+                initialDirectory,
+                persistKey: "wan22single.image");
 
             if (filePath != null)
             {

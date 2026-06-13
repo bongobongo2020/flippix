@@ -280,7 +280,8 @@ namespace FlipPix.UI.ViewModels.Video
             var filePath = await _fileDialogService.OpenFileDialogAsync(
                 "Select Reference Image",
                 "Image Files|*.jpg;*.jpeg;*.png;*.bmp|All Files|*.*",
-                initialDirectory);
+                initialDirectory,
+                persistKey: "ltx23basic.image");
 
             if (filePath != null)
             {

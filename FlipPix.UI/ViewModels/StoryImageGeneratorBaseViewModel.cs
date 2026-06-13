@@ -409,7 +409,8 @@ namespace FlipPix.UI.ViewModels
             var selectedFile = await _fileDialogService.OpenFileDialogAsync(
                 "Select Story Prompts JSON File",
                 "JSON Files (*.json)|*.json|All Files (*.*)|*.*",
-                initialDirectory);
+                initialDirectory,
+                persistKey: "storyimage.prompts-json");
 
             if (!string.IsNullOrEmpty(selectedFile))
             {
@@ -437,7 +438,8 @@ namespace FlipPix.UI.ViewModels
             var selectedFile = await _fileDialogService.OpenFileDialogAsync(
                 "Select Input Image",
                 "Image Files (*.jpg;*.jpeg;*.png;*.bmp)|*.jpg;*.jpeg;*.png;*.bmp|All Files (*.*)|*.*",
-                initialDirectory);
+                initialDirectory,
+                persistKey: "storyimage.input-image");
 
             if (!string.IsNullOrEmpty(selectedFile))
             {

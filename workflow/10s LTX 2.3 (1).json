@@ -130,7 +130,7 @@
   "529": {
     "inputs": {
       "resize_type": "scale total pixels",
-      "resize_type.megapixels": 1,
+      "resize_type.megapixels": 0.5,
       "scale_method": "lanczos",
       "input": [
         "763",
@@ -982,7 +982,7 @@
         0
       ],
       "image": [
-        "768",
+        "530",
         0
       ],
       "latent": [
