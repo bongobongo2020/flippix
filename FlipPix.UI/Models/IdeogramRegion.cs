@@ -1,3 +1,4 @@
+using System.Collections.Generic;
 using System.Text.Json.Serialization;
 using CommunityToolkit.Mvvm.ComponentModel;
 
@@ -29,6 +30,12 @@ namespace FlipPix.UI.Models
         /// <summary>Per-region description that becomes the region's "desc" in elements_data.</summary>
         [ObservableProperty]
         private string _description = string.Empty;
+
+        /// <summary>
+        /// Dominant hex colors for this region (becomes the region's "palette" in
+        /// elements_data). Populated by the LLM analysis; empty when drawn by hand.
+        /// </summary>
+        public List<string> Palette { get; set; } = new();
 
         [ObservableProperty]
         private bool _isSelected;

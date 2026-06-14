@@ -20,6 +20,11 @@ namespace FlipPix.UI
         private readonly SettingsService _settingsService;
         private readonly WindowPositionService _windowPositionService;
 
+        // Qwen Edit base-scene video: scrub-bar position tracking (slider ↔ media element)
+        private System.Windows.Threading.DispatcherTimer? _qwenBasePosTimer;
+        private bool _qwenBaseUserScrubbing;
+        private bool _qwenBaseIsPlaying;
+
         public ImageGeneratorWindow(ImageGeneratorViewModel viewModel, SettingsService settingsService, WindowPositionService windowPositionService)
         {
             InitializeComponent();
@@ -304,6 +309,131 @@ namespace FlipPix.UI
 
             DataContext = null;
             base.OnClosed(e);
+        }
+
+        // ── Qwen Edit: base-scene video scrub + snap-a-frame ─────────────────
+        // The user uploads a video for the base scene, scrubs to a frame and clicks
+        // "Snap & Send" to capture the current frame as a PNG and feed it in as the
+        // base image (image 3). ScrubbingEnabled lets the paused MediaElement render
+        // the exact frame at the scrub position.
+
+        private void QwenBaseVideoPlayer_MediaOpened(object sender, RoutedEventArgs e)
+        {
+            // Enter the paused state so ScrubbingEnabled can render frames on seek.
+            QwenBaseVideoPlayer.Play();
+            QwenBaseVideoPlayer.Pause();
+            _qwenBaseIsPlaying = false;
+
+            if (QwenBaseVideoPlayer.NaturalDuration.HasTimeSpan)
+                QwenBaseScrubSlider.Maximum = QwenBaseVideoPlayer.NaturalDuration.TimeSpan.TotalSeconds;
+            QwenBaseScrubSlider.Value = 0;
+
+            // Drive the slider from the playhead while the video is actually playing.
+            if (_qwenBasePosTimer == null)
+            {
+                _qwenBasePosTimer = new System.Windows.Threading.DispatcherTimer
+                {
+                    Interval = TimeSpan.FromMilliseconds(200)
+                };
+                _qwenBasePosTimer.Tick += (_, _) =>
+                {
+                    var p = QwenBaseVideoPlayer;
+                    if (p?.Source == null || _qwenBaseUserScrubbing || !_qwenBaseIsPlaying) return;
+                    if (p.NaturalDuration.HasTimeSpan)
+                        QwenBaseScrubSlider.Value = p.Position.TotalSeconds;
+                };
+            }
+            _qwenBasePosTimer.Start();
+        }
+
+        private void QwenBaseVideoPlayer_MediaEnded(object sender, RoutedEventArgs e)
+            => _qwenBaseIsPlaying = false;
+
+        private void QwenBasePlay_Click(object sender, RoutedEventArgs e)
+        {
+            QwenBaseVideoPlayer?.Play();
+            _qwenBaseIsPlaying = QwenBaseVideoPlayer?.Source != null;
+        }
+
+        private void QwenBasePause_Click(object sender, RoutedEventArgs e)
+        {
+            QwenBaseVideoPlayer?.Pause();
+            _qwenBaseIsPlaying = false;
+        }
+
+        private void QwenBaseScrub_DragStarted(object sender, System.Windows.Controls.Primitives.DragStartedEventArgs e)
+            => _qwenBaseUserScrubbing = true;
+
+        private void QwenBaseScrub_DragCompleted(object sender, System.Windows.Controls.Primitives.DragCompletedEventArgs e)
+        {
+            _qwenBaseUserScrubbing = false;
+            SeekQwenBaseTo(QwenBaseScrubSlider.Value);
+        }
+
+        private void QwenBaseScrub_Click(object sender, MouseButtonEventArgs e)
+            => SeekQwenBaseTo(QwenBaseScrubSlider.Value);
+
+        private void SeekQwenBaseTo(double seconds)
+        {
+            var p = QwenBaseVideoPlayer;
+            if (p?.Source == null) return;
+            p.Pause();
+            _qwenBaseIsPlaying = false;
+            p.Position = TimeSpan.FromSeconds(Math.Max(0, seconds));
+        }
+
+        private async void QwenBaseSnapAndSend_Click(object sender, RoutedEventArgs e)
+        {
+            var player = QwenBaseVideoPlayer;
+            if (player?.Source == null) return;
+
+            // Make sure we are paused on the current frame so the render is stable.
+            player.Pause();
+            _qwenBaseIsPlaying = false;
+
+            int w = player.NaturalVideoWidth;
+            int h = player.NaturalVideoHeight;
+            if (w <= 0 || h <= 0)
+            {
+                w = (int)player.ActualWidth;
+                h = (int)player.ActualHeight;
+            }
+            if (w <= 0 || h <= 0) return;
+
+            try
+            {
+                // Render the displayed frame at the video's native resolution via a
+                // VisualBrush so we don't lose quality to the on-screen layout size.
+                var rtb = new RenderTargetBitmap(w, h, 96, 96, PixelFormats.Pbgra32);
+                var dv = new DrawingVisual();
+                using (var dc = dv.RenderOpen())
+                {
+                    var brush = new VisualBrush(player) { Stretch = Stretch.Fill };
+                    dc.DrawRectangle(brush, null, new Rect(0, 0, w, h));
+                }
+                rtb.Render(dv);
+
+                var dir = Path.Combine(Path.GetTempPath(), "flippix_qwenedit");
+                Directory.CreateDirectory(dir);
+                var tempPath = Path.Combine(dir, $"basescene_snap_{DateTime.Now:yyyyMMdd_HHmmssfff}.png");
+
+                using (var stream = File.Create(tempPath))
+                {
+                    var encoder = new PngBitmapEncoder();
+                    encoder.Frames.Add(BitmapFrame.Create(rtb));
+                    encoder.Save(stream);
+                }
+
+                _viewModel.QwenEdit.SetBaseImage(tempPath);
+
+                // Snap & Send: automatically analyze the three images and, once the
+                // edit prompt is ready, run generation — no extra clicks needed.
+                await _viewModel.QwenEdit.AnalyzeAndGenerateAsync();
+            }
+            catch (Exception ex)
+            {
+                System.Diagnostics.Debug.WriteLine($"QwenBaseSnapAndSend error: {ex.Message}");
+            }
         }
     }
 }

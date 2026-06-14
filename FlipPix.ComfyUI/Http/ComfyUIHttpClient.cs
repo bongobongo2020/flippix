@@ -170,67 +170,37 @@ public class ComfyUIHttpClient : IDisposable
             };
             
             fileContent.Headers.ContentType = new System.Net.Http.Headers.MediaTypeHeaderValue(contentType);
-            content.Add(fileContent, "image", Path.GetFileName(filePath)); // ComfyUI uses "image" field for all uploads
+            // ComfyUI uses the /upload/image endpoint with the "image" field for ALL file types
+            // (image, video, audio). There is no /upload/video endpoint in stock ComfyUI; posting
+            // to it can be silently answered by a proxy/custom node with a 2xx that never persists
+            // the file, leaving the workflow to fail later with "could not be loaded with cv."
+            content.Add(fileContent, "image", Path.GetFileName(filePath));
             content.Add(new StringContent(type), "type");
 
             var stopwatch = System.Diagnostics.Stopwatch.StartNew();
-
-            // Try video-specific endpoint first, with upload timeout
             using var uploadCts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
             uploadCts.CancelAfter(_settings.UploadTimeoutMilliseconds);
-
-            HttpResponseMessage response;
-            bool triedVideoEndpoint = false;
-            try
-            {
-                triedVideoEndpoint = true;
-                response = await _httpClient.PostAsync("/upload/video", content, uploadCts.Token);
-                if (response.IsSuccessStatusCode)
-                {
-                    // Video endpoint worked, use this response
-                }
-                else
-                {
-                    // Video endpoint returned error — rebuild content and try image endpoint
-                    content.Dispose();
-                    // Rebuild multipart content from scratch (original stream is consumed)
-                    using var content2 = new MultipartFormDataContent();
-                    using var fileStream2 = File.OpenRead(filePath);
-                    using var fileContent2 = new StreamContent(fileStream2);
-                    fileContent2.Headers.ContentType = new System.Net.Http.Headers.MediaTypeHeaderValue(contentType);
-                    content2.Add(fileContent2, "image", Path.GetFileName(filePath));
-                    content2.Add(new StringContent(type), "type");
-                    using var uploadCts2 = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
-                    uploadCts2.CancelAfter(_settings.UploadTimeoutMilliseconds);
-                    response = await _httpClient.PostAsync("/upload/image", content2, uploadCts2.Token);
-                }
-            }
-            catch (Exception) when (triedVideoEndpoint)
-            {
-                // Video endpoint doesn't exist or failed — rebuild content and try image endpoint
-                // IMPORTANT: cannot reuse content/fileStream here as they may be partially consumed
-                using var content3 = new MultipartFormDataContent();
-                using var fileStream3 = File.OpenRead(filePath);
-                using var fileContent3 = new StreamContent(fileStream3);
-                fileContent3.Headers.ContentType = new System.Net.Http.Headers.MediaTypeHeaderValue(contentType);
-                content3.Add(fileContent3, "image", Path.GetFileName(filePath));
-                content3.Add(new StringContent(type), "type");
-                using var uploadCts3 = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
-                uploadCts3.CancelAfter(_settings.UploadTimeoutMilliseconds);
-                response = await _httpClient.PostAsync("/upload/image", content3, uploadCts3.Token);
-            }
-            
+            var response = await _httpClient.PostAsync("/upload/image", content, uploadCts.Token);
             stopwatch.Stop();
 
             if (response.IsSuccessStatusCode)
             {
                 var responseContent = await response.Content.ReadAsStringAsync(cancellationToken);
                 var result = JsonSerializer.Deserialize<UploadResponse>(responseContent);
-                
-                _logger.LogInfo("Video uploaded successfully in {ElapsedMs}ms: {FileName}",
-                    stopwatch.ElapsedMilliseconds, result?.Name ?? "unknown");
-                
-                return result?.Name ?? throw new InvalidOperationException("Upload response missing filename");
+
+                var uploadedName = result?.Name
+                    ?? throw new InvalidOperationException("Upload response missing filename");
+
+                _logger.LogInfo("Video uploaded in {ElapsedMs}ms: {FileName} (subfolder='{Subfolder}'), verifying on server...",
+                    stopwatch.ElapsedMilliseconds, uploadedName, result!.Subfolder);
+
+                // Verify the file actually landed in ComfyUI's input folder. A 2xx upload response
+                // is not proof the bytes were persisted, so confirm via /view before the caller
+                // queues a workflow that references this name.
+                await VerifyInputFileExistsAsync(uploadedName, result.Subfolder, cancellationToken);
+
+                _logger.LogInfo("Video upload verified on server: {FileName}", uploadedName);
+                return uploadedName;
             }
             else
             {
@@ -242,6 +212,45 @@ public class ComfyUIHttpClient : IDisposable
         {
             _logger.LogError(ex, "Failed to upload video: {FilePath}", filePath);
             throw;
+        }
+    }
+
+    /// <summary>
+    /// Confirms an uploaded file is actually retrievable from ComfyUI's input folder via /view.
+    /// A successful /upload response is not proof the bytes were persisted (a proxy or custom node
+    /// may answer 2xx without writing the file), so this guards against queueing a workflow that
+    /// references a name the server can't load. Throws if the file is missing or empty.
+    /// </summary>
+    public async Task VerifyInputFileExistsAsync(string filename, string? subfolder, CancellationToken cancellationToken = default)
+    {
+        var url = $"/view?filename={Uri.EscapeDataString(filename)}" +
+                  $"&subfolder={Uri.EscapeDataString(subfolder ?? "")}" +
+                  "&type=input";
+
+        try
+        {
+            // ResponseHeadersRead so we don't download the whole video just to confirm it exists.
+            using var response = await _httpClient.GetAsync(
+                url, HttpCompletionOption.ResponseHeadersRead, cancellationToken);
+
+            if (!response.IsSuccessStatusCode)
+            {
+                throw new InvalidOperationException(
+                    $"Uploaded file '{filename}' is not present on the ComfyUI server " +
+                    $"(/view?...&type=input returned {(int)response.StatusCode} {response.StatusCode}). " +
+                    "The upload reported success but the file was not persisted to the input folder.");
+            }
+
+            if (response.Content.Headers.ContentLength is 0)
+            {
+                throw new InvalidOperationException(
+                    $"Uploaded file '{filename}' exists on the ComfyUI server but is empty (0 bytes).");
+            }
+        }
+        catch (Exception ex) when (ex is not InvalidOperationException)
+        {
+            throw new InvalidOperationException(
+                $"Failed to verify uploaded file '{filename}' on the ComfyUI server.", ex);
         }
     }
 

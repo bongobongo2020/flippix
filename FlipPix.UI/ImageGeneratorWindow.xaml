@@ -4682,6 +4682,24 @@
                                 </StackPanel>
                             </Border>
 
+                            <!-- Enriched style (from the autoprompter analysis) -->
+                            <Border Style="{StaticResource SectionPanelStyle}" Margin="0,0,0,10" Padding="12"
+                                    Visibility="{Binding Ideogram.HasStyleDetails, Converter={StaticResource BooleanToVisibilityConverter}}">
+                                <StackPanel>
+                                    <Grid Margin="0,0,0,4">
+                                        <TextBlock Text="Enriched Style (auto)" Style="{StaticResource HeaderTextStyle}" Foreground="#0EA5E9" VerticalAlignment="Center"/>
+                                        <CheckBox Content="Enabled" IsChecked="{Binding Ideogram.UseEnrichedStyle}"
+                                                  HorizontalAlignment="Right" VerticalAlignment="Center"
+                                                  FontSize="11" Foreground="#0EA5E9"/>
+                                    </Grid>
+                                    <TextBlock FontSize="11" Foreground="#6B7280" Margin="0,0,0,4" TextWrapping="Wrap">
+                                        Medium, aesthetics, lighting, camera and background detected by the LLM. When enabled these are fed into Ideogram4PromptBuilderKJ alongside the per-region boxes; when off, only the high-level prompt and regions drive the image.
+                                    </TextBlock>
+                                    <TextBlock Text="{Binding Ideogram.StyleSummary}" FontSize="11" Foreground="#374151" TextWrapping="Wrap"
+                                               IsEnabled="{Binding Ideogram.UseEnrichedStyle}"/>
+                                </StackPanel>
+                            </Border>
+
                             <!-- Region canvas editor -->
                             <Border Style="{StaticResource SectionPanelStyle}" Margin="0,0,0,10" Padding="12">
                                 <StackPanel>
@@ -4937,6 +4955,79 @@
                                 </StackPanel>
                             </Border>
 
+                            <!-- Generated Images gallery -->
+                            <Border Style="{StaticResource SectionPanelStyle}" Margin="0,0,0,10" Padding="12"
+                                    Visibility="{Binding Ideogram.HasGeneratedImages, Converter={StaticResource BooleanToVisibilityConverter}}">
+                                <StackPanel>
+                                    <Grid Margin="0,0,0,8">
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="*"/>
+                                            <ColumnDefinition Width="Auto"/>
+                                        </Grid.ColumnDefinitions>
+                                        <TextBlock Text="Generated Images" Style="{StaticResource HeaderTextStyle}" Foreground="#6366F1"
+                                                   VerticalAlignment="Center" Margin="0"/>
+                                        <Button Grid.Column="1" Content="Clear All"
+                                                Command="{Binding Ideogram.ClearGeneratedImagesCommand}"
+                                                Background="#6B7280" Foreground="White" BorderThickness="0"
+                                                Padding="8,3" FontSize="10" Cursor="Hand"
+                                                ToolTip="Remove thumbnails from view (does not delete files)">
+                                            <Button.Template>
+                                                <ControlTemplate TargetType="Button">
+                                                    <Border Background="{TemplateBinding Background}" CornerRadius="4" Padding="{TemplateBinding Padding}">
+                                                        <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                                                    </Border>
+                                                </ControlTemplate>
+                                            </Button.Template>
+                                        </Button>
+                                    </Grid>
+
+                                    <ScrollViewer VerticalScrollBarVisibility="Auto" MaxHeight="320">
+                                        <ItemsControl ItemsSource="{Binding Ideogram.GeneratedImages}">
+                                            <ItemsControl.ItemsPanel>
+                                                <ItemsPanelTemplate>
+                                                    <WrapPanel/>
+                                                </ItemsPanelTemplate>
+                                            </ItemsControl.ItemsPanel>
+                                            <ItemsControl.ItemTemplate>
+                                                <DataTemplate>
+                                                    <Grid Width="96" Height="96" Margin="4">
+                                                        <!-- Click image center → open in registered Windows image viewer -->
+                                                        <Button Command="{Binding DataContext.Ideogram.OpenGeneratedImageCommand, RelativeSource={RelativeSource AncestorType=ItemsControl}}"
+                                                                CommandParameter="{Binding}"
+                                                                Cursor="Hand" Padding="0" BorderThickness="1"
+                                                                ToolTip="{Binding FileName}">
+                                                            <Button.Template>
+                                                                <ControlTemplate TargetType="Button">
+                                                                    <Border BorderBrush="#E5E7EB" BorderThickness="1" CornerRadius="4"
+                                                                            Background="#F9FAFB" SnapsToDevicePixels="True">
+                                                                        <Image Source="{Binding Thumbnail}" Stretch="UniformToFill"/>
+                                                                    </Border>
+                                                                </ControlTemplate>
+                                                            </Button.Template>
+                                                        </Button>
+                                                        <!-- "x" top-right → delete file from disk -->
+                                                        <Button Command="{Binding DataContext.Ideogram.DeleteGeneratedImageCommand, RelativeSource={RelativeSource AncestorType=ItemsControl}}"
+                                                                CommandParameter="{Binding}"
+                                                                Content="✕" FontSize="11" FontWeight="Bold" Foreground="White"
+                                                                HorizontalAlignment="Right" VerticalAlignment="Top" Margin="0,2,2,0"
+                                                                Width="18" Height="18" Cursor="Hand"
+                                                                ToolTip="Delete image file from disk">
+                                                            <Button.Template>
+                                                                <ControlTemplate TargetType="Button">
+                                                                    <Border Background="#DC2626" CornerRadius="9" Opacity="0.9">
+                                                                        <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                                                                    </Border>
+                                                                </ControlTemplate>
+                                                            </Button.Template>
+                                                        </Button>
+                                                    </Grid>
+                                                </DataTemplate>
+                                            </ItemsControl.ItemTemplate>
+                                        </ItemsControl>
+                                    </ScrollViewer>
+                                </StackPanel>
+                            </Border>
+
                         </StackPanel>
                     </ScrollViewer>
 
@@ -4997,6 +5088,312 @@
                                              Background="#111827" Foreground="#9CA3AF"
                                              BorderThickness="0" FontFamily="Consolas"
                                              FontSize="11" Padding="4" Height="200"/>
+                                </StackPanel>
+                            </Border>
+
+                        </StackPanel>
+                    </ScrollViewer>
+
+                </Grid>
+            </TabItem>
+
+            <!-- ===== QWEN EDIT: character replacement in a scene ===== -->
+            <TabItem Header="🧑‍🤝‍🧑 Qwen Edit" FontWeight="Bold" FontSize="13">
+                <Grid Margin="0">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="*" MinWidth="340"/>
+                        <ColumnDefinition Width="2"/>
+                        <ColumnDefinition Width="*" MinWidth="340"/>
+                    </Grid.ColumnDefinitions>
+
+                    <!-- LEFT: inputs -->
+                    <ScrollViewer Grid.Column="0" VerticalScrollBarVisibility="Auto">
+                        <StackPanel Margin="15,12,8,12">
+
+                            <!-- Pipeline badge -->
+                            <Border Background="#FDF2F8" BorderBrush="#FBCFE8" BorderThickness="1" CornerRadius="6"
+                                    Padding="12,8" Margin="0,0,0,12">
+                                <StackPanel>
+                                    <TextBlock Text="🧑‍🤝‍🧑 Qwen Image Edit — Character Swap" FontSize="13" FontWeight="SemiBold"
+                                               Foreground="#BE185D"/>
+                                    <TextBlock FontSize="11" Foreground="#DB2777" Margin="0,4,0,0" TextWrapping="Wrap">
+                                        Upload Character 1, Character 2 and a Base scene (always one man + one woman).
+                                        Character 1 replaces the man, Character 2 replaces the woman. Click Analyze to
+                                        let the VLM write the edit prompt, then edit it and click Generate.
+                                    </TextBlock>
+                                </StackPanel>
+                            </Border>
+
+                            <!-- Character 1 -->
+                            <Border Style="{StaticResource SectionPanelStyle}" Margin="0,0,0,10" Padding="12">
+                                <StackPanel>
+                                    <TextBlock Text="Character 1 → replaces the MAN" Style="{StaticResource HeaderTextStyle}" Foreground="#2563EB"/>
+                                    <TextBlock Text="{Binding QwenEdit.Char1ImagePath, FallbackValue='No image selected'}"
+                                               FontSize="11" Foreground="#6B7280" TextTrimming="CharacterEllipsis" Margin="0,0,0,6"/>
+                                    <Button Content="📂 Browse Character 1"
+                                            Command="{Binding QwenEdit.BrowseChar1Command}"
+                                            Style="{StaticResource SecondaryButtonStyle}"
+                                            Background="#2563EB" Padding="12,8" FontSize="12" Margin="0,0,0,8"/>
+                                    <Border BorderBrush="#CED4DA" BorderThickness="1" CornerRadius="4"
+                                            Background="#1A1A2E" Height="170" ClipToBounds="True">
+                                        <Grid>
+                                            <Image Source="{Binding QwenEdit.Char1ImageSource}"
+                                                   Stretch="Uniform" RenderOptions.BitmapScalingMode="HighQuality"/>
+                                            <StackPanel HorizontalAlignment="Center" VerticalAlignment="Center"
+                                                        Visibility="{Binding QwenEdit.NoChar1Image, Converter={StaticResource BooleanToVisibilityConverter}}">
+                                                <TextBlock Text="👨" FontSize="36" HorizontalAlignment="Center"/>
+                                                <TextBlock Text="Character 1 (man)" FontSize="12" Foreground="#9CA3AF"
+                                                           HorizontalAlignment="Center" Margin="0,6,0,0"/>
+                                            </StackPanel>
+                                        </Grid>
+                                    </Border>
+                                </StackPanel>
+                            </Border>
+
+                            <!-- Character 2 -->
+                            <Border Style="{StaticResource SectionPanelStyle}" Margin="0,0,0,10" Padding="12">
+                                <StackPanel>
+                                    <TextBlock Text="Character 2 → replaces the WOMAN" Style="{StaticResource HeaderTextStyle}" Foreground="#DB2777"/>
+                                    <TextBlock Text="{Binding QwenEdit.Char2ImagePath, FallbackValue='No image selected'}"
+                                               FontSize="11" Foreground="#6B7280" TextTrimming="CharacterEllipsis" Margin="0,0,0,6"/>
+                                    <Button Content="📂 Browse Character 2"
+                                            Command="{Binding QwenEdit.BrowseChar2Command}"
+                                            Style="{StaticResource SecondaryButtonStyle}"
+                                            Background="#DB2777" Padding="12,8" FontSize="12" Margin="0,0,0,8"/>
+                                    <Border BorderBrush="#CED4DA" BorderThickness="1" CornerRadius="4"
+                                            Background="#1A1A2E" Height="170" ClipToBounds="True">
+                                        <Grid>
+                                            <Image Source="{Binding QwenEdit.Char2ImageSource}"
+                                                   Stretch="Uniform" RenderOptions.BitmapScalingMode="HighQuality"/>
+                                            <StackPanel HorizontalAlignment="Center" VerticalAlignment="Center"
+                                                        Visibility="{Binding QwenEdit.NoChar2Image, Converter={StaticResource BooleanToVisibilityConverter}}">
+                                                <TextBlock Text="👩" FontSize="36" HorizontalAlignment="Center"/>
+                                                <TextBlock Text="Character 2 (woman)" FontSize="12" Foreground="#9CA3AF"
+                                                           HorizontalAlignment="Center" Margin="0,6,0,0"/>
+                                            </StackPanel>
+                                        </Grid>
+                                    </Border>
+                                </StackPanel>
+                            </Border>
+
+                            <!-- Base scene -->
+                            <Border Style="{StaticResource SectionPanelStyle}" Margin="0,0,0,10" Padding="12">
+                                <StackPanel>
+                                    <TextBlock Text="Base Scene (man + woman to replace)" Style="{StaticResource HeaderTextStyle}" Foreground="#7C3AED"/>
+                                    <TextBlock Text="{Binding QwenEdit.BaseImagePath, FallbackValue='No image selected'}"
+                                               FontSize="11" Foreground="#6B7280" TextTrimming="CharacterEllipsis" Margin="0,0,0,6"/>
+                                    <Grid Margin="0,0,0,8">
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="*"/>
+                                            <ColumnDefinition Width="*"/>
+                                        </Grid.ColumnDefinitions>
+                                        <Button Grid.Column="0" Content="📂 Browse Image"
+                                                Command="{Binding QwenEdit.BrowseBaseCommand}"
+                                                Style="{StaticResource SecondaryButtonStyle}"
+                                                Background="#7C3AED" Padding="12,8" FontSize="12" Margin="0,0,4,0"/>
+                                        <Button Grid.Column="1" Content="📹 Upload Video"
+                                                Command="{Binding QwenEdit.BrowseBaseVideoCommand}"
+                                                Style="{StaticResource SecondaryButtonStyle}"
+                                                Background="#7C3AED" Padding="12,8" FontSize="12" Margin="4,0,0,0"/>
+                                    </Grid>
+
+                                    <!-- Image preview (shown when no video is loaded) -->
+                                    <Border BorderBrush="#CED4DA" BorderThickness="1" CornerRadius="4"
+                                            Background="#1A1A2E" Height="200" ClipToBounds="True"
+                                            Visibility="{Binding QwenEdit.NoBaseVideo, Converter={StaticResource BooleanToVisibilityConverter}}">
+                                        <Grid>
+                                            <Image Source="{Binding QwenEdit.BaseImageSource}"
+                                                   Stretch="Uniform" RenderOptions.BitmapScalingMode="HighQuality"/>
+                                            <StackPanel HorizontalAlignment="Center" VerticalAlignment="Center"
+                                                        Visibility="{Binding QwenEdit.NoBaseImage, Converter={StaticResource BooleanToVisibilityConverter}}">
+                                                <TextBlock Text="🖼️" FontSize="36" HorizontalAlignment="Center"/>
+                                                <TextBlock Text="Base scene with a man and a woman" FontSize="12" Foreground="#9CA3AF"
+                                                           HorizontalAlignment="Center" Margin="0,6,0,0"/>
+                                            </StackPanel>
+                                        </Grid>
+                                    </Border>
+
+                                    <!-- Video scrub + snap (shown when a video is loaded) -->
+                                    <StackPanel Visibility="{Binding QwenEdit.HasBaseVideo, Converter={StaticResource BooleanToVisibilityConverter}}">
+                                        <Border BorderBrush="#CED4DA" BorderThickness="1" CornerRadius="4"
+                                                Background="#1A1A2E" Height="200" ClipToBounds="True">
+                                            <MediaElement x:Name="QwenBaseVideoPlayer"
+                                                          Source="{Binding QwenEdit.BaseVideoFileUri}"
+                                                          LoadedBehavior="Manual" UnloadedBehavior="Stop"
+                                                          ScrubbingEnabled="True" Stretch="Uniform"
+                                                          MediaOpened="QwenBaseVideoPlayer_MediaOpened"
+                                                          MediaEnded="QwenBaseVideoPlayer_MediaEnded"/>
+                                        </Border>
+                                        <Slider x:Name="QwenBaseScrubSlider" Margin="0,6,0,0"
+                                                Minimum="0" Maximum="1" SmallChange="0.04" LargeChange="0.5"
+                                                IsMoveToPointEnabled="True"
+                                                Thumb.DragStarted="QwenBaseScrub_DragStarted"
+                                                Thumb.DragCompleted="QwenBaseScrub_DragCompleted"
+                                                PreviewMouseLeftButtonUp="QwenBaseScrub_Click"/>
+                                        <Grid Margin="0,6,0,0">
+                                            <Grid.ColumnDefinitions>
+                                                <ColumnDefinition Width="Auto"/>
+                                                <ColumnDefinition Width="Auto"/>
+                                                <ColumnDefinition Width="*"/>
+                                                <ColumnDefinition Width="Auto"/>
+                                            </Grid.ColumnDefinitions>
+                                            <Button Grid.Column="0" Content="▶" Click="QwenBasePlay_Click"
+                                                    Style="{StaticResource SecondaryButtonStyle}"
+                                                    Padding="10,4" FontSize="12" Margin="0,0,4,0"/>
+                                            <Button Grid.Column="1" Content="⏸" Click="QwenBasePause_Click"
+                                                    Style="{StaticResource SecondaryButtonStyle}"
+                                                    Padding="10,4" FontSize="12" Margin="0,0,4,0"/>
+                                            <Button Grid.Column="3" Content="📸 Snap &amp; Send"
+                                                    Click="QwenBaseSnapAndSend_Click"
+                                                    Style="{StaticResource PrimaryButtonStyle}"
+                                                    Background="#7C3AED" Padding="14,6" FontSize="12"/>
+                                        </Grid>
+                                        <TextBlock Text="Scrub to a frame, then Snap &amp; Send to set it as the base scene."
+                                                   FontSize="11" Foreground="#9CA3AF" Margin="0,6,0,0" TextWrapping="Wrap"/>
+                                    </StackPanel>
+                                </StackPanel>
+                            </Border>
+
+                            <!-- Step 1: Analyze -->
+                            <Border Style="{StaticResource SectionPanelStyle}" Margin="0,0,0,10" Padding="12">
+                                <StackPanel>
+                                    <TextBlock Text="Step 1 — Analyze (VLM writes the edit prompt)" Style="{StaticResource HeaderTextStyle}" Foreground="#059669"/>
+                                    <Grid Margin="0,0,0,8">
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="*"/>
+                                            <ColumnDefinition Width="Auto"/>
+                                        </Grid.ColumnDefinitions>
+                                        <ComboBox Grid.Column="0" ItemsSource="{Binding QwenEdit.AvailableModels}"
+                                                  SelectedItem="{Binding QwenEdit.SelectedLlmModel}"
+                                                  FontSize="11" Padding="6,4" VerticalContentAlignment="Center"/>
+                                        <Button Grid.Column="1" Content="🔄"
+                                                Command="{Binding QwenEdit.LoadModelsCommand}"
+                                                Style="{StaticResource SecondaryButtonStyle}"
+                                                Padding="8,4" FontSize="12" Margin="6,0,0,0"/>
+                                    </Grid>
+                                    <Button Content="🔍 Analyze 3 Images → Edit Prompt"
+                                            Command="{Binding QwenEdit.AnalyzeCommand}"
+                                            IsEnabled="{Binding QwenEdit.CanAnalyze}"
+                                            Style="{StaticResource PrimaryButtonStyle}"
+                                            Background="#059669" Padding="16,10" FontSize="13"
+                                            HorizontalAlignment="Stretch"/>
+                                    <StackPanel Orientation="Horizontal" Margin="0,8,0,0"
+                                                Visibility="{Binding QwenEdit.IsAnalyzing, Converter={StaticResource BooleanToVisibilityConverter}}">
+                                        <TextBlock Text="⏳ " FontSize="13"/>
+                                        <TextBlock Text="{Binding QwenEdit.StatusMessage}" FontSize="12" Foreground="#374151"/>
+                                    </StackPanel>
+                                </StackPanel>
+                            </Border>
+
+                            <!-- Step 2: Edit prompt -->
+                            <Border Style="{StaticResource SectionPanelStyle}" Margin="0,0,0,10" Padding="12">
+                                <StackPanel>
+                                    <TextBlock Text="Step 2 — Edit Prompt" Style="{StaticResource HeaderTextStyle}" Foreground="#D97706"/>
+                                    <TextBox Text="{Binding QwenEdit.Prompt, UpdateSourceTrigger=PropertyChanged}"
+                                             TextWrapping="Wrap" AcceptsReturn="True"
+                                             MinLines="5" MaxLines="12"
+                                             VerticalScrollBarVisibility="Auto"
+                                             FontSize="12" Padding="8"/>
+                                </StackPanel>
+                            </Border>
+
+                            <!-- Step 3: Generate -->
+                            <Border Style="{StaticResource SectionPanelStyle}" Margin="0,0,0,10" Padding="12">
+                                <StackPanel>
+                                    <TextBlock Text="Step 3 — Generate" Style="{StaticResource HeaderTextStyle}" Foreground="#DC2626"/>
+
+                                    <!-- Workflow selector: Qwen Edit (default) or Klein (Flux.2) -->
+                                    <TextBlock Text="Workflow" FontSize="11" FontWeight="SemiBold" Foreground="#6B7280" Margin="0,0,0,4"/>
+                                    <ComboBox ItemsSource="{Binding QwenEdit.WorkflowOptions}"
+                                              SelectedItem="{Binding QwenEdit.SelectedWorkflow}"
+                                              FontSize="12" Padding="6,4" VerticalContentAlignment="Center"
+                                              Margin="0,0,0,8"/>
+
+                                    <TextBlock Text="{Binding QwenEdit.GenerateDescription}"
+                                               FontSize="11" Foreground="#6B7280" Margin="0,0,0,8" TextWrapping="Wrap"/>
+                                    <Button Content="🚀 Generate"
+                                            Command="{Binding QwenEdit.GenerateCommand}"
+                                            IsEnabled="{Binding QwenEdit.CanGenerate}"
+                                            Style="{StaticResource PrimaryButtonStyle}"
+                                            Background="#DC2626" Padding="16,10" FontSize="13"
+                                            HorizontalAlignment="Stretch"/>
+                                    <StackPanel Margin="0,8,0,0">
+                                        <TextBlock Text="{Binding QwenEdit.StatusMessage}"
+                                                   FontSize="12" Foreground="#374151" TextWrapping="Wrap"/>
+                                        <ProgressBar Value="{Binding QwenEdit.Progress}" Maximum="100" Height="6"
+                                                     Margin="0,4,0,0" Background="#E5E7EB" Foreground="#DC2626"/>
+                                    </StackPanel>
+                                </StackPanel>
+                            </Border>
+
+                        </StackPanel>
+                    </ScrollViewer>
+
+                    <!-- Splitter -->
+                    <GridSplitter Grid.Column="1" Width="2" HorizontalAlignment="Stretch" Background="#DEE2E6"/>
+
+                    <!-- RIGHT: result + log -->
+                    <ScrollViewer Grid.Column="2" VerticalScrollBarVisibility="Auto">
+                        <StackPanel Margin="8,12,15,12">
+
+                            <!-- Result image -->
+                            <Border Style="{StaticResource SectionPanelStyle}" Margin="0,0,0,10" Padding="8">
+                                <StackPanel>
+                                    <TextBlock Text="Result" Style="{StaticResource HeaderTextStyle}" Foreground="#BE185D"/>
+                                    <Border BorderBrush="#CED4DA" BorderThickness="1" CornerRadius="4"
+                                            Background="#1A1A2E" Height="460" ClipToBounds="True">
+                                        <Grid>
+                                            <Image Source="{Binding QwenEdit.ResultImageSource}"
+                                                   Stretch="Uniform" RenderOptions.BitmapScalingMode="HighQuality"/>
+                                            <StackPanel HorizontalAlignment="Center" VerticalAlignment="Center"
+                                                        Visibility="{Binding QwenEdit.NoResult, Converter={StaticResource BooleanToVisibilityConverter}}">
+                                                <TextBlock Text="🖼️" FontSize="48" HorizontalAlignment="Center"/>
+                                                <TextBlock Text="Result will appear here" FontSize="14"
+                                                           Foreground="#9CA3AF" HorizontalAlignment="Center" Margin="0,8,0,0"/>
+                                            </StackPanel>
+                                        </Grid>
+                                    </Border>
+                                </StackPanel>
+                            </Border>
+
+                            <!-- Actions -->
+                            <Border Style="{StaticResource SectionPanelStyle}" Margin="0,0,0,10">
+                                <StackPanel>
+                                    <TextBlock Text="Output" Style="{StaticResource HeaderTextStyle}" Foreground="#BE185D"/>
+                                    <TextBlock Text="{Binding QwenEdit.ResultImagePath, FallbackValue='—'}"
+                                               FontSize="11" Foreground="#6B7280" TextTrimming="CharacterEllipsis"
+                                               Margin="0,0,0,10"/>
+                                    <StackPanel Orientation="Horizontal">
+                                        <Button Content="📁 Open Folder"
+                                                Command="{Binding QwenEdit.OpenResultFolderCommand}"
+                                                Style="{StaticResource SecondaryButtonStyle}"
+                                                Background="#2563EB" Padding="12,8" FontSize="12" Margin="0,0,8,0"/>
+                                        <Button Content="🖼️ Open Image"
+                                                Command="{Binding QwenEdit.OpenResultImageCommand}"
+                                                Style="{StaticResource SecondaryButtonStyle}"
+                                                Background="#10B981" Padding="12,8" FontSize="12"/>
+                                    </StackPanel>
+                                    <Button Content="✨ Enhance (Klein img2img)"
+                                            Command="{Binding QwenEdit.EnhanceCommand}"
+                                            IsEnabled="{Binding QwenEdit.CanEnhance}"
+                                            Style="{StaticResource PrimaryButtonStyle}"
+                                            Background="#7C3AED" Padding="14,9" FontSize="12"
+                                            HorizontalAlignment="Stretch" Margin="0,10,0,0"/>
+                                    <TextBlock FontSize="11" Foreground="#6B7280" Margin="0,4,0,0" TextWrapping="Wrap"
+                                               Text="Refines the current result with a Flux.2 Klein img2img pass."/>
+                                </StackPanel>
+                            </Border>
+
+                            <!-- Log -->
+                            <Border Background="#111827" BorderBrush="#374151" BorderThickness="1" CornerRadius="6" Padding="10">
+                                <StackPanel>
+                                    <TextBlock Text="Log" FontSize="12" FontWeight="SemiBold" Foreground="#9CA3AF" Margin="0,0,0,6"/>
+                                    <TextBox Text="{Binding QwenEdit.LogOutput}"
+                                             IsReadOnly="True" TextWrapping="Wrap"
+                                             VerticalScrollBarVisibility="Auto"
+                                             Background="#111827" Foreground="#9CA3AF"
+                                             BorderThickness="0" FontFamily="Consolas"
+                                             FontSize="11" Padding="4" Height="220"/>
                                 </StackPanel>
                             </Border>
 

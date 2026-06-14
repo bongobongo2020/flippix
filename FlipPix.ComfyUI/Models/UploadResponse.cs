@@ -9,4 +9,7 @@ public class UploadResponse
     
     [JsonPropertyName("type")]
     public string Type { get; set; } = string.Empty;
+
+    [JsonPropertyName("subfolder")]
+    public string Subfolder { get; set; } = string.Empty;
 }

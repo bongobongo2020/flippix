@@ -86,6 +86,7 @@ namespace FlipPix.UI.ViewModels
         private KleinInpaintViewModel _kleinInpaintEditor;
         private KleinControlViewModel _kleinControl;
         private IdeogramViewModel _ideogram;
+        private QwenEditViewModel _qwenEdit;
 
 
         public ImageGeneratorViewModel(FlipPix.ComfyUI.Services.ComfyUIService comfyUIService, IAppLogger logger, FlipPix.Core.Services.SettingsService settingsService, IServiceProvider? serviceProvider = null, IPromptService? promptService = null)
@@ -117,6 +118,7 @@ namespace FlipPix.UI.ViewModels
             var videoAnalysisService = serviceProvider?.GetRequiredService<VideoAnalysisService>() ?? throw new InvalidOperationException("VideoAnalysisService is required");
             _kleinControl = new KleinControlViewModel(comfyUIService, logger, settingsService, fileDialogService, videoAnalysisService);
             _ideogram = new IdeogramViewModel(comfyUIService, logger, settingsService, fileDialogService, lmStudioService ?? throw new InvalidOperationException("LMStudioService is required"), _workflowCoordinator);
+            _qwenEdit = new QwenEditViewModel(comfyUIService, logger, settingsService, fileDialogService, lmStudioService ?? throw new InvalidOperationException("LMStudioService is required"), _workflowCoordinator);
 
             // Initialize commands
             GenerateImageCommand = new RelayCommand(async () => await GenerateImageAsync(), () => CanGenerate);
@@ -259,6 +261,7 @@ namespace FlipPix.UI.ViewModels
         public KleinInpaintViewModel KleinInpaintEditor => _kleinInpaintEditor;
         public KleinControlViewModel KleinControl => _kleinControl;
         public IdeogramViewModel Ideogram => _ideogram;
+        public QwenEditViewModel QwenEdit => _qwenEdit;
 
         public string ProcessingStatus
         {
