@@ -736,6 +736,12 @@ namespace FlipPix.UI.ViewModels.Video
             _analyzeCts = new CancellationTokenSource();
             var token = _analyzeCts.Token;
 
+            // Thinking models (Qwen3/QwQ/DeepSeek-R1) burn tokens on chain-of-thought before
+            // emitting the answer; some fine-tunes ignore /no_think entirely. A tiny budget gets
+            // fully consumed by reasoning and the answer never lands (content comes back empty),
+            // so give enough headroom for thinking + a short description.
+            const int analysisMaxTokens = 16000;
+
             try
             {
                 var models = await _lmStudioService.GetAvailableModelsAsync(token);
@@ -766,13 +772,15 @@ namespace FlipPix.UI.ViewModels.Video
                     CharacterImagePath,
                     "Describe this character's appearance.",
                     appearanceSystemPrompt,
-                    maxTokens: 2000,
+                    maxTokens: analysisMaxTokens,
                     cancellationToken: token);
 
                 var appearanceDescription = CleanLLMOutput(appearanceRaw);
                 if (string.IsNullOrWhiteSpace(appearanceDescription))
                 {
-                    AddLog("ERROR: Could not extract character appearance from reference image");
+                    AddLog("ERROR: Could not extract character appearance from reference image. " +
+                           "The model returned no answer — if it is a thinking model (e.g. Qwen3), " +
+                           "it likely ran out of tokens while reasoning. Try a non-thinking/vision model.");
                     return;
                 }
                 var apPreview = appearanceDescription.Length > 120 ? appearanceDescription.Substring(0, 120) + "…" : appearanceDescription;
@@ -812,7 +820,7 @@ namespace FlipPix.UI.ViewModels.Video
                             framePaths,
                             "Describe the movement in these video frames.",
                             motionSystemPrompt,
-                            maxTokens: 2000,
+                            maxTokens: analysisMaxTokens,
                             cancellationToken: token);
 
                         var motionDescription = CleanLLMOutput(motionRaw);

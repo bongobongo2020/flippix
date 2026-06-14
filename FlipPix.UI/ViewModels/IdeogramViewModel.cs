@@ -68,6 +68,18 @@ namespace FlipPix.UI.ViewModels
         private bool _generate4K = true;
         private readonly ObservableCollection<IdeogramRegion> _regions = new();
 
+        // Enriched style fields produced by the autoprompter analysis and fed
+        // straight into Ideogram4PromptBuilderKJ (node 105). They have no editor
+        // UI yet; they are populated on Analyze and reused at generate time.
+        private string _background = string.Empty;
+        private string _style = "photo";
+        private string _stylePhoto = string.Empty;
+        private string _aesthetics = string.Empty;
+        private string _lighting = string.Empty;
+        private string _medium = string.Empty;
+        private string _stylePaletteJson = string.Empty;
+        private bool _useEnrichedStyle = true;
+
         // Workflow state
         private bool _isAnalyzing;
         private bool _isGenerating;
@@ -84,6 +96,9 @@ namespace FlipPix.UI.ViewModels
         private BitmapImage? _resultImageSource;
         private bool _hasResult;
         private string _resultImagePath = string.Empty;
+
+        // Generated-image gallery (thumbnails of every produced image)
+        private readonly ObservableCollection<GeneratedImageItem> _generatedImages = new();
 
         public event PropertyChangedEventHandler? PropertyChanged;
         protected void OnPropertyChanged([CallerMemberName] string? name = null)
@@ -116,6 +131,10 @@ namespace FlipPix.UI.ViewModels
             OpenResultFolderCommand = new RelayCommand(OpenResultFolder, () => HasResult);
             OpenResultImageCommand = new RelayCommand(OpenResultImage, () => HasResult);
 
+            OpenGeneratedImageCommand = new RelayCommand<GeneratedImageItem>(OpenGeneratedImage);
+            DeleteGeneratedImageCommand = new RelayCommand<GeneratedImageItem>(DeleteGeneratedImage);
+            ClearGeneratedImagesCommand = new RelayCommand(ClearGeneratedImages, () => _generatedImages.Any());
+
             SetAspectCommand = new RelayCommand<string>(SetAspect);
             AddRegionCommand = new RelayCommand(AddRegion);
             RemoveRegionCommand = new RelayCommand<IdeogramRegion>(RemoveRegion);
@@ -130,6 +149,7 @@ namespace FlipPix.UI.ViewModels
 
             _ = LoadModelsAsync();
             LoadQueueFromFile();
+            LoadGeneratedImagesFromFolder();
         }
 
         // ── Input image ──────────────────────────────────────────────────
@@ -262,6 +282,83 @@ namespace FlipPix.UI.ViewModels
             set { _generate4K = value; OnPropertyChanged(); OnPropertyChanged(nameof(AspectSummary)); }
         }
 
+        // ── Enriched style (from the autoprompter analysis) ───────────────
+        public string Background
+        {
+            get => _background;
+            set { _background = value; OnPropertyChanged(); OnPropertyChanged(nameof(StyleSummary)); OnPropertyChanged(nameof(HasStyleDetails)); }
+        }
+
+        public string Style
+        {
+            get => _style;
+            set { _style = value; OnPropertyChanged(); }
+        }
+
+        public string StylePhoto
+        {
+            get => _stylePhoto;
+            set { _stylePhoto = value; OnPropertyChanged(); OnPropertyChanged(nameof(StyleSummary)); OnPropertyChanged(nameof(HasStyleDetails)); }
+        }
+
+        public string Aesthetics
+        {
+            get => _aesthetics;
+            set { _aesthetics = value; OnPropertyChanged(); OnPropertyChanged(nameof(StyleSummary)); OnPropertyChanged(nameof(HasStyleDetails)); }
+        }
+
+        public string Lighting
+        {
+            get => _lighting;
+            set { _lighting = value; OnPropertyChanged(); OnPropertyChanged(nameof(StyleSummary)); OnPropertyChanged(nameof(HasStyleDetails)); }
+        }
+
+        public string Medium
+        {
+            get => _medium;
+            set { _medium = value; OnPropertyChanged(); OnPropertyChanged(nameof(StyleSummary)); OnPropertyChanged(nameof(HasStyleDetails)); }
+        }
+
+        public string StylePaletteJson
+        {
+            get => _stylePaletteJson;
+            set { _stylePaletteJson = value; OnPropertyChanged(); }
+        }
+
+        /// <summary>
+        /// When true, the enriched style detail detected by the autoprompter
+        /// (background, camera/lens, aesthetics, lighting, medium, palette) is fed
+        /// into Ideogram4PromptBuilderKJ. When false, only the high-level prompt and
+        /// region boxes drive the generation.
+        /// </summary>
+        public bool UseEnrichedStyle
+        {
+            get => _useEnrichedStyle;
+            set { _useEnrichedStyle = value; OnPropertyChanged(); }
+        }
+
+        public bool HasStyleDetails =>
+            !string.IsNullOrWhiteSpace(_background) ||
+            !string.IsNullOrWhiteSpace(_aesthetics) ||
+            !string.IsNullOrWhiteSpace(_lighting) ||
+            !string.IsNullOrWhiteSpace(_medium) ||
+            !string.IsNullOrWhiteSpace(_stylePhoto);
+
+        /// <summary>Compact read-only summary of the enriched style for the UI.</summary>
+        public string StyleSummary
+        {
+            get
+            {
+                var parts = new List<string>();
+                if (!string.IsNullOrWhiteSpace(_medium)) parts.Add(_medium);
+                if (!string.IsNullOrWhiteSpace(_aesthetics)) parts.Add(_aesthetics);
+                if (!string.IsNullOrWhiteSpace(_lighting)) parts.Add(_lighting);
+                if (!string.IsNullOrWhiteSpace(_stylePhoto)) parts.Add(_stylePhoto);
+                if (!string.IsNullOrWhiteSpace(_background)) parts.Add($"bg: {_background}");
+                return string.Join("  •  ", parts);
+            }
+        }
+
         public ObservableCollection<IdeogramRegion> Regions => _regions;
         public bool HasRegions => _regions.Any();
 
@@ -344,6 +441,10 @@ namespace FlipPix.UI.ViewModels
             set { _resultImagePath = value; OnPropertyChanged(); }
         }
 
+        // ── Generated-image gallery ───────────────────────────────────────
+        public ObservableCollection<GeneratedImageItem> GeneratedImages => _generatedImages;
+        public bool HasGeneratedImages => _generatedImages.Any();
+
         // ── CanExecute ────────────────────────────────────────────────────
         // Only block on a concurrent analyze; a running generate/queue must not
         // disable analysis (different backend, no shared live state — the queue
@@ -361,6 +462,9 @@ namespace FlipPix.UI.ViewModels
         public RelayCommand GenerateCommand { get; }
         public RelayCommand OpenResultFolderCommand { get; }
         public RelayCommand OpenResultImageCommand { get; }
+        public RelayCommand<GeneratedImageItem> OpenGeneratedImageCommand { get; }
+        public RelayCommand<GeneratedImageItem> DeleteGeneratedImageCommand { get; }
+        public RelayCommand ClearGeneratedImagesCommand { get; }
 
         public RelayCommand<string> SetAspectCommand { get; }
         public RelayCommand AddRegionCommand { get; }
@@ -503,6 +607,52 @@ namespace FlipPix.UI.ViewModels
             }
         }
 
+        /// <summary>
+        /// Replaces the region set with one box per analyzed element. Each element's
+        /// normalized rect (0..1) is scaled to the current editor canvas. Falls back
+        /// to a single full-frame region carrying <paramref name="fallbackDesc"/>
+        /// when no elements were parsed.
+        /// </summary>
+        private void PopulateRegionsFromElements(IReadOnlyList<ParsedElement> elements, string fallbackDesc)
+        {
+            _regions.Clear();
+
+            if (elements == null || elements.Count == 0)
+            {
+                PopulateRegionOne(fallbackDesc);
+                return;
+            }
+
+            double cw = CanvasWidth, ch = CanvasHeight;
+            foreach (var el in elements)
+            {
+                double x = Clamp01(el.X) * cw;
+                double y = Clamp01(el.Y) * ch;
+                double w = Clamp01(el.W) * cw;
+                double h = Clamp01(el.H) * ch;
+                // Keep boxes inside the canvas and above the 24px drag minimum.
+                if (x + w > cw) w = cw - x;
+                if (y + h > ch) h = ch - y;
+                w = Math.Max(24, w);
+                h = Math.Max(24, h);
+
+                _regions.Add(new IdeogramRegion
+                {
+                    X = x,
+                    Y = y,
+                    Width = w,
+                    Height = h,
+                    Description = string.IsNullOrWhiteSpace(el.Desc) ? fallbackDesc : el.Desc,
+                    Palette = el.Palette ?? new List<string>(),
+                });
+            }
+
+            ReindexRegions();
+            if (_regions.Count > 0) SelectRegion(_regions[0]);
+            ClearRegionsCommand.NotifyCanExecuteChanged();
+            OnPropertyChanged(nameof(HasRegions));
+        }
+
         private void ReindexRegions()
         {
             for (int i = 0; i < _regions.Count; i++)
@@ -552,7 +702,18 @@ namespace FlipPix.UI.ViewModels
                 AddLog("No LLM model selected — image loaded but not analyzed");
                 return;
             }
-            await AnalyzeAsync();
+
+            // Analyze, then auto-queue the result so a freshly browsed image is
+            // generated without a second manual click. AddToQueue feeds the live
+            // processing loop (or starts it), so this works whether or not a batch
+            // is already running. The analyzed values are read synchronously right
+            // after AnalyzeAsync returns (same UI-thread continuation, no await in
+            // between), so a concurrent queue item can't clobber them mid-capture.
+            var analyzed = await AnalyzeAsync();
+            if (analyzed && !string.IsNullOrWhiteSpace(HighLevelPrompt))
+                AddToQueue();
+            else if (!analyzed)
+                AddLog("Analysis did not complete — image not queued");
         }
 
         // ── Load Models ───────────────────────────────────────────────────
@@ -583,11 +744,12 @@ namespace FlipPix.UI.ViewModels
         }
 
         // ── Analyze ───────────────────────────────────────────────────────
-        private async Task AnalyzeAsync()
+        private async Task<bool> AnalyzeAsync()
         {
-            if (!CanAnalyze) return;
+            if (!CanAnalyze) return false;
             _analyzeCts?.Dispose();
             _analyzeCts = CancellationTokenSource.CreateLinkedTokenSource(App.ShutdownToken);
+            bool succeeded = false;
 
             try
             {
@@ -601,7 +763,7 @@ namespace FlipPix.UI.ViewModels
                 {
                     AddLog($"ERROR: Prompt file not found: {promptPath}");
                     StatusMessage = "Error: System prompt file not found";
-                    return;
+                    return false;
                 }
                 var systemPrompt = await File.ReadAllTextAsync(promptPath, _analyzeCts.Token);
 
@@ -619,16 +781,17 @@ namespace FlipPix.UI.ViewModels
                 SetAnalyzeProgress(60);
                 StatusMessage = "Parsing LLM response...";
 
-                var parsed = ParseIdeogramResponse(result);
+                var parsed = ParseIdeogramAnalysis(result);
                 WpfApp.Current?.Dispatcher.Invoke(() =>
                 {
                     if (parsed != null)
                     {
-                        HighLevelPrompt = parsed.Value.Prompt;
-                        SelectedAspectRatio = MapAspect(parsed.Value.AspectRatio);
-                        PopulateRegionOne(parsed.Value.Prompt);
-                        AddLog($"Aspect ratio: {parsed.Value.AspectRatio} → {SelectedAspectRatio}");
-                        StatusMessage = "Prompt ready — adjust regions if needed, then Generate";
+                        ApplyAnalysis(parsed);
+                        AddLog($"Aspect ratio: {parsed.AspectRatio} → {SelectedAspectRatio}");
+                        AddLog($"Parsed {parsed.Elements.Count} element region(s)");
+                        StatusMessage = parsed.Elements.Count > 0
+                            ? $"Prompt + {parsed.Elements.Count} regions ready — adjust if needed, then Generate"
+                            : "Prompt ready — adjust regions if needed, then Generate";
                     }
                     else
                     {
@@ -640,6 +803,7 @@ namespace FlipPix.UI.ViewModels
                 });
 
                 SetAnalyzeProgress(100);
+                succeeded = true;
             }
             catch (OperationCanceledException)
             {
@@ -658,6 +822,8 @@ namespace FlipPix.UI.ViewModels
                 IsAnalyzing = false;
                 AddLog("=== Analyze ended ===");
             }
+
+            return succeeded;
         }
 
         // Analyze shares the Progress bar with generation. When a generate/queue
@@ -705,10 +871,10 @@ namespace FlipPix.UI.ViewModels
 
                 Progress = 94;
                 StatusMessage = "Retrieving image...";
-                var bytes = await RetrieveOutputImageAsync(promptId, Generate4K ? Prefix4K : BasePrefix, _cts.Token);
-                if (bytes != null)
+                var retrieved = await RetrieveOutputImageAsync(promptId, Generate4K ? Prefix4K : BasePrefix, _cts.Token);
+                if (retrieved != null)
                 {
-                    await SaveAndDisplayResultAsync(bytes, _cts.Token);
+                    await SaveAndDisplayResultAsync(retrieved, _cts.Token);
                     Progress = 100;
                     StatusMessage = $"Done! {Path.GetFileName(ResultImagePath)}";
                 }
@@ -778,13 +944,15 @@ namespace FlipPix.UI.ViewModels
             UpdateNode(dict, "4", inputs => inputs["noise_seed"] = rng.NextInt64(0, 999_999_999_999_999L));
             UpdateNode(dict, "75", inputs => inputs["noise_seed"] = rng.NextInt64(0, 999_999_999_999_999L));
 
-            // Node 105 — Ideogram4PromptBuilderKJ: prompt + regions + base resolution.
+            // Node 105 — Ideogram4PromptBuilderKJ: prompt + enriched style + regions + base resolution.
             UpdateNode(dict, "105", inputs =>
             {
                 inputs["high_level_description"] = HighLevelPrompt;
                 inputs["width"] = baseW;
                 inputs["height"] = baseH;
                 inputs["elements_data"] = elementsJson;
+                ApplyStyleInputs(inputs, UseEnrichedStyle,
+                    Background, Style, StylePhoto, Aesthetics, Lighting, Medium, StylePaletteJson);
             });
 
             if (Generate4K)
@@ -838,7 +1006,7 @@ namespace FlipPix.UI.ViewModels
                         ["type"] = "obj",
                         ["text"] = "",
                         ["desc"] = string.IsNullOrWhiteSpace(r.Description) ? HighLevelPrompt : r.Description,
-                        ["palette"] = Array.Empty<object>(),
+                        ["palette"] = (object?)r.Palette ?? Array.Empty<object>(),
                     });
                 }
             }
@@ -861,6 +1029,40 @@ namespace FlipPix.UI.ViewModels
         }
 
         private static double Clamp01(double v) => v < 0 ? 0 : v > 1 ? 1 : v;
+
+        /// <summary>
+        /// Writes the enriched autoprompter fields onto an Ideogram4PromptBuilderKJ
+        /// (node 105) inputs map. The node carries a dotted "style.photo" key. When
+        /// <paramref name="useEnriched"/> is false the detected style detail is
+        /// dropped (only the base "photo" style bucket is kept) so the image renders
+        /// from the high-level prompt + regions alone.
+        /// </summary>
+        private static void ApplyStyleInputs(
+            Dictionary<string, object> inputs,
+            bool useEnriched,
+            string background, string style, string stylePhoto,
+            string aesthetics, string lighting, string medium, string stylePaletteJson)
+        {
+            inputs["style"] = string.IsNullOrWhiteSpace(style) ? "photo" : style;
+
+            if (!useEnriched)
+            {
+                inputs["background"] = string.Empty;
+                inputs["style.photo"] = string.Empty;
+                inputs["aesthetics"] = string.Empty;
+                inputs["lighting"] = string.Empty;
+                inputs["medium"] = string.Empty;
+                inputs["style_palette_data"] = string.Empty;
+                return;
+            }
+
+            inputs["background"] = background ?? string.Empty;
+            inputs["style.photo"] = stylePhoto ?? string.Empty;
+            inputs["aesthetics"] = aesthetics ?? string.Empty;
+            inputs["lighting"] = lighting ?? string.Empty;
+            inputs["medium"] = medium ?? string.Empty;
+            inputs["style_palette_data"] = stylePaletteJson ?? string.Empty;
+        }
 
         private static void UpdateNode(
             Dictionary<string, JsonElement> dict,
@@ -907,7 +1109,15 @@ namespace FlipPix.UI.ViewModels
                 RegionsJson = BuildElementsJson(),
                 AspectRatio = SelectedAspectRatio,
                 Generate4K = Generate4K,
-                LlmModel = SelectedLlmModel
+                LlmModel = SelectedLlmModel,
+                Background = Background,
+                Style = Style,
+                StylePhoto = StylePhoto,
+                Aesthetics = Aesthetics,
+                Lighting = Lighting,
+                Medium = Medium,
+                StylePaletteJson = StylePaletteJson,
+                UseEnrichedStyle = UseEnrichedStyle
             };
             _queue.Add(queueItem);
             NotifyQueueCommands();
@@ -1055,10 +1265,13 @@ namespace FlipPix.UI.ViewModels
             {
                 IsGenerating = true;
 
-                // Apply queue item settings into the live composition state.
-                HighLevelPrompt = queueItem.Prompt;
-                SelectedAspectRatio = queueItem.AspectRatio;
-                Generate4K = queueItem.Generate4K;
+                // Deliberately DO NOT push the queue item's settings into the live
+                // composition state. The editor (prompt / regions / aspect / style)
+                // must stay pinned to the most recently uploaded+analyzed image so
+                // the user can keep pressing "Add to Queue" to enqueue more variations
+                // of THAT image while older items are still generating. The workflow
+                // for this item is built entirely from its own snapshot via
+                // BuildQueuedWorkflow(queueItem), so nothing here needs live state.
 
                 Progress = 0;
                 StatusMessage = "Connecting to ComfyUI...";
@@ -1081,14 +1294,15 @@ namespace FlipPix.UI.ViewModels
 
                 Progress = 94;
                 StatusMessage = "Retrieving image...";
-                var bytes = await RetrieveOutputImageAsync(promptId, queueItem.Generate4K ? Prefix4K : BasePrefix, token);
-                if (bytes != null)
+                var retrieved = await RetrieveOutputImageAsync(promptId, queueItem.Generate4K ? Prefix4K : BasePrefix, token);
+                if (retrieved != null)
                 {
-                    var path = await WriteOutputAsync(bytes, token);
+                    var path = await WriteOutputAsync(retrieved.Bytes, token);
                     ResultImagePath = path;
                     WpfApp.Current?.Dispatcher.Invoke(() => LoadResultImage(path));
                     HasResult = true;
                     queueItem.OutputImagePath = path;
+                    AddGeneratedImage(path, retrieved.ComfyUISourcePath);
                     AddLog($"Saved: {path}");
                     Progress = 100;
                     StatusMessage = $"Done! {Path.GetFileName(path)}";
@@ -1132,6 +1346,9 @@ namespace FlipPix.UI.ViewModels
                 inputs["width"] = baseW;
                 inputs["height"] = baseH;
                 inputs["elements_data"] = elementsJson;
+                ApplyStyleInputs(inputs, queueItem.UseEnrichedStyle,
+                    queueItem.Background, queueItem.Style, queueItem.StylePhoto,
+                    queueItem.Aesthetics, queueItem.Lighting, queueItem.Medium, queueItem.StylePaletteJson);
             });
 
             if (queueItem.Generate4K)
@@ -1198,8 +1415,29 @@ namespace FlipPix.UI.ViewModels
             catch (Exception ex) { AddLog($"Error loading queue: {ex.Message}"); }
         }
 
+        // ── Apply a parsed analysis to the live composition state ──────────
+        private void ApplyAnalysis(IdeogramAnalysis a)
+        {
+            HighLevelPrompt = a.HighLevelDescription;
+            SelectedAspectRatio = MapAspect(a.AspectRatio);
+            Background = a.Background;
+            Style = string.IsNullOrWhiteSpace(a.Style) ? "photo" : a.Style;
+            StylePhoto = a.StylePhoto;
+            Aesthetics = a.Aesthetics;
+            Lighting = a.Lighting;
+            Medium = a.Medium;
+            StylePaletteJson = a.StylePaletteJson;
+            PopulateRegionsFromElements(a.Elements, a.HighLevelDescription);
+        }
+
         // ── Parse LLM response ────────────────────────────────────────────
-        private (string Prompt, string AspectRatio)? ParseIdeogramResponse(string response)
+        /// <summary>
+        /// Parses the autoprompter JSON (high-level description + style fields +
+        /// elements with bounding boxes). Tolerates Markdown fences, the legacy
+        /// {"ideogram_prompt", "aspect_ratio"} shape, and bbox values given either
+        /// as 0..1 fractions or 0..1000 integers in [y_min, x_min, y_max, x_max].
+        /// </summary>
+        private IdeogramAnalysis? ParseIdeogramAnalysis(string response)
         {
             try
             {
@@ -1217,15 +1455,65 @@ namespace FlipPix.UI.ViewModels
                 using var doc = JsonDocument.Parse(json);
                 var root = doc.RootElement;
 
-                var prompt = root.TryGetProperty("ideogram_prompt", out var promptEl)
-                    ? promptEl.GetString() ?? ""
-                    : "";
-                var aspectRatio = root.TryGetProperty("aspect_ratio", out var arEl)
-                    ? arEl.GetString() ?? "1:1"
-                    : "1:1";
+                string Str(string name) =>
+                    root.TryGetProperty(name, out var el) && el.ValueKind == JsonValueKind.String
+                        ? el.GetString() ?? "" : "";
 
-                if (!string.IsNullOrWhiteSpace(prompt))
-                    return (prompt, aspectRatio);
+                // High-level description: new key first, then legacy "ideogram_prompt".
+                var prompt = Str("high_level_description");
+                if (string.IsNullOrWhiteSpace(prompt)) prompt = Str("ideogram_prompt");
+                if (string.IsNullOrWhiteSpace(prompt)) return null;
+
+                var result = new IdeogramAnalysis
+                {
+                    HighLevelDescription = prompt,
+                    AspectRatio = string.IsNullOrWhiteSpace(Str("aspect_ratio")) ? "1:1" : Str("aspect_ratio"),
+                    Background = Str("background"),
+                    Style = Str("style"),
+                    // accept both "style_photo" and a literal "style.photo" key
+                    StylePhoto = !string.IsNullOrWhiteSpace(Str("style_photo")) ? Str("style_photo") : Str("style.photo"),
+                    Aesthetics = Str("aesthetics"),
+                    Lighting = Str("lighting"),
+                    Medium = Str("medium"),
+                    StylePaletteJson = ReadPaletteJson(root, "color_palette"),
+                };
+
+                if (root.TryGetProperty("elements", out var elsEl) && elsEl.ValueKind == JsonValueKind.Array)
+                {
+                    foreach (var elEl in elsEl.EnumerateArray())
+                    {
+                        if (elEl.ValueKind != JsonValueKind.Object) continue;
+                        if (!elEl.TryGetProperty("bbox", out var bboxEl) || bboxEl.ValueKind != JsonValueKind.Array)
+                            continue;
+
+                        var nums = bboxEl.EnumerateArray()
+                            .Where(n => n.ValueKind == JsonValueKind.Number)
+                            .Select(n => n.GetDouble())
+                            .ToArray();
+                        if (nums.Length < 4) continue;
+
+                        // Documented order: [y_min, x_min, y_max, x_max].
+                        double y1 = nums[0], x1 = nums[1], y2 = nums[2], x2 = nums[3];
+
+                        // Normalize: values > 1 are on the 0..1000 grid.
+                        double scale = (new[] { y1, x1, y2, x2 }.Max() > 1.0) ? 1000.0 : 1.0;
+                        double nx1 = x1 / scale, ny1 = y1 / scale, nx2 = x2 / scale, ny2 = y2 / scale;
+
+                        var el = new ParsedElement
+                        {
+                            X = Math.Min(nx1, nx2),
+                            Y = Math.Min(ny1, ny2),
+                            W = Math.Abs(nx2 - nx1),
+                            H = Math.Abs(ny2 - ny1),
+                            Desc = elEl.TryGetProperty("desc", out var dEl) ? dEl.GetString() ?? "" : "",
+                            Palette = ReadPaletteList(elEl, "color_palette"),
+                        };
+                        if (el.W <= 0 || el.H <= 0) continue;
+                        result.Elements.Add(el);
+                    }
+                }
+
+                return result;
             }
             catch (Exception ex)
             {
@@ -1234,8 +1522,29 @@ namespace FlipPix.UI.ViewModels
             return null;
         }
 
+        private static List<string> ReadPaletteList(JsonElement parent, string name)
+        {
+            var list = new List<string>();
+            if (parent.TryGetProperty(name, out var el) && el.ValueKind == JsonValueKind.Array)
+            {
+                foreach (var c in el.EnumerateArray())
+                    if (c.ValueKind == JsonValueKind.String && !string.IsNullOrWhiteSpace(c.GetString()))
+                        list.Add(c.GetString()!);
+            }
+            return list;
+        }
+
+        private static string ReadPaletteJson(JsonElement parent, string name)
+        {
+            var list = ReadPaletteList(parent, name);
+            return list.Count > 0 ? JsonSerializer.Serialize(list) : string.Empty;
+        }
+
         // ── Output image retrieval ────────────────────────────────────────
-        private async Task<byte[]?> RetrieveOutputImageAsync(string promptId, string savePrefix, CancellationToken token)
+        /// <summary>Retrieved image bytes plus the original ComfyUI file path when it lives on the local filesystem.</summary>
+        private sealed record RetrievedImage(byte[] Bytes, string? ComfyUISourcePath);
+
+        private async Task<RetrievedImage?> RetrieveOutputImageAsync(string promptId, string savePrefix, CancellationToken token)
         {
             var baseUrl = _settingsService.Settings?.BaseUrl ?? "http://127.0.0.1:8188";
             Uri uri;
@@ -1267,7 +1576,8 @@ namespace FlipPix.UI.ViewModels
                     {
                         AddLog($"Downloading: {imgFile}");
                         var data = await _comfyUIService.HttpClient.DownloadOutputImageAsync(imgFile);
-                        if (data != null) { AddLog($"Downloaded {data.Length} bytes"); return data; }
+                        // Remote ComfyUI: no local filesystem path, so the source can't be deleted from disk.
+                        if (data != null) { AddLog($"Downloaded {data.Length} bytes"); return new RetrievedImage(data, null); }
                     }
                 }
                 return null;
@@ -1293,19 +1603,21 @@ namespace FlipPix.UI.ViewModels
                     var latest = files[0];
                     var age = DateTime.Now - File.GetLastWriteTime(latest);
                     AddLog($"Found: {Path.GetFileName(latest)} ({age.TotalSeconds:F0}s old)");
-                    if (age.TotalSeconds < 180) return await File.ReadAllBytesAsync(latest, token);
+                    if (age.TotalSeconds < 180)
+                        return new RetrievedImage(await File.ReadAllBytesAsync(latest, token), latest);
                 }
             }
             return null;
         }
 
         // ── Helpers ───────────────────────────────────────────────────────
-        private async Task SaveAndDisplayResultAsync(byte[] bytes, CancellationToken token)
+        private async Task SaveAndDisplayResultAsync(RetrievedImage retrieved, CancellationToken token)
         {
-            var path = await WriteOutputAsync(bytes, token);
+            var path = await WriteOutputAsync(retrieved.Bytes, token);
             ResultImagePath = path;
             WpfApp.Current?.Dispatcher.Invoke(() => LoadResultImage(path));
             HasResult = true;
+            AddGeneratedImage(path, retrieved.ComfyUISourcePath);
             AddLog($"Saved: {path}");
         }
 
@@ -1335,6 +1647,19 @@ namespace FlipPix.UI.ViewModels
             return bmp;
         }
 
+        /// <summary>Loads an image decoded down to gallery-thumbnail size to keep memory low.</summary>
+        private static BitmapImage LoadThumbnail(string path)
+        {
+            var bmp = new BitmapImage();
+            bmp.BeginInit();
+            bmp.CacheOption = BitmapCacheOption.OnLoad;
+            bmp.DecodePixelWidth = 192;
+            bmp.UriSource = new Uri(path, UriKind.Absolute);
+            bmp.EndInit();
+            bmp.Freeze();
+            return bmp;
+        }
+
         private static bool IsImageExt(string f) =>
             f.EndsWith(".png", StringComparison.OrdinalIgnoreCase) ||
             f.EndsWith(".jpg", StringComparison.OrdinalIgnoreCase) ||
@@ -1352,11 +1677,161 @@ namespace FlipPix.UI.ViewModels
                 Process.Start(new ProcessStartInfo(ResultImagePath) { UseShellExecute = true });
         }
 
+        // ── Generated-image gallery ───────────────────────────────────────
+        /// <summary>
+        /// Loads a freshly saved image as a thumbnail and appends it to the gallery (UI thread).
+        /// <paramref name="comfyUISourcePath"/> is the original local ComfyUI file (deleted along
+        /// with the saved copy by the gallery's delete), or null when it isn't on the local disk.
+        /// </summary>
+        private void AddGeneratedImage(string path, string? comfyUISourcePath = null)
+        {
+            if (string.IsNullOrEmpty(path) || !File.Exists(path)) return;
+            WpfApp.Current?.Dispatcher.Invoke(() =>
+            {
+                try
+                {
+                    _generatedImages.Add(new GeneratedImageItem
+                    {
+                        ImagePath = path,
+                        ComfyUISourcePath = comfyUISourcePath,
+                        Thumbnail = LoadThumbnail(path),
+                    });
+                    OnPropertyChanged(nameof(HasGeneratedImages));
+                    ClearGeneratedImagesCommand.NotifyCanExecuteChanged();
+                }
+                catch (Exception ex) { AddLog($"ERROR adding thumbnail: {ex.Message}"); }
+            });
+        }
+
+        /// <summary>
+        /// Rehydrates the gallery from previously saved images in output/ideogram so prior
+        /// runs' images appear on startup. These carry no ComfyUI source path (unknown for
+        /// historical files), so deleting them only removes the saved copy.
+        /// </summary>
+        private void LoadGeneratedImagesFromFolder()
+        {
+            try
+            {
+                var outputDir = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "output", "ideogram");
+                if (!Directory.Exists(outputDir)) return;
+
+                var files = Directory.GetFiles(outputDir, "*.png", SearchOption.TopDirectoryOnly)
+                    .OrderBy(File.GetLastWriteTime)
+                    .ToList();
+
+                foreach (var file in files)
+                {
+                    try
+                    {
+                        _generatedImages.Add(new GeneratedImageItem
+                        {
+                            ImagePath = file,
+                            Thumbnail = LoadThumbnail(file),
+                        });
+                    }
+                    catch (Exception ex) { AddLog($"Skipped thumbnail {Path.GetFileName(file)}: {ex.Message}"); }
+                }
+
+                if (_generatedImages.Any())
+                {
+                    OnPropertyChanged(nameof(HasGeneratedImages));
+                    ClearGeneratedImagesCommand.NotifyCanExecuteChanged();
+                    AddLog($"Loaded {_generatedImages.Count} saved image(s) into gallery");
+                }
+            }
+            catch (Exception ex) { AddLog($"Error loading gallery: {ex.Message}"); }
+        }
+
+        /// <summary>Opens a gallery image with the registered Windows image viewer.</summary>
+        private void OpenGeneratedImage(GeneratedImageItem? item)
+        {
+            if (item == null || string.IsNullOrEmpty(item.ImagePath)) return;
+            if (File.Exists(item.ImagePath))
+                Process.Start(new ProcessStartInfo(item.ImagePath) { UseShellExecute = true });
+            else
+            {
+                AddLog($"Image no longer on disk: {item.FileName}");
+                _generatedImages.Remove(item);
+                OnPropertyChanged(nameof(HasGeneratedImages));
+                ClearGeneratedImagesCommand.NotifyCanExecuteChanged();
+            }
+        }
+
+        /// <summary>
+        /// Deletes the saved image file (and the original ComfyUI-side file when it's on the
+        /// local disk) and drops the thumbnail from the gallery.
+        /// </summary>
+        private void DeleteGeneratedImage(GeneratedImageItem? item)
+        {
+            if (item == null) return;
+            TryDeleteFile(item.ImagePath, item.FileName);
+
+            // Also remove the original from the ComfyUI output folder when we have its path
+            // (local generations only) and it isn't the very same file we already deleted.
+            if (!string.IsNullOrEmpty(item.ComfyUISourcePath) &&
+                !string.Equals(item.ComfyUISourcePath, item.ImagePath, StringComparison.OrdinalIgnoreCase))
+            {
+                TryDeleteFile(item.ComfyUISourcePath, Path.GetFileName(item.ComfyUISourcePath));
+            }
+
+            _generatedImages.Remove(item);
+            OnPropertyChanged(nameof(HasGeneratedImages));
+            ClearGeneratedImagesCommand.NotifyCanExecuteChanged();
+        }
+
+        private void TryDeleteFile(string path, string label)
+        {
+            try
+            {
+                if (!string.IsNullOrEmpty(path) && File.Exists(path))
+                {
+                    File.Delete(path);
+                    AddLog($"Deleted: {label}");
+                }
+            }
+            catch (Exception ex) { AddLog($"ERROR deleting {label}: {ex.Message}"); }
+        }
+
+        /// <summary>Removes all thumbnails from view without deleting any files.</summary>
+        private void ClearGeneratedImages()
+        {
+            _generatedImages.Clear();
+            OnPropertyChanged(nameof(HasGeneratedImages));
+            ClearGeneratedImagesCommand.NotifyCanExecuteChanged();
+        }
+
         private void AddLog(string message)
         {
             var line = $"[{DateTime.Now:HH:mm:ss}] {message}";
             WpfApp.Current?.Dispatcher.Invoke(() => LogOutput = LogOutput + line + "\n");
             _logger.LogInfo(message);
         }
+    }
+
+    /// <summary>Result of parsing the autoprompter JSON returned by the llama-server.</summary>
+    internal sealed class IdeogramAnalysis
+    {
+        public string HighLevelDescription { get; set; } = string.Empty;
+        public string AspectRatio { get; set; } = "1:1";
+        public string Background { get; set; } = string.Empty;
+        public string Style { get; set; } = "photo";
+        public string StylePhoto { get; set; } = string.Empty;
+        public string Aesthetics { get; set; } = string.Empty;
+        public string Lighting { get; set; } = string.Empty;
+        public string Medium { get; set; } = string.Empty;
+        /// <summary>Overall palette serialized as a JSON array of hex strings (or empty).</summary>
+        public string StylePaletteJson { get; set; } = string.Empty;
+        public List<ParsedElement> Elements { get; } = new();
+    }
+
+    /// <summary>One analyzed element with a normalized (0..1) rect, description and palette.</summary>
+    internal sealed class ParsedElement
+    {
+        public double X { get; set; }
+        public double Y { get; set; }
+        public double W { get; set; }
+        public double H { get; set; }
+        public string Desc { get; set; } = string.Empty;
+        public List<string> Palette { get; set; } = new();
     }
 }

@@ -3433,11 +3433,15 @@
                                         </StackPanel>
 
                                         <!-- Reference video player -->
+                                        <!-- Source is assigned from code-behind (see WanScailGgufVM_PropertyChanged)
+                                             rather than bound: the parent VM re-fires OnPropertyChanged(string.Empty)
+                                             on every sub-VM change, which would re-evaluate a Source binding and
+                                             reload the MediaElement (snapping it back to frame 0) on every trim drag. -->
                                         <MediaElement x:Name="WanScailGgufRefVideoPlayer"
-                                                      Source="{Binding WanScailGgufVideoFileUri}"
                                                       LoadedBehavior="Manual" UnloadedBehavior="Stop"
                                                       ScrubbingEnabled="True"
                                                       MediaOpened="WanScailGgufRefPlayer_MediaOpened"
+                                                      MediaEnded="WanScailGgufRefPlayer_MediaEnded"
                                                       Stretch="Uniform"
                                                       Visibility="{Binding WanScailGgufHasVideo, Converter={StaticResource BooleanToVisibilityConverter}}"/>
 
@@ -3484,16 +3488,6 @@
                                                 CornerRadius="6" Padding="10,8" Margin="0,0,0,10"
                                                 Visibility="{Binding WanScailGgufHasVideo, Converter={StaticResource BooleanToVisibilityConverter}}">
                                             <StackPanel>
-                                                <Slider x:Name="WanScailGgufScrubSlider"
-                                                        Minimum="0"
-                                                        Maximum="{Binding WanScailGgufVideoDurationSeconds, Mode=OneWay}"
-                                                        Value="{Binding WanScailGgufPlaybackPositionSeconds, Mode=TwoWay}"
-                                                        IsMoveToPointEnabled="True"
-                                                        SmallChange="0.1" LargeChange="1"
-                                                        Thumb.DragStarted="WanScailGgufScrub_DragStarted"
-                                                        Thumb.DragCompleted="WanScailGgufScrub_DragCompleted"
-                                                        PreviewMouseLeftButtonUp="WanScailGgufScrub_Click"/>
-
                                                 <!-- ── Draggable in/out trim track ───────────────────── -->
                                                 <!-- Drag the green (in) and red (out) handles to set the kept
                                                      range; the purple bar shows the selected clip length. -->

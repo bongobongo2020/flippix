@@ -588,7 +588,7 @@ namespace FlipPix.UI.Services
             IList<string> imagePaths,
             string userPrompt,
             string systemPrompt,
-            int maxTokens = 36000,
+            int maxTokens = 2048,
             CancellationToken cancellationToken = default)
         {
             await _semaphore.WaitAsync(cancellationToken);
@@ -617,6 +617,13 @@ namespace FlipPix.UI.Services
                     },
                     max_tokens = maxTokens,
                     temperature = 0.7,
+                    // Reasoning models (Qwen3 etc.) ignore the /no_think hint and otherwise
+                    // burn the whole max_tokens budget thinking — sometimes in a repetition
+                    // loop that takes ~10 min. Disable chain-of-thought at the chat-template
+                    // level so the model emits only the final edit prompt. Unknown fields are
+                    // ignored by servers that don't support them.
+                    chat_template_kwargs = new { enable_thinking = false },
+                    reasoning_budget = 0,
                     stream = false
                 };
 

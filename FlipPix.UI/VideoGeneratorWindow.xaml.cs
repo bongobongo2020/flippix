@@ -15,9 +15,9 @@ namespace FlipPix.UI
 
         private DispatcherTimer? _scrubTimerGguf;
 
-        // SCAIL II scrub-bar position tracking (slider ↔ media element)
+        // SCAIL II playhead tracking (trim-track playhead ↔ media element)
         private DispatcherTimer? _scailGgufPosTimer;
-        private bool _scailGgufUserScrubbing;
+        private bool _scailGgufIsPlaying;
 
         public VideoGeneratorWindow(VideoGeneratorViewModel viewModel, WindowPositionService windowPositionService)
         {
@@ -35,6 +35,8 @@ namespace FlipPix.UI
         private void OnLoaded(object sender, RoutedEventArgs e)
         {
             _windowPositionService.EnsureWindowVisible(this);
+            // Pick up a video that was already loaded before this window's handlers wired up.
+            ApplyWanScailGgufRefSource();
         }
 
         private void Header_MouseLeftButtonDown(object sender, MouseButtonEventArgs e)
@@ -118,6 +120,22 @@ namespace FlipPix.UI
             e.Handled = true;
         }
 
+        // Assign the reference player's Source from code-behind (it is intentionally
+        // NOT bound in XAML). The parent VM re-fires OnPropertyChanged(string.Empty) on
+        // every sub-VM change, so a Source binding would be re-evaluated — and re-setting
+        // MediaElement.Source reloads the clip back to frame 0 — on every trim-marker drag.
+        // Assigning here only when the path actually changes keeps the scrubbed frame stable.
+        private void ApplyWanScailGgufRefSource()
+        {
+            var p = WanScailGgufRefVideoPlayer;
+            if (p == null) return;
+            var path = _viewModel.WanScailGgufVM.VideoFileUri;
+            var target = string.IsNullOrEmpty(path) ? null : new Uri(path, UriKind.RelativeOrAbsolute);
+            if (string.Equals(p.Source?.OriginalString, target?.OriginalString, StringComparison.OrdinalIgnoreCase))
+                return;
+            p.Source = target;
+        }
+
         // ── MediaOpened: enter Paused state so ScrubbingEnabled can render frames ──
 
         private void WanScailGgufRefPlayer_MediaOpened(object sender, RoutedEventArgs e)
@@ -125,43 +143,53 @@ namespace FlipPix.UI
             WanScailGgufRefVideoPlayer.Play();
             WanScailGgufRefVideoPlayer.Pause();
 
-            // Drive the scrub slider from the playhead while not being dragged by the user.
+            // Drive the trim-track playhead from the player position while playing.
             if (_scailGgufPosTimer == null)
             {
                 _scailGgufPosTimer = new DispatcherTimer { Interval = TimeSpan.FromMilliseconds(200) };
                 _scailGgufPosTimer.Tick += (_, _) =>
                 {
                     var p = WanScailGgufRefVideoPlayer;
-                    if (p?.Source == null || _scailGgufUserScrubbing) return;
+                    if (p?.Source == null) return;
+                    // Only follow the player while it is actually playing. A paused
+                    // MediaElement reports Position == 0, which would otherwise snap
+                    // the playhead back to the start every tick.
+                    if (!_scailGgufIsPlaying) return;
                     if (p.NaturalDuration.HasTimeSpan)
-                        WanScailGgufScrubSlider.Value = p.Position.TotalSeconds;
+                        _viewModel.WanScailGgufVM.PlaybackPositionSeconds = p.Position.TotalSeconds;
                 };
             }
             _scailGgufPosTimer.Start();
         }
 
         // ── SCAIL II scrub / play / mark in-out ──────────────────────────────
-        private void WanScailGgufPlay_Click(object sender, RoutedEventArgs e) => WanScailGgufRefVideoPlayer?.Play();
-        private void WanScailGgufPause_Click(object sender, RoutedEventArgs e) => WanScailGgufRefVideoPlayer?.Pause();
-
-        private void WanScailGgufScrub_DragStarted(object sender, System.Windows.Controls.Primitives.DragStartedEventArgs e)
-            => _scailGgufUserScrubbing = true;
-
-        private void WanScailGgufScrub_DragCompleted(object sender, System.Windows.Controls.Primitives.DragCompletedEventArgs e)
+        private void WanScailGgufPlay_Click(object sender, RoutedEventArgs e)
         {
-            _scailGgufUserScrubbing = false;
-            SeekWanScailGgufRefTo(WanScailGgufScrubSlider.Value);
+            WanScailGgufRefVideoPlayer?.Play();
+            _scailGgufIsPlaying = WanScailGgufRefVideoPlayer?.Source != null;
         }
 
-        private void WanScailGgufScrub_Click(object sender, MouseButtonEventArgs e)
-            => SeekWanScailGgufRefTo(WanScailGgufScrubSlider.Value);
+        private void WanScailGgufPause_Click(object sender, RoutedEventArgs e)
+        {
+            WanScailGgufRefVideoPlayer?.Pause();
+            _scailGgufIsPlaying = false;
+        }
 
+        private void WanScailGgufRefPlayer_MediaEnded(object sender, RoutedEventArgs e)
+            => _scailGgufIsPlaying = false;
+
+        // Seek the reference preview to a position (seconds) and keep the trim-track
+        // playhead in sync. Used while dragging the in/out markers so the preview
+        // frame updates live. ScrubbingEnabled renders the frame even while paused.
         private void SeekWanScailGgufRefTo(double seconds)
         {
             var p = WanScailGgufRefVideoPlayer;
             if (p?.Source == null) return;
             p.Pause();
-            p.Position = TimeSpan.FromSeconds(Math.Max(0, seconds));
+            _scailGgufIsPlaying = false;
+            var t = Math.Max(0, seconds);
+            p.Position = TimeSpan.FromSeconds(t);
+            _viewModel.WanScailGgufVM.PlaybackPositionSeconds = t;
         }
 
         // ── SCAIL II draggable in/out trim markers ───────────────────────────
@@ -170,6 +198,9 @@ namespace FlipPix.UI
         // marker stays put. The purple region between them shows the kept clip,
         // and TrimmedFrames (in/out length in frames) is what the workflow loads.
         private const double ScailTrimThumbWidth = 14.0;
+
+        // WAN processes the clip in 81-frame chunks; the timeline marks each boundary.
+        private const int ScailChunkFrames = 81;
 
         private double ScailTrimTrackWidth =>
             WanScailGgufTrimTrack != null && WanScailGgufTrimTrack.ActualWidth > 1
@@ -187,10 +218,16 @@ namespace FlipPix.UI
         {
             switch (e.PropertyName)
             {
+                case nameof(ViewModels.Video.WanScailViewModel.VideoFileUri):
+                    if (Dispatcher.CheckAccess()) ApplyWanScailGgufRefSource();
+                    else Dispatcher.Invoke(ApplyWanScailGgufRefSource);
+                    break;
                 case nameof(ViewModels.Video.WanScailViewModel.TrimInSeconds):
                 case nameof(ViewModels.Video.WanScailViewModel.TrimOutSeconds):
                 case nameof(ViewModels.Video.WanScailViewModel.VideoDurationSeconds):
                 case nameof(ViewModels.Video.WanScailViewModel.PlaybackPositionSeconds):
+                case nameof(ViewModels.Video.WanScailViewModel.Fps):
+                case nameof(ViewModels.Video.WanScailViewModel.TotalFrames):
                     if (Dispatcher.CheckAccess()) UpdateWanScailGgufTrimMarkers();
                     else Dispatcher.Invoke(UpdateWanScailGgufTrimMarkers);
                     break;
@@ -200,9 +237,54 @@ namespace FlipPix.UI
         private void WanScailGgufTrimTrack_SizeChanged(object sender, SizeChangedEventArgs e)
             => UpdateWanScailGgufTrimMarkers();
 
+        // 81-frame boundary tick marks drawn under the trim handles.
+        private readonly System.Collections.Generic.List<UIElement> _scailGgufTicks = new();
+        private string _scailGgufTickSig = "";
+
+        private void RebuildWanScailGgufTicks()
+        {
+            if (WanScailGgufTrimTrack == null) return;
+            var vm = _viewModel.WanScailGgufVM;
+            double fps = vm.Fps > 0 ? vm.Fps : 24.0;
+            double dur = vm.VideoDurationSeconds;
+            double w = ScailTrimTrackWidth;
+            int total = vm.TotalFrames;
+
+            // Only rebuild when something that affects tick placement actually changed.
+            string sig = $"{fps:F3}|{dur:F3}|{w:F1}|{total}";
+            if (sig == _scailGgufTickSig) return;
+            _scailGgufTickSig = sig;
+
+            foreach (var t in _scailGgufTicks) WanScailGgufTrimTrack.Children.Remove(t);
+            _scailGgufTicks.Clear();
+
+            if (dur <= 0 || w <= 0 || fps <= 0) return;
+            int totalFrames = total > 0 ? total : (int)Math.Round(dur * fps);
+
+            for (int frame = ScailChunkFrames; frame < totalFrames; frame += ScailChunkFrames)
+            {
+                double x = ScailTrimSecToX(frame / fps, dur);
+                var tick = new System.Windows.Controls.Border
+                {
+                    Width = 1.5,
+                    Height = 18,
+                    Background = new System.Windows.Media.SolidColorBrush(
+                        System.Windows.Media.Color.FromRgb(0x4B, 0x55, 0x63)),
+                    HorizontalAlignment = System.Windows.HorizontalAlignment.Left,
+                    VerticalAlignment = System.Windows.VerticalAlignment.Center,
+                    IsHitTestVisible = false,
+                    Margin = new Thickness(x - 0.75, 0, 0, 0)
+                };
+                _scailGgufTicks.Add(tick);
+                // Insert just above the base rail but below the region/playhead/thumbs.
+                WanScailGgufTrimTrack.Children.Insert(1, tick);
+            }
+        }
+
         private void UpdateWanScailGgufTrimMarkers()
         {
             if (WanScailGgufInThumb == null) return; // not yet templated
+            RebuildWanScailGgufTicks();
             var vm = _viewModel.WanScailGgufVM;
             double dur = vm.VideoDurationSeconds;
             double w = ScailTrimTrackWidth;
@@ -228,6 +310,7 @@ namespace FlipPix.UI
             if (dur <= 0 || w <= 0) return;
             vm.TrimInSeconds += e.HorizontalChange / w * dur;
             UpdateWanScailGgufTrimMarkers();
+            SeekWanScailGgufRefTo(vm.TrimInSeconds);
         }
 
         private void WanScailGgufOutThumb_DragDelta(object sender, System.Windows.Controls.Primitives.DragDeltaEventArgs e)
@@ -239,6 +322,7 @@ namespace FlipPix.UI
             double cur = vm.TrimOutSeconds > 0 ? vm.TrimOutSeconds : dur;
             vm.TrimOutSeconds = cur + e.HorizontalChange / w * dur;
             UpdateWanScailGgufTrimMarkers();
+            SeekWanScailGgufRefTo(vm.TrimOutSeconds);
         }
 
         private void LtxControlRefPlayer_MediaOpened(object sender, RoutedEventArgs e)
