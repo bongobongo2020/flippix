@@ -158,9 +158,11 @@ flippix-prompt-image/
 │   ├── qwen-zimageAPI.json
 │   ├── qwen2512API-text.json
 │   └── Klien-Text-API.json
+├── Install-FlipPix.bat             # One-click FlipPix installer (Win98-style wizard)
 ├── Install-ComfyUI.bat             # One-click ComfyUI installer (double-click)
 ├── scripts/                        # Setup and automation scripts
-│   ├── setup-comfyui-fresh.ps1     # Installer the .bat runs
+│   ├── flippix-installer.ps1       # FlipPix setup wizard the .bat runs
+│   ├── setup-comfyui-fresh.ps1     # ComfyUI installer the .bat runs
 │   ├── flippix-custom-nodes.txt    # Custom-node list
 │   ├── flippix-models.txt          # Model manifest (path | size | url)
 │   └── run_scaill_chunks.py
