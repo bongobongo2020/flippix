@@ -1,0 +1,27 @@
+# FlipPix model manifest - read by setup-comfyui-fresh.ps1
+#
+# One model per line, three fields separated by '|':
+#     <relative/path under the models folder> | <approx size> | <download url>
+#
+# Forward slashes in the path; each script converts for its OS.
+# Lines that are blank or start with '#' are ignored.
+
+# --- CLIP / text encoders (~12 GB) ---
+clip/qwen_2.5_vl_7b_fp8_scaled.safetensors | ~4.2 GB | https://huggingface.co/Comfy-Org/Qwen-Image_ComfyUI/resolve/main/split_files/text_encoders/qwen_2.5_vl_7b_fp8_scaled.safetensors
+clip/umt5_xxl_fp8_e4m3fn_scaled.safetensors | ~4.9 GB | https://huggingface.co/Kijai/WanVideoGenerator/resolve/main/text_encoders/umt5_xxl_fp8_e4m3fn_scaled.safetensors
+clip/qwen_3_4b.safetensors | ~2.5 GB | https://huggingface.co/Comfy-Org/ZhipuAI_Z-Image-Turbo_models/resolve/main/qwen_3_4b.safetensors
+
+# --- VAE (~500 MB) ---
+vae/qwen_image_vae.safetensors | ~168 MB | https://huggingface.co/QuantStack/Qwen-Image-GGUF/resolve/main/VAE/Qwen_Image-VAE.safetensors
+vae/wan_2.1_vae.safetensors | ~168 MB | https://huggingface.co/Kijai/WanVideoGenerator/resolve/main/vae/wan_2.1_vae.safetensors
+vae/ae.safetensors | ~168 MB | https://huggingface.co/Comfy-Org/ZhipuAI_Z-Image-Turbo_models/resolve/main/ae.safetensors
+
+# --- UNET / diffusion models (~32 GB) ---
+unet/Qwen-Image-Edit-2509_fp8_e4m3fn.safetensors | ~3.8 GB | https://huggingface.co/Kijai/Qwen-Edit-2509_safetensors/resolve/main/Qwen-Image-Edit-2509_fp8_e4m3fn.safetensors
+unet/wan2.2_i2v_A14b_high_noise_scaled_fp8_e4m3_lightx2v_4step_comfyui_1030.safetensors | ~11 GB | https://huggingface.co/Kijai/WanVideoGenerator/resolve/main/diffusion_models/wan2.2_i2v_A14b_high_noise_scaled_fp8_e4m3_lightx2v_4step_comfyui_1030.safetensors
+unet/wan2.2_i2v_A14b_low_noise_scaled_fp8_e4m3_lightx2v_4step_comfyui.safetensors | ~11 GB | https://huggingface.co/Kijai/WanVideoGenerator/resolve/main/diffusion_models/wan2.2_i2v_A14b_low_noise_scaled_fp8_e4m3_lightx2v_4step_comfyui.safetensors
+unet/z_image_turbo_bf16.safetensors | ~5.8 GB | https://huggingface.co/Comfy-Org/ZhipuAI_Z-Image-Turbo_models/resolve/main/z_image_turbo_bf16.safetensors
+
+# --- LoRA (~800 MB) ---
+loras/qwen/Qwen-Image-Lightning-8steps-V2.0.safetensors | ~383 MB | https://huggingface.co/lightx2v/Qwen-Image-Lightning/resolve/main/Qwen-Image-Lightning-8steps-V2.0.safetensors
+loras/qwen/mult-angles.safetensors | ~383 MB | https://huggingface.co/dx8152/Qwen-Edit-2509-Multiple-angles/resolve/main/%E9%95%9C%E5%A4%B4%E8%BD%AC%E6%8D%A2.safetensors

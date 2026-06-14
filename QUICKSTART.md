@@ -2,69 +2,34 @@
 
 Get FlipPix running in 3 simple steps!
 
-## Step 1: Install ComfyUI
+## Step 1: Install ComfyUI + FlipPix nodes (one click)
 
-### Windows (Easiest)
-1. Download portable version: https://github.com/comfyanonymous/ComfyUI/releases
-2. Extract to `C:\ComfyUI`
-3. Done!
+On Windows, just **double-click `Install-ComfyUI.bat`** in the flippix repo root.
 
-### Linux/macOS
-```bash
-git clone https://github.com/comfyanonymous/ComfyUI.git
-cd ComfyUI
-python -m venv venv
-source venv/bin/activate  # or venv\Scripts\activate on Windows
-pip install torch torchvision torchaudio --index-url https://download.pytorch.org/whl/cu121
-pip install -r requirements.txt
-```
+It provisions a fresh, self-contained ComfyUI (bundled Python + torch/CUDA), installs every
+FlipPix custom-node pack, and then asks about models:
 
-## Step 2: Run Automated Setup
+- Already have a ComfyUI models folder? Point it there — nothing is re-downloaded.
+- Don't have one? It offers to create it and download the FlipPix models (~45GB).
 
-Copy the setup script to your ComfyUI directory and run it:
-
-### Windows
-```cmd
-cd C:\ComfyUI
-copy \path\to\flippix\scripts\setup-comfyui-windows.bat .
-setup-comfyui-windows.bat
-```
-
-### Linux/macOS
-```bash
-cd /path/to/ComfyUI
-cp /path/to/flippix/scripts/setup-comfyui.sh .
-chmod +x setup-comfyui.sh
-./setup-comfyui.sh
-```
-
-### Any Platform (Python)
-```bash
-cd /path/to/ComfyUI
-python /path/to/flippix/scripts/setup-comfyui.py
-```
-
-**What the script does:**
-- Installs 6 custom nodes
-- Downloads 13 models (~45GB)
-- Takes 30-60 minutes
+**What it does:**
+- Downloads ComfyUI portable + all FlipPix custom nodes
+- Optionally downloads the models (~45GB)
+- Takes 30-60 minutes with the model download
 
 **Go grab a coffee!** ☕
 
-## Step 3: Start Everything
+See **[scripts/README.md](scripts/README.md)** for options (custom install location, reusing an
+existing models folder, unattended download, etc.).
+
+## Step 2: Start Everything
 
 ### Start ComfyUI
 
 **Windows (Portable):**
 ```cmd
-cd C:\ComfyUI
+cd %USERPROFILE%\ComfyUI_FlipPix\ComfyUI_windows_portable
 run_nvidia_gpu.bat
-```
-
-**Manual Installation:**
-```bash
-cd ComfyUI
-python main.py --highvram
 ```
 
 Wait for ComfyUI to start, then open http://127.0.0.1:8188 in your browser.

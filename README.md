@@ -158,10 +158,11 @@ flippix-prompt-image/
 │   ├── qwen-zimageAPI.json
 │   ├── qwen2512API-text.json
 │   └── Klien-Text-API.json
+├── Install-ComfyUI.bat             # One-click ComfyUI installer (double-click)
 ├── scripts/                        # Setup and automation scripts
-│   ├── setup-comfyui-windows.bat
-│   ├── setup-comfyui.sh
-│   ├── setup-comfyui.py
+│   ├── setup-comfyui-fresh.ps1     # Installer the .bat runs
+│   ├── flippix-custom-nodes.txt    # Custom-node list
+│   ├── flippix-models.txt          # Model manifest (path | size | url)
 │   └── run_scaill_chunks.py
 ├── loras/                          # LoRA model files
 ├── publish/                        # Built executable files
