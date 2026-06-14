@@ -64,7 +64,7 @@ TROUBLESHOOTING
 • Verify all required models are installed in ComfyUI (60GB total)
 • Check workflow JSON files for any custom model requirements
 • See README.md for detailed troubleshooting
-• Use scripts/setup-comfyui-windows.bat for automated setup
+• Double-click Install-ComfyUI.bat (repo root) for one-click ComfyUI setup
 
 SUPPORT & DOCUMENTATION
 -----------------------

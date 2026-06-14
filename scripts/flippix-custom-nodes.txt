@@ -1,0 +1,57 @@
+# FlipPix custom-node packs (git URLs), one per line.
+#
+# These cover the custom nodes referenced by the workflow JSON files in flippix/workflow.
+# Lines starting with '#' and blank lines are ignored.
+#
+# This list is the reliable backbone used by setup-comfyui-fresh.ps1. Anything not
+# covered here is picked up afterwards by ComfyUI-Manager's cm-cli (which reads the
+# actual workflow files) and, as a last resort, by Manager's "Install Missing Custom
+# Nodes" button in the web UI on first launch.
+
+# --- Core / management ---
+https://github.com/Comfy-Org/ComfyUI-Manager           # ComfyUI-Manager (also provides cm-cli used below)
+
+# --- kijai stack (Wan, LTX helpers, Florence2, SAM2, depth, audio, KJNodes) ---
+https://github.com/kijai/ComfyUI-KJNodes                # ImageResizeKJv2, GetImageSizeAndCount, GrowMaskWithBlur, *KJ nodes, PointsEditor, ModelPatchTorchSettings, PathchSageAttentionKJ
+https://github.com/kijai/ComfyUI-WanVideoWrapper        # WanVideo* , MultiTalk*, Wav2Vec*, MochaEmbeds, TorchCompileModelWanVideo
+https://github.com/kijai/ComfyUI-Florence2              # Florence2Run, DownloadAndLoadFlorence2Model, Florence2toCoordinates
+https://github.com/kijai/ComfyUI-segment-anything-2     # Sam2Segmentation, DownloadAndLoadSAM2Model
+https://github.com/kijai/ComfyUI-GIMM-VFI               # DownloadAndLoadGIMMVFIModel, GIMMVFI_interpolate
+https://github.com/kijai/ComfyUI-MMAudio                # MMAudioModelLoader/Sampler/FeatureUtilsLoader
+
+# --- video / frames / depth ---
+https://github.com/Kosinkadink/ComfyUI-VideoHelperSuite # VHS_* (LoadVideo, VideoCombine, LoadAudio, etc.)
+https://github.com/Fannovel16/ComfyUI-Frame-Interpolation # RIFE VFI
+https://github.com/Fannovel16/comfyui_controlnet_aux    # CannyEdgePreprocessor, DWPreprocessor, AIO_Preprocessor, PixelPerfectResolution, OpenPose
+
+# --- LTX ---
+https://github.com/Lightricks/ComfyUI-LTXVideo          # LTXV* nodes (img2video, guides, schedulers, VAE)
+
+# --- general utility node packs ---
+https://github.com/rgthree/rgthree-comfy                # *(rgthree) nodes: Any Switch, Power Lora Loader, Seed, Reroute, etc.
+https://github.com/pythongosssss/ComfyUI-Custom-Scripts # *|pysssss : ShowText, MathExpression, StringFunction, PlaySound
+https://github.com/cubiq/ComfyUI_essentials             # GetImageSize+, SimpleMath+, ImageResize+
+https://github.com/yolain/ComfyUI-Easy-Use              # easy * nodes (forLoop, ifElse, imageSize, loraStack, sam3, etc.)
+https://github.com/ltdrdata/ComfyUI-Impact-Pack         # ImpactSwitch, ImpactCompare, ImpactConditionalBranchSelMode, ImpactIfNone
+https://github.com/WASasquatch/was-node-suite-comfyui   # Text Multiline/Concatenate, Image Aspect Ratio, Cut/Paste By Mask, Mask To Region
+https://github.com/Suzie1/ComfyUI_Comfyroll_CustomNodes # CR Aspect Ratio, CR Prompt Text, CR Float To Integer
+https://github.com/evanspearman/ComfyMath               # CM_FloatToInt, ComfyMathExpression
+https://github.com/Smirnov75/ComfyUI-mxToolkit          # mxSlider, mxSlider2D
+
+# --- model loaders ---
+https://github.com/city96/ComfyUI-GGUF                  # UnetLoaderGGUF, CLIPLoaderGGUF, DualCLIPLoaderGGUF
+https://github.com/pollockjj/ComfyUI-MultiGPU           # UnetLoaderGGUFDisTorchMultiGPU
+
+# --- inpaint / layers ---
+https://github.com/lquesada/ComfyUI-Inpaint-CropAndStitch # InpaintCropImproved, InpaintStitchImproved
+https://github.com/Acly/comfyui-inpaint-nodes          # INPAINT_MaskedFill
+https://github.com/chflame163/ComfyUI_LayerStyle        # LayerUtility: ImageScaleByAspectRatio V2, PurgeVRAM
+
+# --- samplers / advanced ---
+https://github.com/ClownsharkBatwing/RES4LYF           # ClownsharKSampler_Beta, ClownOptions_*, SharkOptions_Beta, BerniniConditioning, YARSAdv
+
+# --- llm / captioning ---
+https://github.com/stavsap/comfyui-ollama              # OllamaConnectivityV2, OllamaGenerateV2, OllamaOptionsV2
+
+# --- metadata / saving ---
+https://github.com/alexopus/ComfyUI-Image-Saver        # Image Saver, String Literal (Image Saver), Simple Readable Metadata

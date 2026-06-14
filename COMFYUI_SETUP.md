@@ -4,14 +4,11 @@ This guide will walk you through setting up ComfyUI from scratch to run FlipPix,
 
 ## 🚀 Quick Setup (Automated)
 
-**Want to skip manual installation?** Use our automated setup scripts that download everything for you!
+**Want to skip manual installation?** Use our one-click installer that sets everything up for you!
 
-See **[scripts/README.md](scripts/README.md)** for automated installation:
-- **Windows**: `setup-comfyui-windows.bat`
-- **Linux/macOS**: `setup-comfyui.sh`
-- **Cross-Platform**: `setup-comfyui.py`
-
-The scripts automatically install all 6 custom nodes and download all 13 models (~45GB) in 30-60 minutes.
+On Windows, just **double-click `Install-ComfyUI.bat`** in the repo root. It provisions a fresh,
+self-contained ComfyUI, installs every FlipPix custom-node pack, and offers to download the models
+(~45GB). See **[scripts/README.md](scripts/README.md)** for details and options.
 
 ---
 

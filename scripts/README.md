@@ -1,272 +1,106 @@
-# FlipPix ComfyUI Setup Scripts
+# FlipPix ComfyUI Setup
 
-This directory contains automated setup scripts to download all required custom nodes and models for FlipPix.
+There is **one** installer: it provisions a fresh, self-contained ComfyUI, installs every
+custom-node pack the FlipPix workflows need, and (optionally) downloads the model weights.
 
-## Available Scripts
+- **`Install-ComfyUI.bat`** (repo root) — the one-click entry point. Double-click it.
+- **`setup-comfyui-fresh.ps1`** — the PowerShell installer the `.bat` runs. Windows only
+  (it uses the official ComfyUI Windows portable build with bundled Python + torch/CUDA).
+- **`flippix-custom-nodes.txt`** — the curated custom-node list (one git URL per line).
+- **`flippix-models.txt`** — the model manifest (`path | size | url` per line). Single source
+  of truth for which weights get downloaded; edit URLs here once.
 
-### 1. setup-comfyui-windows.bat (Windows)
-Batch script for Windows users.
+## One-click install
 
-**Usage:**
-```cmd
-cd C:\path\to\ComfyUI
-path\to\setup-comfyui-windows.bat
+Just **double-click `Install-ComfyUI.bat`** in the repo root. It runs the PowerShell installer
+with the correct execution policy, so you never need to open a terminal.
+
+To pass options, run it from a prompt (or append them after the filename):
+
+```powershell
+# default install to %USERPROFILE%\ComfyUI_FlipPix
+Install-ComfyUI.bat
+
+# custom location
+Install-ComfyUI.bat -InstallDir D:\AI\ComfyUI
 ```
 
-### 2. setup-comfyui.sh (Linux/macOS)
-Bash script for Linux and macOS users.
+You can also call the PowerShell script directly:
 
-**Usage:**
-```bash
-cd /path/to/ComfyUI
-chmod +x /path/to/setup-comfyui.sh
-/path/to/setup-comfyui.sh
+```powershell
+# from the flippix repo root
+powershell -ExecutionPolicy Bypass -File scripts\setup-comfyui-fresh.ps1
+
+# add FlipPix nodes to a ComfyUI portable you already have
+.\scripts\setup-comfyui-fresh.ps1 -ExistingComfyDir "C:\ComfyUI_windows_portable"
 ```
 
-### 3. setup-comfyui.py (Cross-Platform)
-Python script that works on all platforms.
+## What it does
 
-**Usage:**
-```bash
-cd /path/to/ComfyUI
-python /path/to/setup-comfyui.py
+1. Ensures `git` and a 7-Zip extractor are available (auto-downloads `7zr.exe`; tries `winget` for git).
+2. Downloads the official ComfyUI Windows portable build (bundles embedded Python + torch/CUDA).
+3. Extracts it into the install directory.
+4. Installs ComfyUI-Manager + all curated node packs from `flippix-custom-nodes.txt`, plus their
+   Python requirements, into the embedded Python.
+5. Runs ComfyUI-Manager's `cm-cli` over the actual workflow files to auto-install any niche packs
+   not in the curated list.
+6. Copies the FlipPix workflow library into the install.
+7. **Models:** asks for your *current* ComfyUI models folder. If it already exists, the new
+   install is pointed at it (via `extra_model_paths.yaml`) and **nothing is downloaded**. Only
+   if the folder doesn't exist does it offer to create it and download the FlipPix models
+   (~45 GB, listed in `flippix-models.txt`) there.
+
+## Model options
+
+```powershell
+# reuse weights you already have, download nothing
+.\scripts\setup-comfyui-fresh.ps1 -ModelsDir "C:\ComfyUI_windows_portable\ComfyUI\models"
+
+# unattended: create + download if the folder is missing
+.\scripts\setup-comfyui-fresh.ps1 -ModelsDir D:\AI\models -DownloadModels
+
+# don't touch models at all
+.\scripts\setup-comfyui-fresh.ps1 -SkipModels
 ```
 
-## Prerequisites
+## Requirements
 
-Before running any script, ensure you have:
+- Windows 10/11
+- ~60 GB free disk space (models ~45 GB, ComfyUI + nodes ~5 GB, working space ~10 GB)
+- Stable internet connection
+- `git` (the installer offers to install it via `winget` if missing)
 
-- **Git** installed and in PATH
-- **wget** or **curl** installed for downloading files
-- **Python 3.10+** (for the Python script)
-- **60GB+ free disk space**
-- **Stable internet connection**
+`curl.exe` (built into modern Windows) is used for fast, resumable downloads.
 
-## What the Scripts Do
+## After installation
 
-All three scripts perform the same tasks:
+1. **Launch ComfyUI:** run `run_nvidia_gpu.bat` in the install's portable root.
+2. **First launch** loads all custom nodes (1–2 minutes) — watch the console for any that fail.
+3. **Open** http://127.0.0.1:8188 and load a FlipPix workflow to verify (no red "missing" nodes).
+   If a node is still missing, use Manager → *Install Missing Custom Nodes*, then restart.
+4. **Point FlipPix** at this ComfyUI folder when prompted on startup.
 
-1. **Create Directory Structure**
-   - Creates all necessary model directories
-   - Sets up proper folder hierarchy
-
-2. **Install Custom Nodes** (6 repositories)
-   - ComfyUI-Manager
-   - ComfyUI-QwenImageEdit-MZ
-   - rgthree-comfy
-   - ComfyUI_Comfyroll_CustomNodes
-   - ComfyUI-GGUF
-   - ComfyUI-WanVideoGenerator
-   - Automatically installs Python dependencies
-
-3. **Download Models** (~45GB)
-   - 3 CLIP models (~12GB)
-   - 3 VAE models (~500MB)
-   - 4 UNET models (~32GB)
-   - 2 LoRA models (~800MB)
-
-## Features
-
-- **Resume Support**: If a download is interrupted, restart the script and it will skip already downloaded files
-- **Error Handling**: Continues even if some downloads fail, with warnings
-- **Progress Information**: Clear progress indicators for each step
-- **Automatic Dependency Installation**: Installs Python requirements for custom nodes
-
-## Estimated Time
-
-- **With fast internet (100+ Mbps)**: 30-45 minutes
-- **With moderate internet (50 Mbps)**: 45-90 minutes
-- **With slow internet (10 Mbps)**: 2-4 hours
-
-## Installation Steps
-
-### Option 1: Copy Script to ComfyUI Directory
-
-1. Copy your preferred script to the ComfyUI root directory
-2. Run the script from that location
-
-**Windows:**
-```cmd
-cd C:\ComfyUI
-setup-comfyui-windows.bat
-```
-
-**Linux/macOS:**
-```bash
-cd /path/to/ComfyUI
-chmod +x setup-comfyui.sh
-./setup-comfyui.sh
-```
-
-**Python (Any Platform):**
-```bash
-cd /path/to/ComfyUI
-python setup-comfyui.py
-```
-
-### Option 2: Run Script from FlipPix Directory
-
-**Windows:**
-```cmd
-cd C:\ComfyUI
-C:\path\to\flippix\scripts\setup-comfyui-windows.bat
-```
-
-**Linux/macOS:**
-```bash
-cd /path/to/ComfyUI
-/path/to/flippix/scripts/setup-comfyui.sh
-```
-
-**Python:**
-```bash
-cd /path/to/ComfyUI
-python /path/to/flippix/scripts/setup-comfyui.py
-```
+If you skipped the model download, just re-run the installer — finished files are skipped and
+interrupted ones resume.
 
 ## Troubleshooting
 
-### Script Can't Find Git
-
-**Windows:**
-- Install Git from https://git-scm.com/
-- Make sure "Git from the command line and also from 3rd-party software" is selected during installation
-- Restart your terminal after installation
-
-**Linux:**
-```bash
-sudo apt install git  # Debian/Ubuntu
-sudo dnf install git  # Fedora
-```
-
-**macOS:**
-```bash
-brew install git
-```
-
-### Script Can't Find wget or curl
-
-**Windows:**
-- Download wget from https://eternallybored.org/misc/wget/
-- Place wget.exe in C:\Windows\System32 or add to PATH
-- Or install via Chocolatey: `choco install wget`
-
-**Linux:**
-```bash
-sudo apt install wget curl  # Debian/Ubuntu
-sudo dnf install wget curl  # Fedora
-```
-
-**macOS:**
-```bash
-brew install wget
-# curl is pre-installed on macOS
-```
-
-### Download Fails or Times Out
-
-- The script supports resume functionality
-- Simply re-run the script and it will skip completed downloads
-- For persistent issues, try downloading the model manually from the Hugging Face links in COMFYUI_SETUP.md
-
-### Permission Denied Errors (Linux/macOS)
-
-Make the script executable:
-```bash
-chmod +x setup-comfyui.sh
-```
-
-Or run with bash explicitly:
-```bash
-bash setup-comfyui.sh
-```
-
-### Not Enough Disk Space
-
-The complete setup requires **~60GB**:
-- Models: ~45GB
-- Custom nodes: ~500MB
-- Working space: ~10-15GB
-
-Free up space or use a different drive.
-
-## After Installation
-
-Once the script completes:
-
-1. **Start ComfyUI**
-   ```bash
-   python main.py --highvram
-   ```
-
-2. **Wait for initialization** (first startup takes 1-2 minutes as custom nodes load)
-
-3. **Open browser** to http://127.0.0.1:8188
-
-4. **Test workflows** by dragging FlipPix workflow JSON files into ComfyUI
-
-5. **Verify no red nodes** (all nodes should load without errors)
-
-## Manual Verification
-
-After running the script, verify the installation:
-
-### Check Custom Nodes
-```bash
-cd ComfyUI/custom_nodes
-ls -la
-```
-
-You should see 6 directories:
-- ComfyUI-Manager
-- ComfyUI-QwenImageEdit-MZ
-- rgthree-comfy
-- ComfyUI_Comfyroll_CustomNodes
-- ComfyUI-GGUF
-- ComfyUI-WanVideoGenerator
-
-### Check Models
-
-**CLIP Models:**
-```bash
-ls -lh models/clip/
-```
-Should show 3 files (~12GB total)
-
-**VAE Models:**
-```bash
-ls -lh models/vae/
-```
-Should show 3 files (~500MB total)
-
-**UNET Models:**
-```bash
-ls -lh models/unet/
-```
-Should show 4 files (~32GB total)
-
-**LoRA Models:**
-```bash
-ls -lh models/loras/qwen/
-```
-Should show 2 files (~800MB total)
+- **Git not found:** install from https://git-scm.com/download/win (select "Git from the command
+  line…"), reopen the terminal, and re-run. The installer also tries `winget install Git.Git`.
+- **Download fails / times out:** re-run the installer; it resumes partial files and skips
+  completed ones. For a stubborn file, grab it manually from the URL in `flippix-models.txt`.
+- **Red "missing" nodes after launch:** open the workflow, use Manager → *Install Missing Custom
+  Nodes*, then restart ComfyUI.
+- **Not enough disk space:** install to a larger drive with `-InstallDir`, and/or reuse an
+  existing models folder with `-ModelsDir` so weights aren't duplicated.
 
 ## Support
 
-If you encounter issues not covered here:
-
-1. Check the main [COMFYUI_SETUP.md](../COMFYUI_SETUP.md) for detailed troubleshooting
-2. Review the script output for specific error messages
-3. Visit the FlipPix GitHub issues: https://github.com/bongobongo2020/flippix/issues
-4. Check ComfyUI documentation: https://docs.comfy.org/
-
-## Notes
-
-- The scripts will **never overwrite** existing files - they skip files that already exist
-- The scripts install **all** models needed for all three FlipPix workflows (Image Editing, Video Generation, and Image Generation)
-- Custom node repositories may change URLs - if a clone fails, check for repository name changes
-- Some model URLs may change - if a download fails, check [COMFYUI_SETUP.md](../COMFYUI_SETUP.md) for updated links
+- Main [COMFYUI_SETUP.md](../COMFYUI_SETUP.md) for detailed model/workflow notes
+- FlipPix issues: https://github.com/bongobongo2020/flippix/issues
+- ComfyUI docs: https://docs.comfy.org/
 
 ## License
 
-These scripts are provided for convenience in setting up FlipPix. Please respect the licenses of ComfyUI, custom nodes, and models being downloaded.
+Provided for convenience in setting up FlipPix. Please respect the licenses of ComfyUI, the
+custom nodes, and the models being downloaded.
