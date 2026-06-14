@@ -1,6 +1,27 @@
-# FlipPix ComfyUI Setup
+# FlipPix Setup
 
-There is **one** installer: it provisions a fresh, self-contained ComfyUI, installs every
+## Install FlipPix (one click)
+
+New to FlipPix? **Double-click `Install-FlipPix.bat`** in the repo root. It opens a retro
+Windows 98-style setup wizard that:
+
+- lets you choose the install folder (defaults to `%LOCALAPPDATA%\Programs\FlipPix`, no admin needed),
+- creates desktop / Start Menu shortcuts,
+- can **also install ComfyUI** for you (ticking the box launches the ComfyUI installer below),
+- copies FlipPix and can launch it when done.
+
+FlipPix is published self-contained, so end users need **no .NET runtime**. If the repo already
+has a built `publish\` folder it's used directly; otherwise the wizard builds it with
+`dotnet publish` (that build step needs the .NET 8 SDK).
+
+The wizard is `scripts\flippix-installer.ps1` (WinForms, intentionally classic-themed). The `.bat`
+just launches it with the right execution policy in STA mode.
+
+---
+
+# ComfyUI Setup
+
+There is **one** ComfyUI installer: it provisions a fresh, self-contained ComfyUI, installs every
 custom-node pack the FlipPix workflows need, and (optionally) downloads the model weights.
 
 - **`Install-ComfyUI.bat`** (repo root) — the one-click entry point. Double-click it.

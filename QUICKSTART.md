@@ -2,25 +2,26 @@
 
 Get FlipPix running in 3 simple steps!
 
-## Step 1: Install ComfyUI + FlipPix nodes (one click)
+## Step 1: Install FlipPix (one click)
 
-On Windows, just **double-click `Install-ComfyUI.bat`** in the flippix repo root.
+On Windows, just **double-click `Install-FlipPix.bat`** in the flippix repo root.
 
-It provisions a fresh, self-contained ComfyUI (bundled Python + torch/CUDA), installs every
-FlipPix custom-node pack, and then asks about models:
+A retro Windows 98-style setup wizard walks you through it:
+- choose the install folder and shortcuts (no admin required),
+- tick **"Also install ComfyUI"** if you don't already have the image/video engine,
+- click Install, then launch FlipPix when it finishes.
+
+If you tick the ComfyUI box (or run `Install-ComfyUI.bat` yourself), it provisions a fresh,
+self-contained ComfyUI (bundled Python + torch/CUDA), installs every FlipPix custom-node pack,
+and then asks about models:
 
 - Already have a ComfyUI models folder? Point it there — nothing is re-downloaded.
 - Don't have one? It offers to create it and download the FlipPix models (~45GB).
 
-**What it does:**
-- Downloads ComfyUI portable + all FlipPix custom nodes
-- Optionally downloads the models (~45GB)
-- Takes 30-60 minutes with the model download
+**Go grab a coffee** — with the ComfyUI + model download this takes 30-60 minutes. ☕
 
-**Go grab a coffee!** ☕
-
-See **[scripts/README.md](scripts/README.md)** for options (custom install location, reusing an
-existing models folder, unattended download, etc.).
+See **[scripts/README.md](scripts/README.md)** for options (custom locations, reusing an existing
+models folder, unattended download, etc.).
 
 ## Step 2: Start Everything
 
