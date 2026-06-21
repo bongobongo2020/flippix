@@ -999,7 +999,10 @@ namespace FlipPix.UI.ViewModels.Video
             {
                 AddLog($"=== Seedhunt {phase} ===");
                 AddLog("Waiting for other workflows to finish...");
-                lease = await _workflowCoordinator.AcquireAsync($"SeedHunt-{phase}", token);
+                // Stable key (no phase suffix) so all phases keep the LTX seed-hunter model resident
+                // instead of triggering a VRAM free + cold reload on each phase switch. Shared with
+                // Seed Director, which drives the same seed-hunter-api.json.
+                lease = await _workflowCoordinator.AcquireAsync("SeedHunt", token);
 
                 ProcessingStatus = "Checking ComfyUI...";
                 var comfyOk = await _comfyUIService.DetectAndRestartIfCrashedAsync(s => AddLog($"[Auto-Restart] {s}"));

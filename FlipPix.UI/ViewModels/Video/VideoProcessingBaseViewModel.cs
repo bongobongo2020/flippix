@@ -252,19 +252,19 @@ namespace FlipPix.UI.ViewModels.Video
             if (string.IsNullOrEmpty(outputFolder) || !Directory.Exists(outputFolder))
                 return existingFiles;
 
-            // Check main folder
-            foreach (var file in Directory.GetFiles(outputFolder, filePattern))
+            // Check main folder (recursive: some workflows write into dated subfolders, e.g. video/2026-06-17/)
+            foreach (var file in Directory.GetFiles(outputFolder, filePattern, SearchOption.AllDirectories))
             {
                 existingFiles.Add(file);
             }
 
-            // Check subfolders
+            // Check subfolders (recursive, in case they live outside outputFolder or have nested dated folders)
             foreach (var subfolder in additionalSubfolders)
             {
                 var subfolderPath = Path.Combine(outputFolder, subfolder);
                 if (Directory.Exists(subfolderPath))
                 {
-                    foreach (var file in Directory.GetFiles(subfolderPath, filePattern))
+                    foreach (var file in Directory.GetFiles(subfolderPath, filePattern, SearchOption.AllDirectories))
                     {
                         existingFiles.Add(file);
                     }
@@ -325,7 +325,8 @@ namespace FlipPix.UI.ViewModels.Video
                 {
                     if (Directory.Exists(folder))
                     {
-                        currentFiles.AddRange(Directory.GetFiles(folder, filePattern));
+                        // Recursive: workflows like DaSiWa write into dated subfolders (video/2026-06-17/...)
+                        currentFiles.AddRange(Directory.GetFiles(folder, filePattern, SearchOption.AllDirectories));
                     }
                 }
 
@@ -621,12 +622,33 @@ namespace FlipPix.UI.ViewModels.Video
 
         #region FFmpeg Helpers
 
+        // Resolving ffmpeg walks the whole PATH calling File.Exists per entry. If PATH contains a
+        // dead/slow network drive, each probe can block for ~12s on an SMB timeout — and every video
+        // VM calls FindFFmpeg repeatedly (queue loads, duration/preview probes), so the stall used to
+        // recur and freeze the Video Generator window for 10s+. Resolve once and cache app-wide.
+        private static string? _cachedFFmpegPath;
+        private static bool _ffmpegResolved;
+        private static readonly object _ffmpegLock = new();
+
         /// <summary>
-        /// Finds FFmpeg executable on the system.
+        /// Finds FFmpeg executable on the system. The result is cached statically so the (potentially
+        /// slow) PATH walk runs at most once per app run, shared across all video ViewModels.
         /// </summary>
         protected string? FindFFmpeg()
         {
-            // Check common locations
+            lock (_ffmpegLock)
+            {
+                if (_ffmpegResolved) return _cachedFFmpegPath;
+
+                _cachedFFmpegPath = ResolveFFmpegPath();
+                _ffmpegResolved = true;
+                return _cachedFFmpegPath;
+            }
+        }
+
+        private string? ResolveFFmpegPath()
+        {
+            // Check common locations first (fast, local-only File.Exists)
             var possiblePaths = new[]
             {
                 @"C:\ffmpeg\bin\ffmpeg.exe",
@@ -646,12 +668,14 @@ namespace FlipPix.UI.ViewModels.Video
                 }
             }
 
-            // Try PATH environment variable
+            // Try PATH environment variable. Skip non-local roots (UNC \\ and mapped network drives)
+            // so a disconnected drive can't stall the probe for ~12s on an SMB timeout.
             var pathEnv = Environment.GetEnvironmentVariable("PATH");
             if (!string.IsNullOrEmpty(pathEnv))
             {
                 foreach (var dir in pathEnv.Split(';'))
                 {
+                    if (string.IsNullOrWhiteSpace(dir) || !IsLocalFixedPath(dir)) continue;
                     var ffmpegPath = Path.Combine(dir, "ffmpeg.exe");
                     if (File.Exists(ffmpegPath))
                     {
@@ -663,6 +687,28 @@ namespace FlipPix.UI.ViewModels.Video
 
             AddLog("FFmpeg not found");
             return null;
+        }
+
+        /// <summary>
+        /// True only for paths rooted on a local fixed drive — excludes UNC paths and removable/network
+        /// drives whose File.Exists probes can hang when the share is unreachable.
+        /// </summary>
+        private static bool IsLocalFixedPath(string dir)
+        {
+            try
+            {
+                var trimmed = dir.Trim();
+                if (trimmed.StartsWith(@"\\")) return false; // UNC share
+                var root = Path.GetPathRoot(trimmed);
+                if (string.IsNullOrEmpty(root) || root.Length < 2 || root[1] != ':') return false;
+                var drive = new DriveInfo(root);
+                return drive.DriveType == DriveType.Fixed;
+            }
+            catch
+            {
+                // If we can't classify the drive, skip it rather than risk a slow/hanging probe.
+                return false;
+            }
         }
 
         /// <summary>

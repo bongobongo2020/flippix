@@ -22,21 +22,24 @@ namespace FlipPix.UI.ViewModels
 {
     /// <summary>
     /// Ideogram v4 tab: a high-level scene prompt plus an optional set of
-    /// bounding-box composition regions drawn on a canvas, rendered to a base
-    /// image and optionally upscaled to a 4K image via the PiD path. Aspect
-    /// ratio (square / widescreen / portrait) drives both the base and 4K sizes.
-    /// Workflow: workflow/image/Ideogram4workflowAPI.json.
+    /// bounding-box composition regions drawn on a canvas, rendered to a single
+    /// image. Aspect ratio (square / widescreen / portrait) and a target
+    /// megapixel budget drive the output resolution via the Flux Resolution Calc
+    /// node. Workflow: workflow/image/Ideogram-4-NSFW.json.
     /// </summary>
     public class IdeogramViewModel : INotifyPropertyChanged
     {
-        private const string WorkflowFile = "workflow/image/Ideogram4workflowAPI.json";
+        private const string WorkflowFile = "workflow/image/Ideogram-4-NSFW.json";
         private const string PromptFile = "prompts/prompt2json/ideagram.md";
-        private const string BasePrefix = "ideao";
-        private const string Prefix4K = "ideao_4k";
+        private const string SavePrefix = "gram";
 
-        // PiD 4K-only nodes pruned when the user disables the 4K upscale.
-        private static readonly string[] PiD4KNodeIds =
-            { "74", "75", "76", "77", "78", "79", "81", "82", "84", "85", "86", "87", "88", "100" };
+        // Node ids in Ideogram-4-NSFW.json.
+        private const string PromptBuilderNode = "185";   // Ideogram4PromptBuilderKJ
+        private const string LatentNode = "160";          // EmptyFlux2LatentImage
+        private const string SeedNode = "197";            // Seed (rgthree)
+
+        // Selectable target resolutions (FluxResolutionNode "megapixel" input).
+        private static readonly string[] MegapixelOptions = { "1.0", "1.5", "2.0", "2.5", "3.0" };
 
         private readonly ComfyUIService _comfyUIService;
         private readonly SettingsService _settingsService;
@@ -65,7 +68,8 @@ namespace FlipPix.UI.ViewModels
         // Composition
         private string _highLevelPrompt = string.Empty;
         private string _selectedAspectRatio = "Square";
-        private bool _generate4K = true;
+        private string _megapixel = "2.5";
+        private bool _useRegions;
         private readonly ObservableCollection<IdeogramRegion> _regions = new();
 
         // Enriched style fields produced by the autoprompter analysis and fed
@@ -90,6 +94,9 @@ namespace FlipPix.UI.ViewModels
         // Separate from _cts so analyzing a new image never tears down the
         // cancellation source a concurrent manual Generate is still using.
         private CancellationTokenSource? _analyzeCts;
+        // Tracks the in-flight AnalyzeAsync so a rapid re-trigger (e.g. fast
+        // orientation changes) can cancel and await it before starting a fresh run.
+        private Task? _analyzeTask;
         private DateTime _lastProgressLog = DateTime.MinValue;
 
         // Result
@@ -126,7 +133,8 @@ namespace FlipPix.UI.ViewModels
             // batch is processing.
             BrowseAndAnalyzeCommand = new RelayCommand(async () => await BrowseAndAnalyzeAsync(), () => !IsAnalyzing);
             LoadModelsCommand = new RelayCommand(async () => await LoadModelsAsync(), () => !IsAnalyzing && !IsLoadingModels);
-            AnalyzeCommand = new RelayCommand(async () => await AnalyzeAsync(), () => CanAnalyze);
+            AnalyzeCommand = new RelayCommand(async () => await RunAnalyzeAsync(), () => CanAnalyze);
+            CancelAnalyzeCommand = new RelayCommand(CancelAnalyze, () => IsAnalyzing);
             GenerateCommand = new RelayCommand(async () => await GenerateAsync(), () => CanGenerate);
             OpenResultFolderCommand = new RelayCommand(OpenResultFolder, () => HasResult);
             OpenResultImageCommand = new RelayCommand(OpenResultImage, () => HasResult);
@@ -148,8 +156,8 @@ namespace FlipPix.UI.ViewModels
             CancelQueueCommand = new RelayCommand(CancelQueue, () => IsProcessingQueue);
 
             _ = LoadModelsAsync();
-            LoadQueueFromFile();
-            LoadGeneratedImagesFromFolder();
+            ScheduleQueueLoad();
+            ScheduleGalleryLoad();
         }
 
         // ── Input image ──────────────────────────────────────────────────
@@ -252,34 +260,54 @@ namespace FlipPix.UI.ViewModels
             _ => 320,
         };
 
-        // Base generation size (node 105) for the current aspect.
-        private (int W, int H) BaseSize => _selectedAspectRatio switch
+        // W:H ratio for the current aspect, used to compute the output resolution.
+        private string AspectRatioString => AspectToRatioString(_selectedAspectRatio);
+
+        private static string AspectToRatioString(string aspect) => aspect switch
         {
-            "Widescreen" => (1024, 576),
-            "Portrait" => (576, 1024),
-            _ => (1024, 1024),
+            "Widescreen" => "16:9",
+            "Portrait" => "9:16",
+            _ => "1:1",
         };
 
-        // Final 4K canvas size (node 84) = 4× base for the current aspect.
-        private (int W, int H) Size4K
+        public ObservableCollection<string> MegapixelChoices { get; } = new(MegapixelOptions);
+
+        /// <summary>Target output resolution budget (FluxResolutionNode "megapixel").</summary>
+        public string Megapixel
         {
-            get { var (w, h) = BaseSize; return (w * 4, h * 4); }
+            get => _megapixel;
+            set
+            {
+                _megapixel = string.IsNullOrWhiteSpace(value) ? "2.5" : value;
+                OnPropertyChanged();
+                OnPropertyChanged(nameof(AspectSummary));
+            }
         }
 
         public string AspectSummary
         {
             get
             {
-                var (bw, bh) = BaseSize;
-                var (kw, kh) = Size4K;
-                return Generate4K ? $"{bw}×{bh} → {kw}×{kh}" : $"{bw}×{bh}";
+                var (w, h) = ApproxResolution(_selectedAspectRatio, _megapixel);
+                return $"≈ {w}×{h}";
             }
         }
 
-        public bool Generate4K
+        // Approximate the resolution FluxResolutionNode produces (megapixel budget at
+        // the chosen ratio, rounded to /16) purely for an informative UI label.
+        private static (int W, int H) ApproxResolution(string aspect, string megapixel)
         {
-            get => _generate4K;
-            set { _generate4K = value; OnPropertyChanged(); OnPropertyChanged(nameof(AspectSummary)); }
+            var ratioStr = AspectToRatioString(aspect);
+            var parts = ratioStr.Split(':');
+            double rw = double.TryParse(parts[0], out var a) ? a : 1;
+            double rh = parts.Length > 1 && double.TryParse(parts[1], out var b) ? b : 1;
+            if (rh == 0) rh = 1;
+            double ratio = rw / rh;
+            double mp = double.TryParse(megapixel, out var m) ? m : 2.5;
+            double total = Math.Max(0.1, mp) * 1_000_000;
+            int w = (int)(Math.Round(Math.Sqrt(total * ratio) / 16) * 16);
+            int h = (int)(Math.Round(Math.Sqrt(total / ratio) / 16) * 16);
+            return (Math.Max(16, w), Math.Max(16, h));
         }
 
         // ── Enriched style (from the autoprompter analysis) ───────────────
@@ -357,6 +385,19 @@ namespace FlipPix.UI.ViewModels
                 if (!string.IsNullOrWhiteSpace(_background)) parts.Add($"bg: {_background}");
                 return string.Join("  •  ", parts);
             }
+        }
+
+        /// <summary>
+        /// When false (default) generation sends a single full-frame element carrying
+        /// the high-level prompt — matching the manual workflow, which renders a clean
+        /// proportional image. When true the drawn composition regions are sent as
+        /// multiple elements (advanced; this model can split/garble or trip the
+        /// per-region safety filter when regions are under-defined).
+        /// </summary>
+        public bool UseRegions
+        {
+            get => _useRegions;
+            set { _useRegions = value; OnPropertyChanged(); }
         }
 
         public ObservableCollection<IdeogramRegion> Regions => _regions;
@@ -459,6 +500,7 @@ namespace FlipPix.UI.ViewModels
         public RelayCommand BrowseAndAnalyzeCommand { get; }
         public RelayCommand LoadModelsCommand { get; }
         public RelayCommand AnalyzeCommand { get; }
+        public RelayCommand CancelAnalyzeCommand { get; }
         public RelayCommand GenerateCommand { get; }
         public RelayCommand OpenResultFolderCommand { get; }
         public RelayCommand OpenResultImageCommand { get; }
@@ -500,6 +542,7 @@ namespace FlipPix.UI.ViewModels
         private void NotifyCommands()
         {
             AnalyzeCommand.NotifyCanExecuteChanged();
+            CancelAnalyzeCommand.NotifyCanExecuteChanged();
             BrowseAndAnalyzeCommand.NotifyCanExecuteChanged();
             LoadModelsCommand.NotifyCanExecuteChanged();
             GenerateCommand.NotifyCanExecuteChanged();
@@ -523,20 +566,51 @@ namespace FlipPix.UI.ViewModels
         {
             if (string.IsNullOrEmpty(aspect) || aspect == _selectedAspectRatio) return;
 
-            double oldW = CanvasWidth, oldH = CanvasHeight;
             SelectedAspectRatio = aspect;
-            double newW = CanvasWidth, newH = CanvasHeight;
 
-            // Preserve each region's relative position/size across the resized canvas.
-            if (oldW > 0 && oldH > 0)
+            // The existing region boxes were laid out for the previous orientation.
+            // Rescaling them to the new canvas distorts each box (a square becomes a
+            // thin rectangle), so the composition ends up looking messed up. Instead,
+            // drop the stale boxes and — when an input image is loaded — regenerate
+            // fresh regions tailored to the new orientation via the analyzer. The
+            // re-analyze preserves the orientation the user just picked.
+            ClearRegions();
+
+            if (HasInputImage && !string.IsNullOrWhiteSpace(SelectedLlmModel))
             {
-                double sx = newW / oldW, sy = newH / oldH;
-                foreach (var r in _regions)
-                {
-                    r.X *= sx; r.Width *= sx;
-                    r.Y *= sy; r.Height *= sy;
-                }
+                AddLog($"Orientation → {aspect}: regenerating regions...");
+                _ = RestartAnalyzeAsync(preserveAspect: true);
             }
+        }
+
+        /// <summary>
+        /// Cancels any in-flight analyze and waits for it to unwind, then starts a
+        /// fresh analyze. Used when the user changes orientation while a previous
+        /// region-regeneration is still running, so the stale run can't land its
+        /// boxes after the new one.
+        /// </summary>
+        private async Task RestartAnalyzeAsync(bool preserveAspect)
+        {
+            try { _analyzeCts?.Cancel(); } catch (ObjectDisposedException) { }
+
+            var prev = _analyzeTask;
+            if (prev != null)
+            {
+                try { await prev; } catch { /* cancellation / prior failure already handled in AnalyzeAsync */ }
+            }
+
+            await RunAnalyzeAsync(preserveAspect);
+        }
+
+        /// <summary>
+        /// Starts an analyze run and records it as the in-flight task so a restart
+        /// (orientation change) can await it. All analyze entry points go through here.
+        /// </summary>
+        private Task<bool> RunAnalyzeAsync(bool preserveAspect = false)
+        {
+            var task = AnalyzeAsync(preserveAspect);
+            _analyzeTask = task;
+            return task;
         }
 
         // ── Regions ───────────────────────────────────────────────────────
@@ -607,44 +681,80 @@ namespace FlipPix.UI.ViewModels
             }
         }
 
+        // Subject box edges within this fraction of a canvas edge get snapped out
+        // to the edge ("expand toward edges"), so subjects reach the frame instead
+        // of leaving a thin margin.
+        private const double EdgeSnap = 0.10;
+
+        // An element covering at least this fraction of the frame in BOTH axes is
+        // treated as the background and dropped from the element list — the setting
+        // is carried by Ideogram4PromptBuilderKJ's dedicated `background` input, and a
+        // full-frame element box overlapping every subject makes the model split or
+        // garble the scene (Ideogram expects tight, mostly non-overlapping elements).
+        private const double FullFrameThreshold = 0.92;
+
         /// <summary>
-        /// Replaces the region set with one box per analyzed element. Each element's
-        /// normalized rect (0..1) is scaled to the current editor canvas. Falls back
-        /// to a single full-frame region carrying <paramref name="fallbackDesc"/>
-        /// when no elements were parsed.
+        /// Maps the analyzed subject elements onto the editor canvas as composition
+        /// regions. Each element becomes a tightly-bounded region (scaled to the canvas
+        /// and snapped out to any nearby edge). The scene/background is NOT added as a
+        /// region — it flows through the prompt builder's separate `background` input,
+        /// matching Ideogram 4's compositional_deconstruction schema (background string
+        /// + discrete element bboxes). Any near-full-frame element returned by the LLM
+        /// is dropped for the same reason. When the analysis yields no discrete subject,
+        /// a single full-frame region carrying the high-level prompt is used as a
+        /// fallback so region mode still has content.
         /// </summary>
         private void PopulateRegionsFromElements(IReadOnlyList<ParsedElement> elements, string fallbackDesc)
         {
             _regions.Clear();
 
-            if (elements == null || elements.Count == 0)
+            double cw = CanvasWidth, ch = CanvasHeight;
+
+            if (elements != null)
             {
-                PopulateRegionOne(fallbackDesc);
-                return;
+                foreach (var el in elements)
+                {
+                    double x1 = Clamp01(el.X);
+                    double y1 = Clamp01(el.Y);
+                    double x2 = Clamp01(el.X + el.W);
+                    double y2 = Clamp01(el.Y + el.H);
+
+                    // Drop a background-sized element: it overlaps every subject and is
+                    // already represented by the builder's `background` input.
+                    if ((x2 - x1) >= FullFrameThreshold && (y2 - y1) >= FullFrameThreshold)
+                        continue;
+
+                    // Expand toward edges.
+                    if (x1 <= EdgeSnap) x1 = 0;
+                    if (y1 <= EdgeSnap) y1 = 0;
+                    if (x2 >= 1 - EdgeSnap) x2 = 1;
+                    if (y2 >= 1 - EdgeSnap) y2 = 1;
+
+                    double x = x1 * cw;
+                    double y = y1 * ch;
+                    double w = Math.Max(24, (x2 - x1) * cw);
+                    double h = Math.Max(24, (y2 - y1) * ch);
+                    if (x + w > cw) w = cw - x;
+                    if (y + h > ch) h = ch - y;
+
+                    _regions.Add(new IdeogramRegion
+                    {
+                        X = x,
+                        Y = y,
+                        Width = w,
+                        Height = h,
+                        Description = string.IsNullOrWhiteSpace(el.Desc) ? fallbackDesc : el.Desc,
+                        Palette = el.Palette ?? new List<string>(),
+                    });
+                }
             }
 
-            double cw = CanvasWidth, ch = CanvasHeight;
-            foreach (var el in elements)
+            // Fallback: no discrete subjects → one full-frame region with the global
+            // prompt (equivalent to the non-region single-element path, no overlap).
+            if (_regions.Count == 0)
             {
-                double x = Clamp01(el.X) * cw;
-                double y = Clamp01(el.Y) * ch;
-                double w = Clamp01(el.W) * cw;
-                double h = Clamp01(el.H) * ch;
-                // Keep boxes inside the canvas and above the 24px drag minimum.
-                if (x + w > cw) w = cw - x;
-                if (y + h > ch) h = ch - y;
-                w = Math.Max(24, w);
-                h = Math.Max(24, h);
-
-                _regions.Add(new IdeogramRegion
-                {
-                    X = x,
-                    Y = y,
-                    Width = w,
-                    Height = h,
-                    Description = string.IsNullOrWhiteSpace(el.Desc) ? fallbackDesc : el.Desc,
-                    Palette = el.Palette ?? new List<string>(),
-                });
+                var desc = !string.IsNullOrWhiteSpace(fallbackDesc) ? fallbackDesc : HighLevelPrompt;
+                _regions.Add(new IdeogramRegion { X = 0, Y = 0, Width = cw, Height = ch, Description = desc });
             }
 
             ReindexRegions();
@@ -709,7 +819,7 @@ namespace FlipPix.UI.ViewModels
             // is already running. The analyzed values are read synchronously right
             // after AnalyzeAsync returns (same UI-thread continuation, no await in
             // between), so a concurrent queue item can't clobber them mid-capture.
-            var analyzed = await AnalyzeAsync();
+            var analyzed = await RunAnalyzeAsync();
             if (analyzed && !string.IsNullOrWhiteSpace(HighLevelPrompt))
                 AddToQueue();
             else if (!analyzed)
@@ -743,10 +853,23 @@ namespace FlipPix.UI.ViewModels
             }
         }
 
+        /// <summary>
+        /// Cancels an in-flight image→LLM analyze. The LLM call is non-streaming and
+        /// can hang for minutes ("Sending image to LLM..."), so this gives the user a
+        /// way out without waiting on the 15-minute HTTP timeout.
+        /// </summary>
+        private void CancelAnalyze()
+        {
+            try { _analyzeCts?.Cancel(); } catch (ObjectDisposedException) { }
+            StatusMessage = "Cancelling analyze...";
+            AddLog("Analyze cancellation requested");
+        }
+
         // ── Analyze ───────────────────────────────────────────────────────
-        private async Task<bool> AnalyzeAsync()
+        private async Task<bool> AnalyzeAsync(bool preserveAspect = false)
         {
             if (!CanAnalyze) return false;
+            try { _analyzeCts?.Cancel(); } catch (ObjectDisposedException) { }
             _analyzeCts?.Dispose();
             _analyzeCts = CancellationTokenSource.CreateLinkedTokenSource(App.ShutdownToken);
             bool succeeded = false;
@@ -786,7 +909,7 @@ namespace FlipPix.UI.ViewModels
                 {
                     if (parsed != null)
                     {
-                        ApplyAnalysis(parsed);
+                        ApplyAnalysis(parsed, applyAspect: !preserveAspect);
                         AddLog($"Aspect ratio: {parsed.AspectRatio} → {SelectedAspectRatio}");
                         AddLog($"Parsed {parsed.Elements.Count} element region(s)");
                         StatusMessage = parsed.Elements.Count > 0
@@ -871,7 +994,7 @@ namespace FlipPix.UI.ViewModels
 
                 Progress = 94;
                 StatusMessage = "Retrieving image...";
-                var retrieved = await RetrieveOutputImageAsync(promptId, Generate4K ? Prefix4K : BasePrefix, _cts.Token);
+                var retrieved = await RetrieveOutputImageAsync(promptId, SavePrefix, _cts.Token);
                 if (retrieved != null)
                 {
                     await SaveAndDisplayResultAsync(retrieved, _cts.Token);
@@ -936,57 +1059,73 @@ namespace FlipPix.UI.ViewModels
             var dict = JsonSerializer.Deserialize<Dictionary<string, JsonElement>>(File.ReadAllText(workflowPath))
                 ?? throw new InvalidOperationException("Failed to parse workflow JSON");
 
-            var rng = new Random();
-            var (baseW, baseH) = BaseSize;
-            var elementsJson = BuildElementsJson();
+            ApplyToWorkflow(dict, _selectedAspectRatio, _megapixel, HighLevelPrompt, BuildElementsJson(),
+                UseEnrichedStyle, Background, Style, StylePhoto, Aesthetics, Lighting, Medium, StylePaletteJson);
 
-            // Node 4 / 75 — fresh random seeds for the base and 4K samplers.
-            UpdateNode(dict, "4", inputs => inputs["noise_seed"] = rng.NextInt64(0, 999_999_999_999_999L));
-            UpdateNode(dict, "75", inputs => inputs["noise_seed"] = rng.NextInt64(0, 999_999_999_999_999L));
-
-            // Node 105 — Ideogram4PromptBuilderKJ: prompt + enriched style + regions + base resolution.
-            UpdateNode(dict, "105", inputs =>
-            {
-                inputs["high_level_description"] = HighLevelPrompt;
-                inputs["width"] = baseW;
-                inputs["height"] = baseH;
-                inputs["elements_data"] = elementsJson;
-                ApplyStyleInputs(inputs, UseEnrichedStyle,
-                    Background, Style, StylePhoto, Aesthetics, Lighting, Medium, StylePaletteJson);
-            });
-
-            if (Generate4K)
-            {
-                // Node 84 — EmptyChromaRadianceLatentImage: final 4K canvas (= 4× base).
-                var (w4k, h4k) = Size4K;
-                UpdateNode(dict, "84", inputs =>
-                {
-                    inputs["width"] = w4k;
-                    inputs["height"] = h4k;
-                });
-                AddLog($"Base {baseW}×{baseH} → 4K {w4k}×{h4k}");
-            }
-            else
-            {
-                // No upscale: drop the PiD path so ComfyUI only renders the base image.
-                foreach (var id in PiD4KNodeIds)
-                    dict.Remove(id);
-                AddLog($"Base only: {baseW}×{baseH}");
-            }
+            var (w, h) = ApproxResolution(_selectedAspectRatio, _megapixel);
+            AddLog($"Resolution ≈ {w}×{h} ({_megapixel} MP, {AspectRatioString})");
 
             return JsonSerializer.SerializeToElement(dict);
         }
 
         /// <summary>
-        /// Normalized elements_data for node 105. Each region's pixel rect is divided
-        /// by the editor canvas size. With no regions, a single full-frame region
-        /// carries the high-level prompt (matching the workflow's default).
+        /// Applies all per-generation inputs to a parsed Ideogram-4-NSFW workflow:
+        /// fresh seed (node 197), output resolution via the Flux Resolution Calc node
+        /// (191, custom ratio + megapixel), and the prompt builder (185 — high-level
+        /// prompt, regions and enriched style). Node 185's width/height are wired from
+        /// node 191, so they are intentionally left untouched.
+        /// </summary>
+        private static void ApplyToWorkflow(
+            Dictionary<string, JsonElement> dict,
+            string aspect, string megapixel,
+            string highLevelPrompt, string elementsJson,
+            bool useEnriched, string background, string style, string stylePhoto,
+            string aesthetics, string lighting, string medium, string stylePaletteJson)
+        {
+            var rng = new Random();
+            var (w, h) = ApproxResolution(aspect, megapixel);
+
+            // Node 197 — fresh random seed each generation.
+            UpdateNode(dict, SeedNode, inputs => inputs["seed"] = rng.NextInt64(0, 999_999_999_999_999L));
+
+            // Resolution: write explicit pixel dimensions into the latent (160) and the
+            // prompt builder (185). The shipped workflow drives these from node 191
+            // (Flux Resolution Calc). We compute the same megapixel-at-ratio size and set
+            // it directly, bypassing that node — its custom-ratio path was collapsing the
+            // output toward square (squished images), while manual runs use its dropdown.
+            UpdateNode(dict, LatentNode, inputs =>
+            {
+                inputs["width"] = w;
+                inputs["height"] = h;
+            });
+
+            // Node 185 — Ideogram4PromptBuilderKJ: prompt + resolution + regions + style.
+            UpdateNode(dict, PromptBuilderNode, inputs =>
+            {
+                inputs["high_level_description"] = highLevelPrompt;
+                inputs["width"] = w;
+                inputs["height"] = h;
+                inputs["elements_data"] = elementsJson;
+                // Required inputs the trimmed workflow JSON omits (the node rejects the
+                // prompt without them). Match the values from the prior working graph.
+                inputs["import_mode"] = "when empty";
+                inputs["bg_brightness"] = 0;
+                ApplyStyleInputs(inputs, useEnriched,
+                    background, style, stylePhoto, aesthetics, lighting, medium, stylePaletteJson);
+            });
+        }
+
+        /// <summary>
+        /// Normalized elements_data for the prompt builder. By default (UseRegions off)
+        /// this is a single full-frame element carrying the high-level prompt — exactly
+        /// what the manual workflow sends, which renders a clean proportional image.
+        /// Only when UseRegions is on are the drawn regions emitted as multiple elements.
         /// </summary>
         private string BuildElementsJson()
         {
             var elements = new List<Dictionary<string, object>>();
 
-            if (_regions.Any())
+            if (UseRegions && _regions.Any())
             {
                 double cw = CanvasWidth, ch = CanvasHeight;
                 foreach (var r in _regions)
@@ -1043,7 +1182,16 @@ namespace FlipPix.UI.ViewModels
             string background, string style, string stylePhoto,
             string aesthetics, string lighting, string medium, string stylePaletteJson)
         {
-            inputs["style"] = string.IsNullOrWhiteSpace(style) ? "photo" : style;
+            // `style` is a ComfyUI combo on Ideogram4PromptBuilderKJ. A value outside the
+            // node's option list is silently dropped during v3 input-gather, which then
+            // surfaces as "execute() missing 1 required positional argument: 'style'" and
+            // fails the prompt at 0.01s. The autoprompter (ParseIdeogramAnalysis) feeds the
+            // model's free-text `style` straight in, so a non-compliant answer like
+            // "photographic"/"cinematic" intermittently crashes generation. The app only
+            // ever populates the photo bucket (it sets `style.photo`, never `style.design`
+            // etc.) and the autoprompter prompt mandates "photo", so pin the combo to the
+            // one bucket we actually support. Detail still rides in style.photo/medium.
+            inputs["style"] = "photo";
 
             if (!useEnriched)
             {
@@ -1108,7 +1256,7 @@ namespace FlipPix.UI.ViewModels
                 Prompt = HighLevelPrompt,
                 RegionsJson = BuildElementsJson(),
                 AspectRatio = SelectedAspectRatio,
-                Generate4K = Generate4K,
+                Megapixel = Megapixel,
                 LlmModel = SelectedLlmModel,
                 Background = Background,
                 Style = Style,
@@ -1294,7 +1442,7 @@ namespace FlipPix.UI.ViewModels
 
                 Progress = 94;
                 StatusMessage = "Retrieving image...";
-                var retrieved = await RetrieveOutputImageAsync(promptId, queueItem.Generate4K ? Prefix4K : BasePrefix, token);
+                var retrieved = await RetrieveOutputImageAsync(promptId, SavePrefix, token);
                 if (retrieved != null)
                 {
                     var path = await WriteOutputAsync(retrieved.Bytes, token);
@@ -1332,48 +1480,16 @@ namespace FlipPix.UI.ViewModels
             var dict = JsonSerializer.Deserialize<Dictionary<string, JsonElement>>(File.ReadAllText(workflowPath))
                 ?? throw new InvalidOperationException("Failed to parse workflow JSON");
 
-            var rng = new Random();
-            var (baseW, baseH) = AspectToBaseSize(queueItem.AspectRatio);
             var elementsJson = string.IsNullOrWhiteSpace(queueItem.RegionsJson)
                 ? BuildElementsJson()
                 : queueItem.RegionsJson;
 
-            UpdateNode(dict, "4", inputs => inputs["noise_seed"] = rng.NextInt64(0, 999_999_999_999_999L));
-            UpdateNode(dict, "75", inputs => inputs["noise_seed"] = rng.NextInt64(0, 999_999_999_999_999L));
-            UpdateNode(dict, "105", inputs =>
-            {
-                inputs["high_level_description"] = queueItem.Prompt;
-                inputs["width"] = baseW;
-                inputs["height"] = baseH;
-                inputs["elements_data"] = elementsJson;
-                ApplyStyleInputs(inputs, queueItem.UseEnrichedStyle,
-                    queueItem.Background, queueItem.Style, queueItem.StylePhoto,
-                    queueItem.Aesthetics, queueItem.Lighting, queueItem.Medium, queueItem.StylePaletteJson);
-            });
-
-            if (queueItem.Generate4K)
-            {
-                UpdateNode(dict, "84", inputs =>
-                {
-                    inputs["width"] = baseW * 4;
-                    inputs["height"] = baseH * 4;
-                });
-            }
-            else
-            {
-                foreach (var id in PiD4KNodeIds)
-                    dict.Remove(id);
-            }
+            ApplyToWorkflow(dict, queueItem.AspectRatio, queueItem.Megapixel, queueItem.Prompt, elementsJson,
+                queueItem.UseEnrichedStyle, queueItem.Background, queueItem.Style, queueItem.StylePhoto,
+                queueItem.Aesthetics, queueItem.Lighting, queueItem.Medium, queueItem.StylePaletteJson);
 
             return JsonSerializer.SerializeToElement(dict);
         }
-
-        private static (int W, int H) AspectToBaseSize(string aspect) => aspect switch
-        {
-            "Widescreen" => (1024, 576),
-            "Portrait" => (576, 1024),
-            _ => (1024, 1024),
-        };
 
         private void SaveQueueToFile()
         {
@@ -1383,24 +1499,50 @@ namespace FlipPix.UI.ViewModels
                 if (!string.IsNullOrEmpty(queueDir) && !Directory.Exists(queueDir))
                     Directory.CreateDirectory(queueDir);
 
-                var json = JsonSerializer.Serialize(_queue.ToList(), new JsonSerializerOptions { WriteIndented = true });
+                // Don't persist completed items — they're session history, not pending work.
+                // Keeps the queue file small so it never bloats or slows startup.
+                var json = JsonSerializer.Serialize(_queue.Where(q => q.Status != "Completed").ToList(), new JsonSerializerOptions { WriteIndented = true });
                 File.WriteAllText(QueueFilePath, json);
             }
             catch (Exception ex) { AddLog($"Error saving queue: {ex.Message}"); }
         }
 
-        private void LoadQueueFromFile()
+        /// <summary>
+        /// Queues the persisted queue load at Background dispatcher priority so a large saved queue
+        /// never blocks app startup; the file read + deserialize run off the UI thread.
+        /// </summary>
+        private void ScheduleQueueLoad()
+        {
+            var dispatcher = System.Windows.Application.Current?.Dispatcher;
+            if (dispatcher == null)
+            {
+                _ = LoadQueueFromFileAsync();
+                return;
+            }
+
+            dispatcher.InvokeAsync(
+                async () => await LoadQueueFromFileAsync(),
+                System.Windows.Threading.DispatcherPriority.Background);
+        }
+
+        private async System.Threading.Tasks.Task LoadQueueFromFileAsync()
         {
             try
             {
                 if (!File.Exists(QueueFilePath)) return;
-                var json = File.ReadAllText(QueueFilePath);
-                var items = JsonSerializer.Deserialize<List<IdeogramQueueItem>>(json);
+                var items = await System.Threading.Tasks.Task.Run(() =>
+                {
+                    var json = File.ReadAllText(QueueFilePath);
+                    return JsonSerializer.Deserialize<List<IdeogramQueueItem>>(json);
+                });
                 if (items != null)
                 {
                     _queue.Clear();
+                    bool prunedCompleted = false;
                     foreach (var item in items)
                     {
+                        // Drop completed items so finished history never accumulates in the queue.
+                        if (item.Status == "Completed") { prunedCompleted = true; continue; }
                         if (item.Status == "Processing")
                         {
                             item.Status = "Failed";
@@ -1410,16 +1552,21 @@ namespace FlipPix.UI.ViewModels
                     }
                     NotifyQueueCommands();
                     AddLog($"Queue loaded: {_queue.Count} items");
+                    // Rewrite the (now smaller) file once so previously bloated queues shrink immediately.
+                    if (prunedCompleted) SaveQueueToFile();
                 }
             }
             catch (Exception ex) { AddLog($"Error loading queue: {ex.Message}"); }
         }
 
         // ── Apply a parsed analysis to the live composition state ──────────
-        private void ApplyAnalysis(IdeogramAnalysis a)
+        private void ApplyAnalysis(IdeogramAnalysis a, bool applyAspect = true)
         {
             HighLevelPrompt = a.HighLevelDescription;
-            SelectedAspectRatio = MapAspect(a.AspectRatio);
+            // When re-analyzing after a manual orientation change, keep the aspect
+            // the user just selected instead of overriding it with the LLM's guess.
+            if (applyAspect)
+                SelectedAspectRatio = MapAspect(a.AspectRatio);
             Background = a.Background;
             Style = string.IsNullOrWhiteSpace(a.Style) ? "photo" : a.Style;
             StylePhoto = a.StylePhoto;
@@ -1434,8 +1581,15 @@ namespace FlipPix.UI.ViewModels
         /// <summary>
         /// Parses the autoprompter JSON (high-level description + style fields +
         /// elements with bounding boxes). Tolerates Markdown fences, the legacy
-        /// {"ideogram_prompt", "aspect_ratio"} shape, and bbox values given either
-        /// as 0..1 fractions or 0..1000 integers in [y_min, x_min, y_max, x_max].
+        /// {"ideogram_prompt", "aspect_ratio"} shape, and bbox values given as 0..1
+        /// fractions, 0..1000 normalized, or absolute pixels.
+        ///
+        /// Order is <c>[x_min, y_min, x_max, y_max]</c> — the native convention of the
+        /// configured vision model (Qwen2.5-VL), which emits boxes in that order in
+        /// absolute pixels of the image it was sent regardless of the prompt's stated
+        /// convention. Reading them y-first and assuming a 0..1000 grid (the old code)
+        /// transposed every box and divided pixel values by 1000, collapsing the whole
+        /// composition into the top-left corner — the cause of the garbled layouts.
         /// </summary>
         private IdeogramAnalysis? ParseIdeogramAnalysis(string response)
         {
@@ -1480,6 +1634,10 @@ namespace FlipPix.UI.ViewModels
 
                 if (root.TryGetProperty("elements", out var elsEl) && elsEl.ValueKind == JsonValueKind.Array)
                 {
+                    // Dimensions of the image actually sent to the VLM (512px longest edge,
+                    // aspect preserved). Qwen2.5-VL returns boxes in pixels of this image.
+                    var (rw, rh) = VisionResizedDims(InputImagePath);
+
                     foreach (var elEl in elsEl.EnumerateArray())
                     {
                         if (elEl.ValueKind != JsonValueKind.Object) continue;
@@ -1492,12 +1650,21 @@ namespace FlipPix.UI.ViewModels
                             .ToArray();
                         if (nums.Length < 4) continue;
 
-                        // Documented order: [y_min, x_min, y_max, x_max].
-                        double y1 = nums[0], x1 = nums[1], y2 = nums[2], x2 = nums[3];
+                        // Qwen2.5-VL native order: [x_min, y_min, x_max, y_max].
+                        double x1 = nums[0], y1 = nums[1], x2 = nums[2], y2 = nums[3];
 
-                        // Normalize: values > 1 are on the 0..1000 grid.
-                        double scale = (new[] { y1, x1, y2, x2 }.Max() > 1.0) ? 1000.0 : 1.0;
-                        double nx1 = x1 / scale, ny1 = y1 / scale, nx2 = x2 / scale, ny2 = y2 / scale;
+                        // Detect the coordinate scale from the magnitude of the values:
+                        //  • <= 1.0           → already 0..1 fractions
+                        //  • <= resized dims  → absolute pixels (Qwen's native output)
+                        //  • otherwise        → 0..1000 normalized grid
+                        double maxv = new[] { x1, y1, x2, y2 }.Max();
+                        double sx, sy;
+                        if (maxv <= 1.0)            { sx = 1.0;  sy = 1.0;  }
+                        else if (maxv <= Math.Max(rw, rh) * 1.10) { sx = rw; sy = rh; }
+                        else                        { sx = 1000.0; sy = 1000.0; }
+
+                        double nx1 = Clamp01(x1 / sx), ny1 = Clamp01(y1 / sy);
+                        double nx2 = Clamp01(x2 / sx), ny2 = Clamp01(y2 / sy);
 
                         var el = new ParsedElement
                         {
@@ -1520,6 +1687,27 @@ namespace FlipPix.UI.ViewModels
                 AddLog($"JSON parse error: {ex.Message}");
             }
             return null;
+        }
+
+        /// <summary>
+        /// Dimensions of the downscaled image the VLM actually receives. Mirrors
+        /// LMStudioService.ResizeImageForVision: longest edge capped at 512px, aspect
+        /// preserved. Used to normalize Qwen2.5-VL's pixel-space bounding boxes.
+        /// </summary>
+        private static (double W, double H) VisionResizedDims(string imagePath)
+        {
+            const double max = 512.0;
+            try
+            {
+                if (string.IsNullOrEmpty(imagePath) || !File.Exists(imagePath)) return (max, max);
+                using var img = System.Drawing.Image.FromFile(imagePath);
+                double ow = img.Width, oh = img.Height;
+                if (ow <= 0 || oh <= 0) return (max, max);
+                return ow > oh
+                    ? (max, Math.Max(1.0, max * oh / ow))
+                    : (Math.Max(1.0, max * ow / oh), max);
+            }
+            catch { return (max, max); }
         }
 
         private static List<string> ReadPaletteList(JsonElement parent, string name)
@@ -1704,40 +1892,68 @@ namespace FlipPix.UI.ViewModels
         }
 
         /// <summary>
+        /// Queues the gallery rehydration at Background dispatcher priority so decoding a large
+        /// history of saved thumbnails never blocks app startup; the scan + thumbnail decode run
+        /// off the UI thread and the bound collection is filled once the window has painted.
+        /// </summary>
+        private void ScheduleGalleryLoad()
+        {
+            var dispatcher = WpfApp.Current?.Dispatcher;
+            if (dispatcher == null)
+            {
+                _ = LoadGeneratedImagesFromFolderAsync();
+                return;
+            }
+
+            dispatcher.InvokeAsync(
+                async () => await LoadGeneratedImagesFromFolderAsync(),
+                System.Windows.Threading.DispatcherPriority.Background);
+        }
+
+        /// <summary>
         /// Rehydrates the gallery from previously saved images in output/ideogram so prior
         /// runs' images appear on startup. These carry no ComfyUI source path (unknown for
-        /// historical files), so deleting them only removes the saved copy.
+        /// historical files), so deleting them only removes the saved copy. The directory scan
+        /// and (frozen) thumbnail decode happen on a background thread; only the collection
+        /// mutation is marshalled back to the UI thread.
         /// </summary>
-        private void LoadGeneratedImagesFromFolder()
+        private async System.Threading.Tasks.Task LoadGeneratedImagesFromFolderAsync()
         {
             try
             {
-                var outputDir = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "output", "ideogram");
-                if (!Directory.Exists(outputDir)) return;
-
-                var files = Directory.GetFiles(outputDir, "*.png", SearchOption.TopDirectoryOnly)
-                    .OrderBy(File.GetLastWriteTime)
-                    .ToList();
-
-                foreach (var file in files)
+                var items = await System.Threading.Tasks.Task.Run(() =>
                 {
-                    try
+                    var result = new List<GeneratedImageItem>();
+                    var outputDir = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "output", "ideogram");
+                    if (!Directory.Exists(outputDir)) return result;
+
+                    var files = Directory.GetFiles(outputDir, "*.png", SearchOption.TopDirectoryOnly)
+                        .OrderBy(File.GetLastWriteTime)
+                        .ToList();
+
+                    foreach (var file in files)
                     {
-                        _generatedImages.Add(new GeneratedImageItem
+                        try
                         {
-                            ImagePath = file,
-                            Thumbnail = LoadThumbnail(file),
-                        });
+                            result.Add(new GeneratedImageItem
+                            {
+                                ImagePath = file,
+                                Thumbnail = LoadThumbnail(file), // frozen → safe to build off the UI thread
+                            });
+                        }
+                        catch (Exception ex) { AddLog($"Skipped thumbnail {Path.GetFileName(file)}: {ex.Message}"); }
                     }
-                    catch (Exception ex) { AddLog($"Skipped thumbnail {Path.GetFileName(file)}: {ex.Message}"); }
-                }
+                    return result;
+                });
 
-                if (_generatedImages.Any())
-                {
-                    OnPropertyChanged(nameof(HasGeneratedImages));
-                    ClearGeneratedImagesCommand.NotifyCanExecuteChanged();
-                    AddLog($"Loaded {_generatedImages.Count} saved image(s) into gallery");
-                }
+                if (items.Count == 0) return;
+
+                foreach (var item in items)
+                    _generatedImages.Add(item);
+
+                OnPropertyChanged(nameof(HasGeneratedImages));
+                ClearGeneratedImagesCommand.NotifyCanExecuteChanged();
+                AddLog($"Loaded {_generatedImages.Count} saved image(s) into gallery");
             }
             catch (Exception ex) { AddLog($"Error loading gallery: {ex.Message}"); }
         }

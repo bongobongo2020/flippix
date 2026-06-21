@@ -2,8 +2,8 @@
   "3": {
     "inputs": {
       "ds_factor": 1,
-      "interpolation_factor": 3,
-      "seed": 526084202942527,
+      "interpolation_factor": 2,
+      "seed": 351488183951876,
       "output_flows": false,
       "gimmvfi_model": [
         "5",
@@ -16,12 +16,12 @@
     },
     "class_type": "GIMMVFI_interpolate",
     "_meta": {
-      "title": "GIMM-VFI Interpolate"
+      "title": "⚡GIMM-VFI Interpolate⚡"
     }
   },
   "4": {
     "inputs": {
-      "video": "SCAIL_20260327_182050.mp4",
+      "video": "clip_Single_00004.mp4",
       "force_rate": 0,
       "custom_width": 0,
       "custom_height": 0,
@@ -53,9 +53,9 @@
       "filename_prefix": "AnimateDiff",
       "format": "video/h264-mp4",
       "pix_fmt": "yuv420p",
-      "bitrate": 10,
-      "megabit": true,
+      "crf": 19,
       "save_metadata": true,
+      "trim_to_audio": false,
       "pingpong": false,
       "save_output": true,
       "images": [

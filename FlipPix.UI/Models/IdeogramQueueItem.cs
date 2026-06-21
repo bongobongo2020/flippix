@@ -41,8 +41,8 @@ namespace FlipPix.UI.Models
         /// <summary>When false the enriched style detail is dropped at build time (only the high-level prompt + regions drive the image).</summary>
         public bool UseEnrichedStyle { get; set; } = true;
 
-        /// <summary>When true the PiD 4K upscale path runs and the 4K output is retrieved.</summary>
-        public bool Generate4K { get; set; } = true;
+        /// <summary>Target output resolution budget (FluxResolutionNode "megapixel"), e.g. "2.5".</summary>
+        public string Megapixel { get; set; } = "2.5";
 
         public string LlmModel { get; set; } = string.Empty;
 
@@ -50,6 +50,6 @@ namespace FlipPix.UI.Models
         public string DisplayPrompt => Prompt.Length > 60 ? Prompt.Substring(0, 57) + "..." : Prompt;
 
         [JsonIgnore]
-        public string RatioDisplay => Generate4K ? $"{AspectRatio} · 4K" : AspectRatio;
+        public string RatioDisplay => $"{AspectRatio} · {Megapixel} MP";
     }
 }

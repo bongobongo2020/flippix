@@ -87,6 +87,7 @@ namespace FlipPix.UI.ViewModels
         private KleinControlViewModel _kleinControl;
         private IdeogramViewModel _ideogram;
         private QwenEditViewModel _qwenEdit;
+        private RestoreViewModel _restore;
 
 
         public ImageGeneratorViewModel(FlipPix.ComfyUI.Services.ComfyUIService comfyUIService, IAppLogger logger, FlipPix.Core.Services.SettingsService settingsService, IServiceProvider? serviceProvider = null, IPromptService? promptService = null)
@@ -119,6 +120,7 @@ namespace FlipPix.UI.ViewModels
             _kleinControl = new KleinControlViewModel(comfyUIService, logger, settingsService, fileDialogService, videoAnalysisService);
             _ideogram = new IdeogramViewModel(comfyUIService, logger, settingsService, fileDialogService, lmStudioService ?? throw new InvalidOperationException("LMStudioService is required"), _workflowCoordinator);
             _qwenEdit = new QwenEditViewModel(comfyUIService, logger, settingsService, fileDialogService, lmStudioService ?? throw new InvalidOperationException("LMStudioService is required"), _workflowCoordinator);
+            _restore = new RestoreViewModel(comfyUIService, logger, settingsService, fileDialogService);
 
             // Initialize commands
             GenerateImageCommand = new RelayCommand(async () => await GenerateImageAsync(), () => CanGenerate);
@@ -165,7 +167,7 @@ namespace FlipPix.UI.ViewModels
             // Load workflow styles
             LoadWorkflowStyles();
 
-            LoadQueueFromFile();
+            ScheduleQueueLoad();
 
             AddLog("Image Generator initialized");
 
@@ -262,6 +264,7 @@ namespace FlipPix.UI.ViewModels
         public KleinControlViewModel KleinControl => _kleinControl;
         public IdeogramViewModel Ideogram => _ideogram;
         public QwenEditViewModel QwenEdit => _qwenEdit;
+        public RestoreViewModel Restore => _restore;
 
         public string ProcessingStatus
         {
@@ -2844,7 +2847,9 @@ namespace FlipPix.UI.ViewModels
                 }
 
                 var options = new JsonSerializerOptions { WriteIndented = true };
-                var json = JsonSerializer.Serialize(PromptQueue.ToList(), options);
+                // Don't persist completed items — they're session history, not pending work.
+                // Keeps the queue file small so it never bloats or slows startup.
+                var json = JsonSerializer.Serialize(PromptQueue.Where(i => i.Status != "Completed").ToList(), options);
                 File.WriteAllText(QueueFilePath, json);
             }
             catch (Exception ex)
@@ -2853,20 +2858,44 @@ namespace FlipPix.UI.ViewModels
             }
         }
 
-        private void LoadQueueFromFile()
+        /// <summary>
+        /// Queues the persisted queue load at Background dispatcher priority so a large saved queue
+        /// never blocks app startup; the file read + deserialize run off the UI thread.
+        /// </summary>
+        private void ScheduleQueueLoad()
+        {
+            var dispatcher = System.Windows.Application.Current?.Dispatcher;
+            if (dispatcher == null)
+            {
+                _ = LoadQueueFromFileAsync();
+                return;
+            }
+
+            dispatcher.InvokeAsync(
+                async () => await LoadQueueFromFileAsync(),
+                System.Windows.Threading.DispatcherPriority.Background);
+        }
+
+        private async Task LoadQueueFromFileAsync()
         {
             try
             {
                 if (!File.Exists(QueueFilePath)) return;
 
-                var json = File.ReadAllText(QueueFilePath);
-                var savedItems = JsonSerializer.Deserialize<List<ImagePromptQueueItem>>(json);
+                var savedItems = await Task.Run(() =>
+                {
+                    var json = File.ReadAllText(QueueFilePath);
+                    return JsonSerializer.Deserialize<List<ImagePromptQueueItem>>(json);
+                });
 
                 if (savedItems != null && savedItems.Any())
                 {
                     _promptQueue.Clear();
+                    bool prunedCompleted = false;
                     foreach (var item in savedItems)
                     {
+                        // Drop completed items so finished history never accumulates in the queue.
+                        if (item.Status == "Completed") { prunedCompleted = true; continue; }
                         // Convert legacy "Queued" status to "Pending" for consistency
                         if (item.Status == "Queued")
                         {
@@ -2884,6 +2913,8 @@ namespace FlipPix.UI.ViewModels
                     OnPropertyChanged(nameof(QueueCount));
                     OnPropertyChanged(nameof(PendingQueueCount));
                     AddLog($"Queue loaded from file: {_promptQueue.Count} items");
+                    // Rewrite the (now smaller) file once so previously bloated queues shrink immediately.
+                    if (prunedCompleted) SaveQueueToFile();
                 }
             }
             catch (Exception ex)

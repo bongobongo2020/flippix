@@ -53,6 +53,7 @@
                 </Trigger>
                 <Trigger Property="IsEnabled" Value="False">
                     <Setter Property="Background" Value="#CBD5E1"/>
+                    <Setter Property="Foreground" Value="#475569"/>
                     <Setter Property="Cursor" Value="Arrow"/>
                 </Trigger>
             </Style.Triggers>
@@ -83,6 +84,7 @@
                 </Trigger>
                 <Trigger Property="IsEnabled" Value="False">
                     <Setter Property="Background" Value="#CBD5E1"/>
+                    <Setter Property="Foreground" Value="#475569"/>
                     <Setter Property="Cursor" Value="Arrow"/>
                 </Trigger>
             </Style.Triggers>
@@ -113,6 +115,7 @@
                 </Trigger>
                 <Trigger Property="IsEnabled" Value="False">
                     <Setter Property="Background" Value="#CBD5E1"/>
+                    <Setter Property="Foreground" Value="#475569"/>
                     <Setter Property="Cursor" Value="Arrow"/>
                 </Trigger>
             </Style.Triggers>
@@ -994,6 +997,7 @@
                                                 </Trigger>
                                                 <Trigger Property="IsEnabled" Value="False">
                                                     <Setter Property="Background" Value="#CCC"/>
+                                                    <Setter Property="Foreground" Value="#475569"/>
                                                 </Trigger>
                                             </Style.Triggers>
                                         </Style>
@@ -1014,6 +1018,7 @@
                                                 </Trigger>
                                                 <Trigger Property="IsEnabled" Value="False">
                                                     <Setter Property="Background" Value="#CCC"/>
+                                                    <Setter Property="Foreground" Value="#475569"/>
                                                 </Trigger>
                                             </Style.Triggers>
                                         </Style>

@@ -73,68 +73,28 @@ public class ComfyUISettings
     // LM Studio helper properties for UI binding (parsed from LMStudioSettings.BaseUrl)
     public string LMStudioServer
     {
-        get
-        {
-            try
-            {
-                var uri = new Uri(LMStudioSettings?.BaseUrl ?? "http://alien:8080");
-                return uri.Host;
-            }
-            catch
-            {
-                return "localhost";
-            }
-        }
+        get => LMStudioSettings.ParseBaseUrl(LMStudioSettings?.BaseUrl).Host;
         set
         {
-            try
-            {
-                if (LMStudioSettings == null) LMStudioSettings = new LMStudioSettings();
-                var currentUri = new Uri(LMStudioSettings.BaseUrl);
-                var newUri = new System.UriBuilder(currentUri) { Host = value }.Uri;
-                LMStudioSettings.BaseUrl = newUri.ToString();
-            }
-            catch
-            {
-                // If parsing fails, construct a new URL
-                LMStudioSettings.BaseUrl = $"http://{value}:8080";
-            }
+            LMStudioSettings ??= new LMStudioSettings();
+            var (_, port) = LMStudioSettings.ParseBaseUrl(LMStudioSettings.BaseUrl);
+            LMStudioSettings.BaseUrl = LMStudioSettings.BuildBaseUrl(value, port);
         }
     }
 
     public string LMStudioPort
     {
-        get
-        {
-            try
-            {
-                var uri = new Uri(LMStudioSettings?.BaseUrl ?? "http://alien:8080");
-                return uri.Port.ToString();
-            }
-            catch
-            {
-                return "1234";
-            }
-        }
+        get => LMStudioSettings.ParseBaseUrl(LMStudioSettings?.BaseUrl).Port;
         set
         {
-            try
-            {
-                if (LMStudioSettings == null) LMStudioSettings = new LMStudioSettings();
-                if (int.TryParse(value, out var port))
-                {
-                    var currentUri = new Uri(LMStudioSettings.BaseUrl);
-                    var newUri = new System.UriBuilder(currentUri) { Port = port }.Uri;
-                    LMStudioSettings.BaseUrl = newUri.ToString();
-                }
-            }
-            catch
-            {
-                // If parsing fails, construct a new URL
-                LMStudioSettings.BaseUrl = $"http://alien:8080";
-            }
+            LMStudioSettings ??= new LMStudioSettings();
+            var (host, _) = LMStudioSettings.ParseBaseUrl(LMStudioSettings.BaseUrl);
+            LMStudioSettings.BaseUrl = LMStudioSettings.BuildBaseUrl(host, value);
         }
     }
+
+    /// <summary>Saved LM Studio server URLs (most-recent first), surfaced for UI binding.</summary>
+    public List<string> LMStudioServerHistory => LMStudioSettings?.ServerHistory ?? new List<string>();
 
     // Selected model for binding to the ComboBox
     public string SelectedModel
