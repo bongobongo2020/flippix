@@ -717,7 +717,7 @@ namespace FlipPix.UI.ViewModels.Video
 
         #region Image Analysis
 
-        private async Task AnalyzeImageAsync()
+        protected async Task AnalyzeImageAsync()
         {
             if (!CanAnalyzeImage) return;
 
@@ -971,7 +971,7 @@ namespace FlipPix.UI.ViewModels.Video
 
         #region Queue Management
 
-        private void AddAllChunksToQueue()
+        protected void AddAllChunksToQueue()
         {
             if (!CanAddToQueue) return;
             EnqueueItem(singleChunkIndex: null);
@@ -1113,7 +1113,7 @@ namespace FlipPix.UI.ViewModels.Video
                     SaveQueueToFile();
                     try
                     {
-                        await GenerateSingleVideoAsync(item);
+                        await GenerateSingleVideoAsync(item, token);
                         item.ItemStatus = QueueItemStatus.Completed;
                         AddLog($"Queue item completed: {item.DisplayText}");
                     }
@@ -1198,7 +1198,7 @@ namespace FlipPix.UI.ViewModels.Video
 
         #region Video Generation
 
-        private async Task GenerateSingleVideoAsync(WanScailQueueItem item)
+        private async Task GenerateSingleVideoAsync(WanScailQueueItem item, CancellationToken cancellationToken = default)
         {
             bool success = false;
             StartGenerationTimer();
@@ -1313,6 +1313,8 @@ namespace FlipPix.UI.ViewModels.Video
 
                 for (int chunkIndex = startChunk; chunkIndex < endChunk; chunkIndex++)
                 {
+                    cancellationToken.ThrowIfCancellationRequested();
+
                     // Mark chunk as processing in UI
                     SetChunkStatus(chunkIndex, WanScailChunkStatus.Processing);
 
@@ -1368,7 +1370,7 @@ namespace FlipPix.UI.ViewModels.Video
 
                         var existingFiles = GetExistingVideoFiles("*.mp4", OutputSubfolder);
                         var promptId = await _comfyUIService.ExecuteWorkflowAsync(
-                            updatedWorkflow, progress, executionTimeout: ExecutionTimeout);
+                            updatedWorkflow, progress, cancellationToken, executionTimeout: ExecutionTimeout);
                         AddLog($"Chunk {chunkIndex + 1} submitted, prompt ID: {promptId}");
 
                         var outputVideo = await TryGetVideoFromHistoryAsync(promptId);
@@ -1397,6 +1399,12 @@ namespace FlipPix.UI.ViewModels.Video
                             AddLog($"ERROR: No output video for chunk {chunkIndex + 1} — aborting remaining chunks");
                             break;
                         }
+                    }
+                    catch (OperationCanceledException)
+                    {
+                        SetChunkStatus(chunkIndex, WanScailChunkStatus.Idle);
+                        AddLog($"Chunk {chunkIndex + 1} cancelled — stopping");
+                        throw;
                     }
                     catch (Exception ex)
                     {
@@ -1451,6 +1459,12 @@ namespace FlipPix.UI.ViewModels.Video
                     ProcessingStatus = "No output generated";
                     throw new Exception("No video chunks were generated.");
                 }
+            }
+            catch (OperationCanceledException)
+            {
+                AddLog("=== WAN SCAIL generation cancelled ===");
+                ProcessingStatus = "Cancelled";
+                throw;
             }
             catch (Exception ex)
             {

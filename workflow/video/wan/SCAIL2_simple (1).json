@@ -10,7 +10,7 @@
   },
   "2": {
     "inputs": {
-      "video": "elechtra - CaZkMeOqNIy.mp4",
+      "video": "elechtra - Ccut096qSk9.mp4",
       "force_rate": 24,
       "custom_width": 0,
       "custom_height": 0,
@@ -26,7 +26,7 @@
   },
   "3": {
     "inputs": {
-      "resolution": "512p",
+      "resolution": "704p",
       "video": [
         "2",
         0
@@ -37,26 +37,12 @@
       "title": "SCAIL-2 Fit Video"
     }
   },
-  "10": {
-    "inputs": {
-      "model_name": "wan2.1_14B_SCAIL_2_fp8_scaled.safetensors",
-      "weight_dtype": "default",
-      "compute_dtype": "default",
-      "patch_cublaslinear": false,
-      "sage_attention": "auto",
-      "enable_fp16_accumulation": true
-    },
-    "class_type": "DiffusionModelLoaderKJ",
-    "_meta": {
-      "title": "Diffusion Model Loader KJ"
-    }
-  },
   "11": {
     "inputs": {
       "chunks": 2,
       "dim_threshold": 4096,
       "model": [
-        "10",
+        "44",
         0
       ]
     },
@@ -109,7 +95,7 @@
   },
   "15": {
     "inputs": {
-      "sampler_name": "euler"
+      "sampler_name": "res_2m"
     },
     "class_type": "KSamplerSelect",
     "_meta": {
@@ -241,7 +227,7 @@
   },
   "40": {
     "inputs": {
-      "seed": 307123224337381,
+      "seed": 271060837739909,
       "cfg": 1,
       "mode": "replacement",
       "max_frames": 0,
@@ -319,6 +305,21 @@
     "class_type": "VHS_VideoCombine",
     "_meta": {
       "title": "VHS Output (keeps source audio)"
+    }
+  },
+  "44": {
+    "inputs": {
+      "model_name": "SCAIL-2-Q8_0.gguf",
+      "extra_model_name": "none",
+      "dequant_dtype": "default",
+      "patch_dtype": "default",
+      "patch_on_device": true,
+      "enable_fp16_accumulation": true,
+      "attention_override": "sageattn"
+    },
+    "class_type": "GGUFLoaderKJ",
+    "_meta": {
+      "title": "GGUFLoaderKJ"
     }
   }
 }

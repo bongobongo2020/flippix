@@ -134,7 +134,7 @@ namespace FlipPix.UI.ViewModels
             // Load workflows and extract styles
             LoadWorkflowsAndStyles();
 
-            LoadQueueFromFile();
+            ScheduleQueueLoad();
 
             _logger.LogInfo("Image Analyzer initialized");
         }
@@ -321,68 +321,68 @@ namespace FlipPix.UI.ViewModels
 
         public string LMStudioServer
         {
-            get
-            {
-                var uri = new Uri(_settingsService.Settings?.LMStudioSettings?.BaseUrl ?? "http://alien:8080");
-                return uri.Host;
-            }
+            get => FlipPix.Core.Models.LMStudioSettings.ParseBaseUrl(_settingsService.Settings?.LMStudioSettings?.BaseUrl).Host;
             set
             {
-                if (_settingsService.Settings?.LMStudioSettings != null && !string.IsNullOrEmpty(value))
-                {
-                    var currentUri = new Uri(_settingsService.Settings.LMStudioSettings.BaseUrl);
-                    var newUri = new UriBuilder(currentUri) { Host = value }.Uri;
-                    _settingsService.Settings.LMStudioSettings.BaseUrl = newUri.ToString();
-                    OnPropertyChanged();
+                var lm = _settingsService.Settings?.LMStudioSettings;
+                if (lm == null || string.IsNullOrWhiteSpace(value)) return;
 
-                    // Save settings when server changes
-                    _ = Task.Run(() =>
-                    {
-                        try
-                        {
-                            _settingsService.SaveSettings(_settingsService.Settings);
-                            _logger.LogInfo($"Saved LM Studio server: {value}");
-                        }
-                        catch (Exception ex)
-                        {
-                            _logger.LogError($"Error saving LM Studio settings: {ex.Message}");
-                        }
-                    });
-                }
+                var (_, port) = FlipPix.Core.Models.LMStudioSettings.ParseBaseUrl(lm.BaseUrl);
+                lm.BaseUrl = FlipPix.Core.Models.LMStudioSettings.BuildBaseUrl(value, port);
+                OnPropertyChanged();
+                SaveLMStudioSettings($"server: {value}");
             }
         }
 
         public string LMStudioPort
         {
-            get
-            {
-                var uri = new Uri(_settingsService.Settings?.LMStudioSettings?.BaseUrl ?? "http://alien:8080");
-                return uri.Port.ToString();
-            }
+            get => FlipPix.Core.Models.LMStudioSettings.ParseBaseUrl(_settingsService.Settings?.LMStudioSettings?.BaseUrl).Port;
             set
             {
-                if (_settingsService.Settings?.LMStudioSettings != null && !string.IsNullOrEmpty(value) && int.TryParse(value, out var port))
-                {
-                    var currentUri = new Uri(_settingsService.Settings.LMStudioSettings.BaseUrl);
-                    var newUri = new UriBuilder(currentUri) { Port = port }.Uri;
-                    _settingsService.Settings.LMStudioSettings.BaseUrl = newUri.ToString();
-                    OnPropertyChanged();
+                var lm = _settingsService.Settings?.LMStudioSettings;
+                if (lm == null || string.IsNullOrWhiteSpace(value) || !int.TryParse(value, out _)) return;
 
-                    // Save settings when port changes
-                    _ = Task.Run(() =>
-                    {
-                        try
-                        {
-                            _settingsService.SaveSettings(_settingsService.Settings);
-                            _logger.LogInfo($"Saved LM Studio port: {value}");
-                        }
-                        catch (Exception ex)
-                        {
-                            _logger.LogError($"Error saving LM Studio settings: {ex.Message}");
-                        }
-                    });
-                }
+                var (host, _) = FlipPix.Core.Models.LMStudioSettings.ParseBaseUrl(lm.BaseUrl);
+                lm.BaseUrl = FlipPix.Core.Models.LMStudioSettings.BuildBaseUrl(host, value);
+                OnPropertyChanged();
+                SaveLMStudioSettings($"port: {value}");
             }
+        }
+
+        /// <summary>
+        /// Previously used LM Studio servers (most-recent first) for the quick-switch dropdown.
+        /// </summary>
+        public List<string> ServerHistory => _settingsService.Settings?.LMStudioSettings?.ServerHistory ?? new List<string>();
+
+        /// <summary>
+        /// Bound to the "Recent" quick-switch combo. Selecting a saved server applies its host+port.
+        /// </summary>
+        public string? SelectedServerUrl
+        {
+            get => null; // always show the placeholder; the textboxes are the source of truth
+            set
+            {
+                if (string.IsNullOrWhiteSpace(value)) return;
+                var (host, port) = FlipPix.Core.Models.LMStudioSettings.ParseBaseUrl(value);
+                LMStudioServer = host;
+                if (!string.IsNullOrEmpty(port)) LMStudioPort = port;
+            }
+        }
+
+        private void SaveLMStudioSettings(string what)
+        {
+            _ = Task.Run(() =>
+            {
+                try
+                {
+                    _settingsService.SaveSettings(_settingsService.Settings);
+                    _logger.LogInfo($"Saved LM Studio {what}");
+                }
+                catch (Exception ex)
+                {
+                    _logger.LogError($"Error saving LM Studio settings: {ex.Message}");
+                }
+            });
         }
 
         public string SelectedModel
@@ -806,6 +806,14 @@ namespace FlipPix.UI.ViewModels
                 {
                     var models = await _lmStudioService.GetAvailableModelsAsync();
                     AvailableModels = models;
+
+                    // The server responded, so remember it for quick switching later.
+                    if (_settingsService.Settings?.LMStudioSettings != null)
+                    {
+                        _settingsService.Settings.LMStudioSettings.RememberServer(baseUrl);
+                        _settingsService.SaveSettings(_settingsService.Settings);
+                        OnPropertyChanged(nameof(ServerHistory));
+                    }
 
                     // Select previously saved model or find a good default
                     var savedModel = _settingsService.Settings?.LMStudioSettings?.SelectedModel;
@@ -3831,7 +3839,9 @@ namespace FlipPix.UI.ViewModels
                 }
 
                 var options = new JsonSerializerOptions { WriteIndented = true };
-                var json = JsonSerializer.Serialize(QueueItems.ToList(), options);
+                // Don't persist completed items — they're session history, not pending work.
+                // Keeps the queue file small so it never bloats or slows startup.
+                var json = JsonSerializer.Serialize(QueueItems.Where(i => i.Status != "Completed").ToList(), options);
                 File.WriteAllText(QueueFilePath, json);
             }
             catch (Exception ex)
@@ -3840,20 +3850,44 @@ namespace FlipPix.UI.ViewModels
             }
         }
 
-        private void LoadQueueFromFile()
+        /// <summary>
+        /// Queues the persisted queue load at Background dispatcher priority so a large saved queue
+        /// never blocks app startup; the file read + deserialize run off the UI thread.
+        /// </summary>
+        private void ScheduleQueueLoad()
+        {
+            var dispatcher = System.Windows.Application.Current?.Dispatcher;
+            if (dispatcher == null)
+            {
+                _ = LoadQueueFromFileAsync();
+                return;
+            }
+
+            dispatcher.InvokeAsync(
+                async () => await LoadQueueFromFileAsync(),
+                System.Windows.Threading.DispatcherPriority.Background);
+        }
+
+        private async Task LoadQueueFromFileAsync()
         {
             try
             {
                 if (!File.Exists(QueueFilePath)) return;
 
-                var json = File.ReadAllText(QueueFilePath);
-                var savedItems = JsonSerializer.Deserialize<List<ImageAnalyzerQueueItem>>(json);
+                var savedItems = await Task.Run(() =>
+                {
+                    var json = File.ReadAllText(QueueFilePath);
+                    return JsonSerializer.Deserialize<List<ImageAnalyzerQueueItem>>(json);
+                });
 
                 if (savedItems != null && savedItems.Any())
                 {
                     _queueItems.Clear();
+                    bool prunedCompleted = false;
                     foreach (var item in savedItems)
                     {
+                        // Drop completed items so finished history never accumulates in the queue.
+                        if (item.Status == "Completed") { prunedCompleted = true; continue; }
                         // Convert legacy "Queued" status to "Pending" for consistency
                         if (item.Status == "Queued")
                         {
@@ -3871,6 +3905,8 @@ namespace FlipPix.UI.ViewModels
                     OnPropertyChanged(nameof(CompletedCount));
                     OnPropertyChanged(nameof(FailedCount));
                     _logger.LogInfo($"Queue loaded from file: {_queueItems.Count} items");
+                    // Rewrite the (now smaller) file once so previously bloated queues shrink immediately.
+                    if (prunedCompleted) SaveQueueToFile();
                 }
             }
             catch (Exception ex)

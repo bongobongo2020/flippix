@@ -98,6 +98,10 @@ namespace FlipPix.UI.ViewModels
         /// </summary>
         public WanScailViewModel WanScailVM { get; }
         public WanScailGgufViewModel WanScailGgufVM { get; }
+        /// <summary>
+        /// Scail 2 - unified char-swap (Klein) → SCAIL II motion-transfer flow on one tab.
+        /// </summary>
+        public Scail2ViewModel Scail2VM { get; }
         public WanCharReplaceViewModel WanCharReplaceVM { get; }
 
         /// <summary>
@@ -119,6 +123,13 @@ namespace FlipPix.UI.ViewModels
         public Vr180ViewModel Vr180VM { get; }
 
         /// <summary>
+        /// Video Sound ViewModel - upload a clip, analyze its first frame into a [VISUAL]/[SPEECH]/
+        /// [SOUNDS] directing prompt, then re-generate it with synchronized speech + sound effects
+        /// through the LTX-2.3 audio-video workflow (VideoSound.json).
+        /// </summary>
+        public VideoSoundViewModel VideoSoundVM { get; }
+
+        /// <summary>
         /// Seedhunt ViewModel - upload an image, analyze into a combat prompt, generate a batch of
         /// 4 fast samples (reroll for more), then finish the chosen one through Stage 2/3.
         /// </summary>
@@ -129,6 +140,13 @@ namespace FlipPix.UI.ViewModels
         /// previews, pick seeds per shot, then high-res finish + FFmpeg concat into one joined video.
         /// </summary>
         public SeedDirectorViewModel SeedDirectorVM { get; }
+
+        /// <summary>
+        /// FFLF-Dasiwa ViewModel - upload one image, analyze, then render an autoregressive I2V
+        /// chain on the WAN 2.2 DaSiWa FFLF workflow where each clip's extracted last frame seeds
+        /// the next clip (re-analyzed each step); segments are joined into one continuous video.
+        /// </summary>
+        public FflfDasiwaViewModel FflfDasiwaVM { get; }
 
         // 0 = LTX 2.3, 1 = Wan 2.2 Remix
         private int _singleVideoWorkflowIndex = 0;
@@ -265,6 +283,15 @@ namespace FlipPix.UI.ViewModels
                 _workflowCoordinator,
                 _fileDialogService);
 
+            Scail2VM = new Scail2ViewModel(
+                comfyUIService,
+                lmStudioService,
+                logger,
+                settingsService,
+                serviceProvider,
+                _workflowCoordinator,
+                _fileDialogService);
+
             WanCharReplaceVM = new WanCharReplaceViewModel(
                 comfyUIService,
                 lmStudioService,
@@ -301,6 +328,15 @@ namespace FlipPix.UI.ViewModels
                 _workflowCoordinator,
                 _fileDialogService);
 
+            VideoSoundVM = new VideoSoundViewModel(
+                comfyUIService,
+                lmStudioService,
+                logger,
+                settingsService,
+                serviceProvider,
+                _workflowCoordinator,
+                _fileDialogService);
+
             SeedHuntVM = new SeedHuntViewModel(
                 comfyUIService,
                 lmStudioService,
@@ -311,6 +347,15 @@ namespace FlipPix.UI.ViewModels
                 _fileDialogService);
 
             SeedDirectorVM = new SeedDirectorViewModel(
+                comfyUIService,
+                lmStudioService,
+                logger,
+                settingsService,
+                serviceProvider,
+                _workflowCoordinator,
+                _fileDialogService);
+
+            FflfDasiwaVM = new FflfDasiwaViewModel(
                 comfyUIService,
                 lmStudioService,
                 logger,
@@ -331,12 +376,15 @@ namespace FlipPix.UI.ViewModels
             LongVideoVM.PlayRequested += (s, e) => PlayRequested?.Invoke(this, e);
             WanScailVM.PlayRequested += (s, e) => PlayRequested?.Invoke(this, e);
             WanScailGgufVM.PlayRequested += (s, e) => PlayRequested?.Invoke(this, e);
+            Scail2VM.PlayRequested += (s, e) => PlayRequested?.Invoke(this, e);
             WanCharReplaceVM.PlayRequested += (s, e) => PlayRequested?.Invoke(this, e);
             LtxControlVM.PlayRequested += (s, e) => PlayRequested?.Invoke(this, e);
             LtxDirectorVM.PlayRequested += (s, e) => PlayRequested?.Invoke(this, e);
             Vr180VM.PlayRequested += (s, e) => PlayRequested?.Invoke(this, e);
+            VideoSoundVM.PlayRequested += (s, e) => PlayRequested?.Invoke(this, e);
             SeedHuntVM.PlayRequested += (s, e) => PlayRequested?.Invoke(this, e);
             SeedDirectorVM.PlayRequested += (s, e) => PlayRequested?.Invoke(this, e);
+            FflfDasiwaVM.PlayRequested += (s, e) => PlayRequested?.Invoke(this, e);
 
             // Forward PropertyChanged events from all sub-VMs for backward compatibility
             MainVM.PropertyChanged += ForwardPropertyChanged;
@@ -350,12 +398,15 @@ namespace FlipPix.UI.ViewModels
             LongVideoVM.PropertyChanged += ForwardPropertyChanged;
             WanScailVM.PropertyChanged += ForwardPropertyChanged;
             WanScailGgufVM.PropertyChanged += ForwardPropertyChanged;
+            Scail2VM.PropertyChanged += ForwardPropertyChanged;
             WanCharReplaceVM.PropertyChanged += ForwardPropertyChanged;
             LtxControlVM.PropertyChanged += ForwardPropertyChanged;
             LtxDirectorVM.PropertyChanged += ForwardPropertyChanged;
             Vr180VM.PropertyChanged += ForwardPropertyChanged;
+            VideoSoundVM.PropertyChanged += ForwardPropertyChanged;
             SeedHuntVM.PropertyChanged += ForwardPropertyChanged;
             SeedDirectorVM.PropertyChanged += ForwardPropertyChanged;
+            FflfDasiwaVM.PropertyChanged += ForwardPropertyChanged;
 
             _logger.LogInfo("VideoGeneratorViewModel initialized with sub-ViewModels");
         }
@@ -1174,7 +1225,9 @@ namespace FlipPix.UI.ViewModels
                 LtxControlVM.PropertyChanged -= ForwardPropertyChanged;
                 LtxDirectorVM.PropertyChanged -= ForwardPropertyChanged;
                 Vr180VM.PropertyChanged -= ForwardPropertyChanged;
+                VideoSoundVM.PropertyChanged -= ForwardPropertyChanged;
                 SeedHuntVM.PropertyChanged -= ForwardPropertyChanged;
+                FflfDasiwaVM.PropertyChanged -= ForwardPropertyChanged;
 
                 // Dispose all sub-ViewModels
                 (MainVM as IDisposable)?.Dispose();
@@ -1190,7 +1243,9 @@ namespace FlipPix.UI.ViewModels
                 (LtxControlVM as IDisposable)?.Dispose();
                 (LtxDirectorVM as IDisposable)?.Dispose();
                 (Vr180VM as IDisposable)?.Dispose();
+                (VideoSoundVM as IDisposable)?.Dispose();
                 (SeedDirectorVM as IDisposable)?.Dispose();
+                (FflfDasiwaVM as IDisposable)?.Dispose();
 
                 _disposed = true;
             }

@@ -5,6 +5,7 @@
         xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
         xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
         xmlns:converters="clr-namespace:FlipPix.UI.Converters"
+        xmlns:ctrl="clr-namespace:FlipPix.UI.Controls"
         mc:Ignorable="d"
         Title="FlipPix - Video Generator" Height="750" Width="950"
         WindowStartupLocation="CenterScreen"
@@ -28,10 +29,7 @@
         <!-- Header -->
         <Border Grid.Row="0" MouseLeftButtonDown="Header_MouseLeftButtonDown" Cursor="SizeAll">
             <Border.Background>
-                <LinearGradientBrush StartPoint="0,0" EndPoint="1,0">
-                    <GradientStop Color="#FF6B35" Offset="0"/>
-                    <GradientStop Color="#F7931E" Offset="1"/>
-                </LinearGradientBrush>
+                <SolidColorBrush Color="{StaticResource BrandColor}"/>
             </Border.Background>
             <StackPanel Margin="20,8" Orientation="Horizontal">
                 <TextBlock Text="🎬 Video Generator"
@@ -52,9 +50,7 @@
         </Border>
 
         <!-- Main Content -->
-        <ScrollViewer Grid.Row="2" VerticalScrollBarVisibility="Auto">
-            <StackPanel Margin="20,8,20,8">
-                <TabControl>
+        <TabControl Grid.Row="2" Margin="15,10,15,10">
 
                     <!-- Tab 1: FFLF -->
                     <TabItem Header="🎬 FFLF">
@@ -472,6 +468,7 @@
                                             </Trigger>
                                             <Trigger Property="IsEnabled" Value="False">
                                                 <Setter Property="Background" Value="#CCC"/>
+                                                <Setter Property="Foreground" Value="#475569"/>
                                                 <Setter Property="Cursor" Value="Arrow"/>
                                             </Trigger>
                                         </Style.Triggers>
@@ -770,27 +767,8 @@
                     </Border>
                 </Expander>
 
-                <!-- Log (Collapsible) -->
-                <Expander Header="📝 Processing Log"
-                         IsExpanded="True"
-                         Margin="0,0,0,0">
-                    <Border Background="White"
-                            BorderBrush="#DEE2E6"
-                            BorderThickness="1"
-                            Margin="0,8,0,0">
-                        <ScrollViewer MaxHeight="150"
-                                     VerticalScrollBarVisibility="Auto">
-                            <TextBox Text="{Binding LogOutput, Mode=OneWay}"
-                                    TextWrapping="Wrap"
-                                    IsReadOnly="True"
-                                    FontFamily="Consolas"
-                                    FontSize="10"
-                                    Background="Transparent"
-                                    BorderThickness="0"
-                                    Padding="10"/>
-                        </ScrollViewer>
-                    </Border>
-                </Expander>
+                <!-- Log (Collapsible) - shared reusable panel -->
+                <ctrl:ProcessingLogPanel LogText="{Binding LogOutput}" IsLogExpanded="True"/>
 
                             </StackPanel>
                         </ScrollViewer>
@@ -831,14 +809,14 @@
                                             </ComboBoxItem>
                                             <ComboBoxItem>
                                                 <StackPanel Orientation="Horizontal">
-                                                    <TextBlock Text="🎨 Painter" FontWeight="SemiBold" Margin="0,0,8,0"/>
-                                                    <TextBlock Text="painteri2vAPI.json" Foreground="#6C757D" FontSize="11" VerticalAlignment="Center"/>
+                                                    <TextBlock Text="🟣 DaSiWa WAN 2.2" FontWeight="SemiBold" Margin="0,0,8,0"/>
+                                                    <TextBlock Text="DasiwaWan22WorkflowsI2VSVI2_fastfidelityCAioV83API.json" Foreground="#6C757D" FontSize="11" VerticalAlignment="Center"/>
                                                 </StackPanel>
                                             </ComboBoxItem>
                                             <ComboBoxItem>
                                                 <StackPanel Orientation="Horizontal">
-                                                    <TextBlock Text="🔥 Painter Enhanced" FontWeight="SemiBold" Margin="0,0,8,0"/>
-                                                    <TextBlock Text="painteri2vAPI-enhancednsfw-HL.json" Foreground="#6C757D" FontSize="11" VerticalAlignment="Center"/>
+                                                    <TextBlock Text="🔴 WAN 2.2 FunCamera I2V" FontWeight="SemiBold" Margin="0,0,8,0"/>
+                                                    <TextBlock Text="WAN22-I2V-API.json" Foreground="#6C757D" FontSize="11" VerticalAlignment="Center"/>
                                                 </StackPanel>
                                             </ComboBoxItem>
                                         </ComboBox>
@@ -1343,7 +1321,7 @@
                                                                             </Trigger>
                                                                             <Trigger Property="IsEnabled" Value="False">
                                                                                 <Setter Property="Background" Value="#CBD5E1"/>
-                                                                                <Setter Property="Foreground" Value="#94A3B8"/>
+                                                                                <Setter Property="Foreground" Value="#475569"/>
                                                                             </Trigger>
                                                                         </Style.Triggers>
                                                                     </Style>
@@ -1423,7 +1401,7 @@
                                                         </Trigger>
                                                         <Trigger Property="IsEnabled" Value="False">
                                                             <Setter Property="Background" Value="#CBD5E1"/>
-                                                            <Setter Property="Foreground" Value="#94A3B8"/>
+                                                            <Setter Property="Foreground" Value="#475569"/>
                                                         </Trigger>
                                                     </Style.Triggers>
                                                 </Style>
@@ -1433,27 +1411,8 @@
                                     </Grid>
                                 </Border>
 
-                                <!-- Story Log (Collapsible) -->
-                                <Expander Header="📝 Processing Log"
-                                         IsExpanded="True"
-                                         Margin="0,0,0,0">
-                                    <Border Background="White"
-                                            BorderBrush="#DEE2E6"
-                                            BorderThickness="1"
-                                            Margin="0,8,0,0">
-                                        <ScrollViewer MaxHeight="150"
-                                                     VerticalScrollBarVisibility="Auto">
-                                            <TextBox Text="{Binding LogOutput, Mode=OneWay}"
-                                                    TextWrapping="Wrap"
-                                                    IsReadOnly="True"
-                                                    FontFamily="Consolas"
-                                                    FontSize="10"
-                                                    Background="Transparent"
-                                                    BorderThickness="0"
-                                                    Padding="10"/>
-                                        </ScrollViewer>
-                                    </Border>
-                                </Expander>
+                                <!-- Story Log (Collapsible) - shared panel -->
+                                <ctrl:ProcessingLogPanel LogText="{Binding LogOutput}" IsLogExpanded="True"/>
 
                             </StackPanel>
                         </ScrollViewer>
@@ -1769,23 +1728,8 @@
                                     </StackPanel>
                                 </Border>
 
-                                <!-- Log Output -->
-                                <Expander Header="📋 Generation Log" Margin="0,5,0,0" IsExpanded="False">
-                                    <Border BorderBrush="#DEE2E6" BorderThickness="1"
-                                            Background="#F8F9FA" CornerRadius="5"
-                                            Margin="0,8,0,0">
-                                        <ScrollViewer MaxHeight="150" VerticalScrollBarVisibility="Auto">
-                                            <TextBox Text="{Binding LTX23LogOutput, Mode=OneWay}"
-                                                    TextWrapping="Wrap"
-                                                    IsReadOnly="True"
-                                                    FontFamily="Consolas"
-                                                    FontSize="10"
-                                                    Background="Transparent"
-                                                    BorderThickness="0"
-                                                    Padding="10"/>
-                                        </ScrollViewer>
-                                    </Border>
-                                </Expander>
+                                <!-- Log Output - shared panel -->
+                                <ctrl:ProcessingLogPanel LogText="{Binding LTX23LogOutput}" Header="📋 Generation Log"/>
 
                                 </StackPanel>
                                 <!-- End LTX 2.3 Content -->
@@ -2020,18 +1964,8 @@
                                         </StackPanel>
                                     </Border>
 
-                                    <!-- Log Output -->
-                                    <Expander Header="📋 Generation Log" Margin="0,5,0,0" IsExpanded="False">
-                                        <Border BorderBrush="#DEE2E6" BorderThickness="1"
-                                                Background="#F8F9FA" CornerRadius="5" Margin="0,8,0,0">
-                                            <ScrollViewer MaxHeight="150" VerticalScrollBarVisibility="Auto">
-                                                <TextBox Text="{Binding Wan22LogOutput, Mode=OneWay}"
-                                                        TextWrapping="Wrap" IsReadOnly="True"
-                                                        FontFamily="Consolas" FontSize="10"
-                                                        Background="Transparent" BorderThickness="0" Padding="10"/>
-                                            </ScrollViewer>
-                                        </Border>
-                                    </Expander>
+                                    <!-- Log Output - shared panel -->
+                                    <ctrl:ProcessingLogPanel LogText="{Binding Wan22LogOutput}" Header="📋 Generation Log"/>
 
                                 </StackPanel>
                                 <!-- End Wan 2.2 Remix Content -->
@@ -2355,22 +2289,8 @@
                                     </StackPanel>
                                 </Border>
 
-                                <!-- Infinite Talk Log Section -->
-                                <Expander Header="📋 Processing Log" IsExpanded="False" Margin="0,10,0,0">
-                                    <Border Style="{StaticResource SectionPanelStyle}">
-                                        <ScrollViewer>
-                                            <TextBox Text="{Binding InfiniteTalkLogOutput, Mode=OneWay}"
-                                                    IsReadOnly="True"
-                                                    TextWrapping="Wrap"
-                                                    Background="#F8F9FA"
-                                                    BorderBrush="#CED4DA"
-                                                    FontFamily="Consolas"
-                                                    FontSize="10"
-                                                    Padding="10"
-                                                    Height="200"/>
-                                        </ScrollViewer>
-                                    </Border>
-                                </Expander>
+                                <!-- Infinite Talk Log Section - shared panel -->
+                                <ctrl:ProcessingLogPanel LogText="{Binding InfiniteTalkLogOutput}" Header="📋 Processing Log" MaxLogHeight="200"/>
 
                             </StackPanel>
                         </ScrollViewer>
@@ -2628,23 +2548,8 @@
                                     </StackPanel>
                                 </Border>
 
-                                <!-- Generation Log -->
-                                <Expander Header="📋 Generation Log" IsExpanded="False" Margin="0,5,0,0">
-                                    <Border BorderBrush="#DEE2E6" BorderThickness="1"
-                                            Background="#F8F9FA" CornerRadius="5"
-                                            Margin="0,8,0,0">
-                                        <ScrollViewer MaxHeight="150" VerticalScrollBarVisibility="Auto">
-                                            <TextBox Text="{Binding T2VLogOutput, Mode=OneWay}"
-                                                    TextWrapping="Wrap"
-                                                    IsReadOnly="True"
-                                                    FontFamily="Consolas"
-                                                    FontSize="10"
-                                                    Background="Transparent"
-                                                    BorderThickness="0"
-                                                    Padding="10"/>
-                                        </ScrollViewer>
-                                    </Border>
-                                </Expander>
+                                <!-- Generation Log - shared panel -->
+                                <ctrl:ProcessingLogPanel LogText="{Binding T2VLogOutput}" Header="📋 Generation Log"/>
 
                             </StackPanel>
                         </ScrollViewer>
@@ -3128,28 +3033,14 @@
                                     </StackPanel>
                                 </Border>
 
-                                <!-- Log -->
-                                <Expander Header="📋 Generation Log" IsExpanded="False" Margin="0,5,0,0">
-                                    <Border BorderBrush="#DEE2E6" BorderThickness="1"
-                                            Background="#F8F9FA" CornerRadius="5" Margin="0,8,0,0">
-                                        <ScrollViewer MaxHeight="150" VerticalScrollBarVisibility="Auto">
-                                            <TextBox Text="{Binding LongVideoLogOutput, Mode=OneWay}"
-                                                    TextWrapping="Wrap"
-                                                    IsReadOnly="True"
-                                                    FontFamily="Consolas"
-                                                    FontSize="10"
-                                                    Background="Transparent"
-                                                    BorderThickness="0"
-                                                    Padding="10"/>
-                                        </ScrollViewer>
-                                    </Border>
-                                </Expander>
+                                <!-- Log - shared panel -->
+                                <ctrl:ProcessingLogPanel LogText="{Binding LongVideoLogOutput}" Header="📋 Generation Log"/>
 
                             </StackPanel>
                         </ScrollViewer>
                     </TabItem>
 
-                <TabItem Header="⚡ WAN SCAIL II" FontWeight="Bold" FontSize="13">
+                <TabItem Header="⚡ WAN SCAIL II">
                         <!-- 2-column layout: left inputs + right video editor -->
                         <Grid>
                             <Grid.ColumnDefinitions>
@@ -3761,23 +3652,319 @@
                                 </Border>
 
                                 <!-- ─── Log ────────────────────────────────────────────── -->
-                                <Border Grid.Row="7" Background="White" BorderBrush="#DDD6FE" BorderThickness="0,1,0,0">
-                                    <Expander Header="📝 Processing Log" IsExpanded="False" Margin="6">
-                                        <ScrollViewer MaxHeight="130" VerticalScrollBarVisibility="Auto" Margin="0,4,0,0">
-                                            <TextBox Text="{Binding WanScailGgufLogOutput, Mode=OneWay}"
-                                                     TextWrapping="Wrap" IsReadOnly="True"
-                                                     FontFamily="Consolas" FontSize="10"
-                                                     Background="Transparent" BorderThickness="0" Padding="10"/>
-                                        </ScrollViewer>
-                                    </Expander>
-                                </Border>
+                                <ctrl:ProcessingLogPanel Grid.Row="7" LogText="{Binding WanScailGgufLogOutput}" MaxLogHeight="130"/>
 
                             </Grid>
                         </Grid>
                     </TabItem>
 
+                    <!-- Tab: Scail 2 (unified Klein char-swap → SCAIL II motion transfer) -->
+                    <TabItem Header="🎭 Scail 2">
+                        <Grid DataContext="{Binding Scail2VM}" Background="#0B1020">
+                            <ScrollViewer VerticalScrollBarVisibility="Auto">
+                                <StackPanel Margin="14" MaxWidth="640" HorizontalAlignment="Center">
+
+                                    <!-- ═══ 1) Base scene (video) ═══════════════════════════ -->
+                                    <Border Background="#0F172A" BorderBrush="#1F2937" BorderThickness="1"
+                                            CornerRadius="8" Padding="12" Margin="0,0,0,10">
+                                        <StackPanel>
+                                            <Grid Margin="0,0,0,8">
+                                                <Grid.ColumnDefinitions>
+                                                    <ColumnDefinition Width="*"/>
+                                                    <ColumnDefinition Width="Auto"/>
+                                                </Grid.ColumnDefinitions>
+                                                <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                                                    <Ellipse Width="7" Height="7" Fill="#34D399" Margin="0,0,7,0" VerticalAlignment="Center"/>
+                                                    <TextBlock Text="BASE SCENE" FontSize="12" FontWeight="Bold" Foreground="#E5E7EB"/>
+                                                    <TextBlock Text="{Binding InputVideoInfo}" FontSize="10" Foreground="#6B7280"
+                                                               FontStyle="Italic" VerticalAlignment="Center" Margin="10,0,0,0"
+                                                               TextTrimming="CharacterEllipsis"/>
+                                                </StackPanel>
+                                                <Button Grid.Column="1" Content="Upload video…"
+                                                        Command="{Binding SelectVideoCommand}"
+                                                        Height="30" Padding="12,0" FontSize="11"
+                                                        Background="#065F46" Foreground="#A7F3D0" BorderThickness="0" Cursor="Hand"/>
+                                            </Grid>
+
+                                            <!-- Reference video preview (Source assigned in code-behind) -->
+                                            <Border Background="#030712" BorderBrush="#1F2937" BorderThickness="1"
+                                                    CornerRadius="6" Height="200">
+                                                <Grid>
+                                                    <TextBlock Text="Upload a base scene video, then scrub to a frame showing both people"
+                                                               HorizontalAlignment="Center" VerticalAlignment="Center"
+                                                               Foreground="#4B5563" FontSize="12" TextAlignment="Center"
+                                                               TextWrapping="Wrap" MaxWidth="320">
+                                                        <TextBlock.Style>
+                                                            <Style TargetType="TextBlock">
+                                                                <Setter Property="Visibility" Value="Visible"/>
+                                                                <Style.Triggers>
+                                                                    <DataTrigger Binding="{Binding HasInputVideo}" Value="True">
+                                                                        <Setter Property="Visibility" Value="Collapsed"/>
+                                                                    </DataTrigger>
+                                                                </Style.Triggers>
+                                                            </Style>
+                                                        </TextBlock.Style>
+                                                    </TextBlock>
+                                                    <MediaElement x:Name="Scail2RefVideoPlayer"
+                                                                  LoadedBehavior="Manual" UnloadedBehavior="Stop"
+                                                                  ScrubbingEnabled="True"
+                                                                  MediaOpened="Scail2RefPlayer_MediaOpened"
+                                                                  MediaEnded="Scail2RefPlayer_MediaEnded"
+                                                                  Stretch="Uniform"
+                                                                  Visibility="{Binding HasInputVideo, Converter={StaticResource BooleanToVisibilityConverter}}"/>
+                                                </Grid>
+                                            </Border>
+
+                                            <!-- Scrub + In/Out trim track (playhead = Klein frame; markers = SCAIL II range) -->
+                                            <Grid x:Name="Scail2TrimTrack" Height="30" Margin="2,10,2,0"
+                                                  Background="Transparent" ClipToBounds="False"
+                                                  SizeChanged="Scail2TrimTrack_SizeChanged"
+                                                  Visibility="{Binding HasInputVideo, Converter={StaticResource BooleanToVisibilityConverter}}">
+                                                <Border Height="8" VerticalAlignment="Center" CornerRadius="4" Background="#1F2937"/>
+                                                <Border x:Name="Scail2TrimRegion" Height="8" Width="0"
+                                                        VerticalAlignment="Center" HorizontalAlignment="Left"
+                                                        CornerRadius="4" Background="#7C3AED" IsHitTestVisible="False"/>
+                                                <Border x:Name="Scail2TrimPlayhead" Width="2" Height="24"
+                                                        VerticalAlignment="Center" HorizontalAlignment="Left"
+                                                        Background="#E5E7EB" IsHitTestVisible="False"/>
+                                                <Thumb x:Name="Scail2InThumb" Width="14" Height="24"
+                                                       HorizontalAlignment="Left" VerticalAlignment="Center" Cursor="SizeWE"
+                                                       DragDelta="Scail2InThumb_DragDelta"
+                                                       ToolTip="Drag to set the start (in) point">
+                                                    <Thumb.Template>
+                                                        <ControlTemplate TargetType="Thumb">
+                                                            <Border Background="#86EFAC" CornerRadius="3" BorderBrush="#14532D" BorderThickness="1"/>
+                                                        </ControlTemplate>
+                                                    </Thumb.Template>
+                                                </Thumb>
+                                                <Thumb x:Name="Scail2OutThumb" Width="14" Height="24"
+                                                       HorizontalAlignment="Left" VerticalAlignment="Center" Cursor="SizeWE"
+                                                       DragDelta="Scail2OutThumb_DragDelta"
+                                                       ToolTip="Drag to set the end (out) point">
+                                                    <Thumb.Template>
+                                                        <ControlTemplate TargetType="Thumb">
+                                                            <Border Background="#FCA5A5" CornerRadius="3" BorderBrush="#7F1D1D" BorderThickness="1"/>
+                                                        </ControlTemplate>
+                                                    </Thumb.Template>
+                                                </Thumb>
+                                            </Grid>
+
+                                            <Grid Margin="0,8,0,0"
+                                                  Visibility="{Binding HasInputVideo, Converter={StaticResource BooleanToVisibilityConverter}}">
+                                                <StackPanel Orientation="Horizontal">
+                                                    <Button Content="▶" Click="Scail2Play_Click"
+                                                            Width="30" Height="26" FontSize="11" Margin="0,0,4,0"
+                                                            Background="#1F2937" Foreground="#E5E7EB" BorderThickness="0" Cursor="Hand"/>
+                                                    <Button Content="⏸" Click="Scail2Pause_Click"
+                                                            Width="30" Height="26" FontSize="11" Margin="0,0,10,0"
+                                                            Background="#1F2937" Foreground="#E5E7EB" BorderThickness="0" Cursor="Hand"/>
+                                                    <Button Content="⟦ In" Command="{Binding MarkInCommand}"
+                                                            Height="26" Padding="8,0" FontSize="11" FontWeight="Bold" Margin="0,0,4,0"
+                                                            Background="#14532D" Foreground="#86EFAC" BorderThickness="0" Cursor="Hand"/>
+                                                    <Button Content="Out ⟧" Command="{Binding MarkOutCommand}"
+                                                            Height="26" Padding="8,0" FontSize="11" FontWeight="Bold" Margin="0,0,4,0"
+                                                            Background="#7F1D1D" Foreground="#FCA5A5" BorderThickness="0" Cursor="Hand"/>
+                                                    <Button Content="Reset" Command="{Binding ResetTrimCommand}"
+                                                            Height="26" Padding="8,0" FontSize="11"
+                                                            Background="#1F2937" Foreground="#9CA3AF" BorderThickness="0" Cursor="Hand"/>
+                                                </StackPanel>
+                                                <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" VerticalAlignment="Center">
+                                                    <TextBlock Text="ETA" FontSize="9" Foreground="#6B7280" VerticalAlignment="Center" Margin="0,0,5,0"/>
+                                                    <TextBlock Text="{Binding EstimatedTime}" FontSize="13" FontWeight="Bold"
+                                                               FontFamily="Consolas" Foreground="#C084FC" VerticalAlignment="Center"/>
+                                                </StackPanel>
+                                            </Grid>
+                                            <TextBlock Text="{Binding TrimInfo}" FontSize="10" Foreground="#9CA3AF"
+                                                       FontFamily="Consolas" Margin="0,6,0,0" TextTrimming="CharacterEllipsis"
+                                                       Visibility="{Binding HasInputVideo, Converter={StaticResource BooleanToVisibilityConverter}}"/>
+                                        </StackPanel>
+                                    </Border>
+
+                                    <!-- ═══ 2) Characters → Character image (Klein char-swap) ═══ -->
+                                    <Border Background="#0F172A" BorderBrush="#1F2937" BorderThickness="1"
+                                            CornerRadius="8" Padding="12" Margin="0,0,0,10">
+                                        <StackPanel>
+                                            <StackPanel Orientation="Horizontal" Margin="0,0,0,10">
+                                                <Ellipse Width="7" Height="7" Fill="#7C3AED" Margin="0,0,7,0" VerticalAlignment="Center"/>
+                                                <TextBlock Text="CHARACTERS" FontSize="12" FontWeight="Bold" Foreground="#E5E7EB"/>
+                                            </StackPanel>
+
+                                            <Grid>
+                                                <Grid.ColumnDefinitions>
+                                                    <ColumnDefinition Width="*"/>
+                                                    <ColumnDefinition Width="*"/>
+                                                    <ColumnDefinition Width="28"/>
+                                                    <ColumnDefinition Width="1.4*"/>
+                                                </Grid.ColumnDefinitions>
+
+                                                <!-- Character 1 -->
+                                                <StackPanel Grid.Column="0" Margin="0,0,6,0">
+                                                    <Border Height="110" CornerRadius="6" Background="#030712"
+                                                            BorderBrush="#312E81" BorderThickness="1" Cursor="Hand">
+                                                        <Grid>
+                                                            <TextBlock Text="＋ Character 1 (LEFT)" Foreground="#6B7280" FontSize="11"
+                                                                       HorizontalAlignment="Center" VerticalAlignment="Center"
+                                                                       Visibility="{Binding NoChar1Image, Converter={StaticResource BooleanToVisibilityConverter}}"/>
+                                                            <Image Source="{Binding Char1ImageSource}" Stretch="UniformToFill"/>
+                                                            <Button Content="✕" Command="{Binding RemoveChar1Command}"
+                                                                    Width="20" Height="20" Margin="0,3,3,0" Padding="0" FontSize="11"
+                                                                    HorizontalAlignment="Right" VerticalAlignment="Top"
+                                                                    Background="#CC111827" Foreground="#FCA5A5" BorderThickness="0"
+                                                                    Cursor="Hand" ToolTip="Remove Character 1"
+                                                                    Visibility="{Binding HasChar1Image, Converter={StaticResource BooleanToVisibilityConverter}}"/>
+                                                        </Grid>
+                                                    </Border>
+                                                    <Button Content="Browse…" Command="{Binding BrowseChar1Command}"
+                                                            Height="26" FontSize="10" Margin="0,5,0,0"
+                                                            Background="#1F2937" Foreground="#C7D2FE" BorderThickness="0" Cursor="Hand"/>
+                                                    <Button Content="Replace this one only"
+                                                            Command="{Binding SwapChar1OnlyCommand}"
+                                                            Height="26" FontSize="10" Margin="0,4,0,0"
+                                                            Background="#5B21B6" Foreground="White" BorderThickness="0" Cursor="Hand"
+                                                            ToolTip="Replace just one person in the current base frame with Character 1 (works for a man or a woman), then use the result as the character image"/>
+                                                </StackPanel>
+
+                                                <!-- Character 2 -->
+                                                <StackPanel Grid.Column="1" Margin="0,0,6,0">
+                                                    <Border Height="110" CornerRadius="6" Background="#030712"
+                                                            BorderBrush="#312E81" BorderThickness="1" Cursor="Hand">
+                                                        <Grid>
+                                                            <TextBlock Text="＋ Character 2 (RIGHT)" Foreground="#6B7280" FontSize="11"
+                                                                       HorizontalAlignment="Center" VerticalAlignment="Center"
+                                                                       Visibility="{Binding NoChar2Image, Converter={StaticResource BooleanToVisibilityConverter}}"/>
+                                                            <Image Source="{Binding Char2ImageSource}" Stretch="UniformToFill"/>
+                                                            <Button Content="✕" Command="{Binding RemoveChar2Command}"
+                                                                    Width="20" Height="20" Margin="0,3,3,0" Padding="0" FontSize="11"
+                                                                    HorizontalAlignment="Right" VerticalAlignment="Top"
+                                                                    Background="#CC111827" Foreground="#FCA5A5" BorderThickness="0"
+                                                                    Cursor="Hand" ToolTip="Remove Character 2"
+                                                                    Visibility="{Binding HasChar2Image, Converter={StaticResource BooleanToVisibilityConverter}}"/>
+                                                        </Grid>
+                                                    </Border>
+                                                    <Button Content="Browse…" Command="{Binding BrowseChar2Command}"
+                                                            Height="26" FontSize="10" Margin="0,5,0,0"
+                                                            Background="#1F2937" Foreground="#C7D2FE" BorderThickness="0" Cursor="Hand"/>
+                                                </StackPanel>
+
+                                                <TextBlock Grid.Column="2" Text="→" FontSize="20" Foreground="#7C3AED"
+                                                           HorizontalAlignment="Center" VerticalAlignment="Center"/>
+
+                                                <!-- Character image (Klein composite) -->
+                                                <StackPanel Grid.Column="3">
+                                                    <Border Height="110" CornerRadius="6" Background="#030712"
+                                                            BorderBrush="#5B21B6" BorderThickness="1">
+                                                        <Grid>
+                                                            <TextBlock Text="Character image"
+                                                                       Foreground="#6B7280" FontSize="11"
+                                                                       HorizontalAlignment="Center" VerticalAlignment="Center"
+                                                                       Visibility="{Binding NoCharSwapResult, Converter={StaticResource BooleanToVisibilityConverter}}"/>
+                                                            <Image Source="{Binding CharSwapResultSource}" Stretch="Uniform"/>
+                                                            <Border Background="#CC030712"
+                                                                    Visibility="{Binding IsCharSwapping, Converter={StaticResource BooleanToVisibilityConverter}}">
+                                                                <TextBlock Text="⏳ working…" Foreground="#C084FC" FontSize="12"
+                                                                           HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                                                            </Border>
+                                                        </Grid>
+                                                    </Border>
+                                                    <Button Content="Swap characters"
+                                                            Command="{Binding SwapCharactersCommand}"
+                                                            Height="26" FontSize="10" Margin="0,5,0,0"
+                                                            Background="#7C3AED" Foreground="White" BorderThickness="0" Cursor="Hand"
+                                                            ToolTip="Replace both people in the current base frame with Character 1 (left) and Character 2 (right), then use the result as the character image"/>
+                                                    <TextBlock Text="Built when you press Swap" FontSize="9"
+                                                               Foreground="#6B7280" FontStyle="Italic" Margin="0,5,0,0"/>
+                                                </StackPanel>
+                                            </Grid>
+
+                                            <TextBlock Text="{Binding CharSwapStatus}" FontSize="11" Foreground="#C084FC"
+                                                       TextWrapping="Wrap" Margin="0,10,0,0"/>
+                                        </StackPanel>
+                                    </Border>
+
+                                    <!-- ═══ 3) Generate progress / status ═══════════════════ -->
+                                    <Border Background="#0F172A" BorderBrush="#1F2937" BorderThickness="1"
+                                            CornerRadius="8" Padding="12" Margin="0,0,0,10">
+                                        <StackPanel>
+                                            <ProgressBar Height="6" Margin="0,0,0,8"
+                                                         Value="{Binding ProcessingProgress, Mode=OneWay}"
+                                                         Foreground="#7C3AED" Background="#1F2937" BorderThickness="0"
+                                                         Visibility="{Binding IsProcessingQueue, Converter={StaticResource BooleanToVisibilityConverter}}"/>
+                                            <Grid>
+                                                <TextBlock Text="{Binding ProcessingStatus}" FontSize="11" Foreground="#9CA3AF"
+                                                           VerticalAlignment="Center" TextTrimming="CharacterEllipsis"/>
+                                                <Button Content="⚡ Generate video" HorizontalAlignment="Right"
+                                                        Click="Scail2Process_Click" Height="30" Padding="14,0" FontSize="11"
+                                                        FontWeight="Bold" Background="#059669" Foreground="White"
+                                                        BorderThickness="0" Cursor="Hand"
+                                                        IsEnabled="{Binding CanAddToQueue}"
+                                                        ToolTip="Analyzes the marked In/Out range and generates the SCAIL II video. Build the character image first."/>
+                                            </Grid>
+                                        </StackPanel>
+                                    </Border>
+
+                                    <!-- ═══ 4) Result ═══════════════════════════════════════ -->
+                                    <Border Background="#0F172A" BorderBrush="#1F2937" BorderThickness="1"
+                                            CornerRadius="8" Padding="12" Margin="0,0,0,10">
+                                        <StackPanel>
+                                            <TextBlock Text="🎥 RESULT" FontSize="12" FontWeight="Bold"
+                                                       Foreground="#E5E7EB" Margin="0,0,0,8"/>
+                                            <Border Background="#030712" BorderBrush="#1F2937" BorderThickness="1"
+                                                    Height="200" CornerRadius="6" Margin="0,0,0,8">
+                                                <Grid>
+                                                    <TextBlock Text="The motion-transfer video will appear here"
+                                                               HorizontalAlignment="Center" VerticalAlignment="Center"
+                                                               Foreground="#4B5563" FontStyle="Italic">
+                                                        <TextBlock.Style>
+                                                            <Style TargetType="TextBlock">
+                                                                <Setter Property="Visibility" Value="Visible"/>
+                                                                <Style.Triggers>
+                                                                    <DataTrigger Binding="{Binding HasResult}" Value="True">
+                                                                        <Setter Property="Visibility" Value="Collapsed"/>
+                                                                    </DataTrigger>
+                                                                </Style.Triggers>
+                                                            </Style>
+                                                        </TextBlock.Style>
+                                                    </TextBlock>
+                                                    <MediaElement x:Name="Scail2VideoPlayer"
+                                                                  Source="{Binding ResultVideoPath}"
+                                                                  LoadedBehavior="Manual" UnloadedBehavior="Stop"
+                                                                  Stretch="Uniform"
+                                                                  Visibility="{Binding HasResult, Converter={StaticResource BooleanToVisibilityConverter}}"/>
+                                                </Grid>
+                                            </Border>
+                                            <StackPanel Orientation="Horizontal">
+                                                <Button Content="▶ Play" Command="{Binding PlayVideoCommand}"
+                                                        IsEnabled="{Binding HasResult}" Height="30" Padding="14,0" FontSize="11"
+                                                        Background="#7C3AED" Foreground="White" BorderThickness="0" Margin="0,0,8,0" Cursor="Hand"/>
+                                                <Button Content="📁 Open folder" Command="{Binding OpenResultFolderCommand}"
+                                                        IsEnabled="{Binding HasResult}" Height="30" Padding="14,0" FontSize="11"
+                                                        Background="#1F2937" Foreground="#E5E7EB" BorderThickness="0" Margin="0,0,8,0" Cursor="Hand"/>
+                                                <Button Content="📷 Send to Edit Camera" Command="{Binding SendToEditCameraCommand}"
+                                                        IsEnabled="{Binding HasResult}" Height="30" Padding="14,0" FontSize="11"
+                                                        Background="#1F2937" Foreground="#E5E7EB" BorderThickness="0" Cursor="Hand"/>
+                                            </StackPanel>
+                                            <TextBlock Text="{Binding ResultVideoInfo}" FontStyle="Italic"
+                                                       Foreground="#6B7280" FontSize="11" Margin="0,6,0,0"/>
+                                        </StackPanel>
+                                    </Border>
+
+                                    <!-- ═══ Log ═════════════════════════════════════════════ -->
+                                    <Expander Header="📝 Log" IsExpanded="False" Foreground="#9CA3AF" Margin="0,0,0,4">
+                                        <ScrollViewer MaxHeight="130" VerticalScrollBarVisibility="Auto" Margin="0,4,0,0">
+                                            <TextBox Text="{Binding LogOutput, Mode=OneWay}"
+                                                     TextWrapping="Wrap" IsReadOnly="True"
+                                                     FontFamily="Consolas" FontSize="10"
+                                                     Background="#030712" Foreground="#9CA3AF" BorderThickness="0" Padding="10"/>
+                                        </ScrollViewer>
+                                    </Expander>
+
+                                </StackPanel>
+                            </ScrollViewer>
+                        </Grid>
+                    </TabItem>
+
                     <!-- Tab: LTX Control -->
-                    <TabItem Header="🎛️ LTX Control" FontWeight="Bold" FontSize="13">
+                    <TabItem Header="🎛️ LTX Control">
                         <Grid>
                             <Grid.ColumnDefinitions>
                                 <ColumnDefinition Width="340"/>
@@ -4210,23 +4397,14 @@
                                 </Border>
 
                                 <!-- ─── Log ───────────────────────────────────────────────── -->
-                                <Border Grid.Row="6" Background="White" BorderBrush="#BFDBFE" BorderThickness="0,1,0,0">
-                                    <Expander Header="📝 Processing Log" IsExpanded="False" Margin="6">
-                                        <ScrollViewer MaxHeight="130" VerticalScrollBarVisibility="Auto" Margin="0,4,0,0">
-                                            <TextBox Text="{Binding LtxControlLogOutput, Mode=OneWay}"
-                                                     TextWrapping="Wrap" IsReadOnly="True"
-                                                     FontFamily="Consolas" FontSize="10"
-                                                     Background="Transparent" BorderThickness="0" Padding="10"/>
-                                        </ScrollViewer>
-                                    </Expander>
-                                </Border>
+                                <ctrl:ProcessingLogPanel Grid.Row="6" LogText="{Binding LtxControlLogOutput}" MaxLogHeight="130"/>
 
                             </Grid>
                         </Grid>
                     </TabItem>
 
                     <!-- Tab: VR 180 -->
-                    <TabItem Header="🥽 VR 180" FontWeight="Bold" FontSize="13">
+                    <TabItem Header="🥽 VR 180">
                         <Grid DataContext="{Binding Vr180VM}" Background="#ECFEFF">
                             <Grid.ColumnDefinitions>
                                 <ColumnDefinition Width="360"/>
@@ -4572,17 +4750,371 @@
                                             </StackPanel>
                                         </Border>
 
-                                        <!-- Log -->
-                                        <Border Background="White" BorderBrush="#A5F3FC" BorderThickness="0,0,0,1">
-                                            <Expander Header="📝 Processing Log" IsExpanded="False" Margin="6">
-                                                <ScrollViewer MaxHeight="130" VerticalScrollBarVisibility="Auto" Margin="0,4,0,0">
-                                                    <TextBox Text="{Binding LogOutput, Mode=OneWay}"
-                                                             TextWrapping="Wrap" IsReadOnly="True"
-                                                             FontFamily="Consolas" FontSize="10"
-                                                             Background="Transparent" BorderThickness="0" Padding="10"/>
-                                                </ScrollViewer>
-                                            </Expander>
+                                        <!-- Log - shared panel -->
+                                        <ctrl:ProcessingLogPanel LogText="{Binding LogOutput}" MaxLogHeight="130"/>
+                                    </StackPanel>
+                                </ScrollViewer>
+                            </Grid>
+                        </Grid>
+                    </TabItem>
+
+                    <!-- Tab: Video Sound -->
+                    <TabItem Header="🔊 Video Sound">
+                        <Grid DataContext="{Binding VideoSoundVM}" Background="#F5F3FF">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="360"/>
+                                <ColumnDefinition Width="*"/>
+                            </Grid.ColumnDefinitions>
+
+                            <!-- ═══ LEFT PANEL · Inputs ════════════════════════════════════ -->
+                            <Border Grid.Column="0" BorderBrush="#DDD6FE" BorderThickness="0,0,1,0" Background="#FAF5FF">
+                                <ScrollViewer VerticalScrollBarVisibility="Auto">
+                                    <StackPanel Margin="12">
+
+                                        <!-- Intro -->
+                                        <Border Background="#6D28D9" CornerRadius="8" Padding="14,12" Margin="0,0,0,10">
+                                            <StackPanel>
+                                                <TextBlock Text="🔊 Video → Talking Video" FontSize="14" FontWeight="Bold" Foreground="White"/>
+                                                <TextBlock TextWrapping="Wrap" FontSize="11" Foreground="#EDE9FE" Margin="0,4,0,0"
+                                                           Text="Drop in a clip and Analyze — its first frame is read into a [VISUAL]/[SPEECH]/[SOUNDS] script. The LTX-2.3 audio-video model then re-generates the shot with synchronized speech and sound effects."/>
+                                            </StackPanel>
                                         </Border>
+
+                                        <!-- Input video -->
+                                        <Border Background="White" BorderBrush="#DDD6FE" BorderThickness="1"
+                                                CornerRadius="8" Padding="14" Margin="0,0,0,10">
+                                            <StackPanel>
+                                                <StackPanel Orientation="Horizontal" Margin="0,0,0,8">
+                                                    <Ellipse Width="6" Height="6" Fill="#7C3AED" Margin="0,0,6,0" VerticalAlignment="Center"/>
+                                                    <TextBlock Text="VIDEO" FontSize="10" FontWeight="Bold" Foreground="#6B7280"/>
+                                                    <TextBlock Text="  · required" FontSize="10" Foreground="#9CA3AF"/>
+                                                </StackPanel>
+                                                <Border BorderBrush="#DDD6FE" BorderThickness="1" CornerRadius="6"
+                                                        Background="#0C0A09" Height="150" Margin="0,0,0,8">
+                                                    <Grid>
+                                                        <TextBlock Text="No video selected" Foreground="#57534E" FontStyle="Italic"
+                                                                   HorizontalAlignment="Center" VerticalAlignment="Center">
+                                                            <TextBlock.Style>
+                                                                <Style TargetType="TextBlock">
+                                                                    <Setter Property="Visibility" Value="Visible"/>
+                                                                    <Style.Triggers>
+                                                                        <DataTrigger Binding="{Binding HasVideo}" Value="True">
+                                                                            <Setter Property="Visibility" Value="Collapsed"/>
+                                                                        </DataTrigger>
+                                                                    </Style.Triggers>
+                                                                </Style>
+                                                            </TextBlock.Style>
+                                                        </TextBlock>
+                                                        <MediaElement x:Name="VideoSoundInputPlayer"
+                                                                      Source="{Binding VideoFileUri}"
+                                                                      LoadedBehavior="Manual" UnloadedBehavior="Stop"
+                                                                      ScrubbingEnabled="True" Stretch="Uniform"
+                                                                      MediaOpened="VideoSoundInputPlayer_MediaOpened"
+                                                                      Visibility="{Binding HasVideo, Converter={StaticResource BooleanToVisibilityConverter}}"/>
+                                                    </Grid>
+                                                </Border>
+                                                <Button Content="📁 Choose video…" Command="{Binding SelectVideoCommand}"
+                                                        Height="32" FontSize="12" FontWeight="SemiBold"
+                                                        Background="#7C3AED" Foreground="White" BorderThickness="0"/>
+                                                <TextBlock Text="{Binding VideoInfo}" FontSize="10" Foreground="#6B7280"
+                                                           TextTrimming="CharacterEllipsis" Margin="0,6,0,0"/>
+                                            </StackPanel>
+                                        </Border>
+
+                                        <!-- Prompt + analyze -->
+                                        <Border Background="White" BorderBrush="#DDD6FE" BorderThickness="1"
+                                                CornerRadius="8" Padding="14" Margin="0,0,0,10">
+                                            <StackPanel>
+                                                <Grid Margin="0,0,0,8">
+                                                    <Grid.ColumnDefinitions>
+                                                        <ColumnDefinition Width="*"/>
+                                                        <ColumnDefinition Width="Auto"/>
+                                                    </Grid.ColumnDefinitions>
+                                                    <StackPanel Grid.Column="0" Orientation="Horizontal" VerticalAlignment="Center">
+                                                        <Ellipse Width="6" Height="6" Fill="#7C3AED" Margin="0,0,6,0" VerticalAlignment="Center"/>
+                                                        <TextBlock Text="SCRIPT" FontSize="10" FontWeight="Bold" Foreground="#6B7280"/>
+                                                        <TextBlock Text="  · [VISUAL]/[SPEECH]/[SOUNDS]" FontSize="10" Foreground="#9CA3AF"
+                                                                   TextTrimming="CharacterEllipsis"/>
+                                                    </StackPanel>
+                                                    <StackPanel Grid.Column="1" Orientation="Horizontal" HorizontalAlignment="Right">
+                                                        <TextBlock Text="Analyzing…" FontStyle="Italic" FontSize="10" Foreground="#7C3AED"
+                                                                   VerticalAlignment="Center" Margin="0,0,8,0"
+                                                                   Visibility="{Binding IsAnalyzing, Converter={StaticResource BooleanToVisibilityConverter}}"/>
+                                                        <Button Content="🔍 Analyze" Command="{Binding AnalyzeCommand}"
+                                                                IsEnabled="{Binding CanAnalyze}"
+                                                                Height="26" Padding="10,0" FontSize="11" FontWeight="SemiBold"
+                                                                Background="#EDE9FE" Foreground="#5B21B6" BorderThickness="1" BorderBrush="#DDD6FE"
+                                                                ToolTip="Extract the first frame and write a [VISUAL]/[SPEECH]/[SOUNDS] script"/>
+                                                    </StackPanel>
+                                                </Grid>
+                                                <TextBox Text="{Binding Prompt, UpdateSourceTrigger=PropertyChanged}"
+                                                         TextWrapping="Wrap" AcceptsReturn="True"
+                                                         Height="150" VerticalScrollBarVisibility="Auto"
+                                                         BorderBrush="#DDD6FE" Background="#FAF5FF"
+                                                         FontSize="12" FontFamily="Consolas" Padding="8"/>
+                                                <TextBlock TextWrapping="Wrap" FontSize="10" Foreground="#9CA3AF" Margin="0,6,0,0"
+                                                           Text="Edit freely. Keep the three labelled blocks so the model knows what to speak and what to sound like."/>
+                                            </StackPanel>
+                                        </Border>
+
+                                        <!-- Reference voice (optional) -->
+                                        <Border Background="White" BorderBrush="#DDD6FE" BorderThickness="1"
+                                                CornerRadius="8" Padding="14" Margin="0,0,0,10">
+                                            <StackPanel>
+                                                <StackPanel Orientation="Horizontal" Margin="0,0,0,8">
+                                                    <Ellipse Width="6" Height="6" Fill="#7C3AED" Margin="0,0,6,0" VerticalAlignment="Center"/>
+                                                    <TextBlock Text="REFERENCE VOICE" FontSize="10" FontWeight="Bold" Foreground="#6B7280"/>
+                                                    <TextBlock Text="  · optional" FontSize="10" Foreground="#9CA3AF"/>
+                                                </StackPanel>
+                                                <Grid>
+                                                    <Grid.ColumnDefinitions>
+                                                        <ColumnDefinition Width="*"/>
+                                                        <ColumnDefinition Width="Auto"/>
+                                                    </Grid.ColumnDefinitions>
+                                                    <Button Grid.Column="0" Content="🎙 Choose voice audio…"
+                                                            Command="{Binding SelectReferenceAudioCommand}"
+                                                            Height="30" FontSize="11" FontWeight="SemiBold"
+                                                            Background="#EDE9FE" Foreground="#5B21B6"
+                                                            BorderThickness="1" BorderBrush="#DDD6FE"/>
+                                                    <Button Grid.Column="1" Content="✕" Width="30" Height="30" Margin="6,0,0,0"
+                                                            Command="{Binding ClearReferenceAudioCommand}"
+                                                            IsEnabled="{Binding HasReferenceAudio}"
+                                                            Background="#F3F4F6" Foreground="#6B7280" BorderThickness="1" BorderBrush="#DDD6FE"
+                                                            ToolTip="Clear reference voice (use workflow default)"/>
+                                                </Grid>
+                                                <TextBlock Text="{Binding ReferenceAudioInfo}" FontSize="10" Foreground="#6B7280"
+                                                           TextTrimming="CharacterEllipsis" Margin="0,6,0,0"/>
+                                            </StackPanel>
+                                        </Border>
+
+                                        <!-- Output settings -->
+                                        <Border Background="White" BorderBrush="#DDD6FE" BorderThickness="1"
+                                                CornerRadius="8" Padding="14">
+                                            <StackPanel>
+                                                <StackPanel Orientation="Horizontal" Margin="0,0,0,10">
+                                                    <Ellipse Width="6" Height="6" Fill="#7C3AED" Margin="0,0,6,0" VerticalAlignment="Center"/>
+                                                    <TextBlock Text="OUTPUT SIZE" FontSize="10" FontWeight="Bold" Foreground="#6B7280"/>
+                                                </StackPanel>
+                                                <Grid>
+                                                    <Grid.ColumnDefinitions>
+                                                        <ColumnDefinition Width="*"/>
+                                                        <ColumnDefinition Width="10"/>
+                                                        <ColumnDefinition Width="*"/>
+                                                    </Grid.ColumnDefinitions>
+                                                    <StackPanel Grid.Column="0">
+                                                        <TextBlock Text="Width" FontSize="10" Foreground="#6B7280" Margin="0,0,0,4"/>
+                                                        <TextBox Text="{Binding Width, UpdateSourceTrigger=PropertyChanged}"
+                                                                 Height="30" Padding="6,0" VerticalContentAlignment="Center"
+                                                                 BorderBrush="#DDD6FE" Background="#FAF5FF"
+                                                                 FontSize="12" FontFamily="Consolas"/>
+                                                    </StackPanel>
+                                                    <StackPanel Grid.Column="2">
+                                                        <TextBlock Text="Height" FontSize="10" Foreground="#6B7280" Margin="0,0,0,4"/>
+                                                        <TextBox Text="{Binding Height, UpdateSourceTrigger=PropertyChanged}"
+                                                                 Height="30" Padding="6,0" VerticalContentAlignment="Center"
+                                                                 BorderBrush="#DDD6FE" Background="#FAF5FF"
+                                                                 FontSize="12" FontFamily="Consolas"/>
+                                                    </StackPanel>
+                                                </Grid>
+                                                <TextBlock TextWrapping="Wrap" FontSize="10" Foreground="#9CA3AF" Margin="0,8,0,0"
+                                                           Text="The input frames are re-fit to this size (default 720×1280 portrait). Match your clip's orientation to avoid stretching. Clip length follows the source video."/>
+                                            </StackPanel>
+                                        </Border>
+
+                                    </StackPanel>
+                                </ScrollViewer>
+                            </Border>
+
+                            <!-- ═══ RIGHT PANEL ════════════════════════════════════════════ -->
+                            <Grid Grid.Column="1">
+                                <Grid.RowDefinitions>
+                                    <RowDefinition Height="3"/>    <!-- Progress bar -->
+                                    <RowDefinition Height="Auto"/> <!-- Status row -->
+                                    <RowDefinition Height="Auto"/> <!-- Action buttons -->
+                                    <RowDefinition Height="*"/>    <!-- Scrollable: result + queue + log -->
+                                </Grid.RowDefinitions>
+
+                                <!-- Progress bar -->
+                                <ProgressBar Grid.Row="0"
+                                             Value="{Binding ProcessingProgress, Mode=OneWay}"
+                                             Foreground="#7C3AED" Background="#3B1E73" BorderThickness="0"
+                                             Visibility="{Binding IsProcessingQueue, Converter={StaticResource BooleanToVisibilityConverter}}"/>
+
+                                <!-- Status row -->
+                                <Border Grid.Row="1" Background="#2E1065" BorderBrush="#6D28D9"
+                                        BorderThickness="0,1,0,0" Padding="12,5">
+                                    <Grid>
+                                        <StackPanel Orientation="Horizontal">
+                                            <Ellipse Width="5" Height="5" VerticalAlignment="Center" Margin="0,0,7,0">
+                                                <Ellipse.Style>
+                                                    <Style TargetType="Ellipse">
+                                                        <Setter Property="Fill" Value="#5B3F9E"/>
+                                                        <Style.Triggers>
+                                                            <DataTrigger Binding="{Binding IsProcessingQueue}" Value="True">
+                                                                <Setter Property="Fill" Value="#A78BFA"/>
+                                                            </DataTrigger>
+                                                        </Style.Triggers>
+                                                    </Style>
+                                                </Ellipse.Style>
+                                            </Ellipse>
+                                            <TextBlock Text="{Binding ProcessingStatus}" FontSize="11" Foreground="#DDD6FE"
+                                                       VerticalAlignment="Center" TextTrimming="CharacterEllipsis"/>
+                                        </StackPanel>
+                                        <TextBlock HorizontalAlignment="Right" VerticalAlignment="Center"
+                                                   Text="{Binding ProgressPercentage, Mode=OneWay}"
+                                                   FontSize="11" FontWeight="Bold" Foreground="#A78BFA" FontFamily="Consolas"
+                                                   Visibility="{Binding IsProcessingQueue, Converter={StaticResource BooleanToVisibilityConverter}}"/>
+                                    </Grid>
+                                </Border>
+
+                                <!-- Action buttons -->
+                                <Border Grid.Row="2" Background="#1E0B47" BorderBrush="#6D28D9"
+                                        BorderThickness="0,1,0,0" Padding="10,8">
+                                    <Grid>
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="*"/>
+                                            <ColumnDefinition Width="Auto"/>
+                                        </Grid.ColumnDefinitions>
+                                        <Button Grid.Column="0" Margin="0,0,8,0" Height="40"
+                                                Command="{Binding GenerateVideoCommand}"
+                                                IsEnabled="{Binding CanAddToQueue}"
+                                                Background="#7C3AED" Foreground="White"
+                                                FontSize="12" FontWeight="Bold" BorderThickness="0">
+                                            <StackPanel Orientation="Horizontal">
+                                                <TextBlock Text="🔊 " VerticalAlignment="Center"/>
+                                                <TextBlock Text="Generate Video Sound" VerticalAlignment="Center"/>
+                                            </StackPanel>
+                                        </Button>
+                                        <Button Grid.Column="1" Height="40" Width="82"
+                                                Command="{Binding StopQueueCommand}"
+                                                IsEnabled="{Binding IsProcessingQueue}"
+                                                Background="#5B3F9E" Foreground="#FCA5A5"
+                                                FontSize="11" BorderThickness="0">
+                                            <StackPanel Orientation="Horizontal">
+                                                <TextBlock Text="✕ " VerticalAlignment="Center"/>
+                                                <TextBlock Text="Cancel" VerticalAlignment="Center"/>
+                                            </StackPanel>
+                                        </Button>
+                                    </Grid>
+                                </Border>
+
+                                <!-- Scrollable: result + queue + log -->
+                                <ScrollViewer Grid.Row="3" VerticalScrollBarVisibility="Auto" Background="White">
+                                    <StackPanel>
+                                        <!-- Result -->
+                                        <Border Background="White" BorderBrush="#DDD6FE" BorderThickness="0,0,0,1" Padding="12,10">
+                                            <StackPanel>
+                                                <TextBlock Text="🎬 Result" FontWeight="Bold" FontSize="13"
+                                                           Foreground="#7C3AED" Margin="0,0,0,8"/>
+                                                <Border BorderBrush="#DDD6FE" BorderThickness="1" Background="#0C0A09"
+                                                        Height="260" CornerRadius="6" Margin="0,0,0,8">
+                                                    <Grid>
+                                                        <TextBlock Text="Your video with sound will appear here after generation"
+                                                                   HorizontalAlignment="Center" VerticalAlignment="Center"
+                                                                   Foreground="#57534E" FontStyle="Italic">
+                                                            <TextBlock.Style>
+                                                                <Style TargetType="TextBlock">
+                                                                    <Setter Property="Visibility" Value="Collapsed"/>
+                                                                    <Style.Triggers>
+                                                                        <DataTrigger Binding="{Binding HasResult}" Value="False">
+                                                                            <Setter Property="Visibility" Value="Visible"/>
+                                                                        </DataTrigger>
+                                                                    </Style.Triggers>
+                                                                </Style>
+                                                            </TextBlock.Style>
+                                                        </TextBlock>
+                                                        <MediaElement x:Name="VideoSoundVideoPlayer"
+                                                                      Source="{Binding ResultVideoPath}"
+                                                                      LoadedBehavior="Manual" UnloadedBehavior="Stop"
+                                                                      Stretch="Uniform"
+                                                                      Visibility="{Binding HasResult, Converter={StaticResource BooleanToVisibilityConverter}}"/>
+                                                    </Grid>
+                                                </Border>
+                                                <StackPanel Orientation="Horizontal" Margin="0,0,0,6">
+                                                    <Button Content="▶ Play" Style="{StaticResource PrimaryButtonStyle}"
+                                                            Command="{Binding PlayVideoCommand}"
+                                                            IsEnabled="{Binding HasResult}" Margin="0,0,8,0"/>
+                                                    <Button Content="📁 Open Folder" Style="{StaticResource SecondaryButtonStyle}"
+                                                            Command="{Binding OpenResultFolderCommand}"
+                                                            IsEnabled="{Binding HasResult}" Margin="0,0,8,0"/>
+                                                    <Button Content="📷 Send to Edit Camera" Style="{StaticResource SecondaryButtonStyle}"
+                                                            Command="{Binding SendToEditCameraCommand}"
+                                                            IsEnabled="{Binding HasResult}"/>
+                                                </StackPanel>
+                                                <TextBlock Text="{Binding ResultVideoInfo}"
+                                                           FontStyle="Italic" Foreground="#666" FontSize="11"/>
+                                            </StackPanel>
+                                        </Border>
+
+                                        <!-- Queue -->
+                                        <Border Background="#FAF5FF" BorderBrush="#DDD6FE"
+                                                BorderThickness="0,0,0,1" Padding="12,8"
+                                                Visibility="{Binding HasQueueItems, Converter={StaticResource BooleanToVisibilityConverter}}">
+                                            <StackPanel>
+                                                <Grid Margin="0,0,0,6">
+                                                    <Grid.ColumnDefinitions>
+                                                        <ColumnDefinition Width="*"/>
+                                                        <ColumnDefinition Width="Auto"/>
+                                                        <ColumnDefinition Width="Auto"/>
+                                                        <ColumnDefinition Width="Auto"/>
+                                                        <ColumnDefinition Width="Auto"/>
+                                                    </Grid.ColumnDefinitions>
+                                                    <TextBlock Grid.Column="0" Text="🔊 Sound Queue"
+                                                               FontWeight="Bold" FontSize="12" Foreground="#7C3AED" VerticalAlignment="Center"/>
+                                                    <TextBlock Grid.Column="1" Text="{Binding QueueStatus}"
+                                                               FontStyle="Italic" Foreground="#666" FontSize="11"
+                                                               VerticalAlignment="Center" Margin="0,0,8,0"/>
+                                                    <Button Grid.Column="2" Content="🔄 Retry"
+                                                            Command="{Binding ReprocessAllFailedCommand}"
+                                                            IsEnabled="{Binding HasFailedItems}"
+                                                            Height="26" Padding="8,0" FontSize="11" Margin="0,0,5,0"
+                                                            Background="#7C3AED" Foreground="White" BorderThickness="0"/>
+                                                    <Button Grid.Column="3" Content="⏹ Stop"
+                                                            Command="{Binding StopQueueCommand}"
+                                                            IsEnabled="{Binding IsProcessingQueue}"
+                                                            Height="26" Padding="8,0" FontSize="11" Margin="0,0,5,0"
+                                                            Background="#6D28D9" Foreground="White" BorderThickness="0"/>
+                                                    <Button Grid.Column="4" Content="🗑️ Clear"
+                                                            Command="{Binding ClearQueueCommand}"
+                                                            Height="26" Padding="8,0" FontSize="11"
+                                                            Background="#DC3545" Foreground="White" BorderThickness="0"/>
+                                                </Grid>
+                                                <ItemsControl ItemsSource="{Binding Queue}">
+                                                    <ItemsControl.ItemTemplate>
+                                                        <DataTemplate>
+                                                            <Border BorderBrush="#DDD6FE" BorderThickness="1" CornerRadius="4"
+                                                                    Padding="10,5" Margin="0,0,0,3" Background="White">
+                                                                <Grid>
+                                                                    <Grid.ColumnDefinitions>
+                                                                        <ColumnDefinition Width="Auto"/>
+                                                                        <ColumnDefinition Width="*"/>
+                                                                        <ColumnDefinition Width="Auto"/>
+                                                                    </Grid.ColumnDefinitions>
+                                                                    <Border Grid.Column="0" CornerRadius="3" Padding="6,2" Margin="0,0,8,0"
+                                                                            Background="{Binding StatusColor}">
+                                                                        <TextBlock Text="{Binding StatusDisplay}" FontSize="10"
+                                                                                   FontWeight="SemiBold" Foreground="White"/>
+                                                                    </Border>
+                                                                    <StackPanel Grid.Column="1" VerticalAlignment="Center">
+                                                                        <TextBlock Text="{Binding DisplayText}" FontWeight="SemiBold" FontSize="11"/>
+                                                                        <TextBlock Text="{Binding Prompt}" FontSize="10" Foreground="#666"
+                                                                                   TextTrimming="CharacterEllipsis"/>
+                                                                    </StackPanel>
+                                                                    <Button Grid.Column="2" Content="✕"
+                                                                            Style="{StaticResource SecondaryButtonStyle}"
+                                                                            Command="{Binding DataContext.RemoveQueueItemCommand, RelativeSource={RelativeSource AncestorType=ItemsControl}}"
+                                                                            CommandParameter="{Binding}"
+                                                                            Width="26" Height="26" Padding="0" FontSize="10"/>
+                                                                </Grid>
+                                                            </Border>
+                                                        </DataTemplate>
+                                                    </ItemsControl.ItemTemplate>
+                                                </ItemsControl>
+                                            </StackPanel>
+                                        </Border>
+
+                                        <!-- Log - shared panel -->
+                                        <ctrl:ProcessingLogPanel LogText="{Binding LogOutput}" MaxLogHeight="130"/>
                                     </StackPanel>
                                 </ScrollViewer>
                             </Grid>
@@ -4592,17 +5124,17 @@
                     <!-- ═══════════════════════════════════════════════════════════════ -->
                     <!-- Tab: Seed Director (SeedHunt × LTX Director fusion)             -->
                     <!-- ═══════════════════════════════════════════════════════════════ -->
-                    <TabItem Header="🎬 Seed Director" FontWeight="Bold" FontSize="13">
-                        <Grid DataContext="{Binding SeedDirectorVM}" Background="#FFFBEB"
-                              VerticalAlignment="Top"
-                              Height="{Binding ViewportHeight, RelativeSource={RelativeSource AncestorType=ScrollViewer}, Converter={StaticResource SubtractConverter}, ConverterParameter=56}">
+                    <TabItem Header="🎬 Seed Director">
+                        <Grid DataContext="{Binding SeedDirectorVM}" Background="#FFFBEB">
                             <Grid.ColumnDefinitions>
-                                <ColumnDefinition Width="340"/>
+                                <!-- Auto so the drawer takes ZERO width when collapsed → timeline gets the whole page -->
+                                <ColumnDefinition Width="Auto"/>
                                 <ColumnDefinition Width="*"/>
                             </Grid.ColumnDefinitions>
 
-                            <!-- ═══ LEFT PANEL · Global options ════════════════════════════ -->
-                            <Border Grid.Column="0" BorderBrush="#FDE68A" BorderThickness="0,0,1,0" Background="#FEFCE8">
+                            <!-- ═══ LEFT DRAWER · Global options (hidden by default, toggled from the toolbar) ═══ -->
+                            <Border Grid.Column="0" Width="340" BorderBrush="#FDE68A" BorderThickness="0,0,1,0" Background="#FEFCE8"
+                                    Visibility="{Binding IsOptionsOpen, Converter={StaticResource BooleanToVisibilityConverter}}">
                                 <ScrollViewer VerticalScrollBarVisibility="Auto">
                                     <StackPanel Margin="12">
 
@@ -4723,6 +5255,10 @@
                                     <StackPanel>
                                         <Grid Margin="0,0,0,8">
                                             <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                                                <Button Content="{Binding OptionsToggleLabel}" Command="{Binding ToggleOptionsCommand}"
+                                                        Height="28" Padding="10,0" FontSize="11" FontWeight="SemiBold" Margin="0,0,12,0"
+                                                        Background="#292524" Foreground="#FBBF24" BorderThickness="1" BorderBrush="#44403C"
+                                                        ToolTip="Show/hide output resolution, analysis template &amp; character LoRA settings"/>
                                                 <TextBlock Text="🎬" FontSize="14" Margin="0,0,6,0" VerticalAlignment="Center"/>
                                                 <TextBlock Text="TIMELINE" FontSize="11" FontWeight="Bold" Foreground="#FBBF24" VerticalAlignment="Center"/>
                                                 <TextBlock Text="{Binding TimelineSummary}" FontSize="11" Foreground="#A8A29E"
@@ -4735,6 +5271,14 @@
                                                 <Button Content="＋ Add images" Command="{Binding AddImagesCommand}"
                                                         Height="28" Padding="12,0" FontSize="11" FontWeight="SemiBold"
                                                         Background="#292524" Foreground="#FBBF24" BorderThickness="1" BorderBrush="#44403C" Margin="0,0,6,0"/>
+                                                <Button Content="💾" Command="{Binding SaveProjectCommand}"
+                                                        Height="28" Width="34" FontSize="12"
+                                                        Background="#292524" Foreground="#FBBF24" BorderThickness="1" BorderBrush="#44403C" Margin="0,0,6,0"
+                                                        ToolTip="Save this timeline (image paths, prompts, durations) so the analysis survives a restart"/>
+                                                <Button Content="📂" Command="{Binding LoadProjectCommand}"
+                                                        Height="28" Width="34" FontSize="12"
+                                                        Background="#292524" Foreground="#FBBF24" BorderThickness="1" BorderBrush="#44403C" Margin="0,0,6,0"
+                                                        ToolTip="Restore a saved timeline (or the auto-recovered last session) — prompts come back without re-analyzing"/>
                                                 <Button Content="🎬 Analyze → Seeds" Command="{Binding GenerateAllSeedsCommand}"
                                                         IsEnabled="{Binding CanGenerateSeeds}"
                                                         Height="28" Padding="14,0" FontSize="11" FontWeight="Bold"
@@ -4972,11 +5516,13 @@
                                     </Grid>
                                 </Border>
 
-                                <!-- ─── Workspace (no scroll): seeds | player ───────────────── -->
+                                <!-- ─── Workspace: seeds | (drag) | player — proportional with min-widths -->
+                                <!-- so neither side collapses and the seed-grid header can never char-wrap. -->
                                 <Grid Grid.Row="2" Background="White">
                                     <Grid.ColumnDefinitions>
-                                        <ColumnDefinition Width="*"/>
-                                        <ColumnDefinition Width="520"/>
+                                        <ColumnDefinition Width="3*" MinWidth="360"/>
+                                        <ColumnDefinition Width="Auto"/>
+                                        <ColumnDefinition Width="2*" MinWidth="340"/>
                                     </Grid.ColumnDefinitions>
 
                                     <!-- Left: big seed grid for the selected shot -->
@@ -5068,8 +5614,14 @@
                                         </TextBlock>
                                     </Grid>
 
+                                    <!-- Draggable divider so the user can rebalance seeds vs. player -->
+                                    <GridSplitter Grid.Column="1" Width="6" HorizontalAlignment="Stretch"
+                                                  VerticalAlignment="Stretch" Background="#FDE68A"
+                                                  ShowsPreview="True" ResizeBehavior="PreviousAndNext"
+                                                  ToolTip="Drag to resize the seed grid and player"/>
+
                                     <!-- Right: player + joined results -->
-                                    <Grid Grid.Column="1" Margin="0,12,12,12">
+                                    <Grid Grid.Column="2" Margin="12,12,12,12">
                                         <Grid.RowDefinitions>
                                             <RowDefinition Height="*"/>
                                             <RowDefinition Height="Auto"/>
@@ -5143,23 +5695,228 @@
                                 </Grid>
 
                                 <!-- ─── Log (collapsed by default) ──────────────────────────── -->
-                                <Border Grid.Row="6" Background="#FFFBEB" BorderBrush="#FDE68A" BorderThickness="0,1,0,0">
-                                    <Expander Header="📝 Processing Log" IsExpanded="False" Margin="12,4">
-                                        <ScrollViewer MaxHeight="120" VerticalScrollBarVisibility="Auto" Margin="0,4,0,0">
-                                            <TextBox Text="{Binding LogOutput, Mode=OneWay}"
-                                                     TextWrapping="Wrap" IsReadOnly="True"
-                                                     FontFamily="Consolas" FontSize="10"
-                                                     Background="Transparent" BorderThickness="0" Padding="10"/>
-                                        </ScrollViewer>
-                                    </Expander>
-                                </Border>
+                                <ctrl:ProcessingLogPanel Grid.Row="6" LogText="{Binding LogOutput}" MaxLogHeight="120"/>
                             </Grid>
                         </Grid>
                     </TabItem>
 
-                </TabControl>
-            </StackPanel>
-        </ScrollViewer>
+                    <!-- ═══════════════════════ FFLF-DASIWA TAB ═══════════════════════ -->
+                    <TabItem Header="🔗 FFLF-Dasiwa">
+                        <Grid DataContext="{Binding FflfDasiwaVM}" Background="#ECFEFF">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="340"/>
+                                <ColumnDefinition Width="*"/>
+                            </Grid.ColumnDefinitions>
+
+                            <!-- ═══ LEFT PANEL · Inputs ════════════════════════════════════ -->
+                            <Border Grid.Column="0" BorderBrush="#A5F3FC" BorderThickness="0,0,1,0" Background="#F0FDFF">
+                                <ScrollViewer VerticalScrollBarVisibility="Auto">
+                                    <StackPanel Margin="12">
+
+                                        <!-- Intro -->
+                                        <Border Background="#0E7490" CornerRadius="8" Padding="14,12" Margin="0,0,0,10">
+                                            <StackPanel>
+                                                <TextBlock Text="🔗 FFLF-Dasiwa Chain" FontSize="14" FontWeight="Bold" Foreground="White"/>
+                                                <TextBlock TextWrapping="Wrap" FontSize="11" Foreground="#CFFAFE" Margin="0,4,0,0"
+                                                           Text="Upload one image and analyze it. Each clip's last frame becomes the next clip's first frame (re-analyzed automatically). Pick how many links to chain — the segments are joined into one continuous video."/>
+                                            </StackPanel>
+                                        </Border>
+
+                                        <!-- First frame image -->
+                                        <Border Background="White" BorderBrush="#A5F3FC" BorderThickness="1"
+                                                CornerRadius="8" Padding="14" Margin="0,0,0,10">
+                                            <StackPanel>
+                                                <StackPanel Orientation="Horizontal" Margin="0,0,0,8">
+                                                    <Ellipse Width="6" Height="6" Fill="#0891B2" Margin="0,0,6,0" VerticalAlignment="Center"/>
+                                                    <TextBlock Text="FIRST FRAME" FontSize="10" FontWeight="Bold" Foreground="#6B7280"/>
+                                                </StackPanel>
+                                                <Border Height="150" Background="#F0FDFF" BorderBrush="#A5F3FC" BorderThickness="1"
+                                                        CornerRadius="6" Margin="0,0,0,8">
+                                                    <Grid>
+                                                        <TextBlock Text="No image selected" HorizontalAlignment="Center"
+                                                                   VerticalAlignment="Center" Foreground="#9CA3AF" FontStyle="Italic"
+                                                                   Visibility="{Binding HasFirstImage, Converter={StaticResource BoolToVisibilityConverter}, ConverterParameter=Invert}"/>
+                                                        <Image Source="{Binding FirstImagePreview}" Stretch="Uniform" Margin="4"/>
+                                                    </Grid>
+                                                </Border>
+                                                <TextBlock Text="{Binding FirstImageInfo}" FontSize="10" Foreground="#6B7280" Margin="0,0,0,8"/>
+                                                <Button Content="📁 Select Image" Command="{Binding SelectImageCommand}"
+                                                        Height="30" Background="#0891B2" Foreground="White" BorderThickness="0"/>
+                                            </StackPanel>
+                                        </Border>
+
+                                        <!-- Analyze + prompt -->
+                                        <Border Background="White" BorderBrush="#A5F3FC" BorderThickness="1"
+                                                CornerRadius="8" Padding="14" Margin="0,0,0,10">
+                                            <StackPanel>
+                                                <StackPanel Orientation="Horizontal" Margin="0,0,0,8">
+                                                    <Ellipse Width="6" Height="6" Fill="#0891B2" Margin="0,0,6,0" VerticalAlignment="Center"/>
+                                                    <TextBlock Text="PROMPT" FontSize="10" FontWeight="Bold" Foreground="#6B7280"/>
+                                                </StackPanel>
+                                                <Button Content="🔍 Analyze First Frame" Command="{Binding AnalyzeCommand}"
+                                                        Height="30" Margin="0,0,0,8"
+                                                        Background="#06B6D4" Foreground="White" BorderThickness="0"
+                                                        ToolTip="Send the first frame to llama-server (dasiwa-fflf.md) to write the segment-1 prompt."/>
+                                                <TextBox Text="{Binding Prompt, UpdateSourceTrigger=PropertyChanged}"
+                                                         TextWrapping="Wrap" AcceptsReturn="True" MinHeight="70" MaxHeight="140"
+                                                         VerticalScrollBarVisibility="Auto" Padding="6" BorderBrush="#A5F3FC"
+                                                         ToolTip="Prompt used for segment 1. Later segments are auto-analyzed from each extracted frame."/>
+                                                <Expander Header="Negative prompt" FontSize="11" Foreground="#6B7280" Margin="0,8,0,0">
+                                                    <TextBox Text="{Binding NegativePrompt, UpdateSourceTrigger=PropertyChanged}"
+                                                             TextWrapping="Wrap" AcceptsReturn="True" MinHeight="60" MaxHeight="120"
+                                                             VerticalScrollBarVisibility="Auto" Padding="6" BorderBrush="#A5F3FC" Margin="0,4,0,0"/>
+                                                </Expander>
+                                            </StackPanel>
+                                        </Border>
+
+                                        <!-- Chain settings -->
+                                        <Border Background="White" BorderBrush="#A5F3FC" BorderThickness="1"
+                                                CornerRadius="8" Padding="14">
+                                            <StackPanel>
+                                                <StackPanel Orientation="Horizontal" Margin="0,0,0,8">
+                                                    <Ellipse Width="6" Height="6" Fill="#0891B2" Margin="0,0,6,0" VerticalAlignment="Center"/>
+                                                    <TextBlock Text="CHAIN SETTINGS" FontSize="10" FontWeight="Bold" Foreground="#6B7280"/>
+                                                </StackPanel>
+
+                                                <Grid Margin="0,0,0,8">
+                                                    <Grid.ColumnDefinitions>
+                                                        <ColumnDefinition Width="*"/>
+                                                        <ColumnDefinition Width="Auto"/>
+                                                    </Grid.ColumnDefinitions>
+                                                    <TextBlock Grid.Column="0" Text="Iterations (links in the chain)"
+                                                               VerticalAlignment="Center" Foreground="#155E75" FontSize="11"/>
+                                                    <TextBlock Grid.Column="1" Text="{Binding Iterations}" FontWeight="Bold"
+                                                               Foreground="#0E7490" FontSize="13" VerticalAlignment="Center"/>
+                                                </Grid>
+                                                <Slider Minimum="1" Maximum="5" Value="{Binding Iterations}"
+                                                        IsSnapToTickEnabled="True" TickFrequency="1" TickPlacement="BottomRight"
+                                                        Margin="0,0,0,10"/>
+
+                                                <Grid>
+                                                    <Grid.ColumnDefinitions>
+                                                        <ColumnDefinition Width="*"/>
+                                                        <ColumnDefinition Width="10"/>
+                                                        <ColumnDefinition Width="*"/>
+                                                    </Grid.ColumnDefinitions>
+                                                    <StackPanel Grid.Column="0">
+                                                        <TextBlock Text="Seconds / clip" FontSize="10" Foreground="#6B7280" Margin="0,0,0,4"/>
+                                                        <TextBox Text="{Binding LengthSeconds, UpdateSourceTrigger=PropertyChanged}"
+                                                                 Height="28" Padding="6,0" VerticalContentAlignment="Center" BorderBrush="#A5F3FC"/>
+                                                    </StackPanel>
+                                                    <StackPanel Grid.Column="2">
+                                                        <TextBlock Text="Seed (-1 = random)" FontSize="10" Foreground="#6B7280" Margin="0,0,0,4"/>
+                                                        <Grid>
+                                                            <Grid.ColumnDefinitions>
+                                                                <ColumnDefinition Width="*"/>
+                                                                <ColumnDefinition Width="Auto"/>
+                                                            </Grid.ColumnDefinitions>
+                                                            <TextBox Grid.Column="0" Text="{Binding Seed, UpdateSourceTrigger=PropertyChanged}"
+                                                                     Height="28" Padding="6,0" VerticalContentAlignment="Center" BorderBrush="#A5F3FC"/>
+                                                            <Button Grid.Column="1" Content="🎲" Command="{Binding RandomSeedCommand}"
+                                                                    Width="34" Height="28" Margin="4,0,0,0"
+                                                                    Background="#0891B2" Foreground="White" BorderThickness="0"/>
+                                                        </Grid>
+                                                    </StackPanel>
+                                                </Grid>
+                                                <TextBlock Text="Fresh random seed is used per segment when Seed is -1."
+                                                           FontSize="10" Foreground="#9CA3AF" TextWrapping="Wrap" Margin="0,8,0,0"/>
+                                            </StackPanel>
+                                        </Border>
+
+                                    </StackPanel>
+                                </ScrollViewer>
+                            </Border>
+
+                            <!-- ═══ RIGHT PANEL ════════════════════════════════════════════ -->
+                            <Grid Grid.Column="1">
+                                <Grid.RowDefinitions>
+                                    <RowDefinition Height="Auto"/> <!-- Segments filmstrip -->
+                                    <RowDefinition Height="*"/>    <!-- Player -->
+                                    <RowDefinition Height="Auto"/> <!-- Progress -->
+                                    <RowDefinition Height="Auto"/> <!-- Action bar -->
+                                    <RowDefinition Height="Auto"/> <!-- Log -->
+                                </Grid.RowDefinitions>
+
+                                <!-- Segments filmstrip -->
+                                <Border Grid.Row="0" Background="#F0FDFF" BorderBrush="#A5F3FC" BorderThickness="0,0,0,1" Padding="12,8">
+                                    <StackPanel>
+                                        <TextBlock Text="CHAIN SEGMENTS" FontSize="10" FontWeight="Bold" Foreground="#6B7280" Margin="0,0,0,6"/>
+                                        <ListBox ItemsSource="{Binding Segments}"
+                                                 SelectedItem="{Binding SelectedSegment, Mode=TwoWay}"
+                                                 ScrollViewer.HorizontalScrollBarVisibility="Auto"
+                                                 ScrollViewer.VerticalScrollBarVisibility="Disabled"
+                                                 Background="Transparent" BorderThickness="0" Height="64">
+                                            <ListBox.ItemsPanel>
+                                                <ItemsPanelTemplate><StackPanel Orientation="Horizontal"/></ItemsPanelTemplate>
+                                            </ListBox.ItemsPanel>
+                                            <ListBox.ItemTemplate>
+                                                <DataTemplate>
+                                                    <Border Background="#0E7490" CornerRadius="6" Padding="14,8" Margin="0,0,8,0">
+                                                        <StackPanel>
+                                                            <TextBlock Text="{Binding Label}" Foreground="White" FontWeight="Bold" FontSize="12"/>
+                                                            <TextBlock Text="{Binding Seed}" Foreground="#A5F3FC" FontSize="9"/>
+                                                        </StackPanel>
+                                                    </Border>
+                                                </DataTemplate>
+                                            </ListBox.ItemTemplate>
+                                        </ListBox>
+                                        <TextBlock Text="Segments appear here as each clip finishes — click one to preview it."
+                                                   FontSize="10" Foreground="#9CA3AF" FontStyle="Italic" Margin="0,4,0,0"
+                                                   Visibility="{Binding HasSegments, Converter={StaticResource BoolToVisibilityConverter}, ConverterParameter=Invert}"/>
+                                    </StackPanel>
+                                </Border>
+
+                                <!-- Shared player -->
+                                <Border Grid.Row="1" Margin="12" CornerRadius="6"
+                                        Background="#111827" BorderBrush="#06B6D4" BorderThickness="1">
+                                    <Grid>
+                                        <TextBlock Text="Generate a chain — segments and the joined video play here."
+                                                   HorizontalAlignment="Center" VerticalAlignment="Center" TextAlignment="Center"
+                                                   TextWrapping="Wrap" Margin="20,0" Foreground="#9CA3AF" FontStyle="Italic"
+                                                   Visibility="{Binding HasActivePreview, Converter={StaticResource BoolToVisibilityConverter}, ConverterParameter=Invert}"/>
+                                        <MediaElement x:Name="FflfDasiwaPlayer" Source="{Binding ActivePreviewUri}"
+                                                      Stretch="Uniform" LoadedBehavior="Manual" UnloadedBehavior="Stop"
+                                                      MediaOpened="FflfDasiwaPlayer_MediaOpened"
+                                                      MediaEnded="FflfDasiwaPlayer_MediaEnded"
+                                                      Visibility="{Binding HasActivePreview, Converter={StaticResource BooleanToVisibilityConverter}}"/>
+                                    </Grid>
+                                </Border>
+
+                                <!-- Progress -->
+                                <Grid Grid.Row="2" Margin="12,0,12,6">
+                                    <ProgressBar Height="6" Minimum="0" Maximum="100" Value="{Binding ProcessingProgress}"
+                                                 Background="#CFFAFE" Foreground="#06B6D4" BorderThickness="0"/>
+                                </Grid>
+
+                                <!-- Action bar -->
+                                <Border Grid.Row="3" Background="#F0FDFF" BorderBrush="#A5F3FC" BorderThickness="0,1,0,0" Padding="12,8">
+                                    <StackPanel Orientation="Horizontal">
+                                        <Button Content="🎬 Generate Chain" Command="{Binding RunChainCommand}"
+                                                Height="32" Padding="16,0" Margin="0,0,8,0" FontWeight="Bold"
+                                                Background="#0E7490" Foreground="White" BorderThickness="0"/>
+                                        <Button Content="✕ Cancel" Command="{Binding CancelCommand}"
+                                                Height="32" Padding="12,0" Margin="0,0,8,0"
+                                                Background="#B91C1C" Foreground="White" BorderThickness="0"/>
+                                        <Button Content="▶ Replay" Click="FflfDasiwaReplay_Click"
+                                                IsEnabled="{Binding HasActivePreview}" Height="32" Padding="12,0" Margin="0,0,8,0"
+                                                Background="#06B6D4" Foreground="White" BorderThickness="0"/>
+                                        <Button Content="📁 Open Folder" Command="{Binding OpenResultFolderCommand}"
+                                                IsEnabled="{Binding HasResult}" Height="32" Padding="12,0" Margin="0,0,8,0"
+                                                Background="#6B7280" Foreground="White" BorderThickness="0"/>
+                                        <TextBlock Text="{Binding ProcessingStatus}" VerticalAlignment="Center"
+                                                   FontStyle="Italic" Foreground="#155E75" FontSize="11" Margin="4,0,0,0"/>
+                                        <TextBlock Text="{Binding ResultVideoInfo}" VerticalAlignment="Center"
+                                                   FontWeight="SemiBold" Foreground="#0E7490" FontSize="11" Margin="8,0,0,0"/>
+                                    </StackPanel>
+                                </Border>
+
+                                <!-- Log -->
+                                <ctrl:ProcessingLogPanel Grid.Row="4" LogText="{Binding LogOutput}" MaxLogHeight="120"/>
+                            </Grid>
+                        </Grid>
+                    </TabItem>
+
+        </TabControl>
 
         <!-- Status Bar -->
         <StatusBar Grid.Row="3" Background="#F8F9FA" BorderBrush="#DEE2E6" BorderThickness="0,1,0,0" Height="28">

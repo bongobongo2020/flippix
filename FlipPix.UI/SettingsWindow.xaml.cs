@@ -29,8 +29,21 @@ namespace FlipPix.UI
             // Set DataContext for binding
             DataContext = _originalSettings;
 
+            // Populate the saved-servers dropdown
+            RefreshSavedServerItems();
+
             // Update status on load
             UpdateStatus();
+        }
+
+        private void RefreshSavedServerItems()
+        {
+            var history = _originalSettings.LMStudioSettings?.ServerHistory ?? new List<string>();
+            // Avoid re-triggering SelectionChanged while we repopulate the list.
+            SavedServerComboBox.SelectionChanged -= SavedServerComboBox_SelectionChanged;
+            SavedServerComboBox.ItemsSource = history;
+            SavedServerComboBox.SelectedItem = null;
+            SavedServerComboBox.SelectionChanged += SavedServerComboBox_SelectionChanged;
         }
 
         private ComfyUISettings CloneSettings(ComfyUISettings original)
@@ -59,7 +72,10 @@ namespace FlipPix.UI
                     MaxRetries = original.LMStudioSettings?.MaxRetries ?? 3,
                     RetryDelayMilliseconds = original.LMStudioSettings?.RetryDelayMilliseconds ?? 2000,
                     MaxImageSize = original.LMStudioSettings?.MaxImageSize ?? 256,
-                    AutoConnect = original.LMStudioSettings?.AutoConnect ?? true
+                    AutoConnect = original.LMStudioSettings?.AutoConnect ?? true,
+                    ServerHistory = original.LMStudioSettings?.ServerHistory != null
+                        ? new List<string>(original.LMStudioSettings.ServerHistory)
+                        : new List<string>()
                 }
             };
         }
@@ -555,6 +571,13 @@ namespace FlipPix.UI
                         LMStudioModelComboBox.DisplayMemberPath = "Name";
                         LMStudioModelComboBox.SelectedValuePath = "Name";
 
+                        // The server answered, so remember it for quick switching later.
+                        if (_originalSettings.LMStudioSettings != null)
+                        {
+                            _originalSettings.LMStudioSettings.RememberServer(baseUrl);
+                            RefreshSavedServerItems();
+                        }
+
                         MessageBox.Show($"Successfully loaded {_availableModels.Count} models from LM Studio!", "Models Refreshed", MessageBoxButton.OK, MessageBoxImage.Information);
                     }
                     else
@@ -585,6 +608,17 @@ namespace FlipPix.UI
                 System.Diagnostics.Debug.WriteLine($"RefreshLMStudioModels: Unexpected error: {ex.Message}\n{ex.StackTrace}");
                 MessageBox.Show($"Error refreshing models: {ex.Message}\n\nStack trace:\n{ex.StackTrace}", "Refresh Error", MessageBoxButton.OK, MessageBoxImage.Error);
             }
+        }
+
+        private void SavedServerComboBox_SelectionChanged(object sender, SelectionChangedEventArgs e)
+        {
+            if (sender is not System.Windows.Controls.ComboBox combo || combo.SelectedItem is not string url || string.IsNullOrWhiteSpace(url))
+                return;
+
+            var (host, port) = LMStudioSettings.ParseBaseUrl(url);
+            LMStudioServerTextBox.Text = host;
+            LMStudioPortTextBox.Text = port;
+            UpdateStatus();
         }
 
         private void Cancel_Click(object sender, RoutedEventArgs e)
@@ -623,6 +657,13 @@ namespace FlipPix.UI
                     }
                 }
 
+                // Rebuild the LM Studio URL from the server/port fields (robust against host
+                // names UriBuilder rejects) and remember it so the user can switch back to it.
+                var lmSettings = _originalSettings.LMStudioSettings ?? new LMStudioSettings();
+                lmSettings.BaseUrl = LMStudioSettings.BuildBaseUrl(
+                    LMStudioServerTextBox.Text, LMStudioPortTextBox.Text);
+                lmSettings.RememberServer(lmSettings.BaseUrl);
+
                 // Update and save settings
                 var newSettings = new ComfyUISettings
                 {
@@ -639,8 +680,8 @@ namespace FlipPix.UI
                     ComfyUIRestartScriptPath = ComfyUIRestartScriptTextBox.Text?.Trim() ?? "",
                     ComfyUIRestartDelaySeconds = int.TryParse(RestartDelayTextBox.Text, out var restartDelay) ? restartDelay : 10,
                     ComfyUIStartupTimeoutSeconds = int.TryParse(StartupTimeoutTextBox.Text, out var startupTimeout) ? startupTimeout : 120,
-                    // Preserve LM Studio settings
-                    LMStudioSettings = _originalSettings.LMStudioSettings
+                    // Preserve LM Studio settings (URL + history updated above)
+                    LMStudioSettings = lmSettings
                 };
 
                 _settingsService.SaveSettings(newSettings);

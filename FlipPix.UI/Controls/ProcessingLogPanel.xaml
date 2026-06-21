@@ -1,0 +1,35 @@
+<UserControl x:Class="FlipPix.UI.Controls.ProcessingLogPanel"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+             xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+             mc:Ignorable="d"
+             x:Name="Root">
+    <!--
+        Reusable processing-log panel. Each tab binds its own log property:
+            <ctrl:ProcessingLogPanel LogText="{Binding WanScailGgufLogOutput}"/>
+        Optional: Header, IsLogExpanded, MaxLogHeight.
+    -->
+    <Expander Header="{Binding Header, ElementName=Root}"
+              IsExpanded="{Binding IsLogExpanded, ElementName=Root}"
+              Margin="0,8,0,0">
+        <Border Background="{StaticResource SurfaceAltBrush}"
+                BorderBrush="{StaticResource BorderBrush}"
+                BorderThickness="1"
+                CornerRadius="6"
+                Margin="0,6,0,0">
+            <ScrollViewer MaxHeight="{Binding MaxLogHeight, ElementName=Root}"
+                          VerticalScrollBarVisibility="Auto">
+                <TextBox Text="{Binding LogText, ElementName=Root, Mode=OneWay}"
+                         TextWrapping="Wrap"
+                         IsReadOnly="True"
+                         FontFamily="Consolas"
+                         FontSize="11"
+                         Foreground="{StaticResource TextSecondaryBrush}"
+                         Background="Transparent"
+                         BorderThickness="0"
+                         Padding="10"/>
+            </ScrollViewer>
+        </Border>
+    </Expander>
+</UserControl>

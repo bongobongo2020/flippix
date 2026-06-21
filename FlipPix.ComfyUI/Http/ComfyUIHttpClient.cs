@@ -1,5 +1,6 @@
 using System.Net.Http.Json;
 using System.Text.Json;
+using System.Text.Json.Nodes;
 using System.Linq;
 using System.Collections.Generic;
 using Microsoft.Extensions.Logging;
@@ -15,6 +16,15 @@ public class ComfyUIHttpClient : IDisposable
     private readonly IAppLogger _logger;
     private readonly ComfyUISettings _settings;
     private bool _disposed = false;
+
+    // Cached path separator of the connected ComfyUI host ('/' on Linux/Mac, '\' on
+    // Windows). Detected once per session from /system_stats and used to rewrite
+    // model-file paths in submitted workflows so the same JSON runs on either host.
+    private char? _hostPathSeparator;
+
+    // Model-weight file extensions whose subfolder separator must match the host OS.
+    private static readonly string[] ModelFileExtensions =
+        { ".safetensors", ".ckpt", ".pt", ".pth", ".bin", ".gguf", ".sft", ".onnx" };
 
     public ComfyUIHttpClient(HttpClient httpClient, IAppLogger logger, ComfyUISettings settings)
     {
@@ -325,6 +335,12 @@ public class ComfyUIHttpClient : IDisposable
         {
             _logger.LogInfo("Submitting workflow for client: {ClientId}", clientId);
 
+            // Rewrite model-file path separators to match the ComfyUI host OS so a
+            // workflow authored on Linux (forward slashes) also validates on a Windows
+            // host (backslashes) and vice-versa — without hand-editing the JSON.
+            var hostSep = await GetHostPathSeparatorAsync(cancellationToken);
+            workflow = NormalizeModelPathSeparators(workflow, hostSep);
+
             var request = new PromptRequest
             {
                 Prompt = workflow,
@@ -365,6 +381,121 @@ public class ComfyUIHttpClient : IDisposable
         {
             _logger.LogError(ex, "Failed to submit workflow");
             throw;
+        }
+    }
+
+    /// <summary>
+    /// Asks ComfyUI to unload models and free VRAM/RAM via POST /free. Used when switching
+    /// between heavy workflows so the next one starts with an empty card instead of inheriting
+    /// the previous workflow's resident model (which forces lowvram weight-streaming and tanks
+    /// throughput). Best-effort: logs and returns false on failure rather than throwing.
+    /// </summary>
+    public async Task<bool> FreeMemoryAsync(bool unloadModels = true, bool freeMemory = true, CancellationToken cancellationToken = default)
+    {
+        try
+        {
+            var payload = new { unload_models = unloadModels, free_memory = freeMemory };
+
+            using var freeCts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+            freeCts.CancelAfter(_settings.ConnectionTimeout);
+            var response = await _httpClient.PostAsJsonAsync("/free", payload, freeCts.Token);
+
+            if (response.IsSuccessStatusCode)
+            {
+                _logger.LogInfo("Freed ComfyUI memory (unload_models={UnloadModels}, free_memory={FreeMemory})", unloadModels, freeMemory);
+                return true;
+            }
+
+            _logger.LogError("POST /free failed with status: {StatusCode}", response.StatusCode);
+            return false;
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Failed to free ComfyUI memory");
+            return false;
+        }
+    }
+
+    /// <summary>
+    /// Detects the path separator used by the connected ComfyUI host by reading
+    /// system.os from /system_stats ("nt" → Windows '\', otherwise POSIX '/').
+    /// Cached for the session; defaults to '/' (the POSIX/Linux case) if detection fails.
+    /// </summary>
+    public async Task<char> GetHostPathSeparatorAsync(CancellationToken cancellationToken = default)
+    {
+        if (_hostPathSeparator.HasValue) return _hostPathSeparator.Value;
+
+        var sep = '/';
+        try
+        {
+            using var cts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+            cts.CancelAfter(_settings.ConnectionTimeout);
+            var response = await _httpClient.GetAsync("/system_stats", cts.Token);
+            if (response.IsSuccessStatusCode)
+            {
+                var content = await response.Content.ReadAsStringAsync(cancellationToken);
+                using var doc = JsonDocument.Parse(content);
+                if (doc.RootElement.TryGetProperty("system", out var sys)
+                    && sys.TryGetProperty("os", out var osEl)
+                    && osEl.GetString() is { Length: > 0 } osName)
+                {
+                    bool isWindows = osName.Equals("nt", StringComparison.OrdinalIgnoreCase)
+                                  || osName.StartsWith("win", StringComparison.OrdinalIgnoreCase);
+                    sep = isWindows ? '\\' : '/';
+                    _logger.LogInfo("ComfyUI host OS '{Os}' → model path separator '{Sep}'", osName, sep);
+                }
+            }
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning("Could not detect ComfyUI host OS, defaulting to '/': {Message}", ex.Message);
+        }
+
+        _hostPathSeparator = sep;
+        return sep;
+    }
+
+    /// <summary>
+    /// ComfyUI builds its checkpoint/LoRA/VAE pick-lists with the host OS path
+    /// separator (subfolder/file on Linux, subfolder\file on Windows) and validates
+    /// submitted values against that list, so a workflow authored on one OS fails on
+    /// the other. This rewrites any model-file input value (.safetensors, .gguf, …)
+    /// to the host's separator. Non-model strings (prompts, plain filenames) are left
+    /// untouched. On any error the original workflow is returned unchanged.
+    /// </summary>
+    internal static object NormalizeModelPathSeparators(object workflow, char hostSep)
+    {
+        try
+        {
+            var json = workflow is JsonElement je ? je.GetRawText() : JsonSerializer.Serialize(workflow);
+            if (JsonNode.Parse(json) is not JsonObject nodes) return workflow;
+
+            char otherSep = hostSep == '/' ? '\\' : '/';
+            foreach (var node in nodes)
+            {
+                if (node.Value is not JsonObject obj || obj["inputs"] is not JsonObject inputs)
+                    continue;
+
+                // Collect first, then assign — mutating a JsonObject mid-enumeration throws.
+                var changes = new List<KeyValuePair<string, string>>();
+                foreach (var input in inputs)
+                {
+                    if (input.Value is JsonValue v && v.TryGetValue<string>(out var s)
+                        && s.IndexOf(otherSep) >= 0
+                        && ModelFileExtensions.Any(ext => s.EndsWith(ext, StringComparison.OrdinalIgnoreCase)))
+                    {
+                        changes.Add(new(input.Key, s.Replace(otherSep, hostSep)));
+                    }
+                }
+                foreach (var c in changes)
+                    inputs[c.Key] = c.Value;
+            }
+
+            return nodes;
+        }
+        catch
+        {
+            return workflow;
         }
     }
 
@@ -823,24 +954,29 @@ public class ComfyUIHttpClient : IDisposable
                                 }
                             }
 
-                            // Check for files (generic case)
-                            if (output.Value.TryGetProperty("files", out var fileProps))
+                            // Check for gifs/audio/files. VHS_VideoCombine (and the LTX seed-hunter
+                            // previews) emit their mp4 under "gifs"; without this, /history completion
+                            // detection found the entry but collected zero files and spun until timeout.
+                            foreach (var mediaKey in new[] { "gifs", "audio", "files" })
                             {
-                                foreach (var file in fileProps.EnumerateArray())
+                                if (!output.Value.TryGetProperty(mediaKey, out var mediaProps) ||
+                                    mediaProps.ValueKind != JsonValueKind.Array)
+                                    continue;
+                                foreach (var media in mediaProps.EnumerateArray())
                                 {
-                                    if (file.TryGetProperty("filename", out var filenameProp))
+                                    if (media.TryGetProperty("filename", out var filenameProp))
                                     {
                                         var filename = filenameProp.GetString();
                                         if (!string.IsNullOrEmpty(filename))
                                         {
                                             var subfolderStr = "";
-                                            if (file.TryGetProperty("subfolder", out var subfolderProp))
+                                            if (media.TryGetProperty("subfolder", out var subfolderProp))
                                             {
                                                 subfolderStr = subfolderProp.GetString() ?? "";
                                             }
                                             var fullPath = string.IsNullOrEmpty(subfolderStr) ? filename : $"{subfolderStr}/{filename}";
                                             files.Add(fullPath);
-                                            _logger.LogInfo($"Found output file for prompt: {fullPath}");
+                                            _logger.LogInfo($"Found output {mediaKey} for prompt: {fullPath}");
                                         }
                                     }
                                 }

@@ -39,6 +39,7 @@
                 </Trigger>
                 <Trigger Property="IsEnabled" Value="False">
                     <Setter Property="Background" Value="#CBD5E1"/>
+                    <Setter Property="Foreground" Value="#475569"/>
                     <Setter Property="Cursor" Value="Arrow"/>
                 </Trigger>
             </Style.Triggers>
@@ -99,10 +100,7 @@
         <!-- Header -->
         <Border Grid.Row="0" MouseLeftButtonDown="Header_MouseLeftButtonDown" Cursor="SizeAll">
             <Border.Background>
-                <LinearGradientBrush StartPoint="0,0" EndPoint="1,0">
-                    <GradientStop Color="#FF6B35" Offset="0"/>
-                    <GradientStop Color="#F7931E" Offset="1"/>
-                </LinearGradientBrush>
+                <SolidColorBrush Color="{StaticResource BrandColor}"/>
             </Border.Background>
             <Grid Margin="25,20">
                 <Grid.ColumnDefinitions>
@@ -159,9 +157,9 @@
         <Border Grid.Row="1" Background="#E9ECEF" BorderBrush="#DEE2E6" BorderThickness="0,1,0,1" Padding="15,10">
             <StackPanel Orientation="Horizontal">
                 <TextBlock Text="Navigate:" FontWeight="SemiBold" FontSize="12" VerticalAlignment="Center" Margin="0,0,12,0" Foreground="#495057"/>
-                <Button Content="🎬 Video Generator" Style="{StaticResource NavButtonStyle}" Command="{Binding NavigateToVideoGeneratorCommand}" Background="#6366F1"/>
-                <Button Content="✨ Enhance Video" Style="{StaticResource NavButtonStyle}" Command="{Binding NavigateToEnhanceVideoCommand}" Background="#1565C0"/>
-                <Button Content="📷 Camera Edit" Style="{StaticResource NavButtonStyle}" Command="{Binding NavigateToCameraEditCommand}" Background="#10B981"/>
+                <Button Content="🎬 Video Generator" Style="{StaticResource NavButtonStyle}" Command="{Binding NavigateToVideoGeneratorCommand}"/>
+                <Button Content="✨ Enhance Video" Style="{StaticResource NavButtonStyle}" Command="{Binding NavigateToEnhanceVideoCommand}"/>
+                <Button Content="📷 Camera Edit" Style="{StaticResource NavButtonStyle}" Command="{Binding NavigateToCameraEditCommand}"/>
             </StackPanel>
         </Border>
 
@@ -170,7 +168,7 @@
                    SelectedIndex="{Binding SelectedTabIndex}">
 
             <!-- Tab 1: Image Generator (Merged Text Generation + Image Analysis) -->
-            <TabItem Header="🎨 Image Generator" FontWeight="Bold" FontSize="13">
+            <TabItem Header="🎨 Image Generator">
                 <ScrollViewer VerticalScrollBarVisibility="Auto" Padding="15,12,15,12">
                     <Grid>
                         <Grid.ColumnDefinitions>
@@ -762,6 +760,18 @@
                                 <Border Style="{StaticResource SectionPanelStyle}" Margin="0,8,0,0">
                                     <StackPanel>
                                         <TextBlock Text="LM Studio Settings" Style="{StaticResource HeaderTextStyle}" Foreground="#10B981"/>
+
+                                        <StackPanel Margin="0,0,0,8">
+                                            <TextBlock Text="Recent Servers" FontWeight="SemiBold" FontSize="11" Margin="0,0,0,4"/>
+                                            <ComboBox ItemsSource="{Binding Analyzer.ServerHistory}"
+                                                      SelectedValue="{Binding Analyzer.SelectedServerUrl, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                                                      Padding="8"
+                                                      Background="White"
+                                                      BorderBrush="#CED4DA"
+                                                      FontSize="11"
+                                                      Height="30"
+                                                      ToolTip="Pick a previously used computer to switch the Server/Port below"/>
+                                        </StackPanel>
 
                                         <Grid Margin="0,0,0,10">
                                             <Grid.ColumnDefinitions>
@@ -1686,7 +1696,7 @@
                 </ScrollViewer>
             </TabItem>
             <!-- Tab 3.5: Story Image Generator Q (Qwen Rapid Edit) -->
-            <TabItem Header="📖 Story Image Q" FontWeight="Bold" FontSize="13">
+            <TabItem Header="📖 Story Image Q">
                 <ScrollViewer VerticalScrollBarVisibility="Auto">
                     <StackPanel Margin="20,20,20,20">
 
@@ -2146,6 +2156,7 @@
                                                     </Trigger>
                                                     <Trigger Property="IsEnabled" Value="False">
                                                         <Setter Property="Background" Value="#CBD5E1"/>
+                                                        <Setter Property="Foreground" Value="#475569"/>
                                                         <Setter Property="Cursor" Value="Arrow"/>
                                                     </Trigger>
                                                 </Style.Triggers>
@@ -2572,7 +2583,7 @@
                                                         </Trigger>
                                                         <Trigger Property="IsEnabled" Value="False">
                                                             <Setter Property="Background" Value="#CBD5E1"/>
-                                                            <Setter Property="Foreground" Value="#94A3B8"/>
+                                                            <Setter Property="Foreground" Value="#475569"/>
                                                         </Trigger>
                                                     </Style.Triggers>
                                                 </Style>
@@ -2825,7 +2836,7 @@
                                                                     </Trigger>
                                                                     <Trigger Property="IsEnabled" Value="False">
                                                                         <Setter Property="Background" Value="#CBD5E1"/>
-                                                                        <Setter Property="Foreground" Value="#94A3B8"/>
+                                                                        <Setter Property="Foreground" Value="#475569"/>
                                                                     </Trigger>
                                                                 </Style.Triggers>
                                                             </Style>
@@ -2876,7 +2887,7 @@
                 </ScrollViewer>
             </TabItem>
             <!-- Tab: Amateur Generator -->
-            <TabItem Header="📷 Amateur" FontWeight="Bold" FontSize="13">
+            <TabItem Header="📷 Amateur">
                 <ScrollViewer VerticalScrollBarVisibility="Auto">
                     <StackPanel Margin="20,20,20,20">
 
@@ -3057,6 +3068,7 @@
                                                     </Trigger>
                                                     <Trigger Property="IsEnabled" Value="False">
                                                         <Setter Property="Background" Value="#CBD5E1"/>
+                                                        <Setter Property="Foreground" Value="#475569"/>
                                                         <Setter Property="Cursor" Value="Arrow"/>
                                                     </Trigger>
                                                 </Style.Triggers>
@@ -3253,6 +3265,7 @@
                                             </Trigger>
                                             <Trigger Property="IsEnabled" Value="False">
                                                 <Setter Property="Background" Value="#CCC"/>
+                                                <Setter Property="Foreground" Value="#475569"/>
                                                 <Setter Property="Cursor" Value="Arrow"/>
                                             </Trigger>
                                         </Style.Triggers>
@@ -3287,6 +3300,7 @@
                                             </Trigger>
                                             <Trigger Property="IsEnabled" Value="False">
                                                 <Setter Property="Background" Value="#CCC"/>
+                                                <Setter Property="Foreground" Value="#475569"/>
                                                 <Setter Property="Cursor" Value="Arrow"/>
                                             </Trigger>
                                         </Style.Triggers>
@@ -3589,7 +3603,7 @@
             </TabItem>
 
             <!-- Tab: Camera Angle Generator -->
-            <TabItem Header="🎥 Camera Angle" FontWeight="Bold" FontSize="13">
+            <TabItem Header="🎥 Camera Angle">
                 <ScrollViewer VerticalScrollBarVisibility="Auto">
                     <StackPanel Margin="20,20,20,20">
                         <!-- Header -->
@@ -3773,7 +3787,7 @@
                 </ScrollViewer>
             </TabItem>
             <!-- Tab: Inpaint Editor -->
-            <TabItem Header="✏️ Editor" FontWeight="Bold" FontSize="13">
+            <TabItem Header="✏️ Editor">
                 <Grid>
                     <Grid.ColumnDefinitions>
                         <ColumnDefinition Width="*"/>
@@ -3975,7 +3989,7 @@
             </TabItem>
 
             <!-- ===== EDITOR 2: Klein Inpaint (Florence2 + SAM2 auto-detect) ===== -->
-            <TabItem Header="✂️ Editor 2" FontWeight="Bold" FontSize="13">
+            <TabItem Header="✂️ Editor 2">
                 <Grid>
                     <Grid.ColumnDefinitions>
                         <ColumnDefinition Width="*"/>
@@ -4273,7 +4287,7 @@
             </TabItem>
 
             <!-- ===== CONTROL: Klein Flux 2 Control Net (reference + pose → analyze → generate) ===== -->
-            <TabItem Header="🎛️ Control" FontWeight="Bold" FontSize="13">
+            <TabItem Header="🎛️ Control">
                 <Grid Margin="0">
                     <Grid.ColumnDefinitions>
                         <ColumnDefinition Width="*" MinWidth="340"/>
@@ -4556,7 +4570,7 @@
             </TabItem>
 
             <!-- ===== IDEOGRAM: Image → LLM prompt → Ideogram v4 generation ===== -->
-            <TabItem Header="🔤 Ideogram" FontWeight="Bold" FontSize="13">
+            <TabItem Header="🔤 Ideogram">
                 <Grid Margin="0">
                     <Grid.ColumnDefinitions>
                         <ColumnDefinition Width="*" MinWidth="340"/>
@@ -4568,7 +4582,7 @@
                     <ScrollViewer Grid.Column="0" VerticalScrollBarVisibility="Auto" Padding="12,12,12,12">
                         <StackPanel>
 
-                            <!-- Aspect ratio + 4K -->
+                            <!-- Aspect ratio + resolution -->
                             <Border Style="{StaticResource SectionPanelStyle}" Margin="0,0,0,10" Padding="12">
                                 <StackPanel>
                                     <TextBlock Text="Step 1 — Format" Style="{StaticResource HeaderTextStyle}" Foreground="#E11D48"/>
@@ -4620,9 +4634,17 @@
                                         </Button>
                                     </UniformGrid>
                                     <Grid>
-                                        <CheckBox Content="Upscale to 4K (PiD)" IsChecked="{Binding Ideogram.Generate4K}"
-                                                  FontSize="12" Foreground="#374151" VerticalAlignment="Center"/>
-                                        <TextBlock Text="{Binding Ideogram.AspectSummary}" HorizontalAlignment="Right"
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="Auto"/>
+                                            <ColumnDefinition Width="Auto"/>
+                                            <ColumnDefinition Width="*"/>
+                                        </Grid.ColumnDefinitions>
+                                        <TextBlock Grid.Column="0" Text="Resolution" FontSize="12" Foreground="#374151"
+                                                   VerticalAlignment="Center" Margin="0,0,6,0"/>
+                                        <ComboBox Grid.Column="1" Width="70" FontSize="12"
+                                                  ItemsSource="{Binding Ideogram.MegapixelChoices}"
+                                                  SelectedItem="{Binding Ideogram.Megapixel}"/>
+                                        <TextBlock Grid.Column="2" Text="{Binding Ideogram.AspectSummary}" HorizontalAlignment="Right"
                                                    FontSize="11" FontFamily="Consolas" Foreground="#6B7280" VerticalAlignment="Center"/>
                                     </Grid>
                                 </StackPanel>
@@ -4665,10 +4687,15 @@
                                             Background="#059669" Padding="12,8" FontSize="12"
                                             HorizontalAlignment="Stretch" Margin="0,0,0,4"
                                             ToolTip="Upload an image, send it to the LLM, and fill the prompt + region 1"/>
-                                    <StackPanel Orientation="Horizontal" Margin="0,0,0,6"
+                                    <StackPanel Orientation="Horizontal" Margin="0,0,0,6" VerticalAlignment="Center"
                                                 Visibility="{Binding Ideogram.IsAnalyzing, Converter={StaticResource BooleanToVisibilityConverter}}">
-                                        <TextBlock Text="⏳ " FontSize="12"/>
-                                        <TextBlock Text="{Binding Ideogram.StatusMessage}" FontSize="11" Foreground="#374151"/>
+                                        <TextBlock Text="⏳ " FontSize="12" VerticalAlignment="Center"/>
+                                        <TextBlock Text="{Binding Ideogram.StatusMessage}" FontSize="11" Foreground="#374151" VerticalAlignment="Center"/>
+                                        <Button Content="✖ Cancel"
+                                                Command="{Binding Ideogram.CancelAnalyzeCommand}"
+                                                Style="{StaticResource SecondaryButtonStyle}" Background="#DC2626"
+                                                FontSize="11" Padding="8,3" Margin="10,0,0,0"
+                                                ToolTip="Stop sending the image to the LLM"/>
                                     </StackPanel>
 
                                     <TextBlock FontSize="11" Foreground="#6B7280" Margin="0,0,0,4" TextWrapping="Wrap">
@@ -4716,6 +4743,12 @@
                                     </Grid>
                                     <TextBlock FontSize="11" Foreground="#6B7280" Margin="0,0,0,8" TextWrapping="Wrap">
                                         Drag boxes to place objects; drag the corner to resize. Each box gets its own description below. No boxes = whole image uses the high-level prompt.
+                                    </TextBlock>
+
+                                    <CheckBox Content="Use composition regions (advanced)" IsChecked="{Binding Ideogram.UseRegions}"
+                                              FontSize="12" FontWeight="SemiBold" Foreground="#7C3AED" Margin="0,0,0,4"/>
+                                    <TextBlock FontSize="10" Foreground="#9CA3AF" Margin="0,0,0,8" TextWrapping="Wrap">
+                                        Off (recommended): renders one clean image from the high-level prompt, like the manual workflow. On: sends the boxes below as regional prompts (can distort or trigger the per-region safety filter).
                                     </TextBlock>
 
                                     <!-- Canvas -->
@@ -4814,7 +4847,7 @@
                                 <StackPanel>
                                     <TextBlock Text="Step 4 — Generate" Style="{StaticResource HeaderTextStyle}" Foreground="#DC2626"/>
                                     <TextBlock FontSize="11" Foreground="#6B7280" Margin="0,0,0,8" TextWrapping="Wrap">
-                                        Renders the base image, then (if enabled) the 4K PiD upscale.
+                                        Renders a single image at the chosen aspect ratio and resolution.
                                     </TextBlock>
                                     <Button Content="🚀 Generate"
                                             Command="{Binding Ideogram.GenerateCommand}"
@@ -5098,7 +5131,7 @@
             </TabItem>
 
             <!-- ===== QWEN EDIT: character replacement in a scene ===== -->
-            <TabItem Header="🧑‍🤝‍🧑 Qwen Edit" FontWeight="Bold" FontSize="13">
+            <TabItem Header="🧑‍🤝‍🧑 Qwen Edit">
                 <Grid Margin="0">
                     <Grid.ColumnDefinitions>
                         <ColumnDefinition Width="*" MinWidth="340"/>
@@ -5389,6 +5422,189 @@
                                 <StackPanel>
                                     <TextBlock Text="Log" FontSize="12" FontWeight="SemiBold" Foreground="#9CA3AF" Margin="0,0,0,6"/>
                                     <TextBox Text="{Binding QwenEdit.LogOutput}"
+                                             IsReadOnly="True" TextWrapping="Wrap"
+                                             VerticalScrollBarVisibility="Auto"
+                                             Background="#111827" Foreground="#9CA3AF"
+                                             BorderThickness="0" FontFamily="Consolas"
+                                             FontSize="11" Padding="4" Height="220"/>
+                                </StackPanel>
+                            </Border>
+
+                        </StackPanel>
+                    </ScrollViewer>
+
+                </Grid>
+            </TabItem>
+
+            <TabItem Header="♻️ Restore">
+                <Grid Margin="0">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="*" MinWidth="340"/>
+                        <ColumnDefinition Width="2"/>
+                        <ColumnDefinition Width="*" MinWidth="340"/>
+                    </Grid.ColumnDefinitions>
+
+                    <!-- LEFT: inputs -->
+                    <ScrollViewer Grid.Column="0" VerticalScrollBarVisibility="Auto">
+                        <StackPanel Margin="15,12,8,12">
+
+                            <!-- Pipeline badge -->
+                            <Border Background="#ECFEFF" BorderBrush="#A5F3FC" BorderThickness="1" CornerRadius="6"
+                                    Padding="12,8" Margin="0,0,0,12">
+                                <StackPanel>
+                                    <TextBlock Text="♻️ Image Restoration — Flux.2 Klein" FontSize="13" FontWeight="SemiBold"
+                                               Foreground="#0E7490"/>
+                                    <TextBlock FontSize="11" Foreground="#0891B2" Margin="0,4,0,0" TextWrapping="Wrap">
+                                        Upload an image to restore. It is upscaled to the target megapixels, re-rendered with
+                                        Flux.2 Klein, realigned (Pixel Drift Fix) and blended back over the original. Lower
+                                        blend = more restoration; higher blend = closer to the original.
+                                    </TextBlock>
+                                </StackPanel>
+                            </Border>
+
+                            <!-- Source image -->
+                            <Border Style="{StaticResource SectionPanelStyle}" Margin="0,0,0,10" Padding="12">
+                                <StackPanel>
+                                    <TextBlock Text="Image to Restore" Style="{StaticResource HeaderTextStyle}" Foreground="#0E7490"/>
+                                    <TextBlock Text="{Binding Restore.SourceImagePath, FallbackValue='No image selected'}"
+                                               FontSize="11" Foreground="#6B7280" TextTrimming="CharacterEllipsis" Margin="0,0,0,6"/>
+                                    <Button Content="📂 Browse Image"
+                                            Command="{Binding Restore.BrowseSourceImageCommand}"
+                                            Style="{StaticResource SecondaryButtonStyle}"
+                                            Background="#0E7490" Padding="12,8" FontSize="12" Margin="0,0,0,8"/>
+                                    <Border BorderBrush="#CED4DA" BorderThickness="1" CornerRadius="4"
+                                            Background="#1A1A2E" Height="220" ClipToBounds="True">
+                                        <Grid>
+                                            <Image Source="{Binding Restore.SourceImageSource}"
+                                                   Stretch="Uniform" RenderOptions.BitmapScalingMode="HighQuality"/>
+                                            <StackPanel HorizontalAlignment="Center" VerticalAlignment="Center"
+                                                        Visibility="{Binding Restore.NoSourceImage, Converter={StaticResource BooleanToVisibilityConverter}}">
+                                                <TextBlock Text="🖼️" FontSize="36" HorizontalAlignment="Center"/>
+                                                <TextBlock Text="Image to restore" FontSize="12" Foreground="#9CA3AF"
+                                                           HorizontalAlignment="Center" Margin="0,6,0,0"/>
+                                            </StackPanel>
+                                        </Grid>
+                                    </Border>
+                                </StackPanel>
+                            </Border>
+
+                            <!-- Guidance prompt -->
+                            <Border Style="{StaticResource SectionPanelStyle}" Margin="0,0,0,10" Padding="12">
+                                <StackPanel>
+                                    <TextBlock Text="Guidance Prompt" Style="{StaticResource HeaderTextStyle}" Foreground="#D97706"/>
+                                    <TextBox Text="{Binding Restore.Prompt, UpdateSourceTrigger=PropertyChanged}"
+                                             TextWrapping="Wrap" AcceptsReturn="True"
+                                             MinLines="3" MaxLines="8"
+                                             VerticalScrollBarVisibility="Auto"
+                                             FontSize="12" Padding="8"/>
+                                </StackPanel>
+                            </Border>
+
+                            <!-- Settings -->
+                            <Border Style="{StaticResource SectionPanelStyle}" Margin="0,0,0,10" Padding="12">
+                                <StackPanel>
+                                    <TextBlock Text="Settings" Style="{StaticResource HeaderTextStyle}" Foreground="#7C3AED"/>
+
+                                    <Grid Margin="0,4,0,0">
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="*"/>
+                                            <ColumnDefinition Width="Auto"/>
+                                        </Grid.ColumnDefinitions>
+                                        <TextBlock Grid.Column="0" Text="Original blend" FontSize="12" Foreground="#374151" VerticalAlignment="Center"/>
+                                        <TextBlock Grid.Column="1" Text="{Binding Restore.BlendFactorText}" FontSize="12" FontWeight="SemiBold" Foreground="#7C3AED"/>
+                                    </Grid>
+                                    <Slider Minimum="0" Maximum="1" SmallChange="0.05" LargeChange="0.1"
+                                            Value="{Binding Restore.BlendFactor}"
+                                            IsMoveToPointEnabled="True" Margin="0,2,0,8"/>
+
+                                    <Grid>
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="*"/>
+                                            <ColumnDefinition Width="Auto"/>
+                                        </Grid.ColumnDefinitions>
+                                        <TextBlock Grid.Column="0" Text="Target resolution" FontSize="12" Foreground="#374151" VerticalAlignment="Center"/>
+                                        <TextBlock Grid.Column="1" Text="{Binding Restore.MegapixelsText}" FontSize="12" FontWeight="SemiBold" Foreground="#7C3AED"/>
+                                    </Grid>
+                                    <Slider Minimum="0.5" Maximum="4" SmallChange="0.5" LargeChange="1"
+                                            Value="{Binding Restore.Megapixels}"
+                                            IsMoveToPointEnabled="True" Margin="0,2,0,0"/>
+                                </StackPanel>
+                            </Border>
+
+                            <!-- Generate -->
+                            <Border Style="{StaticResource SectionPanelStyle}" Margin="0,0,0,10" Padding="12">
+                                <StackPanel>
+                                    <TextBlock Text="Restore" Style="{StaticResource HeaderTextStyle}" Foreground="#DC2626"/>
+                                    <Button Content="🚀 Restore Image"
+                                            Command="{Binding Restore.GenerateCommand}"
+                                            IsEnabled="{Binding Restore.CanGenerate}"
+                                            Style="{StaticResource PrimaryButtonStyle}"
+                                            Background="#DC2626" Padding="16,10" FontSize="13"
+                                            HorizontalAlignment="Stretch"/>
+                                    <StackPanel Margin="0,8,0,0">
+                                        <TextBlock Text="{Binding Restore.StatusMessage}"
+                                                   FontSize="12" Foreground="#374151" TextWrapping="Wrap"/>
+                                        <ProgressBar Value="{Binding Restore.Progress}" Maximum="100" Height="6"
+                                                     Margin="0,4,0,0" Background="#E5E7EB" Foreground="#DC2626"/>
+                                    </StackPanel>
+                                </StackPanel>
+                            </Border>
+
+                        </StackPanel>
+                    </ScrollViewer>
+
+                    <!-- Splitter -->
+                    <GridSplitter Grid.Column="1" Width="2" HorizontalAlignment="Stretch" Background="#DEE2E6"/>
+
+                    <!-- RIGHT: result + log -->
+                    <ScrollViewer Grid.Column="2" VerticalScrollBarVisibility="Auto">
+                        <StackPanel Margin="8,12,15,12">
+
+                            <!-- Result image -->
+                            <Border Style="{StaticResource SectionPanelStyle}" Margin="0,0,0,10" Padding="8">
+                                <StackPanel>
+                                    <TextBlock Text="Result" Style="{StaticResource HeaderTextStyle}" Foreground="#0E7490"/>
+                                    <Border BorderBrush="#CED4DA" BorderThickness="1" CornerRadius="4"
+                                            Background="#1A1A2E" Height="460" ClipToBounds="True">
+                                        <Grid>
+                                            <Image Source="{Binding Restore.ResultImageSource}"
+                                                   Stretch="Uniform" RenderOptions.BitmapScalingMode="HighQuality"/>
+                                            <StackPanel HorizontalAlignment="Center" VerticalAlignment="Center"
+                                                        Visibility="{Binding Restore.NoResult, Converter={StaticResource BooleanToVisibilityConverter}}">
+                                                <TextBlock Text="🖼️" FontSize="48" HorizontalAlignment="Center"/>
+                                                <TextBlock Text="Result will appear here" FontSize="14"
+                                                           Foreground="#9CA3AF" HorizontalAlignment="Center" Margin="0,8,0,0"/>
+                                            </StackPanel>
+                                        </Grid>
+                                    </Border>
+                                </StackPanel>
+                            </Border>
+
+                            <!-- Actions -->
+                            <Border Style="{StaticResource SectionPanelStyle}" Margin="0,0,0,10">
+                                <StackPanel>
+                                    <TextBlock Text="Output" Style="{StaticResource HeaderTextStyle}" Foreground="#0E7490"/>
+                                    <TextBlock Text="{Binding Restore.ResultImagePath, FallbackValue='—'}"
+                                               FontSize="11" Foreground="#6B7280" TextTrimming="CharacterEllipsis"
+                                               Margin="0,0,0,10"/>
+                                    <StackPanel Orientation="Horizontal">
+                                        <Button Content="📁 Open Folder"
+                                                Command="{Binding Restore.OpenResultFolderCommand}"
+                                                Style="{StaticResource SecondaryButtonStyle}"
+                                                Background="#2563EB" Padding="12,8" FontSize="12" Margin="0,0,8,0"/>
+                                        <Button Content="🖼️ Open Image"
+                                                Command="{Binding Restore.OpenResultImageCommand}"
+                                                Style="{StaticResource SecondaryButtonStyle}"
+                                                Background="#10B981" Padding="12,8" FontSize="12"/>
+                                    </StackPanel>
+                                </StackPanel>
+                            </Border>
+
+                            <!-- Log -->
+                            <Border Background="#111827" BorderBrush="#374151" BorderThickness="1" CornerRadius="6" Padding="10">
+                                <StackPanel>
+                                    <TextBlock Text="Log" FontSize="12" FontWeight="SemiBold" Foreground="#9CA3AF" Margin="0,0,0,6"/>
+                                    <TextBox Text="{Binding Restore.LogOutput}"
                                              IsReadOnly="True" TextWrapping="Wrap"
                                              VerticalScrollBarVisibility="Auto"
                                              Background="#111827" Foreground="#9CA3AF"

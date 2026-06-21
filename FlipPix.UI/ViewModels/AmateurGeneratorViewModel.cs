@@ -92,7 +92,7 @@ namespace FlipPix.UI.ViewModels
             _comfyUIService = comfyUIService ?? throw new ArgumentNullException(nameof(comfyUIService));
             _settingsService = settingsService ?? throw new ArgumentNullException(nameof(settingsService));
             _imageRetriever = imageRetriever ?? new ComfyUIImageRetriever();
-            _workflowCoordinator = workflowCoordinator ?? new WorkflowQueueCoordinator();
+            _workflowCoordinator = workflowCoordinator ?? new WorkflowQueueCoordinator(_comfyUIService);
             _lmStudioService = lmStudioService;
             _fileDialogService = fileDialogService;
             _loraManager = loraManager;
@@ -111,7 +111,7 @@ namespace FlipPix.UI.ViewModels
             BrowseImageCommand = new RelayCommand(async () => await BrowseImageAsync());
             AnalyzeImageCommand = new RelayCommand(async () => await AnalyzeImageAndEnhancePromptAsync(), () => HasSourceImage && !IsAnalyzingImage);
 
-            LoadQueueFromFile();
+            ScheduleQueueLoad();
             LoadAvailableLoras();
             AddLog("Amateur Generator initialized");
         }
@@ -1469,7 +1469,9 @@ namespace FlipPix.UI.ViewModels
                 }
 
                 var options = new JsonSerializerOptions { WriteIndented = true };
-                var json = JsonSerializer.Serialize(_queue.ToList(), options);
+                // Don't persist completed items — they're session history, not pending work.
+                // Keeps the queue file small so it never bloats or slows startup.
+                var json = JsonSerializer.Serialize(_queue.Where(i => i.Status != "Completed").ToList(), options);
                 File.WriteAllText(QueueFilePath, json);
             }
             catch (Exception ex)
@@ -1478,20 +1480,44 @@ namespace FlipPix.UI.ViewModels
             }
         }
 
-        private void LoadQueueFromFile()
+        /// <summary>
+        /// Queues the persisted queue load at Background dispatcher priority so a large saved queue
+        /// never blocks app startup; the file read + deserialize run off the UI thread.
+        /// </summary>
+        private void ScheduleQueueLoad()
+        {
+            var dispatcher = System.Windows.Application.Current?.Dispatcher;
+            if (dispatcher == null)
+            {
+                _ = LoadQueueFromFileAsync();
+                return;
+            }
+
+            dispatcher.InvokeAsync(
+                async () => await LoadQueueFromFileAsync(),
+                System.Windows.Threading.DispatcherPriority.Background);
+        }
+
+        private async Task LoadQueueFromFileAsync()
         {
             try
             {
                 if (!File.Exists(QueueFilePath)) return;
 
-                var json = File.ReadAllText(QueueFilePath);
-                var savedItems = JsonSerializer.Deserialize<List<AmateurQueueItem>>(json);
+                var savedItems = await Task.Run(() =>
+                {
+                    var json = File.ReadAllText(QueueFilePath);
+                    return JsonSerializer.Deserialize<List<AmateurQueueItem>>(json);
+                });
 
                 if (savedItems != null && savedItems.Any())
                 {
                     _queue.Clear();
+                    bool prunedCompleted = false;
                     foreach (var item in savedItems)
                     {
+                        // Drop completed items so finished history never accumulates in the queue.
+                        if (item.Status == "Completed") { prunedCompleted = true; continue; }
                         if (item.Status == "Processing")
                         {
                             item.Status = "Failed";
@@ -1503,6 +1529,8 @@ namespace FlipPix.UI.ViewModels
                     OnPropertyChanged(nameof(QueueCount));
                     OnPropertyChanged(nameof(PendingQueueCount));
                     AddLog($"Queue loaded from file: {_queue.Count} items");
+                    // Rewrite the (now smaller) file once so previously bloated queues shrink immediately.
+                    if (prunedCompleted) SaveQueueToFile();
                 }
             }
             catch (Exception ex)

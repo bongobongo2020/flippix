@@ -92,7 +92,10 @@ namespace FlipPix.UI.ViewModels
             // Let subclass do variant-specific init
             InitializeVariant();
 
-            LoadQueueFromFile();
+            // Defer queue loading off the startup/UI-construction path so the window can paint
+            // immediately. The file read + JSON deserialize run on a background thread; the bound
+            // collection is only populated once we're back on the UI thread, after first render.
+            ScheduleQueueLoad();
 
             AddLog($"{VariantDisplayName} initialized");
         }
@@ -847,7 +850,9 @@ namespace FlipPix.UI.ViewModels
                 }
 
                 var options = new JsonSerializerOptions { WriteIndented = true };
-                var json = JsonSerializer.Serialize(QueueItems.ToList(), options);
+                // Don't persist completed items — they're session history, not pending work.
+                // Keeps the queue file small so it never bloats or slows startup.
+                var json = JsonSerializer.Serialize(QueueItems.Where(i => i.Status != "Completed").ToList(), options);
                 File.WriteAllText(QueueFilePath, json);
             }
             catch (Exception ex)
@@ -856,20 +861,46 @@ namespace FlipPix.UI.ViewModels
             }
         }
 
-        private void LoadQueueFromFile()
+        /// <summary>
+        /// Queues the persisted queue load to run at Background dispatcher priority — i.e. after the
+        /// window has been shown and rendered — so a large saved queue never blocks app startup.
+        /// Falls back to a synchronous load if no dispatcher is available (e.g. unit tests).
+        /// </summary>
+        private void ScheduleQueueLoad()
+        {
+            var dispatcher = System.Windows.Application.Current?.Dispatcher;
+            if (dispatcher == null)
+            {
+                _ = LoadQueueFromFileAsync();
+                return;
+            }
+
+            dispatcher.InvokeAsync(
+                async () => await LoadQueueFromFileAsync(),
+                System.Windows.Threading.DispatcherPriority.Background);
+        }
+
+        private async Task LoadQueueFromFileAsync()
         {
             try
             {
                 if (!File.Exists(QueueFilePath)) return;
 
-                var json = File.ReadAllText(QueueFilePath);
-                var savedItems = JsonSerializer.Deserialize<List<StoryPromptItem>>(json);
+                // Read + deserialize off the UI thread; this is the part that can be slow for big queues.
+                var savedItems = await Task.Run(() =>
+                {
+                    var json = File.ReadAllText(QueueFilePath);
+                    return JsonSerializer.Deserialize<List<StoryPromptItem>>(json);
+                });
 
                 if (savedItems != null && savedItems.Any())
                 {
                     _queueItems.Clear();
+                    bool prunedCompleted = false;
                     foreach (var item in savedItems)
                     {
+                        // Drop completed items so finished history never accumulates in the queue.
+                        if (item.Status == "Completed") { prunedCompleted = true; continue; }
                         if (item.Status == "Processing")
                         {
                             item.Status = "Failed";
@@ -879,6 +910,8 @@ namespace FlipPix.UI.ViewModels
                     }
                     UpdateQueueCountNotifications();
                     AddLog($"Queue loaded from file: {_queueItems.Count} items");
+                    // Rewrite the (now smaller) file once so previously bloated queues shrink immediately.
+                    if (prunedCompleted) SaveQueueToFile();
                 }
             }
             catch (Exception ex)

@@ -258,6 +258,13 @@ public class ComfyUIService : IDisposable
         }
     }
 
+    /// <summary>
+    /// Asks ComfyUI to unload models and free VRAM/RAM (POST /free). Best-effort — returns
+    /// false instead of throwing if ComfyUI is unreachable or the request fails.
+    /// </summary>
+    public async Task<bool> FreeMemoryAsync(bool unloadModels = true, bool freeMemory = true, CancellationToken cancellationToken = default)
+        => await _httpClient.FreeMemoryAsync(unloadModels, freeMemory, cancellationToken);
+
     public async Task<string> UploadAudioAsync(
         string audioPath,
         CancellationToken cancellationToken = default)
@@ -438,21 +445,12 @@ public class ComfyUIService : IDisposable
             using var timeoutCts = new CancellationTokenSource(timeout);
             using var combinedCts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken, timeoutCts.Token);
 
-            // Start a fallback completion detection task - extended to 600 seconds (10 minutes) for video generation
-            var fallbackTask = Task.Run(async () =>
-            {
-                await Task.Delay(TimeSpan.FromSeconds(600), cancellationToken); // Wait 600 seconds (10 minutes)
-                _logger.LogWarning("Fallback completion triggered after 600 seconds for prompt: {PromptId}", promptId);
-                lock (lockObj)
-                {
-                    if (!isCompleted)
-                    {
-                        isCompleted = true;
-                        _logger.LogWarning("Forcing completion - WebSocket completion message may have been missed");
-                        completionSource.TrySetResult(promptId); // Force completion
-                    }
-                }
-            }, cancellationToken);
+            // NOTE: No fixed-duration "force completion" fallback here. A previous version forced
+            // completion after 600s, which falsely aborted any job longer than 10 minutes (the client
+            // would then look for an output video that ComfyUI hadn't finished writing yet, and report
+            // failure). Completion is now signalled reliably by either the WebSocket "executing
+            // node=null" message or the /history poll below (which fires within ~5s of real completion),
+            // with the executionTimeout ceiling (default 30 min) as the genuine last-resort cutoff.
 
             // Poll /history as a primary completion signal. Remote ComfyUI servers
             // frequently drop the final "executing node=null" WebSocket message, which
@@ -503,16 +501,6 @@ public class ComfyUIService : IDisposable
                 // Ensure handlers are removed to prevent interference with future executions
                 ProgressUpdated -= OnProgressUpdate;
                 ExecutionCompleted -= OnExecutionComplete;
-
-                // Cancel and dispose fallback task
-                try
-                {
-                    fallbackTask.Dispose();
-                }
-                catch (Exception ex)
-                {
-                    _logger.LogWarning("Error disposing fallback task: " + ex.Message);
-                }
             }
         }
         catch (Exception ex)

@@ -13,6 +13,7 @@ using System.Windows;
 using System.Windows.Input;
 using System.Windows.Media.Imaging;
 using CommunityToolkit.Mvvm.Input;
+using FlipPix.ComfyUI.Exceptions;
 using FlipPix.ComfyUI.Models;
 using FlipPix.ComfyUI.Services;
 using FlipPix.Core.Interfaces;
@@ -120,9 +121,12 @@ namespace FlipPix.UI.ViewModels.Video
             PlayResultCommand = new RelayCommand<SeedDirectorResult>(PlayResult);
             StopCommand = new RelayCommand(() => _runCts?.Cancel(), () => IsProcessing);
             ToggleMuteCommand = new RelayCommand(() => IsPreviewMuted = !IsPreviewMuted);
+            ToggleOptionsCommand = new RelayCommand(() => IsOptionsOpen = !IsOptionsOpen);
             PlayVideoCommand = new RelayCommand(PlayVideo, () => HasResult);
             OpenResultFolderCommand = new RelayCommand(OpenResultFolder, () => HasResult);
             RefreshLorasCommand = new RelayCommand(async () => await RefreshCharacterLorasAsync());
+            SaveProjectCommand = new RelayCommand(async () => await SaveProjectAsync(), () => HasTimeline);
+            LoadProjectCommand = new RelayCommand(async () => await LoadProjectAsync(), () => !IsProcessing && !IsAnalyzing);
 
             _ = RefreshCharacterLorasAsync();
 
@@ -135,6 +139,7 @@ namespace FlipPix.UI.ViewModels.Video
             };
 
             AddLog("Seed Director initialized");
+            NotifyRecoveryAvailable();
         }
 
         #region Commands
@@ -152,9 +157,12 @@ namespace FlipPix.UI.ViewModels.Video
         public RelayCommand<SeedDirectorResult> PlayResultCommand { get; }
         public RelayCommand StopCommand { get; }
         public RelayCommand ToggleMuteCommand { get; }
+        public RelayCommand ToggleOptionsCommand { get; }
         public RelayCommand PlayVideoCommand { get; }
         public RelayCommand OpenResultFolderCommand { get; }
         public RelayCommand RefreshLorasCommand { get; }
+        public RelayCommand SaveProjectCommand { get; }
+        public RelayCommand LoadProjectCommand { get; }
         #endregion
 
         #region Timeline
@@ -356,6 +364,18 @@ namespace FlipPix.UI.ViewModels.Video
         }
         public string MuteIcon => IsPreviewMuted ? "🔇 Muted" : "🔊 Audio";
 
+        // ── Collapsible options drawer ─────────────────────────────────────────────
+        // Output / analysis-template / LoRA settings are touched rarely, so they live in a
+        // drawer that is hidden by default — the timeline gets the whole page. Toggled from
+        // the timeline toolbar so it stays one click away.
+        private bool _isOptionsOpen;
+        public bool IsOptionsOpen
+        {
+            get => _isOptionsOpen;
+            set { if (_isOptionsOpen != value) { _isOptionsOpen = value; OnPropertyChanged(); OnPropertyChanged(nameof(OptionsToggleLabel)); } }
+        }
+        public string OptionsToggleLabel => IsOptionsOpen ? "✕ Options" : "⚙ Options";
+
         private string? _activePreviewUri;
         public string? ActivePreviewUri
         {
@@ -474,6 +494,8 @@ namespace FlipPix.UI.ViewModels.Video
                     {
                         target.Prompt = cleaned;
                         AddLog($"Shot #{target.Index} prompt generated ({cleaned.Length} chars)");
+                        // Persist after every prompt so a crash/hang never loses analysis work.
+                        AutoSaveSession();
                     }
                     else AddLog($"WARNING: Shot #{target.Index} analysis returned empty result");
                 }
@@ -500,6 +522,181 @@ namespace FlipPix.UI.ViewModels.Video
             if (lower.StartsWith("prompt:") || lower.StartsWith("prompt :"))
                 text = text.Substring(text.IndexOf(':') + 1).Trim();
             return text;
+        }
+        #endregion
+
+        #region Project save / restore (prompts survive restarts)
+        // Per-shot prompts can take many minutes to analyze (e.g. 20 shots). Persist the timeline —
+        // image paths, prompts, durations and global options — so an app restart or a stuck upload
+        // never throws that work away. Seed previews/results are NOT saved (they're regenerated).
+        private sealed class ProjectShotDto
+        {
+            public string ImagePath { get; set; } = string.Empty;
+            public string Prompt { get; set; } = string.Empty;
+            public double DurationSeconds { get; set; } = 3.0;
+        }
+
+        private sealed class ProjectDto
+        {
+            public string Resolution { get; set; } = "720p";
+            public string Orientation { get; set; } = "Landscape";
+            public string? PromptTemplate { get; set; }
+            public string? CharacterLora { get; set; }
+            public double CharacterLoraStrength { get; set; } = 1.0;
+            public DateTime SavedAt { get; set; } = DateTime.Now;
+            public List<ProjectShotDto> Shots { get; set; } = new();
+        }
+
+        private static readonly JsonSerializerOptions ProjectJsonOptions = new() { WriteIndented = true };
+
+        /// <summary>Folder where projects (and the rolling auto-save) live, under %AppData%\FlipPix.</summary>
+        private static string ProjectsFolder
+        {
+            get
+            {
+                var dir = Path.Combine(
+                    Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData),
+                    "FlipPix", "SeedDirector");
+                Directory.CreateDirectory(dir);
+                return dir;
+            }
+        }
+
+        private string AutoSavePath => Path.Combine(ProjectsFolder, "last_session.json");
+
+        private ProjectDto BuildProject() => new()
+        {
+            Resolution = Resolution,
+            Orientation = Orientation,
+            PromptTemplate = SelectedPromptTemplate?.FileName,
+            CharacterLora = SelectedCharacterLora?.RelativePath,
+            CharacterLoraStrength = CharacterLoraStrength,
+            SavedAt = DateTime.Now,
+            Shots = _timeline.Select(s => new ProjectShotDto
+            {
+                ImagePath = s.ImagePath,
+                Prompt = s.Prompt,
+                DurationSeconds = s.DurationSeconds,
+            }).ToList(),
+        };
+
+        /// <summary>Silent rolling save to the recovery file — called after each prompt is generated.</summary>
+        private void AutoSaveSession()
+        {
+            try
+            {
+                File.WriteAllText(AutoSavePath, JsonSerializer.Serialize(BuildProject(), ProjectJsonOptions));
+            }
+            catch (Exception ex)
+            {
+                AddLog($"Auto-save failed: {ex.Message}");
+            }
+        }
+
+        private async Task SaveProjectAsync()
+        {
+            if (!HasTimeline) return;
+            var defaultName = $"seeddirector_{DateTime.Now:yyyyMMdd_HHmmss}.json";
+            var path = await _fileDialogService.SaveFileDialogAsync(
+                "Save Seed Director Project", "Seed Director Project|*.json|All Files|*.*",
+                defaultName, ProjectsFolder, persistKey: "seeddirector.project");
+            if (string.IsNullOrEmpty(path)) return;
+            try
+            {
+                await File.WriteAllTextAsync(path, JsonSerializer.Serialize(BuildProject(), ProjectJsonOptions));
+                AddLog($"Saved {_timeline.Count} shot(s) to {Path.GetFileName(path)}");
+            }
+            catch (Exception ex)
+            {
+                AddLog($"ERROR saving project: {ex.Message}");
+                MessageBox.Show($"Could not save project:\n{ex.Message}", "Seed Director",
+                    MessageBoxButton.OK, MessageBoxImage.Error);
+            }
+        }
+
+        private async Task LoadProjectAsync()
+        {
+            if (IsProcessing || IsAnalyzing) return;
+            var path = await _fileDialogService.OpenFileDialogAsync(
+                "Load Seed Director Project", "Seed Director Project|*.json|All Files|*.*",
+                ProjectsFolder, persistKey: "seeddirector.project");
+            if (string.IsNullOrEmpty(path) || !File.Exists(path)) return;
+            await RestoreFromFileAsync(path);
+        }
+
+        /// <summary>Rebuilds the timeline + global options from a saved project file.</summary>
+        private async Task RestoreFromFileAsync(string path)
+        {
+            ProjectDto? project;
+            try
+            {
+                var json = await File.ReadAllTextAsync(path);
+                project = JsonSerializer.Deserialize<ProjectDto>(json);
+            }
+            catch (Exception ex)
+            {
+                AddLog($"ERROR loading project: {ex.Message}");
+                MessageBox.Show($"Could not load project:\n{ex.Message}", "Seed Director",
+                    MessageBoxButton.OK, MessageBoxImage.Error);
+                return;
+            }
+            if (project?.Shots == null || project.Shots.Count == 0)
+            {
+                AddLog("Project file had no shots to restore.");
+                return;
+            }
+
+            _timeline.Clear();
+            SelectedShot = null;
+            int missing = 0;
+            foreach (var dto in project.Shots)
+            {
+                var shot = new SeedDirectorShot(dto.ImagePath)
+                {
+                    Prompt = dto.Prompt,
+                    DurationSeconds = dto.DurationSeconds <= 0 ? 3.0 : dto.DurationSeconds,
+                };
+                if (!File.Exists(dto.ImagePath)) missing++;
+                WireShot(shot);
+                _timeline.Add(shot);
+            }
+
+            Resolution = project.Resolution;
+            Orientation = project.Orientation;
+            if (!string.IsNullOrEmpty(project.PromptTemplate))
+            {
+                var tpl = _promptTemplates.FirstOrDefault(t =>
+                    string.Equals(t.FileName, project.PromptTemplate, StringComparison.OrdinalIgnoreCase));
+                if (tpl != null) SelectedPromptTemplate = tpl;
+            }
+            CharacterLoraStrength = project.CharacterLoraStrength;
+            if (!string.IsNullOrEmpty(project.CharacterLora))
+            {
+                var lora = _characterLoras.FirstOrDefault(l =>
+                    string.Equals(l.RelativePath, project.CharacterLora, StringComparison.OrdinalIgnoreCase));
+                if (lora != null) SelectedCharacterLora = lora;
+            }
+
+            SelectedShot = _timeline.FirstOrDefault();
+            AddLog($"Restored {_timeline.Count} shot(s) from {Path.GetFileName(path)}" +
+                   (missing > 0 ? $" — ⚠ {missing} image file(s) missing (re-add those shots)" : ""));
+        }
+
+        /// <summary>On startup, hint the user if a recovered session is waiting to be restored.</summary>
+        private void NotifyRecoveryAvailable()
+        {
+            try
+            {
+                if (File.Exists(AutoSavePath))
+                {
+                    var json = File.ReadAllText(AutoSavePath);
+                    var project = JsonSerializer.Deserialize<ProjectDto>(json);
+                    if (project?.Shots is { Count: > 0 })
+                        AddLog($"💾 Recovered session available ({project.Shots.Count} shot(s) from " +
+                               $"{project.SavedAt:g}) — click 📂 Load to restore.");
+                }
+            }
+            catch { /* best effort */ }
         }
         #endregion
 
@@ -559,7 +756,7 @@ namespace FlipPix.UI.ViewModels.Video
 
             Application.Current.Dispatcher.Invoke(() => { shot.ResetSamples(); shot.Status = "hunting…"; });
 
-            var imageName = await EnsureShotUploadedAsync(shot);
+            var imageName = await EnsureShotUploadedAsync(shot, token);
             var prompt = string.IsNullOrWhiteSpace(shot.Prompt)
                 ? "Style: realistic - cinematic - smooth natural motion, photorealistic, high quality"
                 : shot.Prompt;
@@ -583,10 +780,28 @@ namespace FlipPix.UI.ViewModels.Video
             var filled = new HashSet<int>();
             var downloads = new List<Task>();
             void OnNode(object? s, NodeExecutedEventArgs e) => HandleHuntNode(shot, e, filled, downloads, token);
+
+            // Heartbeat: tick an elapsed-time status while ComfyUI works so a slow first shot
+            // (cold LTX model load) can never look like a dead freeze. Stopped in finally.
+            using var hbCts = CancellationTokenSource.CreateLinkedTokenSource(token);
+            var heartbeat = StartHuntHeartbeat(shot, hbCts.Token);
+
             _comfyUIService.NodeExecuted += OnNode;
             try
             {
-                var promptId = await SubmitAsync(json, from, to, token);
+                string promptId;
+                try
+                {
+                    promptId = await SubmitAsync(json, from, to, token, PerShotHuntTimeout);
+                }
+                catch (ComfyUITimeoutException)
+                {
+                    // A genuine stall is now a clear, actionable error instead of an open-ended wait.
+                    throw new Exception(
+                        $"Shot #{shot.Index}: ComfyUI did not finish the seed batch within " +
+                        $"{PerShotHuntTimeout.TotalMinutes:0} minutes. It may be loading the LTX model or " +
+                        "stalled — check the ComfyUI console, then run again (your analyzed prompts are saved).");
+                }
                 Task[] pending;
                 lock (downloads) pending = downloads.ToArray();
                 try { await Task.WhenAll(pending); } catch { /* per-task errors handled inside */ }
@@ -595,6 +810,8 @@ namespace FlipPix.UI.ViewModels.Video
             finally
             {
                 _comfyUIService.NodeExecuted -= OnNode;
+                hbCts.Cancel();
+                try { await heartbeat; } catch { /* heartbeat is best-effort */ }
             }
 
             var found = shot.Samples.Count(x => x.HasVideo);
@@ -604,6 +821,33 @@ namespace FlipPix.UI.ViewModels.Video
             else
                 AddLog($"Shot #{shot.Index}: {found}/4 seeds ready");
         }
+
+        /// <summary>Hard ceiling for a single shot's seed batch. The first shot of a run may cold-load
+        /// the LTX model (a few minutes); past this we treat it as a genuine stall and surface a clear
+        /// error rather than riding the default 30-minute ExecuteWorkflow ceiling that looks "frozen".</summary>
+        private static readonly TimeSpan PerShotHuntTimeout = TimeSpan.FromMinutes(10);
+
+        /// <summary>Background ticker that refreshes the status with elapsed time while a shot is hunting,
+        /// so a slow (but alive) ComfyUI never presents as a dead UI. Cancelled when the hunt returns.</summary>
+        private Task StartHuntHeartbeat(SeedDirectorShot shot, CancellationToken token) => Task.Run(async () =>
+        {
+            var sw = Stopwatch.StartNew();
+            try
+            {
+                while (!token.IsCancellationRequested)
+                {
+                    await Task.Delay(TimeSpan.FromSeconds(3), token);
+                    var el = sw.Elapsed;
+                    var found = shot.Samples.Count(x => x.HasVideo);
+                    var hint = found > 0
+                        ? $" · {found}/4 seeds in"
+                        : el.TotalSeconds >= 45 ? " · first shot loads the model — this can take a few minutes" : "";
+                    var msg = $"Hunting seeds for shot #{shot.Index} — {el:mm\\:ss}{hint}";
+                    Application.Current.Dispatcher.Invoke(() => ProcessingStatus = msg);
+                }
+            }
+            catch (OperationCanceledException) { /* normal stop */ }
+        }, token);
 
         /// <summary>Live handler: when a preview node finishes, download + show that sample immediately.</summary>
         private void HandleHuntNode(SeedDirectorShot shot, NodeExecutedEventArgs e,
@@ -806,7 +1050,7 @@ namespace FlipPix.UI.ViewModels.Video
             double from, double to, CancellationToken token)
         {
             var ts = DateTime.Now.ToString("yyyyMMdd_HHmmss");
-            var imageName = await EnsureShotUploadedAsync(shot);
+            var imageName = await EnsureShotUploadedAsync(shot, token);
             var prompt = string.IsNullOrWhiteSpace(shot.Prompt)
                 ? "Style: realistic - cinematic - smooth natural motion, photorealistic, high quality"
                 : shot.Prompt;
@@ -961,7 +1205,11 @@ namespace FlipPix.UI.ViewModels.Video
             {
                 AddLog($"=== Seed Director {phase} ===");
                 AddLog("Waiting for other workflows to finish...");
-                lease = await _workflowCoordinator.AcquireAsync($"SeedDirector-{phase}", token);
+                // Stable key (no phase suffix) so Generate Seeds → Reroll → Finish all share one
+                // coordinator slot and keep the LTX seed-hunter model resident. A phase-specific key
+                // made every phase switch look like a new workflow, triggering FreeMemoryAsync and a
+                // multi-minute cold model reload on shot #1. Shared with SeedHunt (same workflow JSON).
+                lease = await _workflowCoordinator.AcquireAsync("SeedHunt", token);
 
                 ProcessingStatus = "Checking ComfyUI...";
                 if (!await _comfyUIService.DetectAndRestartIfCrashedAsync(s => AddLog($"[Auto-Restart] {s}")))
@@ -997,11 +1245,31 @@ namespace FlipPix.UI.ViewModels.Video
             }
         }
 
-        private async Task<string> EnsureShotUploadedAsync(SeedDirectorShot shot)
+        /// <summary>Per-image upload timeout. Keyframes are tiny, so a stalled connection should
+        /// fail fast and surface a clear message instead of riding the global 10-minute video-upload
+        /// timeout (×3 retries = ~30 min of looking hung). Honours the run token so Cancel works.</summary>
+        private static readonly TimeSpan UploadTimeout = TimeSpan.FromSeconds(120);
+
+        private async Task<string> EnsureShotUploadedAsync(SeedDirectorShot shot, CancellationToken token)
         {
             if (!string.IsNullOrEmpty(shot.UploadedName)) return shot.UploadedName;
             AddLog($"Uploading shot #{shot.Index} image…");
-            var uploaded = await _comfyUIService.UploadImageAsync(shot.ImagePath);
+
+            using var uploadCts = CancellationTokenSource.CreateLinkedTokenSource(token);
+            uploadCts.CancelAfter(UploadTimeout);
+            string? uploaded;
+            try
+            {
+                uploaded = await _comfyUIService.UploadImageAsync(shot.ImagePath, uploadCts.Token);
+            }
+            catch (OperationCanceledException) when (uploadCts.IsCancellationRequested && !token.IsCancellationRequested)
+            {
+                // Timed out (not a user Cancel): throw a normal error so the run reports it clearly
+                // and the user can restart ComfyUI and retry — the analyzed prompts are auto-saved.
+                throw new Exception(
+                    $"Upload of shot #{shot.Index} timed out after {UploadTimeout.TotalSeconds:0}s — " +
+                    "ComfyUI looks unresponsive. Restart it, then run again (your prompts are saved and will be reused).");
+            }
             if (string.IsNullOrEmpty(uploaded))
                 throw new Exception($"Failed to upload image for shot #{shot.Index}.");
             shot.UploadedName = uploaded;
@@ -1062,7 +1330,8 @@ namespace FlipPix.UI.ViewModels.Video
             };
         }
 
-        private async Task<string> SubmitAsync(string json, double progressFrom, double progressTo, CancellationToken token)
+        private async Task<string> SubmitAsync(string json, double progressFrom, double progressTo,
+            CancellationToken token, TimeSpan? executionTimeout = null)
         {
             var workflow = JsonSerializer.Deserialize<JsonElement>(json);
             var span = progressTo - progressFrom;
@@ -1079,7 +1348,7 @@ namespace FlipPix.UI.ViewModels.Video
                 }
             });
 
-            var promptId = await _comfyUIService.ExecuteWorkflowAsync(workflow, progress, token);
+            var promptId = await _comfyUIService.ExecuteWorkflowAsync(workflow, progress, token, executionTimeout);
             AddLog($"Workflow submitted, ID: {promptId}");
             return promptId;
         }
@@ -1246,6 +1515,8 @@ namespace FlipPix.UI.ViewModels.Video
             GenerateAllSeedsCommand.NotifyCanExecuteChanged();
             RerollShotCommand.NotifyCanExecuteChanged();
             CreateJoinedVideoCommand.NotifyCanExecuteChanged();
+            SaveProjectCommand.NotifyCanExecuteChanged();
+            LoadProjectCommand.NotifyCanExecuteChanged();
             StopCommand.NotifyCanExecuteChanged();
             PlayVideoCommand.NotifyCanExecuteChanged();
             OpenResultFolderCommand.NotifyCanExecuteChanged();
