@@ -600,7 +600,7 @@ namespace FlipPix.UI.Linux.ViewModels
                         break;
 
                     case TextGeneratorWorkflow.Klien:
-                        workflowPath = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "workflow", "klein", "KlienX3n-Text-Ultimate-API.json");
+                        workflowPath = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "workflow", "image", "klein", "KlienX3n-Text-Ultimate-API.json");
                         AddLog("Using Klien workflow");
                         break;
 
@@ -618,7 +618,7 @@ namespace FlipPix.UI.Linux.ViewModels
                         }
                         else
                         {
-                            workflowPath = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "workflow", "Zstyles", "Zib-Zit.json");
+                            workflowPath = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "workflow", "image", "zimage", "Zib-Zit.json");
                             AddLog("No style selected, falling back to Zib-Zit.json");
                         }
                         break;
@@ -1077,7 +1077,7 @@ namespace FlipPix.UI.Linux.ViewModels
             try
             {
                 _allStyles.Clear();
-                var workflowDir = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "workflow", "ZStyles");
+                var workflowDir = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "workflow", "image", "zimage");
 
                 if (!Directory.Exists(workflowDir))
                 {
@@ -3098,7 +3098,7 @@ namespace FlipPix.UI.Linux.ViewModels
                         break;
 
                     case TextGeneratorWorkflow.Klien:
-                        workflowPath = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "workflow", "klein", "KlienX3n-Text-Ultimate-API.json");
+                        workflowPath = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "workflow", "image", "klein", "KlienX3n-Text-Ultimate-API.json");
                         AddLog("Using Klien workflow");
                         break;
 
@@ -3121,13 +3121,13 @@ namespace FlipPix.UI.Linux.ViewModels
                             else
                             {
                                 // Fallback to default if style not found
-                                workflowPath = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "workflow", "Zstyles", "Zib-Zit.json");
+                                workflowPath = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "workflow", "image", "zimage", "Zib-Zit.json");
                                 AddLog($"Style '{queueItem.StyleName}' not found, falling back to Zib-Zit.json");
                             }
                         }
                         else
                         {
-                            workflowPath = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "workflow", "Zstyles", "Zib-Zit.json");
+                            workflowPath = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "workflow", "image", "zimage", "Zib-Zit.json");
                             AddLog("Using default Zib-Zit workflow (no style selected)");
                         }
                         break;

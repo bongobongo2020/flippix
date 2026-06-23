@@ -2960,6 +2960,15 @@ namespace FlipPix.UI.ViewModels.Video
 
             var thumbPath = Path.ChangeExtension(videoPath, null) + "_thumb.jpg";
 
+            // Fast path: a thumbnail already exists on disk — load it (this runs on a background
+            // task) instead of re-running ffmpeg. Avoids redundant ffmpeg passes over a network
+            // drive for every already-thumbnailed clip on queue load.
+            if (File.Exists(thumbPath))
+            {
+                item.LoadVideoThumbnail(thumbPath);
+                return;
+            }
+
             // Retry up to 3 times — the file may still be flushing/locked right after generation
             for (int attempt = 1; attempt <= 3; attempt++)
             {

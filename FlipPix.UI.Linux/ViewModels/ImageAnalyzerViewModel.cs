@@ -862,7 +862,7 @@ namespace FlipPix.UI.Linux.ViewModels
                 // Clear previous styles
                 _allStyles.Clear();
 
-                var workflowDir = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "workflow", "ZStyles");
+                var workflowDir = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "workflow", "image", "zimage");
 
                 if (!Directory.Exists(workflowDir))
                 {
@@ -1813,7 +1813,7 @@ namespace FlipPix.UI.Linux.ViewModels
                         break;
 
                     case TextGeneratorWorkflow.Klien:
-                        workflowPath = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "workflow", "klein", "KlienX3n-Text-Ultimate-API.json");
+                        workflowPath = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "workflow", "image", "klein", "KlienX3n-Text-Ultimate-API.json");
                         _logger.LogInfo($"Using Klien workflow");
                         break;
 

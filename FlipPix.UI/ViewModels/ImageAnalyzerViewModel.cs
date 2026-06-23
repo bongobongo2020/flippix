@@ -785,6 +785,8 @@ namespace FlipPix.UI.ViewModels
         public ICommand RefreshLorasCommand { get; }
         public ICommand AddToQueueCommand { get; }
         public ICommand AddToQueueAndStartCommand { get; }
+        // Shared Tab 1 "Generate" button binds this; in analysis mode it queues + starts.
+        public ICommand PrimaryGenerateCommand => AddToQueueAndStartCommand;
         public ICommand RemoveFromQueueCommand { get; }
         public ICommand ClearQueueCommand { get; }
         public ICommand CancelProcessingCommand { get; }
@@ -869,7 +871,7 @@ namespace FlipPix.UI.ViewModels
                 // Clear previous styles
                 _allStyles.Clear();
 
-                var workflowDir = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "workflow", "ZStyles");
+                var workflowDir = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "workflow", "image", "zimage");
 
                 if (!Directory.Exists(workflowDir))
                 {
@@ -1821,7 +1823,7 @@ namespace FlipPix.UI.ViewModels
                         break;
 
                     case TextGeneratorWorkflow.Klien:
-                        workflowPath = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "workflow", "klein", "KlienX3n-Text-Ultimate-API.json");
+                        workflowPath = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "workflow", "image", "klein", "KlienX3n-Text-Ultimate-API.json");
                         _logger.LogInfo($"Using Klien workflow");
                         break;
 
@@ -2687,6 +2689,30 @@ namespace FlipPix.UI.ViewModels
                 int updatedNodes = 0;
                 var modifiedWorkflow = new Dictionary<string, object>();
 
+                // Detect the NVIDIA PiD "4k" workflow (Z4k.json): it pairs an
+                // EmptySD3LatentImage base latent (node 68) with an
+                // EmptyChromaRadianceLatentImage 4K canvas (node 84) at a fixed 4× scale.
+                // In that workflow the base must stay at a small base resolution and the
+                // canvas must remain exactly 4× the base, or the output collapses to a
+                // square (the canvas's hardcoded 4096×4096) and the PiD guidance aspect
+                // mismatch produces a blurry result.
+                bool isPidWorkflow = false;
+                foreach (var scanVal in workflow.Values)
+                {
+                    JsonElement scanEl;
+                    if (scanVal is JsonElement sje) scanEl = sje;
+                    else scanEl = JsonSerializer.Deserialize<JsonElement>(JsonSerializer.Serialize(scanVal));
+                    if (scanEl.ValueKind == JsonValueKind.Object &&
+                        scanEl.TryGetProperty("class_type", out var scanCt) &&
+                        scanCt.GetString() == "EmptyChromaRadianceLatentImage")
+                    {
+                        isPidWorkflow = true;
+                        break;
+                    }
+                }
+                if (isPidWorkflow)
+                    _logger.LogInfo("Detected PiD 4k workflow — keeping base/canvas 4× aspect relationship");
+
                 // Process each node in the workflow
                 foreach (var kvp in workflow)
                 {
@@ -2933,7 +2959,11 @@ namespace FlipPix.UI.ViewModels
                     {
                         // Directly set SD3 latent dimensions, bypassing Any Switch routing (nodes 536/537)
                         // which has no sel input connected and always defaults to landscape.
-                        var (selectedWidth, selectedHeight) = GetDimensionsForAspectRatio(AspectRatioIndex);
+                        // In the PiD 4k workflow this is the *base* latent (node 68): use the smaller
+                        // base resolution so the 4× canvas (node 84) lands at a sane 4K size.
+                        var (selectedWidth, selectedHeight) = isPidWorkflow
+                            ? GetPidBaseDimensionsForAspectRatio(AspectRatioIndex)
+                            : GetDimensionsForAspectRatio(AspectRatioIndex);
                         var nodeDict = JsonSerializer.Deserialize<Dictionary<string, object>>(nodeElement.GetRawText());
                         if (nodeDict != null && nodeDict.TryGetValue("inputs", out var sd3InputsObj))
                         {
@@ -2951,6 +2981,42 @@ namespace FlipPix.UI.ViewModels
                                 modifiedWorkflow[kvp.Key] = nodeDict;
                                 updatedNodes++;
                                 _logger.LogInfo($"✓ Updated EmptySD3LatentImage node {kvp.Key}: {selectedWidth}x{selectedHeight}");
+                            }
+                            else
+                            {
+                                modifiedWorkflow[kvp.Key] = nodeValue;
+                            }
+                        }
+                        else
+                        {
+                            modifiedWorkflow[kvp.Key] = nodeValue;
+                        }
+                    }
+                    else if (classType == "EmptyChromaRadianceLatentImage")
+                    {
+                        // PiD 4k workflow output canvas (node 84): must stay exactly 4× the base
+                        // latent (node 68), otherwise the image collapses to the hardcoded
+                        // 4096×4096 square and comes out blurry from the aspect mismatch.
+                        var (baseWidth, baseHeight) = GetPidBaseDimensionsForAspectRatio(AspectRatioIndex);
+                        var canvasWidth = baseWidth * 4;
+                        var canvasHeight = baseHeight * 4;
+                        var nodeDict = JsonSerializer.Deserialize<Dictionary<string, object>>(nodeElement.GetRawText());
+                        if (nodeDict != null && nodeDict.TryGetValue("inputs", out var chromaInputsObj))
+                        {
+                            Dictionary<string, object>? chromaInputs = null;
+                            if (chromaInputsObj is Dictionary<string, object> dictChromaInputs)
+                                chromaInputs = dictChromaInputs;
+                            else if (chromaInputsObj is JsonElement chromaElementInputs && chromaElementInputs.ValueKind == JsonValueKind.Object)
+                                chromaInputs = JsonSerializer.Deserialize<Dictionary<string, object>>(chromaElementInputs.GetRawText());
+
+                            if (chromaInputs != null)
+                            {
+                                chromaInputs["width"] = canvasWidth;
+                                chromaInputs["height"] = canvasHeight;
+                                nodeDict["inputs"] = chromaInputs;
+                                modifiedWorkflow[kvp.Key] = nodeDict;
+                                updatedNodes++;
+                                _logger.LogInfo($"✓ Updated EmptyChromaRadianceLatentImage node {kvp.Key}: {canvasWidth}x{canvasHeight}");
                             }
                             else
                             {
@@ -3100,6 +3166,21 @@ namespace FlipPix.UI.ViewModels
                 (1600, 1088),  // 0: Landscape
                 (1088, 1600),  // 1: Portrait
                 (1600, 1600),  // 2: Square
+            };
+
+            return dimensions[Math.Min(aspectRatioIndex, dimensions.Length - 1)];
+        }
+
+        // Base latent dimensions for the NVIDIA PiD "4k" workflow (Z4k.json). The 4K output
+        // canvas (EmptyChromaRadianceLatentImage) is always exactly 4× these values, so the
+        // base must stay small. Mirrors the Text-Prompt path in ImageGeneratorViewModel.
+        private (int, int) GetPidBaseDimensionsForAspectRatio(int aspectRatioIndex)
+        {
+            var dimensions = new[]
+            {
+                (1280, 720),   // 0: Landscape (16:9) → canvas 5120×2880
+                (720, 1280),   // 1: Portrait        → canvas 2880×5120
+                (1024, 1024),  // 2: Square          → canvas 4096×4096
             };
 
             return dimensions[Math.Min(aspectRatioIndex, dimensions.Length - 1)];

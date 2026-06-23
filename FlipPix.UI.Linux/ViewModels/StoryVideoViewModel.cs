@@ -235,7 +235,7 @@ namespace FlipPix.UI.Linux.ViewModels
             }
 
             var files = Directory.GetFiles(workflowDir, "*.json")
-                .Where(f => !Path.GetDirectoryName(f)!.EndsWith("ZStyles", StringComparison.OrdinalIgnoreCase))
+                .Where(f => !Path.GetDirectoryName(f)!.EndsWith("zimage", StringComparison.OrdinalIgnoreCase))
                 .OrderBy(f => Path.GetFileNameWithoutExtension(f))
                 .ToArray();
 
