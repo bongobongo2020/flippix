@@ -325,7 +325,7 @@ namespace FlipPix.UI.Linux.ViewModels
             try
             {
                 _zAllStyles.Clear();
-                var workflowDir = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "workflow", "ZStyles");
+                var workflowDir = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "workflow", "image", "zimage");
 
                 if (!Directory.Exists(workflowDir))
                 {
@@ -929,7 +929,7 @@ namespace FlipPix.UI.Linux.ViewModels
             string workflowPath;
             if (SelectedWorkflowMode == "Klein")
             {
-                workflowPath = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "workflow", "klein", "V2-Edit-with-LCS-example-workflowAPI.json");
+                workflowPath = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "workflow", "image", "klein", "V2-Edit-with-LCS-example-workflowAPI.json");
                 AddLog("Using Klein workflow (Flux2 + LCS)");
             }
             else if (SelectedWorkflowMode == "FireRed")

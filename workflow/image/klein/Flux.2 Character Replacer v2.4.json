@@ -787,7 +787,7 @@
   },
   "47:206": {
     "inputs": {
-      "text": "remove hair, remove clothes and draw this person bald and in skin tone underwear",
+      "text": "remove hair, remove clothes and draw this person bald and in skin tone underwear. Remove all text, words, letters, captions, logos, watermarks and subtitles from the scene, leaving a clean background with only the person's pose.",
       "clip": [
         "47:232",
         0

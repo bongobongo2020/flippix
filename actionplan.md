@@ -61,11 +61,32 @@ Baseline: solution builds with 0 errors (69 pre-existing warnings, untouched).
   control would need so much parameterization it'd be worse than the duplication. Leave as
   future per-need refactors, not a blanket extraction.
 
-## Phase 4 — Information architecture (proposed, needs sign-off)
+## Phase 4 — Information architecture (Image window)  ✅ DONE (build clean)
 
-- [ ] **4.1** Collapse 23 tabs into ~5 task groups with a quiet left rail per group.
-- [ ] **4.2** Merge true duplicates (`Editor`/`Editor 2`, the three Scail variants,
-  `FFLF`/`FFLF-Dasiwa`). Deferred until visual phases land and are approved.
+- [x] **4.1 Grouped navigation.** `ImageGeneratorWindow` now shows a 3-pill group
+  selector (Create / Edit / Advanced) above the tab strip; each `TabItem` is visibility-
+  bound to its group (`IsCreateGroup`/`IsEditGroup`/`IsAdvancedGroup` on
+  `ImageGeneratorViewModel`), so only 2-4 tabs show at once instead of all 10. Picking a
+  group lands on its first tab via `SelectedNavGroup`. New `GroupPillStyle` in
+  `SharedStyles.xaml`.
+- [x] **4.2 Merge true duplicates — `Editor` + `Editor 2`.** Combined into one **Editor**
+  tab with a Paint-mask / Auto-detect pill toggle (`EditorMode` + `IsPaintEditor`/
+  `IsAutoDetectEditor`) that swaps the two existing VM-bound panels (`InpaintEditor` /
+  `KleinInpaintEditor`). 10 tabs → 9.
+- [x] **4.3 Tab 1 single-flow rebuild.** The two duplicate Generation-Settings panels
+  (text-prompt vs image-analysis) collapsed into one shared `ContentControl` bound to
+  `ActiveGenerationVM` (switches between the generator and the analyzer; both expose
+  identical settings members). Shared "Generate" binds `PrimaryGenerateCommand` (aliased
+  per VM to preserve each mode's action). Saved-prompts + example-prompts moved into
+  collapsed expanders. Right-column queue/result kept per-mode (the two modes genuinely
+  diverge: `PromptQueue` + Send-to-Camera/Video vs `QueueItems` + LM-Studio/model/reprocess).
+- [x] **4.4 De-rainbow.** Removed 54 per-header inline `Foreground` overrides (headers now
+  use the neutral `HeaderTextStyle`), tokenized the cream saved-prompt boxes, and unified
+  66 loud button/badge backgrounds to `SuccessBrush`/`DangerBrush`/`BrandBrush`. Dark
+  terminal log panels left as-is (per §3.2b).
+
+  Remaining (other windows / future): Scail variants and `FFLF`/`FFLF-Dasiwa` live in the
+  Video window and are out of scope for this Image-window pass.
 
 ---
 

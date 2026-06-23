@@ -289,7 +289,7 @@ ComfyUI workflows are JSON node graphs stored in `/workflow/`. Each workflow def
 | Audio Video | LTX2-AudioSync-*.json | Audio-synced video |
 | Story Video | WCFMAPI.json | Narrative video generation |
 | Multimodal | i2v2a_simple_v2.json | Image->Video->Audio pipeline |
-| Style Presets | Zstyles/*.json | 14 style-specific workflows |
+| Style Presets | image/zimage/*.json | 14 style-specific workflows |
 
 ### Workflow Integration Pattern
 
@@ -538,7 +538,7 @@ ViewModels hold `CancellationTokenSource` and `ManualResetEventSlim` instances b
 - **Total source:** ~31,746 lines
 
 ### Workflow Files
-- 37 workflow JSON files (including 14 style presets in Zstyles/)
+- 37 workflow JSON files (including 14 style presets in image/zimage/)
 - Average workflow: 200-500 node definitions
 
 ---

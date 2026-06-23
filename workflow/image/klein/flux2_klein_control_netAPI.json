@@ -72,13 +72,13 @@
     "inputs": {
       "filename_prefix": "flux2_klein",
       "images": [
-        "8:19",
+        "212",
         0
       ]
     },
     "class_type": "SaveImage",
     "_meta": {
-      "title": "Save Image"
+      "title": "Save 4K Image"
     }
   },
   "10": {
@@ -96,13 +96,13 @@
   "17": {
     "inputs": {
       "image": [
-        "5",
+        "60",
         0
       ]
     },
     "class_type": "GetImageSize",
     "_meta": {
-      "title": "Get Reference Size"
+      "title": "Get Pose Size (drives output aspect ratio)"
     }
   },
   "19": {
@@ -129,7 +129,7 @@
   },
   "40": {
     "inputs": {
-      "value": 720
+      "value": 1280
     },
     "class_type": "easy int",
     "_meta": {
@@ -138,7 +138,7 @@
   },
   "41": {
     "inputs": {
-      "value": 1280
+      "value": 720
     },
     "class_type": "easy int",
     "_meta": {
@@ -276,7 +276,7 @@
   },
   "50": {
     "inputs": {
-      "unet_name": "flux-2-klein-9b.safetensors",
+      "unet_name": "klein/x3n0666_x3n0666Fp16.safetensors",
       "weight_dtype": "default"
     },
     "class_type": "UNETLoader",
@@ -307,7 +307,7 @@
     "inputs": {
       "model_name": "Qwen3VL-4B-Instruct-Q4_K_M.gguf",
       "preset_prompt": "🪄 Prompt Refine & Expand",
-      "custom_prompt": "/no_think\nDescribe ONLY the character's appearance in this image — NOT the pose or body position. Output ONE paragraph, nothing else. Structure: face (skin tone, exact eye color and shape, nose, lips, expression, hair color/style/length, accessories); then each clothing item (exact specific color adjectives like 'deep matte black' or 'vivid crimson red', garment type, material texture, fit, any logos or patterns); then lighting and camera shot type. Do NOT describe standing pose, arms, legs, or body orientation. One paragraph only.",
+      "custom_prompt": "/no_think\nDescribe ONLY the character's appearance in this image — NOT the pose or body position. Output ONE paragraph, nothing else. Structure: face (skin tone, exact eye color and shape, nose, lips, expression, hair color/style/length, accessories);  then lighting and camera shot type. Do NOT describe clothing,standing pose, arms, legs, or body orientation. One paragraph only.",
       "max_tokens": 500,
       "keep_model_loaded": true,
       "seed": 2191792731,
@@ -352,7 +352,7 @@
     "inputs": {
       "model_name": "Qwen3VL-4B-Instruct-Q4_K_M.gguf",
       "preset_prompt": "🪄 Prompt Refine & Expand",
-      "custom_prompt": "/no_think\nDescribe ONLY the body pose and position of the person in this image. Output exactly ONE sentence. Include: overall stance (standing/sitting/crouching/lying), which direction the body faces, exact arm positions (raised/lowered/bent/extended/crossed), leg positions, and head/gaze direction. Example: 'A person stands facing the camera at a slight angle, right arm raised with elbow bent beside the head, left arm hanging at the side, legs shoulder-width apart, looking directly forward.' Output only that one sentence — no other words.",
+      "custom_prompt": "/no_think\nDescribe ONLY the clothing worn (Which should be more sexy and revealing eg. tight shorts showing skin), body pose and position of the person in this image. Output exactly ONE sentence. Include: overall stance (standing/sitting/crouching/lying), which direction the body faces, exact arm positions (raised/lowered/bent/extended/crossed), leg positions, and head/gaze direction. Example: 'A person stands facing the camera at a slight angle, right arm raised with elbow bent beside the head, left arm hanging at the side, legs shoulder-width apart, looking directly forward.' then each clothing item (exact specific color adjectives like 'deep matte black' or 'vivid crimson red', garment type, material texture, fit, any logos or patterns);",
       "max_tokens": 150,
       "keep_model_loaded": true,
       "seed": 882364172,
@@ -455,7 +455,7 @@
   },
   "8:16": {
     "inputs": {
-      "sampler_name": "euler"
+      "sampler_name": "res_2m"
     },
     "class_type": "KSamplerSelect",
     "_meta": {
@@ -464,7 +464,7 @@
   },
   "8:17": {
     "inputs": {
-      "steps": 8,
+      "steps": 12,
       "width": [
         "45",
         0
@@ -538,6 +538,226 @@
     "class_type": "SamplerCustomAdvanced",
     "_meta": {
       "title": "SamplerCustomAdvanced"
+    }
+  },
+  "200": {
+    "inputs": {
+      "clip_name": "gemma_2_2b_it_elm_bf16.safetensors",
+      "type": "pixeldit",
+      "device": "default"
+    },
+    "class_type": "CLIPLoader",
+    "_meta": {
+      "title": "PiD: Load CLIP (pixeldit)"
+    }
+  },
+  "201": {
+    "inputs": {
+      "text": [
+        "59",
+        0
+      ],
+      "clip": [
+        "200",
+        0
+      ]
+    },
+    "class_type": "CLIPTextEncode",
+    "_meta": {
+      "title": "PiD: Positive (combined prompt)"
+    }
+  },
+  "202": {
+    "inputs": {
+      "conditioning": [
+        "201",
+        0
+      ]
+    },
+    "class_type": "ConditioningZeroOut",
+    "_meta": {
+      "title": "PiD: Negative (zero out)"
+    }
+  },
+  "203": {
+    "inputs": {
+      "unet_name": "nvidia-pid/model_ema_bf16.pth",
+      "weight_dtype": "default"
+    },
+    "class_type": "UNETLoader",
+    "_meta": {
+      "title": "PiD: Load Upscaler Model"
+    }
+  },
+  "204": {
+    "inputs": {
+      "latent_format": "flux",
+      "degrade_sigma": 0,
+      "positive": [
+        "201",
+        0
+      ],
+      "latent": [
+        "215",
+        0
+      ]
+    },
+    "class_type": "PiDConditioning",
+    "_meta": {
+      "title": "PiD Conditioning (from 16ch bridge latent)"
+    }
+  },
+  "205": {
+    "inputs": {
+      "upscale_method": "nearest-exact",
+      "megapixels": 16,
+      "resolution_steps": 1,
+      "image": [
+        "19",
+        0
+      ]
+    },
+    "class_type": "ImageScaleToTotalPixels",
+    "_meta": {
+      "title": "PiD: Pose Aspect @ 4K (sizing only)"
+    }
+  },
+  "206": {
+    "inputs": {
+      "image": [
+        "205",
+        0
+      ]
+    },
+    "class_type": "GetImageSize",
+    "_meta": {
+      "title": "PiD: Get 4K Size (pose aspect)"
+    }
+  },
+  "207": {
+    "inputs": {
+      "width": [
+        "206",
+        0
+      ],
+      "height": [
+        "206",
+        1
+      ],
+      "batch_size": 1
+    },
+    "class_type": "EmptyChromaRadianceLatentImage",
+    "_meta": {
+      "title": "PiD: 4K Target Latent (pose aspect)"
+    }
+  },
+  "208": {
+    "inputs": {
+      "scheduler": "simple",
+      "steps": 4,
+      "denoise": 1,
+      "model": [
+        "203",
+        0
+      ]
+    },
+    "class_type": "BasicScheduler",
+    "_meta": {
+      "title": "PiD: BasicScheduler"
+    }
+  },
+  "209": {
+    "inputs": {
+      "sampler_name": "lcm"
+    },
+    "class_type": "KSamplerSelect",
+    "_meta": {
+      "title": "PiD: KSamplerSelect"
+    }
+  },
+  "210": {
+    "inputs": {
+      "add_noise": true,
+      "noise_seed": 817215001545701,
+      "cfg": 1,
+      "model": [
+        "203",
+        0
+      ],
+      "positive": [
+        "204",
+        0
+      ],
+      "negative": [
+        "202",
+        0
+      ],
+      "sampler": [
+        "209",
+        0
+      ],
+      "sigmas": [
+        "208",
+        0
+      ],
+      "latent_image": [
+        "207",
+        0
+      ]
+    },
+    "class_type": "SamplerCustom",
+    "_meta": {
+      "title": "PiD: SamplerCustom (4K)"
+    }
+  },
+  "211": {
+    "inputs": {
+      "vae_name": "pixel_space"
+    },
+    "class_type": "VAELoader",
+    "_meta": {
+      "title": "PiD: Load VAE (pixel_space)"
+    }
+  },
+  "212": {
+    "inputs": {
+      "samples": [
+        "210",
+        0
+      ],
+      "vae": [
+        "211",
+        0
+      ]
+    },
+    "class_type": "VAEDecode",
+    "_meta": {
+      "title": "PiD: VAE Decode 4K"
+    }
+  },
+  "214": {
+    "inputs": {
+      "vae_name": "ae.safetensors"
+    },
+    "class_type": "VAELoader",
+    "_meta": {
+      "title": "PiD: Load Flux1 VAE (16ch bridge)"
+    }
+  },
+  "215": {
+    "inputs": {
+      "pixels": [
+        "8:19",
+        0
+      ],
+      "vae": [
+        "214",
+        0
+      ]
+    },
+    "class_type": "VAEEncode",
+    "_meta": {
+      "title": "PiD: Encode Base to 16ch Latent"
     }
   }
 }

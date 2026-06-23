@@ -97,7 +97,6 @@ namespace FlipPix.UI.ViewModels
         /// SCAIL Multi-Character Motion Transfer workflow, processed in 121-frame chunks.
         /// </summary>
         public WanScailViewModel WanScailVM { get; }
-        public WanScailGgufViewModel WanScailGgufVM { get; }
         /// <summary>
         /// Scail 2 - unified char-swap (Klein) → SCAIL II motion-transfer flow on one tab.
         /// </summary>
@@ -147,6 +146,13 @@ namespace FlipPix.UI.ViewModels
         /// the next clip (re-analyzed each step); segments are joined into one continuous video.
         /// </summary>
         public FflfDasiwaViewModel FflfDasiwaVM { get; }
+
+        /// <summary>
+        /// FFLF Seed Hunter ViewModel - upload a first AND last frame, analyze both into an FFLF
+        /// transition prompt, generate 3 LTX 2.3 seed previews (reroll for more), then finish the
+        /// chosen one through Stage 2/3 upscale.
+        /// </summary>
+        public FflfSeedHuntViewModel FflfSeedHuntVM { get; }
 
         // 0 = LTX 2.3, 1 = Wan 2.2 Remix
         private int _singleVideoWorkflowIndex = 0;
@@ -274,15 +280,6 @@ namespace FlipPix.UI.ViewModels
                 _workflowCoordinator,
                 _fileDialogService);
 
-            WanScailGgufVM = new WanScailGgufViewModel(
-                comfyUIService,
-                lmStudioService,
-                logger,
-                settingsService,
-                serviceProvider,
-                _workflowCoordinator,
-                _fileDialogService);
-
             Scail2VM = new Scail2ViewModel(
                 comfyUIService,
                 lmStudioService,
@@ -364,6 +361,15 @@ namespace FlipPix.UI.ViewModels
                 _workflowCoordinator,
                 _fileDialogService);
 
+            FflfSeedHuntVM = new FflfSeedHuntViewModel(
+                comfyUIService,
+                lmStudioService,
+                logger,
+                settingsService,
+                serviceProvider,
+                _workflowCoordinator,
+                _fileDialogService);
+
             // Forward PlayRequested events from sub-VMs
             MainVM.PlayRequested += (s, e) => PlayRequested?.Invoke(this, e);
             VaceVM.PlayRequested += (s, e) => PlayRequested?.Invoke(this, e);
@@ -375,7 +381,6 @@ namespace FlipPix.UI.ViewModels
             Wan22SingleVM.PlayRequested += (s, e) => PlayRequested?.Invoke(this, e);
             LongVideoVM.PlayRequested += (s, e) => PlayRequested?.Invoke(this, e);
             WanScailVM.PlayRequested += (s, e) => PlayRequested?.Invoke(this, e);
-            WanScailGgufVM.PlayRequested += (s, e) => PlayRequested?.Invoke(this, e);
             Scail2VM.PlayRequested += (s, e) => PlayRequested?.Invoke(this, e);
             WanCharReplaceVM.PlayRequested += (s, e) => PlayRequested?.Invoke(this, e);
             LtxControlVM.PlayRequested += (s, e) => PlayRequested?.Invoke(this, e);
@@ -385,6 +390,7 @@ namespace FlipPix.UI.ViewModels
             SeedHuntVM.PlayRequested += (s, e) => PlayRequested?.Invoke(this, e);
             SeedDirectorVM.PlayRequested += (s, e) => PlayRequested?.Invoke(this, e);
             FflfDasiwaVM.PlayRequested += (s, e) => PlayRequested?.Invoke(this, e);
+            FflfSeedHuntVM.PlayRequested += (s, e) => PlayRequested?.Invoke(this, e);
 
             // Forward PropertyChanged events from all sub-VMs for backward compatibility
             MainVM.PropertyChanged += ForwardPropertyChanged;
@@ -397,7 +403,6 @@ namespace FlipPix.UI.ViewModels
             Wan22SingleVM.PropertyChanged += ForwardPropertyChanged;
             LongVideoVM.PropertyChanged += ForwardPropertyChanged;
             WanScailVM.PropertyChanged += ForwardPropertyChanged;
-            WanScailGgufVM.PropertyChanged += ForwardPropertyChanged;
             Scail2VM.PropertyChanged += ForwardPropertyChanged;
             WanCharReplaceVM.PropertyChanged += ForwardPropertyChanged;
             LtxControlVM.PropertyChanged += ForwardPropertyChanged;
@@ -407,6 +412,7 @@ namespace FlipPix.UI.ViewModels
             SeedHuntVM.PropertyChanged += ForwardPropertyChanged;
             SeedDirectorVM.PropertyChanged += ForwardPropertyChanged;
             FflfDasiwaVM.PropertyChanged += ForwardPropertyChanged;
+            FflfSeedHuntVM.PropertyChanged += ForwardPropertyChanged;
 
             _logger.LogInfo("VideoGeneratorViewModel initialized with sub-ViewModels");
         }
@@ -980,93 +986,6 @@ namespace FlipPix.UI.ViewModels
 
         #endregion
 
-        #region WanScailGgufVM Backward Compatibility Properties
-
-        public string WanScailGgufCharacterImagePath { get => WanScailGgufVM.CharacterImagePath; set => WanScailGgufVM.CharacterImagePath = value; }
-        public System.Windows.Media.Imaging.BitmapImage? WanScailGgufCharacterImagePreview { get => WanScailGgufVM.CharacterImagePreview; set => WanScailGgufVM.CharacterImagePreview = value; }
-        public string WanScailGgufCharacterImageInfo { get => WanScailGgufVM.CharacterImageInfo; set => WanScailGgufVM.CharacterImageInfo = value; }
-        public bool WanScailGgufHasCharacterImage => WanScailGgufVM.HasCharacterImage;
-
-        public string WanScailGgufVideoPath { get => WanScailGgufVM.InputVideoPath; set => WanScailGgufVM.InputVideoPath = value; }
-        public string WanScailGgufVideoInfo { get => WanScailGgufVM.InputVideoInfo; set => WanScailGgufVM.InputVideoInfo = value; }
-        public bool WanScailGgufHasVideo => WanScailGgufVM.HasInputVideo;
-
-        public string WanScailGgufPrompt { get => WanScailGgufVM.Prompt; set => WanScailGgufVM.Prompt = value; }
-        public string WanScailGgufNegativePrompt { get => WanScailGgufVM.NegativePrompt; set => WanScailGgufVM.NegativePrompt = value; }
-        public string WanScailGgufSubject { get => WanScailGgufVM.Subject; set => WanScailGgufVM.Subject = value; }
-        public bool WanScailGgufReplaceBackground { get => WanScailGgufVM.ReplaceBackground; set => WanScailGgufVM.ReplaceBackground = value; }
-        public bool WanScailGgufOptimizeVram { get => WanScailGgufVM.OptimizeVram; set => WanScailGgufVM.OptimizeVram = value; }
-        public string WanScailGgufGenerationTimer => WanScailGgufVM.GenerationTimer;
-
-        // Trim / scrub / ETA
-        public double WanScailGgufVideoDurationSeconds => WanScailGgufVM.VideoDurationSeconds;
-        public double WanScailGgufTrimInSeconds { get => WanScailGgufVM.TrimInSeconds; set => WanScailGgufVM.TrimInSeconds = value; }
-        public double WanScailGgufTrimOutSeconds { get => WanScailGgufVM.TrimOutSeconds; set => WanScailGgufVM.TrimOutSeconds = value; }
-        public double WanScailGgufPlaybackPositionSeconds { get => WanScailGgufVM.PlaybackPositionSeconds; set => WanScailGgufVM.PlaybackPositionSeconds = value; }
-        public string WanScailGgufTrimInfo => WanScailGgufVM.TrimInfo;
-        public string WanScailGgufEstimatedTime => WanScailGgufVM.EstimatedTime;
-        public bool WanScailGgufIsTrimmed => WanScailGgufVM.IsTrimmed;
-        public System.Windows.Input.ICommand WanScailGgufMarkInCommand => WanScailGgufVM.MarkInCommand;
-        public System.Windows.Input.ICommand WanScailGgufMarkOutCommand => WanScailGgufVM.MarkOutCommand;
-        public System.Windows.Input.ICommand WanScailGgufResetTrimCommand => WanScailGgufVM.ResetTrimCommand;
-        public int WanScailGgufFps { get => WanScailGgufVM.Fps; set => WanScailGgufVM.Fps = value; }
-        public int WanScailGgufMaxEdge { get => WanScailGgufVM.MaxEdge; set => WanScailGgufVM.MaxEdge = value; }
-        public long WanScailGgufSeed { get => WanScailGgufVM.Seed; set => WanScailGgufVM.Seed = value; }
-
-        public int WanScailGgufTotalFrames => WanScailGgufVM.TotalFrames;
-        public int WanScailGgufTotalChunks => WanScailGgufVM.TotalChunks;
-
-        public bool IsProcessingWanScailGguf { get => WanScailGgufVM.IsProcessing; set => WanScailGgufVM.IsProcessing = value; }
-        public string WanScailGgufProcessingStatus => WanScailGgufVM.ProcessingStatus;
-        public double WanScailGgufProcessingProgress => WanScailGgufVM.ProcessingProgress;
-        public string WanScailGgufProgressPercentage => WanScailGgufVM.ProgressPercentage;
-        public string WanScailGgufLogOutput => WanScailGgufVM.LogOutput;
-
-        public bool HasWanScailGgufResult => WanScailGgufVM.HasResult;
-        public string WanScailGgufResultPath => WanScailGgufVM.ResultVideoPath;
-        public string WanScailGgufResultVideoInfo => WanScailGgufVM.ResultVideoInfo;
-
-        public bool WanScailGgufCanAddToQueue => WanScailGgufVM.CanAddToQueue;
-        public bool WanScailGgufCanAnalyzeImage => WanScailGgufVM.CanAnalyzeImage;
-        public bool WanScailGgufIsAnalyzing => WanScailGgufVM.IsAnalyzing;
-        public bool WanScailGgufIsAnalyzingAll => WanScailGgufVM.IsAnalyzingAll;
-        public string WanScailGgufAnalyzeAllChunksStatus => WanScailGgufVM.AnalyzeAllChunksStatus;
-
-        public System.Collections.ObjectModel.ObservableCollection<Models.WanScailQueueItem> WanScailGgufQueue => WanScailGgufVM.Queue;
-        public bool WanScailGgufHasQueueItems => WanScailGgufVM.HasQueueItems;
-        public bool WanScailGgufIsProcessingQueue => WanScailGgufVM.IsProcessingQueue;
-        public string WanScailGgufQueueStatus => WanScailGgufVM.QueueStatus;
-        public bool WanScailGgufHasFailedItems => WanScailGgufVM.HasFailedItems;
-
-        public System.Windows.Input.ICommand SelectWanScailGgufCharacterImageCommand => WanScailGgufVM.SelectCharacterImageCommand;
-        public System.Windows.Input.ICommand SelectWanScailGgufVideoCommand => WanScailGgufVM.SelectVideoCommand;
-        public System.Windows.Input.ICommand GenerateWanScailGgufVideoCommand => WanScailGgufVM.GenerateVideoCommand;
-        public System.Windows.Input.ICommand RemoveWanScailGgufQueueItemCommand => WanScailGgufVM.RemoveQueueItemCommand;
-        public System.Windows.Input.ICommand ClearWanScailGgufQueueCommand => WanScailGgufVM.ClearQueueCommand;
-        public System.Windows.Input.ICommand StopWanScailGgufQueueCommand => WanScailGgufVM.StopQueueCommand;
-        public System.Windows.Input.ICommand StartWanScailGgufQueueCommand => WanScailGgufVM.StartQueueCommand;
-        public System.Windows.Input.ICommand ReprocessAllWanScailGgufFailedCommand => WanScailGgufVM.ReprocessAllFailedCommand;
-        public System.Windows.Input.ICommand PlayWanScailGgufVideoCommand => WanScailGgufVM.PlayVideoCommand;
-        public System.Windows.Input.ICommand OpenWanScailGgufResultFolderCommand => WanScailGgufVM.OpenResultFolderCommand;
-        public System.Windows.Input.ICommand SendWanScailGgufToEditCameraCommand => WanScailGgufVM.SendToEditCameraCommand;
-        public System.Windows.Input.ICommand AnalyzeWanScailGgufImageCommand => WanScailGgufVM.AnalyzeImageCommand;
-        public System.Windows.Input.ICommand AnalyzeAllWanScailGgufChunksCommand => WanScailGgufVM.AnalyzeAllChunksCommand;
-        public System.Windows.Input.ICommand RandomWanScailGgufSeedCommand => WanScailGgufVM.RandomSeedCommand;
-        public System.Windows.Input.ICommand SelectWanScailGgufChunkCommand => WanScailGgufVM.SelectChunkCommand;
-        public System.Windows.Input.ICommand ProcessSelectedWanScailGgufChunkCommand => WanScailGgufVM.ProcessSelectedChunkCommand;
-
-        // Video editor
-        public string? WanScailGgufVideoFileUri => WanScailGgufVM.VideoFileUri;
-        public bool WanScailGgufHasVideoInfo => WanScailGgufVM.HasVideoInfo;
-        public string WanScailGgufVideoDuration => WanScailGgufVM.VideoDuration;
-        public string WanScailGgufVideoFpsDisplay => WanScailGgufVM.VideoFpsDisplay;
-        public string WanScailGgufVideoFrameCountDisplay => WanScailGgufVM.VideoFrameCountDisplay;
-        public string WanScailGgufVideoChunksDisplay => WanScailGgufVM.VideoChunksDisplay;
-        public string WanScailGgufChunkSelectionInfo => WanScailGgufVM.ChunkSelectionInfo;
-        public ObservableCollection<WanScailChunkItem> WanScailGgufChunkItems => WanScailGgufVM.ChunkItems;
-
-        #endregion
-
         #region WanCharReplaceVM Backward Compatibility Properties
 
         public string WanCharReplaceCharacterImagePath { get => WanCharReplaceVM.CharacterImagePath; set => WanCharReplaceVM.CharacterImagePath = value; }
@@ -1228,6 +1147,7 @@ namespace FlipPix.UI.ViewModels
                 VideoSoundVM.PropertyChanged -= ForwardPropertyChanged;
                 SeedHuntVM.PropertyChanged -= ForwardPropertyChanged;
                 FflfDasiwaVM.PropertyChanged -= ForwardPropertyChanged;
+                FflfSeedHuntVM.PropertyChanged -= ForwardPropertyChanged;
 
                 // Dispose all sub-ViewModels
                 (MainVM as IDisposable)?.Dispose();
@@ -1246,6 +1166,7 @@ namespace FlipPix.UI.ViewModels
                 (VideoSoundVM as IDisposable)?.Dispose();
                 (SeedDirectorVM as IDisposable)?.Dispose();
                 (FflfDasiwaVM as IDisposable)?.Dispose();
+                (FflfSeedHuntVM as IDisposable)?.Dispose();
 
                 _disposed = true;
             }

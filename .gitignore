@@ -1,3 +1,6 @@
+# Converter object_info cache (large, fetched from ComfyUI on demand)
+tools/.cache/
+
 # Build results
 [Dd]ebug/
 [Dd]ebugPublic/

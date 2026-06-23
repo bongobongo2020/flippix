@@ -34,10 +34,11 @@ namespace FlipPix.UI.Models
             set
             {
                 OutputImagePath = value;
-                if (System.Windows.Application.Current?.Dispatcher?.CheckAccess() == false)
-                    System.Windows.Application.Current.Dispatcher.Invoke(TryLoadExistingThumbnail);
-                else
-                    TryLoadExistingThumbnail();
+                // Loading an existing thumbnail probes and reads the output folder, which may live on
+                // a slow/mapped network drive (e.g. Z:\). Bulk queue loads set this for every item, so
+                // a synchronous File.Exists/read per item froze the Video Generator window for ~12s.
+                // Always do it on a background thread; the image assignment marshals back to the UI thread.
+                System.Threading.Tasks.Task.Run(TryLoadExistingThumbnail);
             }
         }
 
@@ -51,12 +52,23 @@ namespace FlipPix.UI.Models
                 bitmap.CacheOption = BitmapCacheOption.OnLoad;
                 bitmap.EndInit();
                 bitmap.Freeze();
-                VideoThumbnailImage = bitmap;
+                SetThumbnail(bitmap);
             }
             catch
             {
-                VideoThumbnailImage = null;
+                SetThumbnail(null);
             }
+        }
+
+        // Raises PropertyChanged on the UI thread so bindings update safely even when the
+        // thumbnail is loaded from a background thread.
+        private void SetThumbnail(BitmapImage? bitmap)
+        {
+            var dispatcher = System.Windows.Application.Current?.Dispatcher;
+            if (dispatcher != null && !dispatcher.CheckAccess())
+                dispatcher.Invoke(() => VideoThumbnailImage = bitmap);
+            else
+                VideoThumbnailImage = bitmap;
         }
 
         private void TryLoadExistingThumbnail()

@@ -301,7 +301,10 @@ namespace FlipPix.UI
                 var windowPositionService = provider.GetRequiredService<WindowPositionService>();
                 return new FlipPixWindow(viewModel, windowPositionService);
             });
-            services.AddTransient<VideoGeneratorWindow>(provider =>
+            // Singleton: the Video Generator window is expensive to build (20 sub-VMs + a large XAML
+            // tree), so it is created once on first open and reused. Closing it hides it instead of
+            // tearing it down (see VideoGeneratorWindow.OnClosing), making every reopen instant.
+            services.AddSingleton<VideoGeneratorWindow>(provider =>
             {
                 var viewModel = provider.GetRequiredService<VideoGeneratorViewModel>();
                 var windowPositionService = provider.GetRequiredService<WindowPositionService>();

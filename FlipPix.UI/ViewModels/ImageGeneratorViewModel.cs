@@ -122,7 +122,25 @@ namespace FlipPix.UI.ViewModels
             _qwenEdit = new QwenEditViewModel(comfyUIService, logger, settingsService, fileDialogService, lmStudioService ?? throw new InvalidOperationException("LMStudioService is required"), _workflowCoordinator);
             _restore = new RestoreViewModel(comfyUIService, logger, settingsService, fileDialogService);
 
+            // Keep the shared Tab 1 settings panel pointed at the active mode's VM.
+            _analyzer.PropertyChanged += (s, e) =>
+            {
+                if (e.PropertyName == nameof(ImageAnalyzerViewModel.IsImageAnalysisMode) ||
+                    e.PropertyName == nameof(ImageAnalyzerViewModel.IsTextPromptMode))
+                {
+                    OnPropertyChanged(nameof(ActiveGenerationVM));
+                }
+            };
+
             // Initialize commands
+            SelectNavGroupCommand = new RelayCommand<string>(g =>
+            {
+                if (int.TryParse(g, out var group)) SelectedNavGroup = group;
+            });
+            SelectEditorModeCommand = new RelayCommand<string>(m =>
+            {
+                if (int.TryParse(m, out var mode)) EditorMode = mode;
+            });
             GenerateImageCommand = new RelayCommand(async () => await GenerateImageAsync(), () => CanGenerate);
             CancelGenerationCommand = new RelayCommand(CancelGeneration, () => IsProcessing);
             OpenResultFolderCommand = new RelayCommand(OpenResultFolder, () => HasResultImage);
@@ -553,6 +571,80 @@ namespace FlipPix.UI.ViewModels
             }
         }
 
+        // Top-level navigation groups: 0 = Create, 1 = Edit, 2 = Advanced.
+        // Only the tabs belonging to the active group are visible, so the user
+        // sees 2-4 destinations at a time instead of all 10 at once.
+        private int _selectedNavGroup = 0;
+
+        public int SelectedNavGroup
+        {
+            get => _selectedNavGroup;
+            set
+            {
+                if (_selectedNavGroup != value)
+                {
+                    _selectedNavGroup = value;
+                    OnPropertyChanged();
+                    OnPropertyChanged(nameof(IsCreateGroup));
+                    OnPropertyChanged(nameof(IsEditGroup));
+                    OnPropertyChanged(nameof(IsAdvancedGroup));
+                    // Land on the first tab of the chosen group so the content
+                    // area is never left on a now-hidden tab (which renders blank).
+                    SelectedTabIndex = value switch
+                    {
+                        1 => EditGroupFirstTab,
+                        2 => AdvancedGroupFirstTab,
+                        _ => CreateGroupFirstTab,
+                    };
+                }
+            }
+        }
+
+        // First tab index of each group (positional within the TabControl).
+        // Create -> Image Generator (0), Edit -> Editor (4), Advanced -> Camera Angle (3).
+        private const int CreateGroupFirstTab = 0;
+        private const int EditGroupFirstTab = 4;
+        private const int AdvancedGroupFirstTab = 3;
+
+        public bool IsCreateGroup => _selectedNavGroup == 0;
+        public bool IsEditGroup => _selectedNavGroup == 1;
+        public bool IsAdvancedGroup => _selectedNavGroup == 2;
+
+        // Editor tab sub-mode: 0 = manual mask painting, 1 = Florence2/SAM2 auto-detect.
+        // (Merges what used to be the separate "Editor" and "Editor 2" tabs.)
+        private int _editorMode = 0;
+
+        public int EditorMode
+        {
+            get => _editorMode;
+            set
+            {
+                if (_editorMode != value)
+                {
+                    _editorMode = value;
+                    OnPropertyChanged();
+                    OnPropertyChanged(nameof(IsPaintEditor));
+                    OnPropertyChanged(nameof(IsAutoDetectEditor));
+                }
+            }
+        }
+
+        public bool IsPaintEditor => _editorMode == 0;
+        public bool IsAutoDetectEditor => _editorMode == 1;
+
+        public ICommand SelectEditorModeCommand { get; }
+
+        // Pills invoke this with the group index ("0"/"1"/"2") as parameter.
+        public ICommand SelectNavGroupCommand { get; }
+
+        // Backs the single shared "Generation Settings" panel on Tab 1: the main
+        // generator in Text Prompt mode, the analyzer in Image Analysis mode.
+        // (Both expose identically-named settings members, so one panel serves both.)
+        public object ActiveGenerationVM => Analyzer.IsImageAnalysisMode ? (object)Analyzer : this;
+
+        // The shared "Generate" button binds this; each mode maps it to its own action.
+        public ICommand PrimaryGenerateCommand => GenerateImageCommand;
+
 
         // Methods
         private async Task GenerateImageAsync()
@@ -615,7 +707,7 @@ namespace FlipPix.UI.ViewModels
                         break;
 
                     case TextGeneratorWorkflow.Klien:
-                        workflowPath = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "workflow", "klein", "KlienX3n-Text-Ultimate-API.json");
+                        workflowPath = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "workflow", "image", "klein", "KlienX3n-Text-Ultimate-API.json");
                         AddLog("Using Klien workflow");
                         break;
 
@@ -633,7 +725,7 @@ namespace FlipPix.UI.ViewModels
                         }
                         else
                         {
-                            workflowPath = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "workflow", "Zstyles", "Zib-Zit.json");
+                            workflowPath = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "workflow", "image", "zimage", "Zib-Zit.json");
                             AddLog("No style selected, falling back to Zib-Zit.json");
                         }
                         break;
@@ -1092,7 +1184,7 @@ namespace FlipPix.UI.ViewModels
             try
             {
                 _allStyles.Clear();
-                var workflowDir = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "workflow", "ZStyles");
+                var workflowDir = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "workflow", "image", "zimage");
 
                 if (!Directory.Exists(workflowDir))
                 {
@@ -3325,7 +3417,7 @@ namespace FlipPix.UI.ViewModels
                         break;
 
                     case TextGeneratorWorkflow.Klien:
-                        workflowPath = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "workflow", "klein", "KlienX3n-Text-Ultimate-API.json");
+                        workflowPath = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "workflow", "image", "klein", "KlienX3n-Text-Ultimate-API.json");
                         AddLog("Using Klien workflow");
                         break;
 
@@ -3348,13 +3440,13 @@ namespace FlipPix.UI.ViewModels
                             else
                             {
                                 // Fallback to default if style not found
-                                workflowPath = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "workflow", "Zstyles", "Zib-Zit.json");
+                                workflowPath = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "workflow", "image", "zimage", "Zib-Zit.json");
                                 AddLog($"Style '{queueItem.StyleName}' not found, falling back to Zib-Zit.json");
                             }
                         }
                         else
                         {
-                            workflowPath = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "workflow", "Zstyles", "Zib-Zit.json");
+                            workflowPath = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "workflow", "image", "zimage", "Zib-Zit.json");
                             AddLog("Using default Zib-Zit workflow (no style selected)");
                         }
                         break;
