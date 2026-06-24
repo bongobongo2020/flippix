@@ -154,7 +154,9 @@ namespace FlipPix.UI.ViewModels
         /// </summary>
         public FflfSeedHuntViewModel FflfSeedHuntVM { get; }
 
-        // 0 = LTX 2.3, 1 = Wan 2.2 Remix
+        // 0-4 = story workflows (Vantage Sulphur 2, 10Eros, LTX-22-B, DaSiWa, WAN 2.2 FunCamera),
+        // matching VideoGeneratorMainViewModel.StoryVideoWorkflow; 5 = Wan 2.2 Remix.
+        private const int SingleVideoWan22Index = 5;
         private int _singleVideoWorkflowIndex = 0;
         public int SingleVideoWorkflowIndex
         {
@@ -164,14 +166,33 @@ namespace FlipPix.UI.ViewModels
                 if (_singleVideoWorkflowIndex != value)
                 {
                     _singleVideoWorkflowIndex = value;
+                    // Indices 0-4 line up with the StoryVideoWorkflow enum order.
+                    if (value >= 0 && value < SingleVideoWan22Index)
+                        LTX23BasicVM.SelectedStoryWorkflow = (VideoGeneratorMainViewModel.StoryVideoWorkflow)value;
                     OnPropertyChanged();
-                    OnPropertyChanged(nameof(SingleVideoIsLTX23));
+                    OnPropertyChanged(nameof(SingleVideoIsStory));
                     OnPropertyChanged(nameof(SingleVideoIsWan22));
                 }
             }
         }
-        public bool SingleVideoIsLTX23 => _singleVideoWorkflowIndex == 0;
-        public bool SingleVideoIsWan22 => _singleVideoWorkflowIndex == 1;
+        public bool SingleVideoIsStory => _singleVideoWorkflowIndex >= 0 && _singleVideoWorkflowIndex < SingleVideoWan22Index;
+        public bool SingleVideoIsWan22 => _singleVideoWorkflowIndex == SingleVideoWan22Index;
+
+        // Bound to the main TabControl so code can switch tabs programmatically.
+        // 0 = Single Video tab.
+        private int _selectedTabIndex = 0;
+        public int SelectedTabIndex
+        {
+            get => _selectedTabIndex;
+            set
+            {
+                if (_selectedTabIndex != value)
+                {
+                    _selectedTabIndex = value;
+                    OnPropertyChanged();
+                }
+            }
+        }
 
         public VideoGeneratorViewModel(
             ComfyUIService comfyUIService,
@@ -414,7 +435,54 @@ namespace FlipPix.UI.ViewModels
             FflfDasiwaVM.PropertyChanged += ForwardPropertyChanged;
             FflfSeedHuntVM.PropertyChanged += ForwardPropertyChanged;
 
+            NavigateToImageGeneratorCommand = new RelayCommand(NavigateToImageGenerator);
+
             _logger.LogInfo("VideoGeneratorViewModel initialized with sub-ViewModels");
+        }
+
+        /// <summary>
+        /// Opens the Image Generator window from the Video Generator's navigation bar.
+        /// </summary>
+        public ICommand NavigateToImageGeneratorCommand { get; }
+
+        private void NavigateToImageGenerator()
+        {
+            if (_serviceProvider == null) return;
+
+            try
+            {
+                if (_serviceProvider.GetService(typeof(ImageGeneratorWindow)) is ImageGeneratorWindow imageGeneratorWindow)
+                {
+                    imageGeneratorWindow.WindowState = System.Windows.WindowState.Normal;
+
+                    // Ensure the window opens on screen with title bar visible
+                    var screenWidth = System.Windows.SystemParameters.PrimaryScreenWidth;
+                    var screenHeight = System.Windows.SystemParameters.PrimaryScreenHeight;
+                    var windowWidth = imageGeneratorWindow.Width;
+                    var windowHeight = imageGeneratorWindow.Height;
+
+                    imageGeneratorWindow.Left = Math.Max(100, (screenWidth - windowWidth) / 2 - 200);
+                    imageGeneratorWindow.Top = Math.Max(100, (screenHeight - windowHeight) / 2 - 100);
+
+                    if (imageGeneratorWindow.Top < 50) imageGeneratorWindow.Top = 50;
+                    if (imageGeneratorWindow.Left < 50) imageGeneratorWindow.Left = 50;
+                    if (imageGeneratorWindow.Top + windowHeight > screenHeight - 50)
+                        imageGeneratorWindow.Top = screenHeight - windowHeight - 50;
+                    if (imageGeneratorWindow.Left + windowWidth > screenWidth - 50)
+                        imageGeneratorWindow.Left = screenWidth - windowWidth - 50;
+
+                    imageGeneratorWindow.Show();
+                    imageGeneratorWindow.Activate();
+                }
+                else
+                {
+                    _logger.LogError("Failed to resolve Image Generator window");
+                }
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError($"Error navigating to Image Generator: {ex.Message}");
+            }
         }
 
         private void ForwardPropertyChanged(object? sender, PropertyChangedEventArgs e)
@@ -1118,7 +1186,11 @@ namespace FlipPix.UI.ViewModels
         /// </summary>
         public void SetImagePath(string imagePath)
         {
-            MainVM.SetImagePath(imagePath);
+            // Load the image into the Single Video tab's reference image and bring that
+            // tab to the front so the user lands on it with the image already loaded.
+            SingleVideoWorkflowIndex = 0; // first story workflow (Vantage Sulphur 2)
+            LTX23ImagePath = imagePath;
+            SelectedTabIndex = 0; // Single Video is the first tab
         }
 
         #endregion

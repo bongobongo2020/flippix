@@ -1,0 +1,20 @@
+{
+  "1": {
+    "inputs": {
+      "video_path": "clip_Single_00004.mp4",
+      "output_path": "",
+      "scale": 2,
+      "interpolation_factor": 2,
+      "vfi_method": "GIMM",
+      "frames_per_chunk": 24,
+      "max_tile_kilopixels": 1000,
+      "max_gimm_kilopixels": 0,
+      "skip_first_frames": 0,
+      "frame_load_cap": 0
+    },
+    "class_type": "VSRFI",
+    "_meta": {
+      "title": "VSRFI (Stream)"
+    }
+  }
+}

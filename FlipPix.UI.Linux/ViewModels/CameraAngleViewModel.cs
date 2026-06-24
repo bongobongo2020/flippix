@@ -255,7 +255,7 @@ namespace FlipPix.UI.Linux.ViewModels
                 _cancellationTokenSource.Token.ThrowIfCancellationRequested();
 
                 // Load workflow
-                var workflowPath = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "workflow", "FLUX2-DEV-KLEIN_4_and_9B_1_click_multiple_character_angles-v1.0.json");
+                var workflowPath = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "workflow", "image", "klein", "FLUX2-DEV-KLEIN_4_and_9B_1_click_multiple_character_angles-v1.0.json");
                 if (!File.Exists(workflowPath))
                 {
                     AddLog($"ERROR: Workflow file not found: {workflowPath}");

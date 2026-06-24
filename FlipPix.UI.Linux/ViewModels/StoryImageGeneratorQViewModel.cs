@@ -334,7 +334,8 @@ namespace FlipPix.UI.Linux.ViewModels
                     return;
                 }
 
-                foreach (var workflowFile in Directory.GetFiles(workflowDir, "*.json"))
+                // Recurse so styles organized into subfolders (4k-upscale/, simple/, base/) are found.
+                foreach (var workflowFile in Directory.GetFiles(workflowDir, "*.json", SearchOption.AllDirectories))
                 {
                     var fileName = Path.GetFileNameWithoutExtension(workflowFile);
                     var styleName = fileName.StartsWith("Z") ? fileName.Substring(1) : fileName;

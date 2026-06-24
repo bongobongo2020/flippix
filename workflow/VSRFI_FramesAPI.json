@@ -1,24 +1,4 @@
 {
-  "3": {
-    "inputs": {
-      "ds_factor": 2,
-      "interpolation_factor": 2,
-      "seed": 351488183951876,
-      "output_flows": false,
-      "gimmvfi_model": [
-        "5",
-        0
-      ],
-      "images": [
-        "4",
-        0
-      ]
-    },
-    "class_type": "GIMMVFI_interpolate",
-    "_meta": {
-      "title": "⚡GIMM-VFI Interpolate⚡"
-    }
-  },
   "4": {
     "inputs": {
       "video": "clip_Single_00004.mp4",
@@ -35,22 +15,29 @@
       "title": "Load Video (Upload) 🎥🅥🅗🅢"
     }
   },
-  "5": {
+  "1": {
     "inputs": {
-      "model": "gimmvfi_r_arb_lpips_fp32.safetensors",
-      "precision": "fp16",
-      "torch_compile": false
+      "frames": [
+        "4",
+        0
+      ],
+      "scale": 2,
+      "interpolation_factor": 2,
+      "vfi_method": "GIMM",
+      "frames_per_chunk": 24,
+      "max_tile_kilopixels": 1000,
+      "max_gimm_kilopixels": 0
     },
-    "class_type": "DownloadAndLoadGIMMVFIModel",
+    "class_type": "VSRFIFrames",
     "_meta": {
-      "title": "(Down)Load GIMMVFI Model"
+      "title": "VSRFI (Frames)"
     }
   },
   "6": {
     "inputs": {
-      "frame_rate": 60,
+      "frame_rate": 48,
       "loop_count": 0,
-      "filename_prefix": "AnimateDiff",
+      "filename_prefix": "VSRFI",
       "format": "video/h264-mp4",
       "pix_fmt": "yuv420p",
       "crf": 19,
@@ -59,7 +46,7 @@
       "pingpong": false,
       "save_output": true,
       "images": [
-        "3",
+        "1",
         0
       ],
       "audio": [

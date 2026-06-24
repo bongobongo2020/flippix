@@ -36,6 +36,23 @@ namespace FlipPix.UI.ViewModels
         private string _logOutput = string.Empty;
         private System.Threading.CancellationTokenSource? _cancellationTokenSource;
         private const string SelectedModel = "Flux2-Klein-9B"; // Hardcoded to 9B Klein model
+        private string _extraPrompt = string.Empty;
+
+        // The fixed set of camera-angle prompts that will be generated (one image each).
+        private static readonly string[] DefaultPrompts =
+        {
+            "Turn the camera to a close-up.",
+            "Turn the camera to a wide-angle lens.",
+            "Rotate the camera 45 degrees to the right.",
+            "Rotate the camera 90 degrees to the right.",
+            "Rotate the camera 45 degrees to the left.",
+            "Rotate the camera 90 degrees to the left.",
+            "Turn the camera to an aerial view.",
+            "Turn the camera to a low-angle view.",
+            "Turn the camera to a high-angle view.",
+            "Turn the camera to a Dutch angle.",
+            "Turn the camera to a worm's-eye view, ultra low angle shot, exaggerated perspective."
+        };
 
         public CameraAngleViewModel(
             FlipPix.ComfyUI.Services.ComfyUIService comfyUIService,
@@ -50,7 +67,22 @@ namespace FlipPix.UI.ViewModels
             _fileDialogService = fileDialogService ?? throw new ArgumentNullException(nameof(fileDialogService));
             _imageRetriever = imageRetriever ?? new ComfyUIImageRetriever();
 
+            for (int i = 0; i < DefaultPrompts.Length; i++)
+            {
+                Prompts.Add(new CameraPromptItem { Number = i + 1, Text = DefaultPrompts[i] });
+            }
+
             AddLog("Camera Angle Generator initialized");
+        }
+
+        /// <summary>The list of camera-angle prompts that will be generated (one image each).</summary>
+        public ObservableCollection<CameraPromptItem> Prompts { get; } = new();
+
+        /// <summary>Optional extra prompt; when set, an additional image is generated for it.</summary>
+        public string ExtraPrompt
+        {
+            get => _extraPrompt;
+            set => SetProperty(ref _extraPrompt, value);
         }
 
         // Properties
@@ -255,7 +287,7 @@ namespace FlipPix.UI.ViewModels
                 _cancellationTokenSource.Token.ThrowIfCancellationRequested();
 
                 // Load workflow
-                var workflowPath = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "workflow", "FLUX2-DEV-KLEIN_4_and_9B_1_click_multiple_character_angles-v1.0.json");
+                var workflowPath = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "workflow", "image", "klein", "FLUX2-DEV-KLEIN_4_and_9B_1_click_multiple_character_angles-v1.0.json");
                 if (!File.Exists(workflowPath))
                 {
                     AddLog($"ERROR: Workflow file not found: {workflowPath}");
@@ -413,6 +445,18 @@ namespace FlipPix.UI.ViewModels
             // Update the input image (node 76 - LoadImage)
             WorkflowNodeUpdater.UpdateNodeInput(ref workflowJson, "76", "image", inputImageName);
             AddLog("Updated input image in workflow");
+
+            // Build the prompt batch (node 101 - SimplePromptBatcher): the fixed camera angles
+            // plus the user's optional extra prompt, one prompt per line = one image each.
+            var prompts = DefaultPrompts.ToList();
+            var extra = ExtraPrompt?.Trim();
+            if (!string.IsNullOrEmpty(extra))
+            {
+                prompts.Add(extra);
+                AddLog($"Added extra prompt: {extra}");
+            }
+            WorkflowNodeUpdater.UpdateNodeInput(ref workflowJson, "101", "prompts", string.Join("\n", prompts) + "\n");
+            AddLog($"Generating {prompts.Count} camera angles");
 
             // Update save nodes for models
             // The workflow has 3 save nodes: 112 (Flux2-Dev), 9 (Flux2-Klein-9B), 94 (Flux2-Klein-4B)
@@ -705,6 +749,12 @@ namespace FlipPix.UI.ViewModels
             public BitmapImage? Thumbnail { get; set; }
             public int Index { get; set; }
             public string DisplayName => $"Angle {Index}";
+        }
+
+        public class CameraPromptItem
+        {
+            public int Number { get; set; }
+            public string Text { get; set; } = string.Empty;
         }
 
         public void Dispose()

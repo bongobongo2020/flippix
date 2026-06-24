@@ -151,6 +151,12 @@ namespace FlipPix.UI.Services
                     },
                     max_tokens = maxTokens,
                     temperature = 0.7,
+                    // Reasoning models (Qwen3 etc.) ignore the /no_think text hint and route
+                    // their whole answer into reasoning_content, leaving content empty. Disable
+                    // chain-of-thought at the chat-template level so the analysis lands in
+                    // content. Unknown fields are ignored by servers that don't support them.
+                    chat_template_kwargs = new { enable_thinking = false },
+                    reasoning_budget = 0,
                     stream = false
                 };
 
@@ -256,6 +262,12 @@ namespace FlipPix.UI.Services
                     },
                     max_tokens = maxTokens,
                     temperature = 0.7,
+                    // Reasoning models (Qwen3 etc.) ignore the /no_think text hint and route
+                    // their whole answer into reasoning_content, leaving content empty. Disable
+                    // chain-of-thought at the chat-template level so the analysis lands in
+                    // content. Unknown fields are ignored by servers that don't support them.
+                    chat_template_kwargs = new { enable_thinking = false },
+                    reasoning_budget = 0,
                     stream = false
                 };
 
@@ -359,6 +371,14 @@ namespace FlipPix.UI.Services
                     },
                     max_tokens = maxTokens,
                     temperature = 0.7,
+                    // Reasoning models (Qwen3 etc.) ignore the /no_think text hint and route
+                    // their whole answer into reasoning_content, leaving content empty — which
+                    // makes this method return "" and silently breaks the downstream enhance
+                    // step. Disable chain-of-thought at the chat-template level so the final
+                    // answer lands in content. Unknown fields are ignored by servers that
+                    // don't support them.
+                    chat_template_kwargs = new { enable_thinking = false },
+                    reasoning_budget = 0,
                     stream = false
                 };
 
@@ -539,6 +559,12 @@ namespace FlipPix.UI.Services
                     },
                     max_tokens = maxTokens,
                     temperature = 0.7,
+                    // Reasoning models (Qwen3 etc.) ignore the /no_think text hint and route
+                    // their whole answer into reasoning_content, leaving content empty. Disable
+                    // chain-of-thought at the chat-template level so the enhanced prompt lands
+                    // in content. Unknown fields are ignored by servers that don't support them.
+                    chat_template_kwargs = new { enable_thinking = false },
+                    reasoning_budget = 0,
                     stream = false
                 };
 

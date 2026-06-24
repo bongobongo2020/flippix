@@ -12,6 +12,10 @@ namespace FlipPix.UI.Models
         public string VideoFileUri { get; init; } = string.Empty;
         public string Info { get; init; } = string.Empty;
 
-        public string Label => PairIndex > 0 ? $"Pair {PairIndex} · Sample {Slot}" : $"Sample {Slot}";
+        /// <summary>Optional explicit label (e.g. the auto-joined video); falls back to slot/pair.</summary>
+        public string? LabelOverride { get; init; }
+
+        public string Label => LabelOverride
+            ?? (PairIndex > 0 ? $"Pair {PairIndex} · Sample {Slot}" : $"Sample {Slot}");
     }
 }

@@ -50,725 +50,594 @@
         </Border>
 
         <!-- Main Content -->
-        <TabControl Grid.Row="2" Margin="15,10,15,10">
+        <TabControl Grid.Row="2" Margin="15,10,15,10" SelectedIndex="{Binding SelectedTabIndex, Mode=TwoWay}">
 
-                    <!-- Tab 1: FFLF -->
-                    <TabItem Header="🎬 FFLF">
+                    <!-- Tab 1: Single Video -->
+                    <TabItem Header="🎬 Single Video">
                         <ScrollViewer VerticalScrollBarVisibility="Auto">
                             <StackPanel Margin="10">
-                                <!-- Workflow Selection for Single Video -->
-                                <Border Style="{StaticResource SectionPanelStyle}" Margin="0,0,0,15">
-                                    <StackPanel>
-                                        <TextBlock Text="🎬 Workflow Selection"
-                                                  FontSize="14"
-                                                  FontWeight="Bold"
-                                                  Foreground="#FF6B35"
-                                                  Margin="0,0,0,10"/>
-                                        <StackPanel Orientation="Horizontal">
-                                            <!-- LTX2V Workflow Toggle -->
-                                            <Border CornerRadius="5"
-                                                    Padding="10,8"
-                                                    BorderThickness="2"
-                                                    Margin="0,0,8,0"
-                                                    Cursor="Hand">
-                                                <Border.Style>
-                                                    <Style TargetType="Border">
-                                                        <Setter Property="Background" Value="White"/>
-                                                        <Setter Property="BorderBrush" Value="#DEE2E6"/>
-                                                        <Style.Triggers>
-                                                            <DataTrigger Binding="{Binding UseLTX2V}" Value="True">
-                                                                <Setter Property="BorderBrush" Value="#28A745"/>
-                                                                <Setter Property="Background" Value="#D4EDDA"/>
-                                                            </DataTrigger>
-                                                        </Style.Triggers>
-                                                    </Style>
-                                                </Border.Style>
-                                                <Border.InputBindings>
-                                                    <MouseBinding Command="{Binding ToggleSingleWorkflowCommand}" MouseAction="LeftClick"/>
-                                                </Border.InputBindings>
-                                                <StackPanel>
-                                                    <TextBlock Text="🟢 LTX2V"
-                                                              FontSize="13"
-                                                              FontWeight="Bold"
-                                                              Foreground="#212529"/>
-                                                    <TextBlock Text="LTXV-DoEverything-v2.json"
-                                                              FontSize="10"
-                                                              Foreground="#6C757D"
-                                                              Margin="0,2,0,0"/>
-                                                </StackPanel>
-                                            </Border>
 
-                                            <!-- Wan 2.2 Workflow Toggle -->
-                                            <Border CornerRadius="5"
-                                                    Padding="10,8"
-                                                    BorderThickness="2"
-                                                    Cursor="Hand">
-                                                <Border.Style>
-                                                    <Style TargetType="Border">
-                                                        <Setter Property="Background" Value="White"/>
-                                                        <Setter Property="BorderBrush" Value="#DEE2E6"/>
-                                                        <Style.Triggers>
-                                                            <DataTrigger Binding="{Binding UseWan22}" Value="True">
-                                                                <Setter Property="BorderBrush" Value="#007BFF"/>
-                                                                <Setter Property="Background" Value="#CCE5FF"/>
-                                                            </DataTrigger>
-                                                        </Style.Triggers>
-                                                    </Style>
-                                                </Border.Style>
-                                                <Border.InputBindings>
-                                                    <MouseBinding Command="{Binding ToggleSingleWorkflowCommand}" MouseAction="LeftClick"/>
-                                                </Border.InputBindings>
-                                                <StackPanel>
-                                                    <TextBlock Text="🔵 Wan 2.2"
-                                                              FontSize="13"
-                                                              FontWeight="Bold"
-                                                              Foreground="#212529"/>
-                                                    <TextBlock Text="LF-t2v-i2v-FFLF-Main v1.1API.json"
-                                                              FontSize="10"
-                                                              Foreground="#6C757D"
-                                                              Margin="0,2,0,0"/>
+                                <!-- Workflow Selector -->
+                                <Border Style="{StaticResource SectionPanelStyle}" Margin="0,0,0,5">
+                                    <StackPanel>
+                                        <TextBlock Text="🔧 Workflow" Style="{StaticResource HeaderTextStyle}" Foreground="#FF6B35"/>
+                                        <ComboBox SelectedIndex="{Binding SingleVideoWorkflowIndex, Mode=TwoWay}"
+                                                  Height="32" Margin="0,6,0,0"
+                                                  FontSize="13">
+                                            <ComboBoxItem>
+                                                <StackPanel Orientation="Horizontal">
+                                                    <TextBlock Text="🟢 Vantage Sulphur 2" FontWeight="SemiBold" Margin="0,0,8,0"/>
+                                                    <TextBlock Text="Vantage-Sulphur-2-WorkflowAPI.json" Foreground="#6C757D" FontSize="11" VerticalAlignment="Center"/>
                                                 </StackPanel>
-                                            </Border>
-                                        </StackPanel>
+                                            </ComboBoxItem>
+                                            <ComboBoxItem>
+                                                <StackPanel Orientation="Horizontal">
+                                                    <TextBlock Text="🟠 10Eros InstantAction" FontWeight="SemiBold" Margin="0,0,8,0"/>
+                                                    <TextBlock Text="10Eros_10SNodes_InstantAction_I2VAPI.json" Foreground="#6C757D" FontSize="11" VerticalAlignment="Center"/>
+                                                </StackPanel>
+                                            </ComboBoxItem>
+                                            <ComboBoxItem>
+                                                <StackPanel Orientation="Horizontal">
+                                                    <TextBlock Text="🔵 LTX-22-B" FontWeight="SemiBold" Margin="0,0,8,0"/>
+                                                    <TextBlock Text="LTX-22-B.json" Foreground="#6C757D" FontSize="11" VerticalAlignment="Center"/>
+                                                </StackPanel>
+                                            </ComboBoxItem>
+                                            <ComboBoxItem>
+                                                <StackPanel Orientation="Horizontal">
+                                                    <TextBlock Text="🟣 DaSiWa WAN 2.2" FontWeight="SemiBold" Margin="0,0,8,0"/>
+                                                    <TextBlock Text="DasiwaWan22WorkflowsI2VSVI2_fastfidelityCAioV83API.json" Foreground="#6C757D" FontSize="11" VerticalAlignment="Center"/>
+                                                </StackPanel>
+                                            </ComboBoxItem>
+                                            <ComboBoxItem>
+                                                <StackPanel Orientation="Horizontal">
+                                                    <TextBlock Text="🔴 WAN 2.2 FunCamera I2V" FontWeight="SemiBold" Margin="0,0,8,0"/>
+                                                    <TextBlock Text="WAN22-I2V-API.json" Foreground="#6C757D" FontSize="11" VerticalAlignment="Center"/>
+                                                </StackPanel>
+                                            </ComboBoxItem>
+                                            <ComboBoxItem>
+                                                <StackPanel Orientation="Horizontal">
+                                                    <TextBlock Text="🎨 Wan 2.2 Remix" FontWeight="SemiBold" Margin="0,0,8,0"/>
+                                                    <TextBlock Text="single-image remix (LF-t2v-i2v-FFLF)" Foreground="#6C757D" FontSize="11" VerticalAlignment="Center"/>
+                                                </StackPanel>
+                                            </ComboBoxItem>
+                                        </ComboBox>
                                     </StackPanel>
                                 </Border>
 
-                                <!-- Dual Frame Input & Analysis Section -->
-                                <Border Style="{StaticResource SectionPanelStyle}" Padding="15">
-                                    <Grid>
-                                        <Grid.ColumnDefinitions>
-                                            <ColumnDefinition Width="*"/>
-                                            <ColumnDefinition Width="*"/>
-                                            <ColumnDefinition Width="*"/>
-                                        </Grid.ColumnDefinitions>
+                                <!-- Story-workflow single-image Content (Vantage / 10Eros / LTX-22-B / DaSiWa / WAN FunCamera) -->
+                                <StackPanel Visibility="{Binding SingleVideoIsStory, Converter={StaticResource BooleanToVisibilityConverter}}">
 
-                                        <!-- Left Column: First Frame Input -->
-                                        <StackPanel Grid.Column="0">
-                                            <TextBlock Text="🖼️ First Frame" FontSize="13" FontWeight="Bold" Foreground="#FF6B35" Margin="0,0,0,8"/>
-                                            <!-- Image Preview -->
-                                            <Border BorderBrush="#DEE2E6" BorderThickness="2"
-                                                    Background="White" Height="160"
-                                                    CornerRadius="5">
-                                                <Grid>
-                                                    <TextBlock Text="No first frame"
-                                                              HorizontalAlignment="Center"
-                                                              VerticalAlignment="Center"
-                                                              Foreground="#999"
-                                                              FontStyle="Italic">
-                                                        <TextBlock.Style>
-                                                            <Style TargetType="TextBlock">
-                                                                <Setter Property="Visibility" Value="Collapsed"/>
-                                                                <Style.Triggers>
-                                                                    <DataTrigger Binding="{Binding FirstFrameImagePreview}" Value="{x:Null}">
-                                                                        <Setter Property="Visibility" Value="Visible"/>
-                                                                    </DataTrigger>
-                                                                </Style.Triggers>
-                                                            </Style>
-                                                        </TextBlock.Style>
-                                                    </TextBlock>
-                                                    <Image Source="{Binding FirstFrameImagePreview}" Stretch="Uniform"/>
-                                                </Grid>
-                                            </Border>
+                                <!-- Reference Image Section -->
+                                <Border Style="{StaticResource SectionPanelStyle}">
+                                    <StackPanel>
+                                        <TextBlock Text="🖼️ Reference Image" Style="{StaticResource HeaderTextStyle}" Foreground="#FF6B35"/>
 
-                                            <!-- Browse and Analyze Buttons -->
-                                            <Grid Margin="0,8,0,0">
-                                                <Grid.RowDefinitions>
-                                                    <RowDefinition Height="Auto"/>
-                                                    <RowDefinition Height="Auto"/>
-                                                </Grid.RowDefinitions>
+                                        <Border BorderBrush="#DEE2E6" BorderThickness="1" Background="White" CornerRadius="5" Padding="15" Margin="0,0,0,0">
+                                            <Grid>
+                                                <Grid.ColumnDefinitions>
+                                                    <ColumnDefinition Width="*"/>
+                                                    <ColumnDefinition Width="10"/>
+                                                    <ColumnDefinition Width="*"/>
+                                                </Grid.ColumnDefinitions>
 
-                                                <Button Grid.Row="0"
-                                                       Content="📁 Browse First Frame"
-                                                       Style="{StaticResource SecondaryButtonStyle}"
-                                                       Command="{Binding SelectFirstFrameImageCommand}"
-                                                       Height="32"
-                                                       FontSize="11"/>
+                                                <!-- Left Column: Image Preview -->
+                                                <StackPanel Grid.Column="0">
+                                                    <TextBlock Text="Source Image:" FontWeight="SemiBold" FontSize="12" Margin="0,0,0,8"/>
+                                                    <Border BorderBrush="#DEE2E6" BorderThickness="1"
+                                                            Background="White" Height="200"
+                                                            CornerRadius="3">
+                                                        <Grid>
+                                                            <TextBlock Text="No image selected"
+                                                                      HorizontalAlignment="Center"
+                                                                      VerticalAlignment="Center"
+                                                                      Foreground="#999"
+                                                                      FontStyle="Italic">
+                                                                <TextBlock.Style>
+                                                                    <Style TargetType="TextBlock">
+                                                                        <Setter Property="Visibility" Value="Collapsed"/>
+                                                                        <Style.Triggers>
+                                                                            <DataTrigger Binding="{Binding LTX23ImagePreview}" Value="{x:Null}">
+                                                                                <Setter Property="Visibility" Value="Visible"/>
+                                                                            </DataTrigger>
+                                                                        </Style.Triggers>
+                                                                    </Style>
+                                                                </TextBlock.Style>
+                                                            </TextBlock>
+                                                            <Image Source="{Binding LTX23ImagePreview}" Stretch="Uniform"/>
+                                                        </Grid>
+                                                    </Border>
+                                                    <Button Content="Browse..."
+                                                            Style="{StaticResource SecondaryButtonStyle}"
+                                                            Command="{Binding SelectLTX23ImageCommand}"
+                                                            Height="32"
+                                                            HorizontalAlignment="Stretch"
+                                                            Margin="0,8,0,0"/>
+                                                    <TextBlock Text="{Binding LTX23ImageInfo}"
+                                                              FontStyle="Italic"
+                                                              Foreground="#666"
+                                                              FontSize="10"
+                                                              Margin="0,6,0,0"
+                                                              TextWrapping="Wrap"/>
+                                                </StackPanel>
 
-                                                <Button Grid.Row="1"
-                                                       Content="🧠 Analyze First Frame"
-                                                       Style="{StaticResource PrimaryButtonStyle}"
-                                                       Command="{Binding AnalyzeFirstFrameImageCommand}"
-                                                       IsEnabled="{Binding HasFirstFrameImage}"
-                                                       Height="36"
-                                                       Margin="0,5,0,0"
-                                                       FontSize="11"/>
-                                            </Grid>
-
-                                            <!-- Image Info -->
-                                            <TextBlock Text="{Binding FirstFrameImageInfo}"
-                                                      FontStyle="Italic"
-                                                      Foreground="#666"
-                                                      FontSize="9"
-                                                      Margin="0,5,0,0"
-                                                      TextWrapping="Wrap"/>
-                                        </StackPanel>
-
-                                        <!-- Middle Column: Last Frame Input -->
-                                        <StackPanel Grid.Column="1" Margin="10,0,0,0">
-                                            <TextBlock Text="🖼️ Last Frame" FontSize="13" FontWeight="Bold" Foreground="#FF6B35" Margin="0,0,0,8"/>
-                                            <!-- Image Preview -->
-                                            <Border BorderBrush="#DEE2E6" BorderThickness="2"
-                                                    Background="White" Height="160"
-                                                    CornerRadius="5">
-                                                <Grid>
-                                                    <TextBlock Text="No last frame"
-                                                              HorizontalAlignment="Center"
-                                                              VerticalAlignment="Center"
-                                                              Foreground="#999"
-                                                              FontStyle="Italic">
-                                                        <TextBlock.Style>
-                                                            <Style TargetType="TextBlock">
-                                                                <Setter Property="Visibility" Value="Collapsed"/>
-                                                                <Style.Triggers>
-                                                                    <DataTrigger Binding="{Binding LastFrameImagePreview}" Value="{x:Null}">
-                                                                        <Setter Property="Visibility" Value="Visible"/>
-                                                                    </DataTrigger>
-                                                                </Style.Triggers>
-                                                            </Style>
-                                                        </TextBlock.Style>
-                                                    </TextBlock>
-                                                    <Image Source="{Binding LastFrameImagePreview}" Stretch="Uniform"/>
-                                                </Grid>
-                                            </Border>
-
-                                            <!-- Browse Button -->
-                                            <Button Content="📁 Browse Last Frame"
-                                                   Style="{StaticResource SecondaryButtonStyle}"
-                                                   Command="{Binding SelectLastFrameImageCommand}"
-                                                   Height="32"
-                                                   Margin="0,8,0,0"
-                                                   FontSize="11"/>
-
-                                            <!-- Image Info -->
-                                            <TextBlock Text="{Binding LastFrameImageInfo}"
-                                                      FontStyle="Italic"
-                                                      Foreground="#666"
-                                                      FontSize="9"
-                                                      Margin="0,5,0,0"
-                                                      TextWrapping="Wrap"/>
-                                        </StackPanel>
-
-                                        <!-- Right Column: Analysis Result -->
-                                        <StackPanel Grid.Column="2" Margin="10,0,0,0">
-                                            <!-- Header with Settings and Copy -->
-                                            <Grid Margin="0,0,0,8">
-                                                <TextBlock Text="🔍 Image Analysis"
-                                                          FontSize="14" FontWeight="Bold"
-                                                          Foreground="#FF6B35"
-                                                          VerticalAlignment="Center"/>
-                                                <StackPanel Orientation="Horizontal" HorizontalAlignment="Right">
-                                                    <Button Content="📋"
-                                                           Style="{StaticResource NavButtonStyle}"
-                                                           Command="{Binding CopyAnalysisCommand}"
-                                                           ToolTip="Copy to Clipboard"
-                                                           Width="32" Height="28"
-                                                           Padding="0" Margin="0,0,5,0"
-                                                           IsEnabled="{Binding HasAnalysis}"/>
-                                                    <Button Content="⚙️"
-                                                           Style="{StaticResource NavButtonStyle}"
-                                                           Command="{Binding OpenLMStudioSettingsCommand}"
-                                                           ToolTip="LM Studio Settings"
-                                                           Width="32" Height="28"
-                                                           Padding="0"/>
+                                                <!-- Right Column: Analyze Button + Result -->
+                                                <StackPanel Grid.Column="2">
+                                                    <TextBlock Text="Image Analysis:" FontWeight="SemiBold" FontSize="12" Margin="0,0,0,8"/>
+                                                    <Button Content="🧠 Analyze &amp; Generate"
+                                                            Style="{StaticResource SecondaryButtonStyle}"
+                                                            Command="{Binding AnalyzeLTX23ImageCommand}"
+                                                            IsEnabled="{Binding CanLTX23AnalyzeImage, Mode=OneWay}"
+                                                            Height="32"
+                                                            HorizontalAlignment="Stretch"/>
+                                                    <TextBox Text="{Binding LTX23AnalysisResult, Mode=OneWay}"
+                                                            TextWrapping="Wrap"
+                                                            AcceptsReturn="True"
+                                                            Height="188"
+                                                            Padding="10"
+                                                            VerticalScrollBarVisibility="Auto"
+                                                            Background="#F8F9FA"
+                                                            BorderBrush="#CED4DA"
+                                                            FontSize="11"
+                                                            IsReadOnly="True"
+                                                            Margin="0,8,0,0"/>
                                                 </StackPanel>
                                             </Grid>
-
-                                            <!-- Analysis Result TextBox -->
-                                            <TextBox Text="{Binding ImageAnalysis, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
-                                                    TextWrapping="Wrap"
-                                                    AcceptsReturn="True"
-                                                    Height="180"
-                                                    Padding="10"
-                                                    VerticalScrollBarVisibility="Auto"
-                                                    Background="White"
-                                                    BorderBrush="#CED4DA"
-                                                    FontSize="11"
-                                                    IsReadOnly="{Binding IsAnalyzing}"/>
-
-                                            <!-- Processing Status -->
-                                            <Border Background="#FFF9F0"
-                                                    BorderBrush="#FFE0B0"
-                                                    BorderThickness="1"
-                                                    CornerRadius="5"
-                                                    Padding="8"
-                                                    Visibility="{Binding IsAnalyzing, Converter={StaticResource BooleanToVisibilityConverter}}"
-                                                    Margin="0,8,0,0">
-                                                <StackPanel>
-                                                    <TextBlock Text="{Binding AnalysisStatus}"
-                                                              FontWeight="SemiBold"
-                                                              FontSize="10"
-                                                              TextAlignment="Center"/>
-                                                    <ProgressBar Value="{Binding AnalysisProgress}"
-                                                                Height="12" Margin="0,4,0,0"
-                                                                Foreground="#FF6B35"/>
-                                                </StackPanel>
-                                            </Border>
-
-                                            <!-- Send to Queue Button -->
-                                            <Button Content="📤 Send to Queue"
-                                                   Style="{StaticResource PrimaryButtonStyle}"
-                                                   Command="{Binding SendAnalysisToQueueCommand}"
-                                                   IsEnabled="{Binding HasAnalysis}"
-                                                   Height="38"
-                                                   Margin="0,10,0,0"
-                                                   HorizontalAlignment="Stretch"/>
-
-                                            <!-- Collapsible Video Settings -->
-                                            <Expander Margin="0,15,0,0" IsExpanded="False">
-                                                <Expander.Header>
-                                                    <TextBlock Text="⚙️ Video Settings" FontSize="12" FontWeight="Bold" Foreground="#FF6B35"/>
-                                                </Expander.Header>
-                                                <StackPanel Margin="0,10,0,0">
-                                                    <!-- Video Length -->
-                                                    <StackPanel Margin="0,0,0,10">
-                                                        <TextBlock Text="Video Length (frames)" FontWeight="SemiBold" FontSize="11" Margin="0,0,0,5"/>
-                                                        <Grid>
-                                                            <Grid.ColumnDefinitions>
-                                                                <ColumnDefinition Width="*"/>
-                                                                <ColumnDefinition Width="Auto"/>
-                                                            </Grid.ColumnDefinitions>
-                                                            <Slider Grid.Column="0"
-                                                                    Value="{Binding VideoLength, Mode=TwoWay}"
-                                                                    Minimum="21" Maximum="240"
-                                                                    TickFrequency="20"
-                                                                    IsSnapToTickEnabled="True"
-                                                                    VerticalAlignment="Center"/>
-                                                            <TextBlock Grid.Column="1"
-                                                                      Text="{Binding VideoLength}"
-                                                                      Margin="8,0,0,0"
-                                                                      VerticalAlignment="Center"
-                                                                      MinWidth="35"
-                                                                      FontWeight="Bold"/>
-                                                        </Grid>
-                                                        <TextBlock Text="{Binding VideoLengthSeconds}"
-                                                                  FontSize="10"
-                                                                  Foreground="#999"
-                                                                  Margin="0,3,0,0"/>
-                                                    </StackPanel>
-
-                                                    <!-- FPS -->
-                                                    <StackPanel>
-                                                        <TextBlock Text="FPS (Frames Per Second)" FontWeight="SemiBold" FontSize="11" Margin="0,0,0,5"/>
-                                                        <Grid>
-                                                            <Grid.ColumnDefinitions>
-                                                                <ColumnDefinition Width="*"/>
-                                                                <ColumnDefinition Width="Auto"/>
-                                                            </Grid.ColumnDefinitions>
-                                                            <Slider Grid.Column="0"
-                                                                    Value="{Binding Fps, Mode=TwoWay}"
-                                                                    Minimum="8" Maximum="30"
-                                                                    TickFrequency="2"
-                                                                    IsSnapToTickEnabled="True"
-                                                                    VerticalAlignment="Center"/>
-                                                            <TextBlock Grid.Column="1"
-                                                                      Text="{Binding Fps}"
-                                                                      Margin="8,0,0,0"
-                                                                      VerticalAlignment="Center"
-                                                                      MinWidth="25"
-                                                                      FontWeight="Bold"/>
-                                                        </Grid>
-                                                    </StackPanel>
-                                                </StackPanel>
-                                            </Expander>
-
-                                            <!-- Generate Video Button -->
-                                            <Button Content="🎬 Generate Video"
-                                                   Style="{StaticResource PrimaryButtonStyle}"
-                                                   Command="{Binding GenerateVideoCommand}"
-                                                   HorizontalAlignment="Stretch"
-                                                   Height="45"
-                                                   FontSize="13"
-                                                   Margin="0,10,0,0"/>
-
-                                            <!-- Processing Status -->
-                                            <Border Background="#FFF9F0"
-                                                    BorderBrush="#FFE0B0"
-                                                    BorderThickness="1"
-                                                    CornerRadius="5"
-                                                    Padding="8"
-                                                    Visibility="{Binding IsProcessing, Converter={StaticResource BooleanToVisibilityConverter}}"
-                                                    Margin="0,10,0,0">
-                                                <StackPanel>
-                                                    <TextBlock Text="{Binding ProcessingStatus}"
-                                                              FontWeight="SemiBold"
-                                                              FontSize="10"
-                                                              TextAlignment="Center"
-                                                              TextWrapping="Wrap"
-                                                              Margin="0,0,0,5"/>
-                                                    <ProgressBar Value="{Binding ProcessingProgress}"
-                                                                Height="14"
-                                                                Foreground="#FF6B35"
-                                                                Margin="0,0,0,3"/>
-                                                    <TextBlock Text="{Binding ProgressPercentage}"
-                                                              HorizontalAlignment="Center"
-                                                              FontSize="10"
-                                                              FontWeight="Bold"
-                                                              Foreground="#FF6B35"/>
-                                                </StackPanel>
-                                            </Border>
-                                        </StackPanel>
-                                    </Grid>
+                                        </Border>
+                                    </StackPanel>
                                 </Border>
 
-  
-                <!-- Prompt Queue Section -->
-                <Border Style="{StaticResource SectionPanelStyle}">
-                    <StackPanel>
-                        <TextBlock Text="📝 Prompt Queue" Style="{StaticResource HeaderTextStyle}" Foreground="#FF6B35"/>
+                                <!-- Video Prompt Section -->
+                                <Border Style="{StaticResource SectionPanelStyle}">
+                                    <StackPanel>
+                                        <TextBlock Text="📝 Video Prompt" Style="{StaticResource HeaderTextStyle}" Foreground="#FF6B35"/>
 
-                        <Grid Margin="0,0,0,10">
-                            <Grid.ColumnDefinitions>
-                                <ColumnDefinition Width="*"/>
-                                <ColumnDefinition Width="Auto"/>
-                                <ColumnDefinition Width="Auto"/>
-                                <ColumnDefinition Width="Auto"/>
-                                <ColumnDefinition Width="Auto"/>
-                                <ColumnDefinition Width="Auto"/>
-                            </Grid.ColumnDefinitions>
+                                        <TextBlock Text="Describe the video action you want to generate:"
+                                                  FontWeight="SemiBold" FontSize="12"
+                                                  Margin="0,0,0,8"/>
+                                        <TextBox Text="{Binding LTX23Prompt, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                                                TextWrapping="Wrap"
+                                                AcceptsReturn="True"
+                                                Height="120"
+                                                Padding="12"
+                                                VerticalScrollBarVisibility="Auto"
+                                                Background="White"
+                                                BorderBrush="#CED4DA"
+                                                FontSize="12"/>
 
-                            <TextBox Grid.Column="0"
-                                     Text="{Binding NewQueuePrompt, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
-                                     Padding="10"
-                                     Background="White"
-                                     BorderBrush="#CED4DA"
-                                     FontSize="12"
-                                     VerticalAlignment="Center"
-                                     Margin="0,0,10,0"/>
+                                        <!-- Frame Count -->
+                                        <Grid Margin="0,10,0,0">
+                                            <Grid.ColumnDefinitions>
+                                                <ColumnDefinition Width="Auto"/>
+                                                <ColumnDefinition Width="*"/>
+                                                <ColumnDefinition Width="Auto"/>
+                                            </Grid.ColumnDefinitions>
+                                            <TextBlock Grid.Column="0" Text="Frames:"
+                                                      FontWeight="SemiBold" FontSize="12"
+                                                      VerticalAlignment="Center" Margin="0,0,10,0"/>
+                                            <Slider Grid.Column="1"
+                                                   Minimum="49" Maximum="481"
+                                                   SmallChange="24" LargeChange="48"
+                                                   Value="{Binding LTX23FrameCount, Mode=TwoWay}"
+                                                   VerticalAlignment="Center"/>
+                                            <TextBox Grid.Column="2"
+                                                    Text="{Binding LTX23FrameCount, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                                                    Width="48" Height="28"
+                                                    TextAlignment="Center"
+                                                    VerticalContentAlignment="Center"
+                                                    FontSize="12" Margin="8,0,0,0"
+                                                    BorderBrush="#CED4DA"/>
+                                        </Grid>
+                                        <TextBlock Text="{Binding LTX23FrameCountHint}"
+                                                  FontSize="10" Foreground="#888"
+                                                  Margin="0,3,0,0"/>
+                                    </StackPanel>
+                                </Border>
 
-                            <Button Grid.Column="1"
-                                   Content="➕ Add to Queue"
-                                   Style="{StaticResource SecondaryButtonStyle}"
-                                   Command="{Binding AddToQueueCommand}"
-                                   Height="35"
-                                   Width="120"
-                                   Margin="0,0,5,0"/>
+                                <!-- Processing Status + Queue Section -->
+                                <Border Style="{StaticResource SectionPanelStyle}">
+                                    <StackPanel>
+                                        <!-- Processing Status -->
+                                        <Border Background="#FFF9F0"
+                                                BorderBrush="#FFE0B0"
+                                                BorderThickness="1"
+                                                CornerRadius="5"
+                                                Padding="12"
+                                                Visibility="{Binding IsProcessingLTX23, Converter={StaticResource BooleanToVisibilityConverter}}"
+                                                Margin="0,10,0,0">
+                                            <StackPanel>
+                                                <TextBlock Text="{Binding LTX23ProcessingStatus}"
+                                                          FontWeight="SemiBold" FontSize="11"
+                                                          TextAlignment="Center" TextWrapping="Wrap"/>
+                                                <ProgressBar Value="{Binding LTX23ProcessingProgress, Mode=OneWay}"
+                                                            Height="14" Foreground="#FF6B35"
+                                                            Margin="0,6,0,4"/>
+                                                <TextBlock Text="{Binding LTX23ProgressPercentage}"
+                                                          HorizontalAlignment="Center"
+                                                          FontSize="11" FontWeight="Bold"
+                                                          Foreground="#FF6B35"/>
+                                            </StackPanel>
+                                        </Border>
 
-                            <Button Grid.Column="2"
-                                   Content="▶️ Process Queue"
-                                   Style="{StaticResource PrimaryButtonStyle}"
-                                   Command="{Binding ProcessQueueCommand}"
-                                   IsEnabled="{Binding CanProcessQueue}"
-                                   Height="35"
-                                   Width="120"
-                                   Margin="0,0,5,0"/>
+                                        <!-- Queue List -->
+                                        <Border BorderBrush="#DEE2E6" BorderThickness="1"
+                                                CornerRadius="5" Margin="0,12,0,0"
+                                                Visibility="{Binding LTX23HasQueueItems, Converter={StaticResource BoolToVisibilityConverter}}">
+                                            <StackPanel>
+                                                <Border Background="#F0F0F0" Padding="10,6" CornerRadius="5,5,0,0">
+                                                    <Grid>
+                                                        <Grid.ColumnDefinitions>
+                                                            <ColumnDefinition Width="*"/>
+                                                            <ColumnDefinition Width="Auto"/>
+                                                            <ColumnDefinition Width="Auto"/>
+                                                            <ColumnDefinition Width="Auto"/>
+                                                        </Grid.ColumnDefinitions>
+                                                        <TextBlock Grid.Column="0" Text="{Binding LTX23QueueStatus}"
+                                                                  FontSize="10" Foreground="#666"
+                                                                  VerticalAlignment="Center"/>
+                                                        <Button Grid.Column="1"
+                                                               Content="⏹ Stop"
+                                                               Command="{Binding StopLTX23QueueCommand}"
+                                                               IsEnabled="{Binding LTX23IsProcessingQueue}"
+                                                               Width="60" Height="22" FontSize="10"
+                                                               Margin="4,0,4,0"
+                                                               Background="#F59E0B" Foreground="White"
+                                                               BorderThickness="0" Padding="4,2"/>
+                                                        <Button Grid.Column="2"
+                                                               Content="🔄 Retry"
+                                                               Command="{Binding ReprocessLTX23FailedCommand}"
+                                                               IsEnabled="{Binding LTX23HasFailedItems}"
+                                                               Width="60" Height="22" FontSize="10"
+                                                               Margin="0,0,4,0"
+                                                               Background="#FFA500" Foreground="White"
+                                                               BorderThickness="0" Padding="4,2"/>
+                                                        <Button Grid.Column="3"
+                                                               Content="🗑️ Clear"
+                                                               Command="{Binding ClearLTX23QueueCommand}"
+                                                               Width="60" Height="22" FontSize="10"
+                                                               Background="#DC3545" Foreground="White"
+                                                               BorderThickness="0" Padding="4,2"/>
+                                                    </Grid>
+                                                </Border>
+                                                <ScrollViewer MaxHeight="200" VerticalScrollBarVisibility="Auto" Padding="5">
+                                                    <ItemsControl ItemsSource="{Binding LTX23Queue}">
+                                                        <ItemsControl.ItemTemplate>
+                                                            <DataTemplate>
+                                                                <Border BorderBrush="#E9ECEF" BorderThickness="1"
+                                                                        CornerRadius="4" Padding="8,6"
+                                                                        Margin="2,2,2,0" Background="White">
+                                                                    <Grid>
+                                                                        <Grid.ColumnDefinitions>
+                                                                            <ColumnDefinition Width="*"/>
+                                                                            <ColumnDefinition Width="Auto"/>
+                                                                            <ColumnDefinition Width="Auto"/>
+                                                                        </Grid.ColumnDefinitions>
 
-                            <Button Grid.Column="3"
-                                   Content="🔄 Reprocess Failed"
-                                   Command="{Binding ReprocessAllFailedCommand}"
-                                   IsEnabled="{Binding HasFailedItems}"
-                                   Height="35"
-                                   Width="140"
-                                   Margin="0,0,5,0">
-                                <Button.Style>
-                                    <Style TargetType="Button" BasedOn="{StaticResource SecondaryButtonStyle}">
-                                        <Setter Property="Background" Value="#FFA500"/>
-                                        <Style.Triggers>
-                                            <Trigger Property="IsMouseOver" Value="True">
-                                                <Setter Property="Background" Value="#FF8C00"/>
-                                            </Trigger>
-                                            <Trigger Property="IsEnabled" Value="False">
-                                                <Setter Property="Background" Value="#CCC"/>
-                                                <Setter Property="Foreground" Value="#475569"/>
-                                                <Setter Property="Cursor" Value="Arrow"/>
-                                            </Trigger>
-                                        </Style.Triggers>
-                                    </Style>
-                                </Button.Style>
-                            </Button>
+                                                                        <StackPanel Grid.Column="0" VerticalAlignment="Center">
+                                                                            <TextBlock Text="{Binding DisplayText}"
+                                                                                      FontSize="11" TextTrimming="CharacterEllipsis"/>
+                                                                        </StackPanel>
 
-                            <Button Grid.Column="4"
-                                   Content="⏹ Stop"
-                                   Command="{Binding StopQueueCommand}"
-                                   IsEnabled="{Binding IsProcessingQueue}"
-                                   Height="35"
-                                   Width="80"
-                                   Margin="0,0,5,0"
-                                   Background="#F59E0B" Foreground="White"
-                                   BorderThickness="0" FontWeight="SemiBold"/>
+                                                                        <TextBlock Grid.Column="1"
+                                                                                  Text="{Binding StatusDisplay}"
+                                                                                  Foreground="{Binding StatusColor}"
+                                                                                  FontSize="10" FontWeight="SemiBold"
+                                                                                  VerticalAlignment="Center"
+                                                                                  Margin="8,0,8,0"/>
 
-                            <Button Grid.Column="5"
-                                   Content="🗑️ Clear"
-                                   Command="{Binding ClearQueueCommand}"
-                                   Height="35"
-                                   Width="80">
-                                <Button.Style>
-                                    <Style TargetType="Button" BasedOn="{StaticResource NavButtonStyle}">
-                                        <Setter Property="Background" Value="#DC3545"/>
-                                        <Style.Triggers>
-                                            <Trigger Property="IsMouseOver" Value="True">
-                                                <Setter Property="Background" Value="#C82333"/>
-                                            </Trigger>
-                                        </Style.Triggers>
-                                    </Style>
-                                </Button.Style>
-                            </Button>
-                        </Grid>
+                                                                        <Button Grid.Column="2"
+                                                                               Content="✕"
+                                                                               Width="22" Height="22"
+                                                                               FontSize="10"
+                                                                               Background="Transparent"
+                                                                               BorderThickness="0"
+                                                                               Foreground="#999"
+                                                                               Padding="0"
+                                                                               Command="{Binding DataContext.RemoveLTX23QueueItemCommand, RelativeSource={RelativeSource AncestorType=ItemsControl}}"
+                                                                               CommandParameter="{Binding}"/>
+                                                                    </Grid>
+                                                                </Border>
+                                                            </DataTemplate>
+                                                        </ItemsControl.ItemTemplate>
+                                                    </ItemsControl>
+                                                </ScrollViewer>
+                                            </StackPanel>
+                                        </Border>
 
-                        <!-- Pause/Resume Controls (Video Queue) -->
-                        <StackPanel Orientation="Horizontal" Margin="0,0,0,10"
-                                    Visibility="{Binding IsProcessingQueue, Converter={StaticResource BooleanToVisibilityConverter}}">
-                            <Button Content="⏸ Pause" Width="100" Height="32" Margin="0,0,8,0"
-                                    Command="{Binding PauseQueueCommand}"
-                                    Background="#F59E0B" Foreground="White" BorderThickness="0" FontWeight="SemiBold"/>
-                            <Button Content="▶ Resume" Width="100" Height="32" Margin="0,0,8,0"
-                                    Command="{Binding ResumeQueueCommand}"
-                                    Background="#10B981" Foreground="White" BorderThickness="0" FontWeight="SemiBold"/>
-                        </StackPanel>
+                                        <!-- Latest Result Preview -->
+                                        <Border BorderBrush="#DEE2E6" BorderThickness="1"
+                                                Background="White" Height="220" CornerRadius="5"
+                                                Margin="0,12,0,0">
+                                            <Grid>
+                                                <TextBlock Text="Latest generated video will appear here"
+                                                          HorizontalAlignment="Center"
+                                                          VerticalAlignment="Center"
+                                                          Foreground="#999" FontStyle="Italic">
+                                                    <TextBlock.Style>
+                                                        <Style TargetType="TextBlock">
+                                                            <Setter Property="Visibility" Value="Collapsed"/>
+                                                            <Style.Triggers>
+                                                                <DataTrigger Binding="{Binding HasLTX23Result}" Value="False">
+                                                                    <Setter Property="Visibility" Value="Visible"/>
+                                                                </DataTrigger>
+                                                            </Style.Triggers>
+                                                        </Style>
+                                                    </TextBlock.Style>
+                                                </TextBlock>
+                                                <MediaElement x:Name="LTX23VideoPlayer"
+                                                            Source="{Binding LTX23ResultPath}"
+                                                            LoadedBehavior="Manual"
+                                                            UnloadedBehavior="Stop"
+                                                            Stretch="Uniform"
+                                                            Visibility="{Binding HasLTX23Result, Converter={StaticResource BooleanToVisibilityConverter}}"/>
+                                            </Grid>
+                                        </Border>
 
-                        <TextBlock Text="Queue Items:" FontWeight="SemiBold" FontSize="12" Margin="0,0,0,5"/>
+                                        <!-- Result Actions -->
+                                        <StackPanel Orientation="Horizontal" Margin="0,8,0,0">
+                                            <Button Content="▶️ Play"
+                                                   Style="{StaticResource SecondaryButtonStyle}"
+                                                   Command="{Binding PlayLTX23VideoCommand}"
+                                                   IsEnabled="{Binding HasLTX23Result}"
+                                                   Margin="0,0,8,0"/>
+                                            <Button Content="📂 Open Folder"
+                                                   Style="{StaticResource SecondaryButtonStyle}"
+                                                   Command="{Binding OpenLTX23ResultFolderCommand}"
+                                                   IsEnabled="{Binding HasLTX23Result}"
+                                                   Margin="0,0,8,0"/>
+                                            <Button Content="📷 Send to Edit Camera"
+                                                   Style="{StaticResource SecondaryButtonStyle}"
+                                                   Command="{Binding SendLTX23ToEditCameraCommand}"
+                                                   IsEnabled="{Binding HasLTX23Result}"/>
+                                        </StackPanel>
 
-                        <Border BorderBrush="#DEE2E6" BorderThickness="1" Background="White" CornerRadius="5" MaxHeight="200">
-                            <ScrollViewer VerticalScrollBarVisibility="Auto" Padding="5">
-                                <ItemsControl ItemsSource="{Binding PromptQueue}">
-                                    <ItemsControl.ItemTemplate>
-                                        <DataTemplate>
-                                            <Border BorderBrush="#E9ECEF" BorderThickness="1" CornerRadius="3" Padding="8" Margin="0,0,0,5">
+                                        <TextBlock Text="{Binding LTX23VideoInfo}"
+                                                  FontStyle="Italic" Foreground="#666"
+                                                  FontSize="10" Margin="0,6,0,0"/>
+                                    </StackPanel>
+                                </Border>
+
+                                <!-- Log Output - shared panel -->
+                                <ctrl:ProcessingLogPanel LogText="{Binding LTX23LogOutput}" Header="📋 Generation Log"/>
+
+                                </StackPanel>
+                                <!-- End Story-workflow single-image Content -->
+
+                                <!-- Wan 2.2 Remix Content -->
+                                <StackPanel Visibility="{Binding SingleVideoIsWan22, Converter={StaticResource BooleanToVisibilityConverter}}">
+
+                                    <!-- Reference Image Section -->
+                                    <Border Style="{StaticResource SectionPanelStyle}">
+                                        <StackPanel>
+                                            <TextBlock Text="🖼️ Reference Image" Style="{StaticResource HeaderTextStyle}" Foreground="#FF6B35"/>
+                                            <Border BorderBrush="#DEE2E6" BorderThickness="1" Background="White" CornerRadius="5" Padding="15">
                                                 <Grid>
                                                     <Grid.ColumnDefinitions>
                                                         <ColumnDefinition Width="*"/>
-                                                        <ColumnDefinition Width="Auto"/>
-                                                        <ColumnDefinition Width="Auto"/>
-                                                        <ColumnDefinition Width="Auto"/>
+                                                        <ColumnDefinition Width="10"/>
+                                                        <ColumnDefinition Width="*"/>
                                                     </Grid.ColumnDefinitions>
 
-                                                    <TextBlock Grid.Column="0"
-                                                             Text="{Binding DisplayText}"
-                                                             TextWrapping="Wrap"
-                                                             FontSize="11"
-                                                             VerticalAlignment="Center"/>
+                                                    <!-- Left: Image Preview -->
+                                                    <StackPanel Grid.Column="0">
+                                                        <TextBlock Text="Source Image:" FontWeight="SemiBold" FontSize="12" Margin="0,0,0,8"/>
+                                                        <Border BorderBrush="#DEE2E6" BorderThickness="1" Background="White" Height="200" CornerRadius="3">
+                                                            <Grid>
+                                                                <TextBlock Text="No image selected"
+                                                                          HorizontalAlignment="Center" VerticalAlignment="Center"
+                                                                          Foreground="#999" FontStyle="Italic">
+                                                                    <TextBlock.Style>
+                                                                        <Style TargetType="TextBlock">
+                                                                            <Setter Property="Visibility" Value="Collapsed"/>
+                                                                            <Style.Triggers>
+                                                                                <DataTrigger Binding="{Binding Wan22ImagePreview}" Value="{x:Null}">
+                                                                                    <Setter Property="Visibility" Value="Visible"/>
+                                                                                </DataTrigger>
+                                                                            </Style.Triggers>
+                                                                        </Style>
+                                                                    </TextBlock.Style>
+                                                                </TextBlock>
+                                                                <Image Source="{Binding Wan22ImagePreview}" Stretch="Uniform"/>
+                                                            </Grid>
+                                                        </Border>
+                                                        <Button Content="Browse..."
+                                                                Style="{StaticResource SecondaryButtonStyle}"
+                                                                Command="{Binding SelectWan22ImageCommand}"
+                                                                Height="32" HorizontalAlignment="Stretch" Margin="0,8,0,0"/>
+                                                        <TextBlock Text="{Binding Wan22ImageInfo}"
+                                                                  FontStyle="Italic" Foreground="#666" FontSize="10"
+                                                                  Margin="0,6,0,0" TextWrapping="Wrap"/>
+                                                    </StackPanel>
 
-                                                    <TextBlock Grid.Column="1"
-                                                             Text="{Binding StatusDisplay}"
-                                                             FontSize="10"
-                                                             FontWeight="SemiBold"
-                                                             Foreground="{Binding StatusColor}"
-                                                             VerticalAlignment="Center"
-                                                             Margin="10,0,10,0"/>
-
-                                                    <!-- Reprocess button - only visible for failed items -->
-                                                    <Button Grid.Column="2"
-                                                           Content="🔄"
-                                                           Command="{Binding DataContext.ReprocessItemCommand, RelativeSource={RelativeSource AncestorType=Window}}"
-                                                           CommandParameter="{Binding}"
-                                                           Padding="5,2"
-                                                           FontSize="11"
-                                                           ToolTip="Reprocess this item"
-                                                           Margin="0,0,5,0"
-                                                           Width="30">
-                                                        <Button.Style>
-                                                            <Style TargetType="Button" BasedOn="{StaticResource NavButtonStyle}">
-                                                                <Setter Property="Background" Value="#FFA500"/>
-                                                                <Style.Triggers>
-                                                                    <DataTrigger Binding="{Binding Status}" Value="Failed">
-                                                                        <Setter Property="Visibility" Value="Visible"/>
-                                                                    </DataTrigger>
-                                                                    <DataTrigger Binding="{Binding Status}" Value="Pending">
-                                                                        <Setter Property="Visibility" Value="Collapsed"/>
-                                                                    </DataTrigger>
-                                                                    <DataTrigger Binding="{Binding Status}" Value="Processing">
-                                                                        <Setter Property="Visibility" Value="Collapsed"/>
-                                                                    </DataTrigger>
-                                                                    <DataTrigger Binding="{Binding Status}" Value="Completed">
-                                                                        <Setter Property="Visibility" Value="Collapsed"/>
-                                                                    </DataTrigger>
-                                                                    <Trigger Property="IsMouseOver" Value="True">
-                                                                        <Setter Property="Background" Value="#FF8C00"/>
-                                                                    </Trigger>
-                                                                </Style.Triggers>
-                                                            </Style>
-                                                        </Button.Style>
-                                                    </Button>
-
-                                                    <Button Grid.Column="3"
-                                                           Content="❌"
-                                                           Style="{StaticResource NavButtonStyle}"
-                                                           Command="{Binding DataContext.RemoveFromQueueCommand, RelativeSource={RelativeSource AncestorType=Window}}"
-                                                           CommandParameter="{Binding}"
-                                                           Padding="5,2"
-                                                           FontSize="10"
-                                                           ToolTip="Remove from queue"
-                                                           Width="30"/>
+                                                    <!-- Right: Analyze Button + Result -->
+                                                    <StackPanel Grid.Column="2">
+                                                        <TextBlock Text="Image Analysis:" FontWeight="SemiBold" FontSize="12" Margin="0,0,0,8"/>
+                                                        <Button Content="🧠 Analyze Image"
+                                                                Style="{StaticResource SecondaryButtonStyle}"
+                                                                Command="{Binding AnalyzeWan22ImageCommand}"
+                                                                IsEnabled="{Binding CanWan22AnalyzeImage, Mode=OneWay}"
+                                                                Height="32" HorizontalAlignment="Stretch"/>
+                                                        <TextBlock Text="Sends image to qwen-4-vl → auto-queues result"
+                                                                  FontSize="10" Foreground="#888" FontStyle="Italic"
+                                                                  Margin="0,4,0,4" TextWrapping="Wrap"/>
+                                                        <TextBox Text="{Binding Wan22AnalysisResult, Mode=OneWay}"
+                                                                TextWrapping="Wrap" AcceptsReturn="True"
+                                                                Height="160" Padding="10"
+                                                                VerticalScrollBarVisibility="Auto"
+                                                                Background="#F8F9FA" BorderBrush="#CED4DA"
+                                                                FontSize="11" IsReadOnly="True" Margin="0,4,0,0"/>
+                                                    </StackPanel>
                                                 </Grid>
                                             </Border>
-                                        </DataTemplate>
-                                    </ItemsControl.ItemTemplate>
-                                </ItemsControl>
-                            </ScrollViewer>
-                        </Border>
+                                        </StackPanel>
+                                    </Border>
 
-                        <TextBlock Text="{Binding QueueStatus}"
-                                  FontSize="11"
-                                  Foreground="#666"
-                                  FontStyle="Italic"
-                                  Margin="0,5,0,0"/>
-                    </StackPanel>
-                </Border>
+                                    <!-- Video Prompt Section -->
+                                    <Border Style="{StaticResource SectionPanelStyle}">
+                                        <StackPanel>
+                                            <TextBlock Text="📝 Video Prompt" Style="{StaticResource HeaderTextStyle}" Foreground="#FF6B35"/>
+                                            <TextBlock Text="Describe the video action (or edit the auto-generated prompt):"
+                                                      FontWeight="SemiBold" FontSize="12" Margin="0,0,0,8"/>
+                                            <TextBox Text="{Binding Wan22Prompt, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                                                    TextWrapping="Wrap" AcceptsReturn="True"
+                                                    Height="120" Padding="12"
+                                                    VerticalScrollBarVisibility="Auto"
+                                                    Background="White" BorderBrush="#CED4DA" FontSize="12"/>
+                                            <Button Content="➕ Add to Queue"
+                                                    Style="{StaticResource SecondaryButtonStyle}"
+                                                    Command="{Binding GenerateWan22VideoCommand}"
+                                                    IsEnabled="{Binding CanWan22AddToQueue, Mode=OneWay}"
+                                                    Height="35" Width="140" HorizontalAlignment="Left"
+                                                    Margin="0,10,0,0"/>
+                                        </StackPanel>
+                                    </Border>
 
-                <!-- Result Video Section -->
-                <Border Style="{StaticResource SectionPanelStyle}">
-                    <StackPanel>
-                        <TextBlock Text="🎥 Result Video" Style="{StaticResource HeaderTextStyle}" Foreground="#FF6B35"/>
+                                    <!-- Processing Status + Queue -->
+                                    <Border Style="{StaticResource SectionPanelStyle}">
+                                        <StackPanel>
+                                            <!-- Processing Status -->
+                                            <Border Background="#FFF9F0" BorderBrush="#FFE0B0" BorderThickness="1"
+                                                    CornerRadius="5" Padding="12" Margin="0,0,0,10"
+                                                    Visibility="{Binding IsProcessingWan22, Converter={StaticResource BooleanToVisibilityConverter}}">
+                                                <StackPanel>
+                                                    <TextBlock Text="{Binding Wan22ProcessingStatus}"
+                                                              FontWeight="SemiBold" FontSize="11"
+                                                              TextAlignment="Center" TextWrapping="Wrap"/>
+                                                    <ProgressBar Value="{Binding Wan22ProcessingProgress, Mode=OneWay}"
+                                                                Height="14" Foreground="#FF6B35" Margin="0,6,0,4"/>
+                                                    <TextBlock Text="{Binding Wan22ProgressPercentage}"
+                                                              HorizontalAlignment="Center" FontSize="11"
+                                                              FontWeight="Bold" Foreground="#FF6B35"/>
+                                                </StackPanel>
+                                            </Border>
 
-                        <Border BorderBrush="#DEE2E6" BorderThickness="2"
-                                Background="White" Height="250"
-                                CornerRadius="5" Margin="0,0,0,10">
-                            <Grid>
-                                <TextBlock Text="Video will appear here after generation"
-                                          HorizontalAlignment="Center"
-                                          VerticalAlignment="Center"
-                                          Foreground="#999"
-                                          FontStyle="Italic">
-                                    <TextBlock.Style>
-                                        <Style TargetType="TextBlock">
-                                            <Setter Property="Visibility" Value="Collapsed"/>
-                                            <Style.Triggers>
-                                                <DataTrigger Binding="{Binding HasResultVideo}" Value="False">
-                                                    <Setter Property="Visibility" Value="Visible"/>
-                                                </DataTrigger>
-                                            </Style.Triggers>
-                                        </Style>
-                                    </TextBlock.Style>
-                                </TextBlock>
+                                            <!-- Queue List -->
+                                            <Border BorderBrush="#DEE2E6" BorderThickness="1" CornerRadius="5"
+                                                    Visibility="{Binding Wan22HasQueueItems, Converter={StaticResource BoolToVisibilityConverter}}">
+                                                <StackPanel>
+                                                    <Border Background="#F0F0F0" Padding="10,6" CornerRadius="5,5,0,0">
+                                                        <Grid>
+                                                            <Grid.ColumnDefinitions>
+                                                                <ColumnDefinition Width="*"/>
+                                                                <ColumnDefinition Width="Auto"/>
+                                                                <ColumnDefinition Width="Auto"/>
+                                                                <ColumnDefinition Width="Auto"/>
+                                                            </Grid.ColumnDefinitions>
+                                                            <TextBlock Grid.Column="0" Text="{Binding Wan22QueueStatus}"
+                                                                      FontSize="10" Foreground="#666"
+                                                                      VerticalAlignment="Center"/>
+                                                            <Button Grid.Column="1"
+                                                                   Content="⏹ Stop"
+                                                                   Command="{Binding StopWan22QueueCommand}"
+                                                                   IsEnabled="{Binding Wan22IsProcessingQueue}"
+                                                                   Width="60" Height="22" FontSize="10"
+                                                                   Margin="4,0,4,0"
+                                                                   Background="#F59E0B" Foreground="White"
+                                                                   BorderThickness="0" Padding="4,2"/>
+                                                            <Button Grid.Column="2"
+                                                                   Content="🔄 Retry"
+                                                                   Command="{Binding ReprocessWan22FailedCommand}"
+                                                                   IsEnabled="{Binding Wan22HasFailedItems}"
+                                                                   Width="60" Height="22" FontSize="10"
+                                                                   Margin="0,0,4,0"
+                                                                   Background="#FFA500" Foreground="White"
+                                                                   BorderThickness="0" Padding="4,2"/>
+                                                            <Button Grid.Column="3"
+                                                                   Content="🗑️ Clear"
+                                                                   Command="{Binding ClearWan22QueueCommand}"
+                                                                   Width="60" Height="22" FontSize="10"
+                                                                   Background="#DC3545" Foreground="White"
+                                                                   BorderThickness="0" Padding="4,2"/>
+                                                        </Grid>
+                                                    </Border>
+                                                    <ScrollViewer MaxHeight="200" VerticalScrollBarVisibility="Auto" Padding="5">
+                                                        <ItemsControl ItemsSource="{Binding Wan22Queue}">
+                                                            <ItemsControl.ItemTemplate>
+                                                                <DataTemplate>
+                                                                    <Border BorderBrush="#E9ECEF" BorderThickness="1"
+                                                                            CornerRadius="4" Padding="8,6"
+                                                                            Margin="2,2,2,0" Background="White">
+                                                                        <Grid>
+                                                                            <Grid.ColumnDefinitions>
+                                                                                <ColumnDefinition Width="*"/>
+                                                                                <ColumnDefinition Width="Auto"/>
+                                                                                <ColumnDefinition Width="Auto"/>
+                                                                            </Grid.ColumnDefinitions>
+                                                                            <TextBlock Grid.Column="0" Text="{Binding DisplayText}"
+                                                                                      FontSize="11" TextTrimming="CharacterEllipsis"
+                                                                                      VerticalAlignment="Center"/>
+                                                                            <TextBlock Grid.Column="1"
+                                                                                      Text="{Binding StatusDisplay}"
+                                                                                      Foreground="{Binding StatusColor}"
+                                                                                      FontSize="10" FontWeight="SemiBold"
+                                                                                      VerticalAlignment="Center" Margin="8,0,8,0"/>
+                                                                            <Button Grid.Column="2" Content="✕"
+                                                                                   Width="22" Height="22" FontSize="10"
+                                                                                   Background="Transparent" BorderThickness="0"
+                                                                                   Foreground="#999" Padding="0"
+                                                                                   Command="{Binding DataContext.RemoveWan22QueueItemCommand, RelativeSource={RelativeSource AncestorType=ItemsControl}}"
+                                                                                   CommandParameter="{Binding}"/>
+                                                                        </Grid>
+                                                                    </Border>
+                                                                </DataTemplate>
+                                                            </ItemsControl.ItemTemplate>
+                                                        </ItemsControl>
+                                                    </ScrollViewer>
+                                                </StackPanel>
+                                            </Border>
 
-                                <!-- Video Player -->
-                                <MediaElement x:Name="VideoPlayer"
-                                            Source="{Binding ResultVideoPath}"
-                                            LoadedBehavior="Manual"
-                                            UnloadedBehavior="Stop"
-                                            Stretch="Uniform"
-                                            Visibility="{Binding HasResultVideo, Converter={StaticResource BooleanToVisibilityConverter}}"/>
-                            </Grid>
-                        </Border>
+                                            <!-- Video Output Preview -->
+                                            <Border BorderBrush="#DEE2E6" BorderThickness="1"
+                                                    Background="White" Height="220" CornerRadius="5" Margin="0,12,0,0">
+                                                <Grid>
+                                                    <TextBlock Text="Latest generated video will appear here"
+                                                              HorizontalAlignment="Center" VerticalAlignment="Center"
+                                                              Foreground="#999" FontStyle="Italic">
+                                                        <TextBlock.Style>
+                                                            <Style TargetType="TextBlock">
+                                                                <Setter Property="Visibility" Value="Collapsed"/>
+                                                                <Style.Triggers>
+                                                                    <DataTrigger Binding="{Binding HasWan22Result}" Value="False">
+                                                                        <Setter Property="Visibility" Value="Visible"/>
+                                                                    </DataTrigger>
+                                                                </Style.Triggers>
+                                                            </Style>
+                                                        </TextBlock.Style>
+                                                    </TextBlock>
+                                                    <MediaElement x:Name="Wan22VideoPlayer"
+                                                                Source="{Binding Wan22ResultPath}"
+                                                                LoadedBehavior="Manual" UnloadedBehavior="Stop"
+                                                                Stretch="Uniform"
+                                                                Visibility="{Binding HasWan22Result, Converter={StaticResource BooleanToVisibilityConverter}}"/>
+                                                </Grid>
+                                            </Border>
 
-                        <Grid>
-                            <Grid.ColumnDefinitions>
-                                <ColumnDefinition Width="*"/>
-                                <ColumnDefinition Width="Auto"/>
-                                <ColumnDefinition Width="Auto"/>
-                            </Grid.ColumnDefinitions>
+                                            <!-- Result Actions -->
+                                            <StackPanel Orientation="Horizontal" Margin="0,8,0,0">
+                                                <Button Content="▶️ Play"
+                                                       Style="{StaticResource SecondaryButtonStyle}"
+                                                       Command="{Binding PlayWan22VideoCommand}"
+                                                       IsEnabled="{Binding HasWan22Result}" Margin="0,0,8,0"/>
+                                                <Button Content="📂 Open Folder"
+                                                       Style="{StaticResource SecondaryButtonStyle}"
+                                                       Command="{Binding OpenWan22ResultFolderCommand}"
+                                                       IsEnabled="{Binding HasWan22Result}" Margin="0,0,8,0"/>
+                                                <Button Content="📷 Send to Edit Camera"
+                                                       Style="{StaticResource SecondaryButtonStyle}"
+                                                       Command="{Binding SendWan22ToEditCameraCommand}"
+                                                       IsEnabled="{Binding HasWan22Result}"/>
+                                            </StackPanel>
 
-                            <Button Grid.Column="0"
-                                   Content="▶️ Play"
-                                   Style="{StaticResource SecondaryButtonStyle}"
-                                   Command="{Binding PlayVideoCommand}"
-                                   IsEnabled="{Binding HasResultVideo}"
-                                   Margin="0,0,8,0"/>
+                                            <TextBlock Text="{Binding Wan22VideoInfo}"
+                                                      FontStyle="Italic" Foreground="#666"
+                                                      FontSize="10" Margin="0,6,0,0"/>
+                                        </StackPanel>
+                                    </Border>
 
-                            <Button Grid.Column="1"
-                                   Content="📂 Open Folder"
-                                   Style="{StaticResource SecondaryButtonStyle}"
-                                   Command="{Binding OpenResultFolderCommand}"
-                                   IsEnabled="{Binding HasResultVideo}"
-                                   Margin="0,0,8,0"/>
+                                    <!-- Log Output - shared panel -->
+                                    <ctrl:ProcessingLogPanel LogText="{Binding Wan22LogOutput}" Header="📋 Generation Log"/>
 
-                            <Button Grid.Column="2"
-                                   Content="📷 Send to Edit Camera"
-                                   Style="{StaticResource SecondaryButtonStyle}"
-                                   Command="{Binding SendToEditCameraCommand}"
-                                   IsEnabled="{Binding HasResultVideo}"/>
-                        </Grid>
-
-                        <TextBlock Text="{Binding VideoInfo}"
-                                  FontStyle="Italic"
-                                  Foreground="#666"
-                                  FontSize="11"
-                                  Margin="0,10,0,0"/>
-                    </StackPanel>
-                </Border>
-
-                <!-- Advanced Settings (Collapsible) -->
-                <Expander Header="⚙️ Advanced Settings"
-                         Margin="0,0,0,15"
-                         IsExpanded="False">
-                    <Border Background="#F8F9FA"
-                            BorderBrush="#DEE2E6"
-                            BorderThickness="1"
-                            CornerRadius="5"
-                            Padding="15"
-                            Margin="0,8,0,0">
-                        <StackPanel>
-                            <Grid>
-                                <Grid.ColumnDefinitions>
-                                    <ColumnDefinition Width="*"/>
-                                    <ColumnDefinition Width="*"/>
-                                    <ColumnDefinition Width="*"/>
-                                </Grid.ColumnDefinitions>
-
-                                <!-- Steps -->
-                                <StackPanel Grid.Column="0" Margin="0,0,15,0">
-                                    <TextBlock Text="Steps" FontWeight="SemiBold" FontSize="11" Margin="0,0,0,5"/>
-                                    <Grid>
-                                        <Grid.ColumnDefinitions>
-                                            <ColumnDefinition Width="*"/>
-                                            <ColumnDefinition Width="Auto"/>
-                                        </Grid.ColumnDefinitions>
-                                        <Slider Grid.Column="0"
-                                                Value="{Binding Steps, Mode=TwoWay}"
-                                                Minimum="1" Maximum="10"
-                                                TickFrequency="1"
-                                                IsSnapToTickEnabled="True"
-                                                VerticalAlignment="Center"/>
-                                        <TextBlock Grid.Column="1"
-                                                  Text="{Binding Steps}"
-                                                  Margin="8,0,0,0"
-                                                  VerticalAlignment="Center"
-                                                  MinWidth="25"
-                                                  FontWeight="Bold"/>
-                                    </Grid>
                                 </StackPanel>
-
-                                <!-- CFG -->
-                                <StackPanel Grid.Column="1" Margin="0,0,15,0">
-                                    <TextBlock Text="CFG Scale" FontWeight="SemiBold" FontSize="11" Margin="0,0,0,5"/>
-                                    <Grid>
-                                        <Grid.ColumnDefinitions>
-                                            <ColumnDefinition Width="*"/>
-                                            <ColumnDefinition Width="Auto"/>
-                                        </Grid.ColumnDefinitions>
-                                        <Slider Grid.Column="0"
-                                                Value="{Binding Cfg, Mode=TwoWay}"
-                                                Minimum="1" Maximum="5"
-                                                TickFrequency="0.5"
-                                                IsSnapToTickEnabled="True"
-                                                VerticalAlignment="Center"/>
-                                        <TextBlock Grid.Column="1"
-                                                  Text="{Binding Cfg, StringFormat={}{0:F1}}"
-                                                  Margin="8,0,0,0"
-                                                  VerticalAlignment="Center"
-                                                  MinWidth="25"
-                                                  FontWeight="Bold"/>
-                                    </Grid>
-                                </StackPanel>
-
-                                <!-- Seed -->
-                                <StackPanel Grid.Column="2">
-                                    <TextBlock Text="Seed (0 = Random)" FontWeight="SemiBold" FontSize="11" Margin="0,0,0,5"/>
-                                    <TextBox Text="{Binding Seed, Mode=TwoWay}"
-                                            Padding="8"
-                                            Background="White"
-                                            BorderBrush="#CED4DA"
-                                            FontSize="11"/>
-                                </StackPanel>
-                            </Grid>
-
-                            <!-- Negative Prompt -->
-                            <StackPanel Margin="0,15,0,0">
-                                <TextBlock Text="Negative Prompt" FontWeight="SemiBold" FontSize="11" Margin="0,0,0,5"/>
-                                <TextBox Text="{Binding NegativePrompt, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
-                                        TextWrapping="Wrap"
-                                        AcceptsReturn="True"
-                                        Height="60"
-                                        Padding="8"
-                                        Background="White"
-                                        BorderBrush="#CED4DA"
-                                        FontSize="11"/>
-                            </StackPanel>
-                        </StackPanel>
-                    </Border>
-                </Expander>
-
-                <!-- Log (Collapsible) - shared reusable panel -->
-                <ctrl:ProcessingLogPanel LogText="{Binding LogOutput}" IsLogExpanded="True"/>
+                                <!-- End Wan 2.2 Remix Content -->
 
                             </StackPanel>
                         </ScrollViewer>
@@ -1413,562 +1282,6 @@
 
                                 <!-- Story Log (Collapsible) - shared panel -->
                                 <ctrl:ProcessingLogPanel LogText="{Binding LogOutput}" IsLogExpanded="True"/>
-
-                            </StackPanel>
-                        </ScrollViewer>
-                    </TabItem>
-
-                    <!-- Tab 5: Single Video -->
-                    <TabItem Header="🎬 Single Video">
-                        <ScrollViewer VerticalScrollBarVisibility="Auto">
-                            <StackPanel Margin="10">
-
-                                <!-- Workflow Selector -->
-                                <Border Style="{StaticResource SectionPanelStyle}" Margin="0,0,0,5">
-                                    <StackPanel>
-                                        <TextBlock Text="🔧 Workflow" Style="{StaticResource HeaderTextStyle}" Foreground="#FF6B35"/>
-                                        <ComboBox SelectedIndex="{Binding SingleVideoWorkflowIndex, Mode=TwoWay}"
-                                                  Height="32" Margin="0,6,0,0"
-                                                  FontSize="13">
-                                            <ComboBoxItem Content="🎬 LTX 2.3"/>
-                                            <ComboBoxItem Content="🎨 Wan 2.2 Remix"/>
-                                        </ComboBox>
-                                    </StackPanel>
-                                </Border>
-
-                                <!-- LTX 2.3 Content -->
-                                <StackPanel Visibility="{Binding SingleVideoIsLTX23, Converter={StaticResource BooleanToVisibilityConverter}}">
-
-                                <!-- Reference Image Section -->
-                                <Border Style="{StaticResource SectionPanelStyle}">
-                                    <StackPanel>
-                                        <TextBlock Text="🖼️ Reference Image" Style="{StaticResource HeaderTextStyle}" Foreground="#FF6B35"/>
-
-                                        <Border BorderBrush="#DEE2E6" BorderThickness="1" Background="White" CornerRadius="5" Padding="15" Margin="0,0,0,0">
-                                            <Grid>
-                                                <Grid.ColumnDefinitions>
-                                                    <ColumnDefinition Width="*"/>
-                                                    <ColumnDefinition Width="10"/>
-                                                    <ColumnDefinition Width="*"/>
-                                                </Grid.ColumnDefinitions>
-
-                                                <!-- Left Column: Image Preview -->
-                                                <StackPanel Grid.Column="0">
-                                                    <TextBlock Text="Source Image:" FontWeight="SemiBold" FontSize="12" Margin="0,0,0,8"/>
-                                                    <Border BorderBrush="#DEE2E6" BorderThickness="1"
-                                                            Background="White" Height="200"
-                                                            CornerRadius="3">
-                                                        <Grid>
-                                                            <TextBlock Text="No image selected"
-                                                                      HorizontalAlignment="Center"
-                                                                      VerticalAlignment="Center"
-                                                                      Foreground="#999"
-                                                                      FontStyle="Italic">
-                                                                <TextBlock.Style>
-                                                                    <Style TargetType="TextBlock">
-                                                                        <Setter Property="Visibility" Value="Collapsed"/>
-                                                                        <Style.Triggers>
-                                                                            <DataTrigger Binding="{Binding LTX23ImagePreview}" Value="{x:Null}">
-                                                                                <Setter Property="Visibility" Value="Visible"/>
-                                                                            </DataTrigger>
-                                                                        </Style.Triggers>
-                                                                    </Style>
-                                                                </TextBlock.Style>
-                                                            </TextBlock>
-                                                            <Image Source="{Binding LTX23ImagePreview}" Stretch="Uniform"/>
-                                                        </Grid>
-                                                    </Border>
-                                                    <Button Content="Browse..."
-                                                            Style="{StaticResource SecondaryButtonStyle}"
-                                                            Command="{Binding SelectLTX23ImageCommand}"
-                                                            Height="32"
-                                                            HorizontalAlignment="Stretch"
-                                                            Margin="0,8,0,0"/>
-                                                    <TextBlock Text="{Binding LTX23ImageInfo}"
-                                                              FontStyle="Italic"
-                                                              Foreground="#666"
-                                                              FontSize="10"
-                                                              Margin="0,6,0,0"
-                                                              TextWrapping="Wrap"/>
-                                                </StackPanel>
-
-                                                <!-- Right Column: Analyze Button + Result -->
-                                                <StackPanel Grid.Column="2">
-                                                    <TextBlock Text="Image Analysis:" FontWeight="SemiBold" FontSize="12" Margin="0,0,0,8"/>
-                                                    <Button Content="🧠 Analyze &amp; Generate"
-                                                            Style="{StaticResource SecondaryButtonStyle}"
-                                                            Command="{Binding AnalyzeLTX23ImageCommand}"
-                                                            IsEnabled="{Binding CanLTX23AnalyzeImage, Mode=OneWay}"
-                                                            Height="32"
-                                                            HorizontalAlignment="Stretch"/>
-                                                    <TextBox Text="{Binding LTX23AnalysisResult, Mode=OneWay}"
-                                                            TextWrapping="Wrap"
-                                                            AcceptsReturn="True"
-                                                            Height="188"
-                                                            Padding="10"
-                                                            VerticalScrollBarVisibility="Auto"
-                                                            Background="#F8F9FA"
-                                                            BorderBrush="#CED4DA"
-                                                            FontSize="11"
-                                                            IsReadOnly="True"
-                                                            Margin="0,8,0,0"/>
-                                                </StackPanel>
-                                            </Grid>
-                                        </Border>
-                                    </StackPanel>
-                                </Border>
-
-                                <!-- Video Prompt Section -->
-                                <Border Style="{StaticResource SectionPanelStyle}">
-                                    <StackPanel>
-                                        <TextBlock Text="📝 Video Prompt" Style="{StaticResource HeaderTextStyle}" Foreground="#FF6B35"/>
-
-                                        <TextBlock Text="Describe the video action you want to generate:"
-                                                  FontWeight="SemiBold" FontSize="12"
-                                                  Margin="0,0,0,8"/>
-                                        <TextBox Text="{Binding LTX23Prompt, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
-                                                TextWrapping="Wrap"
-                                                AcceptsReturn="True"
-                                                Height="120"
-                                                Padding="12"
-                                                VerticalScrollBarVisibility="Auto"
-                                                Background="White"
-                                                BorderBrush="#CED4DA"
-                                                FontSize="12"/>
-
-                                        <!-- Frame Count -->
-                                        <Grid Margin="0,10,0,0">
-                                            <Grid.ColumnDefinitions>
-                                                <ColumnDefinition Width="Auto"/>
-                                                <ColumnDefinition Width="*"/>
-                                                <ColumnDefinition Width="Auto"/>
-                                            </Grid.ColumnDefinitions>
-                                            <TextBlock Grid.Column="0" Text="Frames:"
-                                                      FontWeight="SemiBold" FontSize="12"
-                                                      VerticalAlignment="Center" Margin="0,0,10,0"/>
-                                            <Slider Grid.Column="1"
-                                                   Minimum="49" Maximum="481"
-                                                   SmallChange="24" LargeChange="48"
-                                                   Value="{Binding LTX23FrameCount, Mode=TwoWay}"
-                                                   VerticalAlignment="Center"/>
-                                            <TextBox Grid.Column="2"
-                                                    Text="{Binding LTX23FrameCount, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
-                                                    Width="48" Height="28"
-                                                    TextAlignment="Center"
-                                                    VerticalContentAlignment="Center"
-                                                    FontSize="12" Margin="8,0,0,0"
-                                                    BorderBrush="#CED4DA"/>
-                                        </Grid>
-                                        <TextBlock Text="{Binding LTX23FrameCountHint}"
-                                                  FontSize="10" Foreground="#888"
-                                                  Margin="0,3,0,0"/>
-                                    </StackPanel>
-                                </Border>
-
-                                <!-- Processing Status + Queue Section -->
-                                <Border Style="{StaticResource SectionPanelStyle}">
-                                    <StackPanel>
-                                        <!-- Processing Status -->
-                                        <Border Background="#FFF9F0"
-                                                BorderBrush="#FFE0B0"
-                                                BorderThickness="1"
-                                                CornerRadius="5"
-                                                Padding="12"
-                                                Visibility="{Binding IsProcessingLTX23, Converter={StaticResource BooleanToVisibilityConverter}}"
-                                                Margin="0,10,0,0">
-                                            <StackPanel>
-                                                <TextBlock Text="{Binding LTX23ProcessingStatus}"
-                                                          FontWeight="SemiBold" FontSize="11"
-                                                          TextAlignment="Center" TextWrapping="Wrap"/>
-                                                <ProgressBar Value="{Binding LTX23ProcessingProgress, Mode=OneWay}"
-                                                            Height="14" Foreground="#FF6B35"
-                                                            Margin="0,6,0,4"/>
-                                                <TextBlock Text="{Binding LTX23ProgressPercentage}"
-                                                          HorizontalAlignment="Center"
-                                                          FontSize="11" FontWeight="Bold"
-                                                          Foreground="#FF6B35"/>
-                                            </StackPanel>
-                                        </Border>
-
-                                        <!-- Queue List -->
-                                        <Border BorderBrush="#DEE2E6" BorderThickness="1"
-                                                CornerRadius="5" Margin="0,12,0,0"
-                                                Visibility="{Binding LTX23HasQueueItems, Converter={StaticResource BoolToVisibilityConverter}}">
-                                            <StackPanel>
-                                                <Border Background="#F0F0F0" Padding="10,6" CornerRadius="5,5,0,0">
-                                                    <Grid>
-                                                        <Grid.ColumnDefinitions>
-                                                            <ColumnDefinition Width="*"/>
-                                                            <ColumnDefinition Width="Auto"/>
-                                                            <ColumnDefinition Width="Auto"/>
-                                                            <ColumnDefinition Width="Auto"/>
-                                                        </Grid.ColumnDefinitions>
-                                                        <TextBlock Grid.Column="0" Text="{Binding LTX23QueueStatus}"
-                                                                  FontSize="10" Foreground="#666"
-                                                                  VerticalAlignment="Center"/>
-                                                        <Button Grid.Column="1"
-                                                               Content="⏹ Stop"
-                                                               Command="{Binding StopLTX23QueueCommand}"
-                                                               IsEnabled="{Binding LTX23IsProcessingQueue}"
-                                                               Width="60" Height="22" FontSize="10"
-                                                               Margin="4,0,4,0"
-                                                               Background="#F59E0B" Foreground="White"
-                                                               BorderThickness="0" Padding="4,2"/>
-                                                        <Button Grid.Column="2"
-                                                               Content="🔄 Retry"
-                                                               Command="{Binding ReprocessLTX23FailedCommand}"
-                                                               IsEnabled="{Binding LTX23HasFailedItems}"
-                                                               Width="60" Height="22" FontSize="10"
-                                                               Margin="0,0,4,0"
-                                                               Background="#FFA500" Foreground="White"
-                                                               BorderThickness="0" Padding="4,2"/>
-                                                        <Button Grid.Column="3"
-                                                               Content="🗑️ Clear"
-                                                               Command="{Binding ClearLTX23QueueCommand}"
-                                                               Width="60" Height="22" FontSize="10"
-                                                               Background="#DC3545" Foreground="White"
-                                                               BorderThickness="0" Padding="4,2"/>
-                                                    </Grid>
-                                                </Border>
-                                                <ScrollViewer MaxHeight="200" VerticalScrollBarVisibility="Auto" Padding="5">
-                                                    <ItemsControl ItemsSource="{Binding LTX23Queue}">
-                                                        <ItemsControl.ItemTemplate>
-                                                            <DataTemplate>
-                                                                <Border BorderBrush="#E9ECEF" BorderThickness="1"
-                                                                        CornerRadius="4" Padding="8,6"
-                                                                        Margin="2,2,2,0" Background="White">
-                                                                    <Grid>
-                                                                        <Grid.ColumnDefinitions>
-                                                                            <ColumnDefinition Width="*"/>
-                                                                            <ColumnDefinition Width="Auto"/>
-                                                                            <ColumnDefinition Width="Auto"/>
-                                                                        </Grid.ColumnDefinitions>
-
-                                                                        <StackPanel Grid.Column="0" VerticalAlignment="Center">
-                                                                            <TextBlock Text="{Binding DisplayText}"
-                                                                                      FontSize="11" TextTrimming="CharacterEllipsis"/>
-                                                                        </StackPanel>
-
-                                                                        <TextBlock Grid.Column="1"
-                                                                                  Text="{Binding StatusDisplay}"
-                                                                                  Foreground="{Binding StatusColor}"
-                                                                                  FontSize="10" FontWeight="SemiBold"
-                                                                                  VerticalAlignment="Center"
-                                                                                  Margin="8,0,8,0"/>
-
-                                                                        <Button Grid.Column="2"
-                                                                               Content="✕"
-                                                                               Width="22" Height="22"
-                                                                               FontSize="10"
-                                                                               Background="Transparent"
-                                                                               BorderThickness="0"
-                                                                               Foreground="#999"
-                                                                               Padding="0"
-                                                                               Command="{Binding DataContext.RemoveLTX23QueueItemCommand, RelativeSource={RelativeSource AncestorType=ItemsControl}}"
-                                                                               CommandParameter="{Binding}"/>
-                                                                    </Grid>
-                                                                </Border>
-                                                            </DataTemplate>
-                                                        </ItemsControl.ItemTemplate>
-                                                    </ItemsControl>
-                                                </ScrollViewer>
-                                            </StackPanel>
-                                        </Border>
-
-                                        <!-- Latest Result Preview -->
-                                        <Border BorderBrush="#DEE2E6" BorderThickness="1"
-                                                Background="White" Height="220" CornerRadius="5"
-                                                Margin="0,12,0,0">
-                                            <Grid>
-                                                <TextBlock Text="Latest generated video will appear here"
-                                                          HorizontalAlignment="Center"
-                                                          VerticalAlignment="Center"
-                                                          Foreground="#999" FontStyle="Italic">
-                                                    <TextBlock.Style>
-                                                        <Style TargetType="TextBlock">
-                                                            <Setter Property="Visibility" Value="Collapsed"/>
-                                                            <Style.Triggers>
-                                                                <DataTrigger Binding="{Binding HasLTX23Result}" Value="False">
-                                                                    <Setter Property="Visibility" Value="Visible"/>
-                                                                </DataTrigger>
-                                                            </Style.Triggers>
-                                                        </Style>
-                                                    </TextBlock.Style>
-                                                </TextBlock>
-                                                <MediaElement x:Name="LTX23VideoPlayer"
-                                                            Source="{Binding LTX23ResultPath}"
-                                                            LoadedBehavior="Manual"
-                                                            UnloadedBehavior="Stop"
-                                                            Stretch="Uniform"
-                                                            Visibility="{Binding HasLTX23Result, Converter={StaticResource BooleanToVisibilityConverter}}"/>
-                                            </Grid>
-                                        </Border>
-
-                                        <!-- Result Actions -->
-                                        <StackPanel Orientation="Horizontal" Margin="0,8,0,0">
-                                            <Button Content="▶️ Play"
-                                                   Style="{StaticResource SecondaryButtonStyle}"
-                                                   Command="{Binding PlayLTX23VideoCommand}"
-                                                   IsEnabled="{Binding HasLTX23Result}"
-                                                   Margin="0,0,8,0"/>
-                                            <Button Content="📂 Open Folder"
-                                                   Style="{StaticResource SecondaryButtonStyle}"
-                                                   Command="{Binding OpenLTX23ResultFolderCommand}"
-                                                   IsEnabled="{Binding HasLTX23Result}"
-                                                   Margin="0,0,8,0"/>
-                                            <Button Content="📷 Send to Edit Camera"
-                                                   Style="{StaticResource SecondaryButtonStyle}"
-                                                   Command="{Binding SendLTX23ToEditCameraCommand}"
-                                                   IsEnabled="{Binding HasLTX23Result}"/>
-                                        </StackPanel>
-
-                                        <TextBlock Text="{Binding LTX23VideoInfo}"
-                                                  FontStyle="Italic" Foreground="#666"
-                                                  FontSize="10" Margin="0,6,0,0"/>
-                                    </StackPanel>
-                                </Border>
-
-                                <!-- Log Output - shared panel -->
-                                <ctrl:ProcessingLogPanel LogText="{Binding LTX23LogOutput}" Header="📋 Generation Log"/>
-
-                                </StackPanel>
-                                <!-- End LTX 2.3 Content -->
-
-                                <!-- Wan 2.2 Remix Content -->
-                                <StackPanel Visibility="{Binding SingleVideoIsWan22, Converter={StaticResource BooleanToVisibilityConverter}}">
-
-                                    <!-- Reference Image Section -->
-                                    <Border Style="{StaticResource SectionPanelStyle}">
-                                        <StackPanel>
-                                            <TextBlock Text="🖼️ Reference Image" Style="{StaticResource HeaderTextStyle}" Foreground="#FF6B35"/>
-                                            <Border BorderBrush="#DEE2E6" BorderThickness="1" Background="White" CornerRadius="5" Padding="15">
-                                                <Grid>
-                                                    <Grid.ColumnDefinitions>
-                                                        <ColumnDefinition Width="*"/>
-                                                        <ColumnDefinition Width="10"/>
-                                                        <ColumnDefinition Width="*"/>
-                                                    </Grid.ColumnDefinitions>
-
-                                                    <!-- Left: Image Preview -->
-                                                    <StackPanel Grid.Column="0">
-                                                        <TextBlock Text="Source Image:" FontWeight="SemiBold" FontSize="12" Margin="0,0,0,8"/>
-                                                        <Border BorderBrush="#DEE2E6" BorderThickness="1" Background="White" Height="200" CornerRadius="3">
-                                                            <Grid>
-                                                                <TextBlock Text="No image selected"
-                                                                          HorizontalAlignment="Center" VerticalAlignment="Center"
-                                                                          Foreground="#999" FontStyle="Italic">
-                                                                    <TextBlock.Style>
-                                                                        <Style TargetType="TextBlock">
-                                                                            <Setter Property="Visibility" Value="Collapsed"/>
-                                                                            <Style.Triggers>
-                                                                                <DataTrigger Binding="{Binding Wan22ImagePreview}" Value="{x:Null}">
-                                                                                    <Setter Property="Visibility" Value="Visible"/>
-                                                                                </DataTrigger>
-                                                                            </Style.Triggers>
-                                                                        </Style>
-                                                                    </TextBlock.Style>
-                                                                </TextBlock>
-                                                                <Image Source="{Binding Wan22ImagePreview}" Stretch="Uniform"/>
-                                                            </Grid>
-                                                        </Border>
-                                                        <Button Content="Browse..."
-                                                                Style="{StaticResource SecondaryButtonStyle}"
-                                                                Command="{Binding SelectWan22ImageCommand}"
-                                                                Height="32" HorizontalAlignment="Stretch" Margin="0,8,0,0"/>
-                                                        <TextBlock Text="{Binding Wan22ImageInfo}"
-                                                                  FontStyle="Italic" Foreground="#666" FontSize="10"
-                                                                  Margin="0,6,0,0" TextWrapping="Wrap"/>
-                                                    </StackPanel>
-
-                                                    <!-- Right: Analyze Button + Result -->
-                                                    <StackPanel Grid.Column="2">
-                                                        <TextBlock Text="Image Analysis:" FontWeight="SemiBold" FontSize="12" Margin="0,0,0,8"/>
-                                                        <Button Content="🧠 Analyze Image"
-                                                                Style="{StaticResource SecondaryButtonStyle}"
-                                                                Command="{Binding AnalyzeWan22ImageCommand}"
-                                                                IsEnabled="{Binding CanWan22AnalyzeImage, Mode=OneWay}"
-                                                                Height="32" HorizontalAlignment="Stretch"/>
-                                                        <TextBlock Text="Sends image to qwen-4-vl → auto-queues result"
-                                                                  FontSize="10" Foreground="#888" FontStyle="Italic"
-                                                                  Margin="0,4,0,4" TextWrapping="Wrap"/>
-                                                        <TextBox Text="{Binding Wan22AnalysisResult, Mode=OneWay}"
-                                                                TextWrapping="Wrap" AcceptsReturn="True"
-                                                                Height="160" Padding="10"
-                                                                VerticalScrollBarVisibility="Auto"
-                                                                Background="#F8F9FA" BorderBrush="#CED4DA"
-                                                                FontSize="11" IsReadOnly="True" Margin="0,4,0,0"/>
-                                                    </StackPanel>
-                                                </Grid>
-                                            </Border>
-                                        </StackPanel>
-                                    </Border>
-
-                                    <!-- Video Prompt Section -->
-                                    <Border Style="{StaticResource SectionPanelStyle}">
-                                        <StackPanel>
-                                            <TextBlock Text="📝 Video Prompt" Style="{StaticResource HeaderTextStyle}" Foreground="#FF6B35"/>
-                                            <TextBlock Text="Describe the video action (or edit the auto-generated prompt):"
-                                                      FontWeight="SemiBold" FontSize="12" Margin="0,0,0,8"/>
-                                            <TextBox Text="{Binding Wan22Prompt, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
-                                                    TextWrapping="Wrap" AcceptsReturn="True"
-                                                    Height="120" Padding="12"
-                                                    VerticalScrollBarVisibility="Auto"
-                                                    Background="White" BorderBrush="#CED4DA" FontSize="12"/>
-                                            <Button Content="➕ Add to Queue"
-                                                    Style="{StaticResource SecondaryButtonStyle}"
-                                                    Command="{Binding GenerateWan22VideoCommand}"
-                                                    IsEnabled="{Binding CanWan22AddToQueue, Mode=OneWay}"
-                                                    Height="35" Width="140" HorizontalAlignment="Left"
-                                                    Margin="0,10,0,0"/>
-                                        </StackPanel>
-                                    </Border>
-
-                                    <!-- Processing Status + Queue -->
-                                    <Border Style="{StaticResource SectionPanelStyle}">
-                                        <StackPanel>
-                                            <!-- Processing Status -->
-                                            <Border Background="#FFF9F0" BorderBrush="#FFE0B0" BorderThickness="1"
-                                                    CornerRadius="5" Padding="12" Margin="0,0,0,10"
-                                                    Visibility="{Binding IsProcessingWan22, Converter={StaticResource BooleanToVisibilityConverter}}">
-                                                <StackPanel>
-                                                    <TextBlock Text="{Binding Wan22ProcessingStatus}"
-                                                              FontWeight="SemiBold" FontSize="11"
-                                                              TextAlignment="Center" TextWrapping="Wrap"/>
-                                                    <ProgressBar Value="{Binding Wan22ProcessingProgress, Mode=OneWay}"
-                                                                Height="14" Foreground="#FF6B35" Margin="0,6,0,4"/>
-                                                    <TextBlock Text="{Binding Wan22ProgressPercentage}"
-                                                              HorizontalAlignment="Center" FontSize="11"
-                                                              FontWeight="Bold" Foreground="#FF6B35"/>
-                                                </StackPanel>
-                                            </Border>
-
-                                            <!-- Queue List -->
-                                            <Border BorderBrush="#DEE2E6" BorderThickness="1" CornerRadius="5"
-                                                    Visibility="{Binding Wan22HasQueueItems, Converter={StaticResource BoolToVisibilityConverter}}">
-                                                <StackPanel>
-                                                    <Border Background="#F0F0F0" Padding="10,6" CornerRadius="5,5,0,0">
-                                                        <Grid>
-                                                            <Grid.ColumnDefinitions>
-                                                                <ColumnDefinition Width="*"/>
-                                                                <ColumnDefinition Width="Auto"/>
-                                                                <ColumnDefinition Width="Auto"/>
-                                                                <ColumnDefinition Width="Auto"/>
-                                                            </Grid.ColumnDefinitions>
-                                                            <TextBlock Grid.Column="0" Text="{Binding Wan22QueueStatus}"
-                                                                      FontSize="10" Foreground="#666"
-                                                                      VerticalAlignment="Center"/>
-                                                            <Button Grid.Column="1"
-                                                                   Content="⏹ Stop"
-                                                                   Command="{Binding StopWan22QueueCommand}"
-                                                                   IsEnabled="{Binding Wan22IsProcessingQueue}"
-                                                                   Width="60" Height="22" FontSize="10"
-                                                                   Margin="4,0,4,0"
-                                                                   Background="#F59E0B" Foreground="White"
-                                                                   BorderThickness="0" Padding="4,2"/>
-                                                            <Button Grid.Column="2"
-                                                                   Content="🔄 Retry"
-                                                                   Command="{Binding ReprocessWan22FailedCommand}"
-                                                                   IsEnabled="{Binding Wan22HasFailedItems}"
-                                                                   Width="60" Height="22" FontSize="10"
-                                                                   Margin="0,0,4,0"
-                                                                   Background="#FFA500" Foreground="White"
-                                                                   BorderThickness="0" Padding="4,2"/>
-                                                            <Button Grid.Column="3"
-                                                                   Content="🗑️ Clear"
-                                                                   Command="{Binding ClearWan22QueueCommand}"
-                                                                   Width="60" Height="22" FontSize="10"
-                                                                   Background="#DC3545" Foreground="White"
-                                                                   BorderThickness="0" Padding="4,2"/>
-                                                        </Grid>
-                                                    </Border>
-                                                    <ScrollViewer MaxHeight="200" VerticalScrollBarVisibility="Auto" Padding="5">
-                                                        <ItemsControl ItemsSource="{Binding Wan22Queue}">
-                                                            <ItemsControl.ItemTemplate>
-                                                                <DataTemplate>
-                                                                    <Border BorderBrush="#E9ECEF" BorderThickness="1"
-                                                                            CornerRadius="4" Padding="8,6"
-                                                                            Margin="2,2,2,0" Background="White">
-                                                                        <Grid>
-                                                                            <Grid.ColumnDefinitions>
-                                                                                <ColumnDefinition Width="*"/>
-                                                                                <ColumnDefinition Width="Auto"/>
-                                                                                <ColumnDefinition Width="Auto"/>
-                                                                            </Grid.ColumnDefinitions>
-                                                                            <TextBlock Grid.Column="0" Text="{Binding DisplayText}"
-                                                                                      FontSize="11" TextTrimming="CharacterEllipsis"
-                                                                                      VerticalAlignment="Center"/>
-                                                                            <TextBlock Grid.Column="1"
-                                                                                      Text="{Binding StatusDisplay}"
-                                                                                      Foreground="{Binding StatusColor}"
-                                                                                      FontSize="10" FontWeight="SemiBold"
-                                                                                      VerticalAlignment="Center" Margin="8,0,8,0"/>
-                                                                            <Button Grid.Column="2" Content="✕"
-                                                                                   Width="22" Height="22" FontSize="10"
-                                                                                   Background="Transparent" BorderThickness="0"
-                                                                                   Foreground="#999" Padding="0"
-                                                                                   Command="{Binding DataContext.RemoveWan22QueueItemCommand, RelativeSource={RelativeSource AncestorType=ItemsControl}}"
-                                                                                   CommandParameter="{Binding}"/>
-                                                                        </Grid>
-                                                                    </Border>
-                                                                </DataTemplate>
-                                                            </ItemsControl.ItemTemplate>
-                                                        </ItemsControl>
-                                                    </ScrollViewer>
-                                                </StackPanel>
-                                            </Border>
-
-                                            <!-- Video Output Preview -->
-                                            <Border BorderBrush="#DEE2E6" BorderThickness="1"
-                                                    Background="White" Height="220" CornerRadius="5" Margin="0,12,0,0">
-                                                <Grid>
-                                                    <TextBlock Text="Latest generated video will appear here"
-                                                              HorizontalAlignment="Center" VerticalAlignment="Center"
-                                                              Foreground="#999" FontStyle="Italic">
-                                                        <TextBlock.Style>
-                                                            <Style TargetType="TextBlock">
-                                                                <Setter Property="Visibility" Value="Collapsed"/>
-                                                                <Style.Triggers>
-                                                                    <DataTrigger Binding="{Binding HasWan22Result}" Value="False">
-                                                                        <Setter Property="Visibility" Value="Visible"/>
-                                                                    </DataTrigger>
-                                                                </Style.Triggers>
-                                                            </Style>
-                                                        </TextBlock.Style>
-                                                    </TextBlock>
-                                                    <MediaElement Source="{Binding Wan22ResultPath}"
-                                                                LoadedBehavior="Manual" UnloadedBehavior="Stop"
-                                                                Stretch="Uniform"
-                                                                Visibility="{Binding HasWan22Result, Converter={StaticResource BooleanToVisibilityConverter}}"/>
-                                                </Grid>
-                                            </Border>
-
-                                            <!-- Result Actions -->
-                                            <StackPanel Orientation="Horizontal" Margin="0,8,0,0">
-                                                <Button Content="▶️ Play"
-                                                       Style="{StaticResource SecondaryButtonStyle}"
-                                                       Command="{Binding PlayWan22VideoCommand}"
-                                                       IsEnabled="{Binding HasWan22Result}" Margin="0,0,8,0"/>
-                                                <Button Content="📂 Open Folder"
-                                                       Style="{StaticResource SecondaryButtonStyle}"
-                                                       Command="{Binding OpenWan22ResultFolderCommand}"
-                                                       IsEnabled="{Binding HasWan22Result}" Margin="0,0,8,0"/>
-                                                <Button Content="📷 Send to Edit Camera"
-                                                       Style="{StaticResource SecondaryButtonStyle}"
-                                                       Command="{Binding SendWan22ToEditCameraCommand}"
-                                                       IsEnabled="{Binding HasWan22Result}"/>
-                                            </StackPanel>
-
-                                            <TextBlock Text="{Binding Wan22VideoInfo}"
-                                                      FontStyle="Italic" Foreground="#666"
-                                                      FontSize="10" Margin="0,6,0,0"/>
-                                        </StackPanel>
-                                    </Border>
-
-                                    <!-- Log Output - shared panel -->
-                                    <ctrl:ProcessingLogPanel LogText="{Binding Wan22LogOutput}" Header="📋 Generation Log"/>
-
-                                </StackPanel>
-                                <!-- End Wan 2.2 Remix Content -->
 
                             </StackPanel>
                         </ScrollViewer>
@@ -5617,13 +4930,30 @@
                                                     <Grid Height="96" Background="Transparent" ToolTip="Click to preview this sample">
                                                         <Image Source="{Binding ThumbnailImage}" Stretch="Uniform"/>
                                                         <TextBlock Text="{Binding Label}" Foreground="White" FontSize="11" FontWeight="Bold"
+                                                                   IsHitTestVisible="False"
                                                                    HorizontalAlignment="Left" VerticalAlignment="Top" Margin="6,4"
                                                                    Visibility="{Binding HasVideo, Converter={StaticResource BoolToVisibilityConverter}, ConverterParameter=Invert}"/>
+                                                        <!-- Transparent overlay drives the shared player directly (mirrors the Seed
+                                                             Director tiles). ListBox SelectedItem alone didn't reliably load the
+                                                             clicked sample, so route the click through PreviewSampleCommand. -->
+                                                        <Button Background="Transparent" BorderThickness="0" Cursor="Hand"
+                                                                ToolTip="Click to preview this sample"
+                                                                Command="{Binding DataContext.PreviewSampleCommand,
+                                                                          RelativeSource={RelativeSource AncestorType=ListBox}}"
+                                                                CommandParameter="{Binding}"
+                                                                Visibility="{Binding HasVideo, Converter={StaticResource BooleanToVisibilityConverter}}">
+                                                            <Button.Template>
+                                                                <ControlTemplate TargetType="Button">
+                                                                    <Border Background="Transparent"/>
+                                                                </ControlTemplate>
+                                                            </Button.Template>
+                                                        </Button>
                                                         <CheckBox Content="Queue" IsChecked="{Binding IsSelected, Mode=TwoWay}"
                                                                   Foreground="White" FontSize="10" FontWeight="Bold"
                                                                   HorizontalAlignment="Right" VerticalAlignment="Bottom" Margin="6,4"
                                                                   Visibility="{Binding HasVideo, Converter={StaticResource BooleanToVisibilityConverter}}"/>
                                                         <TextBlock Text="{Binding Status}" Foreground="#A5B4FC" FontSize="9"
+                                                                   IsHitTestVisible="False"
                                                                    HorizontalAlignment="Center" VerticalAlignment="Bottom" Margin="0,0,0,4"/>
                                                     </Grid>
                                                 </DataTemplate>
@@ -5640,12 +4970,16 @@
                                                    HorizontalAlignment="Center" VerticalAlignment="Center" TextAlignment="Center"
                                                    TextWrapping="Wrap" Margin="20,0" Foreground="#9CA3AF" FontStyle="Italic"
                                                    Visibility="{Binding HasActivePreview, Converter={StaticResource BoolToVisibilityConverter}, ConverterParameter=Invert}"/>
-                                        <MediaElement x:Name="FflfSeedHuntPlayer" Source="{Binding ActivePreviewUri}"
+                                        <!-- Source is set from code-behind (ApplyFflfSeedHuntSource) as an ABSOLUTE
+                                             Uri. A string {Binding} to MediaElement.Source silently fails to load
+                                             these Z:\ output paths (no MediaOpened/MediaFailed → black frame).
+                                             The element is kept always-visible (no Visibility binding) so Source is
+                                             never assigned while Collapsed, which also suppresses media loading. -->
+                                        <MediaElement x:Name="FflfSeedHuntPlayer"
                                                       Stretch="Uniform" LoadedBehavior="Manual" UnloadedBehavior="Stop"
                                                       MediaOpened="FflfSeedHuntPlayer_MediaOpened"
                                                       MediaEnded="FflfSeedHuntPlayer_MediaEnded"
-                                                      MediaFailed="FflfSeedHuntPlayer_MediaFailed"
-                                                      Visibility="{Binding HasActivePreview, Converter={StaticResource BooleanToVisibilityConverter}}"/>
+                                                      MediaFailed="FflfSeedHuntPlayer_MediaFailed"/>
                                     </Grid>
                                 </Border>
 
@@ -5689,10 +5023,21 @@
                                                 Background="#6D28D9" Foreground="White" BorderThickness="0"
                                                 Visibility="{Binding IsBatchMode, Converter={StaticResource BooleanToVisibilityConverter}}"
                                                 ToolTip="Walk every pair: analyze the transition then generate 3 seed previews. Failed pairs are skipped."/>
-                                        <Button Content="{Binding HuntButtonText}" Command="{Binding HuntCommand}"
+                                        <Button Content="🎲 Reroll This Pair" Command="{Binding RerollPairCommand}"
+                                                Height="32" Padding="14,0" Margin="0,0,8,0" FontWeight="Bold"
+                                                Background="#7C3AED" Foreground="White" BorderThickness="0"
+                                                Visibility="{Binding IsBatchMode, Converter={StaticResource BooleanToVisibilityConverter}}"
+                                                ToolTip="Regenerate the selected pair's 3 seed previews with a fresh random seed, reusing its prompt. Other pairs are left untouched."/>
+                                        <Button Content="🎯 Generate 3 Samples" Command="{Binding HuntCommand}"
                                                 Height="32" Padding="16,0" Margin="0,0,8,0" FontWeight="Bold"
                                                 Background="#6D28D9" Foreground="White" BorderThickness="0"
-                                                Visibility="{Binding IsSingleMode, Converter={StaticResource BooleanToVisibilityConverter}}"/>
+                                                Visibility="{Binding IsSingleMode, Converter={StaticResource BooleanToVisibilityConverter}}"
+                                                ToolTip="Generate 3 seed previews from the first/last frame and prompt."/>
+                                        <Button Content="🎲 Reroll — new 3 seeds" Command="{Binding HuntCommand}"
+                                                Height="32" Padding="14,0" Margin="0,0,8,0" FontWeight="Bold"
+                                                Background="#7C3AED" Foreground="White" BorderThickness="0"
+                                                ToolTip="Don't like these? Regenerate 3 fresh previews with a new random seed."
+                                                Visibility="{Binding ShowSingleReroll, Converter={StaticResource BooleanToVisibilityConverter}}"/>
                                         <Button Content="{Binding FinishButtonText}" Command="{Binding FinishCommand}"
                                                 Height="32" Padding="14,0" Margin="0,0,8,0" FontWeight="Bold"
                                                 Background="#059669" Foreground="White" BorderThickness="0"/>

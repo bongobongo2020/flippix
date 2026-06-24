@@ -618,7 +618,7 @@ namespace FlipPix.UI.Linux.ViewModels
                         }
                         else
                         {
-                            workflowPath = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "workflow", "image", "zimage", "Zib-Zit.json");
+                            workflowPath = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "workflow", "image", "zimage", "base", "Zib-Zit.json");
                             AddLog("No style selected, falling back to Zib-Zit.json");
                         }
                         break;
@@ -1085,7 +1085,8 @@ namespace FlipPix.UI.Linux.ViewModels
                     return;
                 }
 
-                var workflowFiles = Directory.GetFiles(workflowDir, "*.json");
+                // Recurse so styles organized into subfolders (4k-upscale/, simple/, base/) are found.
+                var workflowFiles = Directory.GetFiles(workflowDir, "*.json", SearchOption.AllDirectories);
 
                 foreach (var workflowFile in workflowFiles)
                 {
@@ -3121,13 +3122,13 @@ namespace FlipPix.UI.Linux.ViewModels
                             else
                             {
                                 // Fallback to default if style not found
-                                workflowPath = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "workflow", "image", "zimage", "Zib-Zit.json");
+                                workflowPath = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "workflow", "image", "zimage", "base", "Zib-Zit.json");
                                 AddLog($"Style '{queueItem.StyleName}' not found, falling back to Zib-Zit.json");
                             }
                         }
                         else
                         {
-                            workflowPath = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "workflow", "image", "zimage", "Zib-Zit.json");
+                            workflowPath = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "workflow", "image", "zimage", "base", "Zib-Zit.json");
                             AddLog("Using default Zib-Zit workflow (no style selected)");
                         }
                         break;
