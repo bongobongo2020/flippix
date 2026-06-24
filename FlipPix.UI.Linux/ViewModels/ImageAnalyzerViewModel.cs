@@ -871,7 +871,8 @@ namespace FlipPix.UI.Linux.ViewModels
                 }
 
                 // Load all workflow JSON files from ZStyles folder
-                var workflowFiles = Directory.GetFiles(workflowDir, "*.json");
+                // Recurse so styles organized into subfolders (4k-upscale/, simple/, base/) are found.
+                var workflowFiles = Directory.GetFiles(workflowDir, "*.json", SearchOption.AllDirectories);
                 _logger.LogInfo($"Found {workflowFiles.Length} workflow files in {workflowDir}");
 
                 foreach (var workflowFile in workflowFiles)
@@ -1385,7 +1386,13 @@ namespace FlipPix.UI.Linux.ViewModels
                 }
                 else
                 {
-                    var analysisPrompt = "Describe this image concisely in 2-3 sentences: subject, setting, colors, and mood.";
+                    // The analysis text is injected into the ZStyle template's {$@} slot, so it must
+                    // describe only the subject/action/composition. If it includes colors, lighting,
+                    // mood, or rendering style, those literal attributes override the style template's
+                    // intended aesthetic and every style collapses to the same look.
+                    var analysisPrompt = "Describe only the main subject(s), their pose/action, clothing, "
+                        + "and spatial composition in this image, in 1-2 plain sentences. Do NOT mention "
+                        + "colors, lighting, mood, art style, medium, or rendering — those are set separately.";
                     analysisResult = await _lmStudioService.AnalyzeImageAsync(
                         modelToUse,
                         SourceImagePath,
@@ -2688,6 +2695,31 @@ namespace FlipPix.UI.Linux.ViewModels
                 int updatedNodes = 0;
                 var modifiedWorkflow = new Dictionary<string, object>();
 
+                // PRE-SCAN: does this workflow have a dedicated StringTrim prompt slot (node 385
+                // in the ZStyle / simple presets)? If so, the analysis text belongs ONLY in that
+                // StringTrim node. In those workflows the PrimitiveStringMultiline nodes hold the
+                // STYLE TEMPLATE — overwriting them wipes the style, making every style look the
+                // same. PrimitiveStringMultiline is only the prompt input in workflows that have
+                // NO StringTrim (e.g. Z4k.json node 92) — only fall back to it then.
+                bool hasStringTrimPrompt = false;
+                foreach (var kvp in workflow)
+                {
+                    JsonElement el = kvp.Value is JsonElement jeScan
+                        ? jeScan
+                        : JsonSerializer.Deserialize<JsonElement>(JsonSerializer.Serialize(kvp.Value));
+                    if (el.ValueKind != JsonValueKind.Object) continue;
+                    if (el.TryGetProperty("class_type", out var ctScan) &&
+                        (ctScan.GetString() == "StringTrim" || ctScan.GetString() == "PrimitiveNode") &&
+                        el.TryGetProperty("inputs", out var inScan) && inScan.ValueKind == JsonValueKind.Object &&
+                        inScan.TryGetProperty("string", out var sScan) && sScan.ValueKind == JsonValueKind.String)
+                    {
+                        hasStringTrimPrompt = true;
+                        break;
+                    }
+                }
+                if (hasStringTrimPrompt)
+                    _logger.LogInfo("Workflow has a StringTrim prompt slot — preserving PrimitiveStringMultiline style template(s)");
+
                 // Process each node in the workflow
                 foreach (var kvp in workflow)
                 {
@@ -2756,6 +2788,20 @@ namespace FlipPix.UI.Linux.ViewModels
 
                                 shouldUpdate = isStringText;
                                 textPropertyName = "string";
+                            }
+                            // Case 3: PrimitiveStringMultiline with "value" property — the NVIDIA PiD
+                            // "4k" workflow (Z4k.json) routes its prompt through node 92, which feeds
+                            // both CLIPTextEncode nodes via links. Without this the CLIPTextEncode
+                            // nodes have a link array (not a string) for "text", so Case 1 skips them
+                            // and the analysis prompt is ignored entirely.
+                            else if (classType == "PrimitiveStringMultiline" && !hasStringTrimPrompt && inputsProp.TryGetProperty("value", out var valueProp))
+                            {
+                                bool isStringText = valueProp.ValueKind == JsonValueKind.String;
+
+                                _logger.LogInfo($"Node {kvp.Key}: class_type={classType}, title=\"{title}\", isStringText={isStringText}");
+
+                                shouldUpdate = isStringText;
+                                textPropertyName = "value";
                             }
                         }
                     }

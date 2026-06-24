@@ -129,6 +129,18 @@ namespace FlipPix.UI.ViewModels
                     e.PropertyName == nameof(ImageAnalyzerViewModel.IsTextPromptMode))
                 {
                     OnPropertyChanged(nameof(ActiveGenerationVM));
+                    OnPropertyChanged(nameof(HasActiveResultImage));
+                    OnPropertyChanged(nameof(ActiveResultImagePath));
+                    CommandManager.InvalidateRequerySuggested();
+                }
+                else if (e.PropertyName == nameof(ImageAnalyzerViewModel.HasResultImage) ||
+                         e.PropertyName == nameof(ImageAnalyzerViewModel.ResultImagePath))
+                {
+                    // Keep the "send to ..." buttons enabled/disabled in sync with the
+                    // analysis-mode result so they work in both Text Prompt and Analysis modes.
+                    OnPropertyChanged(nameof(HasActiveResultImage));
+                    OnPropertyChanged(nameof(ActiveResultImagePath));
+                    CommandManager.InvalidateRequerySuggested();
                 }
             };
 
@@ -145,9 +157,15 @@ namespace FlipPix.UI.ViewModels
             CancelGenerationCommand = new RelayCommand(CancelGeneration, () => IsProcessing);
             OpenResultFolderCommand = new RelayCommand(OpenResultFolder, () => HasResultImage);
             OpenResultImageCommand = new RelayCommand(OpenResultImage, () => HasResultImage);
-            SendToCameraEditCommand = new RelayCommand(SendToCameraEdit, () => HasResultImage);
-            SendToVideoGeneratorCommand = new RelayCommand(SendToVideoGenerator, () => HasResultImage);
-            NavigateToCameraEditCommand = new RelayCommand(NavigateToCameraEdit);
+            // No CanExecute predicate: CommunityToolkit's RelayCommand doesn't auto-requery
+            // (it ignores CommandManager.InvalidateRequerySuggested), so a predicate here would
+            // leave WPF coercing the button disabled from its stale initial CanExecute=false.
+            // The buttons' IsEnabled bindings (HasResultImage / Analyzer.HasResultImage) gate
+            // visibility, and each handler guards against an empty path.
+            SendToCameraAngleCommand = new RelayCommand(SendToCameraAngle);
+            SendToVideoGeneratorCommand = new RelayCommand(SendToVideoGenerator);
+            SendToStoryCommand = new RelayCommand(SendToStory);
+            OpenKeyframesInFflfSeedHunterCommand = new RelayCommand(OpenKeyframesInFflfSeedHunter);
             NavigateToImageAnalyzerCommand = new RelayCommand(NavigateToImageAnalyzer);
             NavigateToVideoGeneratorCommand = new RelayCommand(NavigateToVideoGenerator);
                 NavigateToStoryVideoCommand = new RelayCommand(NavigateToStoryVideo);
@@ -156,6 +174,7 @@ namespace FlipPix.UI.ViewModels
 
             // Queue commands
             AddToQueueCommand = new RelayCommand(AddToQueue, () => CanAddToQueue);
+            SelectQueueResultCommand = new RelayCommand<ImagePromptQueueItem>(SelectQueueResult, (item) => item != null);
             RemoveFromQueueCommand = new RelayCommand<ImagePromptQueueItem>(RemoveFromQueue, (item) => item != null);
             RetryQueueItemCommand = new RelayCommand<ImagePromptQueueItem>(RetryQueueItem, (item) => item != null);
             ClearQueueCommand = new RelayCommand(ClearQueue, () => CanClearQueue);
@@ -354,9 +373,20 @@ namespace FlipPix.UI.ViewModels
             {
                 _hasResultImage = value;
                 OnPropertyChanged();
+                OnPropertyChanged(nameof(HasActiveResultImage));
+                OnPropertyChanged(nameof(ActiveResultImagePath));
                 CommandManager.InvalidateRequerySuggested();
             }
         }
+
+        // The result image for whichever mode is currently active. In Image Analysis
+        // mode the latest result lives on the Analyzer sub-VM; in Text Prompt mode it
+        // lives on this VM. The "send to ..." buttons use these so they work in both.
+        public bool HasActiveResultImage =>
+            Analyzer.IsImageAnalysisMode ? Analyzer.HasResultImage : HasResultImage;
+
+        public string ActiveResultImagePath =>
+            Analyzer.IsImageAnalysisMode ? Analyzer.ResultImagePath : ResultImagePath;
 
         public string ResultImagePath
         {
@@ -365,6 +395,7 @@ namespace FlipPix.UI.ViewModels
             {
                 _resultImagePath = value;
                 OnPropertyChanged();
+                OnPropertyChanged(nameof(ActiveResultImagePath));
             }
         }
 
@@ -466,9 +497,10 @@ namespace FlipPix.UI.ViewModels
         public ICommand CancelGenerationCommand { get; }
         public ICommand OpenResultFolderCommand { get; }
         public ICommand OpenResultImageCommand { get; }
-        public ICommand SendToCameraEditCommand { get; }
+        public ICommand SendToCameraAngleCommand { get; }
         public ICommand SendToVideoGeneratorCommand { get; }
-        public ICommand NavigateToCameraEditCommand { get; }
+        public ICommand SendToStoryCommand { get; }
+        public ICommand OpenKeyframesInFflfSeedHunterCommand { get; }
         public ICommand NavigateToImageAnalyzerCommand { get; }
         public ICommand NavigateToVideoGeneratorCommand { get; }
               public ICommand NavigateToStoryVideoCommand { get; }
@@ -477,6 +509,7 @@ namespace FlipPix.UI.ViewModels
 
         // Queue commands
         public RelayCommand AddToQueueCommand { get; }
+        public ICommand SelectQueueResultCommand { get; }
         public ICommand RemoveFromQueueCommand { get; }
         public ICommand RetryQueueItemCommand { get; }
         public ICommand ClearQueueCommand { get; }
@@ -725,7 +758,7 @@ namespace FlipPix.UI.ViewModels
                         }
                         else
                         {
-                            workflowPath = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "workflow", "image", "zimage", "Zib-Zit.json");
+                            workflowPath = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "workflow", "image", "zimage", "base", "Zib-Zit.json");
                             AddLog("No style selected, falling back to Zib-Zit.json");
                         }
                         break;
@@ -1192,11 +1225,17 @@ namespace FlipPix.UI.ViewModels
                     return;
                 }
 
-                var workflowFiles = Directory.GetFiles(workflowDir, "*.json");
+                // Recurse so styles organized into subfolders (4k-upscale/, simple/, base/) are found.
+                var workflowFiles = Directory.GetFiles(workflowDir, "*.json", SearchOption.AllDirectories);
 
                 foreach (var workflowFile in workflowFiles)
                 {
                     var fileName = Path.GetFileNameWithoutExtension(workflowFile);
+
+                    // Skip full workflows that aren't selectable style presets.
+                    if (StyleInfo.IsNonStyleWorkflow(fileName))
+                        continue;
+
                     var styleName = fileName.StartsWith("Z") ? fileName.Substring(1) : fileName;
 
                     _allStyles.Add(new StyleInfo
@@ -1237,6 +1276,70 @@ namespace FlipPix.UI.ViewModels
                 default:
                     return workflow;
             }
+        }
+
+        /// <summary>
+        /// Applies the user's LoRA selection to a ZStyle workflow's own Power Lora Loader
+        /// (rgthree) node. The node id varies per workflow (Lo-Fi-Mobile=128, EpicGreg=392,
+        /// …), so it's located by class_type rather than a fixed id. Returns true if such a
+        /// node was found and updated. Node 583 (Zib-Zit) is handled by its own block before
+        /// this is reached, so it is not double-processed.
+        /// </summary>
+        private bool TryApplyPowerLoraLoader(Dictionary<string, JsonElement> workflowDict)
+        {
+            // Locate the Power Lora Loader (rgthree) node by class_type.
+            string? nodeId = null;
+            foreach (var kvp in workflowDict)
+            {
+                var probe = JsonSerializer.Deserialize<Dictionary<string, object>>(kvp.Value.GetRawText());
+                var ct = probe != null && probe.ContainsKey("class_type") ? probe["class_type"]?.ToString() ?? "" : "";
+                if (ct.Contains("Power Lora Loader", StringComparison.OrdinalIgnoreCase))
+                {
+                    nodeId = kvp.Key;
+                    break;
+                }
+            }
+
+            if (nodeId == null) return false;
+
+            var node = JsonSerializer.Deserialize<Dictionary<string, object>>(workflowDict[nodeId].GetRawText());
+            if (node == null || !node.ContainsKey("inputs")) return false;
+
+            var inputs = JsonSerializer.Deserialize<Dictionary<string, object>>(
+                JsonSerializer.Serialize(node["inputs"]));
+            if (inputs == null) return false;
+
+            // Preserve the slot's current lora name so the disabled state keeps a valid
+            // reference (rgthree dislikes an empty/missing lora name).
+            var existingLoraName = "";
+            if (inputs.ContainsKey("lora_1") && inputs["lora_1"] is JsonElement le && le.ValueKind == JsonValueKind.Object)
+            {
+                var slot = JsonSerializer.Deserialize<Dictionary<string, object>>(le.GetRawText());
+                if (slot != null && slot.ContainsKey("lora"))
+                    existingLoraName = slot["lora"]?.ToString() ?? "";
+            }
+
+            bool hasSelection = !string.IsNullOrEmpty(SelectedLora)
+                && SelectedLora != "No Loras available"
+                && SelectedLora != "No LoRAs available";
+
+            object lora1Config;
+            if (LoraEnabled && hasSelection)
+            {
+                // LoRAs live in the ComfyUI "zimage" subfolder; SelectedLora is the bare name.
+                lora1Config = new { on = true, lora = $"zimage/{SelectedLora}.safetensors", strength = 1.0 };
+                AddLog($"ZStyle LoRA enabled on Power Lora Loader node {nodeId}: zimage/{SelectedLora}.safetensors");
+            }
+            else
+            {
+                lora1Config = new { on = false, lora = !string.IsNullOrEmpty(existingLoraName) ? existingLoraName : "None", strength = 0.0 };
+                AddLog($"ZStyle LoRA disabled on Power Lora Loader node {nodeId}");
+            }
+
+            inputs["lora_1"] = JsonSerializer.Deserialize<object>(JsonSerializer.Serialize(lora1Config))!;
+            node["inputs"] = inputs;
+            workflowDict[nodeId] = JsonSerializer.SerializeToElement(node);
+            return true;
         }
 
         private JsonElement UpdateZimageWorkflow(Dictionary<string, JsonElement> workflowDict)
@@ -1311,6 +1414,12 @@ namespace FlipPix.UI.ViewModels
                     }
                 }
             }
+            else if (TryApplyPowerLoraLoader(workflowDict))
+            {
+                // The workflow has its own Power Lora Loader (rgthree) at a non-583 node id
+                // (ZStyle presets: Lo-Fi-Mobile=128, EpicGreg=392, …). The selected LoRA was
+                // applied directly to that node, so skip the legacy LoRA machinery.
+            }
             else
             {
                 // Check for LoraLoaderModelOnly nodes (Z4k and similar workflows)
@@ -1359,14 +1468,29 @@ namespace FlipPix.UI.ViewModels
 
                 if (!handledLoraLoaderModelOnly)
                 {
-                    // Legacy workflow - use old LoRA handling
-                    if (LoraEnabled && !string.IsNullOrEmpty(SelectedLora) && SelectedLora != "No Loras available")
+                    // The legacy LoRA machinery (AddLoraToWorkflow on enable, node-58 bypass
+                    // on disable) only applies to the old architecture that actually has
+                    // node 58. ZStyle preset workflows (Lo-Fi-Mobile, EpicGreg, ...) use a
+                    // self-contained Power Lora Loader and have NO node 58 — running either
+                    // path against them injects references to nodes that don't exist (e.g.
+                    // node 39 / node 46) and breaks the graph. So both halves are gated on
+                    // node 58; anything else is left untouched to run exactly like manual.
+                    if (workflowDict.ContainsKey("58") && LoraEnabled && !string.IsNullOrEmpty(SelectedLora) && SelectedLora != "No Loras available")
                     {
                         workflowDict = AddLoraToWorkflow(workflowDict, SelectedLora);
                     }
-                    else
+                    else if (workflowDict.ContainsKey("58"))
                     {
-                        // LoRA disabled: bypass the existing LoRA node (58) by connecting directly to model/clip loaders
+                        // LoRA disabled: bypass the built-in LoRA node (58) by wiring the
+                        // model/clip consumers straight to the loaders. This rewrite is only
+                        // valid for the legacy architecture that actually HAS node 58
+                        // (UNETLoader 46, ModelSamplingAuraFlow 47, CLIPTextEncode 45,
+                        // CLIPLoader 39). The ZStyle preset workflows (e.g. Lo-Fi-Mobile,
+                        // EpicGreg) have NO node 58 and reuse ids 47/45 for unrelated nodes
+                        // (47 is a style-prompt string), so they must be left untouched —
+                        // otherwise this would point node 47 at a non-existent node 46 and
+                        // break the graph with "Node 46 not found".
+
                         // Update ModelSamplingAuraFlow (node 47) to connect directly to UNETLoader (node 46)
                         if (workflowDict.ContainsKey("47"))
                         {
@@ -1404,6 +1528,13 @@ namespace FlipPix.UI.ViewModels
                         // Remove the orphaned LoRA node (58) from the workflow
                         workflowDict.Remove("58");
                         AddLog("LoRA disabled: bypassing built-in LoRA node");
+                    }
+                    else
+                    {
+                        // No built-in LoRA node to bypass (e.g. ZStyle preset workflows).
+                        // Leave the workflow's own LoRA configuration untouched so it runs
+                        // exactly as it does when loaded manually.
+                        AddLog("No built-in LoRA node (58) to bypass — leaving workflow LoRA settings untouched");
                     }
                 }
             }
@@ -2621,6 +2752,20 @@ namespace FlipPix.UI.ViewModels
             return 0;
         }
 
+        // Clicking a completed queue item's thumbnail promotes its image into the
+        // "Latest Result" preview so it can be sent to Camera Edit / Story / etc.
+        private void SelectQueueResult(ImagePromptQueueItem? item)
+        {
+            if (item == null || string.IsNullOrEmpty(item.OutputImagePath) || !File.Exists(item.OutputImagePath))
+                return;
+
+            SelectedQueueItem = item;
+            ResultImagePath = item.OutputImagePath;
+            LoadResultPreview(item.OutputImagePath);
+            HasResultImage = true;
+            StatusBarMessage = $"Loaded result: {Path.GetFileName(item.OutputImagePath)}";
+        }
+
         private void LoadResultPreview(string imagePath)
         {
             try
@@ -2694,47 +2839,62 @@ namespace FlipPix.UI.ViewModels
             }
         }
 
-        private void SendToCameraEdit()
+        private void SendToCameraAngle()
         {
-            if (!HasResultImage) return;
+            var imagePath = ActiveResultImagePath;
+            if (string.IsNullOrEmpty(imagePath)) return;
 
             try
             {
-                // Set the image path on the embedded CameraEdit tab
-                _cameraEdit.SetImagePath(ResultImagePath);
+                // Load the image as the Camera Angle generator input (the setter loads its
+                // own preview), then switch to that tab.
+                _cameraAngle.InputImagePath = imagePath;
 
-                // Navigate to the Camera Edit tab
-                SelectedTabIndex = 2;
+                // Camera Angle lives in the Advanced nav group (index 2) at tab index 3.
+                SelectedNavGroup = 2;
+                SelectedTabIndex = 3;
 
-                AddLog($"Sent image to Camera Edit tab: {Path.GetFileName(ResultImagePath)}");
-                StatusBarMessage = $"Image sent to Camera Edit tab: {Path.GetFileName(ResultImagePath)}";
+                AddLog($"Sent image to Camera Angle: {Path.GetFileName(imagePath)}");
+                StatusBarMessage = $"Image sent to Camera Angle: {Path.GetFileName(imagePath)}";
             }
             catch (Exception ex)
             {
-                AddLog($"ERROR sending to Camera Edit: {ex.Message}");
-                _logger.LogError($"Error sending to Camera Edit: {ex}");
-                System.Windows.MessageBox.Show($"Error sending image to Camera Edit tab:\n\n{ex.Message}", "Error", System.Windows.MessageBoxButton.OK, System.Windows.MessageBoxImage.Error);
+                AddLog($"ERROR sending to Camera Angle: {ex.Message}");
+                _logger.LogError($"Error sending to Camera Angle: {ex}");
+                System.Windows.MessageBox.Show($"Error sending image to Camera Angle tab:\n\n{ex.Message}", "Error", System.Windows.MessageBoxButton.OK, System.Windows.MessageBoxImage.Error);
             }
         }
 
         private void SendToVideoGenerator()
         {
-            if (!HasResultImage || _serviceProvider == null) return;
+            var imagePath = ActiveResultImagePath;
+            if (string.IsNullOrEmpty(imagePath) || _serviceProvider == null) return;
 
             try
             {
                 var videoWindow = _serviceProvider.GetService(typeof(VideoGeneratorWindow)) as VideoGeneratorWindow;
-                if (videoWindow != null)
+                if (videoWindow == null)
+                {
+                    AddLog("ERROR: Failed to create Video Generator window");
+                    System.Windows.MessageBox.Show("Could not open Video Generator window.", "Error", System.Windows.MessageBoxButton.OK, System.Windows.MessageBoxImage.Warning);
+                    return;
+                }
+
+                if (!videoWindow.IsVisible)
                 {
                     videoWindow.Show();
-
-                    if (videoWindow.DataContext is VideoGeneratorViewModel viewModel)
-                    {
-                        viewModel.SetImagePath(ResultImagePath);
-                    }
-
-                    AddLog($"Sent image to Video Generator: {Path.GetFileName(ResultImagePath)}");
                 }
+                videoWindow.WindowState = System.Windows.WindowState.Normal;
+                videoWindow.Activate();
+                videoWindow.Focus();
+
+                if (videoWindow.DataContext is VideoGeneratorViewModel viewModel)
+                {
+                    viewModel.SetImagePath(imagePath);
+                }
+
+                AddLog($"Sent image to Video Generator: {Path.GetFileName(imagePath)}");
+                StatusBarMessage = $"Image sent to Video Generator: {Path.GetFileName(imagePath)}";
             }
             catch (Exception ex)
             {
@@ -2743,30 +2903,86 @@ namespace FlipPix.UI.ViewModels
             }
         }
 
-        private void NavigateToCameraEdit()
+        private void SendToStory()
         {
-            if (_serviceProvider == null)
-            {
-                AddLog("ERROR: Service provider is null");
-                return;
-            }
+            var imagePath = ActiveResultImagePath;
+            if (string.IsNullOrEmpty(imagePath)) return;
 
             try
             {
-                var cameraEditWindow = _serviceProvider.GetService(typeof(FlipPixWindow)) as FlipPixWindow;
+                // Load the image as the Story Image Q input, then switch to that tab.
+                _storyGeneratorQ.InputImagePath = imagePath;
 
-                if (cameraEditWindow == null)
-                {
-                    AddLog("ERROR: Failed to create FlipPixWindow - GetService returned null");
-                    return;
-                }
+                // Story Image Q lives in the Create nav group (index 0) at tab index 1.
+                SelectedNavGroup = 0;
+                SelectedTabIndex = 1;
 
-                cameraEditWindow.Show();
-                AddLog("Successfully opened Camera Edit window");
+                AddLog($"Sent image to Story Image Q: {Path.GetFileName(imagePath)}");
+                StatusBarMessage = $"Image sent to Story Image Q: {Path.GetFileName(imagePath)}";
             }
             catch (Exception ex)
             {
-                AddLog($"ERROR navigating to Camera Edit: {ex.Message}");
+                AddLog($"ERROR sending to Story Image Q: {ex.Message}");
+                _logger.LogError($"Error sending to Story Image Q: {ex}");
+                System.Windows.MessageBox.Show($"Error sending image to Story Image Q tab:\n\n{ex.Message}", "Error", System.Windows.MessageBoxButton.OK, System.Windows.MessageBoxImage.Error);
+            }
+        }
+
+        /// <summary>
+        /// Opens the Video Generator's FFLF Seed Hunter tab and loads the current Story Image Q
+        /// session's generated keyframes as a folder batch (overlapping FFLF pairs → continuous shot).
+        /// </summary>
+        private void OpenKeyframesInFflfSeedHunter()
+        {
+            if (_serviceProvider == null) return;
+
+            try
+            {
+                var folder = _storyGeneratorQ.KeyframeOutputFolder;
+                if (string.IsNullOrEmpty(folder) || !Directory.Exists(folder))
+                {
+                    System.Windows.MessageBox.Show(
+                        "No generated keyframes found yet. Generate the story images first, then try again.",
+                        "No Keyframes", System.Windows.MessageBoxButton.OK, System.Windows.MessageBoxImage.Information);
+                    return;
+                }
+
+                var pngCount = Directory.EnumerateFiles(folder, "*.png").Count();
+                if (pngCount < 2)
+                {
+                    System.Windows.MessageBox.Show(
+                        $"Need at least 2 generated keyframes to form an FFLF pair (found {pngCount}).",
+                        "Not Enough Keyframes", System.Windows.MessageBoxButton.OK, System.Windows.MessageBoxImage.Warning);
+                    return;
+                }
+
+                var videoWindow = _serviceProvider.GetService(typeof(VideoGeneratorWindow)) as VideoGeneratorWindow;
+                if (videoWindow == null)
+                {
+                    AddLog("ERROR: Failed to open Video Generator window");
+                    System.Windows.MessageBox.Show("Could not open Video Generator window.", "Error", System.Windows.MessageBoxButton.OK, System.Windows.MessageBoxImage.Warning);
+                    return;
+                }
+
+                if (!videoWindow.IsVisible) videoWindow.Show();
+                videoWindow.WindowState = System.Windows.WindowState.Normal;
+                videoWindow.Activate();
+                videoWindow.Focus();
+
+                if (videoWindow.DataContext is VideoGeneratorViewModel vm)
+                {
+                    // FFLF Seed Hunter is the last tab in VideoGeneratorWindow's TabControl (index 11).
+                    vm.SelectedTabIndex = 11;
+                    vm.FflfSeedHuntVM.LoadFolder(folder);
+                    AddLog($"Opened FFLF Seed Hunter with {pngCount} keyframes from: {folder}");
+                    StatusBarMessage = $"Loaded {pngCount} keyframes into FFLF Seed Hunter";
+                }
+            }
+            catch (Exception ex)
+            {
+                AddLog($"ERROR opening FFLF Seed Hunter: {ex.Message}");
+                _logger.LogError($"Error opening FFLF Seed Hunter: {ex}");
+                System.Windows.MessageBox.Show($"Error opening FFLF Seed Hunter:\n\n{ex.Message}", "Error", System.Windows.MessageBoxButton.OK, System.Windows.MessageBoxImage.Error);
             }
         }
 
@@ -3440,13 +3656,13 @@ namespace FlipPix.UI.ViewModels
                             else
                             {
                                 // Fallback to default if style not found
-                                workflowPath = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "workflow", "image", "zimage", "Zib-Zit.json");
+                                workflowPath = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "workflow", "image", "zimage", "base", "Zib-Zit.json");
                                 AddLog($"Style '{queueItem.StyleName}' not found, falling back to Zib-Zit.json");
                             }
                         }
                         else
                         {
-                            workflowPath = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "workflow", "image", "zimage", "Zib-Zit.json");
+                            workflowPath = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "workflow", "image", "zimage", "base", "Zib-Zit.json");
                             AddLog("Using default Zib-Zit workflow (no style selected)");
                         }
                         break;

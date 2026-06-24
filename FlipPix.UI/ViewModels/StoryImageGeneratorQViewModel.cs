@@ -35,6 +35,7 @@ namespace FlipPix.UI.ViewModels
             : base(comfyUIService, logger, settingsService, workflowCoordinator, fileDialogService, loraManager, imageRetriever)
         {
             _lmStudioService = lmStudioService ?? throw new ArgumentNullException(nameof(lmStudioService));
+            _selectedStoryPromptTemplate = _storyPromptTemplates[0];
 
             // Re-evaluate AnalyzeImageWithQwenVLCommand when InputImagePath changes
             PropertyChanged += (s, e) =>
@@ -73,6 +74,30 @@ namespace FlipPix.UI.ViewModels
                         LoadZWorkflowsAndStyles();
                     if (value == "StoryImageZ" && !_zAvailableLoras.Any())
                         LoadZAvailableLoras();
+                }
+            }
+        }
+
+        // --- Story prompt template (system prompt sent to Qwen VL for "Analyze Image") ---
+
+        private readonly ObservableCollection<SeedHuntPromptTemplate> _storyPromptTemplates = new()
+        {
+            new SeedHuntPromptTemplate("📖 Story (10 scenes)", "story-prompt.md", string.Empty),
+            new SeedHuntPromptTemplate("🎬 FFLF Continuous Shot (10 keyframes, 5s)", "fflf-story.md", string.Empty),
+        };
+
+        public ObservableCollection<SeedHuntPromptTemplate> StoryPromptTemplates => _storyPromptTemplates;
+
+        private SeedHuntPromptTemplate _selectedStoryPromptTemplate;
+        public SeedHuntPromptTemplate SelectedStoryPromptTemplate
+        {
+            get => _selectedStoryPromptTemplate;
+            set
+            {
+                if (value != null && _selectedStoryPromptTemplate != value)
+                {
+                    _selectedStoryPromptTemplate = value;
+                    OnPropertyChanged();
                 }
             }
         }
@@ -190,6 +215,32 @@ namespace FlipPix.UI.ViewModels
         protected override double DefaultCfg => 1.0;
         protected override double DefaultDenoise => 0.98;
         protected override bool RequiresInputImage => SelectedWorkflowMode != "StoryImageZ";
+
+        /// <summary>
+        /// Local folder where this session's generated keyframes are saved
+        /// ({BaseDir}/output/story-generator-q/{session}). These are the ordered images that the
+        /// FFLF Seed Hunter folder/batch mode chains into overlapping pairs. Empty if no session yet.
+        /// </summary>
+        public string KeyframeOutputFolder
+        {
+            get
+            {
+                var jsonFileName = Path.GetFileNameWithoutExtension(PromptJsonFilePath);
+                if (string.IsNullOrEmpty(jsonFileName)) return string.Empty;
+                return Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "output", OutputFolderName, jsonFileName);
+            }
+        }
+
+        /// <summary>True when the keyframe output folder exists and holds at least 2 images (a pair).</summary>
+        public bool HasKeyframeOutput
+        {
+            get
+            {
+                var folder = KeyframeOutputFolder;
+                if (string.IsNullOrEmpty(folder) || !Directory.Exists(folder)) return false;
+                return Directory.EnumerateFiles(folder, "*.png").Take(2).Count() >= 2;
+            }
+        }
 
         // --- Variant-specific initialization ---
 
@@ -334,9 +385,15 @@ namespace FlipPix.UI.ViewModels
                     return;
                 }
 
-                foreach (var workflowFile in Directory.GetFiles(workflowDir, "*.json"))
+                // Recurse so styles organized into subfolders (4k-upscale/, simple/, base/) are found.
+                foreach (var workflowFile in Directory.GetFiles(workflowDir, "*.json", SearchOption.AllDirectories))
                 {
                     var fileName = Path.GetFileNameWithoutExtension(workflowFile);
+
+                    // Skip full workflows that aren't selectable style presets.
+                    if (StyleInfo.IsNonStyleWorkflow(fileName))
+                        continue;
+
                     var styleName = fileName.StartsWith("Z") ? fileName.Substring(1) : fileName;
                     _zAllStyles.Add(new StyleInfo
                     {
@@ -760,12 +817,14 @@ namespace FlipPix.UI.ViewModels
                 AnalysisStatus = "Analyzing image with Qwen VL...";
                 AddLog("Starting image analysis with Qwen VL...");
 
-                // Read system prompt from file
-                var systemPromptPath = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "prompts", "prompt2json", "story-prompt.md");
+                // Read system prompt from the selected template file
+                var promptFileName = SelectedStoryPromptTemplate?.FileName ?? "story-prompt.md";
+                var systemPromptPath = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "prompts", "prompt2json", promptFileName);
                 if (!File.Exists(systemPromptPath))
                 {
                     throw new FileNotFoundException($"System prompt file not found: {systemPromptPath}");
                 }
+                AddLog($"Using story prompt template: {SelectedStoryPromptTemplate?.DisplayName ?? promptFileName} ({promptFileName})");
                 var systemPrompt = await File.ReadAllTextAsync(systemPromptPath);
 
                 // Get model name from settings
@@ -888,8 +947,9 @@ namespace FlipPix.UI.ViewModels
                 return prompts;
             }
 
-            // Strategy 2: Split by "Prompt #N:" or "Prompt N:" pattern
-            var promptPattern = @"Prompt\s*#?\s*(\d+)\s*:\s*";
+            // Strategy 2: Split by "Prompt #N:" pattern. Tolerate markdown bold (**Prompt #1:**)
+            // and an optional timestamp before the colon (e.g. "Prompt #1 (0s):").
+            var promptPattern = @"\**\s*Prompt\s*#?\s*(\d+)\s*(?:\([^)]*\))?\s*:\s*\**";
             var promptMatches = Regex.Matches(analysisText, promptPattern, RegexOptions.IgnoreCase);
 
             for (int i = 0; i < promptMatches.Count; i++)
@@ -898,6 +958,8 @@ namespace FlipPix.UI.ViewModels
                 var endPos = (i + 1 < promptMatches.Count) ? promptMatches[i + 1].Index : analysisText.Length;
 
                 var promptText = analysisText.Substring(startPos, endPos - startPos).Trim();
+                // Strip surrounding quotes and stray markdown bold the model may wrap content in
+                promptText = promptText.Trim().Trim('*').Trim().Trim('"').Trim();
 
                 if (!string.IsNullOrWhiteSpace(promptText))
                     prompts.Add(promptText);

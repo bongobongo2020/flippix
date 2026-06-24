@@ -27,6 +27,21 @@ namespace FlipPix.UI.ViewModels
         public string PromptTemplate { get; set; } = string.Empty;
         public string WorkflowFile { get; set; } = string.Empty;
         public string NodeId { get; set; } = string.Empty;
+
+        // Files in the zimage folder that are full generation workflows, not
+        // selectable style presets, so they must be hidden from the Style Preset
+        // dropdowns. Matched case-insensitively on the filename (no extension).
+        private static readonly HashSet<string> NonStyleWorkflowFiles = new(StringComparer.OrdinalIgnoreCase)
+        {
+            "amateurZimageAPI",
+            "Z Turbo PiT.Nvidia",
+            // Base/fallback workflow loaded by explicit path when no style is selected —
+            // not a selectable style preset.
+            "Zib-Zit",
+        };
+
+        public static bool IsNonStyleWorkflow(string fileNameWithoutExtension) =>
+            NonStyleWorkflowFiles.Contains(fileNameWithoutExtension);
     }
 
     public partial class ImageAnalyzerViewModel : BasePromptViewModel, IDisposable
@@ -114,6 +129,7 @@ namespace FlipPix.UI.ViewModels
             ResumeQueueCommand = new RelayCommand(ResumeQueue, () => IsProcessingQueue && IsQueuePaused);
             AddToQueueCommand = new RelayCommand(AddToQueue, () => !IsAnalyzing && !string.IsNullOrWhiteSpace(AnalysisText));
             AddToQueueAndStartCommand = new RelayCommand(async () => await AddToQueueAndStart(), () => !IsAnalyzing && !string.IsNullOrWhiteSpace(AnalysisText));
+            SelectQueueResultCommand = new RelayCommand<ImageAnalyzerQueueItem>(SelectQueueResult, (item) => item != null);
             RemoveFromQueueCommand = new RelayCommand<ImageAnalyzerQueueItem>(RemoveFromQueue);
             ClearQueueCommand = new RelayCommand(ClearQueue, () => !IsProcessingQueue);
             CancelProcessingCommand = new RelayCommand(CancelProcessing, () => IsProcessingQueue);
@@ -787,6 +803,7 @@ namespace FlipPix.UI.ViewModels
         public ICommand AddToQueueAndStartCommand { get; }
         // Shared Tab 1 "Generate" button binds this; in analysis mode it queues + starts.
         public ICommand PrimaryGenerateCommand => AddToQueueAndStartCommand;
+        public ICommand SelectQueueResultCommand { get; }
         public ICommand RemoveFromQueueCommand { get; }
         public ICommand ClearQueueCommand { get; }
         public ICommand CancelProcessingCommand { get; }
@@ -880,7 +897,8 @@ namespace FlipPix.UI.ViewModels
                 }
 
                 // Load all workflow JSON files from ZStyles folder
-                var workflowFiles = Directory.GetFiles(workflowDir, "*.json");
+                // Recurse so styles organized into subfolders (4k-upscale/, simple/, base/) are found.
+                var workflowFiles = Directory.GetFiles(workflowDir, "*.json", SearchOption.AllDirectories);
                 _logger.LogInfo($"Found {workflowFiles.Length} workflow files in {workflowDir}");
 
                 foreach (var workflowFile in workflowFiles)
@@ -889,6 +907,11 @@ namespace FlipPix.UI.ViewModels
                     {
                         // Extract style name from filename (e.g., "Z3drender.json" -> "3drender")
                         var fileName = Path.GetFileNameWithoutExtension(workflowFile);
+
+                        // Skip full workflows that aren't selectable style presets.
+                        if (StyleInfo.IsNonStyleWorkflow(fileName))
+                            continue;
+
                         var styleName = fileName.StartsWith("Z") ? fileName.Substring(1) : fileName;
 
                         // Add style info for this workflow file
@@ -1395,7 +1418,13 @@ namespace FlipPix.UI.ViewModels
                 }
                 else
                 {
-                    var analysisPrompt = "Describe this image concisely in 2-3 sentences: subject, setting, colors, and mood.";
+                    // The analysis text is injected into the ZStyle template's {$@} slot, so it must
+                    // describe only the subject/action/composition. If it includes colors, lighting,
+                    // mood, or rendering style, those literal attributes override the style template's
+                    // intended aesthetic and every style collapses to the same look.
+                    var analysisPrompt = "Describe only the main subject(s), their pose/action, clothing, "
+                        + "and spatial composition in this image, in 1-2 plain sentences. Do NOT mention "
+                        + "colors, lighting, mood, art style, medium, or rendering — those are set separately.";
                     analysisResult = await _lmStudioService.AnalyzeImageAsync(
                         modelToUse,
                         SourceImagePath,
@@ -2713,6 +2742,32 @@ namespace FlipPix.UI.ViewModels
                 if (isPidWorkflow)
                     _logger.LogInfo("Detected PiD 4k workflow — keeping base/canvas 4× aspect relationship");
 
+                // PRE-SCAN: does this workflow have a dedicated StringTrim prompt slot (node 385
+                // in the ZStyle / simple presets)? If so, the analysis text belongs ONLY in that
+                // StringTrim node. In those workflows the PrimitiveStringMultiline nodes hold the
+                // STYLE TEMPLATE (e.g. "You are a cinematic photographer specializing in Neon
+                // Noir..."). Overwriting them wipes the style, which is why every style rendered
+                // identically. PrimitiveStringMultiline is only the prompt input in workflows that
+                // have NO StringTrim (e.g. Z4k.json node 92) — only fall back to it then.
+                bool hasStringTrimPrompt = false;
+                foreach (var kvp in workflow)
+                {
+                    JsonElement el = kvp.Value is JsonElement jeScan
+                        ? jeScan
+                        : JsonSerializer.Deserialize<JsonElement>(JsonSerializer.Serialize(kvp.Value));
+                    if (el.ValueKind != JsonValueKind.Object) continue;
+                    if (el.TryGetProperty("class_type", out var ctScan) &&
+                        (ctScan.GetString() == "StringTrim" || ctScan.GetString() == "PrimitiveNode") &&
+                        el.TryGetProperty("inputs", out var inScan) && inScan.ValueKind == JsonValueKind.Object &&
+                        inScan.TryGetProperty("string", out var sScan) && sScan.ValueKind == JsonValueKind.String)
+                    {
+                        hasStringTrimPrompt = true;
+                        break;
+                    }
+                }
+                if (hasStringTrimPrompt)
+                    _logger.LogInfo("Workflow has a StringTrim prompt slot — preserving PrimitiveStringMultiline style template(s)");
+
                 // Process each node in the workflow
                 foreach (var kvp in workflow)
                 {
@@ -2781,6 +2836,20 @@ namespace FlipPix.UI.ViewModels
 
                                 shouldUpdate = isStringText;
                                 textPropertyName = "string";
+                            }
+                            // Case 3: PrimitiveStringMultiline with "value" property — the NVIDIA PiD
+                            // "4k" workflow (Z4k.json) routes its prompt through node 92, which feeds
+                            // both CLIPTextEncode nodes via links. Without this the CLIPTextEncode
+                            // nodes have a link array (not a string) for "text", so Case 1 skips them
+                            // and the analysis prompt is ignored entirely.
+                            else if (classType == "PrimitiveStringMultiline" && !hasStringTrimPrompt && inputsProp.TryGetProperty("value", out var valueProp))
+                            {
+                                bool isStringText = valueProp.ValueKind == JsonValueKind.String;
+
+                                _logger.LogInfo($"Node {kvp.Key}: class_type={classType}, title=\"{title}\", isStringText={isStringText}");
+
+                                shouldUpdate = isStringText;
+                                textPropertyName = "value";
                             }
                         }
                     }
@@ -3753,6 +3822,19 @@ namespace FlipPix.UI.ViewModels
             }
 
             return images;
+        }
+
+        // Clicking a completed queue item's thumbnail promotes its image into the
+        // "Latest Result" preview so it can be sent to Camera Edit / Story / etc.
+        private void SelectQueueResult(ImageAnalyzerQueueItem? item)
+        {
+            if (item == null || string.IsNullOrEmpty(item.OutputImagePath) || !File.Exists(item.OutputImagePath))
+                return;
+
+            ResultImagePath = item.OutputImagePath;
+            LoadResultPreview(item.OutputImagePath);
+            HasResultImage = true;
+            StatusBarMessage = $"Loaded result: {Path.GetFileName(item.OutputImagePath)}";
         }
 
         private void LoadResultPreview(string imagePath)

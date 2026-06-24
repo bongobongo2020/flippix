@@ -126,6 +126,7 @@ namespace FlipPix.UI.ViewModels.Video
             SelectLastImageCommand = new RelayCommand(() => SelectImage(isFirst: false));
             SelectFolderCommand = new RelayCommand(async () => await SelectFolderAsync());
             RunBatchCommand = new RelayCommand(async () => await RunBatchAsync(), () => CanRunBatch);
+            RerollPairCommand = new RelayCommand(async () => await RerollPairAsync(), () => CanRerollPair);
             ClearFolderCommand = new RelayCommand(ClearFolder, () => IsBatchMode && !IsProcessing && !IsAnalyzing);
             AnalyzeCommand = new RelayCommand(async () => await AnalyzeAsync(), () => CanAnalyze);
             HuntCommand = new RelayCommand(async () => await RunHuntAsync(), () => CanHunt);
@@ -149,6 +150,7 @@ namespace FlipPix.UI.ViewModels.Video
         public ICommand SelectLastImageCommand { get; }
         public ICommand SelectFolderCommand { get; }
         public RelayCommand RunBatchCommand { get; }
+        public RelayCommand RerollPairCommand { get; }
         public RelayCommand ClearFolderCommand { get; }
         public RelayCommand AnalyzeCommand { get; }
         public RelayCommand HuntCommand { get; }
@@ -329,6 +331,7 @@ namespace FlipPix.UI.ViewModels.Video
                     var firstReady = value?.Samples.FirstOrDefault(s => s.HasVideo);
                     ActivePreviewUri = firstReady?.VideoFileUri;
                     OnPropertyChanged(nameof(HasSamples));
+                    OnPropertyChanged(nameof(CanRerollPair));
                     OnCanExecuteChanged();
                 }
             }
@@ -374,9 +377,14 @@ namespace FlipPix.UI.ViewModels.Video
         public bool CanHunt => !IsBatchMode && HasFirstImage && HasLastImage && !string.IsNullOrWhiteSpace(Prompt)
                                && !IsProcessing && !IsAnalyzing;
         public bool CanRunBatch => IsBatchMode && _pairs.Count > 0 && !IsProcessing && !IsAnalyzing;
+        public bool CanRerollPair => IsBatchMode && SelectedPair != null
+                                     && !string.IsNullOrWhiteSpace(SelectedPair.Prompt)
+                                     && !IsProcessing && !IsAnalyzing;
         public bool CanFinish => !IsProcessing && !IsAnalyzing && HasSelection;
 
         public string HuntButtonText => HasSamples ? "🎲 Reroll — new 3 seeds" : "🎯 Generate 3 Samples";
+        /// <summary>Single-mode reroll button is shown only once there are samples to replace.</summary>
+        public bool ShowSingleReroll => IsSingleMode && HasSamples;
         public string FinishButtonText => SelectedCount > 1
             ? $"✅ Finish {SelectedCount} Selected → Final Videos"
             : "✅ Finish Selected → Final Video";
@@ -530,6 +538,10 @@ namespace FlipPix.UI.ViewModels.Video
         private void PreviewSample(SeedHuntSample? sample)
         {
             if (sample == null || !sample.HasVideo) return;
+            // Drive the tile highlight (SelectedSampleForPreview) and the shared player. The setter
+            // loads the player on first click; set ActivePreviewUri explicitly too so re-clicking the
+            // same (already-selected) tile still (re)loads it.
+            SelectedSampleForPreview = sample;
             ActivePreviewUri = sample.VideoFileUri;
         }
 
@@ -541,6 +553,10 @@ namespace FlipPix.UI.ViewModels.Video
         /// <summary>Called by the view when the shared MediaElement fails to open the preview.</summary>
         public void ReportPreviewFailed(string message) =>
             AddLog($"Preview playback failed: {message} (uri: {ActivePreviewUri})");
+
+        /// <summary>Called by the view when the shared MediaElement successfully opens a preview.</summary>
+        public void ReportPreviewOpened(string uri) =>
+            AddLog($"Preview opened: {uri}");
 
         #endregion
 
@@ -841,6 +857,7 @@ namespace FlipPix.UI.ViewModels.Video
             await RunWorkflowAsync("Finish", async (token, reportPhase) =>
             {
                 int done = 0;
+                var finishedPaths = new List<string>(); // completed videos, in work order — joined at the end
                 foreach (var item in work)
                 {
                     token.ThrowIfCancellationRequested();
@@ -924,13 +941,125 @@ namespace FlipPix.UI.ViewModels.Video
                         OnCanExecuteChanged();
                     });
                     AddLog($"=== {label} complete: {finalPath} ===");
+                    finishedPaths.Add(finalPath);
                     done++;
+                }
+
+                // Auto-join every finished clip (in selection / pair order) into one continuous video.
+                if (finishedPaths.Count > 1)
+                {
+                    reportPhase($"Joining {finishedPaths.Count} videos into one...");
+                    await JoinFinishedVideosAsync(finishedPaths, token);
                 }
 
                 ProcessingStatus = done == work.Count
                     ? $"Finished {done} video(s)!"
                     : $"Finished {done}/{work.Count} video(s)";
             });
+        }
+
+        /// <summary>
+        /// FFmpeg-concatenates all finished videos (in selection / pair order) into one continuous MP4,
+        /// adds it as a result, and loads it in the shared player. Best-effort: a concat failure leaves
+        /// the individual finished videos intact.
+        /// </summary>
+        private async Task JoinFinishedVideosAsync(IReadOnlyList<string> clips, CancellationToken token)
+        {
+            try
+            {
+                var ffmpeg = FindFFmpeg();
+                if (ffmpeg == null)
+                {
+                    AddLog("Join skipped: FFmpeg not found.");
+                    return;
+                }
+
+                var outputDir = Path.Combine(
+                    _settingsService.Settings?.OutputFolderPath ?? Path.GetTempPath(), "FflfSeedHunt");
+                Directory.CreateDirectory(outputDir);
+                var joinedPath = Path.Combine(outputDir,
+                    $"FflfSeedHunt_joined_{DateTime.Now:yyyyMMdd_HHmmss}.mp4");
+
+                await ConcatClipsAsync(ffmpeg, clips, joinedPath, token);
+                if (!File.Exists(joinedPath) || new FileInfo(joinedPath).Length == 0)
+                {
+                    AddLog("Join produced no file.");
+                    return;
+                }
+
+                await LocalCopyService.CopyVideoAsync(joinedPath);
+                var fi = new FileInfo(joinedPath);
+                var result = new SeedHuntResult
+                {
+                    VideoPath = joinedPath,
+                    VideoFileUri = joinedPath,
+                    LabelOverride = $"🎬 Joined ({clips.Count})",
+                    Info = $"Joined {clips.Count} clips • {fi.Length / 1024 / 1024.0:F1}MB"
+                };
+                Application.Current.Dispatcher.Invoke(() =>
+                {
+                    _results.Add(result);
+                    ResultVideoPath = joinedPath;
+                    ResultVideoInfo = result.Info;
+                    ActivePreviewUri = joinedPath;
+                    HasResult = true;
+                    OnCanExecuteChanged();
+                });
+                AddLog($"=== Joined video complete: {joinedPath} ===");
+            }
+            catch (OperationCanceledException) { throw; }
+            catch (Exception ex)
+            {
+                AddLog($"Join failed: {ex.Message}");
+            }
+        }
+
+        /// <summary>Concatenates clips (all share the workflow's output resolution/fps) into one MP4 via
+        /// FFmpeg's concat demuxer with a re-encode (robust to copy/codec edge-cases; keeps audio).</summary>
+        private async Task ConcatClipsAsync(string ffmpeg, IReadOnlyList<string> clips, string outPath, CancellationToken token)
+        {
+            if (clips.Count == 1)
+            {
+                File.Copy(clips[0], outPath, true);
+                return;
+            }
+
+            var listPath = Path.Combine(Path.GetTempPath(), $"fflfsh_concat_{Guid.NewGuid():N}.txt");
+            var sb = new System.Text.StringBuilder();
+            foreach (var clip in clips)
+                sb.AppendLine($"file '{clip.Replace("'", "'\\''")}'");
+            await File.WriteAllTextAsync(listPath, sb.ToString(), token);
+
+            try
+            {
+                var psi = new System.Diagnostics.ProcessStartInfo
+                {
+                    FileName = ffmpeg,
+                    UseShellExecute = false,
+                    RedirectStandardError = true,
+                    CreateNoWindow = true,
+                };
+                foreach (var a in new[]
+                {
+                    "-y", "-f", "concat", "-safe", "0", "-i", listPath,
+                    "-c:v", "libx264", "-preset", "veryfast", "-crf", "18",
+                    "-c:a", "aac", "-b:a", "192k", "-pix_fmt", "yuv420p", outPath
+                }) psi.ArgumentList.Add(a);
+
+                using var p = System.Diagnostics.Process.Start(psi);
+                if (p == null) throw new Exception("Failed to start FFmpeg.");
+                var stderr = await p.StandardError.ReadToEndAsync();
+                await p.WaitForExitAsync(token);
+                if (p.ExitCode != 0)
+                {
+                    var tail = stderr.Length <= 400 ? stderr : stderr.Substring(stderr.Length - 400);
+                    AddLog($"FFmpeg concat exited {p.ExitCode}: {tail}");
+                }
+            }
+            finally
+            {
+                try { File.Delete(listPath); } catch { /* best effort */ }
+            }
         }
 
         private void OnSampleSelectionChanged(object? sender, System.ComponentModel.PropertyChangedEventArgs e)
@@ -961,6 +1090,20 @@ namespace FlipPix.UI.ViewModels.Video
             var folder = await _fileDialogService.OpenFolderDialogAsync(
                 "Select a folder of images (ordered by creation time → overlapping FFLF pairs)",
                 initialDir, showNewFolderButton: false, persistKey: "fflfseedhunt.folder");
+            if (string.IsNullOrEmpty(folder) || !Directory.Exists(folder)) return;
+
+            LoadFolder(folder);
+        }
+
+        /// <summary>
+        /// Loads a folder of images into batch mode without showing a dialog. Images are ordered by
+        /// creation time (then filename) and chained into overlapping FFLF pairs. Used by the folder
+        /// picker and by the "open in FFLF Seed Hunter" handoff from Story Image Q's keyframes.
+        /// Must be called on the UI thread.
+        /// </summary>
+        public void LoadFolder(string folder)
+        {
+            if (IsProcessing || IsAnalyzing) return;
             if (string.IsNullOrEmpty(folder) || !Directory.Exists(folder)) return;
 
             var exts = new HashSet<string>(StringComparer.OrdinalIgnoreCase)
@@ -1118,6 +1261,49 @@ namespace FlipPix.UI.ViewModels.Video
 
                 OnPropertyChanged(nameof(HasSamples));
                 ProcessingStatus = $"Batch done — {ok}/{total} pairs produced previews. Pick seeds, then Finish.";
+            });
+        }
+
+        /// <summary>
+        /// Rerolls just the currently <see cref="SelectedPair"/> with a fresh random seed → 3 new
+        /// seed previews, reusing the pair's existing transition prompt (no re-analyze). For when the
+        /// user doesn't like a pair's samples but the prompt is fine. Leaves every other pair untouched.
+        /// </summary>
+        private async Task RerollPairAsync()
+        {
+            var pair = SelectedPair;
+            if (pair == null || !CanRerollPair) return;
+
+            await RunWorkflowAsync("Reroll", async (token, reportPhase) =>
+            {
+                if (string.IsNullOrWhiteSpace(pair.Prompt))
+                    throw new Exception("This pair has no prompt yet. Run Batch first to analyze it.");
+
+                _results.Clear();
+                HasResult = false;
+                ActivePreviewUri = null;
+                SelectedSampleForPreview = null;
+
+                var firstName = await EnsureUploadedAsync(pair.FirstImagePath);
+                var lastName = await EnsureUploadedAsync(pair.LastImagePath);
+
+                var seed = NewSeed();
+                Application.Current.Dispatcher.Invoke(() => pair.BatchSeed = seed);
+                SetPairStatus(pair, "rerolling");
+                var batchId = DateTime.Now.ToString("yyyyMMddHHmmss") + $"_p{pair.Index}r";
+
+                reportPhase($"Pair {pair.Index}: rerolling 3 new seeds — previews appear as each finishes...");
+                var found = await HuntCoreAsync(token, firstName, lastName, pair.Prompt, pair.FirstImagePath,
+                    seed, batchId, pair.Samples, 0, 95,
+                    status => reportPhase($"Pair {pair.Index}: {status}"));
+
+                SetPairStatus(pair, found > 0 ? $"ready {found}/3" : "no output");
+                if (found == 0)
+                    throw new Exception("No sample previews were produced.");
+
+                Application.Current.Dispatcher.Invoke(() =>
+                    ActivePreviewUri = pair.Samples.FirstOrDefault(s => s.HasVideo)?.VideoFileUri);
+                ProcessingStatus = $"Pair {pair.Index}: {found}/3 fresh samples ready — pick one, then Finish";
             });
         }
 
@@ -1352,12 +1538,15 @@ namespace FlipPix.UI.ViewModels.Video
             OnPropertyChanged(nameof(CanAnalyze));
             OnPropertyChanged(nameof(CanHunt));
             OnPropertyChanged(nameof(CanRunBatch));
+            OnPropertyChanged(nameof(CanRerollPair));
             OnPropertyChanged(nameof(CanFinish));
             OnPropertyChanged(nameof(HuntButtonText));
+            OnPropertyChanged(nameof(ShowSingleReroll));
             OnPropertyChanged(nameof(FinishButtonText));
             AnalyzeCommand.NotifyCanExecuteChanged();
             HuntCommand.NotifyCanExecuteChanged();
             RunBatchCommand.NotifyCanExecuteChanged();
+            RerollPairCommand.NotifyCanExecuteChanged();
             ClearFolderCommand.NotifyCanExecuteChanged();
             FinishCommand.NotifyCanExecuteChanged();
             CancelCommand.NotifyCanExecuteChanged();

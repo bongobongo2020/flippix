@@ -38,6 +38,8 @@ namespace FlipPix.UI.ViewModels.Video
         private bool _isProcessingQueue = false;
         private string _queueStatus = string.Empty;
         private int _frameCount = 240;
+        private VideoGeneratorMainViewModel.StoryVideoWorkflow _selectedStoryWorkflow =
+            VideoGeneratorMainViewModel.StoryVideoWorkflow.VantageSulphur2;
 
         private readonly IFileDialogService _fileDialogService;
         private readonly LMStudioService _lmStudioService;
@@ -194,6 +196,17 @@ namespace FlipPix.UI.ViewModels.Video
         }
 
         public string FrameCountHint => $"~{_frameCount / 24.0:F1}s at 24fps";
+
+        /// <summary>
+        /// Which story workflow (Vantage Sulphur 2, 10Eros, LTX-22-B, DaSiWa, WAN 2.2 FunCamera)
+        /// the Single Video tab runs on the reference image. Set by the composer from the tab's
+        /// workflow dropdown.
+        /// </summary>
+        public VideoGeneratorMainViewModel.StoryVideoWorkflow SelectedStoryWorkflow
+        {
+            get => _selectedStoryWorkflow;
+            set { if (_selectedStoryWorkflow != value) { _selectedStoryWorkflow = value; OnPropertyChanged(); } }
+        }
 
         public bool IsAnalyzing
         {
@@ -648,52 +661,22 @@ namespace FlipPix.UI.ViewModels.Video
 
         #region Video Generation
 
+        // Output subfolders the story workflows may write into (mirrors VideoGeneratorMainViewModel).
+        private static readonly string[] StoryOutputSubfolders =
+            { "testrun", "testrun/vid", "video", "intpups", "intp", "ups", "ltx2.3/my" };
+
         private async Task GenerateSingleVideoAsync(QueueItem item)
         {
             try
             {
-                AddLog($"=== Generating LTX 2.3 video for: {Path.GetFileName(item.ImagePath)} ===");
+                var workflowName = SelectedStoryWorkflow.ToString();
+                AddLog($"=== Generating {workflowName} video for: {Path.GetFileName(item.ImagePath)} ===");
                 IsProcessing = true;
                 HasResult = false;
                 ResultVideoPath = string.Empty;
                 ResultVideoInfo = string.Empty;
                 ProcessingProgress = 0;
                 ProcessingStatus = "Preparing workflow...";
-
-                // Detect image orientation and set output latent dimensions
-                int itemWidth = 960, itemHeight = 544; // default landscape
-                try
-                {
-                    var bitmap = new BitmapImage();
-                    bitmap.BeginInit();
-                    bitmap.CacheOption = BitmapCacheOption.OnLoad;
-                    bitmap.UriSource = new Uri(item.ImagePath, UriKind.Absolute);
-                    bitmap.EndInit();
-                    bitmap.Freeze();
-
-                    var pixelWidth = bitmap.PixelWidth;
-                    var pixelHeight = bitmap.PixelHeight;
-                    bool isPortrait = pixelHeight > pixelWidth;
-
-                    // LTX 2.3 Two-Stage output latent dimensions
-                    if (isPortrait)
-                    {
-                        itemWidth = 544;
-                        itemHeight = 960;
-                    }
-                    else
-                    {
-                        itemWidth = 960;
-                        itemHeight = 544;
-                    }
-
-                    AddLog($"Detected image: {pixelWidth}x{pixelHeight} ({(isPortrait ? "portrait" : "landscape")})");
-                    AddLog($"Using output dimensions: {itemWidth}x{itemHeight}");
-                }
-                catch (Exception ex)
-                {
-                    AddLog($"Warning: Could not detect image orientation, using defaults: {ex.Message}");
-                }
 
                 // Check / restart ComfyUI
                 ProcessingStatus = "Checking ComfyUI status...";
@@ -714,13 +697,16 @@ namespace FlipPix.UI.ViewModels.Video
                 }
 
                 var workflowPath = Path.Combine(AppDomain.CurrentDomain.BaseDirectory,
-                    "workflow", "LTX-2.3_T2V_I2V_Two_Stage_Distilled(1).json");
+                    "workflow", StoryWorkflowPatcher.GetWorkflowRelativePath(SelectedStoryWorkflow));
 
                 if (!File.Exists(workflowPath))
                     throw new FileNotFoundException($"Workflow not found: {workflowPath}");
 
-                AddLog("Loading workflow...");
+                AddLog($"Loading workflow: {Path.GetFileName(workflowPath)}");
                 var rawJson = await File.ReadAllTextAsync(workflowPath);
+                var workflowDict = JsonSerializer.Deserialize<Dictionary<string, JsonElement>>(rawJson);
+                if (workflowDict == null)
+                    throw new Exception("Failed to parse workflow JSON.");
 
                 ProcessingStatus = "Uploading image...";
                 ProcessingProgress = 10;
@@ -731,21 +717,24 @@ namespace FlipPix.UI.ViewModels.Video
 
                 AddLog($"Image uploaded: {uploadedImageName}");
 
-                // Patch workflow nodes
-                WorkflowNodeUpdater.UpdateNodeInput(ref rawJson, "2004", "image", uploadedImageName);
-                WorkflowNodeUpdater.UpdateNodeInput(ref rawJson, "2483", "text", item.Prompt);
-                WorkflowNodeUpdater.UpdateNodeInput(ref rawJson, "4988", "value", item.FrameCount);
-                // Output latent dimensions based on image orientation
-                WorkflowNodeUpdater.UpdateNodeInputMultiple(ref rawJson, "3059",
-                    new Dictionary<string, object> { { "width", itemWidth }, { "height", itemHeight } });
-                // Randomise seeds for both two-stage samplers
-                var rng = new Random();
-                WorkflowNodeUpdater.UpdateNodeInput(ref rawJson, "4832", "noise_seed", (long)(rng.NextDouble() * long.MaxValue));
-                WorkflowNodeUpdater.UpdateNodeInput(ref rawJson, "4967", "noise_seed", (long)(rng.NextDouble() * long.MaxValue));
-                var updatedWorkflow = JsonSerializer.Deserialize<JsonElement>(rawJson);
+                // Inject image / prompt / frames / fps / seed via the shared story patcher.
+                var negativePrompt = _settingsService.Settings?.DefaultNegativePrompt ?? string.Empty;
+                const int fps = 24;
+                var updatedWorkflow = StoryWorkflowPatcher.Patch(
+                    workflowDict,
+                    SelectedStoryWorkflow,
+                    uploadedImageName,
+                    item.ImagePath,
+                    item.Prompt,
+                    negativePrompt,
+                    item.FrameCount,
+                    fps,
+                    0, // randomise seed
+                    AddLog);
 
-                // Record start time for output detection
-                var generationStart = DateTime.Now.AddSeconds(-2); // small buffer
+                // Record existing video files BEFORE execution so we only pick up the new one.
+                var existingFiles = GetExistingVideoFiles("*.mp4", StoryOutputSubfolders);
+                AddLog($"Recording {existingFiles.Count} existing video files before execution");
 
                 var progress = new Progress<FlipPix.ComfyUI.Models.ProgressMessage>(msg =>
                 {
@@ -767,18 +756,20 @@ namespace FlipPix.UI.ViewModels.Video
                 ProcessingProgress = 95;
                 ProcessingStatus = "Waiting for output video...";
 
-                var outputVideo = await WaitForVideoByTimestampAsync(generationStart, "output_*.mp4",
-                    TimeSpan.FromMinutes(15), TimeSpan.FromSeconds(5));
+                var outputVideo = await WaitForNewVideoAsync(
+                    existingFiles, "*.mp4",
+                    TimeSpan.FromMinutes(15), TimeSpan.FromSeconds(5),
+                    StoryOutputSubfolders);
 
                 if (outputVideo == null || !File.Exists(outputVideo))
                     throw new Exception("No output video was produced within the timeout.");
 
                 // Save copy to output folder
                 var outputDir = Path.Combine(
-                    _settingsService.Settings?.OutputFolderPath ?? Path.GetTempPath(), "LTX23Basic");
+                    _settingsService.Settings?.OutputFolderPath ?? Path.GetTempPath(), "SingleVideo");
                 Directory.CreateDirectory(outputDir);
 
-                var outName = $"LTX23_{DateTime.Now:yyyyMMdd_HHmmss}.mp4";
+                var outName = $"{workflowName}_{DateTime.Now:yyyyMMdd_HHmmss}.mp4";
                 var finalPath = Path.Combine(outputDir, outName);
                 File.Copy(outputVideo, finalPath, true);
                 AddLog($"Video saved: {finalPath}");
@@ -788,7 +779,7 @@ namespace FlipPix.UI.ViewModels.Video
                 HasResult = true;
 
                 var fileInfo = new FileInfo(finalPath);
-                ResultVideoInfo = $"LTX 2.3 • {fileInfo.Length / 1024.0 / 1024.0:F1}MB";
+                ResultVideoInfo = $"{workflowName} • {fileInfo.Length / 1024.0 / 1024.0:F1}MB";
                 item.OutputImagePath = finalPath; // store path on item for reference
 
                 ProcessingProgress = 100;
@@ -799,60 +790,6 @@ namespace FlipPix.UI.ViewModels.Video
             {
                 IsProcessing = false;
             }
-        }
-
-        /// <summary>
-        /// Waits for a new MP4 file whose last-write time is after <paramref name="after"/>.
-        /// This avoids false-negatives when a file was already in the output folder from a prior run.
-        /// </summary>
-        private async Task<string?> WaitForVideoByTimestampAsync(
-            DateTime after,
-            string filePattern,
-            TimeSpan maxWait,
-            TimeSpan checkInterval)
-        {
-            var settings = _settingsService.Settings;
-            if (settings == null) { AddLog("ERROR: Settings not available"); return null; }
-
-            var baseUrl = GetComfyUIBaseUrl();
-            var isRemote = IsComfyUIRemote(new Uri(baseUrl).Host);
-            var outputFolder = isRemote ? settings.RemoteOutputFolderPath : settings.OutputFolderPath;
-
-            if (string.IsNullOrEmpty(outputFolder))
-            {
-                AddLog("ERROR: Output folder not configured in settings");
-                return null;
-            }
-
-            AddLog($"Monitoring: {outputFolder}  (files newer than {after:HH:mm:ss})");
-
-            var deadline = DateTime.Now + maxWait;
-            while (DateTime.Now < deadline)
-            {
-                await Task.Delay(checkInterval);
-
-                if (!Directory.Exists(outputFolder)) continue;
-
-                var candidate = Directory.GetFiles(outputFolder, filePattern)
-                    .Where(f => File.GetLastWriteTime(f) > after)
-                    .OrderByDescending(f => File.GetLastWriteTime(f))
-                    .FirstOrDefault();
-
-                if (candidate != null)
-                {
-                    // Give ComfyUI a moment to finish writing
-                    await Task.Delay(TimeSpan.FromSeconds(3));
-                    var fi = new FileInfo(candidate);
-                    AddLog($"Found: {fi.Name} ({fi.Length / 1024.0 / 1024.0:F2} MB)");
-                    return candidate;
-                }
-
-                var remaining = (int)(deadline - DateTime.Now).TotalSeconds;
-                AddLog($"Waiting for video... ({remaining}s remaining)");
-            }
-
-            AddLog("ERROR: Timeout waiting for output video");
-            return null;
         }
 
         #endregion
