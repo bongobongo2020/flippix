@@ -126,6 +126,35 @@
                     </StackPanel>
                 </Border>
 
+                <!-- ComfyUI Backup & Restore -->
+                <Border Background="#F8F9FA" BorderBrush="#6F42C1" BorderThickness="1" CornerRadius="8" Padding="20" Margin="0,0,0,15">
+                    <StackPanel>
+                        <TextBlock Text="ComfyUI Backup &amp; Restore" FontWeight="Bold" FontSize="16" Margin="0,0,0,8" Foreground="#6F42C1"/>
+                        <TextBlock TextWrapping="Wrap" FontSize="12" Foreground="#6C757D" Margin="0,0,0,12"
+                                   Text="Set up a ready-to-run ComfyUI in one click (downloads a known-good bundle with all custom nodes, then verifies + extracts it). Or snapshot your current ComfyUI install so you can move/restore it on another same-OS machine."/>
+
+                        <Grid Margin="0,0,0,12">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="150"/>
+                                <ColumnDefinition Width="*"/>
+                            </Grid.ColumnDefinitions>
+                            <TextBlock Grid.Column="0" Text="Hugging Face repo:" VerticalAlignment="Center" Margin="0,0,10,0"/>
+                            <TextBox Grid.Column="1" x:Name="HfRepoTextBox" Text="bongobongo2020/flippix-comfyui"
+                                     ToolTip="The Hugging Face model repo that hosts the ComfyUI bundle (user/repo)."/>
+                        </Grid>
+
+                        <StackPanel Orientation="Horizontal" Margin="0,0,0,10">
+                            <Button x:Name="RestoreComfyUIButton" Content="Set up / Restore ComfyUI…" Click="RestoreComfyUI_Click"
+                                    Padding="15,8" Margin="0,0,10,0" Background="#6F42C1" Foreground="White" BorderThickness="0" FontWeight="SemiBold"/>
+                            <Button x:Name="BackupComfyUIButton" Content="Back up this ComfyUI…" Click="BackupComfyUI_Click"
+                                    Padding="15,8" Background="#8E44AD" Foreground="White" BorderThickness="0"/>
+                        </StackPanel>
+
+                        <TextBlock x:Name="BackupRestoreStatus" TextWrapping="Wrap" FontSize="11" Foreground="#868E96"
+                                   Text="Restore targets WSL (download a Linux bundle) or a fresh Windows install. Backup uses the path above and Windows' built-in tar; models/outputs are excluded."/>
+                    </StackPanel>
+                </Border>
+
                 <!-- LM Studio Settings -->
                 <Border Background="#F8F9FA" BorderBrush="#10B981" BorderThickness="1" CornerRadius="8" Padding="20" Margin="0,0,0,15">
                     <StackPanel>

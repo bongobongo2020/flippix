@@ -35,11 +35,41 @@ The application requires a local ComfyUI server with specific custom nodes and m
 
 ### ComfyUI Setup
 
-FlipPix requires **ComfyUI running on localhost** (default: `http://127.0.0.1:8188`).
+FlipPix needs a **ComfyUI server** it can reach (default: `http://127.0.0.1:8188`). There
+are two ways to get one — pick whichever fits:
 
-**📖 [Complete ComfyUI Setup Guide](COMFYUI_SETUP.md)** - Comprehensive step-by-step instructions for setting up ComfyUI from scratch
+#### Option A — Clone a ready-made ComfyUI (lowest friction, "just works") ⭐
 
-**🚀 [Automated Setup Scripts](scripts/README.md)** - One-click scripts to download all custom nodes and models automatically
+Instead of installing ComfyUI and ~115 custom nodes by hand, **restore a snapshot of a
+known-good install**. The snapshot bundles the entire Python environment *and* every custom
+node, so restoring is literally **extract + run** — no pip, no missing-node hunts, nothing
+to reinstall.
+
+1. **(Maintainer, once)** Make the bundle from the live ComfyUI box: double-click
+   **`Backup-ComfyUI.bat`** → produces a `.tar.gz` (~15 GB) + `.sha256` in
+   `%USERPROFILE%\FlipPix-ComfyUI-Backup`. Upload both to a Hugging Face model repo
+   (the script prints the `hf upload` commands).
+2. **(Each user)** On a Linux GPU box or **WSL**, one command downloads, verifies, and
+   restores it:
+   ```bash
+   bash restore-comfyui.sh --hf <user>/flippix-comfyui
+   cd ~/flippix-comfyui/ && ./run_nvidia_gpu.sh    # ComfyUI on 0.0.0.0:8188
+   ```
+   Needs an NVIDIA GPU + recent driver (in WSL, a current Windows NVIDIA driver exposes it).
+
+Models aren't bundled (they can be hundreds of GB on external storage) — after restoring,
+point `ComfyUI/models` at your weights or use the model manifest. Full details:
+**[scripts/README.md → Backup / Restore](scripts/README.md#backup--restore-a-working-comfyui-clone-an-existing-install)**.
+
+#### Option B — Fresh install on Windows
+
+Provision a brand-new self-contained ComfyUI (bundled Python + torch/CUDA), auto-install all
+FlipPix custom nodes, and optionally download models — **double-click `Install-ComfyUI.bat`**
+(or tick "Also install ComfyUI" in the FlipPix wizard).
+
+**📖 [Complete ComfyUI Setup Guide](COMFYUI_SETUP.md)** - Step-by-step manual setup from scratch
+
+**🚀 [Automated Setup Scripts](scripts/README.md)** - One-click install + backup/restore scripts
 
 #### Quick Setup Summary
 
@@ -159,10 +189,13 @@ flippix-prompt-image/
 │   ├── qwen2512API-text.json
 │   └── Klien-Text-API.json
 ├── Install-FlipPix.bat             # One-click FlipPix installer (Win98-style wizard)
-├── Install-ComfyUI.bat             # One-click ComfyUI installer (double-click)
+├── Install-ComfyUI.bat             # One-click fresh ComfyUI installer (double-click)
+├── Backup-ComfyUI.bat              # One-click backup of a remote ComfyUI (clone it)
 ├── scripts/                        # Setup and automation scripts
 │   ├── flippix-installer.ps1       # FlipPix setup wizard the .bat runs
-│   ├── setup-comfyui-fresh.ps1     # ComfyUI installer the .bat runs
+│   ├── setup-comfyui-fresh.ps1     # Fresh ComfyUI installer the .bat runs
+│   ├── backup-comfyui-remote.ps1   # SSH backup: snapshot+download a remote ComfyUI
+│   ├── restore-comfyui.sh          # Restore the snapshot on Ubuntu/WSL (extract+run)
 │   ├── flippix-custom-nodes.txt    # Custom-node list
 │   ├── flippix-models.txt          # Model manifest (path | size | url)
 │   └── run_scaill_chunks.py

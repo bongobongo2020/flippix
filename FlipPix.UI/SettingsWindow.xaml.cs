@@ -698,5 +698,218 @@ namespace FlipPix.UI
                     MessageBoxButton.OK, MessageBoxImage.Error);
             }
         }
+
+        // ===================================================================
+        // ComfyUI Backup & Restore
+        // ===================================================================
+
+        // Canonical restore scripts, fetched at run time so nothing extra has to ship.
+        private const string GitHubRawRestore =
+            "https://raw.githubusercontent.com/bongobongo2020/flippix/flippix-prompt-image/scripts/restore-comfyui.sh";
+        private const string GitHubRawRestoreWin =
+            "https://raw.githubusercontent.com/bongobongo2020/flippix/flippix-prompt-image/scripts/restore-comfyui-windows.ps1";
+
+        private async void RestoreComfyUI_Click(object sender, RoutedEventArgs e)
+        {
+            var repo = HfRepoTextBox.Text?.Trim() ?? "";
+            if (string.IsNullOrWhiteSpace(repo) || !repo.Contains('/'))
+            {
+                MessageBox.Show("Enter a Hugging Face repo as user/repo (e.g. bongobongo2020/flippix-comfyui).",
+                    "Restore ComfyUI", MessageBoxButton.OK, MessageBoxImage.Warning);
+                return;
+            }
+
+            var hasWsl = await Task.Run(() => DetectWsl());
+            if (hasWsl)
+            {
+                var choice = MessageBox.Show(
+                    $"Set up ComfyUI inside WSL by downloading the bundle from:\n\n  {repo}\n\n" +
+                    "This opens a console that downloads (~15 GB), verifies the checksum, and extracts it. " +
+                    "Requires an NVIDIA GPU + recent driver.\n\nProceed?",
+                    "Restore ComfyUI (WSL)", MessageBoxButton.YesNo, MessageBoxImage.Question);
+                if (choice != MessageBoxResult.Yes) return;
+
+                // Pull the canonical restore script and run it in WSL with --hf <repo>.
+                var inner = $"curl -fsSL {GitHubRawRestore} | bash -s -- --hf {repo}";
+                LaunchConsole($"/k wsl.exe -e bash -lc \"{inner}\"");
+                BackupRestoreStatus.Text = "Restore launched in a WSL console. When it finishes, set the "
+                    + "ComfyUI Server URL above to that machine's IP:8188 and Save.";
+            }
+            else
+            {
+                // No WSL. Offer (A) a NATIVE Windows golden-bundle restore, or (B) install WSL
+                // and use the Linux bundle. Cancel does nothing.
+                var pick = MessageBox.Show(
+                    "WSL was not detected. How do you want to set up ComfyUI?\n\n"
+                    + "  YES  = Download the NATIVE WINDOWS bundle (no WSL, extract + run).\n"
+                    + "         Requires a Windows bundle to be published on the repo above.\n\n"
+                    + "  NO   = Install WSL now, then use the Linux bundle (needs admin + a reboot).\n\n"
+                    + "  CANCEL = Do nothing.\n\n"
+                    + "Either way you need an NVIDIA GPU + recent driver.",
+                    "Set up ComfyUI on Windows", MessageBoxButton.YesNoCancel, MessageBoxImage.Question);
+
+                if (pick == MessageBoxResult.Yes)
+                {
+                    // (A) native Windows bundle: fetch + run the Windows restore script in a console.
+                    var inner = $"\"& ([scriptblock]::Create((Invoke-RestMethod '{GitHubRawRestoreWin}'))) -HfRepo '{repo}'\"";
+                    LaunchConsole($"/k powershell -NoProfile -ExecutionPolicy Bypass -Command {inner}");
+                    BackupRestoreStatus.Text = "Windows bundle restore launched in a console. If no Windows "
+                        + "bundle is published yet, it will say so - then use the WSL or fresh-install option.";
+                }
+                else if (pick == MessageBoxResult.No)
+                {
+                    // (B) install WSL (elevated), then the user reboots and clicks Restore again.
+                    try
+                    {
+                        System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo("cmd.exe", "/k wsl --install")
+                        {
+                            UseShellExecute = true,
+                            Verb = "runas"   // WSL install needs admin -> UAC prompt
+                        });
+                        BackupRestoreStatus.Text = "Installing WSL (admin console). Reboot when prompted, then "
+                            + "click 'Set up / Restore ComfyUI' again to restore the Linux bundle.";
+                    }
+                    catch (Exception ex)
+                    {
+                        MessageBox.Show("Couldn't start the WSL install (it needs administrator approval).\n\n"
+                            + "Run this in an admin terminal, reboot, then try again:\n\n  wsl --install\n\n"
+                            + ex.Message, "Install WSL", MessageBoxButton.OK, MessageBoxImage.Warning);
+                    }
+                }
+                // Cancel: no-op.
+            }
+        }
+
+        private async void BackupComfyUI_Click(object sender, RoutedEventArgs e)
+        {
+            if (sender is not Button button) return;
+
+            var src = ComfyUIPathTextBox.Text?.Trim() ?? "";
+            if (string.IsNullOrWhiteSpace(src) || !Directory.Exists(src))
+            {
+                MessageBox.Show("Set a valid 'ComfyUI Installation Path' above first (a folder this PC can read).",
+                    "Back up ComfyUI", MessageBoxButton.OK, MessageBoxImage.Warning);
+                return;
+            }
+
+            var tarExe = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.System), "tar.exe");
+            if (!File.Exists(tarExe))
+            {
+                MessageBox.Show("Windows' built-in tar.exe was not found (needs Windows 10 1803 or newer).",
+                    "Back up ComfyUI", MessageBoxButton.OK, MessageBoxImage.Warning);
+                return;
+            }
+
+            var save = new Microsoft.Win32.SaveFileDialog
+            {
+                Title = "Save ComfyUI backup",
+                Filter = "Gzip tarball (*.tar.gz)|*.tar.gz|All files (*.*)|*.*",
+                FileName = $"flippix-comfyui-backup-{DateTime.Now:yyyyMMdd-HHmmss}.tar.gz"
+            };
+            if (save.ShowDialog() != true) return;
+            var dest = save.FileName;
+
+            var trimmed = src.TrimEnd('\\', '/');
+            var parent = Path.GetDirectoryName(trimmed) ?? trimmed;
+            var leaf = Path.GetFileName(trimmed);
+
+            // tar -C <parent> -czf <dest> <excludes> <leaf>   (excludes mirror the remote backup)
+            var argList = new List<string> { "-C", parent, "-czf", dest,
+                "--exclude=__pycache__", "--exclude=*.pyc",
+                "--exclude=*/models", "--exclude=*/output", "--exclude=*/temp",
+                "--exclude=*/venv", "--exclude=*/.venv",
+                leaf };
+
+            var original = button.Content;
+            button.IsEnabled = false; RestoreComfyUIButton.IsEnabled = false;
+            button.Content = "Backing up… (several min)";
+            BackupRestoreStatus.Text = $"Archiving {src} → {dest} (models/outputs excluded). Please wait…";
+
+            try
+            {
+                var exit = await Task.Run(() => RunProcess(tarExe, argList));
+                if (exit != 0)
+                {
+                    BackupRestoreStatus.Text = $"Backup failed (tar exit {exit}).";
+                    MessageBox.Show($"tar exited with code {exit}; the backup may be incomplete.",
+                        "Back up ComfyUI", MessageBoxButton.OK, MessageBoxImage.Warning);
+                    return;
+                }
+
+                var sha = await Task.Run(() => Sha256Hex(dest));
+                // sha256sum-compatible sidecar ("<hash>  <name>") that restore can verify against.
+                File.WriteAllText(dest + ".sha256", $"{sha}  {Path.GetFileName(dest)}\n");
+
+                var sizeMB = new FileInfo(dest).Length / (1024.0 * 1024.0);
+                BackupRestoreStatus.Text = $"Backup complete: {Path.GetFileName(dest)} ({sizeMB:N0} MB) + .sha256";
+                MessageBox.Show(
+                    $"Backup complete:\n\n{dest}\n({sizeMB:N0} MB)\n\nSHA-256: {sha}\n\n"
+                    + "Restore on a same-OS machine with:\n  bash restore-comfyui.sh \"" + Path.GetFileName(dest) + "\"",
+                    "Back up ComfyUI", MessageBoxButton.OK, MessageBoxImage.Information);
+            }
+            catch (Exception ex)
+            {
+                BackupRestoreStatus.Text = "Backup failed.";
+                MessageBox.Show($"Backup failed: {ex.Message}", "Back up ComfyUI",
+                    MessageBoxButton.OK, MessageBoxImage.Error);
+            }
+            finally
+            {
+                button.Content = original; button.IsEnabled = true; RestoreComfyUIButton.IsEnabled = true;
+            }
+        }
+
+        private static bool DetectWsl()
+        {
+            try
+            {
+                var psi = new System.Diagnostics.ProcessStartInfo("wsl.exe", "-l -q")
+                {
+                    UseShellExecute = false,
+                    RedirectStandardOutput = true,
+                    RedirectStandardError = true,
+                    CreateNoWindow = true
+                };
+                using var p = System.Diagnostics.Process.Start(psi);
+                if (p == null) return false;
+                var outp = p.StandardOutput.ReadToEnd();
+                if (!p.WaitForExit(8000)) { try { p.Kill(); } catch { } return false; }
+                // wsl -l -q lists distro names (UTF-16, NUL-padded); any name => WSL present.
+                return p.ExitCode == 0 && outp.Replace("\0", "").Trim().Length > 0;
+            }
+            catch { return false; }
+        }
+
+        private static void LaunchConsole(string cmdArgs)
+        {
+            // Visible cmd window (/k keeps it open) for long-running jobs.
+            System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo("cmd.exe", cmdArgs)
+            {
+                UseShellExecute = true
+            });
+        }
+
+        private static int RunProcess(string fileName, List<string> argList)
+        {
+            var psi = new System.Diagnostics.ProcessStartInfo(fileName)
+            {
+                UseShellExecute = false,
+                CreateNoWindow = true,
+                RedirectStandardError = true
+            };
+            foreach (var a in argList) psi.ArgumentList.Add(a);
+            using var p = System.Diagnostics.Process.Start(psi);
+            if (p == null) return -1;
+            _ = p.StandardError.ReadToEnd();
+            p.WaitForExit();
+            return p.ExitCode;
+        }
+
+        private static string Sha256Hex(string path)
+        {
+            using var sha = System.Security.Cryptography.SHA256.Create();
+            using var fs = File.OpenRead(path);
+            return Convert.ToHexString(sha.ComputeHash(fs)).ToLowerInvariant();
+        }
     }
 }
