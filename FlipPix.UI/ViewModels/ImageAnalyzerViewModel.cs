@@ -508,7 +508,8 @@ namespace FlipPix.UI.ViewModels
 
         public bool ShowStyleOptions => SelectedWorkflow == TextGeneratorWorkflow.Zimage;
 
-        public bool ShowSamplerSettings => SelectedWorkflow != TextGeneratorWorkflow.Anima;
+        public bool ShowSamplerSettings => SelectedWorkflow != TextGeneratorWorkflow.Anima
+                                           && SelectedWorkflow != TextGeneratorWorkflow.Krea2;
 
         public int SelectedWorkflowIndex
         {
@@ -1861,6 +1862,11 @@ namespace FlipPix.UI.ViewModels
                         _logger.LogInfo($"Using Anima workflow");
                         break;
 
+                    case TextGeneratorWorkflow.Krea2:
+                        workflowPath = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "workflow", "image", "krea", "Krea2_Winnougan_Workflow (1).json");
+                        _logger.LogInfo($"Using Krea2 workflow");
+                        break;
+
                     case TextGeneratorWorkflow.Zimage:
                     default:
                         // Get the workflow for the item's style
@@ -2047,6 +2053,8 @@ namespace FlipPix.UI.ViewModels
                     {
                         TextGeneratorWorkflow.Qwen2512 => "qwen2512",
                         TextGeneratorWorkflow.Klien => "f2k-txt2img",
+                        TextGeneratorWorkflow.Anima => "anima",
+                        TextGeneratorWorkflow.Krea2 => "krea2",
                         _ => "z-image"
                     };
                     var outputPath = Path.Combine(outputDir, $"{prefix}_{timestamp}.png");
@@ -2520,6 +2528,7 @@ namespace FlipPix.UI.ViewModels
                     TextGeneratorWorkflow.Qwen2512 => "71",
                     TextGeneratorWorkflow.Klien => "10",
                     TextGeneratorWorkflow.Anima => "60:11",
+                    TextGeneratorWorkflow.Krea2 => "6",
                     _ => ""  // Empty for Zimage (will use generic search)
                 };
 
@@ -2635,6 +2644,55 @@ namespace FlipPix.UI.ViewModels
                                 }
                             }
                         }
+                        else if (selectedWorkflow == TextGeneratorWorkflow.Krea2)
+                        {
+                            // Krea2_Winnougan_Workflow: node 10 = EmptyLatentImage
+                            string latentNodeId = "10";
+
+                            var resolutions = new[]
+                            {
+                                (1280, 1024), // Landscape
+                                (1024, 1280), // Portrait
+                                (1024, 1024), // Square
+                            };
+                            var (width, height) = resolutions[Math.Min(AspectRatioIndex, resolutions.Length - 1)];
+
+                            if (workflow.ContainsKey(latentNodeId))
+                            {
+                                var latentNode = JsonSerializer.Deserialize<Dictionary<string, object>>(JsonSerializer.Serialize(workflow[latentNodeId]));
+                                if (latentNode != null && latentNode.ContainsKey("inputs"))
+                                {
+                                    var inputs = JsonSerializer.Deserialize<Dictionary<string, object>>(JsonSerializer.Serialize(latentNode["inputs"]));
+                                    if (inputs != null)
+                                    {
+                                        inputs["width"] = width;
+                                        inputs["height"] = height;
+                                        latentNode["inputs"] = inputs;
+                                        workflow[latentNodeId] = latentNode;
+                                        _logger.LogInfo($"✓ Updated node {latentNodeId} with resolution: {width}x{height}");
+                                    }
+                                }
+                            }
+
+                            // Replace SaveImageKJ (node 17) with a standard SaveImage fed from the
+                            // RTX-upscaled image (node 16). SaveImageKJ does not register its result
+                            // in /history outputs, so remote retrieval never finds it; standard
+                            // SaveImage always reports ui.images. Saves to output root as "Krea2_xxxxx_.png".
+                            workflow["17"] = new Dictionary<string, object>
+                            {
+                                ["inputs"] = new Dictionary<string, object>
+                                {
+                                    ["filename_prefix"] = "Krea2",
+                                    ["images"] = new object[] { "16", 0 }
+                                },
+                                ["class_type"] = "SaveImage",
+                                ["_meta"] = new Dictionary<string, object> { ["title"] = "Save Image (FlipPix)" }
+                            };
+
+                            // Drop PreviewImage (node 5) so the upscaled SaveImage (17) is the
+                            // only image output returned by prompt-history/remote retrieval.
+                            workflow.Remove("5");
+                        }
                     }
 
                     // Randomize seed for non-Zimage workflows
@@ -2705,6 +2763,26 @@ namespace FlipPix.UI.ViewModels
                                     samplerNode["inputs"] = inputs;
                                     workflow[samplerNodeId] = samplerNode;
                                     _logger.LogInfo($"✓ Updated Anima sampler node {samplerNodeId} with seed: {randomSeed}");
+                                }
+                            }
+                        }
+                    }
+                    else if (selectedWorkflow == TextGeneratorWorkflow.Krea2)
+                    {
+                        // Krea2 workflow: node 2 = KSampler — only update seed; turbo steps/cfg fixed in workflow
+                        string samplerNodeId = "2";
+                        if (workflow.ContainsKey(samplerNodeId))
+                        {
+                            var samplerNode = JsonSerializer.Deserialize<Dictionary<string, object>>(JsonSerializer.Serialize(workflow[samplerNodeId]));
+                            if (samplerNode != null && samplerNode.ContainsKey("inputs"))
+                            {
+                                var inputs = JsonSerializer.Deserialize<Dictionary<string, object>>(JsonSerializer.Serialize(samplerNode["inputs"]));
+                                if (inputs != null)
+                                {
+                                    inputs["seed"] = randomSeed;
+                                    samplerNode["inputs"] = inputs;
+                                    workflow[samplerNodeId] = samplerNode;
+                                    _logger.LogInfo($"✓ Updated Krea2 sampler node {samplerNodeId} with seed: {randomSeed}");
                                 }
                             }
                         }
@@ -3411,6 +3489,8 @@ namespace FlipPix.UI.ViewModels
                 {
                     TextGeneratorWorkflow.Qwen2512 => "qwen2512_",
                     TextGeneratorWorkflow.Klien => "F2K_txt2img_",
+                    TextGeneratorWorkflow.Anima => "Anima_",
+                    TextGeneratorWorkflow.Krea2 => "Krea2_",
                     _ => ""  // Empty for Zimage (will use ZI/z-image pattern)
                 };
 

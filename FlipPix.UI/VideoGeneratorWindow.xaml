@@ -4569,11 +4569,15 @@
                                                    HorizontalAlignment="Center" VerticalAlignment="Center" TextAlignment="Center"
                                                    TextWrapping="Wrap" Margin="20,0" Foreground="#9CA3AF" FontStyle="Italic"
                                                    Visibility="{Binding HasActivePreview, Converter={StaticResource BoolToVisibilityConverter}, ConverterParameter=Invert}"/>
-                                        <MediaElement x:Name="FflfDasiwaPlayer" Source="{Binding ActivePreviewUri}"
+                                        <!-- Source is set from code-behind (ApplyFflfDasiwaSource) as an ABSOLUTE
+                                             Uri; a string {Binding} to MediaElement.Source silently fails to load
+                                             the Z:\ output paths (black frame). Kept always-visible so Source is
+                                             never assigned while Collapsed. Mirrors the FflfSeedHunt player. -->
+                                        <MediaElement x:Name="FflfDasiwaPlayer"
                                                       Stretch="Uniform" LoadedBehavior="Manual" UnloadedBehavior="Stop"
                                                       MediaOpened="FflfDasiwaPlayer_MediaOpened"
                                                       MediaEnded="FflfDasiwaPlayer_MediaEnded"
-                                                      Visibility="{Binding HasActivePreview, Converter={StaticResource BooleanToVisibilityConverter}}"/>
+                                                      MediaFailed="FflfDasiwaPlayer_MediaFailed"/>
                                     </Grid>
                                 </Border>
 

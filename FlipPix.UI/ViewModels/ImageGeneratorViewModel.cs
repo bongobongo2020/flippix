@@ -27,7 +27,8 @@ namespace FlipPix.UI.ViewModels
         Zimage,
         Qwen2512,
         Klien,
-        Anima
+        Anima,
+        Krea2
     }
 
     public class ImageGeneratorViewModel : BasePromptViewModel, IDisposable
@@ -474,7 +475,10 @@ namespace FlipPix.UI.ViewModels
         // Style properties (for Zimage ZStyles)
         public bool ShowStyleOptions => SelectedWorkflow == TextGeneratorWorkflow.Zimage;
 
-        public bool ShowSamplerSettings => SelectedWorkflow != TextGeneratorWorkflow.Anima;
+        // Anima and Krea2 are turbo/fixed-schedule workflows: steps/cfg/sampler are
+        // baked into the JSON and changing them breaks the result, so hide the sampler panel.
+        public bool ShowSamplerSettings => SelectedWorkflow != TextGeneratorWorkflow.Anima
+                                           && SelectedWorkflow != TextGeneratorWorkflow.Krea2;
 
         public int SelectedStyleIndex
         {
@@ -749,6 +753,11 @@ namespace FlipPix.UI.ViewModels
                         AddLog("Using Anima workflow");
                         break;
 
+                    case TextGeneratorWorkflow.Krea2:
+                        workflowPath = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "workflow", "image", "krea", "Krea2_Winnougan_Workflow (1).json");
+                        AddLog("Using Krea2 workflow");
+                        break;
+
                     case TextGeneratorWorkflow.Zimage:
                     default:
                         if (SelectedStyle != null)
@@ -850,6 +859,7 @@ namespace FlipPix.UI.ViewModels
                         TextGeneratorWorkflow.Qwen2512 => "qwen2512",
                         TextGeneratorWorkflow.Klien => "f2k-txt2img",
                         TextGeneratorWorkflow.Anima => "anima",
+                        TextGeneratorWorkflow.Krea2 => "krea2",
                         _ => "z-image"
                     };
                     var outputPath = Path.Combine(outputDir, $"{prefix}_{timestamp}.png");
@@ -1273,6 +1283,8 @@ namespace FlipPix.UI.ViewModels
                     return UpdateKlienWorkflow(workflowDict);
                 case TextGeneratorWorkflow.Anima:
                     return UpdateAnimaWorkflow(workflowDict);
+                case TextGeneratorWorkflow.Krea2:
+                    return UpdateKrea2Workflow(workflowDict);
                 default:
                     return workflow;
             }
@@ -2306,6 +2318,89 @@ namespace FlipPix.UI.ViewModels
             return JsonSerializer.SerializeToElement(workflowDict);
         }
 
+        private JsonElement UpdateKrea2Workflow(Dictionary<string, JsonElement> workflowDict)
+        {
+            // Krea2_Winnougan_Workflow node map:
+            //   6  = CLIPTextEncode (positive prompt) → inputs.text
+            //   2  = KSampler → inputs.seed (steps/cfg/sampler/scheduler are turbo, left as-is)
+            //   10 = EmptyLatentImage → inputs.width / height
+            //   17 = SaveImageKJ → inputs.filename_prefix / output_folder
+
+            var resolutions = new[]
+            {
+                (1280, 1024), // Landscape
+                (1024, 1280), // Portrait
+                (1024, 1024), // Square
+            };
+            var (width, height) = resolutions[Math.Min(AspectRatioIndex, resolutions.Length - 1)];
+
+            // Prompt (node 6 - CLIPTextEncode)
+            if (workflowDict.ContainsKey("6"))
+            {
+                var node = JsonSerializer.Deserialize<Dictionary<string, object>>(workflowDict["6"].GetRawText());
+                if (node != null && node.ContainsKey("inputs"))
+                {
+                    var inputs = JsonSerializer.Deserialize<Dictionary<string, object>>(JsonSerializer.Serialize(node["inputs"]));
+                    if (inputs != null)
+                    {
+                        inputs["text"] = ImagePrompt;
+                        node["inputs"] = inputs;
+                        workflowDict["6"] = JsonSerializer.SerializeToElement(node);
+                    }
+                }
+            }
+
+            // Seed (node 2 - KSampler); keep turbo steps/cfg/sampler/scheduler
+            if (workflowDict.ContainsKey("2"))
+            {
+                var node = JsonSerializer.Deserialize<Dictionary<string, object>>(workflowDict["2"].GetRawText());
+                if (node != null && node.ContainsKey("inputs"))
+                {
+                    var inputs = JsonSerializer.Deserialize<Dictionary<string, object>>(JsonSerializer.Serialize(node["inputs"]));
+                    if (inputs != null)
+                    {
+                        inputs["seed"] = Seed == 0 ? new Random().NextInt64(0, 999999999999999) : Seed;
+                        node["inputs"] = inputs;
+                        workflowDict["2"] = JsonSerializer.SerializeToElement(node);
+                    }
+                }
+            }
+
+            // Resolution (node 10 - EmptyLatentImage)
+            if (workflowDict.ContainsKey("10"))
+            {
+                var node = JsonSerializer.Deserialize<Dictionary<string, object>>(workflowDict["10"].GetRawText());
+                if (node != null && node.ContainsKey("inputs"))
+                {
+                    var inputs = JsonSerializer.Deserialize<Dictionary<string, object>>(JsonSerializer.Serialize(node["inputs"]));
+                    if (inputs != null)
+                    {
+                        inputs["width"] = width;
+                        inputs["height"] = height;
+                        node["inputs"] = inputs;
+                        workflowDict["10"] = JsonSerializer.SerializeToElement(node);
+                    }
+                }
+            }
+
+            // Replace SaveImageKJ (node 17) with a standard SaveImage fed from the RTX-upscaled
+            // image (node 16). SaveImageKJ writes the file but does NOT register its result in
+            // ComfyUI's /history outputs, so remote retrieval never finds it; a standard SaveImage
+            // always reports ui.images (type "output"). Saves to output root as "Krea2_xxxxx_.png"
+            // so the prefix-based local retrieval (TextGeneratorWorkflow.Krea2 => "Krea2_") matches too.
+            workflowDict["17"] = JsonSerializer.SerializeToElement(new
+            {
+                inputs = new { filename_prefix = "Krea2", images = new object[] { "16", 0 } },
+                class_type = "SaveImage",
+                _meta = new { title = "Save Image (FlipPix)" }
+            });
+
+            // Drop the PreviewImage node (5) so the upscaled SaveImage is the only image output.
+            workflowDict.Remove("5");
+
+            return JsonSerializer.SerializeToElement(workflowDict);
+        }
+
         private Dictionary<string, JsonElement> AddLoraToWorkflow(Dictionary<string, JsonElement> workflowDict, string loraName)
         {
             try
@@ -2604,6 +2699,7 @@ namespace FlipPix.UI.ViewModels
                             TextGeneratorWorkflow.Qwen2512 => "qwen2512_",
                             TextGeneratorWorkflow.Klien => "F2K_txt2img_",
                             TextGeneratorWorkflow.Anima => "Anima_",
+                            TextGeneratorWorkflow.Krea2 => "Krea2_",
                             _ => "z-image_"
                         };
                         imageFiles = Directory.GetFiles(comfyUIOutputDir, $"{prefix}*.png")
@@ -2736,6 +2832,7 @@ namespace FlipPix.UI.ViewModels
                 TextGeneratorWorkflow.Qwen2512 => new[] { @"qwen2512_(\d+)_", @"qwen2512_(\d+)$" },
                 TextGeneratorWorkflow.Klien => new[] { @"F2K_txt2img_(\d+)_", @"F2K_txt2img_(\d+)$" },
                 TextGeneratorWorkflow.Anima => new[] { @"Anima_(\d+)_", @"Anima_(\d+)$" },
+                TextGeneratorWorkflow.Krea2 => new[] { @"Krea2_(\d+)_", @"Krea2_(\d+)$" },
                 _ => new[] { @"z-image_(\d+)_", @"z-image_(\d+)$" }
             };
 
@@ -3642,6 +3739,11 @@ namespace FlipPix.UI.ViewModels
                         AddLog("Using Anima workflow");
                         break;
 
+                    case TextGeneratorWorkflow.Krea2:
+                        workflowPath = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "workflow", "image", "krea", "Krea2_Winnougan_Workflow (1).json");
+                        AddLog("Using Krea2 workflow");
+                        break;
+
                     case TextGeneratorWorkflow.Zimage:
                     default:
                         // Use ZStyle workflow file if a style was selected
@@ -3786,6 +3888,7 @@ namespace FlipPix.UI.ViewModels
                         TextGeneratorWorkflow.Qwen2512 => "qwen2512",
                         TextGeneratorWorkflow.Klien => "f2k-txt2img",
                         TextGeneratorWorkflow.Anima => "anima",
+                        TextGeneratorWorkflow.Krea2 => "krea2",
                         _ => "z-image"
                     };
                     var outputPath = Path.Combine(outputDir, $"{prefix}_{timestamp}.png");

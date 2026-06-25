@@ -45,10 +45,11 @@ namespace FlipPix.UI
             _viewModel.PlayRequested += OnPlayRequested;
             _viewModel.Scail2VM.SeekRequested += OnScail2SeekRequested;
             _viewModel.Scail2VM.PropertyChanged += Scail2VM_PropertyChanged;
-            // Drive the FFLF Seed Hunter player Source from code-behind: a string {Binding} to
-            // MediaElement.Source silently fails to load the Z:\ output paths (black frame, no
-            // MediaOpened/MediaFailed). Set an absolute Uri explicitly instead.
+            // Drive the FFLF Seed Hunter / FFLF-Dasiwa player Source from code-behind: a string
+            // {Binding} to MediaElement.Source silently fails to load the Z:\ output paths (black
+            // frame, no MediaOpened/MediaFailed). Set an absolute Uri explicitly instead.
             _viewModel.FflfSeedHuntVM.PropertyChanged += FflfSeedHuntVM_PropertyChanged;
+            _viewModel.FflfDasiwaVM.PropertyChanged += FflfDasiwaVM_PropertyChanged;
         }
 
         private void OnLoaded(object sender, RoutedEventArgs e)
@@ -57,6 +58,7 @@ namespace FlipPix.UI
             // Pick up a video that was already loaded before this window's handlers wired up.
             ApplyScail2RefSource();
             ApplyFflfSeedHuntSource();
+            ApplyFflfDasiwaSource();
         }
 
         private void Header_MouseLeftButtonDown(object sender, MouseButtonEventArgs e)
@@ -228,9 +230,52 @@ namespace FlipPix.UI
             SeedDirectorPlayer.Play();
         }
 
+        private void FflfDasiwaVM_PropertyChanged(object? sender, System.ComponentModel.PropertyChangedEventArgs e)
+        {
+            if (e.PropertyName != nameof(ViewModels.Video.FflfDasiwaViewModel.ActivePreviewUri)) return;
+            if (Dispatcher.CheckAccess()) ApplyFflfDasiwaSource();
+            else Dispatcher.Invoke(ApplyFflfDasiwaSource);
+        }
+
+        private void ApplyFflfDasiwaSource()
+        {
+            var p = FflfDasiwaPlayer;
+            if (p == null) return;
+            var path = _viewModel.FflfDasiwaVM.ActivePreviewUri;
+            if (string.IsNullOrEmpty(path))
+            {
+                p.Stop();
+                p.Source = null;
+                return;
+            }
+
+            // Always build an ABSOLUTE Uri — the string→Uri auto-conversion a Binding would do can
+            // produce a relative Uri for "Z:\..." paths that MediaElement silently refuses to load.
+            Uri target;
+            try { target = new Uri(System.IO.Path.GetFullPath(path), UriKind.Absolute); }
+            catch { target = new Uri(path, UriKind.RelativeOrAbsolute); }
+
+            if (string.Equals(p.Source?.OriginalString, target.OriginalString, StringComparison.OrdinalIgnoreCase))
+            {
+                // Re-selecting the same clip — restart it rather than no-op.
+                p.Position = System.TimeSpan.Zero;
+                p.Play();
+                return;
+            }
+            // Reset before swapping so the engine reliably re-opens the new file.
+            p.Stop();
+            p.Source = target; // MediaOpened handler starts playback.
+        }
+
         private void FflfDasiwaPlayer_MediaOpened(object sender, RoutedEventArgs e)
         {
+            _viewModel.FflfDasiwaVM.ReportPreviewOpened(FflfDasiwaPlayer.Source?.OriginalString ?? "");
             FflfDasiwaPlayer.Play();
+        }
+
+        private void FflfDasiwaPlayer_MediaFailed(object sender, ExceptionRoutedEventArgs e)
+        {
+            _viewModel.FflfDasiwaVM.ReportPreviewFailed(e.ErrorException?.Message ?? "unknown media error");
         }
 
         private void FflfDasiwaPlayer_MediaEnded(object sender, RoutedEventArgs e)

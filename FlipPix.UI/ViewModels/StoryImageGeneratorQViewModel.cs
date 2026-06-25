@@ -49,7 +49,7 @@ namespace FlipPix.UI.ViewModels
 
         // --- Workflow mode ---
 
-        public static readonly IReadOnlyList<string> WorkflowModes = new[] { "Qwen", "Klein", "FireRed", "StoryImageZ" };
+        public static readonly IReadOnlyList<string> WorkflowModes = new[] { "Qwen", "Klein", "FireRed", "StoryImageZ", "Krea2" };
 
         private string _selectedWorkflowMode = "Qwen";
         public string SelectedWorkflowMode
@@ -63,6 +63,8 @@ namespace FlipPix.UI.ViewModels
                         Steps = 20;
                     else if (value == "FireRed")
                         Steps = 8;
+                    else if (value == "Krea2")
+                        Steps = 8; // Krea2 Turbo
                     else
                         Steps = DefaultSteps;
 
@@ -83,7 +85,8 @@ namespace FlipPix.UI.ViewModels
         private readonly ObservableCollection<SeedHuntPromptTemplate> _storyPromptTemplates = new()
         {
             new SeedHuntPromptTemplate("📖 Story (10 scenes)", "story-prompt.md", string.Empty),
-            new SeedHuntPromptTemplate("🎬 FFLF Continuous Shot (10 keyframes, 5s)", "fflf-story.md", string.Empty),
+            new SeedHuntPromptTemplate("🎬 FFLF Continuous Shot — Image (10 stills, 5s)", "fflf-story-image.md", string.Empty),
+            new SeedHuntPromptTemplate("🎬 FFLF Continuous Shot — Video (10 keyframes, 5s)", "fflf-story.md", string.Empty),
         };
 
         public ObservableCollection<SeedHuntPromptTemplate> StoryPromptTemplates => _storyPromptTemplates;
@@ -214,7 +217,8 @@ namespace FlipPix.UI.ViewModels
         protected override int DefaultSteps => 8;
         protected override double DefaultCfg => 1.0;
         protected override double DefaultDenoise => 0.98;
-        protected override bool RequiresInputImage => SelectedWorkflowMode != "StoryImageZ";
+        // StoryImageZ and Krea2 are text-to-image (no reference image needed); the rest are image edits.
+        protected override bool RequiresInputImage => SelectedWorkflowMode != "StoryImageZ" && SelectedWorkflowMode != "Krea2";
 
         /// <summary>
         /// Local folder where this session's generated keyframes are saved
@@ -568,6 +572,66 @@ namespace FlipPix.UI.ViewModels
             await File.WriteAllBytesAsync(outputPath, outputImages.First());
             await LocalCopyService.CopyImageAsync(outputPath);
             AddLog($"Story Q (Z mode) image #{item.Index} saved: {outputPath}");
+            return outputPath;
+        }
+
+        /// <summary>
+        /// Krea2 mode: text-to-image with the Krea2 Turbo workflow (no reference image).
+        /// Mirrors the Klein/FireRed/Qwen output flow but skips the image upload.
+        /// </summary>
+        private async Task<string> ProcessKrea2QueueItemAsync(StoryPromptItem item, string jsonFileName, CancellationToken cancellationToken)
+        {
+            var workflowPath = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "workflow", "image", "krea", "Krea2_Winnougan_Workflow (1).json");
+            AddLog("Using Krea2 workflow (Turbo, text-to-image)");
+
+            if (!File.Exists(workflowPath))
+                throw new FileNotFoundException($"Workflow file not found: {workflowPath}");
+
+            var workflowJson = await File.ReadAllTextAsync(workflowPath, cancellationToken);
+
+            // Node 6 - CLIPTextEncode (positive prompt)
+            WorkflowNodeUpdater.UpdateNodeInput(ref workflowJson, "6", "text", item.Prompt);
+            // Node 2 - KSampler (seed only; turbo steps/cfg fixed in workflow)
+            WorkflowNodeUpdater.UpdateNodeInput(ref workflowJson, "2", "seed", Random.Shared.NextInt64(0, long.MaxValue));
+
+            // Replace SaveImageKJ (node 17) with a standard SaveImage fed from the RTX-upscaled
+            // image (node 16), and drop the PreviewImage (node 5). SaveImageKJ does not register
+            // its result in /history, so remote retrieval never finds it; standard SaveImage does.
+            // Saves into the per-session subfolder like the other modes.
+            var root = JsonNode.Parse(workflowJson);
+            var obj = root?.AsObject();
+            if (obj != null)
+            {
+                obj.Remove("5");
+                obj["17"] = new JsonObject
+                {
+                    ["inputs"] = new JsonObject
+                    {
+                        ["filename_prefix"] = $"{jsonFileName}/{jsonFileName}-{item.Index}",
+                        ["images"] = new JsonArray("16", 0)
+                    },
+                    ["class_type"] = "SaveImage",
+                    ["_meta"] = new JsonObject { ["title"] = "Save Image (FlipPix)" }
+                };
+            }
+            var workflow = JsonSerializer.Deserialize<JsonElement>(obj?.ToJsonString() ?? workflowJson);
+
+            cancellationToken.ThrowIfCancellationRequested();
+
+            var progress = CreateProgressReporter(item);
+            var promptId = await _comfyUIService.ExecuteWorkflowAsync(workflow, progress, cancellationToken);
+
+            var outputImages = await GetOutputImagesFromComfyUI(promptId, jsonFileName, item.Index);
+            if (!outputImages.Any())
+                throw new InvalidOperationException("No output images were generated");
+
+            var baseOutputDir = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "output", OutputFolderName, jsonFileName);
+            Directory.CreateDirectory(baseOutputDir);
+            var outputPath = Path.Combine(baseOutputDir, $"{jsonFileName}-{item.Index}.png");
+
+            await File.WriteAllBytesAsync(outputPath, outputImages.First());
+            await LocalCopyService.CopyImageAsync(outputPath);
+            AddLog($"Story Q (Krea2 mode) image #{item.Index} saved: {outputPath}");
             return outputPath;
         }
 
@@ -1015,6 +1079,9 @@ namespace FlipPix.UI.ViewModels
 
             if (SelectedWorkflowMode == "StoryImageZ")
                 return await ProcessZQueueItemAsync(item, jsonFileName, cancellationToken);
+
+            if (SelectedWorkflowMode == "Krea2")
+                return await ProcessKrea2QueueItemAsync(item, jsonFileName, cancellationToken);
 
             string workflowPath;
             if (SelectedWorkflowMode == "Klein")
