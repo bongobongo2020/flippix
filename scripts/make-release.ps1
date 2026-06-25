@@ -91,19 +91,20 @@ Write-Step 'Staging package'
 if (Test-Path $Stage) { Remove-Item -Recurse -Force $Stage }
 New-Item -ItemType Directory -Force -Path $Stage | Out-Null
 
-# root files
-foreach ($f in 'Install-FlipPix.bat','Install-ComfyUI.bat','flippix.ico') {
+# root files (launchers + the one-click backup entry point)
+foreach ($f in 'Install-FlipPix.bat','Install-ComfyUI.bat','Backup-ComfyUI.bat','flippix.ico') {
     Copy-Item (Join-Path $RepoRoot $f) (Join-Path $Stage $f) -Force
 }
 Write-Ok 'copied launchers + icon'
 
-# scripts the installers actually use (NOT make-release.ps1 itself / dev helpers)
+# scripts the installers + backup/restore tooling use (NOT make-release.ps1 / dev helpers)
 $scriptsDst = Join-Path $Stage 'scripts'
 New-Item -ItemType Directory -Force -Path $scriptsDst | Out-Null
-foreach ($s in 'flippix-installer.ps1','setup-comfyui-fresh.ps1','flippix-custom-nodes.txt','flippix-models.txt','README.md') {
+foreach ($s in 'flippix-installer.ps1','setup-comfyui-fresh.ps1','flippix-custom-nodes.txt','flippix-models.txt',
+               'backup-comfyui-remote.ps1','restore-comfyui.sh','restore-comfyui-windows.ps1','README.md') {
     Copy-Item (Join-Path $ScriptDir $s) (Join-Path $scriptsDst $s) -Force
 }
-Write-Ok 'copied installer scripts'
+Write-Ok 'copied installer + backup/restore scripts'
 
 # workflow library (used by the ComfyUI installer's copy + missing-node scan)
 if (Test-Path (Join-Path $RepoRoot 'workflow')) {
