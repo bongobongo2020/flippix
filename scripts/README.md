@@ -115,6 +115,161 @@ interrupted ones resume.
 - **Not enough disk space:** install to a larger drive with `-InstallDir`, and/or reuse an
   existing models folder with `-ModelsDir` so weights aren't duplicated.
 
+---
+
+# Backup / Restore a working ComfyUI (clone an existing install)
+
+Instead of installing ComfyUI from scratch, **snapshot a known-good remote install and
+restore it anywhere**. This is the lowest-friction path for a new FlipPix machine: the
+snapshot bundles the entire Python environment (`python_embeded`) *and* every custom node,
+so restoring is literally **extract + run** — no pip, no venv, nothing to reinstall.
+
+- **`Backup-ComfyUI.bat`** (repo root) — one-click. Double-click it. Connects to the
+  remote ComfyUI over SSH and downloads a restore-anywhere bundle to
+  `%USERPROFILE%\FlipPix-ComfyUI-Backup`.
+- **`backup-comfyui-remote.ps1`** — the PowerShell backup the `.bat` runs (Windows side).
+- **`restore-comfyui.sh`** — the restore script (runs on Ubuntu / WSL). It is copied into
+  the bundle folder automatically, so the download is self-contained.
+
+The default source is the portable **ComfyUI-Easy-Install** tree at
+`~/jun1/ComfyUI-Easy-Install` on `x2@192.168.1.10` (Python 3.12 `python_embeded`, ~115
+custom nodes). The no-models bundle is roughly **20–25 GB** (mostly `python_embeded` +
+custom nodes).
+
+## Back up (on Windows)
+
+```powershell
+# default: x2@192.168.1.10, ~/jun1/ComfyUI-Easy-Install, models EXCLUDED
+.\scripts\backup-comfyui-remote.ps1
+
+# write somewhere with room for ~25 GB
+.\scripts\backup-comfyui-remote.ps1 -OutDir D:\backups
+
+# a different machine / path / key
+.\scripts\backup-comfyui-remote.ps1 -User bob -RemoteHost 10.0.0.5 -RemotePath ~/ComfyUI `
+    -IdentityFile $env:USERPROFILE\.ssh\id_ed25519
+```
+
+What it does: opens **one** SSH connection and streams a compressed snapshot straight to a
+`.tar.gz` here (no temp file on the remote; raw byte stream, no PowerShell mangling). The
+snapshot includes **`python_embeded`** (the whole environment with all deps installed), the
+ComfyUI source, **all custom nodes (code + git, kept as-is)**, the bundled launchers,
+`user/` workflows + settings, a manifest (ComfyUI commit, python version, every node's git
+remote+commit) and `requirements-freeze.txt`. Excluded by default: `__pycache__`, `*.pyc`,
+`output/`, `temp/`, the machine-specific run-config dotfiles, and `models/` (on this box
+`ComfyUI/models` is a symlink to external storage). Opt models in with `-IncludeModels`.
+
+Uses the built-in Windows **OpenSSH client** (`ssh.exe`). Set up an SSH key to skip the
+password prompt:
+
+```powershell
+ssh-keygen -t ed25519
+type $env:USERPROFILE\.ssh\id_ed25519.pub | ssh x2@192.168.1.10 "cat >> ~/.ssh/authorized_keys"
+```
+
+## Hosting the bundle (Hugging Face)
+
+The backup writes a `<bundle>.tar.gz.sha256` next to the archive. Upload both to a
+Hugging Face model repo so users can fetch + verify + restore in one command. One-time:
+
+```bash
+pip install -U "huggingface_hub[cli]"
+hf auth login
+hf repo create flippix-comfyui --repo-type model
+```
+
+Upload (re-run whenever you refresh the bundle — upload under the stable name so users
+can omit `--hf-file`):
+
+```bash
+hf upload <user>/flippix-comfyui flippix-comfyui-no-models-*.tar.gz        flippix-comfyui.tar.gz
+hf upload <user>/flippix-comfyui flippix-comfyui-no-models-*.tar.gz.sha256 flippix-comfyui.tar.gz.sha256
+```
+
+Cloudflare R2 / Backblaze B2 work too (zero/cheap egress) — just host the `.tar.gz` +
+`.sha256` and point users at the URL with `curl -L -C -`.
+
+### Windows bundle (for users on Windows without WSL)
+
+The Linux bundle's `python_embeded` is Linux/CUDA, so it **won't run natively on Windows**.
+For bare-Windows users, publish a second, Windows bundle so they get the same extract-and-run
+experience natively (no WSL):
+
+1. On a working **Windows** ComfyUI (e.g. the portable build from `Install-ComfyUI.bat`),
+   make a snapshot with the FlipPix **"Back up this ComfyUI"** button, or with
+   `tar.exe -czf flippix-comfyui-windows.tar.gz -C <parent> <comfyui-folder> --exclude=*/models …`.
+2. Upload it (and its `.sha256`) under a Windows name so the restore tooling finds it:
+   ```bash
+   hf upload <user>/flippix-comfyui flippix-comfyui-windows.tar.gz        flippix-comfyui-windows.tar.gz
+   hf upload <user>/flippix-comfyui flippix-comfyui-windows.tar.gz.sha256 flippix-comfyui-windows.tar.gz.sha256
+   ```
+
+You can keep the Linux and Windows bundles in the **same** HF repo (different filenames).
+
+## Restore (on Ubuntu / WSL)
+
+**One command, straight from Hugging Face** (downloads if missing, verifies the sha256,
+restores):
+
+```bash
+bash restore-comfyui.sh --hf <user>/flippix-comfyui
+# private/gated repo: export HF_TOKEN=hf_xxx first
+```
+
+Or restore a bundle folder you copied over manually:
+
+```bash
+bash restore-comfyui.sh flippix-comfyui-no-models-YYYYMMDD-HHMMSS.tar.gz
+bash restore-comfyui.sh <bundle>.tar.gz ~/ComfyUI        # custom target dir
+```
+
+### Restore on Windows (native, no WSL)
+
+`restore-comfyui-windows.ps1` is the Windows sibling — it downloads the **Windows** bundle
+from Hugging Face, verifies the sha256, and extracts it with Windows' built-in `tar.exe`:
+
+```powershell
+powershell -ExecutionPolicy Bypass -File scripts\restore-comfyui-windows.ps1 -HfRepo <user>/flippix-comfyui
+```
+
+Then run `run_nvidia_gpu.bat` in the extracted folder and point FlipPix at `127.0.0.1:8188`.
+Needs an NVIDIA GPU + driver. If no Windows bundle is published yet, it says so.
+
+### In-app buttons (FlipPix → Settings → "ComfyUI Backup & Restore")
+
+FlipPix's Settings window has **Set up / Restore ComfyUI** and **Back up this ComfyUI**
+buttons that drive all of the above for you:
+
+- **Set up / Restore** detects your environment: **WSL** present → runs the Linux `--hf`
+  restore in a console; **no WSL** → offers the native Windows bundle (`restore-comfyui-windows.ps1`)
+  or installing WSL. The Hugging Face repo is configurable in the same panel.
+- **Back up this ComfyUI** snapshots the locally-configured ComfyUI path to a `.tar.gz`
+  (+ `.sha256`) with `tar.exe` — use it to produce the Windows bundle to publish.
+
+For the portable (`python_embeded`) bundle this just unpacks, makes the launchers
+executable, and replaces any dangling `models` symlink with an empty `models/` dir — **no
+build step**. Then launch with the bundled, VRAM-auto-detecting launcher (Enter through its
+prompts for defaults):
+
+```bash
+cd <restored>/ && ./run_nvidia_gpu.sh     # interactive, auto VRAM
+cd <restored>/ && ./run.sh                # non-interactive shortcut, :8188
+```
+
+ComfyUI serves on `http://0.0.0.0:8188`. **A NVIDIA GPU + recent driver is required**
+(`python_embeded` ships CUDA-built PyTorch; in WSL a recent Windows NVIDIA driver exposes
+the GPU). Then point FlipPix at it (host = the machine's IP, port `8188`).
+
+If the source instead used a plain **venv** (no `python_embeded`), restore rebuilds it:
+torch (`cu121`, or `--cpu`) + ComfyUI + each node's requirements. Extra flags for that
+path: `--exact` (install `requirements-freeze.txt` verbatim), `--skip-deps` (extract only).
+That path needs `sudo apt install -y python3 python3-venv git` first.
+
+After restoring without models, point `ComfyUI/models` at your weights (symlink or
+`extra_model_paths.yaml`) or download them with [`flippix-models.txt`](flippix-models.txt).
+
+---
+
 ## Support
 
 - Main [COMFYUI_SETUP.md](../COMFYUI_SETUP.md) for detailed model/workflow notes

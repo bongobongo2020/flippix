@@ -23,6 +23,22 @@ and then asks about models:
 See **[scripts/README.md](scripts/README.md)** for options (custom locations, reusing an existing
 models folder, unattended download, etc.).
 
+### ⭐ Even easier: clone a ready-made ComfyUI
+
+Don't want to install ComfyUI + ~115 custom nodes at all? **Restore a snapshot of a
+known-good install** instead — it bundles the whole Python environment and every node, so
+it "just works" with no node installs.
+
+- Maintainer makes the bundle once with **`Backup-ComfyUI.bat`** (a ~15 GB `.tar.gz` +
+  `.sha256`) and uploads it to a Hugging Face repo.
+- On a Linux GPU box or **WSL**, one command downloads + verifies + restores it:
+  ```bash
+  bash restore-comfyui.sh --hf <user>/flippix-comfyui
+  cd ~/flippix-comfyui/ && ./run_nvidia_gpu.sh    # ComfyUI on 0.0.0.0:8188
+  ```
+
+Details: **[scripts/README.md → Backup / Restore](scripts/README.md#backup--restore-a-working-comfyui-clone-an-existing-install)**.
+
 ## Step 2: Start Everything
 
 ### Start ComfyUI
