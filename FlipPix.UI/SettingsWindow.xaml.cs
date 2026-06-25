@@ -714,7 +714,7 @@ namespace FlipPix.UI
             var repo = HfRepoTextBox.Text?.Trim() ?? "";
             if (string.IsNullOrWhiteSpace(repo) || !repo.Contains('/'))
             {
-                MessageBox.Show("Enter a Hugging Face repo as user/repo (e.g. bongobongo2020/flippix-comfyui).",
+                MessageBox.Show("Enter a Hugging Face repo as user/repo (e.g. bongo2k22/flippix-comfyui).",
                     "Restore ComfyUI", MessageBoxButton.OK, MessageBoxImage.Warning);
                 return;
             }
