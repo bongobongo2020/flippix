@@ -85,6 +85,93 @@ namespace FlipPix.UI.ViewModels
             set => SetProperty(ref _extraPrompt, value);
         }
 
+        // Training-prompt set selection (any combination of 1.txt / 2.txt / 3.txt under
+        // prompts/training-prompts). Loading replaces every entry in the prompt batcher.
+        [ObservableProperty]
+        private bool _trainingSet1Selected;
+
+        [ObservableProperty]
+        private bool _trainingSet2Selected;
+
+        [ObservableProperty]
+        private bool _trainingSet3Selected;
+
+        /// <summary>
+        /// Replaces all prompts in the batcher with the lines from the selected training-prompt
+        /// files (1.txt, 2.txt, 3.txt). Any combination of the three sets can be selected.
+        /// </summary>
+        [RelayCommand]
+        private void LoadTrainingPrompts()
+        {
+            var sets = new (bool Selected, string File)[]
+            {
+                (TrainingSet1Selected, "1.txt"),
+                (TrainingSet2Selected, "2.txt"),
+                (TrainingSet3Selected, "3.txt"),
+            };
+
+            if (!sets.Any(s => s.Selected))
+            {
+                System.Windows.MessageBox.Show(
+                    "Select at least one training set (1, 2, or 3) first.",
+                    "Training Prompts", MessageBoxButton.OK, MessageBoxImage.Information);
+                return;
+            }
+
+            var promptsDir = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "prompts", "training-prompts");
+            var lines = new List<string>();
+
+            foreach (var (selected, file) in sets)
+            {
+                if (!selected) continue;
+
+                var path = Path.Combine(promptsDir, file);
+                if (!File.Exists(path))
+                {
+                    AddLog($"Training prompt file not found: {path}");
+                    continue;
+                }
+
+                var fileLines = File.ReadAllLines(path)
+                    .Select(l => l.Trim())
+                    .Where(l => !string.IsNullOrEmpty(l));
+                lines.AddRange(fileLines);
+                AddLog($"Loaded training set {file}");
+            }
+
+            if (lines.Count == 0)
+            {
+                System.Windows.MessageBox.Show(
+                    "No prompts found in the selected training files.",
+                    "Training Prompts", MessageBoxButton.OK, MessageBoxImage.Warning);
+                return;
+            }
+
+            Prompts.Clear();
+            for (int i = 0; i < lines.Count; i++)
+            {
+                Prompts.Add(new CameraPromptItem { Number = i + 1, Text = lines[i] });
+            }
+
+            AddLog($"Replaced prompt batcher with {lines.Count} training prompt(s)");
+        }
+
+        /// <summary>Restores the prompt batcher to the default camera-angle prompts.</summary>
+        [RelayCommand]
+        private void ResetToCameraAngles()
+        {
+            Prompts.Clear();
+            for (int i = 0; i < DefaultPrompts.Length; i++)
+            {
+                Prompts.Add(new CameraPromptItem { Number = i + 1, Text = DefaultPrompts[i] });
+            }
+
+            TrainingSet1Selected = false;
+            TrainingSet2Selected = false;
+            TrainingSet3Selected = false;
+            AddLog("Reset prompt batcher to default camera angles");
+        }
+
         // Properties
         public string InputImagePath
         {
@@ -446,9 +533,12 @@ namespace FlipPix.UI.ViewModels
             WorkflowNodeUpdater.UpdateNodeInput(ref workflowJson, "76", "image", inputImageName);
             AddLog("Updated input image in workflow");
 
-            // Build the prompt batch (node 101 - SimplePromptBatcher): the fixed camera angles
-            // plus the user's optional extra prompt, one prompt per line = one image each.
-            var prompts = DefaultPrompts.ToList();
+            // Build the prompt batch (node 101 - SimplePromptBatcher): whatever is currently in
+            // the prompt batcher (default camera angles or loaded training prompts) plus the
+            // user's optional extra prompt, one prompt per line = one image each.
+            var prompts = Prompts.Select(p => p.Text.Trim())
+                                 .Where(t => !string.IsNullOrEmpty(t))
+                                 .ToList();
             var extra = ExtraPrompt?.Trim();
             if (!string.IsNullOrEmpty(extra))
             {

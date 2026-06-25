@@ -417,6 +417,7 @@
                                                         <ComboBoxItem Content="Qwen 2512"/>
                                                         <ComboBoxItem Content="Klien (Flux2)"/>
                                                         <ComboBoxItem Content="Anima"/>
+                                                        <ComboBoxItem Content="Krea2 (Turbo)"/>
                                                     </ComboBox>
                                                 </StackPanel>
 
@@ -3480,6 +3481,28 @@
                             <StackPanel>
                                 <TextBlock Text="Prompts (one image each)" FontSize="14" FontWeight="SemiBold" Foreground="#374151" Margin="0,0,0,4"/>
                                 <TextBlock Text="These camera angles will be generated from your input image." FontSize="12" Foreground="#6B7280" Margin="0,0,0,10"/>
+
+                                <!-- Training Prompts -->
+                                <Border Background="#F3F4F6" BorderBrush="#E5E7EB" BorderThickness="1" CornerRadius="6" Padding="12" Margin="0,0,0,12">
+                                    <StackPanel>
+                                        <TextBlock Text="Training Prompts" FontSize="13" FontWeight="SemiBold" Foreground="#374151" Margin="0,0,0,4"/>
+                                        <TextBlock Text="Replace all prompts above with one or more training sets. Select any combination, then Load."
+                                                   FontSize="11" Foreground="#6B7280" TextWrapping="Wrap" Margin="0,0,0,8"/>
+                                        <StackPanel Orientation="Horizontal" Margin="0,0,0,8">
+                                            <CheckBox Content="Set 1" IsChecked="{Binding CameraAngle.TrainingSet1Selected}" Foreground="#374151" FontSize="12" Margin="0,0,16,0"/>
+                                            <CheckBox Content="Set 2" IsChecked="{Binding CameraAngle.TrainingSet2Selected}" Foreground="#374151" FontSize="12" Margin="0,0,16,0"/>
+                                            <CheckBox Content="Set 3" IsChecked="{Binding CameraAngle.TrainingSet3Selected}" Foreground="#374151" FontSize="12"/>
+                                        </StackPanel>
+                                        <StackPanel Orientation="Horizontal">
+                                            <Button Content="Load Training Prompts" Command="{Binding CameraAngle.LoadTrainingPromptsCommand}"
+                                                    Background="{StaticResource BrandBrush}" Foreground="White" BorderThickness="0" Padding="12,7"
+                                                    FontSize="12" FontWeight="SemiBold" Margin="0,0,8,0"/>
+                                            <Button Content="Reset to Camera Angles" Command="{Binding CameraAngle.ResetToCameraAnglesCommand}"
+                                                    Background="#E5E7EB" Foreground="#374151" BorderThickness="0" Padding="12,7"
+                                                    FontSize="12" FontWeight="SemiBold"/>
+                                        </StackPanel>
+                                    </StackPanel>
+                                </Border>
 
                                 <ItemsControl ItemsSource="{Binding CameraAngle.Prompts}">
                                     <ItemsControl.ItemTemplate>

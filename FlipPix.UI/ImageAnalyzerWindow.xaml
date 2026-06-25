@@ -387,6 +387,8 @@
                                 <ComboBoxItem Content="Zimage (Style-based generation)"/>
                                 <ComboBoxItem Content="Qwen2512 (Qwen 2.5 12B)"/>
                                 <ComboBoxItem Content="Klien (Flux Klein)"/>
+                                <ComboBoxItem Content="Anima"/>
+                                <ComboBoxItem Content="Krea2 (Turbo)"/>
                             </ComboBox>
                         </StackPanel>
                     </Border>

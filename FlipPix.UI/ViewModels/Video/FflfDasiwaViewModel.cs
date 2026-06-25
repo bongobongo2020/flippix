@@ -250,6 +250,14 @@ namespace FlipPix.UI.ViewModels.Video
 
         public bool HasActivePreview => !string.IsNullOrEmpty(ActivePreviewUri);
 
+        /// <summary>Called by the view when the shared MediaElement fails to open the preview.</summary>
+        public void ReportPreviewFailed(string message) =>
+            AddLog($"Preview playback failed: {message} (uri: {ActivePreviewUri})");
+
+        /// <summary>Called by the view when the shared MediaElement successfully opens a preview.</summary>
+        public void ReportPreviewOpened(string uri) =>
+            AddLog($"Preview opened: {uri}");
+
         public FflfDasiwaSegment? SelectedSegment
         {
             get => _selectedSegment;
