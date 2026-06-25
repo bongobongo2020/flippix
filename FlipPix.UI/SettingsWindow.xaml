@@ -139,7 +139,7 @@
                                 <ColumnDefinition Width="*"/>
                             </Grid.ColumnDefinitions>
                             <TextBlock Grid.Column="0" Text="Hugging Face repo:" VerticalAlignment="Center" Margin="0,0,10,0"/>
-                            <TextBox Grid.Column="1" x:Name="HfRepoTextBox" Text="bongobongo2020/flippix-comfyui"
+                            <TextBox Grid.Column="1" x:Name="HfRepoTextBox" Text="bongo2k22/flippix-comfyui"
                                      ToolTip="The Hugging Face model repo that hosts the ComfyUI bundle (user/repo)."/>
                         </Grid>
 

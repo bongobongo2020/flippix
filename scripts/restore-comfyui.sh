@@ -18,7 +18,7 @@
 #   [target-dir]     where to restore it       (default: ~/flippix-comfyui)
 #
 #   --hf <repo>          download the bundle from a Hugging Face repo if it isn't
-#                        already present locally, e.g. --hf bongobongo2020/flippix-comfyui
+#                        already present locally, e.g. --hf bongo2k22/flippix-comfyui
 #   --hf-file <name>     filename inside the repo (default: the archive's basename,
 #                        else flippix-comfyui.tar.gz)
 #   --hf-revision <rev>  branch / tag / commit to pull (default: main)
@@ -29,7 +29,7 @@
 #   --exact              (venv layout only) install requirements-freeze.txt verbatim
 #
 # One-command restore from Hugging Face (public repo, no login needed):
-#   bash restore-comfyui.sh --hf bongobongo2020/flippix-comfyui
+#   bash restore-comfyui.sh --hf bongo2k22/flippix-comfyui
 # Gated/private repo: set HF_TOKEN=hf_xxx in the environment first.
 #
 # Prereqs:  portable layout needs only tar + (curl|wget|hf) to fetch (+ NVIDIA driver
