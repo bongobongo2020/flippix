@@ -107,19 +107,55 @@ function Get-File($Url, $OutFile) {
 # ---------------------------------------------------------------------------
 # 0. preflight: git + 7-Zip
 # ---------------------------------------------------------------------------
+function Install-MinGit {
+    # Portable git: download the official MinGit (git-for-windows) zip and add it to the
+    # session PATH. No admin, no winget - works on a clean Windows / Sandbox.
+    $minDir = Join-Path $env:LOCALAPPDATA 'FlipPix\MinGit'
+    $gitCmd = Join-Path $minDir 'cmd'
+    $gitExe = Join-Path $gitCmd 'git.exe'
+    if (Test-Path $gitExe) {
+        $env:Path = "$gitCmd;$env:Path"
+        if (Get-Command git -ErrorAction SilentlyContinue) { Write-Ok "using portable git at $minDir"; return $true }
+    }
+    Write-Warn2 'Downloading portable git (MinGit, ~45 MB) - no admin needed...'
+    $rel = Invoke-RestMethod -Uri 'https://api.github.com/repos/git-for-windows/git/releases/latest' `
+        -Headers @{ 'User-Agent' = 'flippix-setup' }
+    $asset = $rel.assets |
+        Where-Object { $_.name -match '^MinGit-.*-64-bit\.zip$' -and $_.name -notmatch 'busybox' } |
+        Select-Object -First 1
+    if (-not $asset) { throw 'could not find a MinGit 64-bit asset in the latest git-for-windows release' }
+    $zip = Join-Path $env:TEMP $asset.name
+    Get-File $asset.browser_download_url $zip
+    New-Item -ItemType Directory -Force -Path $minDir | Out-Null
+    Write-Host "  extracting MinGit -> $minDir"
+    Expand-Archive -Path $zip -DestinationPath $minDir -Force
+    if (-not (Test-Path $gitExe)) { throw "MinGit extracted but git.exe not found at $gitExe" }
+    $env:Path = "$gitCmd;$env:Path"
+    return [bool](Get-Command git -ErrorAction SilentlyContinue)
+}
+
 function Ensure-Git {
     if (Get-Command git -ErrorAction SilentlyContinue) { Write-Ok 'git found'; return }
+
     Write-Warn2 'git not found - attempting install via winget...'
     if (Get-Command winget -ErrorAction SilentlyContinue) {
         winget install --id Git.Git -e --source winget --accept-package-agreements --accept-source-agreements
         # winget does not refresh the current session PATH; add the default install location
         $gitCmd = Join-Path $env:ProgramFiles 'Git\cmd'
         if (Test-Path $gitCmd) { $env:Path = "$gitCmd;$env:Path" }
+    } else {
+        Write-Warn2 'winget not available (clean Windows / Sandbox) - will use portable git.'
     }
-    if (-not (Get-Command git -ErrorAction SilentlyContinue)) {
-        throw "git is required. Install it from https://git-scm.com/download/win, reopen the terminal, and re-run."
+    if (Get-Command git -ErrorAction SilentlyContinue) { Write-Ok 'git installed'; return }
+
+    # Portable fallback: download MinGit. Works on any clean Windows, no admin/winget.
+    try {
+        if (Install-MinGit) { Write-Ok 'git ready (portable MinGit)'; return }
+    } catch {
+        Write-Warn2 "portable git download failed: $($_.Exception.Message)"
     }
-    Write-Ok 'git installed'
+
+    throw "git is required and could not be auto-installed. Install it from https://git-scm.com/download/win, reopen the terminal, and re-run."
 }
 
 function Get-SevenZip {
