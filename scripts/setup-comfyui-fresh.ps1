@@ -244,12 +244,15 @@ Write-Ok "embedded python: $Py"
 function Install-NodeRepo($Url) {
     $name = ($Url -split '/')[-1] -replace '\.git$', ''
     $dest = Join-Path $CustomDir $name
+    # NOTE: git writes normal progress to stderr. Use '2>&1 | Out-Null' (merge stderr into
+    # the output stream, then discard) -- NOT '2>$null', which under $ErrorActionPreference
+    # = 'Stop' makes Windows PowerShell 5.1 wrap git's progress as a terminating error.
     if (Test-Path $dest) {
         Write-Ok "$name already present - pulling latest"
-        git -C $dest pull --ff-only 2>$null | Out-Null
+        git -C $dest pull --ff-only 2>&1 | Out-Null
     } else {
         Write-Host "  cloning $name ..."
-        git clone --depth 1 $Url $dest 2>$null
+        git clone --depth 1 $Url $dest 2>&1 | Out-Null
         if (-not (Test-Path $dest)) { Write-Err2 "failed to clone $name ($Url)"; return }
         Write-Ok "cloned $name"
     }
