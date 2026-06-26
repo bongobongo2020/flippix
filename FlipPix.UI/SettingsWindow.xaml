@@ -163,6 +163,24 @@
 
                         <TextBlock x:Name="BackupRestoreStatus" TextWrapping="Wrap" FontSize="11" Foreground="#868E96"
                                    Text="Restore targets WSL (download a Linux bundle) or a fresh Windows install. Backup uses the path above and Windows' built-in tar; models/outputs are excluded."/>
+
+                        <Separator Margin="0,14,0,14"/>
+
+                        <TextBlock Text="Model files for a WSL ComfyUI" FontWeight="SemiBold" FontSize="13" Margin="0,0,0,4" Foreground="#6F42C1"/>
+                        <TextBlock TextWrapping="Wrap" FontSize="12" Foreground="#6C757D" Margin="0,0,0,8"
+                                   Text="A WSL ComfyUI ships without weights. Point it at your existing Windows models folder (the one containing checkpoints, loras, vae, unet, ...) and FlipPix writes its extra_model_paths.yaml inside WSL for you (translating E:\ to /mnt/e). Then restart ComfyUI."/>
+                        <Grid Margin="0,0,0,10">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="*"/>
+                                <ColumnDefinition Width="Auto"/>
+                                <ColumnDefinition Width="Auto"/>
+                            </Grid.ColumnDefinitions>
+                            <TextBox Grid.Column="0" x:Name="WslModelsFolderTextBox" Text="{Binding WslModelsFolderPath}" Margin="0,0,10,0"
+                                     ToolTip="Windows models folder, e.g. E:\aimodels\comfyui\models"/>
+                            <Button Grid.Column="1" Content="Browse..." Click="BrowseWslModels_Click" Padding="15,5" Margin="0,0,10,0"/>
+                            <Button Grid.Column="2" x:Name="ApplyWslModelsButton" Content="Apply to WSL" Click="ApplyWslModels_Click"
+                                    Padding="15,5" Background="#6F42C1" Foreground="White" BorderThickness="0" FontWeight="SemiBold"/>
+                        </Grid>
                     </StackPanel>
                 </Border>
 

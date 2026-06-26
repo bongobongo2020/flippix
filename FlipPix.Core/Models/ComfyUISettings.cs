@@ -15,6 +15,7 @@ public class ComfyUISettings
     public string RemoteOutputFolderPath { get; set; } = string.Empty; // Network path to remote ComfyUI output folder
     public string RemoteLoraFolderPath { get; set; } = string.Empty; // Network path to remote ComfyUI LoRA folder
     public string KreaLoraFolderPath { get; set; } = string.Empty; // Network path to the Krea2 LoRA folder (e.g. loras\krea2)
+    public string WslModelsFolderPath { get; set; } = string.Empty; // Windows models folder to expose to a WSL ComfyUI (e.g. E:\aimodels\comfyui\models)
     public List<SavedCameraPrompt> SavedCameraPrompts { get; set; } = new();
     public LMStudioSettings LMStudioSettings { get; set; } = new LMStudioSettings();
 

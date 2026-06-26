@@ -59,6 +59,7 @@ namespace FlipPix.UI
                 RemoteOutputFolderPath = original.RemoteOutputFolderPath,
                 RemoteLoraFolderPath = original.RemoteLoraFolderPath,
                 KreaLoraFolderPath = original.KreaLoraFolderPath,
+                WslModelsFolderPath = original.WslModelsFolderPath,
                 SavedCameraPrompts = original.SavedCameraPrompts,
                 AutoRestartComfyUI = original.AutoRestartComfyUI,
                 ComfyUIRestartScriptPath = original.ComfyUIRestartScriptPath,
@@ -696,6 +697,7 @@ namespace FlipPix.UI
                     RemoteOutputFolderPath = _originalSettings.RemoteOutputFolderPath,
                     RemoteLoraFolderPath = RemoteLoraPathTextBox.Text?.Trim() ?? "",
                     KreaLoraFolderPath = KreaLoraPathTextBox.Text?.Trim() ?? "",
+                    WslModelsFolderPath = WslModelsFolderTextBox.Text?.Trim() ?? "",
                     SavedCameraPrompts = _originalSettings.SavedCameraPrompts,
                     AutoRestartComfyUI = AutoRestartCheckBox.IsChecked ?? true,
                     ComfyUIRestartScriptPath = ComfyUIRestartScriptTextBox.Text?.Trim() ?? "",
@@ -729,6 +731,55 @@ namespace FlipPix.UI
             "https://raw.githubusercontent.com/bongobongo2020/flippix/flippix-prompt-image/scripts/restore-comfyui.sh";
         private const string GitHubRawRestoreWin =
             "https://raw.githubusercontent.com/bongobongo2020/flippix/flippix-prompt-image/scripts/restore-comfyui-windows.ps1";
+        private const string GitHubRawSetModels =
+            "https://raw.githubusercontent.com/bongobongo2020/flippix/flippix-prompt-image/scripts/set-wsl-models.ps1";
+
+        private void BrowseWslModels_Click(object sender, RoutedEventArgs e)
+        {
+            var dialog = new System.Windows.Forms.FolderBrowserDialog
+            {
+                Description = "Select your Windows models folder (contains checkpoints, loras, vae, ...)",
+                ShowNewFolderButton = false
+            };
+            if (!string.IsNullOrEmpty(WslModelsFolderTextBox.Text))
+            {
+                dialog.SelectedPath = WslModelsFolderTextBox.Text;
+            }
+            if (dialog.ShowDialog() == System.Windows.Forms.DialogResult.OK)
+            {
+                WslModelsFolderTextBox.Text = dialog.SelectedPath;
+            }
+        }
+
+        private void ApplyWslModels_Click(object sender, RoutedEventArgs e)
+        {
+            var models = WslModelsFolderTextBox.Text?.Trim() ?? "";
+            if (string.IsNullOrWhiteSpace(models) || !models.Contains(':'))
+            {
+                MessageBox.Show("Enter your Windows models folder first, e.g. E:\\aimodels\\comfyui\\models.",
+                    "WSL models", MessageBoxButton.OK, MessageBoxImage.Warning);
+                return;
+            }
+            if (models.Contains('\''))
+            {
+                MessageBox.Show("The models path can't contain a single quote (').",
+                    "WSL models", MessageBoxButton.OK, MessageBoxImage.Warning);
+                return;
+            }
+            if (!DetectWsl())
+            {
+                MessageBox.Show("WSL was not detected. Set up ComfyUI in WSL first using 'Set up / Restore ComfyUI'.",
+                    "WSL models", MessageBoxButton.OK, MessageBoxImage.Warning);
+                return;
+            }
+
+            // Fetch + run set-wsl-models.ps1; it translates E:\ -> /mnt/e, finds the WSL ComfyUI,
+            // and writes its extra_model_paths.yaml. Shown in a console so the user sees the result.
+            var ps = $"\"& ([scriptblock]::Create((Invoke-RestMethod '{GitHubRawSetModels}'))) -ModelsDir '{models}'\"";
+            LaunchConsole($"/k powershell -NoProfile -ExecutionPolicy Bypass -Command {ps}");
+            BackupRestoreStatus.Text = "Writing extra_model_paths.yaml inside WSL. When the console says it wrote the file, "
+                + "restart ComfyUI so it picks up your models.";
+        }
 
         private async void RestoreComfyUI_Click(object sender, RoutedEventArgs e)
         {
