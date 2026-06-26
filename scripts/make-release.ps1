@@ -84,6 +84,11 @@ if (-not (Test-Path (Join-Path $BuildDir 'FlipPix.UI.exe'))) {
     throw "FlipPix.UI.exe not found in $BuildDir. Build first (omit -NoBuild) or run publish.bat release."
 }
 
+# Compile the standalone uninstaller into the build folder so it deploys into the
+# install dir alongside FlipPix.UI.exe (the installer copies publish\).
+Write-Step 'Building uninstaller'
+& (Join-Path $ScriptDir 'build-uninstaller.ps1') -OutPath (Join-Path $BuildDir 'Uninstall-FlipPix.exe')
+
 # ---------------------------------------------------------------------------
 # 2. stage a clean folder
 # ---------------------------------------------------------------------------
@@ -92,7 +97,7 @@ if (Test-Path $Stage) { Remove-Item -Recurse -Force $Stage }
 New-Item -ItemType Directory -Force -Path $Stage | Out-Null
 
 # root files (launchers + the one-click backup entry point)
-foreach ($f in 'Install-FlipPix.bat','Install-ComfyUI.bat','Install-ComfyUI-WSL.bat','Backup-ComfyUI.bat','flippix.ico') {
+foreach ($f in 'Install-FlipPix.bat','Uninstall-FlipPix.bat','Install-ComfyUI.bat','Install-ComfyUI-WSL.bat','Backup-ComfyUI.bat','flippix.ico') {
     Copy-Item (Join-Path $RepoRoot $f) (Join-Path $Stage $f) -Force
 }
 Write-Ok 'copied launchers + icon'
@@ -124,6 +129,14 @@ Get-ChildItem -Path $BuildDir -Force | Where-Object { $exclude -notcontains $_.N
 Get-ChildItem $pubDst -Recurse -Filter *.pdb | Remove-Item -Force -ErrorAction SilentlyContinue
 $appSize = [math]::Round((Get-ChildItem $pubDst -Recurse -File | Measure-Object Length -Sum).Sum / 1MB, 1)
 Write-Ok "app copied ($appSize MB)"
+
+# Also surface the uninstaller at the package root so it can be run straight from
+# the extracted download (it lives in publish\ too, which the installer deploys).
+$uninst = Join-Path $pubDst 'Uninstall-FlipPix.exe'
+if (Test-Path $uninst) {
+    Copy-Item $uninst (Join-Path $Stage 'Uninstall-FlipPix.exe') -Force
+    Write-Ok 'staged uninstaller'
+}
 
 # ---------------------------------------------------------------------------
 # 3. zip
