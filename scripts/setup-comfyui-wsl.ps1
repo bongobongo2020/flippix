@@ -39,6 +39,7 @@ param(
     [string]$HfRepo = 'bongo2k22/flippix-comfyui',
     [string]$Distro  = '',
     [int]$Port = 8188,
+    [string]$MinGlibc = '2.38',   # the snapshot's bundled python_embeded is built against this
     [switch]$NoLaunch,
     [switch]$NoFlipPixSettings
 )
@@ -91,12 +92,14 @@ if ($distros.Count -eq 0) {
         Write-Err2 "Installing WSL needs an elevated terminal. Right-click PowerShell > 'Run as administrator', then re-run this script."
         exit 1
     }
-    Write-Step 'Installing WSL2 + Ubuntu (wsl --install)'
-    & wsl.exe --install
+    # Install Ubuntu 24.04 specifically: the snapshot's bundled Python needs glibc >= 2.38,
+    # which 22.04 (glibc 2.35) doesn't have. 24.04 ships glibc 2.39.
+    Write-Step 'Installing WSL2 + Ubuntu 24.04 (wsl --install -d Ubuntu-24.04)'
+    & wsl.exe --install -d Ubuntu-24.04
     Write-Host ''
     Write-Warn2 'WSL was installed. You must now:'
     Write-Host  '    1. REBOOT Windows.'
-    Write-Host  '    2. Launch "Ubuntu" once and create your Linux username + password.'
+    Write-Host  '    2. Launch "Ubuntu 24.04" once and create your Linux username + password.'
     Write-Host  '    3. Re-run this script to download and start ComfyUI.'
     exit 0
 }
@@ -110,6 +113,31 @@ Write-Ok "using WSL distro: $ActiveDistro"
 # Sanity-check the distro actually runs.
 try { $null = Invoke-Wsl 'true' }
 catch { Write-Err2 "WSL distro '$ActiveDistro' isn't ready. Launch it once to finish first-run setup, then re-run."; exit 1 }
+
+# glibc preflight: the snapshot bundles a portable Python built against glibc >= $MinGlibc.
+# An older distro (e.g. Ubuntu 22.04 = glibc 2.35) can't run it ("GLIBC_2.38 not found").
+# Check BEFORE the large download so we fail fast with actionable guidance.
+function Get-WslGlibc {
+    try {
+        $v = Invoke-Wsl 'getconf GNU_LIBC_VERSION 2>/dev/null || ldd --version 2>/dev/null | head -1'
+        if ($v -match '(\d+)\.(\d+)') { return [version]("$($matches[1]).$($matches[2])") }
+    } catch {}
+    return $null
+}
+$glibc = Get-WslGlibc
+if ($glibc) {
+    if ($glibc -lt [version]$MinGlibc) {
+        Write-Err2 "Distro '$ActiveDistro' has glibc $glibc, but the snapshot's bundled Python needs glibc $MinGlibc+."
+        Write-Host  '  This fails with "GLIBC_2.38 not found" at launch. Use a newer distro:' -ForegroundColor Yellow
+        Write-Host  '      wsl --install -d Ubuntu-24.04'
+        Write-Host  '  finish its first-run, then re-run:'
+        Write-Host  '      Install-ComfyUI-WSL.bat -Distro Ubuntu-24.04'
+        exit 1
+    }
+    Write-Ok "glibc $glibc (>= $MinGlibc required)"
+} else {
+    Write-Warn2 "couldn't determine the distro's glibc; continuing. If launch fails with a GLIBC error, use Ubuntu-24.04."
+}
 
 # ---------------------------------------------------------------------------
 # 2. run restore-comfyui.sh inside WSL (downloads the HF snapshot)
