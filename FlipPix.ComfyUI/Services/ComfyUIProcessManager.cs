@@ -242,12 +242,21 @@ public class ComfyUIProcessManager
             statusCallback?.Invoke("Starting ComfyUI...");
             _logger.LogInfo($"Starting ComfyUI using script: {_settings.ComfyUIRestartScriptPath}");
 
+            // ComfyUI's run_*.bat uses paths relative to the current directory (".\python_embeded
+            // \python.exe ComfyUI\main.py") and never cd's to its own folder. Launch it WITH its
+            // own folder as the working directory, otherwise it inherits FlipPix's CWD (the app
+            // install dir) and fails with "The system cannot find the path specified."
+            var scriptDir = System.IO.Path.GetDirectoryName(_settings.ComfyUIRestartScriptPath);
             var startInfo = new ProcessStartInfo
             {
                 FileName = _settings.ComfyUIRestartScriptPath,
                 UseShellExecute = true,
                 WindowStyle = ProcessWindowStyle.Normal
             };
+            if (!string.IsNullOrEmpty(scriptDir))
+            {
+                startInfo.WorkingDirectory = scriptDir;
+            }
 
             _comfyUIProcess = Process.Start(startInfo);
 
