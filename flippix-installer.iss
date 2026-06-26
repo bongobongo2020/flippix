@@ -44,6 +44,14 @@ Source: "publish\*"; DestDir: "{app}"; Excludes: "*.pdb,output,output\*"; Flags:
 Source: "README.md"; DestDir: "{app}"; Flags: ignoreversion
 Source: "flippix.png"; DestDir: "{app}"; Flags: ignoreversion
 Source: "INSTALL.txt"; DestDir: "{app}"; Flags: ignoreversion
+; ComfyUI setup scripts — let the in-app "Install minimal ComfyUI now" button (and manual
+; double-click) work from an installed copy. The bats expect scripts\ next to them ({app}\scripts),
+; and setup-comfyui-fresh.ps1 reads its manifests + the {app}\workflow tree from there.
+Source: "Install-ComfyUI-Minimal.bat"; DestDir: "{app}"; Flags: ignoreversion
+Source: "Install-ComfyUI.bat"; DestDir: "{app}"; Flags: ignoreversion
+Source: "Install-ComfyUI-WSL.bat"; DestDir: "{app}"; Flags: ignoreversion
+Source: "Backup-ComfyUI.bat"; DestDir: "{app}"; Flags: ignoreversion
+Source: "scripts\*"; DestDir: "{app}\scripts"; Flags: ignoreversion recursesubdirs createallsubdirs
 
 [Icons]
 Name: "{group}\{#MyAppName}"; Filename: "{app}\{#MyAppExeName}"
