@@ -530,6 +530,60 @@ if ($SkipModels) {
 }
 
 # ---------------------------------------------------------------------------
+# 6. point FlipPix at THIS install
+# ---------------------------------------------------------------------------
+# Write the install location into FlipPix's settings so the app uses (and can auto-start)
+# exactly this ComfyUI - instead of prompting the user to browse, or auto-detecting some other
+# ComfyUI that happens to be on the machine.
+function Set-FlipPixComfyUISettings($comfyDir, $portableRoot) {
+    try {
+        # Find the launch script in the portable root (run_nvidia_gpu.bat preferred).
+        $startScript = ''
+        foreach ($n in 'run_nvidia_gpu.bat', 'run_cpu.bat') {
+            $p = Join-Path $portableRoot $n
+            if (Test-Path $p) { $startScript = $p; break }
+        }
+        if (-not $startScript) {
+            $anyRun = Get-ChildItem -Path $portableRoot -Filter 'run_*.bat' -File -ErrorAction SilentlyContinue |
+                Select-Object -First 1
+            if ($anyRun) { $startScript = $anyRun.FullName }
+        }
+
+        $dir  = Join-Path $env:APPDATA 'FlipPix'
+        $file = Join-Path $dir 'settings.json'
+        New-Item -ItemType Directory -Force -Path $dir | Out-Null
+
+        # Merge into existing settings if present so other preferences are preserved.
+        $settings = $null
+        if (Test-Path $file) {
+            try { $settings = Get-Content $file -Raw | ConvertFrom-Json } catch { $settings = $null }
+        }
+        if (-not $settings) { $settings = [PSCustomObject]@{} }
+
+        $settings | Add-Member -NotePropertyName 'ComfyUIFolderPath'  -NotePropertyValue $comfyDir -Force
+        $settings | Add-Member -NotePropertyName 'OutputFolderPath'   -NotePropertyValue (Join-Path $comfyDir 'output') -Force
+        $settings | Add-Member -NotePropertyName 'AutoRestartComfyUI' -NotePropertyValue $true -Force
+        if ($startScript) {
+            $settings | Add-Member -NotePropertyName 'ComfyUIRestartScriptPath' -NotePropertyValue $startScript -Force
+        }
+        # Only set a default local URL if the user doesn't already have one configured.
+        $url = $settings.PSObject.Properties['BaseUrl']
+        if (-not $url -or [string]::IsNullOrWhiteSpace($url.Value)) {
+            $settings | Add-Member -NotePropertyName 'BaseUrl' -NotePropertyValue 'http://localhost:8188' -Force
+        }
+
+        $settings | ConvertTo-Json -Depth 32 | Set-Content -Path $file -Encoding UTF8
+        Write-Ok "FlipPix pointed at this ComfyUI ($file)"
+        if ($startScript) { Write-Ok "FlipPix auto-start script: $startScript" }
+    } catch {
+        Write-Warn2 "could not update FlipPix settings: $($_.Exception.Message)"
+    }
+}
+
+Write-Step 'Linking FlipPix to this ComfyUI install'
+Set-FlipPixComfyUISettings $ComfyDir $PortableRoot
+
+# ---------------------------------------------------------------------------
 # done
 # ---------------------------------------------------------------------------
 Write-Host "`n==================================================" -ForegroundColor Magenta
