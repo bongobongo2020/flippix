@@ -81,6 +81,19 @@ function Write-Ok($m)   { Write-Host "  [ok] $m" -ForegroundColor Green }
 function Write-Warn2($m){ Write-Host "  [!] $m"  -ForegroundColor Yellow }
 function Write-Err2($m) { Write-Host "  [x] $m"  -ForegroundColor Red }
 
+# Run a native command quietly and return its exit code, WITHOUT letting harmless
+# stderr output abort the script. Under $ErrorActionPreference = 'Stop', merging a
+# native command's stderr (e.g. 'git clone ... 2>&1') makes Windows PowerShell 5.1
+# wrap every progress line (like git's "Cloning into ...") into a *terminating*
+# NativeCommandError. Relaxing the preference just around the call is the only
+# reliable way to silence progress without killing the installer.
+function Invoke-Quiet([scriptblock]$Command) {
+    $prev = $ErrorActionPreference
+    $ErrorActionPreference = 'Continue'
+    try { & $Command 2>&1 | Out-Null } finally { $ErrorActionPreference = $prev }
+    return $LASTEXITCODE
+}
+
 $ScriptDir = Split-Path -Parent $MyInvocation.MyCommand.Path
 $RepoRoot  = Split-Path -Parent $ScriptDir
 $NodeListFile = Join-Path $ScriptDir 'flippix-custom-nodes.txt'
@@ -174,6 +187,51 @@ function Get-SevenZip {
     return $zr
 }
 
+function Ensure-VCRedist {
+    # ComfyUI's bundled torch loads against the MS Visual C++ runtime (vcruntime140*.dll). A
+    # clean Windows / Sandbox doesn't have it, so torch dies with
+    # 'OSError: [WinError 126] ... c10.dll'. Detect via the runtime DLL and silently install.
+    $sys = Join-Path $env:SystemRoot 'System32'
+    if ((Test-Path (Join-Path $sys 'vcruntime140.dll')) -and (Test-Path (Join-Path $sys 'vcruntime140_1.dll'))) {
+        Write-Ok 'Visual C++ runtime present'
+        return
+    }
+    Write-Warn2 'Microsoft Visual C++ runtime not found - installing (torch needs it)...'
+    $vc = Join-Path $env:TEMP 'vc_redist.x64.exe'
+    try {
+        Get-File 'https://aka.ms/vs/17/release/vc_redist.x64.exe' $vc
+        $p = Start-Process -FilePath $vc -ArgumentList '/install','/quiet','/norestart' -Wait -PassThru
+        if ($p.ExitCode -eq 0 -or $p.ExitCode -eq 3010) {
+            Write-Ok 'Visual C++ runtime installed'
+        } else {
+            Write-Warn2 "vc_redist returned exit code $($p.ExitCode). If ComfyUI fails with a c10.dll error, install it manually: https://aka.ms/vc14/vc_redist.x64.exe"
+        }
+    } catch {
+        Write-Warn2 "could not auto-install the VC++ runtime: $($_.Exception.Message). Install it manually: https://aka.ms/vc14/vc_redist.x64.exe"
+    }
+}
+
+function Persist-GitForRuntime {
+    # The installer adds (portable) git only to its OWN session PATH. ComfyUI-Manager runs
+    # later in a fresh process (run_nvidia_gpu.bat) and uses GitPython, which then fails with
+    # 'Bad git executable'. Persist git for future sessions: point GitPython straight at it
+    # and add its folder to the user PATH.
+    $g = Get-Command git -ErrorAction SilentlyContinue
+    if (-not $g) { return }
+    try {
+        [Environment]::SetEnvironmentVariable('GIT_PYTHON_GIT_EXECUTABLE', $g.Source, 'User')
+        $gitDir   = Split-Path $g.Source -Parent
+        $userPath = [Environment]::GetEnvironmentVariable('Path', 'User')
+        if (($userPath -split ';') -notcontains $gitDir) {
+            $newPath = (@($userPath, $gitDir) | Where-Object { $_ }) -join ';'
+            [Environment]::SetEnvironmentVariable('Path', $newPath, 'User')
+        }
+        Write-Ok "git persisted for ComfyUI runtime ($($g.Source))"
+    } catch {
+        Write-Warn2 "could not persist git for ComfyUI: $($_.Exception.Message)"
+    }
+}
+
 # ---------------------------------------------------------------------------
 # 1. resolve ComfyUI portable download URL (latest release asset)
 # ---------------------------------------------------------------------------
@@ -200,6 +258,8 @@ Write-Host "FlipPix - ComfyUI fresh installer" -ForegroundColor Magenta
 Write-Host "Repo: $RepoRoot"
 
 Ensure-Git
+Persist-GitForRuntime
+Ensure-VCRedist
 $SevenZip = Get-SevenZip
 Write-Ok "7-Zip: $SevenZip"
 
@@ -244,23 +304,22 @@ Write-Ok "embedded python: $Py"
 function Install-NodeRepo($Url) {
     $name = ($Url -split '/')[-1] -replace '\.git$', ''
     $dest = Join-Path $CustomDir $name
-    # NOTE: git writes normal progress to stderr. Use '2>&1 | Out-Null' (merge stderr into
-    # the output stream, then discard) -- NOT '2>$null', which under $ErrorActionPreference
-    # = 'Stop' makes Windows PowerShell 5.1 wrap git's progress as a terminating error.
+    # git writes normal progress to stderr; Invoke-Quiet relaxes ErrorActionPreference so that
+    # progress does not abort the run under $ErrorActionPreference = 'Stop' (see helper above).
     if (Test-Path $dest) {
         Write-Ok "$name already present - pulling latest"
-        git -C $dest pull --ff-only 2>&1 | Out-Null
+        Invoke-Quiet { git -C $dest pull --ff-only } | Out-Null
     } else {
         Write-Host "  cloning $name ..."
-        git clone --depth 1 $Url $dest 2>&1 | Out-Null
+        Invoke-Quiet { git clone --depth 1 $Url $dest } | Out-Null
         if (-not (Test-Path $dest)) { Write-Err2 "failed to clone $name ($Url)"; return }
         Write-Ok "cloned $name"
     }
     $req = Join-Path $dest 'requirements.txt'
     if (Test-Path $req) {
         Write-Host "    installing requirements for $name ..."
-        & $Py -s -m pip install -r $req --no-warn-script-location 2>&1 | Out-Null
-        if ($LASTEXITCODE -ne 0) { Write-Warn2 "some requirements for $name failed (continuing)" }
+        $rc = Invoke-Quiet { & $Py -s -m pip install -r $req --no-warn-script-location }
+        if ($rc -ne 0) { Write-Warn2 "some requirements for $name failed (continuing)" }
     }
 }
 
@@ -275,7 +334,7 @@ foreach ($r in $repos) { Install-NodeRepo $r }
 $mgrReq = Join-Path $CustomDir 'ComfyUI-Manager\requirements.txt'
 if (Test-Path $mgrReq) {
     Write-Host '  installing ComfyUI-Manager requirements ...'
-    & $Py -s -m pip install -r $mgrReq --no-warn-script-location 2>&1 | Out-Null
+    Invoke-Quiet { & $Py -s -m pip install -r $mgrReq --no-warn-script-location } | Out-Null
 }
 
 # ---------------------------------------------------------------------------
@@ -292,9 +351,9 @@ if (-not $SkipMissingNodeScan) {
             $count++
             try {
                 Push-Location $ComfyDir
-                & $Py -s $cmCli deps-in-workflow --workflow "$($wf.FullName)" --output "$tmpDeps" 2>&1 | Out-Null
+                Invoke-Quiet { & $Py -s $cmCli deps-in-workflow --workflow "$($wf.FullName)" --output "$tmpDeps" } | Out-Null
                 if (Test-Path $tmpDeps) {
-                    & $Py -s $cmCli install-deps --deps "$tmpDeps" 2>&1 | Out-Null
+                    Invoke-Quiet { & $Py -s $cmCli install-deps --deps "$tmpDeps" } | Out-Null
                     Remove-Item $tmpDeps -ErrorAction SilentlyContinue
                 }
             } catch {
@@ -350,9 +409,18 @@ function Set-ModelPathLink($Dir) {
         return
     }
     $base = (Normalize-Path $Dir) -replace '\\', '/'
+    # A bare drive root (Normalize-Path turns 'Z:\' into 'Z:') must keep its slash: on Windows
+    # 'Z:' means "current dir on Z", not the root, so without this ComfyUI builds 'Z:loras'
+    # instead of 'Z:/loras'.
+    if ($base -match '^[A-Za-z]:$') { $base += '/' }
+    # Single-quote the path so ANY Windows path is a literal YAML scalar. Unquoted, a path
+    # containing ': ' (e.g. a drive letter followed by a stray space) makes PyYAML read the
+    # second colon as a mapping separator and ComfyUI dies with
+    # "mapping values are not allowed here". Double any embedded single quotes for YAML.
+    $baseYaml = "'" + ($base -replace "'", "''") + "'"
     $yaml = @"
 flippix:
-    base_path: $base
+    base_path: $baseYaml
     checkpoints: checkpoints
     clip: clip
     clip_vision: clip_vision
@@ -387,19 +455,57 @@ function Download-Models($Dir) {
     Write-Ok 'model downloads finished (any failures are listed above; re-run to retry)'
 }
 
+function Format-ModelsPath([string]$raw) {
+    # Normalize a user/param-supplied models path:
+    #   - strip surrounding quotes / whitespace
+    #   - drop a stray space after a drive colon ('Z: \x' / 'Z: ' -> 'Z:\x' / 'Z:')
+    #   - turn a bare drive root ('Z:') into 'Z:\' so Test-Path / GetFullPath behave
+    $p = $raw.Trim().Trim('"').Trim()
+    $p = $p -replace '^([A-Za-z]):\s+', '$1:'
+    if ($p -match '^[A-Za-z]:$') { $p += '\' }
+    return $p
+}
+
+function Test-DriveAvailable([string]$path) {
+    # False if the path names a drive letter that doesn't exist on this machine. Common in
+    # Windows Sandbox, where host-mapped drives (e.g. Z:) are not present.
+    if ($path -match '^([A-Za-z]):') {
+        return [bool](Get-PSDrive -Name $matches[1] -ErrorAction SilentlyContinue)
+    }
+    return $true
+}
+
 if ($SkipModels) {
     Write-Step 'Models'
     Write-Ok 'skipping models (-SkipModels)'
 } else {
     Write-Step 'Models'
     $target = $ModelsDir
-    if (-not $target) {
-        Write-Host "  Enter the path to your CURRENT ComfyUI models folder (where your weights"
-        Write-Host "  already live) so this install can reuse them WITHOUT downloading."
-        Write-Host "  Press Enter to use the new install's own folder:"
-        Write-Host "    $DefaultModels" -ForegroundColor DarkGray
-        $entered = Read-Host '  Models folder'
-        $target = if ([string]::IsNullOrWhiteSpace($entered)) { $DefaultModels } else { $entered.Trim('"').Trim() }
+    if ($target) {
+        $target = Format-ModelsPath $target
+        if (-not (Test-DriveAvailable $target)) {
+            Write-Warn2 "drive for '$target' is not available on this machine - the path may not resolve."
+        }
+    } else {
+        while ($true) {
+            Write-Host "  Enter the path to your CURRENT ComfyUI models folder (where your weights"
+            Write-Host "  already live) so this install can reuse them WITHOUT downloading."
+            Write-Host "  Press Enter to use the new install's own folder:"
+            Write-Host "    $DefaultModels" -ForegroundColor DarkGray
+            $entered = Read-Host '  Models folder'
+            if ([string]::IsNullOrWhiteSpace($entered)) { $target = $DefaultModels; break }
+            $target = Format-ModelsPath $entered
+
+            if ($target -match '^[A-Za-z]:\\?$') {
+                Write-Warn2 "'$target' is a drive ROOT, not a models folder - this is usually a typo."
+                if ((Read-Host '  Use the drive root anyway? [y/N]') -notmatch '^(y|yes)$') { continue }
+            }
+            if (-not (Test-DriveAvailable $target)) {
+                Write-Warn2 "drive for '$target' is not available (unmapped / not present on this machine)."
+                if ((Read-Host '  Use it anyway? [y/N]') -notmatch '^(y|yes)$') { continue }
+            }
+            break
+        }
     }
 
     if (Test-Path $target) {
