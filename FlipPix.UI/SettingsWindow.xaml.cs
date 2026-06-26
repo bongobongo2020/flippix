@@ -58,6 +58,7 @@ namespace FlipPix.UI
                 OutputFolderPath = original.OutputFolderPath,
                 RemoteOutputFolderPath = original.RemoteOutputFolderPath,
                 RemoteLoraFolderPath = original.RemoteLoraFolderPath,
+                KreaLoraFolderPath = original.KreaLoraFolderPath,
                 SavedCameraPrompts = original.SavedCameraPrompts,
                 AutoRestartComfyUI = original.AutoRestartComfyUI,
                 ComfyUIRestartScriptPath = original.ComfyUIRestartScriptPath,
@@ -136,6 +137,25 @@ namespace FlipPix.UI
             if (dialog.ShowDialog() == System.Windows.Forms.DialogResult.OK)
             {
                 RemoteLoraPathTextBox.Text = dialog.SelectedPath;
+            }
+        }
+
+        private void BrowseKreaLoraPath_Click(object sender, RoutedEventArgs e)
+        {
+            var dialog = new System.Windows.Forms.FolderBrowserDialog
+            {
+                Description = "Select Krea2 LoRA Folder",
+                ShowNewFolderButton = false
+            };
+
+            if (!string.IsNullOrEmpty(KreaLoraPathTextBox.Text))
+            {
+                dialog.SelectedPath = KreaLoraPathTextBox.Text;
+            }
+
+            if (dialog.ShowDialog() == System.Windows.Forms.DialogResult.OK)
+            {
+                KreaLoraPathTextBox.Text = dialog.SelectedPath;
             }
         }
 
@@ -675,6 +695,7 @@ namespace FlipPix.UI
                     OutputFolderPath = OutputPathTextBox.Text?.Trim() ?? "",
                     RemoteOutputFolderPath = _originalSettings.RemoteOutputFolderPath,
                     RemoteLoraFolderPath = RemoteLoraPathTextBox.Text?.Trim() ?? "",
+                    KreaLoraFolderPath = KreaLoraPathTextBox.Text?.Trim() ?? "",
                     SavedCameraPrompts = _originalSettings.SavedCameraPrompts,
                     AutoRestartComfyUI = AutoRestartCheckBox.IsChecked ?? true,
                     ComfyUIRestartScriptPath = ComfyUIRestartScriptTextBox.Text?.Trim() ?? "",

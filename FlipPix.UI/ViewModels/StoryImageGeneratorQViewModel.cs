@@ -69,6 +69,7 @@ namespace FlipPix.UI.ViewModels
                         Steps = DefaultSteps;
 
                     OnPropertyChanged(nameof(ShowLoRAOption));
+                    OnPropertyChanged(nameof(ShowKreaLoraOption));
                     OnPropertyChanged(nameof(ShowZOptions));
                     OnPropertyChanged(nameof(CanLoadPrompts));
 
@@ -76,6 +77,8 @@ namespace FlipPix.UI.ViewModels
                         LoadZWorkflowsAndStyles();
                     if (value == "StoryImageZ" && !_zAvailableLoras.Any())
                         LoadZAvailableLoras();
+                    if (value == "Krea2" && !_kreaLoras.Any())
+                        LoadKreaLoras();
                 }
             }
         }
@@ -114,7 +117,28 @@ namespace FlipPix.UI.ViewModels
 
         public bool ShowLoRAOption => SelectedWorkflowMode == "FireRed";
 
+        public bool ShowKreaLoraOption => SelectedWorkflowMode == "Krea2";
+
         public bool ShowZOptions => SelectedWorkflowMode == "StoryImageZ";
+
+        // --- Krea2 LoRA fields (loaded from the <loras>/krea2 subfolder) ---
+        private ObservableCollection<string> _kreaLoras = new();
+        private string _kreaSelectedLora = string.Empty;
+        private string _kreaLoraSubfolder = "krea2";
+
+        public ObservableCollection<string> KreaLoras
+        {
+            get => _kreaLoras;
+            set { if (_kreaLoras != value) { _kreaLoras = value; OnPropertyChanged(); } }
+        }
+
+        public string KreaSelectedLora
+        {
+            get => _kreaSelectedLora;
+            set { if (_kreaSelectedLora != value) { _kreaSelectedLora = value; OnPropertyChanged(); } }
+        }
+
+        public ICommand RefreshKreaLorasCommand { get; private set; } = null!;
 
         // --- Z workflow fields ---
 
@@ -255,8 +279,10 @@ namespace FlipPix.UI.ViewModels
                 async () => await AnalyzeImageWithQwenVLAsync(),
                 () => !string.IsNullOrEmpty(InputImagePath) && File.Exists(InputImagePath) && !IsAnalyzingImage);
             RefreshZLorasCommand = new CommunityToolkit.Mvvm.Input.RelayCommand(RefreshZLoras);
+            RefreshKreaLorasCommand = new CommunityToolkit.Mvvm.Input.RelayCommand(RefreshKreaLoras);
             LoadZWorkflowsAndStyles();
             LoadZAvailableLoras();
+            LoadKreaLoras();
             RestoreZLoraSettings();
         }
 
@@ -484,6 +510,120 @@ namespace FlipPix.UI.ViewModels
             AddLog("Refreshed Z LoRA list");
         }
 
+        private void RefreshKreaLoras()
+        {
+            LoadKreaLoras();
+            AddLog("Refreshed Krea2 LoRA list");
+        }
+
+        /// <summary>
+        /// Applies the user's Krea2 LoRA selection to the Power Lora Loader (rgthree) node 17
+        /// in the krea2 realism workflow. The LoRA reference is the <loras>/krea2 relative path
+        /// that ComfyUI expects (e.g. "krea2/Krea2-realism-V1.safetensors").
+        /// </summary>
+        private void ApplyKrea2Lora(JsonObject workflow)
+        {
+            if (workflow["17"] is not JsonObject node) return;
+            if (node["inputs"] is not JsonObject inputs) return;
+
+            // Preserve the slot's current lora name so the disabled fallback keeps a valid reference.
+            var existingLoraName = "krea2/Krea2-realism-V1.safetensors";
+            if (inputs["lora_1"] is JsonObject existingSlot && existingSlot["lora"] != null)
+                existingLoraName = existingSlot["lora"]!.GetValue<string>();
+
+            bool hasSelection = !string.IsNullOrEmpty(KreaSelectedLora)
+                && KreaSelectedLora != "No LoRAs available"
+                && KreaSelectedLora != "Error loading LoRAs";
+
+            inputs["lora_1"] = hasSelection
+                ? new JsonObject { ["on"] = true, ["lora"] = $"{_kreaLoraSubfolder}/{KreaSelectedLora}.safetensors", ["strength"] = 1.0 }
+                : new JsonObject { ["on"] = false, ["lora"] = existingLoraName, ["strength"] = 0.0 };
+
+            AddLog($"Krea2 LoRA: {(hasSelection ? $"{_kreaLoraSubfolder}/{KreaSelectedLora}.safetensors" : "none")}");
+        }
+
+        /// <summary>
+        /// Resolves the folder that holds the Krea2 LoRAs. Prefers the explicit
+        /// Settings → Krea2 LoRA Folder path (which points straight at the krea2 folder),
+        /// then falls back to a "krea2"/"Krea2" subfolder of the general LoRA directory.
+        /// </summary>
+        private string? ResolveKreaLoraFolder()
+        {
+            var configured = _settingsService.Settings?.KreaLoraFolderPath;
+            if (!string.IsNullOrEmpty(configured))
+            {
+                if (Directory.Exists(configured))
+                {
+                    AddLog($"Using configured Krea2 LoRA folder: {configured}");
+                    return configured;
+                }
+                AddLog($"Configured Krea2 LoRA folder not accessible: {configured}");
+            }
+
+            var loraBasePath = GetLoraModelPath();
+            if (!string.IsNullOrEmpty(loraBasePath))
+            {
+                foreach (var name in new[] { "krea2", "Krea2" })
+                {
+                    var candidate = Path.Combine(loraBasePath, name);
+                    if (Directory.Exists(candidate)) return candidate;
+                }
+            }
+
+            return null;
+        }
+
+        /// <summary>
+        /// Loads the Krea2 LoRAs from the configured/derived krea2 folder.
+        /// These feed the Power Lora Loader (node 17) in the Krea2 realism workflow.
+        /// </summary>
+        private void LoadKreaLoras()
+        {
+            try
+            {
+                var kreaPath = ResolveKreaLoraFolder();
+
+                _kreaLoras.Clear();
+
+                if (kreaPath == null)
+                {
+                    AddLog("Krea2 LoRA folder not found (set it in Settings → Krea2 LoRA Folder, or place a krea2 subfolder in the LoRA directory)");
+                    _kreaLoras.Add("No LoRAs available");
+                    return;
+                }
+
+                _kreaLoraSubfolder = new DirectoryInfo(kreaPath).Name;
+
+                var loraFiles = Directory.GetFiles(kreaPath, "*.safetensors")
+                    .Select(Path.GetFileNameWithoutExtension)
+                    .Where(name => !string.IsNullOrEmpty(name))
+                    .OrderBy(name => name)
+                    .ToList();
+
+                if (loraFiles.Any())
+                {
+                    foreach (var lora in loraFiles)
+                        _kreaLoras.Add(lora!);
+
+                    if (string.IsNullOrEmpty(KreaSelectedLora) || !_kreaLoras.Contains(KreaSelectedLora))
+                        KreaSelectedLora = _kreaLoras.First();
+
+                    AddLog($"Loaded {_kreaLoras.Count} Krea2 LoRAs from {kreaPath}");
+                }
+                else
+                {
+                    _kreaLoras.Add("No LoRAs available");
+                    AddLog($"No Krea2 LoRA files found in {kreaPath}");
+                }
+            }
+            catch (Exception ex)
+            {
+                AddLog($"Error loading Krea2 LoRAs: {ex.Message}");
+                _kreaLoras.Clear();
+                _kreaLoras.Add("Error loading LoRAs");
+            }
+        }
+
         private void RestoreZLoraSettings()
         {
             var s = _settingsService.Settings;
@@ -581,7 +721,7 @@ namespace FlipPix.UI.ViewModels
         /// </summary>
         private async Task<string> ProcessKrea2QueueItemAsync(StoryPromptItem item, string jsonFileName, CancellationToken cancellationToken)
         {
-            var workflowPath = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "workflow", "image", "krea", "Krea2_Winnougan_Workflow (1).json");
+            var workflowPath = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "workflow", "image", "krea", "krea2RealismV1_krea2RealismV1WF.json");
             AddLog("Using Krea2 workflow (Turbo, text-to-image)");
 
             if (!File.Exists(workflowPath))
@@ -593,26 +733,33 @@ namespace FlipPix.UI.ViewModels
             WorkflowNodeUpdater.UpdateNodeInput(ref workflowJson, "6", "text", item.Prompt);
             // Node 2 - KSampler (seed only; turbo steps/cfg fixed in workflow)
             WorkflowNodeUpdater.UpdateNodeInput(ref workflowJson, "2", "seed", Random.Shared.NextInt64(0, long.MaxValue));
+            // Node 10 - EmptyLatentImage: pin a fixed portrait size, overriding the workflow's
+            // FluxResolutionNode link (which defaults to a slow 2.5 MP latent).
+            WorkflowNodeUpdater.UpdateNodeInput(ref workflowJson, "10", "width", 1024);
+            WorkflowNodeUpdater.UpdateNodeInput(ref workflowJson, "10", "height", 1280);
 
-            // Replace SaveImageKJ (node 17) with a standard SaveImage fed from the RTX-upscaled
-            // image (node 16), and drop the PreviewImage (node 5). SaveImageKJ does not register
-            // its result in /history, so remote retrieval never finds it; standard SaveImage does.
+            // Replace SaveImageKJ (node 23) with a standard SaveImage fed from the RTX-upscaled
+            // image (node 22), drop the PreviewImage (node 5), and apply the selected Krea2 LoRA
+            // to the Power Lora Loader (node 17). SaveImageKJ does not register its result in
+            // /history, so remote retrieval never finds it; standard SaveImage does.
             // Saves into the per-session subfolder like the other modes.
             var root = JsonNode.Parse(workflowJson);
             var obj = root?.AsObject();
             if (obj != null)
             {
                 obj.Remove("5");
-                obj["17"] = new JsonObject
+                obj["23"] = new JsonObject
                 {
                     ["inputs"] = new JsonObject
                     {
                         ["filename_prefix"] = $"{jsonFileName}/{jsonFileName}-{item.Index}",
-                        ["images"] = new JsonArray("16", 0)
+                        ["images"] = new JsonArray("22", 0)
                     },
                     ["class_type"] = "SaveImage",
                     ["_meta"] = new JsonObject { ["title"] = "Save Image (FlipPix)" }
                 };
+
+                ApplyKrea2Lora(obj);
             }
             var workflow = JsonSerializer.Deserialize<JsonElement>(obj?.ToJsonString() ?? workflowJson);
 

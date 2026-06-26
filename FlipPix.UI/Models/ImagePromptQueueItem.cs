@@ -16,6 +16,7 @@ namespace FlipPix.UI.Models
         public double Denoise { get; set; } = 1.0;
         public bool LoraEnabled { get; set; } = false;
         public string SelectedLora { get; set; } = string.Empty;
+        public string SelectedKreaLora { get; set; } = string.Empty;
         public TextGeneratorWorkflow SelectedWorkflow { get; set; } = TextGeneratorWorkflow.Zimage;
 
         // Style tracking (for Zimage ZStyle workflows)

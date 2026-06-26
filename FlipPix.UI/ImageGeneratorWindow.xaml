@@ -440,6 +440,19 @@
                                                     </Grid>
                                                 </StackPanel>
 
+                                                <!-- LoRA (Krea2 only) -->
+                                                <StackPanel Margin="0,0,0,12" Visibility="{Binding ShowKreaLoraOptions, Converter={StaticResource BooleanToVisibilityConverter}}">
+                                                    <TextBlock Text="Krea2 LoRA" FontWeight="SemiBold" FontSize="11" Margin="0,0,0,6"/>
+                                                    <Grid>
+                                                        <Grid.ColumnDefinitions>
+                                                            <ColumnDefinition Width="*"/>
+                                                            <ColumnDefinition Width="Auto"/>
+                                                        </Grid.ColumnDefinitions>
+                                                        <ComboBox Grid.Column="0" ItemsSource="{Binding KreaLoras}" SelectedItem="{Binding SelectedKreaLora, Mode=TwoWay}" FontSize="11" Height="32" Margin="0,0,6,0"/>
+                                                        <Button Grid.Column="1" Content="Refresh" Command="{Binding RefreshKreaLorasCommand}" Style="{StaticResource SecondaryButtonStyle}" Width="60" Height="32" Padding="10,5"/>
+                                                    </Grid>
+                                                </StackPanel>
+
                                                 <!-- Aspect Ratio -->
                                                 <StackPanel Margin="0,0,0,12">
                                                     <TextBlock Text="Aspect Ratio" FontWeight="SemiBold" FontSize="11" Margin="0,0,0,4"/>
@@ -1683,6 +1696,47 @@
                                               Foreground="#374151"/>
                                 </StackPanel>
                             </Grid>
+                        </Border>
+
+                        <!-- Krea2 LoRA Panel -->
+                        <Border Background="#F5F3FF"
+                                BorderBrush="#C4B5FD"
+                                BorderThickness="1"
+                                CornerRadius="12"
+                                Padding="20"
+                                Margin="0,0,0,20">
+                            <Border.Style>
+                                <Style TargetType="Border">
+                                    <Setter Property="Visibility" Value="Collapsed"/>
+                                    <Style.Triggers>
+                                        <DataTrigger Binding="{Binding StoryGeneratorQ.ShowKreaLoraOption}" Value="True">
+                                            <Setter Property="Visibility" Value="Visible"/>
+                                        </DataTrigger>
+                                    </Style.Triggers>
+                                </Style>
+                            </Border.Style>
+                            <StackPanel>
+                                <TextBlock Text="🔧 Krea2 LoRA" FontWeight="SemiBold" FontSize="13" Foreground="#6D28D9" Margin="0,0,0,8"/>
+                                <Grid>
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="*"/>
+                                        <ColumnDefinition Width="Auto"/>
+                                    </Grid.ColumnDefinitions>
+                                    <ComboBox Grid.Column="0"
+                                              ItemsSource="{Binding StoryGeneratorQ.KreaLoras}"
+                                              SelectedItem="{Binding StoryGeneratorQ.KreaSelectedLora, Mode=TwoWay}"
+                                              FontSize="12"
+                                              Height="32"
+                                              Margin="0,0,6,0"/>
+                                    <Button Grid.Column="1"
+                                            Content="Refresh"
+                                            Command="{Binding StoryGeneratorQ.RefreshKreaLorasCommand}"
+                                            Style="{StaticResource SecondaryButtonStyle}"
+                                            Width="60"
+                                            Height="32"
+                                            Padding="10,5"/>
+                                </Grid>
+                            </StackPanel>
                         </Border>
 
                         <!-- StoryImageZ Options Panel (Style + LoRA) -->

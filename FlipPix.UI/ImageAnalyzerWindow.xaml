@@ -442,6 +442,35 @@
                         </StackPanel>
                     </Border>
 
+                    <!-- Section D2: Krea2 LoRA -->
+                    <Border Style="{StaticResource SectionPanelStyle}" Visibility="{Binding ShowKreaLoraOptions, Converter={StaticResource BooleanToVisibilityConverter}}">
+                        <StackPanel>
+                            <TextBlock Text="Krea2 LoRA" Style="{StaticResource HeaderTextStyle}" Foreground="#8B5CF6"/>
+                            <Grid Margin="0,4,0,0">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*"/>
+                                    <ColumnDefinition Width="Auto"/>
+                                </Grid.ColumnDefinitions>
+                                <ComboBox Grid.Column="0"
+                                         ItemsSource="{Binding KreaLoras}"
+                                         SelectedItem="{Binding SelectedKreaLora, Mode=TwoWay}"
+                                         Padding="8"
+                                         Background="White"
+                                         BorderBrush="#CED4DA"
+                                         FontSize="11"
+                                         Height="32"
+                                         Margin="0,0,6,0"/>
+                                <Button Grid.Column="1"
+                                       Content="Refresh"
+                                       Command="{Binding RefreshKreaLorasCommand}"
+                                       Style="{StaticResource SecondaryButtonStyle}"
+                                       Width="60"
+                                       Height="32"
+                                       Padding="10,5"/>
+                            </Grid>
+                        </StackPanel>
+                    </Border>
+
                     <!-- Section E: Queue Actions (moved up from bottom) -->
                     <Border Style="{StaticResource SectionPanelStyle}">
                         <StackPanel>
