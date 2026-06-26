@@ -386,6 +386,12 @@ function Start-Install {
             $sm = Join-Path ([Environment]::GetFolderPath('Programs')) 'FlipPix\FlipPix.lnk'
             New-Shortcut $sm $exe $script:InstallDir $exe
             Write-Log 'Start Menu shortcut created.'
+            $uninst = Join-Path $script:InstallDir 'Uninstall-FlipPix.exe'
+            if (Test-Path $uninst) {
+                $smU = Join-Path ([Environment]::GetFolderPath('Programs')) 'FlipPix\Uninstall FlipPix.lnk'
+                New-Shortcut $smU $uninst $script:InstallDir $uninst
+                Write-Log 'Uninstall shortcut created.'
+            }
         }
 
         if ($script:InstallComfy) {
