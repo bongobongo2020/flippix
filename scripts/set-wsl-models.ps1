@@ -37,6 +37,15 @@ function Write-Ok($m)   { Write-Host "  [ok] $m" -ForegroundColor Green }
 function Write-Warn2($m){ Write-Host "  [!] $m"  -ForegroundColor Yellow }
 function Write-Err2($m) { Write-Host "  [x] $m"  -ForegroundColor Red }
 
+# If no distro was given, pick the one that actually hosts ~/flippix-comfyui (it may not be
+# the WSL default distro, e.g. after installing Ubuntu-24.04 alongside an older Ubuntu).
+if (-not $Distro) {
+    $all = @(& wsl.exe -l -q 2>$null | ForEach-Object { $_.Trim() } | Where-Object { $_ })
+    foreach ($d in $all) {
+        $has = & wsl.exe -d $d -- bash -lc 'test -f "$HOME/flippix-comfyui/ComfyUI/main.py" -o -f "$HOME/flippix-comfyui/main.py" && echo yes' 2>$null
+        if ("$has".Trim() -eq 'yes') { $Distro = $d; break }
+    }
+}
 $DistroArgs = if ($Distro) { @('-d', $Distro) } else { @() }
 
 function Invoke-Wsl([string]$BashCommand) {
