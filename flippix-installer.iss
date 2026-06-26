@@ -22,7 +22,7 @@ AllowNoIcons=yes
 ; Uncomment the following line to run in administrative install mode
 ;PrivilegesRequired=admin
 PrivilegesRequiredOverridesAllowed=dialog
-OutputDir=.
+OutputDir=release
 OutputBaseFilename=FlipPix-Setup
 Compression=lzma2/ultra64
 SolidCompression=yes
