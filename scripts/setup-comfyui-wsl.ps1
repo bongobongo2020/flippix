@@ -40,6 +40,7 @@ param(
     [string]$Distro  = '',
     [int]$Port = 8188,
     [string]$MinGlibc = '2.38',   # the snapshot's bundled python_embeded is built against this
+    [string]$ModelsDir = '',      # Windows models folder to point ComfyUI at (e.g. E:\aimodels\comfyui\models)
     [switch]$NoLaunch,
     [switch]$NoFlipPixSettings
 )
@@ -159,6 +160,25 @@ $TargetDir = Invoke-Wsl 'echo "$HOME/flippix-comfyui"'
 # Pick the non-interactive launcher the restore wrote (run.sh), else the interactive one.
 $LaunchRel = Invoke-Wsl 'if [ -f "$HOME/flippix-comfyui/run.sh" ]; then echo run.sh; elif [ -f "$HOME/flippix-comfyui/run_nvidia_gpu.sh" ]; then echo run_nvidia_gpu.sh; else echo ""; fi'
 if (-not $LaunchRel) { Write-Warn2 'no run.sh / run_nvidia_gpu.sh found after restore; you may need to launch ComfyUI manually.' }
+
+# ---------------------------------------------------------------------------
+# 2b. point ComfyUI at your Windows models folder (extra_model_paths.yaml)
+# ---------------------------------------------------------------------------
+# The snapshot ships without weights (its models folder was a symlink on the source box), so
+# tell ComfyUI where your models live. Windows drives auto-mount in WSL under /mnt.
+if (-not $ModelsDir) {
+    Write-Step 'Models folder'
+    Write-Host '  Where are your model files? Enter the Windows folder that CONTAINS'
+    Write-Host '  checkpoints\ loras\ vae\ unet\ ... e.g.  E:\aimodels\comfyui\models'
+    Write-Host '  (press Enter to skip and set later with scripts\set-wsl-models.ps1):'
+    $ModelsDir = (Read-Host '  Models folder').Trim().Trim('"')
+}
+if ($ModelsDir) {
+    # Run the helper in a child process so its exit codes don't end this script.
+    $mArgs = @('-NoProfile','-ExecutionPolicy','Bypass','-File',(Join-Path $ScriptDir 'set-wsl-models.ps1'),'-ModelsDir',$ModelsDir)
+    if ($Distro) { $mArgs += @('-Distro',$Distro) }
+    & powershell @mArgs
+}
 
 # ---------------------------------------------------------------------------
 # 3. a Windows launcher that starts the WSL ComfyUI (manual + FlipPix auto-restart)
