@@ -101,6 +101,9 @@ Write-Ok "ComfyUI base: $comfyBase"
 
 # --- write extra_model_paths.yaml (LF, written inside WSL) ---
 Write-Step 'Writing extra_model_paths.yaml'
+# Map unet + diffusion_models to BOTH physical folders: ComfyUI-GGUF's UnetLoaderGGUF looks
+# under the "unet" key, but GGUF unets are often filed in diffusion_models\ (or vice-versa).
+# ComfyUI splits each value on newlines, so a "|" block adds multiple search paths per key.
 $yaml = @"
 flippix:
     base_path: '$wslModels'
@@ -108,8 +111,12 @@ flippix:
     clip: clip
     clip_vision: clip_vision
     controlnet: controlnet
-    diffusion_models: diffusion_models
-    unet: unet
+    diffusion_models: |
+        diffusion_models
+        unet
+    unet: |
+        unet
+        diffusion_models
     loras: loras
     vae: vae
     text_encoders: text_encoders
