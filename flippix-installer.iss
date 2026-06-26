@@ -35,6 +35,7 @@ Name: "english"; MessagesFile: "compiler:Default.isl"
 
 [Tasks]
 Name: "desktopicon"; Description: "{cm:CreateDesktopIcon}"; GroupDescription: "{cm:AdditionalIcons}"; Flags: unchecked
+Name: "installcomfyui"; Description: "Install a minimal ComfyUI now (image generation + editing). Auto-detects your GPU VRAM and downloads ComfyUI + core models (~23 GB)."; GroupDescription: "ComfyUI backend:"; Flags: unchecked
 
 [Files]
 Source: "publish\{#MyAppExeName}"; DestDir: "{app}"; Flags: ignoreversion
@@ -59,7 +60,15 @@ Name: "{group}\{cm:UninstallProgram,{#MyAppName}}"; Filename: "{uninstallexe}"
 Name: "{autodesktop}\{#MyAppName}"; Filename: "{app}\{#MyAppExeName}"; Tasks: desktopicon
 
 [Run]
-Filename: "{app}\{#MyAppExeName}"; Description: "{cm:LaunchProgram,{#StringChange(MyAppName, '&', '&&')}}"; Flags: nowait postinstall skipifsilent
+; If "Install ComfyUI" was ticked, run the minimal installer in its own console after files are
+; copied. It auto-detects VRAM, downloads ComfyUI + core models, and writes the install path +
+; auto-start script into FlipPix settings, so the app then auto-detects and launches ComfyUI on
+; first run (no hunting for a .bat). nowait so Setup doesn't block on the long download;
+; runascurrentuser so an admin (Program Files) install still targets the real user's profile/AppData.
+Filename: "{app}\Install-ComfyUI-Minimal.bat"; WorkingDir: "{app}"; StatusMsg: "Starting the minimal ComfyUI installer in a new window..."; Tasks: installcomfyui; Flags: runascurrentuser nowait
+; Launch FlipPix on finish — but not when we just kicked off the ComfyUI install (open FlipPix once
+; that finishes and it will auto-detect + auto-start ComfyUI).
+Filename: "{app}\{#MyAppExeName}"; Description: "{cm:LaunchProgram,{#StringChange(MyAppName, '&', '&&')}}"; Tasks: not installcomfyui; Flags: nowait postinstall skipifsilent
 
 [Code]
 procedure CurPageChanged(CurPageID: Integer);
