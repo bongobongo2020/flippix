@@ -71,6 +71,17 @@ public partial class App : Application
     {
         try
         {
+            // First launch after install: auto-detect the ComfyUI install so the user isn't
+            // forced to browse for a folder whose location we can usually figure out.
+            if (!settingsService.IsComfyUIFolderConfigured())
+            {
+                var detected = settingsService.TryAutoDetectComfyUIFolder();
+                if (detected != null && settingsService.ValidateAndSetComfyUIFolder(detected))
+                {
+                    logger.LogInfo($"Auto-configured ComfyUI folder: {detected}");
+                }
+            }
+
             if (!settingsService.IsComfyUIFolderConfigured())
             {
                 logger.LogInfo("ComfyUI not configured. Showing setup.");
@@ -303,6 +314,13 @@ public partial class App : Application
         catch (Exception ex)
         {
             logger.LogWarning($"Server connectivity check failed: {ex.Message}");
+        }
+
+        // If this is a local install whose launch script we haven't recorded yet, find it now
+        // so we can auto-start instead of forcing the user to hunt for ComfyUI.
+        if (settings.AutoRestartComfyUI)
+        {
+            settingsService.EnsureRestartScriptConfigured();
         }
 
         if (settings.AutoRestartComfyUI

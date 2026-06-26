@@ -45,6 +45,18 @@ namespace FlipPix.UI
 
             // Check if ComfyUI is configured
             logger.LogInfo("OnStartup - Checking if ComfyUI is configured");
+
+            // First launch after the installer: auto-detect the ComfyUI install it created so the
+            // user isn't forced to browse for a folder we already know the location of.
+            if (!settingsService.IsComfyUIFolderConfigured())
+            {
+                var detected = settingsService.TryAutoDetectComfyUIFolder();
+                if (detected != null && settingsService.ValidateAndSetComfyUIFolder(detected))
+                {
+                    logger.LogInfo($"Auto-configured ComfyUI folder: {detected}");
+                }
+            }
+
             if (!settingsService.IsComfyUIFolderConfigured())
             {
                 logger.LogInfo("ComfyUI not configured. Showing choice window.");
@@ -366,6 +378,14 @@ namespace FlipPix.UI
             catch (Exception ex)
             {
                 logger.LogWarning($"Server connectivity check failed: {ex.Message}");
+            }
+
+            // Connection failed. If this is a local install whose launch script we haven't
+            // recorded yet (e.g. an install configured before auto-detect existed), find it now
+            // so we can auto-start instead of forcing the user to hunt for ComfyUI.
+            if (settings.AutoRestartComfyUI)
+            {
+                settingsService.EnsureRestartScriptConfigured();
             }
 
             // Connection failed — attempt auto-start if configured

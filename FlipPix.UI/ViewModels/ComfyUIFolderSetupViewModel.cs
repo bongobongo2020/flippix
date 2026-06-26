@@ -36,10 +36,19 @@ namespace FlipPix.UI.ViewModels
             _settingsService = settingsService ?? throw new ArgumentNullException(nameof(settingsService));
             _fileDialogService = fileDialogService ?? throw new ArgumentNullException(nameof(fileDialogService));
 
-            // Pre-fill with existing settings if available
+            // Pre-fill with existing settings if available, otherwise try to auto-detect an
+            // install (e.g. the one the FlipPix installer created) so the field starts populated.
             if (!string.IsNullOrEmpty(_settingsService.Settings.ComfyUIFolderPath))
             {
                 FolderPath = _settingsService.Settings.ComfyUIFolderPath;
+            }
+            else
+            {
+                var detected = _settingsService.TryAutoDetectComfyUIFolder();
+                if (!string.IsNullOrEmpty(detected))
+                {
+                    FolderPath = detected;
+                }
             }
 
             if (!string.IsNullOrEmpty(_settingsService.Settings.BaseUrl))
