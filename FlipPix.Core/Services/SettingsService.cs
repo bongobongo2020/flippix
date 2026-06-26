@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.IO;
+using System.Linq;
 using System.Text.Json;
 using System.Threading;
 using FlipPix.Core.Interfaces;
@@ -170,6 +171,137 @@ namespace FlipPix.Core.Services
             return false;
         }
 
+        /// <summary>
+        /// Looks for a ComfyUI install (e.g. one created by the FlipPix installer at
+        /// %USERPROFILE%\ComfyUI_FlipPix\...\ComfyUI, or a standard portable build) in a few
+        /// well-known locations so a fresh install doesn't force the user to browse for it.
+        /// Returns the ComfyUI root (the folder holding main.py + an output folder) or null.
+        /// Deliberately narrow and fast - no broad drive scans (network drives can stall).
+        /// </summary>
+        public string? TryAutoDetectComfyUIFolder()
+        {
+            try
+            {
+                var userProfile = Environment.GetFolderPath(Environment.SpecialFolder.UserProfile);
+
+                // Folders that may directly contain a "<portable>\ComfyUI" install; scanned one
+                // level deep (the installer lays down ComfyUI_windows_portable\ComfyUI inside).
+                var scanRoots = new List<string>();
+                if (!string.IsNullOrEmpty(userProfile))
+                {
+                    scanRoots.Add(Path.Combine(userProfile, "ComfyUI_FlipPix")); // installer default
+                    scanRoots.Add(userProfile);
+                }
+
+                foreach (var root in scanRoots)
+                {
+                    if (string.IsNullOrEmpty(root) || !Directory.Exists(root)) continue;
+
+                    // <root>\ComfyUI directly
+                    var direct = Path.Combine(root, "ComfyUI");
+                    if (IsComfyUIInstall(direct))
+                    {
+                        _logger?.LogInfo($"Auto-detected ComfyUI install: {direct}");
+                        return direct;
+                    }
+
+                    // <root>\<portable>\ComfyUI
+                    IEnumerable<string> subdirs;
+                    try { subdirs = Directory.EnumerateDirectories(root); }
+                    catch { continue; }
+
+                    foreach (var sub in subdirs)
+                    {
+                        var comfy = Path.Combine(sub, "ComfyUI");
+                        if (IsComfyUIInstall(comfy))
+                        {
+                            _logger?.LogInfo($"Auto-detected ComfyUI install: {comfy}");
+                            return comfy;
+                        }
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                _logger?.LogWarning($"Auto-detect ComfyUI folder failed: {ex.Message}");
+            }
+            return null;
+        }
+
+        // A folder is a usable ComfyUI root if it has ComfyUI's entry point and the output
+        // folder (the latter is also what ValidateAndSetComfyUIFolder requires).
+        private static bool IsComfyUIInstall(string comfyDir)
+        {
+            return Directory.Exists(comfyDir)
+                && File.Exists(Path.Combine(comfyDir, "main.py"))
+                && Directory.Exists(Path.Combine(comfyDir, "output"));
+        }
+
+        /// <summary>
+        /// Finds the launch script (run_nvidia_gpu.bat / run_cpu.bat) for the configured local
+        /// ComfyUI install. Portable builds keep it in the portable root - the parent of the
+        /// ComfyUI folder. Returns the full path or null.
+        /// </summary>
+        public string? TryDetectComfyUIStartScript()
+        {
+            try
+            {
+                var comfy = _settings.ComfyUIFolderPath;
+                if (string.IsNullOrEmpty(comfy) || !Directory.Exists(comfy)) return null;
+
+                var portableRoot = Directory.GetParent(comfy)?.FullName;
+                var searchDirs = new[] { portableRoot, comfy };
+                var preferred = new[] { "run_nvidia_gpu.bat", "run_cpu.bat" };
+
+                foreach (var dir in searchDirs)
+                {
+                    if (string.IsNullOrEmpty(dir) || !Directory.Exists(dir)) continue;
+
+                    foreach (var name in preferred)
+                    {
+                        var p = Path.Combine(dir, name);
+                        if (File.Exists(p)) return p;
+                    }
+
+                    // Fall back to any run_*.bat in that folder.
+                    try
+                    {
+                        var anyRun = Directory.EnumerateFiles(dir, "run_*.bat").FirstOrDefault();
+                        if (anyRun != null) return anyRun;
+                    }
+                    catch { /* ignore unreadable dir */ }
+                }
+            }
+            catch (Exception ex)
+            {
+                _logger?.LogWarning($"Detect ComfyUI start script failed: {ex.Message}");
+            }
+            return null;
+        }
+
+        /// <summary>
+        /// Ensures <see cref="ComfyUISettings.ComfyUIRestartScriptPath"/> points at a real launch
+        /// script for the local install, auto-detecting and persisting it when missing. This is
+        /// what lets the app auto-start a locally-installed ComfyUI instead of asking the user to
+        /// browse for it. Returns true if a usable script path is now configured.
+        /// </summary>
+        public bool EnsureRestartScriptConfigured()
+        {
+            if (!string.IsNullOrEmpty(_settings.ComfyUIRestartScriptPath)
+                && File.Exists(_settings.ComfyUIRestartScriptPath))
+            {
+                return true;
+            }
+
+            var script = TryDetectComfyUIStartScript();
+            if (script == null) return false;
+
+            _settings.ComfyUIRestartScriptPath = script;
+            SaveSettings(_settings);
+            _logger?.LogInfo($"Auto-configured ComfyUI start script: {script}");
+            return true;
+        }
+
         public bool ValidateAndSetComfyUIFolder(string folderPath)
         {
             try
@@ -194,6 +326,19 @@ namespace FlipPix.Core.Services
 
                 _settings.ComfyUIFolderPath = folderPath;
                 _settings.OutputFolderPath = outputFolder;
+
+                // Remember how to launch this local install so the app can auto-start ComfyUI
+                // later instead of prompting the user to locate it.
+                if (string.IsNullOrEmpty(_settings.ComfyUIRestartScriptPath)
+                    || !File.Exists(_settings.ComfyUIRestartScriptPath))
+                {
+                    var script = TryDetectComfyUIStartScript();
+                    if (script != null)
+                    {
+                        _settings.ComfyUIRestartScriptPath = script;
+                        _logger?.LogInfo($"Auto-configured ComfyUI start script: {script}");
+                    }
+                }
 
                 _logger?.LogInfo($"Saving settings to: {_settingsFilePath}");
                 SaveSettings(_settings);

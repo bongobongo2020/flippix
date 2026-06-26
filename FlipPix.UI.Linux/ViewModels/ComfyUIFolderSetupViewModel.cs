@@ -32,6 +32,7 @@ namespace FlipPix.UI.Linux.ViewModels
             _settingsService = settingsService ?? throw new ArgumentNullException(nameof(settingsService));
             _fileDialogService = fileDialogService ?? throw new ArgumentNullException(nameof(fileDialogService));
             if (!string.IsNullOrEmpty(_settingsService.Settings.ComfyUIFolderPath)) FolderPath = _settingsService.Settings.ComfyUIFolderPath;
+            else { var detected = _settingsService.TryAutoDetectComfyUIFolder(); if (!string.IsNullOrEmpty(detected)) FolderPath = detected; }
             if (!string.IsNullOrEmpty(_settingsService.Settings.BaseUrl)) ServerUrl = _settingsService.Settings.BaseUrl;
             if (!string.IsNullOrEmpty(_settingsService.Settings.RemoteOutputFolderPath)) RemoteOutputFolderPath = _settingsService.Settings.RemoteOutputFolderPath;
             if (!string.IsNullOrEmpty(_settingsService.Settings.RemoteLoraFolderPath)) RemoteLoraFolderPath = _settingsService.Settings.RemoteLoraFolderPath;
