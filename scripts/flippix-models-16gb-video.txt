@@ -1,0 +1,20 @@
+# FlipPix 16gb-tier VIDEO model manifest - read by setup-comfyui-fresh.ps1
+#
+# Same format as flippix-models.txt:  <relative/path> | <approx size> | <download url>
+# Forward slashes in the path; blank lines and lines starting with '#' are ignored.
+#
+# Pulled only by a FULL (non-minimal) install on the 16gb tier. It provides the GGUF LTX weight
+# the memory-optimized SeedHunt video variant (workflow/16gb/video/ltx/seed-hunter-api.json) loads
+# via UnetLoaderGGUF, so basic video fits 16 GB instead of OOM-crashing on the full 22B int8 model.
+#
+# The OTHER LTX models the SeedHunt graph reuses (video VAE, audio VAE, spatial upscaler, Gemma
+# text encoder, text projection) are NOT downloaded here - they are not the binding VRAM constraint
+# and are assumed already present from your full LTX setup.
+#
+# Quant ladder for the same model (swap node 5025:5220's unet_name in the workflow to match):
+#   Q2_K   12.4 GB  (safest fit, lowest quality)
+#   Q3_K_S 14   GB  (shipped default - this file)
+#   Q3_K_M 14.7 GB
+#   Q4_K_S 16.7 GB / Q4_K_M 17.8 GB  (only with VRAM headroom / GGUF CPU offload)
+
+unet/LTX-2.3-22B-distilled-1.1-Q3_K_S.gguf | ~14 GB | https://huggingface.co/QuantStack/LTX-2.3-GGUF/resolve/main/LTX-2.3-distilled-1.1/LTX-2.3-22B-distilled-1.1-Q3_K_S.gguf

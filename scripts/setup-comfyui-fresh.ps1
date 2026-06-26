@@ -67,7 +67,10 @@ param(
     [switch]$SkipMissingNodeScan,
     [string]$ModelsDir = '',
     [switch]$DownloadModels,
-    [switch]$SkipModels
+    [switch]$SkipModels,
+    [switch]$Minimal,
+    [ValidateSet('auto','full','16gb')]
+    [string]$Tier = 'auto'
 )
 
 $ErrorActionPreference = 'Stop'
@@ -96,8 +99,42 @@ function Invoke-Quiet([scriptblock]$Command) {
 
 $ScriptDir = Split-Path -Parent $MyInvocation.MyCommand.Path
 $RepoRoot  = Split-Path -Parent $ScriptDir
-$NodeListFile = Join-Path $ScriptDir 'flippix-custom-nodes.txt'
+# -Minimal trims to the core creative subset (image gen + image edit): fewer node packs and a
+# smaller (~21 GB) model set. Without it, the full curated lists are used.
+$NodeListFile = Join-Path $ScriptDir ($(if ($Minimal) { 'flippix-custom-nodes-min.txt' } else { 'flippix-custom-nodes.txt' }))
 $WorkflowSrc  = Join-Path $RepoRoot 'workflow'
+
+# ---------------------------------------------------------------------------
+# VRAM tier: pick the memory-optimized (16gb) workflow tier on small GPUs so FlipPix loads
+# workflows that fit instead of OOM-crashing. We only DETECT here and record the result into
+# FlipPix settings (VramTier); the app does the actual workflow routing at runtime.
+# ---------------------------------------------------------------------------
+function Get-GpuVramMb {
+    # nvidia-smi reports true total VRAM. (WMI Win32_VideoController.AdapterRAM is a uint32 capped
+    # at 4 GB and useless for modern cards, so we don't use it.) Returns the largest GPU, or 0.
+    $smi = Get-Command nvidia-smi -ErrorAction SilentlyContinue
+    if (-not $smi) { return 0 }
+    try {
+        $vals = & $smi.Source --query-gpu=memory.total --format=csv,noheader,nounits 2>$null
+        $max = 0
+        foreach ($v in $vals) {
+            $n = 0
+            if ([int]::TryParse(($v -replace '[^\d]', ''), [ref]$n) -and $n -gt $max) { $max = $n }
+        }
+        return $max
+    } catch { return 0 }
+}
+
+function Resolve-VramTier {
+    if ($Tier -eq 'full' -or $Tier -eq '16gb') { return $Tier }
+    $mb = Get-GpuVramMb
+    if ($mb -le 0) { Write-Warn2 'could not detect GPU VRAM (nvidia-smi missing?) - defaulting to full tier'; return 'full' }
+    $gb = [math]::Round($mb / 1024, 1)
+    # 16 GB cards sit right at the line; treat <= ~17 GB as the 16gb tier.
+    $tier = if ($mb -le 17408) { '16gb' } else { 'full' }
+    Write-Ok "detected ${gb} GB VRAM -> '$tier' workflow tier"
+    return $tier
+}
 
 # ---------------------------------------------------------------------------
 # download helper: prefer curl.exe (fast, resumable) then fall back to BITS / IWR
@@ -256,6 +293,10 @@ function Resolve-PortableUrl {
 # ---------------------------------------------------------------------------
 Write-Host "FlipPix - ComfyUI fresh installer" -ForegroundColor Magenta
 Write-Host "Repo: $RepoRoot"
+if ($Minimal) { Write-Ok 'minimal install (core creative subset)' }
+
+Write-Step 'Selecting VRAM workflow tier'
+$ResolvedTier = Resolve-VramTier
 
 Ensure-Git
 Persist-GitForRuntime
@@ -389,18 +430,25 @@ function Normalize-Path($p) { return ([IO.Path]::GetFullPath($p)).TrimEnd('\') }
 # FlipPix model manifest, loaded from scripts/flippix-models.txt. Each entry:
 # Path (relative to the models folder) | Size | Url.
 # Get-File resumes/skips already-downloaded files.
-$ModelListFile = Join-Path $ScriptDir 'flippix-models.txt'
-$ModelManifest = @(
-    if (Test-Path $ModelListFile) {
-        Get-Content $ModelListFile | ForEach-Object {
-            $line = $_.Trim()
-            if ($line -eq '' -or $line.StartsWith('#')) { return }
-            $parts = $line -split '\|', 3
-            if ($parts.Count -ne 3) { return }
-            @{ Path = $parts[0].Trim() -replace '/', '\'; Size = $parts[1].Trim(); Url = $parts[2].Trim() }
+$ModelListFile = Join-Path $ScriptDir ($(if ($Minimal) { 'flippix-models-min.txt' } else { 'flippix-models.txt' }))
+function Read-ModelManifest($file) {
+    @(
+        if (Test-Path $file) {
+            Get-Content $file | ForEach-Object {
+                $line = $_.Trim()
+                if ($line -eq '' -or $line.StartsWith('#')) { return }
+                $parts = $line -split '\|', 3
+                if ($parts.Count -ne 3) { return }
+                @{ Path = $parts[0].Trim() -replace '/', '\'; Size = $parts[1].Trim(); Url = $parts[2].Trim() }
+            }
         }
-    }
-)
+    )
+}
+$ModelManifest = Read-ModelManifest $ModelListFile
+
+# 16gb-tier video GGUF: pulled separately, only on a FULL install at the 16gb tier (see below).
+$VideoGgufListFile = Join-Path $ScriptDir 'flippix-models-16gb-video.txt'
+$VideoGgufManifest = Read-ModelManifest $VideoGgufListFile
 
 function Set-ModelPathLink($Dir) {
     # If the chosen folder isn't the install's own models dir, tell ComfyUI to look there too.
@@ -453,6 +501,26 @@ function Download-Models($Dir) {
         try { Get-File $m.Url $out } catch { Write-Warn2 "failed: $($m.Path) - $($_.Exception.Message)" }
     }
     Write-Ok 'model downloads finished (any failures are listed above; re-run to retry)'
+}
+
+function Download-VideoGguf($Dir) {
+    # The 16gb video variant (workflow/16gb/video/ltx/seed-hunter-api.json) needs a GGUF LTX weight
+    # loaded by UnetLoaderGGUF (city96/ComfyUI-GGUF, installed by the full node list). Get-File
+    # resumes/skips already-downloaded files.
+    if ($VideoGgufManifest.Count -eq 0) {
+        Write-Warn2 "16gb video manifest is empty or missing ($VideoGgufListFile) - skipping"
+        return
+    }
+    Write-Step "Downloading 16gb-tier video GGUF into $Dir"
+    $n = 0
+    foreach ($m in $VideoGgufManifest) {
+        $n++
+        $out = Join-Path $Dir $m.Path
+        New-Item -ItemType Directory -Force -Path (Split-Path $out -Parent) | Out-Null
+        Write-Host ("  [{0}/{1}] {2} ({3})" -f $n, $VideoGgufManifest.Count, $m.Path, $m.Size)
+        try { Get-File $m.Url $out } catch { Write-Warn2 "failed: $($m.Path) - $($_.Exception.Message)" }
+    }
+    Write-Ok '16gb video GGUF finished'
 }
 
 function Format-ModelsPath([string]$raw) {
@@ -527,6 +595,19 @@ if ($SkipModels) {
             Write-Warn2 "skipping model download. Re-run later, or use ComfyUI-Manager's model manager."
         }
     }
+
+    # On a FULL install at the 16gb tier, also fetch the GGUF LTX weight the memory-optimized
+    # SeedHunt video variant needs. (Minimal is image-only, so it's skipped there.) Only when the
+    # models folder actually exists (reused, or just created above).
+    if (-not $Minimal -and $ResolvedTier -eq '16gb' -and (Test-Path $target)) {
+        $pullGguf = $DownloadModels
+        if (-not $pullGguf) {
+            $ans = Read-Host "  16gb tier: download the LTX GGUF for low-VRAM video (~14 GB) into $target now? [y/N]"
+            $pullGguf = ($ans -match '^(y|yes)$')
+        }
+        if ($pullGguf) { Download-VideoGguf $target }
+        else { Write-Warn2 'skipping the 16gb video GGUF. Re-run later, or grab it from QuantStack/LTX-2.3-GGUF.' }
+    }
 }
 
 # ---------------------------------------------------------------------------
@@ -563,6 +644,9 @@ function Set-FlipPixComfyUISettings($comfyDir, $portableRoot) {
         $settings | Add-Member -NotePropertyName 'ComfyUIFolderPath'  -NotePropertyValue $comfyDir -Force
         $settings | Add-Member -NotePropertyName 'OutputFolderPath'   -NotePropertyValue (Join-Path $comfyDir 'output') -Force
         $settings | Add-Member -NotePropertyName 'AutoRestartComfyUI' -NotePropertyValue $true -Force
+        # Record the workflow tier so FlipPix routes to workflow/16gb on small GPUs without
+        # having to re-detect. 'auto' lets the app decide from /system_stats; 'full'/'16gb' force it.
+        $settings | Add-Member -NotePropertyName 'VramTier' -NotePropertyValue $ResolvedTier -Force
         if ($startScript) {
             $settings | Add-Member -NotePropertyName 'ComfyUIRestartScriptPath' -NotePropertyValue $startScript -Force
         }

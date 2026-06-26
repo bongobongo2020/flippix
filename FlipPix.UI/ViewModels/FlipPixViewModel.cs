@@ -726,7 +726,7 @@ namespace FlipPix.UI.ViewModels
                 _cancellationTokenSource.Token.ThrowIfCancellationRequested();
 
                 // Load workflow
-                var workflowPath = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "workflow", "qwen-edit-camera-API.json");
+                var workflowPath = WorkflowLocator.Resolve("workflow", "qwen-edit-camera-API.json");
                 if (!File.Exists(workflowPath))
                 {
                     AddLog($"ERROR: Workflow file not found: {workflowPath}");
@@ -1778,7 +1778,7 @@ namespace FlipPix.UI.ViewModels
             cancellationToken.ThrowIfCancellationRequested();
 
             // Load workflow
-            var workflowPath = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "workflow", "qwen-edit-camera-API.json");
+            var workflowPath = WorkflowLocator.Resolve("workflow", "qwen-edit-camera-API.json");
             if (!File.Exists(workflowPath))
             {
                 throw new FileNotFoundException($"Workflow file not found: {workflowPath}");
