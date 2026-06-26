@@ -789,7 +789,7 @@ namespace FlipPix.UI.ViewModels
                         }
                         else
                         {
-                            workflowPath = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "workflow", "image", "zimage", "base", "Zib-Zit.json");
+                            workflowPath = WorkflowLocator.Resolve("workflow", "image", "zimage", "base", "Zib-Zit.json");
                             AddLog("No style selected, falling back to Zib-Zit.json");
                         }
                         break;

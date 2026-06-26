@@ -1054,7 +1054,7 @@ namespace FlipPix.UI.ViewModels.Video
 
         private static async Task<string> LoadWorkflowJsonAsync(CancellationToken token)
         {
-            var path = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, WorkflowFileName);
+            var path = WorkflowLocator.Resolve(WorkflowFileName);
             if (!File.Exists(path))
                 throw new FileNotFoundException($"Workflow file not found: {path}");
             return await File.ReadAllTextAsync(path, token);

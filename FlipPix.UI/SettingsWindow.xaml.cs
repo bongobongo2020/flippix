@@ -32,8 +32,39 @@ namespace FlipPix.UI
             // Populate the saved-servers dropdown
             RefreshSavedServerItems();
 
+            // Reflect the saved VRAM tier + any detected VRAM
+            InitVramTierUi();
+
             // Update status on load
             UpdateStatus();
+        }
+
+        private void InitVramTierUi()
+        {
+            var tier = (_originalSettings.VramTier ?? "auto").Trim().ToLowerInvariant();
+            foreach (var item in VramTierComboBox.Items)
+            {
+                if (item is System.Windows.Controls.ComboBoxItem cbi
+                    && string.Equals(cbi.Tag?.ToString(), tier, StringComparison.OrdinalIgnoreCase))
+                {
+                    VramTierComboBox.SelectedItem = cbi;
+                    break;
+                }
+            }
+            if (VramTierComboBox.SelectedItem == null && VramTierComboBox.Items.Count > 0)
+            {
+                VramTierComboBox.SelectedIndex = 0; // auto
+            }
+
+            DetectedVramText.Text = _originalSettings.DetectedVramGb > 0
+                ? $"Detected GPU VRAM: {_originalSettings.DetectedVramGb:0.#} GB"
+                : "GPU VRAM not detected yet (connect to ComfyUI once).";
+        }
+
+        private string SelectedVramTier()
+        {
+            return (VramTierComboBox.SelectedItem as System.Windows.Controls.ComboBoxItem)?.Tag?.ToString()?.ToLowerInvariant()
+                   ?? "auto";
         }
 
         private void RefreshSavedServerItems()
@@ -62,6 +93,8 @@ namespace FlipPix.UI
                 WslModelsFolderPath = original.WslModelsFolderPath,
                 SavedCameraPrompts = original.SavedCameraPrompts,
                 AutoRestartComfyUI = original.AutoRestartComfyUI,
+                VramTier = original.VramTier,
+                DetectedVramGb = original.DetectedVramGb,
                 ComfyUIRestartScriptPath = original.ComfyUIRestartScriptPath,
                 ComfyUIRestartDelaySeconds = original.ComfyUIRestartDelaySeconds,
                 ComfyUIStartupTimeoutSeconds = original.ComfyUIStartupTimeoutSeconds,
@@ -700,6 +733,8 @@ namespace FlipPix.UI
                     WslModelsFolderPath = WslModelsFolderTextBox.Text?.Trim() ?? "",
                     SavedCameraPrompts = _originalSettings.SavedCameraPrompts,
                     AutoRestartComfyUI = AutoRestartCheckBox.IsChecked ?? true,
+                    VramTier = SelectedVramTier(),
+                    DetectedVramGb = _originalSettings.DetectedVramGb,
                     ComfyUIRestartScriptPath = ComfyUIRestartScriptTextBox.Text?.Trim() ?? "",
                     ComfyUIRestartDelaySeconds = int.TryParse(RestartDelayTextBox.Text, out var restartDelay) ? restartDelay : 10,
                     ComfyUIStartupTimeoutSeconds = int.TryParse(StartupTimeoutTextBox.Text, out var startupTimeout) ? startupTimeout : 120,

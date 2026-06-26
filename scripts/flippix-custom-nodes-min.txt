@@ -1,0 +1,26 @@
+# FlipPix MINIMAL custom-node packs (git URLs), one per line.
+#
+# Used by setup-comfyui-fresh.ps1 -Minimal. This is the trimmed backbone for the core
+# creative subset only (image generation + image editing). Anything not covered here is
+# picked up afterwards by ComfyUI-Manager's cm-cli (which reads the actual workflow files)
+# and, as a last resort, by Manager's "Install Missing Custom Nodes" button on first launch.
+#
+# Lines starting with '#' and blank lines are ignored. Inline '# ...' comments are stripped.
+
+# --- Core / management (also provides cm-cli used by the installer) ---
+https://github.com/Comfy-Org/ComfyUI-Manager
+
+# --- general utility node packs used by the Z-Image + Qwen-Edit workflows ---
+https://github.com/rgthree/rgthree-comfy                # Power Lora Loader, Any Switch, Seed, Reroute
+https://github.com/kijai/ComfyUI-KJNodes                # *KJ nodes (VAELoaderKJ, image helpers, calculators)
+https://github.com/pythongosssss/ComfyUI-Custom-Scripts # ShowText, MathExpression, StringFunction
+https://github.com/cubiq/ComfyUI_essentials             # GetImageSize+, ImageResize+, SimpleMath+
+https://github.com/yolain/ComfyUI-Easy-Use              # easy seed / easy * helpers
+https://github.com/Suzie1/ComfyUI_Comfyroll_CustomNodes # CR Aspect Ratio, CR Prompt Text
+https://github.com/WASasquatch/was-node-suite-comfyui   # Text/Seed string helpers
+
+# --- Z-Image sampler stack (ClownsharKSampler / SharkOptions / ClownOptions / Text to Conditioning) ---
+https://github.com/ClownsharkBatwing/RES4LYF
+
+# --- image saver used by the Z-Image workflow ---
+https://github.com/alexopus/ComfyUI-Image-Saver         # "Image Saver" node

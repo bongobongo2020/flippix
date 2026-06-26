@@ -195,6 +195,56 @@ namespace FlipPix.UI.ViewModels
             }
         }
 
+        // Zero-friction install: run the bundled minimal installer (Install-ComfyUI-Minimal.bat)
+        // in a visible console so a fresh user never has to hunt for a .bat. VRAM tier is
+        // auto-detected by the script. Once it finishes, the folder auto-detect picks up the
+        // new install on next launch / when this dialog re-opens.
+        [RelayCommand]
+        private void InstallMinimalComfyUI()
+        {
+            var bat = FindInstallerBat();
+            if (bat == null)
+            {
+                ValidationMessage = "Could not find Install-ComfyUI-Minimal.bat next to FlipPix.";
+                ValidationMessageColor = System.Windows.Media.Brushes.Red;
+                return;
+            }
+
+            try
+            {
+                var psi = new System.Diagnostics.ProcessStartInfo
+                {
+                    FileName = bat,
+                    WorkingDirectory = Path.GetDirectoryName(bat),
+                    UseShellExecute = true   // opens its own console window
+                };
+                System.Diagnostics.Process.Start(psi);
+                ValidationMessage = "Minimal ComfyUI installer started in a new window. " +
+                    "When it finishes, reopen this dialog (the install is auto-detected) or restart FlipPix.";
+                ValidationMessageColor = System.Windows.Media.Brushes.Green;
+            }
+            catch (Exception ex)
+            {
+                ValidationMessage = $"Could not start the installer: {ex.Message}";
+                ValidationMessageColor = System.Windows.Media.Brushes.Red;
+            }
+        }
+
+        // Look for Install-ComfyUI-Minimal.bat next to the app, then a couple of parents up
+        // (covers running from bin/Debug during development).
+        private static string? FindInstallerBat()
+        {
+            const string name = "Install-ComfyUI-Minimal.bat";
+            var dir = AppDomain.CurrentDomain.BaseDirectory;
+            for (int i = 0; i < 5 && !string.IsNullOrEmpty(dir); i++)
+            {
+                var candidate = Path.Combine(dir, name);
+                if (File.Exists(candidate)) return candidate;
+                dir = Path.GetDirectoryName(dir.TrimEnd(Path.DirectorySeparatorChar));
+            }
+            return null;
+        }
+
         [RelayCommand]
         private async Task BrowseRemoteOutputFolderAsync()
         {

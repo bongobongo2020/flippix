@@ -43,6 +43,12 @@ namespace FlipPix.UI
             var settingsService = _serviceProvider.GetRequiredService<SettingsService>();
             settingsService.SetLogger(logger);
 
+            // Resolve the VRAM tier up-front from saved settings so workflow routing is correct
+            // even before (or without) a successful ComfyUI connection. CheckServerConnectivityAsync
+            // refines DetectedVramGb from /system_stats when the server answers.
+            VramContext.Configure(settingsService.Settings.VramTier, settingsService.Settings.DetectedVramGb);
+            logger.LogInfo($"VRAM tier: {VramContext.EffectiveTier} (setting={settingsService.Settings.VramTier}, detected={settingsService.Settings.DetectedVramGb:0.#} GB)");
+
             // Check if ComfyUI is configured
             logger.LogInfo("OnStartup - Checking if ComfyUI is configured");
 
@@ -137,6 +143,15 @@ namespace FlipPix.UI
                 // Set shutdown mode to close when main window closes
                 ShutdownMode = ShutdownMode.OnMainWindowClose;
                 MainWindow = imageGeneratorWindow;
+
+                // Surface 16 GB mode so users know memory-optimized workflows are in use.
+                if (VramContext.IsLowVram)
+                {
+                    var vramNote = VramContext.DetectedVramGb > 0
+                        ? $"16 GB mode ({VramContext.DetectedVramGb:0.#} GB)"
+                        : "16 GB mode";
+                    imageGeneratorWindow.Title += $"  —  {vramNote}";
+                }
 
                 imageGeneratorWindow.Show();
                 logger.LogInfo("Main Image Generator window shown successfully");
@@ -353,6 +368,32 @@ namespace FlipPix.UI
             });
         }
 
+        // Pull the largest device vram_total (bytes) out of a /system_stats payload and return it
+        // as GB. ComfyUI shapes it as { "devices": [ { "vram_total": <bytes>, ... }, ... ] }.
+        // Returns 0 when no usable device VRAM is present (e.g. CPU-only).
+        private static double TryParseVramGb(string systemStatsJson)
+        {
+            using var doc = System.Text.Json.JsonDocument.Parse(systemStatsJson);
+            if (!doc.RootElement.TryGetProperty("devices", out var devices)
+                || devices.ValueKind != System.Text.Json.JsonValueKind.Array)
+            {
+                return 0;
+            }
+
+            long maxBytes = 0;
+            foreach (var device in devices.EnumerateArray())
+            {
+                if (device.TryGetProperty("vram_total", out var vram)
+                    && vram.TryGetInt64(out var bytes)
+                    && bytes > maxBytes)
+                {
+                    maxBytes = bytes;
+                }
+            }
+
+            return maxBytes > 0 ? maxBytes / 1024.0 / 1024.0 / 1024.0 : 0;
+        }
+
         private async Task CheckServerConnectivityAsync(SettingsService settingsService, IAppLogger logger)
         {
             var settings = settingsService.Settings;
@@ -370,6 +411,29 @@ namespace FlipPix.UI
                 if (isConnected)
                 {
                     logger.LogInfo("ComfyUI server connection successful");
+
+                    // The connected ComfyUI knows the GPU's true VRAM; use it to pick the workflow
+                    // tier (auto mode) so 16 GB cards load the memory-optimized workflows.
+                    try
+                    {
+                        var statsJson = await response.Content.ReadAsStringAsync();
+                        var vramGb = TryParseVramGb(statsJson);
+                        if (vramGb > 0)
+                        {
+                            VramContext.Configure(settings.VramTier, vramGb);
+                            logger.LogInfo($"Detected {vramGb:0.#} GB VRAM from /system_stats — tier: {VramContext.EffectiveTier}");
+                            if (System.Math.Abs(settings.DetectedVramGb - vramGb) > 0.1)
+                            {
+                                settings.DetectedVramGb = vramGb;
+                                settingsService.SaveSettings(settings);
+                            }
+                        }
+                    }
+                    catch (Exception ex)
+                    {
+                        logger.LogWarning($"Could not parse VRAM from /system_stats: {ex.Message}");
+                    }
+
                     return;
                 }
 

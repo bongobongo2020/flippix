@@ -1,0 +1,565 @@
+{
+  "176": {
+    "inputs": {
+      "width": 1568,
+      "height": 1352,
+      "aspect_ratio": "SDXL - 16:9 landscape 1568x1352",
+      "swap_dimensions": "Off",
+      "upscale_factor": 1,
+      "prescale_factor": 1,
+      "batch_size": 1
+    },
+    "class_type": "CR Aspect Ratio",
+    "_meta": {
+      "title": "🔳 CR Aspect Ratio"
+    }
+  },
+  "184": {
+    "inputs": {
+      "string": "Jib Mix Zit V2"
+    },
+    "class_type": "String Literal (Image Saver)",
+    "_meta": {
+      "title": "String Literal (Image Saver)"
+    }
+  },
+  "216": {
+    "inputs": {
+      "image": "False__0_blur_59 (1).png"
+    },
+    "class_type": "LoadImage",
+    "_meta": {
+      "title": "Load Image"
+    }
+  },
+  "405": {
+    "inputs": {
+      "unet_name": "jibMixZIT_v20.safetensors",
+      "weight_dtype": "fp8_e4m3fn"
+    },
+    "class_type": "UNETLoader",
+    "_meta": {
+      "title": "Load Diffusion Model - ZIT"
+    }
+  },
+  "427": {
+    "inputs": {
+      "clip_name": "qwen_3_4b.safetensors",
+      "type": "wan",
+      "device": "cpu"
+    },
+    "class_type": "CLIPLoader",
+    "_meta": {
+      "title": "Load CLIP"
+    }
+  },
+  "443": {
+    "inputs": {
+      "text": "The image presents a low-angle, dynamic shot of a person dressed as Catwoman, standing confidently on a bed. The lighting is warm and intimate, creating a mood that blends elements of power, allure, and mystery.\n\n**Subject Details:**\n- **Costume:** The individual wears a highly reflective, glossy black latex bodysuit with a high-cut leg design and a central zipper running down the front. The suit extends into long, sleek thigh-high boots that match perfectly in material and sheen.\n- **Headpiece:** They wear a classic Catwoman mask featuring pointed ears and eye slits, which covers their face except for her lips and chin. Her expression is direct and confident, with a slight smirk or playful gaze directed at the camera.\n- **Accessories:** In each hand, they hold a thick, black leather whip, its braided handle and frayed end adding to the character’s dominant presence.\n\n**Composition and Perspective:**\n- The photograph is taken from a low angle, looking up at the subject. This perspective emphasizes her stature and creates an imposing, almost heroic or powerful aura.\n- She stands with her legs apart in a classic, assertive pose, which highlights the curves of her body and the form-fitting nature of her costume.\n\n**Setting and Background:**\n- The scene is set indoors, likely in a bedroom. Behind the subject, there's a bed covered with rumpled white sheets.\n- In the softly blurred background, two lamps are visible on either side — one to the left casting a warm glow, and another on a nightstand to the right, contributing to the room’s ambient lighting.\n\n**Color Palette:**\n- The dominant color is black—the glossy sheen of the costume reflects light in bright, sharp highlights.\n- This starkness contrasts sharply with the soft, creamy white of the bed sheets and walls.\n- Warm tones from the lampshades provide a gentle backlighting effect, adding depth to the shadows.\n\n**Mood:**\nThe image evokes a sense of seduction, power, and mystery. The combination of the iconic costume, confident pose, and dramatic lighting creates an atmosphere that is both playful and commanding. It captures the essence of the character as a blend of elegance, dominance, and allure—much like the original Catwoman archetype from comics."
+    },
+    "class_type": "Textbox",
+    "_meta": {
+      "title": "Positive Prompt"
+    }
+  },
+  "445": {
+    "inputs": {
+      "text": "mutated, mutation, deformed, elongated, low quality, malformed, alien, patch, dwarf, midget, patch, logo, print, stretched, skewed, painting, illustration, drawing, cartoon, anime, 2d, 3d, video game, deviantart, fanart,noisy, blurry, soft, deformed, ugly, drawing, painting, crayon, sketch, graphite, impressionist, noisy, blurry, soft, deformed, ugly, bokeh, Deviantart, jpeg , worst quality, low quality, normal quality, lowres, low details, oversaturated, undersaturated, overexposed, underexposed, grayscale, bw, bad photo, bad photography, bad art, watermark, signature, text font, username, error, logo, words, letters, digits, autograph, trademark, name, blur, blurry, grainy, morbid, ugly, asymmetrical, mutated malformed, mutilated, poorly lit, bad shadow, draft, cropped, out of frame, cut off, censored, jpeg artifacts, out of focus, glitch, duplicate, airbrushed, cartoon, anime, semi-realistic, cgi, render, blender, digital art, manga, 3D ,3D Game, 3D Game Scene, 3D Character, bad hands, bad anatomy, bad body, bad face, bad teeth, bad arms, bad legs, deformities, bokeh Deviantart, bokeh, Deviantart, jpeg , worst quality, low quality, normal quality, lowres, low details, oversaturated, undersaturated, overexposed, underexposed, grayscale, bw, bad photo, bad photography, bad art, watermark, signature, text font, username, error, logo, words, letters, digits, autograph, trademark, name, blur, blurry, grainy, morbid, ugly, asymmetrical, mutated malformed, mutilated, poorly lit, bad shadow, draft, cropped, out of frame, cut off, censored, jpeg artifacts, out of focus, glitch, duplicate, airbrushed, cartoon, anime, semi-realistic, cgi, render, blender, digital art, manga, 3D ,3D Game, 3D Game Scene, 3D Character, bad hands, bad anatomy, bad body, bad face, bad teeth, bad arms, bad legs, deformities, bokeh , Deviantart"
+    },
+    "class_type": "Textbox",
+    "_meta": {
+      "title": "Negative Prompt - Used for Z-Image but Not used at CFG 1 for ZIT"
+    }
+  },
+  "526": {
+    "inputs": {
+      "noise_type_init": "brownian",
+      "s_noise_init": 1,
+      "denoise_alt": 1,
+      "channelwise_cfg": false
+    },
+    "class_type": "SharkOptions_Beta",
+    "_meta": {
+      "title": "SharkOptions"
+    }
+  },
+  "527": {
+    "inputs": {
+      "weight": 0.22,
+      "method": "model",
+      "mode": "hard",
+      "eta": 0.25,
+      "start_step": 2,
+      "end_step": 3
+    },
+    "class_type": "ClownOptions_DetailBoost_Beta",
+    "_meta": {
+      "title": "ClownOptions Detail Boost"
+    }
+  },
+  "528": {
+    "inputs": {
+      "noise_type_sde": "brownian",
+      "noise_type_sde_substep": "brownian",
+      "noise_mode_sde": "soft",
+      "noise_mode_sde_substep": "soft",
+      "eta": 0.25,
+      "eta_substep": 0.25,
+      "seed": 43513705124024
+    },
+    "class_type": "ClownOptions_SDE_Beta",
+    "_meta": {
+      "title": "ClownOptions SDE"
+    }
+  },
+  "529": {
+    "inputs": {
+      "s_noise": 0.86,
+      "s_noise_substep": 1,
+      "noise_anchor_sde": 0.95,
+      "lying": 0.89,
+      "lying_inv": 1,
+      "lying_start_step": 4,
+      "lying_inv_start_step": 1
+    },
+    "class_type": "ClownOptions_SigmaScaling_Beta",
+    "_meta": {
+      "title": "ClownOptions Sigma Scaling"
+    }
+  },
+  "530": {
+    "inputs": {
+      "filename": "%time_%basemodelname_%seed_blur",
+      "path": "ZImage/%date/",
+      "extension": "png",
+      "steps": 18,
+      "cfg": 4,
+      "modelname": "",
+      "sampler_name": "euler",
+      "scheduler_name": "bong_tangent",
+      "positive": [
+        "443",
+        0
+      ],
+      "negative": [
+        "445",
+        0
+      ],
+      "seed_value": 0,
+      "width": [
+        "176",
+        0
+      ],
+      "height": [
+        "176",
+        1
+      ],
+      "lossless_webp": false,
+      "quality_jpeg_or_webp": 95,
+      "optimize_png": false,
+      "counter": 0,
+      "denoise": 1,
+      "clip_skip": 0,
+      "time_format": false,
+      "save_workflow_as_json": true,
+      "embed_workflow": true,
+      "additional_hashes": "",
+      "download_civitai_data": true,
+      "easy_remix": true,
+      "show_preview": true,
+      "custom": "",
+      "images": [
+        "532",
+        0
+      ]
+    },
+    "class_type": "Image Saver",
+    "_meta": {
+      "title": "Image Saver - ZIT"
+    }
+  },
+  "532": {
+    "inputs": {
+      "samples": [
+        "533",
+        1
+      ],
+      "vae": [
+        "735",
+        0
+      ]
+    },
+    "class_type": "VAEDecode",
+    "_meta": {
+      "title": "VAE Decode"
+    }
+  },
+  "533": {
+    "inputs": {
+      "eta": 0.23,
+      "sampler_name": "linear/ralston_2s",
+      "scheduler": "beta",
+      "steps": 10,
+      "steps_to_run": -1,
+      "denoise": 0.56,
+      "cfg": 1,
+      "seed": [
+        "569",
+        0
+      ],
+      "sampler_mode": "standard",
+      "bongmath": true,
+      "model": [
+        "583",
+        0
+      ],
+      "positive": [
+        "578",
+        0
+      ],
+      "negative": [
+        "536",
+        0
+      ],
+      "latent_image": [
+        "639",
+        0
+      ],
+      "options": [
+        "526",
+        0
+      ],
+      "options 2": [
+        "527",
+        0
+      ],
+      "options 3": [
+        "528",
+        0
+      ],
+      "options 4": [
+        "529",
+        0
+      ]
+    },
+    "class_type": "ClownsharKSampler_Beta",
+    "_meta": {
+      "title": "ClownsharKSampler - ZIT"
+    }
+  },
+  "535": {
+    "inputs": {
+      "clip": [
+        "583",
+        1
+      ],
+      "text": [
+        "443",
+        0
+      ]
+    },
+    "class_type": "Text to Conditioning",
+    "_meta": {
+      "title": "Positive"
+    }
+  },
+  "536": {
+    "inputs": {
+      "clip": [
+        "583",
+        1
+      ],
+      "text": [
+        "445",
+        0
+      ]
+    },
+    "class_type": "Text to Conditioning",
+    "_meta": {
+      "title": "Negative"
+    }
+  },
+  "569": {
+    "inputs": {
+      "seed": 145
+    },
+    "class_type": "Seed String",
+    "_meta": {
+      "title": "Seed String (Mikey)"
+    }
+  },
+  "578": {
+    "inputs": {
+      "randomize_percent": 50,
+      "strength": 20,
+      "noise_insert": "noise on beginning steps",
+      "steps_switchover_percent": 20,
+      "seed": 1008080858921691,
+      "mask_starts_at": "beginning",
+      "mask_percent": 0,
+      "log_to_console": false,
+      "conditioning": [
+        "535",
+        0
+      ]
+    },
+    "class_type": "SeedVarianceEnhancer",
+    "_meta": {
+      "title": "SeedVarianceEnhancer"
+    }
+  },
+  "583": {
+    "inputs": {
+      "PowerLoraLoaderHeaderWidget": {
+        "type": "PowerLoraLoaderHeaderWidget"
+      },
+      "lora_1": {
+        "on": false,
+        "lora": "jibs_Z-image_lora_v2_000000500.safetensors",
+        "strength": 0.08
+      },
+      "lora_2": {
+        "on": false,
+        "lora": "Jibs_zimagesafetensors.safetensors",
+        "strength": 0.15
+      },
+      "lora_3": {
+        "on": false,
+        "lora": "Z-Real-v1.0.safetensors",
+        "strength": 0.05
+      },
+      "lora_4": {
+        "on": false,
+        "lora": "ZIT_Luneva CyberHD.safetensors",
+        "strength": 0.16
+      },
+      "lora_5": {
+        "on": false,
+        "lora": "ZIT_Midjourney_Luneva_Cinematic_v1_r128.safetensors",
+        "strength": 0.05
+      },
+      "lora_6": {
+        "on": false,
+        "lora": "lenovo_z.safetensors",
+        "strength": 0.09
+      },
+      "lora_7": {
+        "on": false,
+        "lora": "Jibs_Z-Image_skin_lora_V1.safetensors",
+        "strength": 0.7
+      },
+      "lora_8": {
+        "on": false,
+        "lora": "burtonesque_ZIT_v1.safetensors",
+        "strength": 1.3
+      },
+      "lora_9": {
+        "on": false,
+        "lora": "god_Pussy-zimage_000008000.safetensors",
+        "strength": 0.35
+      },
+      "➕ Add Lora": "",
+      "model": [
+        "405",
+        0
+      ],
+      "clip": [
+        "427",
+        0
+      ]
+    },
+    "class_type": "Power Lora Loader (rgthree)",
+    "_meta": {
+      "title": "ZIT Loras"
+    }
+  },
+  "622": {
+    "inputs": {
+      "samples": [
+        "639",
+        0
+      ],
+      "vae": [
+        "735",
+        0
+      ]
+    },
+    "class_type": "VAEDecode",
+    "_meta": {
+      "title": "VAE Decode"
+    }
+  },
+  "639": {
+    "inputs": {
+      "add_noise": "enable",
+      "noise_seed": [
+        "569",
+        0
+      ],
+      "steps": 8,
+      "cfg": 4,
+      "sampler_name": "res_multistep",
+      "scheduler": "simple",
+      "start_at_step": 0,
+      "end_at_step": 20,
+      "return_with_leftover_noise": "disable",
+      "model": [
+        "746",
+        0
+      ],
+      "positive": [
+        "748",
+        0
+      ],
+      "negative": [
+        "749",
+        0
+      ],
+      "latent_image": [
+        "176",
+        5
+      ]
+    },
+    "class_type": "KSamplerAdvanced",
+    "_meta": {
+      "title": "KSampler (Advanced) - Z-image"
+    }
+  },
+  "735": {
+    "inputs": {
+      "merge_mode": "weighted_sum",
+      "alpha": 0.3,
+      "beta": 0.7,
+      "brightness": 0,
+      "contrast": 0,
+      "use_blocks": false,
+      "block_conv_out": 0.5,
+      "block_norm_out": 0.5,
+      "block_0": 0.5,
+      "block_1": 0.5,
+      "block_2": 0.5,
+      "block_3": 0.5,
+      "block_mid": 0.5,
+      "block_conv_in": 0.5,
+      "block_quant_conv": 0.5,
+      "vae_a": [
+        "737",
+        0
+      ],
+      "vae_b": [
+        "736",
+        0
+      ]
+    },
+    "class_type": "VAE Merge",
+    "_meta": {
+      "title": "VAE Merge"
+    }
+  },
+  "736": {
+    "inputs": {
+      "vae_name": "ultrafluxVAEImproved_v10.safetensors"
+    },
+    "class_type": "VAELoader",
+    "_meta": {
+      "title": "Load VAE"
+    }
+  },
+  "737": {
+    "inputs": {
+      "vae_name": "ae.safetensors"
+    },
+    "class_type": "VAELoader",
+    "_meta": {
+      "title": "Load VAE"
+    }
+  },
+  "742": {
+    "inputs": {
+      "image": "True_Jib Mix Zit V1_0_blur_labled_01.jpg"
+    },
+    "class_type": "LoadImage",
+    "_meta": {
+      "title": "Load Image"
+    }
+  },
+  "746": {
+    "inputs": {
+      "unet_name": "z_image_bf16.safetensors",
+      "weight_dtype": "fp8_e4m3fn"
+    },
+    "class_type": "UNETLoader",
+    "_meta": {
+      "title": "Load Diffusion Model - Z-image Base"
+    }
+  },
+  "747": {
+    "inputs": {
+      "PowerLoraLoaderHeaderWidget": {
+        "type": "PowerLoraLoaderHeaderWidget"
+      },
+      "lora_1": {
+        "on": false,
+        "lora": "Jibs_Z-Image_skin_lora_V1.safetensors",
+        "strength": 0.75
+      },
+      "➕ Add Lora": "",
+      "model": [
+        "746",
+        0
+      ],
+      "clip": [
+        "427",
+        0
+      ]
+    },
+    "class_type": "Power Lora Loader (rgthree)",
+    "_meta": {
+      "title": "Z-Image Loras"
+    }
+  },
+  "748": {
+    "inputs": {
+      "clip": [
+        "747",
+        1
+      ],
+      "text": [
+        "443",
+        0
+      ]
+    },
+    "class_type": "Text to Conditioning",
+    "_meta": {
+      "title": "Positive"
+    }
+  },
+  "749": {
+    "inputs": {
+      "clip": [
+        "747",
+        1
+      ],
+      "text": [
+        "445",
+        0
+      ]
+    },
+    "class_type": "Text to Conditioning",
+    "_meta": {
+      "title": "Negative"
+    }
+  },
+  "750": {
+    "inputs": {
+      "images": [
+        "622",
+        0
+      ]
+    },
+    "class_type": "PreviewImage",
+    "_meta": {
+      "title": "Preview Image"
+    }
+  }
+}

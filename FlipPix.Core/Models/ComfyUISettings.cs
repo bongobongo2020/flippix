@@ -16,6 +16,14 @@ public class ComfyUISettings
     public string RemoteLoraFolderPath { get; set; } = string.Empty; // Network path to remote ComfyUI LoRA folder
     public string KreaLoraFolderPath { get; set; } = string.Empty; // Network path to the Krea2 LoRA folder (e.g. loras\krea2)
     public string WslModelsFolderPath { get; set; } = string.Empty; // Windows models folder to expose to a WSL ComfyUI (e.g. E:\aimodels\comfyui\models)
+
+    // VRAM tier: controls whether the app loads full-size workflows or the memory-optimized
+    // ones under workflow/16gb. "auto" decides from the GPU VRAM reported by ComfyUI's
+    // /system_stats; "full" / "16gb" force a tier regardless of detection.
+    public string VramTier { get; set; } = "auto"; // auto | full | 16gb
+    // Last GPU VRAM (GB) detected from /system_stats. 0 = unknown / not yet detected.
+    public double DetectedVramGb { get; set; } = 0;
+
     public List<SavedCameraPrompt> SavedCameraPrompts { get; set; } = new();
     public LMStudioSettings LMStudioSettings { get; set; } = new LMStudioSettings();
 

@@ -74,6 +74,16 @@
                         <TextBlock Text="Crash Detection &amp; Auto-Restart" FontWeight="SemiBold" FontSize="14" Margin="0,0,0,10" Foreground="#495057"/>
                         <CheckBox x:Name="AutoRestartCheckBox" Content="Auto-start ComfyUI on launch and restart on crash" IsChecked="{Binding AutoRestartComfyUI}" Margin="0,0,0,10"/>
 
+                        <!-- VRAM workflow tier -->
+                        <TextBlock Text="GPU VRAM / workflow tier:" FontWeight="SemiBold" FontSize="13" Margin="0,5,0,5" Foreground="#6C757D"/>
+                        <TextBlock Text="On ~16 GB GPUs FlipPix loads memory-optimized workflows (workflow/16gb) so they fit instead of crashing." FontSize="11" Foreground="#868E96" TextWrapping="Wrap" Margin="0,0,0,5"/>
+                        <ComboBox x:Name="VramTierComboBox" Margin="0,0,0,5" Width="320" HorizontalAlignment="Left">
+                            <ComboBoxItem Tag="auto" Content="Auto-detect from connected ComfyUI (recommended)"/>
+                            <ComboBoxItem Tag="16gb" Content="Force 16 GB mode (memory-optimized workflows)"/>
+                            <ComboBoxItem Tag="full" Content="Force full mode (full-size workflows)"/>
+                        </ComboBox>
+                        <TextBlock x:Name="DetectedVramText" FontSize="11" Foreground="#868E96" Margin="0,0,0,10"/>
+
                         <TextBlock Text="ComfyUI Restart Script (.bat):" FontWeight="SemiBold" FontSize="13" Margin="0,0,0,5" Foreground="#6C757D"/>
                         <TextBlock Text="Script to restart ComfyUI (e.g., run_nvidia_gpu.bat)" FontSize="11" Foreground="#868E96" Margin="0,0,0,5"/>
                         <Grid Margin="0,0,0,10">
