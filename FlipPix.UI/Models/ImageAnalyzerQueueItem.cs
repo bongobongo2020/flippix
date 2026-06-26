@@ -20,6 +20,7 @@ namespace FlipPix.UI.Models
         public double Denoise { get; set; } = 1.0;
         public bool LoraEnabled { get; set; } = false;
         public string SelectedLora { get; set; } = string.Empty;
+        public string SelectedKreaLora { get; set; } = string.Empty;
         public string NegativePrompt { get; set; } = string.Empty;
         public int Width { get; set; } = 944;
         public int Height { get; set; } = 1408;

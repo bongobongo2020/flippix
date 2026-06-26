@@ -14,6 +14,7 @@ public class ComfyUISettings
     public string OutputFolderPath { get; set; } = string.Empty;
     public string RemoteOutputFolderPath { get; set; } = string.Empty; // Network path to remote ComfyUI output folder
     public string RemoteLoraFolderPath { get; set; } = string.Empty; // Network path to remote ComfyUI LoRA folder
+    public string KreaLoraFolderPath { get; set; } = string.Empty; // Network path to the Krea2 LoRA folder (e.g. loras\krea2)
     public List<SavedCameraPrompt> SavedCameraPrompts { get; set; } = new();
     public LMStudioSettings LMStudioSettings { get; set; } = new LMStudioSettings();
 
