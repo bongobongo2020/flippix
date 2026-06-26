@@ -22,6 +22,13 @@ public class ComfyUIHttpClient : IDisposable
     // model-file paths in submitted workflows so the same JSON runs on either host.
     private char? _hostPathSeparator;
 
+    // Short-lived cache of the full /object_info response, used by pre-submit validation.
+    // ComfyUI's object_info can be several MB; caching avoids refetching it for every submit
+    // (e.g. batch/seed reruns). TTL is short so newly-added models are picked up quickly.
+    private string? _objectInfoCacheJson;
+    private DateTime _objectInfoCacheUtc;
+    private static readonly TimeSpan ObjectInfoCacheTtl = TimeSpan.FromSeconds(60);
+
     // Model-weight file extensions whose subfolder separator must match the host OS.
     private static readonly string[] ModelFileExtensions =
         { ".safetensors", ".ckpt", ".pt", ".pth", ".bin", ".gguf", ".sft", ".onnx" };
@@ -340,6 +347,21 @@ public class ComfyUIHttpClient : IDisposable
             // host (backslashes) and vice-versa — without hand-editing the JSON.
             var hostSep = await GetHostPathSeparatorAsync(cancellationToken);
             workflow = NormalizeModelPathSeparators(workflow, hostSep);
+
+            // Pre-submit validation: catch model files the workflow references but ComfyUI doesn't
+            // have, and fail with a clear message instead of ComfyUI's raw "value_not_in_list" dump.
+            var missingModels = await FindMissingModelsAsync(workflow, cancellationToken);
+            if (missingModels.Count > 0)
+            {
+                var bullets = string.Join("\n", missingModels.Select(m => $"  • {m}"));
+                var message =
+                    "This workflow needs model file(s) that aren't installed in the connected ComfyUI:\n\n" +
+                    bullets +
+                    "\n\nInstall the missing model(s) into ComfyUI's model folders (or choose an installed " +
+                    "alternative in the workflow), then try again.";
+                _logger.LogWarning($"Pre-submit validation blocked submission; {missingModels.Count} missing model(s): {string.Join(", ", missingModels)}");
+                throw new FlipPix.ComfyUI.MissingModelsException(message, missingModels);
+            }
 
             var request = new PromptRequest
             {
@@ -1270,6 +1292,124 @@ public class ComfyUIHttpClient : IDisposable
             _logger.LogWarning($"GetLoraFilenamesAsync failed: {ex.Message}");
         }
         return result;
+    }
+
+    /// <summary>
+    /// Returns the full /object_info JSON, cached briefly (see <see cref="ObjectInfoCacheTtl"/>).
+    /// Null on failure.
+    /// </summary>
+    private async Task<string?> GetObjectInfoJsonAsync(CancellationToken cancellationToken)
+    {
+        if (_objectInfoCacheJson != null && (DateTime.UtcNow - _objectInfoCacheUtc) < ObjectInfoCacheTtl)
+            return _objectInfoCacheJson;
+
+        using var cts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+        cts.CancelAfter(TimeSpan.FromSeconds(20));
+        var response = await _httpClient.GetAsync("/object_info", cts.Token);
+        if (!response.IsSuccessStatusCode)
+        {
+            _logger.LogWarning($"GetObjectInfoJsonAsync: /object_info returned {response.StatusCode}");
+            return null;
+        }
+        var json = await response.Content.ReadAsStringAsync(cts.Token);
+        _objectInfoCacheJson = json;
+        _objectInfoCacheUtc = DateTime.UtcNow;
+        return json;
+    }
+
+    private static bool HasModelExtension(string s)
+    {
+        foreach (var ext in ModelFileExtensions)
+            if (s.EndsWith(ext, StringComparison.OrdinalIgnoreCase)) return true;
+        return false;
+    }
+
+    /// <summary>
+    /// Finds model files a workflow references that the connected ComfyUI does not expose, by
+    /// replicating ComfyUI's own combo-input validation against /object_info. Returns the distinct
+    /// missing filenames. Best-effort: returns empty (lets the server decide) if it can't validate,
+    /// so a parsing hiccup never blocks a legitimate submission.
+    /// </summary>
+    public async Task<List<string>> FindMissingModelsAsync(object workflow, CancellationToken cancellationToken = default)
+    {
+        var missing = new List<string>();
+        try
+        {
+            var promptJson = JsonSerializer.Serialize(workflow);
+            using var promptDoc = JsonDocument.Parse(promptJson);
+            if (promptDoc.RootElement.ValueKind != JsonValueKind.Object) return missing;
+
+            var oiJson = await GetObjectInfoJsonAsync(cancellationToken);
+            if (oiJson == null) return missing; // can't validate -> don't block
+            using var oiDoc = JsonDocument.Parse(oiJson);
+            var oiRoot = oiDoc.RootElement;
+
+            var seen = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+
+            foreach (var nodeProp in promptDoc.RootElement.EnumerateObject())
+            {
+                var node = nodeProp.Value;
+                if (node.ValueKind != JsonValueKind.Object) continue;
+                if (!node.TryGetProperty("class_type", out var ctEl) || ctEl.ValueKind != JsonValueKind.String) continue;
+                var classType = ctEl.GetString()!;
+                if (!node.TryGetProperty("inputs", out var inputs) || inputs.ValueKind != JsonValueKind.Object) continue;
+
+                // Unknown node type to this server -> let the server report it (custom-node issue,
+                // not a missing model). Only validate inputs whose combo we can actually read.
+                if (!oiRoot.TryGetProperty(classType, out var oiNode)) continue;
+                if (!oiNode.TryGetProperty("input", out var oiInput)) continue;
+
+                foreach (var inp in inputs.EnumerateObject())
+                {
+                    // Only string inputs can be model names; links are arrays, others are scalars.
+                    if (inp.Value.ValueKind != JsonValueKind.String) continue;
+                    var value = inp.Value.GetString();
+                    if (string.IsNullOrEmpty(value)) continue;
+
+                    if (!TryGetComboValues(oiInput, inp.Name, out var allowed)) continue;
+
+                    // Decide if this combo is a model list (so we don't flag sampler/scheduler enums):
+                    // either the submitted value looks like a model file, or the allowed entries do.
+                    bool looksModel = HasModelExtension(value);
+                    bool found = false;
+                    foreach (var a in allowed)
+                    {
+                        if (a == value) { found = true; break; }
+                        if (!looksModel && HasModelExtension(a)) looksModel = true;
+                    }
+                    if (found || !looksModel) continue;
+
+                    if (seen.Add(value)) missing.Add(value);
+                }
+            }
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning($"FindMissingModelsAsync failed (skipping validation): {ex.Message}");
+            return new List<string>();
+        }
+        return missing;
+    }
+
+    /// <summary>
+    /// If <paramref name="inputKey"/> is a combo input on this node (required or optional), returns
+    /// its list of allowed string values. Combo shape: [ [values...], {meta} ].
+    /// </summary>
+    private static bool TryGetComboValues(JsonElement oiInput, string inputKey, out List<string> values)
+    {
+        values = new List<string>();
+        foreach (var section in new[] { "required", "optional" })
+        {
+            if (!oiInput.TryGetProperty(section, out var sec) || sec.ValueKind != JsonValueKind.Object) continue;
+            if (!sec.TryGetProperty(inputKey, out var spec)) continue;
+            if (spec.ValueKind != JsonValueKind.Array || spec.GetArrayLength() == 0) return false;
+            var first = spec[0];
+            if (first.ValueKind != JsonValueKind.Array) return false; // e.g. ["STRING", {...}] / ["INT", {...}]
+            foreach (var v in first.EnumerateArray())
+                if (v.ValueKind == JsonValueKind.String) values.Add(v.GetString()!);
+            return true;
+        }
+        return false;
     }
 
     public async Task<byte[]?> TryDownloadRecentVideoAsync(string promptId, CancellationToken cancellationToken = default)

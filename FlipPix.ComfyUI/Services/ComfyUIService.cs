@@ -699,10 +699,15 @@ public class ComfyUIService : IDisposable
             {
                 return await operation();
             }
+            catch (FlipPix.ComfyUI.MissingModelsException)
+            {
+                // Deterministic validation failure - retrying won't help, surface immediately.
+                throw;
+            }
             catch (Exception ex)
             {
                 lastException = ex;
-                
+
                 if (attempt == maxRetries)
                 {
                     _logger.LogError(ex, "Operation failed after {MaxRetries} attempts", maxRetries);
