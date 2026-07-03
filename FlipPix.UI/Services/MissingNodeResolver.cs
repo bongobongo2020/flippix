@@ -19,6 +19,12 @@ namespace FlipPix.UI.Services
         private readonly NodeInstallerService _installer;
         private readonly IAppLogger _logger;
 
+        // Node classes we've already driven through an install+restart this session that were still
+        // missing afterwards. Re-offering them just loops (the pack installs but its class never
+        // appears — e.g. an import failure from a missing dependency), so we suppress the dialog for
+        // them and let the submission surface the clear error instead.
+        private readonly HashSet<string> _attempted = new(StringComparer.Ordinal);
+
         public MissingNodeResolver(NodeInstallerService installer, IAppLogger logger)
         {
             _installer = installer;
@@ -34,6 +40,33 @@ namespace FlipPix.UI.Services
             catch (OperationCanceledException) { throw; }
             catch (Exception ex) { _logger.LogWarning($"Node repo resolution failed: {ex.Message}"); }
 
+            // Flag packs that are already present in custom_nodes: their class is still missing, so
+            // the pack is installed but failing to import — reinstalling can't fix that.
+            foreach (var n in missing)
+            {
+                n.AlreadyInstalled = _installer.IsPackPresent(n);
+                if (n.AlreadyInstalled)
+                    _logger.LogWarning(
+                        $"Node '{n.ClassType}' pack '{n.PackName}' is installed but not loaded (import failed). " +
+                        "Reinstalling won't help — check the ComfyUI console for its missing dependency.");
+            }
+
+            // A node is only worth offering if we know its pack, it isn't already installed-but-broken,
+            // and we haven't already tried it this session.
+            var installable = missing.Where(n =>
+                !string.IsNullOrEmpty(n.RepoUrl)
+                && !n.AlreadyInstalled
+                && !_attempted.Contains(n.ClassType)).ToList();
+
+            if (installable.Count == 0)
+            {
+                // Nothing we can usefully auto-install. Don't re-show the dialog (that's the loop);
+                // return false so the caller reports the missing node(s) with actionable text.
+                _logger.LogInfo("No auto-installable missing nodes; surfacing the error instead of re-prompting.");
+                return false;
+            }
+
+            foreach (var n in installable) _attempted.Add(n.ClassType);
             return await ShowDialogAsync(missing);
         }
 

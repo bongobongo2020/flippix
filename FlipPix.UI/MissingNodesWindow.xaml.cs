@@ -34,48 +34,66 @@ namespace FlipPix.UI
             foreach (var n in missing)
                 _rows.Add(new Row(n)
                 {
-                    Status = string.IsNullOrEmpty(n.RepoUrl) ? "No known pack" : "Ready to install"
+                    Status = n.AlreadyInstalled
+                        ? "Installed but failed to load — see ComfyUI console"
+                        : (string.IsNullOrEmpty(n.RepoUrl) ? "No known pack" : "Ready to install")
                 });
 
             NodesList.ItemsSource = _rows;
+
+            // Packs already present but failing to import can't be fixed by reinstalling.
+            if (_rows.Any(r => r.Info.AlreadyInstalled))
+                IntroText.Text =
+                    "One or more of these packs is already installed but failed to load in ComfyUI — usually a " +
+                    "missing Python/SDK dependency (for example the NVIDIA RTX nodes need the Video Effects SDK / nvvfx). " +
+                    "Reinstalling won't fix that: check the ComfyUI console for the import error, install the missing " +
+                    "dependency (or remove that node from the workflow), then click Retry.";
 
             var installable = _installer.CanInstallLocally();
             if (!installable)
             {
                 InstallButton.IsEnabled = false;
                 RetryButton.IsEnabled = true; // let the user retry after installing manually
-                IntroText.Text =
-                    "This workflow uses the custom node(s) below, which the connected ComfyUI doesn't have. " +
-                    "Automatic install works only for a local ComfyUI, so install the pack(s) listed below on " +
-                    "the server (e.g. via ComfyUI-Manager → \"Install Missing Custom Nodes\"), restart ComfyUI, then click Retry.";
-                foreach (var r in _rows)
+                if (!_rows.Any(r => r.Info.AlreadyInstalled))
+                    IntroText.Text =
+                        "This workflow uses the custom node(s) below, which the connected ComfyUI doesn't have. " +
+                        "Automatic install works only for a local ComfyUI, so install the pack(s) listed below on " +
+                        "the server (e.g. via ComfyUI-Manager → \"Install Missing Custom Nodes\"), restart ComfyUI, then click Retry.";
+                foreach (var r in _rows.Where(r => !r.Info.AlreadyInstalled))
                     r.Status = string.IsNullOrEmpty(r.Info.RepoUrl) ? "Search in ComfyUI-Manager" : r.Info.RepoUrl;
             }
             else if (!_installer.GitAvailable())
             {
                 InstallButton.IsEnabled = false;
                 RetryButton.IsEnabled = true;
-                IntroText.Text =
-                    "This workflow uses the custom node(s) below, which the connected ComfyUI doesn't have. " +
-                    "Git isn't available to clone the packs automatically — install git (or use ComfyUI-Manager), " +
-                    "install the pack(s) below, restart ComfyUI, then click Retry.";
-                foreach (var r in _rows)
+                if (!_rows.Any(r => r.Info.AlreadyInstalled))
+                    IntroText.Text =
+                        "This workflow uses the custom node(s) below, which the connected ComfyUI doesn't have. " +
+                        "Git isn't available to clone the packs automatically — install git (or use ComfyUI-Manager), " +
+                        "install the pack(s) below, restart ComfyUI, then click Retry.";
+                foreach (var r in _rows.Where(r => !r.Info.AlreadyInstalled))
                     r.Status = string.IsNullOrEmpty(r.Info.RepoUrl) ? "Search in ComfyUI-Manager" : r.Info.RepoUrl;
             }
             else
             {
-                InstallButton.IsEnabled = _rows.Any(r => !string.IsNullOrEmpty(r.Info.RepoUrl));
+                InstallButton.IsEnabled = _rows.Any(IsInstallable);
                 if (!InstallButton.IsEnabled)
-                    SetStatus("Couldn't identify the pack(s) for these nodes. Install them via ComfyUI-Manager, then click Retry.");
+                    SetStatus(_rows.Any(r => r.Info.AlreadyInstalled)
+                        ? "The pack(s) are installed but failing to load — fix the dependency in ComfyUI's console (see above), then click Retry."
+                        : "Couldn't identify the pack(s) for these nodes. Install them via ComfyUI-Manager, then click Retry.");
                 RetryButton.IsEnabled = true;
             }
         }
+
+        // A row can be auto-installed only if we know its pack and it isn't already installed-but-broken.
+        private static bool IsInstallable(Row r) =>
+            !r.Installed && !r.Info.AlreadyInstalled && !string.IsNullOrEmpty(r.Info.RepoUrl);
 
         private async void InstallButton_Click(object sender, RoutedEventArgs e)
         {
             if (_busy) return;
 
-            var targets = _rows.Where(r => !r.Installed && !string.IsNullOrEmpty(r.Info.RepoUrl)).ToList();
+            var targets = _rows.Where(IsInstallable).ToList();
             if (targets.Count == 0)
             {
                 SetStatus("Nothing to install automatically — install the pack(s) via ComfyUI-Manager, then click Retry.");
@@ -164,7 +182,7 @@ namespace FlipPix.UI
             {
                 _busy = false;
                 Progress.Visibility = Visibility.Collapsed;
-                InstallButton.IsEnabled = _rows.Any(r => !r.Installed && !string.IsNullOrEmpty(r.Info.RepoUrl))
+                InstallButton.IsEnabled = _rows.Any(IsInstallable)
                                           && _installer.CanInstallLocally() && _installer.GitAvailable();
                 RetryButton.IsEnabled = true;
             }

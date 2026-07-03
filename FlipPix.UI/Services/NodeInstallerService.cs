@@ -72,6 +72,32 @@ namespace FlipPix.UI.Services
         /// <summary>True when packs can be cloned+installed locally (local server with a known ComfyUI folder).</summary>
         public bool CanInstallLocally() => ResolveCustomNodesDir() != null;
 
+        /// <summary>
+        /// True when the pack that provides <paramref name="node"/> already exists in the local
+        /// custom_nodes folder. Since the node's class is still missing from /object_info, that means
+        /// the pack is installed but failing to import (a missing dependency), so reinstalling it
+        /// won't help — the resolver uses this to avoid an endless install/restart loop. Local only;
+        /// returns false for a remote server or when the providing repo isn't known.
+        /// </summary>
+        public bool IsPackPresent(MissingNodeInfo node)
+        {
+            var dir = ResolveCustomNodesDir();
+            if (dir == null || node == null || string.IsNullOrEmpty(node.RepoUrl)) return false;
+            var name = NodeCatalog.PackNameFromRepo(node.RepoUrl);
+            if (string.IsNullOrEmpty(name)) return false;
+            // A pack Manager has disabled is named "<pack>.disabled"; treat that as present too.
+            foreach (var candidate in new[] { name, name + ".disabled" })
+            {
+                try
+                {
+                    var p = Path.Combine(dir, candidate);
+                    if (Directory.Exists(p) && Directory.EnumerateFileSystemEntries(p).Any()) return true;
+                }
+                catch { /* ignore unreadable entries */ }
+            }
+            return false;
+        }
+
         /// <summary>True if a usable git executable is on PATH.</summary>
         public bool GitAvailable()
         {
