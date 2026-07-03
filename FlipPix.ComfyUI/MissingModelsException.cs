@@ -1,5 +1,7 @@
 using System;
 using System.Collections.Generic;
+using System.Linq;
+using FlipPix.Core.Models;
 
 namespace FlipPix.ComfyUI;
 
@@ -13,9 +15,20 @@ public class MissingModelsException : Exception
     /// <summary>The distinct model filenames the workflow needs but ComfyUI doesn't expose.</summary>
     public IReadOnlyList<string> MissingModels { get; }
 
+    /// <summary>The same missing models with their inferred ComfyUI category, for the resolver.</summary>
+    public IReadOnlyList<MissingModelInfo> Details { get; }
+
     public MissingModelsException(string message, IReadOnlyList<string> missingModels)
         : base(message)
     {
         MissingModels = missingModels;
+        Details = Array.Empty<MissingModelInfo>();
+    }
+
+    public MissingModelsException(string message, IReadOnlyList<MissingModelInfo> details)
+        : base(message)
+    {
+        Details = details;
+        MissingModels = details.Select(d => d.Name).ToList();
     }
 }

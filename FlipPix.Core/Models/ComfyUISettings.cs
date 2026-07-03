@@ -17,6 +17,16 @@ public class ComfyUISettings
     public string KreaLoraFolderPath { get; set; } = string.Empty; // Network path to the Krea2 LoRA folder (e.g. loras\krea2)
     public string WslModelsFolderPath { get; set; } = string.Empty; // Windows models folder to expose to a WSL ComfyUI (e.g. E:\aimodels\comfyui\models)
 
+    // Network/UNC path to a REMOTE ComfyUI's "models" folder. Lets the missing-model resolver
+    // install (download/copy) weights for a remote server FlipPix can't reach via local disk.
+    // Empty until the user points at it the first time a remote model is missing.
+    public string RemoteModelsFolderPath { get; set; } = string.Empty;
+
+    // Folders the user has pointed at when locating an already-downloaded model (e.g. another
+    // ComfyUI's models dir, or a downloads folder). The missing-model resolver scans these first,
+    // silently, on every future miss so the "where is it?" prompt only happens once. Most-recent first.
+    public List<string> UserModelSourceFolders { get; set; } = new();
+
     // VRAM tier: controls whether the app loads full-size workflows or the memory-optimized
     // ones under workflow/16gb. "auto" decides from the GPU VRAM reported by ComfyUI's
     // /system_stats; "full" / "16gb" force a tier regardless of detection.
