@@ -40,7 +40,9 @@ namespace FlipPix.UI.Services
         {
             _settingsService = settingsService;
             _logger = logger;
-            _managerClient = new HttpClient { Timeout = TimeSpan.FromSeconds(30) };
+            // Generous ceiling: a Manager git-URL install (clone + requirements) can take minutes.
+            // Short operations (probes, reboot, getmappings) bound themselves with their own CTS.
+            _managerClient = new HttpClient { Timeout = TimeSpan.FromMinutes(12) };
         }
 
         private ComfyUISettings Settings => _settingsService.Settings;
@@ -82,45 +84,6 @@ namespace FlipPix.UI.Services
         }
 
         /// <summary>
-        /// Locates the Python interpreter to install requirements with: the portable build's
-        /// python_embeded, a venv, or (last resort) "python" on PATH. Null if none is usable.
-        /// </summary>
-        public string? ResolvePython()
-        {
-            var comfy = Settings.ComfyUIFolderPath;
-            if (!string.IsNullOrWhiteSpace(comfy) && Directory.Exists(comfy))
-            {
-                var portableRoot = Directory.GetParent(comfy)?.FullName;
-                var candidates = new List<string>();
-                void Add(string? baseDir, params string[] parts)
-                {
-                    if (string.IsNullOrEmpty(baseDir)) return;
-                    var all = new List<string> { baseDir };
-                    all.AddRange(parts);
-                    candidates.Add(Path.Combine(all.ToArray()));
-                }
-                Add(portableRoot, "python_embeded", "python.exe");
-                Add(comfy, "venv", "Scripts", "python.exe");
-                Add(portableRoot, "venv", "Scripts", "python.exe");
-                Add(comfy, ".venv", "Scripts", "python.exe");
-                Add(comfy, "venv", "bin", "python");        // non-Windows layouts
-                Add(portableRoot, "venv", "bin", "python");
-
-                foreach (var c in candidates)
-                    if (File.Exists(c)) return c;
-            }
-
-            // Fall back to whatever "python" is on PATH (best-effort; may not be ComfyUI's).
-            try
-            {
-                if (RunProcess("python", "--version", null, null, TimeSpan.FromSeconds(10)) == 0)
-                    return "python";
-            }
-            catch { /* ignore */ }
-            return null;
-        }
-
-        /// <summary>
         /// Fills in <see cref="MissingNodeInfo.RepoUrl"/>/<see cref="MissingNodeInfo.PackName"/> for any
         /// node not already resolved by the offline catalog, by querying the running ComfyUI-Manager's
         /// node map. Best-effort — leaves them empty when Manager isn't reachable or doesn't know the node.
@@ -152,22 +115,48 @@ namespace FlipPix.UI.Services
         public async Task<NodeInstallResult> InstallAsync(
             MissingNodeInfo node, IProgress<string>? log, CancellationToken ct)
         {
-            var customDir = ResolveCustomNodesDir();
-            if (customDir == null) return NodeInstallResult.NoRepo;
             if (string.IsNullOrEmpty(node.RepoUrl)) return NodeInstallResult.NoRepo;
+            var packName = NodeCatalog.PackNameFromRepo(node.RepoUrl);
+
+            // Preferred path: let ComfyUI-Manager install the pack. Manager clones it AND installs its
+            // Python requirements using its own torch-aware pip routine, so it won't replace the
+            // portable build's CUDA torch with a CPU wheel (which is what breaks ComfyUI startup with
+            // "Torch not compiled with CUDA enabled"). Works for remote servers too.
+            var mgr = await TryManagerInstallGitUrlAsync(node.RepoUrl, log, ct);
+            if (mgr == ManagerInstall.Ok)
+            {
+                log?.Report($"{packName}: installed via ComfyUI-Manager.");
+                return NodeInstallResult.Installed;
+            }
+            if (mgr == ManagerInstall.Forbidden)
+                log?.Report($"{packName}: ComfyUI-Manager blocked git-URL install (security level). " +
+                            "Install it from Manager's node list, or enable git-URL installs in Manager.");
+
+            // Fallback (Manager unavailable): clone the pack into custom_nodes locally. We deliberately
+            // do NOT run pip on the node's requirements ourselves — a requirements file can pull a
+            // CPU-only torch/xformers that shadows the portable CUDA build and stops ComfyUI from
+            // starting. Cloning only is safe; ComfyUI-Manager installs any Python deps on next start.
+            var customDir = ResolveCustomNodesDir();
+            if (customDir == null)
+            {
+                // Remote server and Manager couldn't do it -> we can't install from here.
+                return NodeInstallResult.NoRepo;
+            }
+            if (!GitAvailable())
+            {
+                log?.Report($"{packName}: git isn't available to clone the pack. Install it via ComfyUI-Manager.");
+                return NodeInstallResult.Failed;
+            }
 
             try
             {
                 Directory.CreateDirectory(customDir);
-                var packName = NodeCatalog.PackNameFromRepo(node.RepoUrl);
                 var dest = Path.Combine(customDir, packName);
 
                 if (Directory.Exists(dest) && Directory.EnumerateFileSystemEntries(dest).Any())
                 {
-                    // Pack folder already present. It may just need requirements / a restart.
-                    log?.Report($"{packName} already cloned — updating and installing requirements.");
+                    log?.Report($"{packName} already present — updating.");
                     await Task.Run(() => RunProcess("git", $"-C \"{dest}\" pull --ff-only", customDir, log, TimeSpan.FromMinutes(3)), ct);
-                    await InstallRequirementsAsync(dest, packName, log, ct);
                     return NodeInstallResult.AlreadyPresent;
                 }
 
@@ -179,9 +168,14 @@ namespace FlipPix.UI.Services
                     _logger.LogError($"git clone failed for {node.RepoUrl} (exit {clone})");
                     return NodeInstallResult.Failed;
                 }
-                log?.Report($"Cloned {packName}.");
 
-                await InstallRequirementsAsync(dest, packName, log, ct);
+                // Warn if the pack has Python requirements we intentionally skipped, so the user knows
+                // to let ComfyUI-Manager install them (safely) rather than assuming it's fully ready.
+                if (File.Exists(Path.Combine(dest, "requirements.txt")))
+                    log?.Report($"Cloned {packName}. It has Python requirements — ComfyUI-Manager will install them on restart.");
+                else
+                    log?.Report($"Cloned {packName}.");
+
                 return NodeInstallResult.Installed;
             }
             catch (OperationCanceledException) { throw; }
@@ -192,24 +186,40 @@ namespace FlipPix.UI.Services
             }
         }
 
-        private async Task InstallRequirementsAsync(string packDir, string packName, IProgress<string>? log, CancellationToken ct)
+        private enum ManagerInstall { Ok, Forbidden, Unavailable }
+
+        /// <summary>
+        /// Asks the running ComfyUI-Manager to install a pack by git URL (POST /customnode/install/git_url,
+        /// JSON body {"url": ...}). Manager clones it and installs its requirements with its own
+        /// torch-safe pip handling. Returns Ok on success, Forbidden if Manager's security level blocks
+        /// git-URL installs, or Unavailable if Manager isn't reachable / doesn't expose the endpoint.
+        /// </summary>
+        private async Task<ManagerInstall> TryManagerInstallGitUrlAsync(string repoUrl, IProgress<string>? log, CancellationToken ct)
         {
-            var req = Path.Combine(packDir, "requirements.txt");
-            if (!File.Exists(req)) return;
-
-            var python = ResolvePython();
-            if (python == null)
+            try
             {
-                log?.Report($"{packName}: no Python found to install requirements — restart ComfyUI to let it install them.");
-                _logger.LogWarning($"Could not resolve Python to install requirements for {packName}.");
-                return;
+                var baseUrl = Settings.BaseUrl.TrimEnd('/');
+                log?.Report($"Asking ComfyUI-Manager to install {NodeCatalog.PackNameFromRepo(repoUrl)} ...");
+                using var reqCts = CancellationTokenSource.CreateLinkedTokenSource(ct);
+                reqCts.CancelAfter(TimeSpan.FromMinutes(10)); // clone + requirements can be slow
+                using var body = new StringContent(
+                    JsonSerializer.Serialize(new { url = repoUrl }), Encoding.UTF8, "application/json");
+                var resp = await _managerClient.PostAsync(baseUrl + "/customnode/install/git_url", body, reqCts.Token);
+                if (resp.IsSuccessStatusCode) return ManagerInstall.Ok;
+                if ((int)resp.StatusCode == 403)
+                {
+                    _logger.LogWarning("ComfyUI-Manager git_url install returned 403 (allow_git_url_install disabled).");
+                    return ManagerInstall.Forbidden;
+                }
+                _logger.LogInfo($"ComfyUI-Manager git_url install returned {(int)resp.StatusCode}; falling back to local clone.");
+                return ManagerInstall.Unavailable;
             }
-
-            log?.Report($"Installing requirements for {packName} ...");
-            var args = $"-s -m pip install -r \"{req}\" --no-warn-script-location";
-            var code = await Task.Run(() => RunProcess(python, args, packDir, log, TimeSpan.FromMinutes(15)), ct);
-            if (code != 0)
-                log?.Report($"{packName}: some requirements failed (ComfyUI may still load the node).");
+            catch (OperationCanceledException) when (ct.IsCancellationRequested) { throw; }
+            catch (Exception ex)
+            {
+                _logger.LogInfo($"ComfyUI-Manager git_url install not available: {ex.Message}");
+                return ManagerInstall.Unavailable;
+            }
         }
 
         /// <summary>
