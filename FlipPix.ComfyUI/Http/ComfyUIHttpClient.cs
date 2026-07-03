@@ -17,6 +17,20 @@ public class ComfyUIHttpClient : IDisposable
     private readonly ComfyUISettings _settings;
     private bool _disposed = false;
 
+    /// <summary>
+    /// Optional handler that can install model files a workflow needs but ComfyUI is missing
+    /// (download or copy from a user-selected folder). Set by the UI layer after DI is built.
+    /// When null, missing models fail the submission with <see cref="MissingModelsException"/>.
+    /// </summary>
+    public IMissingModelResolver? MissingModelResolver { get; set; }
+
+    /// <summary>
+    /// Optional handler that can install custom-node packs a workflow needs but ComfyUI is missing
+    /// (git clone into custom_nodes + restart). Set by the UI layer after DI is built. When null,
+    /// missing nodes fail the submission with <see cref="MissingNodesException"/>.
+    /// </summary>
+    public IMissingNodeResolver? MissingNodeResolver { get; set; }
+
     // Cached path separator of the connected ComfyUI host ('/' on Linux/Mac, '\' on
     // Windows). Detected once per session from /system_stats and used to rewrite
     // model-file paths in submitted workflows so the same JSON runs on either host.
@@ -348,19 +362,94 @@ public class ComfyUIHttpClient : IDisposable
             var hostSep = await GetHostPathSeparatorAsync(cancellationToken);
             workflow = NormalizeModelPathSeparators(workflow, hostSep);
 
+            // Pre-submit validation (nodes first): catch custom-node types the workflow references
+            // but ComfyUI doesn't have loaded, and offer to install them instead of failing with
+            // ComfyUI's raw "missing_node_type" dump. Done before the model check because a missing
+            // node isn't in /object_info, so its model inputs can't be validated until it's installed.
+            var missingNodes = await FindMissingNodesAsync(workflow, cancellationToken);
+            if (missingNodes.Count > 0)
+            {
+                if (MissingNodeResolver != null)
+                {
+                    _logger.LogInfo($"Pre-submit validation found {missingNodes.Count} missing node(s); invoking resolver.");
+                    bool resolved;
+                    try
+                    {
+                        resolved = await MissingNodeResolver.TryResolveAsync(missingNodes, cancellationToken);
+                    }
+                    catch (OperationCanceledException) { throw; }
+                    catch (Exception ex)
+                    {
+                        _logger.LogError(ex, "Missing-node resolver threw; surfacing the original error.");
+                        resolved = false;
+                    }
+
+                    if (resolved)
+                    {
+                        // ComfyUI was (re)started with the new packs; its node/model lists changed.
+                        InvalidateObjectInfoCache();
+                        missingNodes = await FindMissingNodesAsync(workflow, cancellationToken);
+                        if (missingNodes.Count == 0)
+                            _logger.LogInfo("All missing nodes resolved; continuing submission.");
+                    }
+                }
+
+                if (missingNodes.Count > 0)
+                {
+                    var bullets = string.Join("\n", missingNodes.Select(n =>
+                        string.IsNullOrEmpty(n.PackName) ? $"  • {n.ClassType}" : $"  • {n.ClassType}  ({n.PackName})"));
+                    var message =
+                        "This workflow needs custom node(s) that aren't installed in the connected ComfyUI:\n\n" +
+                        bullets +
+                        "\n\nInstall the custom node pack(s) into ComfyUI (e.g. via ComfyUI-Manager's " +
+                        "\"Install Missing Custom Nodes\"), restart ComfyUI, then try again.";
+                    _logger.LogWarning($"Pre-submit validation blocked submission; {missingNodes.Count} missing node(s): {string.Join(", ", missingNodes.Select(n => n.ClassType))}");
+                    throw new FlipPix.ComfyUI.MissingNodesException(message, missingNodes);
+                }
+            }
+
             // Pre-submit validation: catch model files the workflow references but ComfyUI doesn't
             // have, and fail with a clear message instead of ComfyUI's raw "value_not_in_list" dump.
             var missingModels = await FindMissingModelsAsync(workflow, cancellationToken);
             if (missingModels.Count > 0)
             {
-                var bullets = string.Join("\n", missingModels.Select(m => $"  • {m}"));
-                var message =
-                    "This workflow needs model file(s) that aren't installed in the connected ComfyUI:\n\n" +
-                    bullets +
-                    "\n\nInstall the missing model(s) into ComfyUI's model folders (or choose an installed " +
-                    "alternative in the workflow), then try again.";
-                _logger.LogWarning($"Pre-submit validation blocked submission; {missingModels.Count} missing model(s): {string.Join(", ", missingModels)}");
-                throw new FlipPix.ComfyUI.MissingModelsException(message, missingModels);
+                // Give the resolver (UI) a chance to download/copy the files in. If it succeeds,
+                // re-validate against a fresh /object_info and proceed when nothing is missing.
+                if (MissingModelResolver != null)
+                {
+                    _logger.LogInfo($"Pre-submit validation found {missingModels.Count} missing model(s); invoking resolver.");
+                    bool resolved;
+                    try
+                    {
+                        resolved = await MissingModelResolver.TryResolveAsync(missingModels, cancellationToken);
+                    }
+                    catch (OperationCanceledException) { throw; }
+                    catch (Exception ex)
+                    {
+                        _logger.LogError(ex, "Missing-model resolver threw; surfacing the original error.");
+                        resolved = false;
+                    }
+
+                    if (resolved)
+                    {
+                        InvalidateObjectInfoCache();
+                        missingModels = await FindMissingModelsAsync(workflow, cancellationToken);
+                        if (missingModels.Count == 0)
+                            _logger.LogInfo("All missing models resolved; continuing submission.");
+                    }
+                }
+
+                if (missingModels.Count > 0)
+                {
+                    var bullets = string.Join("\n", missingModels.Select(m => $"  • {m.Name}"));
+                    var message =
+                        "This workflow needs model file(s) that aren't installed in the connected ComfyUI:\n\n" +
+                        bullets +
+                        "\n\nInstall the missing model(s) into ComfyUI's model folders (or choose an installed " +
+                        "alternative in the workflow), then try again.";
+                    _logger.LogWarning($"Pre-submit validation blocked submission; {missingModels.Count} missing model(s): {string.Join(", ", missingModels.Select(m => m.Name))}");
+                    throw new FlipPix.ComfyUI.MissingModelsException(message, missingModels);
+                }
             }
 
             var request = new PromptRequest
@@ -1317,6 +1406,15 @@ public class ComfyUIHttpClient : IDisposable
         return json;
     }
 
+    /// <summary>
+    /// Drops the cached /object_info so the next validation re-reads ComfyUI's model lists. Called
+    /// after the resolver installs a model so a freshly-copied file is seen without waiting for TTL.
+    /// </summary>
+    public void InvalidateObjectInfoCache()
+    {
+        _objectInfoCacheJson = null;
+    }
+
     private static bool HasModelExtension(string s)
     {
         foreach (var ext in ModelFileExtensions)
@@ -1330,9 +1428,9 @@ public class ComfyUIHttpClient : IDisposable
     /// missing filenames. Best-effort: returns empty (lets the server decide) if it can't validate,
     /// so a parsing hiccup never blocks a legitimate submission.
     /// </summary>
-    public async Task<List<string>> FindMissingModelsAsync(object workflow, CancellationToken cancellationToken = default)
+    public async Task<List<MissingModelInfo>> FindMissingModelsAsync(object workflow, CancellationToken cancellationToken = default)
     {
-        var missing = new List<string>();
+        var missing = new List<MissingModelInfo>();
         try
         {
             var promptJson = JsonSerializer.Serialize(workflow);
@@ -1344,10 +1442,19 @@ public class ComfyUIHttpClient : IDisposable
             using var oiDoc = JsonDocument.Parse(oiJson);
             var oiRoot = oiDoc.RootElement;
 
+            // ComfyUI prunes nodes that don't feed an output node before it validates or
+            // executes a prompt, so a workflow can carry leftover/orphan loader nodes (e.g. an
+            // unused Wav2Vec/VAE loader) that reference models the server never loads. Mirror
+            // that: only validate nodes reachable from an output node so those orphans don't
+            // raise false "missing model" errors. Falls back to validating everything when no
+            // output node can be identified.
+            var reachable = GetReachableNodeIds(promptDoc.RootElement, oiRoot);
+
             var seen = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
 
             foreach (var nodeProp in promptDoc.RootElement.EnumerateObject())
             {
+                if (reachable != null && !reachable.Contains(nodeProp.Name)) continue;
                 var node = nodeProp.Value;
                 if (node.ValueKind != JsonValueKind.Object) continue;
                 if (!node.TryGetProperty("class_type", out var ctEl) || ctEl.ValueKind != JsonValueKind.String) continue;
@@ -1379,21 +1486,197 @@ public class ComfyUIHttpClient : IDisposable
                     }
                     if (found || !looksModel) continue;
 
-                    if (seen.Add(value)) missing.Add(value);
+                    if (seen.Add(value))
+                        missing.Add(new MissingModelInfo
+                        {
+                            Name = value,
+                            ClassType = classType,
+                            Category = GetModelCategory(classType, inp.Name)
+                        });
                 }
             }
         }
         catch (Exception ex)
         {
             _logger.LogWarning($"FindMissingModelsAsync failed (skipping validation): {ex.Message}");
-            return new List<string>();
+            return new List<MissingModelInfo>();
         }
         return missing;
     }
 
     /// <summary>
+    /// Finds custom-node class types a workflow references that the connected ComfyUI hasn't loaded
+    /// (i.e. absent from /object_info) — the "missing_node_type" case ComfyUI would otherwise reject
+    /// the whole prompt for. Only validates nodes reachable from an output node (same pruning as the
+    /// model check) so orphan/annotation nodes don't raise false positives. Each result is enriched
+    /// with the providing pack from the offline <see cref="NodeCatalog"/> when known; the resolver
+    /// fills in anything else from the running ComfyUI-Manager. Best-effort: returns empty (lets the
+    /// server decide) if it can't validate, so a parsing hiccup never blocks a legitimate submission.
+    /// </summary>
+    public async Task<List<MissingNodeInfo>> FindMissingNodesAsync(object workflow, CancellationToken cancellationToken = default)
+    {
+        var missing = new List<MissingNodeInfo>();
+        try
+        {
+            var promptJson = JsonSerializer.Serialize(workflow);
+            using var promptDoc = JsonDocument.Parse(promptJson);
+            if (promptDoc.RootElement.ValueKind != JsonValueKind.Object) return missing;
+
+            var oiJson = await GetObjectInfoJsonAsync(cancellationToken);
+            if (oiJson == null) return missing; // can't validate -> don't block
+            using var oiDoc = JsonDocument.Parse(oiJson);
+            var oiRoot = oiDoc.RootElement;
+
+            var reachable = GetReachableNodeIds(promptDoc.RootElement, oiRoot);
+            var seen = new HashSet<string>(StringComparer.Ordinal);
+
+            foreach (var nodeProp in promptDoc.RootElement.EnumerateObject())
+            {
+                if (reachable != null && !reachable.Contains(nodeProp.Name)) continue;
+                var node = nodeProp.Value;
+                if (node.ValueKind != JsonValueKind.Object) continue;
+                if (!node.TryGetProperty("class_type", out var ctEl) || ctEl.ValueKind != JsonValueKind.String) continue;
+                var classType = ctEl.GetString();
+                if (string.IsNullOrEmpty(classType)) continue;
+
+                // Loaded on the server -> not missing.
+                if (oiRoot.TryGetProperty(classType, out _)) continue;
+                if (!seen.Add(classType)) continue;
+
+                var title = "";
+                if (node.TryGetProperty("_meta", out var meta)
+                    && meta.TryGetProperty("title", out var titleEl)
+                    && titleEl.ValueKind == JsonValueKind.String)
+                    title = titleEl.GetString() ?? "";
+
+                var repo = FlipPix.Core.Services.NodeCatalog.GetRepoUrl(classType);
+                missing.Add(new MissingNodeInfo
+                {
+                    ClassType = classType,
+                    Title = title,
+                    RepoUrl = repo ?? "",
+                    PackName = repo != null ? FlipPix.Core.Services.NodeCatalog.PackNameFromRepo(repo) : ""
+                });
+            }
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning($"FindMissingNodesAsync failed (skipping validation): {ex.Message}");
+            return new List<MissingNodeInfo>();
+        }
+        return missing;
+    }
+
+    /// <summary>
+    /// Computes the set of node ids ComfyUI would actually execute for this prompt: every output
+    /// node (object_info "output_node": true) plus everything reachable from one by following input
+    /// links (`["sourceId", slot]`). Returns null when no output node can be identified (e.g. all
+    /// outputs are unknown custom nodes) so the caller validates every node rather than pruning blindly.
+    /// </summary>
+    private static HashSet<string>? GetReachableNodeIds(JsonElement prompt, JsonElement oiRoot)
+    {
+        var allIds = new HashSet<string>();
+        var outputNodes = new List<string>();
+        foreach (var nodeProp in prompt.EnumerateObject())
+        {
+            allIds.Add(nodeProp.Name);
+            var node = nodeProp.Value;
+            if (node.ValueKind != JsonValueKind.Object) continue;
+            if (!node.TryGetProperty("class_type", out var ctEl) || ctEl.ValueKind != JsonValueKind.String) continue;
+            if (oiRoot.TryGetProperty(ctEl.GetString()!, out var oiNode)
+                && oiNode.TryGetProperty("output_node", out var on)
+                && on.ValueKind == JsonValueKind.True)
+            {
+                outputNodes.Add(nodeProp.Name);
+            }
+        }
+
+        // No identifiable output node -> don't prune (validate everything, as before).
+        if (outputNodes.Count == 0) return null;
+
+        var reachable = new HashSet<string>();
+        var stack = new Stack<string>(outputNodes);
+        while (stack.Count > 0)
+        {
+            var id = stack.Pop();
+            if (!reachable.Add(id)) continue;
+            if (!prompt.TryGetProperty(id, out var node) || node.ValueKind != JsonValueKind.Object) continue;
+            if (!node.TryGetProperty("inputs", out var inputs) || inputs.ValueKind != JsonValueKind.Object) continue;
+            foreach (var inp in inputs.EnumerateObject())
+            {
+                // A link is [ "<nodeId>", <slot> ]; scalars/strings are literal inputs.
+                if (inp.Value.ValueKind == JsonValueKind.Array
+                    && inp.Value.GetArrayLength() >= 1
+                    && inp.Value[0].ValueKind == JsonValueKind.String)
+                {
+                    var src = inp.Value[0].GetString();
+                    if (!string.IsNullOrEmpty(src) && allIds.Contains(src))
+                        stack.Push(src);
+                }
+            }
+        }
+        return reachable;
+    }
+
+    /// <summary>
+    /// Maps a ComfyUI node class + combo input name to the models sub-folder the file belongs in
+    /// (mirrors ComfyUI's folder_paths conventions). Returns "" when it can't be inferred, in which
+    /// case the resolver falls back to mirroring the file's source layout.
+    /// </summary>
+    internal static string GetModelCategory(string classType, string inputName)
+    {
+        var ct = classType ?? "";
+        var key = (inputName ?? "").ToLowerInvariant();
+
+        // CLIP/text-encoder loaders and CLIP-vision loaders both use a "clip_name" input;
+        // disambiguate by the node class first.
+        if (ct.IndexOf("CLIPVision", StringComparison.OrdinalIgnoreCase) >= 0) return "clip_vision";
+        if (ct.IndexOf("ControlNet", StringComparison.OrdinalIgnoreCase) >= 0) return "controlnet";
+        if (ct.IndexOf("StyleModel", StringComparison.OrdinalIgnoreCase) >= 0) return "style_models";
+        if (ct.IndexOf("Upscale", StringComparison.OrdinalIgnoreCase) >= 0
+            && ct.IndexOf("Model", StringComparison.OrdinalIgnoreCase) >= 0) return "upscale_models";
+
+        switch (key)
+        {
+            case "ckpt_name": return "checkpoints";
+            case "vae_name": return "vae";
+            case "lora_name": return "loras";
+            case "control_net_name": return "controlnet";
+            case "style_model_name": return "style_models";
+            case "clip_name":
+            case "clip_name1":
+            case "clip_name2":
+            case "clip_name3":
+            case "clip_name4":
+                return "text_encoders";
+            case "unet_name":
+            case "gguf_name":
+            case "model_name" when ct.IndexOf("Unet", StringComparison.OrdinalIgnoreCase) >= 0
+                               || ct.IndexOf("GGUF", StringComparison.OrdinalIgnoreCase) >= 0
+                               || ct.IndexOf("Diffusion", StringComparison.OrdinalIgnoreCase) >= 0:
+                return "diffusion_models";
+            case "model_name" when ct.IndexOf("Upscale", StringComparison.OrdinalIgnoreCase) >= 0:
+                return "upscale_models";
+        }
+
+        // Fall back on the value's extension / class hints.
+        if (ct.IndexOf("Lora", StringComparison.OrdinalIgnoreCase) >= 0) return "loras";
+        if (ct.IndexOf("VAE", StringComparison.OrdinalIgnoreCase) >= 0) return "vae";
+        if (ct.IndexOf("Checkpoint", StringComparison.OrdinalIgnoreCase) >= 0) return "checkpoints";
+        if (ct.IndexOf("Unet", StringComparison.OrdinalIgnoreCase) >= 0
+            || ct.IndexOf("GGUF", StringComparison.OrdinalIgnoreCase) >= 0
+            || ct.IndexOf("Diffusion", StringComparison.OrdinalIgnoreCase) >= 0) return "diffusion_models";
+        if (ct.IndexOf("CLIP", StringComparison.OrdinalIgnoreCase) >= 0) return "text_encoders";
+
+        return "";
+    }
+
+    /// <summary>
     /// If <paramref name="inputKey"/> is a combo input on this node (required or optional), returns
-    /// its list of allowed string values. Combo shape: [ [values...], {meta} ].
+    /// its list of allowed string values. ComfyUI exposes two combo shapes:
+    ///   legacy: [ [values...], {meta} ]
+    ///   newer:  [ "COMBO", { "options": [values...], ... } ]   (e.g. GGUFLoaderKJ)
+    /// Both are handled; missing the newer one silently skipped GGUF/COMBO model checks.
     /// </summary>
     private static bool TryGetComboValues(JsonElement oiInput, string inputKey, out List<string> values)
     {
@@ -1403,11 +1686,31 @@ public class ComfyUIHttpClient : IDisposable
             if (!oiInput.TryGetProperty(section, out var sec) || sec.ValueKind != JsonValueKind.Object) continue;
             if (!sec.TryGetProperty(inputKey, out var spec)) continue;
             if (spec.ValueKind != JsonValueKind.Array || spec.GetArrayLength() == 0) return false;
+
             var first = spec[0];
-            if (first.ValueKind != JsonValueKind.Array) return false; // e.g. ["STRING", {...}] / ["INT", {...}]
-            foreach (var v in first.EnumerateArray())
-                if (v.ValueKind == JsonValueKind.String) values.Add(v.GetString()!);
-            return true;
+
+            // Legacy shape: the allowed values are the first array element.
+            if (first.ValueKind == JsonValueKind.Array)
+            {
+                foreach (var v in first.EnumerateArray())
+                    if (v.ValueKind == JsonValueKind.String) values.Add(v.GetString()!);
+                return true;
+            }
+
+            // Newer shape: ["COMBO", { "options": [...] }].
+            if (first.ValueKind == JsonValueKind.String
+                && string.Equals(first.GetString(), "COMBO", StringComparison.OrdinalIgnoreCase)
+                && spec.GetArrayLength() > 1
+                && spec[1].ValueKind == JsonValueKind.Object
+                && spec[1].TryGetProperty("options", out var options)
+                && options.ValueKind == JsonValueKind.Array)
+            {
+                foreach (var v in options.EnumerateArray())
+                    if (v.ValueKind == JsonValueKind.String) values.Add(v.GetString()!);
+                return true;
+            }
+
+            return false; // e.g. ["STRING", {...}] / ["INT", {...}]
         }
         return false;
     }

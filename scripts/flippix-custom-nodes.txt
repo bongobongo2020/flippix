@@ -53,5 +53,8 @@ https://github.com/ClownsharkBatwing/RES4LYF           # ClownsharKSampler_Beta,
 # --- llm / captioning ---
 https://github.com/stavsap/comfyui-ollama              # OllamaConnectivityV2, OllamaGenerateV2, OllamaOptionsV2
 
+# --- resolution / aspect helpers ---
+https://github.com/gseth/ControlAltAI-Nodes            # FluxResolutionNode (Flux Resolution Calc), Flux Sampler
+
 # --- metadata / saving ---
 https://github.com/alexopus/ComfyUI-Image-Saver        # Image Saver, String Literal (Image Saver), Simple Readable Metadata

@@ -43,6 +43,19 @@ namespace FlipPix.UI
             var settingsService = _serviceProvider.GetRequiredService<SettingsService>();
             settingsService.SetLogger(logger);
 
+            // Let the ComfyUI client offer to install missing models (download / locate folder)
+            // instead of failing the workflow with a dead-end error.
+            try
+            {
+                var httpClient = _serviceProvider.GetRequiredService<ComfyUIHttpClient>();
+                httpClient.MissingModelResolver = _serviceProvider.GetRequiredService<IMissingModelResolver>();
+                httpClient.MissingNodeResolver = _serviceProvider.GetRequiredService<IMissingNodeResolver>();
+            }
+            catch (Exception ex)
+            {
+                logger.LogWarning($"Could not wire missing-model/node resolver: {ex.Message}");
+            }
+
             // Resolve the VRAM tier up-front from saved settings so workflow routing is correct
             // even before (or without) a successful ComfyUI connection. CheckServerConnectivityAsync
             // refines DetectedVramGb from /system_stats when the server answers.
@@ -204,6 +217,10 @@ namespace FlipPix.UI
             services.AddSingleton<WindowPositionService>();
             services.AddSingleton<LoraManager>();
             services.AddSingleton<ComfyUIImageRetriever>();
+            services.AddSingleton<ModelInstallerService>();
+            services.AddSingleton<IMissingModelResolver, MissingModelResolver>();
+            services.AddSingleton<NodeInstallerService>();
+            services.AddSingleton<IMissingNodeResolver, MissingNodeResolver>();
 
             // LMStudioService with dynamic URL from SettingsService
             services.AddSingleton<LMStudioService>(provider =>
