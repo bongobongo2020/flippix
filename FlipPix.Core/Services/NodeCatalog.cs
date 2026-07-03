@@ -63,6 +63,29 @@ public static class NodeCatalog
         ["Image Saver"] = "https://github.com/alexopus/ComfyUI-Image-Saver",
     };
 
+    // Node class -> a specific pip package it needs (that ComfyUI's Python may be missing) and the
+    // extra index to get it from. These are targeted, known-safe dependencies — installing them is a
+    // valid fix when the pack is present but fails to import for lack of the module. Kept deliberately
+    // narrow (NOT a generic requirements install) so it can't drag in a CPU torch and break ComfyUI.
+    private static readonly Dictionary<string, (string package, string indexUrl)> _pipDepByClass =
+        new(StringComparer.OrdinalIgnoreCase)
+    {
+        // NVIDIA RTX Video Super Resolution needs the nvvfx module from the nvidia-vfx wheel
+        // (NVIDIA's index). It's framework-agnostic (DLPack) and has no torch dependency.
+        ["RTXVideoSuperResolution"] = ("nvidia-vfx", "https://pypi.nvidia.com"),
+    };
+
+    /// <summary>
+    /// Returns a specific pip package (and extra index URL) that <paramref name="classType"/> needs
+    /// but ComfyUI's Python may lack, or null if none is known. Used to fix an installed-but-broken
+    /// pack whose import fails only because this module is missing.
+    /// </summary>
+    public static (string package, string indexUrl)? GetPipDependency(string classType)
+    {
+        if (string.IsNullOrWhiteSpace(classType)) return null;
+        return _pipDepByClass.TryGetValue(classType, out var dep) ? dep : null;
+    }
+
     /// <summary>
     /// Returns the git URL of the pack that provides <paramref name="classType"/>, or null if the
     /// node isn't in this offline catalog.
