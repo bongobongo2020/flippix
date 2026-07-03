@@ -21,4 +21,12 @@ public class MissingNodeInfo
 
     /// <summary>Human-readable pack name for display, e.g. "ControlAltAI-Nodes". Empty when unknown.</summary>
     public string PackName { get; set; } = string.Empty;
+
+    /// <summary>
+    /// True when the providing pack is already present in ComfyUI's custom_nodes but its node class
+    /// still isn't available — i.e. the pack is installed but failing to import (usually a missing
+    /// Python/SDK dependency, e.g. the RTX nodes needing nvvfx). Reinstalling won't help, so the
+    /// resolver must not offer it as an auto-installable fix (that just loops).
+    /// </summary>
+    public bool AlreadyInstalled { get; set; }
 }
