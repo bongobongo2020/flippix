@@ -29,4 +29,14 @@ public class MissingNodeInfo
     /// resolver must not offer it as an auto-installable fix (that just loops).
     /// </summary>
     public bool AlreadyInstalled { get; set; }
+
+    /// <summary>
+    /// A specific pip package this node needs but ComfyUI's Python is missing (e.g. "nvidia-vfx" for
+    /// the RTX Video Super Resolution node's nvvfx module). Set from <c>NodeCatalog</c> when known.
+    /// Installing it is a targeted, torch-safe fix for an installed-but-broken pack. Empty otherwise.
+    /// </summary>
+    public string PipPackage { get; set; } = string.Empty;
+
+    /// <summary>Extra pip index URL to install <see cref="PipPackage"/> from (e.g. NVIDIA's). Empty = default PyPI only.</summary>
+    public string PipIndexUrl { get; set; } = string.Empty;
 }

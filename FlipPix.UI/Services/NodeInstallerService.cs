@@ -252,6 +252,67 @@ namespace FlipPix.UI.Services
         }
 
         /// <summary>
+        /// Installs a single, specific pip package (e.g. "nvidia-vfx") into the local ComfyUI's Python
+        /// to fix an installed-but-broken pack whose import fails only for a missing module. This is a
+        /// TARGETED install of a known package — never a requirements.txt sweep — and it runs with
+        /// PYTHONNOUSERSITE=1 so pip can't leak into the per-user site-packages (which is how a stray
+        /// CPU torch previously shadowed the portable CUDA build). Local installs only.
+        /// </summary>
+        public async Task<NodeInstallResult> InstallPipDependencyAsync(
+            MissingNodeInfo node, IProgress<string>? log, CancellationToken ct)
+        {
+            if (node == null || string.IsNullOrEmpty(node.PipPackage)) return NodeInstallResult.NoRepo;
+            if (ResolveCustomNodesDir() == null) return NodeInstallResult.NoRepo; // remote: we can't install into its Python
+
+            var python = ResolveEmbeddedPython();
+            if (python == null)
+            {
+                log?.Report($"Couldn't find ComfyUI's Python to install {node.PipPackage}. Install it manually into the ComfyUI Python.");
+                return NodeInstallResult.Failed;
+            }
+
+            // Specific package + extra index; -U to prefer the newest matching (abi3) wheel.
+            var args = $"-m pip install -U --no-build-isolation \"{node.PipPackage}\"";
+            if (!string.IsNullOrEmpty(node.PipIndexUrl))
+                args += $" --extra-index-url {node.PipIndexUrl}";
+
+            // The critical guard: no per-user site install, so this can never shadow the portable env.
+            var env = new Dictionary<string, string> { ["PYTHONNOUSERSITE"] = "1" };
+
+            log?.Report($"Installing {node.PipPackage} for {node.ClassType} (this can be a large download)...");
+            var code = await Task.Run(
+                () => RunProcess(python, args, Path.GetDirectoryName(python), log, TimeSpan.FromMinutes(30), env), ct);
+            if (code != 0)
+            {
+                log?.Report($"{node.PipPackage} install failed (exit {code}). See the log; you may need to install it manually.");
+                return NodeInstallResult.Failed;
+            }
+            log?.Report($"Installed {node.PipPackage}.");
+            return NodeInstallResult.Installed;
+        }
+
+        /// <summary>
+        /// Finds the local ComfyUI install's Python interpreter (portable python_embeded, or a venv).
+        /// Used only for the targeted dependency install above. Null if it can't be located.
+        /// </summary>
+        private string? ResolveEmbeddedPython()
+        {
+            var comfy = Settings.ComfyUIFolderPath;
+            if (string.IsNullOrWhiteSpace(comfy) || !Directory.Exists(comfy)) return null;
+            var portableRoot = Directory.GetParent(comfy)?.FullName;
+            var candidates = new[]
+            {
+                portableRoot != null ? Path.Combine(portableRoot, "python_embeded", "python.exe") : null,
+                Path.Combine(comfy, "venv", "Scripts", "python.exe"),
+                portableRoot != null ? Path.Combine(portableRoot, "venv", "Scripts", "python.exe") : null,
+                Path.Combine(comfy, ".venv", "Scripts", "python.exe"),
+            };
+            foreach (var c in candidates)
+                if (!string.IsNullOrEmpty(c) && File.Exists(c)) return c;
+            return null;
+        }
+
+        /// <summary>
         /// Restarts ComfyUI so freshly-installed custom nodes load, via ComfyUI-Manager's in-place
         /// reboot (which re-scans custom_nodes), then waits until it's fully ready again. Returns true
         /// only when the server was confirmed to cycle and come back with all nodes loaded — so a
@@ -428,7 +489,8 @@ namespace FlipPix.UI.Services
         /// Runs a console process, streaming stdout/stderr lines to <paramref name="log"/>, and returns
         /// its exit code (or -1 on timeout/failure to start). Synchronous; call via Task.Run.
         /// </summary>
-        private int RunProcess(string fileName, string arguments, string? workingDir, IProgress<string>? log, TimeSpan timeout)
+        private int RunProcess(string fileName, string arguments, string? workingDir, IProgress<string>? log, TimeSpan timeout,
+            IDictionary<string, string>? env = null)
         {
             try
             {
@@ -444,6 +506,8 @@ namespace FlipPix.UI.Services
                     StandardErrorEncoding = Encoding.UTF8,
                 };
                 if (!string.IsNullOrEmpty(workingDir)) psi.WorkingDirectory = workingDir;
+                if (env != null)
+                    foreach (var kv in env) psi.Environment[kv.Key] = kv.Value;
 
                 using var proc = new Process { StartInfo = psi };
                 var sb = new StringBuilder();

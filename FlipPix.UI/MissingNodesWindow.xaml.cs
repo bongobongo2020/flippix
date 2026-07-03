@@ -34,60 +34,75 @@ namespace FlipPix.UI
             foreach (var n in missing)
                 _rows.Add(new Row(n)
                 {
-                    Status = n.AlreadyInstalled
-                        ? "Installed but failed to load — see ComfyUI console"
-                        : (string.IsNullOrEmpty(n.RepoUrl) ? "No known pack" : "Ready to install")
+                    Status = !string.IsNullOrEmpty(n.PipPackage)
+                        ? $"Needs {n.PipPackage} — will install"
+                        : (n.AlreadyInstalled
+                            ? "Installed but failed to load — see ComfyUI console"
+                            : (string.IsNullOrEmpty(n.RepoUrl) ? "No known pack" : "Ready to install"))
                 });
 
             NodesList.ItemsSource = _rows;
 
-            // Packs already present but failing to import can't be fixed by reinstalling.
-            if (_rows.Any(r => r.Info.AlreadyInstalled))
+            var canLocal = _installer.CanInstallLocally();
+            var hasPipFix = _rows.Any(r => !string.IsNullOrEmpty(r.Info.PipPackage));
+            // A present-but-broken pack we DON'T know how to fix (no pip dependency) can't be repaired
+            // by reinstalling — surface that; but if we have a pip fix for it, we can install it.
+            var hasUnfixableBroken = _rows.Any(r => r.Info.AlreadyInstalled && string.IsNullOrEmpty(r.Info.PipPackage));
+
+            if (hasPipFix)
+                IntroText.Text =
+                    "A node below is installed but its Python dependency is missing (e.g. the NVIDIA RTX node needs " +
+                    "the nvidia-vfx / nvvfx package). FlipPix can install that dependency and restart ComfyUI. " +
+                    "The download can be large.";
+            else if (hasUnfixableBroken)
                 IntroText.Text =
                     "One or more of these packs is already installed but failed to load in ComfyUI — usually a " +
-                    "missing Python/SDK dependency (for example the NVIDIA RTX nodes need the Video Effects SDK / nvvfx). " +
-                    "Reinstalling won't fix that: check the ComfyUI console for the import error, install the missing " +
-                    "dependency (or remove that node from the workflow), then click Retry.";
+                    "missing Python/SDK dependency. Reinstalling won't fix that: check the ComfyUI console for the " +
+                    "import error, install the missing dependency (or remove that node from the workflow), then click Retry.";
 
-            var installable = _installer.CanInstallLocally();
-            if (!installable)
+            if (!canLocal)
             {
+                // Remote server: we can't clone into custom_nodes or install into its Python from here.
                 InstallButton.IsEnabled = false;
-                RetryButton.IsEnabled = true; // let the user retry after installing manually
-                if (!_rows.Any(r => r.Info.AlreadyInstalled))
+                RetryButton.IsEnabled = true;
+                if (!hasUnfixableBroken && !hasPipFix)
                     IntroText.Text =
                         "This workflow uses the custom node(s) below, which the connected ComfyUI doesn't have. " +
                         "Automatic install works only for a local ComfyUI, so install the pack(s) listed below on " +
                         "the server (e.g. via ComfyUI-Manager → \"Install Missing Custom Nodes\"), restart ComfyUI, then click Retry.";
-                foreach (var r in _rows.Where(r => !r.Info.AlreadyInstalled))
+                foreach (var r in _rows.Where(r => !r.Info.AlreadyInstalled && string.IsNullOrEmpty(r.Info.PipPackage)))
                     r.Status = string.IsNullOrEmpty(r.Info.RepoUrl) ? "Search in ComfyUI-Manager" : r.Info.RepoUrl;
             }
-            else if (!_installer.GitAvailable())
+            else if (!_installer.GitAvailable() && !hasPipFix)
             {
+                // Local but no git, and nothing is pip-fixable (git is only needed to clone packs).
                 InstallButton.IsEnabled = false;
                 RetryButton.IsEnabled = true;
-                if (!_rows.Any(r => r.Info.AlreadyInstalled))
+                if (!hasUnfixableBroken)
                     IntroText.Text =
                         "This workflow uses the custom node(s) below, which the connected ComfyUI doesn't have. " +
                         "Git isn't available to clone the packs automatically — install git (or use ComfyUI-Manager), " +
                         "install the pack(s) below, restart ComfyUI, then click Retry.";
-                foreach (var r in _rows.Where(r => !r.Info.AlreadyInstalled))
+                foreach (var r in _rows.Where(r => !r.Info.AlreadyInstalled && string.IsNullOrEmpty(r.Info.PipPackage)))
                     r.Status = string.IsNullOrEmpty(r.Info.RepoUrl) ? "Search in ComfyUI-Manager" : r.Info.RepoUrl;
             }
             else
             {
                 InstallButton.IsEnabled = _rows.Any(IsInstallable);
                 if (!InstallButton.IsEnabled)
-                    SetStatus(_rows.Any(r => r.Info.AlreadyInstalled)
+                    SetStatus(hasUnfixableBroken
                         ? "The pack(s) are installed but failing to load — fix the dependency in ComfyUI's console (see above), then click Retry."
                         : "Couldn't identify the pack(s) for these nodes. Install them via ComfyUI-Manager, then click Retry.");
                 RetryButton.IsEnabled = true;
             }
         }
 
-        // A row can be auto-installed only if we know its pack and it isn't already installed-but-broken.
+        // A row is auto-fixable if we know a specific pip dependency for it, or we can install its
+        // pack (known repo and it isn't already present-but-broken — reinstalling a broken pack loops).
         private static bool IsInstallable(Row r) =>
-            !r.Installed && !r.Info.AlreadyInstalled && !string.IsNullOrEmpty(r.Info.RepoUrl);
+            !r.Installed && (
+                !string.IsNullOrEmpty(r.Info.PipPackage)
+                || (!r.Info.AlreadyInstalled && !string.IsNullOrEmpty(r.Info.RepoUrl)));
 
         private async void InstallButton_Click(object sender, RoutedEventArgs e)
         {
@@ -109,7 +124,11 @@ namespace FlipPix.UI
                 {
                     ct.ThrowIfCancellationRequested();
                     row.Status = "Installing...";
-                    var result = await _installer.InstallAsync(row.Info, log, ct);
+                    // A pack that's present but broken for a known pip dependency is fixed by
+                    // installing that package (targeted, torch-safe); otherwise clone the pack.
+                    var result = !string.IsNullOrEmpty(row.Info.PipPackage)
+                        ? await _installer.InstallPipDependencyAsync(row.Info, log, ct)
+                        : await _installer.InstallAsync(row.Info, log, ct);
                     switch (result)
                     {
                         case NodeInstallResult.Installed:
@@ -182,8 +201,11 @@ namespace FlipPix.UI
             {
                 _busy = false;
                 Progress.Visibility = Visibility.Collapsed;
-                InstallButton.IsEnabled = _rows.Any(IsInstallable)
-                                          && _installer.CanInstallLocally() && _installer.GitAvailable();
+                // Re-enable if anything is still fixable: pip fixes need only a local Python;
+                // pack clones also need git.
+                var gitOk = _installer.CanInstallLocally() && _installer.GitAvailable();
+                InstallButton.IsEnabled = _installer.CanInstallLocally()
+                    && _rows.Any(r => IsInstallable(r) && (!string.IsNullOrEmpty(r.Info.PipPackage) || gitOk));
                 RetryButton.IsEnabled = true;
             }
         }

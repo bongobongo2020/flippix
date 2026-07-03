@@ -41,22 +41,30 @@ namespace FlipPix.UI.Services
             catch (Exception ex) { _logger.LogWarning($"Node repo resolution failed: {ex.Message}"); }
 
             // Flag packs that are already present in custom_nodes: their class is still missing, so
-            // the pack is installed but failing to import — reinstalling can't fix that.
+            // the pack is installed but failing to import. Also look up a known, specific pip
+            // dependency (e.g. nvidia-vfx for the RTX nodes) that would fix such an import failure.
             foreach (var n in missing)
             {
                 n.AlreadyInstalled = _installer.IsPackPresent(n);
-                if (n.AlreadyInstalled)
+                var dep = FlipPix.Core.Services.NodeCatalog.GetPipDependency(n.ClassType);
+                if (dep != null)
+                {
+                    n.PipPackage = dep.Value.package;
+                    n.PipIndexUrl = dep.Value.indexUrl;
+                }
+                if (n.AlreadyInstalled && string.IsNullOrEmpty(n.PipPackage))
                     _logger.LogWarning(
                         $"Node '{n.ClassType}' pack '{n.PackName}' is installed but not loaded (import failed). " +
                         "Reinstalling won't help — check the ComfyUI console for its missing dependency.");
             }
 
-            // A node is only worth offering if we know its pack, it isn't already installed-but-broken,
-            // and we haven't already tried it this session.
+            // A node is worth offering if we haven't tried it this session AND either: we know a
+            // specific pip dependency that fixes it, or we can install its pack (known repo, not
+            // already present-but-broken — reinstalling a broken pack just loops).
             var installable = missing.Where(n =>
-                !string.IsNullOrEmpty(n.RepoUrl)
-                && !n.AlreadyInstalled
-                && !_attempted.Contains(n.ClassType)).ToList();
+                !_attempted.Contains(n.ClassType)
+                && (!string.IsNullOrEmpty(n.PipPackage)
+                    || (!string.IsNullOrEmpty(n.RepoUrl) && !n.AlreadyInstalled))).ToList();
 
             if (installable.Count == 0)
             {
