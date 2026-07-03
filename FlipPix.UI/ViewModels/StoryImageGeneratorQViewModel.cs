@@ -123,7 +123,7 @@ namespace FlipPix.UI.ViewModels
 
         // --- Krea2 LoRA fields (loaded from the <loras>/krea2 subfolder) ---
         private ObservableCollection<string> _kreaLoras = new();
-        private string _kreaSelectedLora = string.Empty;
+        private ObservableCollection<KreaLoraSelection> _selectedKreaLoras = new();
         private string _kreaLoraSubfolder = "krea2";
 
         public ObservableCollection<string> KreaLoras
@@ -132,13 +132,18 @@ namespace FlipPix.UI.ViewModels
             set { if (_kreaLoras != value) { _kreaLoras = value; OnPropertyChanged(); } }
         }
 
-        public string KreaSelectedLora
+        /// <summary>
+        /// Krea2 LoRAs to apply, in order, to Power Lora Loader (node 17) slots lora_1, lora_2, …
+        /// </summary>
+        public ObservableCollection<KreaLoraSelection> SelectedKreaLoras
         {
-            get => _kreaSelectedLora;
-            set { if (_kreaSelectedLora != value) { _kreaSelectedLora = value; OnPropertyChanged(); } }
+            get => _selectedKreaLoras;
+            set { if (_selectedKreaLoras != value) { _selectedKreaLoras = value; OnPropertyChanged(); } }
         }
 
         public ICommand RefreshKreaLorasCommand { get; private set; } = null!;
+        public ICommand AddKreaLoraCommand { get; private set; } = null!;
+        public ICommand RemoveKreaLoraCommand { get; private set; } = null!;
 
         // --- Z workflow fields ---
 
@@ -280,6 +285,8 @@ namespace FlipPix.UI.ViewModels
                 () => !string.IsNullOrEmpty(InputImagePath) && File.Exists(InputImagePath) && !IsAnalyzingImage);
             RefreshZLorasCommand = new CommunityToolkit.Mvvm.Input.RelayCommand(RefreshZLoras);
             RefreshKreaLorasCommand = new CommunityToolkit.Mvvm.Input.RelayCommand(RefreshKreaLoras);
+            AddKreaLoraCommand = new CommunityToolkit.Mvvm.Input.RelayCommand(AddKreaLora);
+            RemoveKreaLoraCommand = new CommunityToolkit.Mvvm.Input.RelayCommand<KreaLoraSelection>(RemoveKreaLora, (item) => item != null);
             LoadZWorkflowsAndStyles();
             LoadZAvailableLoras();
             LoadKreaLoras();
@@ -365,6 +372,29 @@ namespace FlipPix.UI.ViewModels
         {
             get => _storyConcept;
             set => SetProperty(ref _storyConcept, value);
+        }
+
+        private string _characterName = string.Empty;
+        /// <summary>
+        /// Optional character name. When set, the generated scenes refer to the active
+        /// character by this name (e.g. "Tara") instead of a generic description ("a woman").
+        /// </summary>
+        public string CharacterName
+        {
+            get => _characterName;
+            set => SetProperty(ref _characterName, value);
+        }
+
+        private string _characterClothing = string.Empty;
+        /// <summary>
+        /// Optional character clothing/outfit description. When set, the generated scenes
+        /// keep the active character dressed in this same outfit across every scene, so the
+        /// character's clothing stays consistent throughout the 10 generated images.
+        /// </summary>
+        public string CharacterClothing
+        {
+            get => _characterClothing;
+            set => SetProperty(ref _characterClothing, value);
         }
 
         private void ToggleSettingsVisibility()
@@ -517,9 +547,9 @@ namespace FlipPix.UI.ViewModels
         }
 
         /// <summary>
-        /// Applies the user's Krea2 LoRA selection to the Power Lora Loader (rgthree) node 17
-        /// in the krea2 realism workflow. The LoRA reference is the <loras>/krea2 relative path
-        /// that ComfyUI expects (e.g. "krea2/Krea2-realism-V1.safetensors").
+        /// Applies the user's Krea2 LoRA selection(s) to the Power Lora Loader (rgthree) node 17
+        /// in the krea2 realism workflow. Each enabled row becomes a numbered slot (lora_1, lora_2, …);
+        /// the LoRA reference is the <loras>/krea2 relative path ComfyUI expects.
         /// </summary>
         private void ApplyKrea2Lora(JsonObject workflow)
         {
@@ -527,19 +557,55 @@ namespace FlipPix.UI.ViewModels
             if (node["inputs"] is not JsonObject inputs) return;
 
             // Preserve the slot's current lora name so the disabled fallback keeps a valid reference.
-            var existingLoraName = "krea2/Krea2-realism-V1.safetensors";
+            var existingLoraName = $"{_kreaLoraSubfolder}/Krea2-realism-V1.safetensors";
             if (inputs["lora_1"] is JsonObject existingSlot && existingSlot["lora"] != null)
                 existingLoraName = existingSlot["lora"]!.GetValue<string>();
 
-            bool hasSelection = !string.IsNullOrEmpty(KreaSelectedLora)
-                && KreaSelectedLora != "No LoRAs available"
-                && KreaSelectedLora != "Error loading LoRAs";
+            // Remove any pre-existing numbered slots so stale entries don't linger.
+            foreach (var key in inputs.Select(kv => kv.Key).Where(k => k.StartsWith("lora_")).ToList())
+                inputs.Remove(key);
 
-            inputs["lora_1"] = hasSelection
-                ? new JsonObject { ["on"] = true, ["lora"] = $"{_kreaLoraSubfolder}/{KreaSelectedLora}.safetensors", ["strength"] = 1.0 }
-                : new JsonObject { ["on"] = false, ["lora"] = existingLoraName, ["strength"] = 0.0 };
+            var valid = SelectedKreaLoras
+                .Where(s => !string.IsNullOrEmpty(s.LoraName)
+                            && s.LoraName != "No LoRAs available"
+                            && s.LoraName != "Error loading LoRAs")
+                .ToList();
 
-            AddLog($"Krea2 LoRA: {(hasSelection ? $"{_kreaLoraSubfolder}/{KreaSelectedLora}.safetensors" : "none")}");
+            if (valid.Count == 0)
+            {
+                inputs["lora_1"] = new JsonObject { ["on"] = false, ["lora"] = existingLoraName, ["strength"] = 0.0 };
+                AddLog("Krea2 LoRA: none");
+                return;
+            }
+
+            for (int i = 0; i < valid.Count; i++)
+            {
+                inputs[$"lora_{i + 1}"] = new JsonObject
+                {
+                    ["on"] = true,
+                    ["lora"] = $"{_kreaLoraSubfolder}/{valid[i].LoraName}.safetensors",
+                    ["strength"] = valid[i].Strength
+                };
+            }
+
+            AddLog($"Krea2 LoRAs: {string.Join(", ", valid.Select(v => $"{v.LoraName}@{v.Strength:0.##}"))}");
+        }
+
+        private string DefaultKreaLoraName()
+        {
+            var realism = KreaLoras.FirstOrDefault(l => l.IndexOf("realism", StringComparison.OrdinalIgnoreCase) >= 0);
+            return realism ?? KreaLoras.FirstOrDefault(l => l != "No LoRAs available" && l != "Error loading LoRAs") ?? string.Empty;
+        }
+
+        private void AddKreaLora()
+        {
+            SelectedKreaLoras.Add(new KreaLoraSelection(DefaultKreaLoraName()));
+        }
+
+        private void RemoveKreaLora(KreaLoraSelection? item)
+        {
+            if (item != null)
+                SelectedKreaLoras.Remove(item);
         }
 
         /// <summary>
@@ -605,8 +671,9 @@ namespace FlipPix.UI.ViewModels
                     foreach (var lora in loraFiles)
                         _kreaLoras.Add(lora!);
 
-                    if (string.IsNullOrEmpty(KreaSelectedLora) || !_kreaLoras.Contains(KreaSelectedLora))
-                        KreaSelectedLora = _kreaLoras.First();
+                    // Seed one default row on first load so the picker is never empty.
+                    if (SelectedKreaLoras.Count == 0)
+                        SelectedKreaLoras.Add(new KreaLoraSelection(DefaultKreaLoraName()));
 
                     AddLog($"Loaded {_kreaLoras.Count} Krea2 LoRAs from {kreaPath}");
                 }
@@ -731,18 +798,18 @@ namespace FlipPix.UI.ViewModels
 
             // Node 6 - CLIPTextEncode (positive prompt)
             WorkflowNodeUpdater.UpdateNodeInput(ref workflowJson, "6", "text", item.Prompt);
-            // Node 2 - KSampler (seed only; turbo steps/cfg fixed in workflow)
-            WorkflowNodeUpdater.UpdateNodeInput(ref workflowJson, "2", "seed", Random.Shared.NextInt64(0, long.MaxValue));
+            // Node 27 - ClownsharKSampler_Beta (seed only; turbo steps/cfg fixed in workflow)
+            WorkflowNodeUpdater.UpdateNodeInput(ref workflowJson, "27", "seed", Random.Shared.NextInt64(0, long.MaxValue));
             // Node 10 - EmptyLatentImage: pin a fixed portrait size, overriding the workflow's
             // FluxResolutionNode link (which defaults to a slow 2.5 MP latent).
             WorkflowNodeUpdater.UpdateNodeInput(ref workflowJson, "10", "width", 1024);
             WorkflowNodeUpdater.UpdateNodeInput(ref workflowJson, "10", "height", 1280);
 
             // Replace SaveImageKJ (node 23) with a standard SaveImage fed from the RTX-upscaled
-            // image (node 22), drop the PreviewImage (node 5), and apply the selected Krea2 LoRA
-            // to the Power Lora Loader (node 17). SaveImageKJ does not register its result in
-            // /history, so remote retrieval never finds it; standard SaveImage does.
-            // Saves into the per-session subfolder like the other modes.
+            // image (node 28 - RTXVideoSuperResolution, 2×), drop the PreviewImage (node 5), and
+            // apply the selected Krea2 LoRA(s) to the Power Lora Loader (node 17). SaveImageKJ does
+            // not register its result in /history, so remote retrieval never finds it; standard
+            // SaveImage does. Saves into the per-session subfolder like the other modes.
             var root = JsonNode.Parse(workflowJson);
             var obj = root?.AsObject();
             if (obj != null)
@@ -753,7 +820,7 @@ namespace FlipPix.UI.ViewModels
                     ["inputs"] = new JsonObject
                     {
                         ["filename_prefix"] = $"{jsonFileName}/{jsonFileName}-{item.Index}",
-                        ["images"] = new JsonArray("22", 0)
+                        ["images"] = new JsonArray("28", 0)
                     },
                     ["class_type"] = "SaveImage",
                     ["_meta"] = new JsonObject { ["title"] = "Save Image (FlipPix)" }
@@ -1048,10 +1115,23 @@ namespace FlipPix.UI.ViewModels
                     return;
                 }
 
-                // Pass story concept as user message if provided
-                var userPrompt = string.IsNullOrWhiteSpace(StoryConcept)
-                    ? string.Empty
-                    : $"Story concept: {StoryConcept.Trim()}";
+                // Pass story concept + optional character name as the user message.
+                // When a character name is supplied, instruct the model to refer to the active
+                // character by that name in every scene instead of a generic description.
+                var userParts = new List<string>();
+                if (!string.IsNullOrWhiteSpace(StoryConcept))
+                    userParts.Add($"Story concept: {StoryConcept.Trim()}");
+                if (!string.IsNullOrWhiteSpace(CharacterName))
+                    userParts.Add($"The main character's name is \"{CharacterName.Trim()}\". " +
+                        $"In every scene, refer to this character by name (\"{CharacterName.Trim()}\") " +
+                        "instead of a generic description such as \"a woman\", \"the woman\", \"a man\", or \"the man\".");
+                if (!string.IsNullOrWhiteSpace(CharacterClothing))
+                    userParts.Add($"CLOTHING OVERRIDE: The main character wears \"{CharacterClothing.Trim()}\". " +
+                        "Bake this exact outfit into the locked Character DNA string, replacing whatever clothing the image shows. " +
+                        $"Write out \"{CharacterClothing.Trim()}\" (or a near-verbatim version of it) in FULL inside EVERY single scene prompt — " +
+                        "all 8–10 scenes, not just the first. Do not summarize it as \"the same outfit\", do not drop it, and do not " +
+                        "let the clothing drift or change between scenes unless the story explicitly requires a costume change.");
+                var userPrompt = string.Join("\n\n", userParts);
 
                 var analysisResult = await _lmStudioService.AnalyzeImageWithSystemPromptAsync(
                     modelName,

@@ -35,13 +35,14 @@
   },
   "3": {
     "inputs": {
-      "frame_rate": 60,
+      "frame_rate": 24,
       "loop_count": 0,
       "filename_prefix": "upscale",
       "format": "video/h264-mp4",
       "pix_fmt": "yuv420p",
       "crf": 14,
       "save_metadata": true,
+      "trim_to_audio": false,
       "pingpong": false,
       "save_output": true,
       "images": [

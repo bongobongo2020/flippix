@@ -1,0 +1,1586 @@
+{
+  "1": {
+    "inputs": {
+      "lora_name": "WAN/lightx2v_I2V_14B_480p_cfg_step_distill_rank256_bf16.safetensors",
+      "strength_model": 0.8,
+      "model": [
+        "6",
+        0
+      ]
+    },
+    "class_type": "LoraLoaderModelOnly",
+    "_meta": {
+      "title": "Load LoRA"
+    }
+  },
+  "6": {
+    "inputs": {
+      "unet_name": "wan2.1_14B_SCAIL_2_fp8_scaled.safetensors",
+      "weight_dtype": "default"
+    },
+    "class_type": "UNETLoader",
+    "_meta": {
+      "title": "Load Diffusion Model"
+    }
+  },
+  "8": {
+    "inputs": {
+      "clip_name": "clip_vision_h.safetensors"
+    },
+    "class_type": "CLIPVisionLoader",
+    "_meta": {
+      "title": "Load CLIP Vision"
+    }
+  },
+  "10": {
+    "inputs": {
+      "ckpt_name": "sam3.1_multiplex_fp16.safetensors"
+    },
+    "class_type": "CheckpointLoaderSimple",
+    "_meta": {
+      "title": "Load Checkpoint"
+    }
+  },
+  "11": {
+    "inputs": {
+      "crop": "none",
+      "clip_vision": [
+        "8",
+        0
+      ],
+      "image": [
+        "300",
+        1
+      ]
+    },
+    "class_type": "CLIPVisionEncode",
+    "_meta": {
+      "title": "CLIP Vision Encode"
+    }
+  },
+  "12": {
+    "inputs": {
+      "vae_name": "wan_2.1_vae.safetensors"
+    },
+    "class_type": "VAELoader",
+    "_meta": {
+      "title": "Load VAE"
+    }
+  },
+  "13": {
+    "inputs": {
+      "clip_name": "umt5_xxl_fp8_e4m3fn_scaled.safetensors",
+      "type": "wan",
+      "device": "default"
+    },
+    "class_type": "CLIPLoader",
+    "_meta": {
+      "title": "Load CLIP"
+    }
+  },
+  "22": {
+    "inputs": {
+      "text": "Vivid colors, overexposed, static, unclear details, subtitles, style, artwork, painting, frame, still, overall grayish, worst quality, low quality, JPEG artifacts, ugly, incomplete, extra fingers, poorly drawn hands, poorly drawn faces, deformed, disfigured, malformed limbs, fused fingers, motionless frame, messy background, three legs, crowded background, walking upside down, nudity, big teeth, plastic-looking skin, blur, blurry, out of focus, bokeh, depth of field, shallow depth of field, soft focus, motion blur, gaussian blur, macro, tilt-shift, wide aperture, f/1.8, f/2.8, lens flare, film grain, low resolution, smearing, background blur, foreground blur, distance blur, hazy, foggy, mist",
+      "clip": [
+        "13",
+        0
+      ]
+    },
+    "class_type": "CLIPTextEncode",
+    "_meta": {
+      "title": "CLIP Text Encode (Negative Prompt)"
+    }
+  },
+  "27": {
+    "inputs": {
+      "any_02": [
+        "30",
+        0
+      ]
+    },
+    "class_type": "Any Switch (rgthree)",
+    "_meta": {
+      "title": "Any Switch (rgthree)"
+    }
+  },
+  "30": {
+    "inputs": {
+      "width": [
+        "42",
+        0
+      ],
+      "height": [
+        "42",
+        1
+      ],
+      "batch_size": 1,
+      "color": 0
+    },
+    "class_type": "EmptyImage",
+    "_meta": {
+      "title": "Empty Image"
+    }
+  },
+  "36": {
+    "inputs": {
+      "expression": "a*b",
+      "a": [
+        "40",
+        0
+      ],
+      "b": [
+        "38",
+        0
+      ]
+    },
+    "class_type": "MathExpression|pysssss",
+    "_meta": {
+      "title": "Math Expression 🐍"
+    }
+  },
+  "37": {
+    "inputs": {
+      "PowerLoraLoaderHeaderWidget": {
+        "type": "PowerLoraLoaderHeaderWidget"
+      },
+      "➕ Add Lora": "",
+      "model": [
+        "1",
+        0
+      ]
+    },
+    "class_type": "Power Lora Loader (rgthree)",
+    "_meta": {
+      "title": "Power Lora Loader (rgthree)"
+    }
+  },
+  "38": {
+    "inputs": {
+      "value": 0
+    },
+    "class_type": "PrimitiveFloat",
+    "_meta": {
+      "title": "SKIP FIRST N SECONDS"
+    }
+  },
+  "39": {
+    "inputs": {
+      "value": false
+    },
+    "class_type": "PrimitiveBoolean",
+    "_meta": {
+      "title": "Activate replacement mode?"
+    }
+  },
+  "40": {
+    "inputs": {
+      "value": 16
+    },
+    "class_type": "easy float",
+    "_meta": {
+      "title": "FRAME RATE"
+    }
+  },
+  "41": {
+    "inputs": {
+      "text": "",
+      "clip": [
+        "13",
+        0
+      ]
+    },
+    "class_type": "CLIPTextEncode",
+    "_meta": {
+      "title": "CLIP Text Encode (Positive Prompt)"
+    }
+  },
+  "42": {
+    "inputs": {
+      "mode": "Manual",
+      "latent_type": "latent_4x8",
+      "width": 480,
+      "height": 853,
+      "auto_detect": false,
+      "auto_detect_source": "backend",
+      "auto_detect_width": 0,
+      "auto_detect_height": 0,
+      "auto_fit_on_change": false,
+      "auto_resize_on_change": false,
+      "auto_snap_on_change": false,
+      "smart_fit": false,
+      "use_custom_calc": false,
+      "preserve_scaling_ratio": false,
+      "selected_category": "Social Media",
+      "snap_value": 16,
+      "upscale_value": 1,
+      "target_resolution": 480,
+      "target_megapixels": 2,
+      "auto_detect_presets_json": "{\"Instagram Square\":{\"width\":1080,\"height\":1080,\"isCustom\":false,\"isHidden\":false},\"Instagram Portrait\":{\"width\":1080,\"height\":1350,\"isCustom\":false,\"isHidden\":false},\"Instagram Landscape\":{\"width\":1080,\"height\":566,\"isCustom\":false,\"isHidden\":false},\"Instagram Stories/Reels\":{\"width\":1080,\"height\":1920,\"isCustom\":false,\"isHidden\":false},\"Instagram Profile\":{\"width\":320,\"height\":320,\"isCustom\":false,\"isHidden\":false},\"Facebook Post\":{\"width\":1200,\"height\":630,\"isCustom\":false,\"isHidden\":false},\"Facebook Cover Page\":{\"width\":820,\"height\":312,\"isCustom\":false,\"isHidden\":false},\"Facebook Cover Event\":{\"width\":1920,\"height\":1005,\"isCustom\":false,\"isHidden\":false},\"Facebook Personal Cover\":{\"width\":1200,\"height\":445,\"isCustom\":false,\"isHidden\":false},\"Facebook Profile\":{\"width\":180,\"height\":180,\"isCustom\":false,\"isHidden\":false},\"Facebook Stories\":{\"width\":1080,\"height\":1920,\"isCustom\":false,\"isHidden\":false},\"Twitter Post\":{\"width\":1200,\"height\":675,\"isCustom\":false,\"isHidden\":false},\"Twitter Header\":{\"width\":1500,\"height\":500,\"isCustom\":false,\"isHidden\":false},\"Twitter Profile\":{\"width\":400,\"height\":400,\"isCustom\":false,\"isHidden\":false},\"YouTube Thumbnail\":{\"width\":1280,\"height\":720,\"isCustom\":false,\"isHidden\":false},\"YouTube Banner\":{\"width\":2560,\"height\":1440,\"isCustom\":false,\"isHidden\":false},\"YouTube Channel Icon\":{\"width\":800,\"height\":800,\"isCustom\":false,\"isHidden\":false},\"YouTube Shorts\":{\"width\":1080,\"height\":1920,\"isCustom\":false,\"isHidden\":false},\"LinkedIn Post\":{\"width\":1200,\"height\":627,\"isCustom\":false,\"isHidden\":false},\"LinkedIn Cover Profile\":{\"width\":1584,\"height\":396,\"isCustom\":false,\"isHidden\":false},\"LinkedIn Company Logo\":{\"width\":300,\"height\":300,\"isCustom\":false,\"isHidden\":false},\"LinkedIn Company Background\":{\"width\":1128,\"height\":191,\"isCustom\":false,\"isHidden\":false},\"TikTok Video\":{\"width\":1080,\"height\":1920,\"isCustom\":false,\"isHidden\":false},\"TikTok Profile\":{\"width\":200,\"height\":200,\"isCustom\":false,\"isHidden\":false},\"Pinterest Standard Pin\":{\"width\":1000,\"height\":1500,\"isCustom\":false,\"isHidden\":false},\"Pinterest Max Pin\":{\"width\":1000,\"height\":2100,\"isCustom\":false,\"isHidden\":false},\"Pinterest Profile\":{\"width\":165,\"height\":165,\"isCustom\":false,\"isHidden\":false},\"Pinterest Board Cover\":{\"width\":222,\"height\":150,\"isCustom\":false,\"isHidden\":false},\"Snapchat Story/Ads\":{\"width\":1080,\"height\":1920,\"isCustom\":false,\"isHidden\":false},\"Snapchat Profile\":{\"width\":1080,\"height\":1080,\"isCustom\":false,\"isHidden\":false}}",
+      "rescale_mode": "resolution",
+      "rescale_value": 1.0001953697390917,
+      "batch_size": 1,
+      "resolution": "1.3K (768p)_landscape"
+    },
+    "class_type": "ResolutionMaster",
+    "_meta": {
+      "title": "Resolution Master"
+    }
+  },
+  "43": {
+    "inputs": {
+      "value": 12
+    },
+    "class_type": "easy int",
+    "_meta": {
+      "title": "PADDING FRAMES"
+    }
+  },
+  "44": {
+    "inputs": {
+      "value": 8
+    },
+    "class_type": "easy int",
+    "_meta": {
+      "title": "FRAME OVERLAP"
+    }
+  },
+  "45": {
+    "inputs": {
+      "value": 80
+    },
+    "class_type": "easy int",
+    "_meta": {
+      "title": "VIDEO BATCH SIZE"
+    }
+  },
+  "46": {
+    "inputs": {
+      "value": 60
+    },
+    "class_type": "easy float",
+    "_meta": {
+      "title": "MAX VIDEO DURATION (in seconds)"
+    }
+  },
+  "70": {
+    "inputs": {
+      "text": "848",
+      "anything": [
+        "82:63",
+        0
+      ]
+    },
+    "class_type": "easy showAnything",
+    "_meta": {
+      "title": "HEIGHT"
+    }
+  },
+  "72": {
+    "inputs": {
+      "text": "81",
+      "anything": [
+        "82:66",
+        0
+      ]
+    },
+    "class_type": "easy showAnything",
+    "_meta": {
+      "title": "BATCH SIZE"
+    }
+  },
+  "73": {
+    "inputs": {
+      "text": "9",
+      "anything": [
+        "82:65",
+        0
+      ]
+    },
+    "class_type": "easy showAnything",
+    "_meta": {
+      "title": "OVERLAP"
+    }
+  },
+  "74": {
+    "inputs": {
+      "text": "480",
+      "anything": [
+        "82:62",
+        0
+      ]
+    },
+    "class_type": "easy showAnything",
+    "_meta": {
+      "title": "WIDTH"
+    }
+  },
+  "81": {
+    "inputs": {
+      "text": "15",
+      "anything": [
+        "82:64",
+        0
+      ]
+    },
+    "class_type": "easy showAnything",
+    "_meta": {
+      "title": "PADDING"
+    }
+  },
+  "94": {
+    "inputs": {
+      "image": "4k_00009_ (1).png"
+    },
+    "class_type": "LoadImage",
+    "_meta": {
+      "title": "MAIN CHARACTER IMAGE"
+    }
+  },
+  "95": {
+    "inputs": {
+      "resize_type": "scale longer dimension",
+      "resize_type.longer_size": 1920,
+      "scale_method": "bicubic",
+      "input": [
+        "94",
+        0
+      ]
+    },
+    "class_type": "ResizeImageMaskNode",
+    "_meta": {
+      "title": "Resize Image/Mask"
+    }
+  },
+  "105": {
+    "inputs": {
+      "frame_rate": [
+        "40",
+        0
+      ],
+      "loop_count": 0,
+      "filename_prefix": "mask",
+      "format": "video/h264-mp4",
+      "pix_fmt": "yuv420p",
+      "crf": 19,
+      "save_metadata": false,
+      "trim_to_audio": false,
+      "pingpong": false,
+      "save_output": false,
+      "images": [
+        "256:115",
+        0
+      ]
+    },
+    "class_type": "VHS_VideoCombine",
+    "_meta": {
+      "title": "POSE VIDEO MASK PREVIEW"
+    }
+  },
+  "110": {
+    "inputs": {
+      "frame_rate": [
+        "40",
+        0
+      ],
+      "loop_count": 0,
+      "filename_prefix": "preview",
+      "format": "video/h264-mp4",
+      "pix_fmt": "yuv420p",
+      "crf": 19,
+      "save_metadata": false,
+      "trim_to_audio": false,
+      "pingpong": false,
+      "save_output": false,
+      "images": [
+        "122:118",
+        0
+      ],
+      "audio": [
+        "120",
+        2
+      ]
+    },
+    "class_type": "VHS_VideoCombine",
+    "_meta": {
+      "title": "INPUT VIDEO PREVIEW"
+    }
+  },
+  "113": {
+    "inputs": {
+      "purge_cache": true,
+      "purge_models": true,
+      "anything": [
+        "256:115",
+        1
+      ]
+    },
+    "class_type": "LayerUtility: PurgeVRAM V2",
+    "_meta": {
+      "title": "LayerUtility: Purge VRAM V2"
+    }
+  },
+  "114": {
+    "inputs": {
+      "images": [
+        "113",
+        0
+      ]
+    },
+    "class_type": "PreviewImage",
+    "_meta": {
+      "title": "REFERENCE IMAGE MASK PREVIEW"
+    }
+  },
+  "119": {
+    "inputs": {
+      "video_info": [
+        "120",
+        3
+      ]
+    },
+    "class_type": "VHS_VideoInfoLoaded",
+    "_meta": {
+      "title": "Video Info (Loaded) 🎥🅥🅗🅢"
+    }
+  },
+  "120": {
+    "inputs": {
+      "video": "barefoot_female_karate_kicker_by_mo23matter_dmbmy9a.mp4",
+      "force_rate": [
+        "40",
+        0
+      ],
+      "custom_width": 0,
+      "custom_height": 0,
+      "frame_load_cap": [
+        "121",
+        0
+      ],
+      "skip_first_frames": [
+        "36",
+        0
+      ],
+      "select_every_nth": 1,
+      "format": "None"
+    },
+    "class_type": "VHS_LoadVideo",
+    "_meta": {
+      "title": "REFERENCE VIDEO (guiding video)"
+    }
+  },
+  "121": {
+    "inputs": {
+      "expression": "a*b",
+      "a": [
+        "40",
+        0
+      ],
+      "b": [
+        "46",
+        0
+      ]
+    },
+    "class_type": "MathExpression|pysssss",
+    "_meta": {
+      "title": "Math Expression 🐍"
+    }
+  },
+  "145": {
+    "inputs": {
+      "noise_seed": 168439999151526
+    },
+    "class_type": "RandomNoise",
+    "_meta": {
+      "title": "RandomNoise"
+    }
+  },
+  "159": {
+    "inputs": {
+      "text": "629",
+      "anything": [
+        "172:297",
+        3
+      ]
+    },
+    "class_type": "easy showAnything",
+    "_meta": {
+      "title": "OUTPUT LENGTH"
+    }
+  },
+  "174": {
+    "inputs": {
+      "value": 168439999151526,
+      "mode": true,
+      "action": "fixed",
+      "last_seed": 168439999151526
+    },
+    "class_type": "easy globalSeed",
+    "_meta": {
+      "title": "EasyGlobalSeed"
+    }
+  },
+  "221": {
+    "inputs": {
+      "batch_index": [
+        "82:64",
+        0
+      ],
+      "length": 4096,
+      "image": [
+        "222",
+        0
+      ]
+    },
+    "class_type": "ImageFromBatch",
+    "_meta": {
+      "title": "Get Image from Batch"
+    }
+  },
+  "222": {
+    "inputs": {
+      "any_02": [
+        "172:161",
+        0
+      ]
+    },
+    "class_type": "Any Switch (rgthree)",
+    "_meta": {
+      "title": "Any Switch (rgthree)"
+    }
+  },
+  "238": {
+    "inputs": {
+      "frame_rate": [
+        "244",
+        0
+      ],
+      "loop_count": 0,
+      "filename_prefix": "SCAIL",
+      "format": "video/h264-mp4",
+      "pix_fmt": "yuv420p",
+      "crf": 19,
+      "save_metadata": true,
+      "trim_to_audio": false,
+      "pingpong": false,
+      "save_output": true,
+      "images": [
+        "221",
+        0
+      ],
+      "audio": [
+        "311",
+        0
+      ]
+    },
+    "class_type": "VHS_VideoCombine",
+    "_meta": {
+      "title": "Video Combine 🎥🅥🅗🅢"
+    }
+  },
+  "244": {
+    "inputs": {
+      "any_01": [
+        "40",
+        0
+      ],
+      "any_02": [
+        "40",
+        0
+      ]
+    },
+    "class_type": "Any Switch (rgthree)",
+    "_meta": {
+      "title": "Any Switch (rgthree)"
+    }
+  },
+  "245": {
+    "inputs": {
+      "opacity": 0.8,
+      "fps": [
+        "40",
+        0
+      ],
+      "video-preview": "",
+      "track_data": [
+        "256:98",
+        0
+      ],
+      "images": [
+        "122:118",
+        0
+      ]
+    },
+    "class_type": "SAM3_TrackPreview",
+    "_meta": {
+      "title": "OBJECT IDS PREVIEW"
+    }
+  },
+  "260": {
+    "inputs": {},
+    "class_type": "FancyTimerNode",
+    "_meta": {
+      "title": "Execution Timer"
+    }
+  },
+  "262": {
+    "inputs": {
+      "text": "8",
+      "anything": [
+        "172:162",
+        1
+      ]
+    },
+    "class_type": "easy showAnything",
+    "_meta": {
+      "title": "CURRENT LOOP"
+    }
+  },
+  "263": {
+    "inputs": {
+      "text": "9",
+      "anything": [
+        "172:158",
+        0
+      ]
+    },
+    "class_type": "easy showAnything",
+    "_meta": {
+      "title": "TOTAL LOOPS"
+    }
+  },
+  "284": {
+    "inputs": {
+      "mode": "stop",
+      "stop": true,
+      "any": [
+        "308",
+        0
+      ]
+    },
+    "class_type": "LayerUtility: QueueStop",
+    "_meta": {
+      "title": "LayerUtility: Queue Stop"
+    }
+  },
+  "294": {
+    "inputs": {
+      "any_input": [
+        "284",
+        0
+      ]
+    },
+    "class_type": "DummyOut",
+    "_meta": {
+      "title": "Dummy Out"
+    }
+  },
+  "300": {
+    "inputs": {
+      "signal": [
+        "119",
+        1
+      ],
+      "value": [
+        "95",
+        0
+      ]
+    },
+    "class_type": "ImpactExecutionOrderController",
+    "_meta": {
+      "title": "Execution Order Controller"
+    }
+  },
+  "302": {
+    "inputs": {
+      "text": "614",
+      "anything": [
+        "300",
+        0
+      ]
+    },
+    "class_type": "easy showAnything",
+    "_meta": {
+      "title": "Show Any"
+    }
+  },
+  "308": {
+    "inputs": {
+      "any_01": [
+        "238",
+        0
+      ],
+      "any_02": [
+        "309",
+        0
+      ]
+    },
+    "class_type": "Any Switch (rgthree)",
+    "_meta": {
+      "title": "Any Switch (rgthree)"
+    }
+  },
+  "309": {
+    "inputs": {},
+    "class_type": "ImpactDummyInput",
+    "_meta": {
+      "title": "ImpactDummyInput"
+    }
+  },
+  "311": {
+    "inputs": {
+      "any_02": [
+        "120",
+        2
+      ]
+    },
+    "class_type": "Any Switch (rgthree)",
+    "_meta": {
+      "title": "Any Switch (rgthree)"
+    }
+  },
+  "82:61": {
+    "inputs": {
+      "image": [
+        "27",
+        0
+      ]
+    },
+    "class_type": "GetImageSize",
+    "_meta": {
+      "title": "Get Image Size"
+    }
+  },
+  "82:62": {
+    "inputs": {
+      "expression": "round(a / 16) * 16",
+      "a": [
+        "82:61",
+        0
+      ]
+    },
+    "class_type": "MathExpression|pysssss",
+    "_meta": {
+      "title": "SAFE WIDTH"
+    }
+  },
+  "82:63": {
+    "inputs": {
+      "expression": "round(a / 16) * 16",
+      "a": [
+        "82:61",
+        1
+      ]
+    },
+    "class_type": "MathExpression|pysssss",
+    "_meta": {
+      "title": "SAFE HEIGHT"
+    }
+  },
+  "82:66": {
+    "inputs": {
+      "expression": "round(a / 4) * 4 + 1",
+      "a": [
+        "45",
+        0
+      ]
+    },
+    "class_type": "MathExpression|pysssss",
+    "_meta": {
+      "title": "SAFE BATCH SIZE"
+    }
+  },
+  "82:65": {
+    "inputs": {
+      "expression": "round(a / 4) * 4 + 1",
+      "a": [
+        "44",
+        0
+      ]
+    },
+    "class_type": "MathExpression|pysssss",
+    "_meta": {
+      "title": "SAFE OVERLAP"
+    }
+  },
+  "82:64": {
+    "inputs": {
+      "expression": "b + ((1 - (a + b)) % 4)",
+      "a": [
+        "300",
+        0
+      ],
+      "b": [
+        "43",
+        0
+      ]
+    },
+    "class_type": "MathExpression|pysssss",
+    "_meta": {
+      "title": "SAFE PADDING FRAMES"
+    }
+  },
+  "172:132": {
+    "inputs": {
+      "cfg": 1,
+      "model": [
+        "37",
+        0
+      ],
+      "positive": [
+        "172:156",
+        0
+      ],
+      "negative": [
+        "172:156",
+        1
+      ]
+    },
+    "class_type": "CFGGuider",
+    "_meta": {
+      "title": "CFG Guider"
+    }
+  },
+  "172:134": {
+    "inputs": {
+      "noise": [
+        "145",
+        0
+      ],
+      "guider": [
+        "172:132",
+        0
+      ],
+      "sampler": [
+        "172:146",
+        0
+      ],
+      "sigmas": [
+        "172:147",
+        0
+      ],
+      "latent_image": [
+        "172:156",
+        2
+      ]
+    },
+    "class_type": "SamplerCustomAdvanced",
+    "_meta": {
+      "title": "SamplerCustomAdvanced"
+    }
+  },
+  "172:146": {
+    "inputs": {
+      "sampler_name": "euler"
+    },
+    "class_type": "KSamplerSelect",
+    "_meta": {
+      "title": "KSamplerSelect"
+    }
+  },
+  "172:147": {
+    "inputs": {
+      "scheduler": "simple",
+      "steps": 6,
+      "denoise": 1,
+      "model": [
+        "37",
+        0
+      ]
+    },
+    "class_type": "BasicScheduler",
+    "_meta": {
+      "title": "BasicScheduler"
+    }
+  },
+  "172:152": {
+    "inputs": {
+      "switch": [
+        "172:164",
+        2
+      ],
+      "on_false": [
+        "172:165",
+        0
+      ],
+      "on_true": [
+        "172:135",
+        0
+      ]
+    },
+    "class_type": "ComfySwitchNode",
+    "_meta": {
+      "title": "Switch"
+    }
+  },
+  "172:154": {
+    "inputs": {
+      "text": "629",
+      "anything": [
+        "172:156",
+        3
+      ]
+    },
+    "class_type": "easy showAnything",
+    "_meta": {
+      "title": "NEXT BATCH START INDEX"
+    }
+  },
+  "172:156": {
+    "inputs": {
+      "width": [
+        "82:62",
+        0
+      ],
+      "height": [
+        "82:63",
+        0
+      ],
+      "length": [
+        "172:168",
+        0
+      ],
+      "batch_size": 1,
+      "pose_strength": 1,
+      "pose_start": 0,
+      "pose_end": 1,
+      "video_frame_offset": [
+        "172:162",
+        3
+      ],
+      "previous_frame_count": [
+        "82:65",
+        0
+      ],
+      "replacement_mode": [
+        "39",
+        0
+      ],
+      "positive": [
+        "41",
+        0
+      ],
+      "negative": [
+        "22",
+        0
+      ],
+      "vae": [
+        "12",
+        0
+      ],
+      "pose_video": [
+        "122:118",
+        0
+      ],
+      "pose_video_mask": [
+        "256:115",
+        0
+      ],
+      "reference_image": [
+        "300",
+        1
+      ],
+      "reference_image_mask": [
+        "256:115",
+        1
+      ],
+      "clip_vision_output": [
+        "11",
+        0
+      ],
+      "previous_frames": [
+        "172:162",
+        2
+      ]
+    },
+    "class_type": "WanSCAILToVideo",
+    "_meta": {
+      "title": "WanSCAILToVideo"
+    }
+  },
+  "172:157": {
+    "inputs": {
+      "value": "a+b",
+      "a": [
+        "300",
+        0
+      ],
+      "b": [
+        "82:64",
+        0
+      ]
+    },
+    "class_type": "easy simpleMath",
+    "_meta": {
+      "title": "TOTAL VIDEO LENGTH"
+    }
+  },
+  "172:158": {
+    "inputs": {
+      "total_frames": [
+        "172:157",
+        0
+      ],
+      "chunk_frames": [
+        "82:66",
+        0
+      ],
+      "overlap_frames": [
+        "82:65",
+        0
+      ]
+    },
+    "class_type": "VideoChunkPlanner",
+    "_meta": {
+      "title": "Video Chunk Planner"
+    }
+  },
+  "172:162": {
+    "inputs": {
+      "total": [
+        "172:158",
+        0
+      ],
+      "initial_value1": [
+        "172:141",
+        0
+      ],
+      "initial_value2": [
+        "172:149",
+        0
+      ]
+    },
+    "class_type": "easy forLoopStart",
+    "_meta": {
+      "title": "For Loop Start"
+    }
+  },
+  "172:164": {
+    "inputs": {
+      "value": "a == 0",
+      "a": [
+        "172:162",
+        1
+      ]
+    },
+    "class_type": "easy simpleMath",
+    "_meta": {
+      "title": "Is first iteration?"
+    }
+  },
+  "172:167": {
+    "inputs": {
+      "value": "b-a",
+      "a": [
+        "172:162",
+        3
+      ],
+      "b": [
+        "172:157",
+        0
+      ]
+    },
+    "class_type": "easy simpleMath",
+    "_meta": {
+      "title": "REMAINING FRAMES"
+    }
+  },
+  "172:168": {
+    "inputs": {
+      "expression": "min(b, a+c)",
+      "a": [
+        "172:166",
+        0
+      ],
+      "b": [
+        "82:66",
+        0
+      ],
+      "c": [
+        "172:167",
+        0
+      ]
+    },
+    "class_type": "MathExpression|pysssss",
+    "_meta": {
+      "title": "CURRENT BATCH SIZE"
+    }
+  },
+  "172:149": {
+    "inputs": {
+      "value": 0
+    },
+    "class_type": "easy int",
+    "_meta": {
+      "title": "Int"
+    }
+  },
+  "172:141": {
+    "inputs": {
+      "resize_type": "scale dimensions",
+      "resize_type.width": [
+        "82:62",
+        0
+      ],
+      "resize_type.height": [
+        "82:63",
+        0
+      ],
+      "resize_type.crop": "center",
+      "scale_method": "area",
+      "input": [
+        "256:115",
+        1
+      ]
+    },
+    "class_type": "ResizeImageMaskNode",
+    "_meta": {
+      "title": "Resize Image/Mask"
+    }
+  },
+  "172:169": {
+    "inputs": {
+      "text": "9",
+      "anything": [
+        "172:158",
+        0
+      ]
+    },
+    "class_type": "easy showAnything",
+    "_meta": {
+      "title": "TOTAL ITERATIONS"
+    }
+  },
+  "172:170": {
+    "inputs": {
+      "text": "8",
+      "anything": [
+        "172:162",
+        1
+      ]
+    },
+    "class_type": "easy showAnything",
+    "_meta": {
+      "title": "CURRENT ITERATOIN"
+    }
+  },
+  "172:166": {
+    "inputs": {
+      "value": "a*(b > 0)",
+      "a": [
+        "82:65",
+        0
+      ],
+      "b": [
+        "172:162",
+        1
+      ]
+    },
+    "class_type": "easy simpleMath",
+    "_meta": {
+      "title": "Current overlap"
+    }
+  },
+  "172:135": {
+    "inputs": {
+      "samples": [
+        "172:134",
+        1
+      ],
+      "vae": [
+        "12",
+        0
+      ]
+    },
+    "class_type": "VAEDecode",
+    "_meta": {
+      "title": "VAE Decode"
+    }
+  },
+  "172:165": {
+    "inputs": {
+      "overlap_frames": [
+        "172:166",
+        0
+      ],
+      "blend_curve": "ease_in_out",
+      "chunk_a": [
+        "172:162",
+        2
+      ],
+      "chunk_b": [
+        "172:135",
+        0
+      ]
+    },
+    "class_type": "BlendVideoChunks",
+    "_meta": {
+      "title": "Blend Video Chunks (Crossfade)"
+    }
+  },
+  "172:155": {
+    "inputs": {
+      "flow": [
+        "172:162",
+        0
+      ],
+      "initial_value1": [
+        "172:152",
+        0
+      ],
+      "initial_value2": [
+        "172:156",
+        3
+      ]
+    },
+    "class_type": "easy forLoopEnd",
+    "_meta": {
+      "title": "For Loop End"
+    }
+  },
+  "172:297": {
+    "inputs": {
+      "image": [
+        "172:155",
+        0
+      ]
+    },
+    "class_type": "GetImageSizeAndCount",
+    "_meta": {
+      "title": "Get Image Size & Count"
+    }
+  },
+  "172:161": {
+    "inputs": {
+      "purge_cache": true,
+      "purge_models": true,
+      "anything": [
+        "172:297",
+        0
+      ]
+    },
+    "class_type": "LayerUtility: PurgeVRAM V2",
+    "_meta": {
+      "title": "LayerUtility: Purge VRAM V2"
+    }
+  },
+  "256:99": {
+    "inputs": {
+      "detection_threshold": [
+        "256:257",
+        0
+      ],
+      "max_objects": [
+        "256:93",
+        0
+      ],
+      "detect_interval": [
+        "256:258",
+        0
+      ],
+      "images": [
+        "300",
+        1
+      ],
+      "model": [
+        "10",
+        0
+      ],
+      "conditioning": [
+        "256:101",
+        0
+      ]
+    },
+    "class_type": "SAM3_VideoTrack",
+    "_meta": {
+      "title": "SAM3 Video Track"
+    }
+  },
+  "256:115": {
+    "inputs": {
+      "object_indices": "",
+      "sort_by": "left_to_right",
+      "replacement_mode": [
+        "39",
+        0
+      ],
+      "driving_track_data": [
+        "256:98",
+        0
+      ],
+      "ref_track_data": [
+        "256:99",
+        0
+      ]
+    },
+    "class_type": "SCAIL2ColoredMask",
+    "_meta": {
+      "title": "Create SCAIL-2 Colored Mask"
+    }
+  },
+  "256:93": {
+    "inputs": {
+      "value": 3
+    },
+    "class_type": "easy int",
+    "_meta": {
+      "title": "MAX NUMBER OF DETECTED SUBJECTS"
+    }
+  },
+  "256:101": {
+    "inputs": {
+      "text": "person",
+      "clip": [
+        "10",
+        1
+      ]
+    },
+    "class_type": "CLIPTextEncode",
+    "_meta": {
+      "title": "SUBJECT DESCRIPTION"
+    }
+  },
+  "256:257": {
+    "inputs": {
+      "value": 0.5
+    },
+    "class_type": "easy float",
+    "_meta": {
+      "title": "Float"
+    }
+  },
+  "256:258": {
+    "inputs": {
+      "value": 2
+    },
+    "class_type": "easy int",
+    "_meta": {
+      "title": "Int"
+    }
+  },
+  "256:98": {
+    "inputs": {
+      "detection_threshold": [
+        "256:257",
+        0
+      ],
+      "max_objects": [
+        "256:93",
+        0
+      ],
+      "detect_interval": [
+        "256:258",
+        0
+      ],
+      "images": [
+        "122:118",
+        0
+      ],
+      "model": [
+        "10",
+        0
+      ],
+      "conditioning": [
+        "256:101",
+        0
+      ]
+    },
+    "class_type": "SAM3_VideoTrack",
+    "_meta": {
+      "title": "SAM3 Video Track"
+    }
+  },
+  "122:107": {
+    "inputs": {
+      "batch_index": 0,
+      "length": 1,
+      "image": [
+        "122:253",
+        0
+      ]
+    },
+    "class_type": "ImageFromBatch",
+    "_meta": {
+      "title": "Get Image from Batch"
+    }
+  },
+  "122:108": {
+    "inputs": {
+      "amount": [
+        "82:64",
+        0
+      ],
+      "image": [
+        "122:107",
+        0
+      ]
+    },
+    "class_type": "RepeatImageBatch",
+    "_meta": {
+      "title": "Repeat Image Batch"
+    }
+  },
+  "122:248": {
+    "inputs": {
+      "index": [
+        "122:249",
+        1
+      ],
+      "any": [
+        "122:247",
+        0
+      ]
+    },
+    "class_type": "easy indexAnything",
+    "_meta": {
+      "title": "Index Any"
+    }
+  },
+  "122:251": {
+    "inputs": {
+      "image": [
+        "122:250",
+        0
+      ]
+    },
+    "class_type": "GetImageSize",
+    "_meta": {
+      "title": "Get Image Size"
+    }
+  },
+  "122:252": {
+    "inputs": {
+      "expression": "sqrt(a/(b*c))",
+      "a": [
+        "122:248",
+        0
+      ],
+      "b": [
+        "122:251",
+        0
+      ],
+      "c": [
+        "122:251",
+        1
+      ]
+    },
+    "class_type": "MathExpression|pysssss",
+    "_meta": {
+      "title": "Math Expression 🐍"
+    }
+  },
+  "122:254": {
+    "inputs": {
+      "expression": "a*b",
+      "a": [
+        "122:251",
+        0
+      ],
+      "b": [
+        "122:252",
+        1
+      ]
+    },
+    "class_type": "MathExpression|pysssss",
+    "_meta": {
+      "title": "width"
+    }
+  },
+  "122:255": {
+    "inputs": {
+      "expression": "a*b",
+      "a": [
+        "122:251",
+        1
+      ],
+      "b": [
+        "122:252",
+        1
+      ]
+    },
+    "class_type": "MathExpression|pysssss",
+    "_meta": {
+      "title": "height"
+    }
+  },
+  "122:118": {
+    "inputs": {
+      "images.image0": [
+        "122:108",
+        0
+      ],
+      "images.image1": [
+        "122:253",
+        0
+      ]
+    },
+    "class_type": "BatchImagesNode",
+    "_meta": {
+      "title": "Batch Images"
+    }
+  },
+  "122:250": {
+    "inputs": {
+      "batch_index": 0,
+      "length": 1,
+      "image": [
+        "120",
+        0
+      ]
+    },
+    "class_type": "ImageFromBatch",
+    "_meta": {
+      "title": "Get Image from Batch"
+    }
+  },
+  "122:253": {
+    "inputs": {
+      "width": [
+        "122:254",
+        0
+      ],
+      "height": [
+        "122:255",
+        0
+      ],
+      "upscale_method": "bicubic",
+      "keep_proportion": "crop",
+      "pad_color": "0, 0, 0",
+      "crop_position": "center",
+      "divisible_by": 2,
+      "device": "cpu",
+      "image": [
+        "120",
+        0
+      ]
+    },
+    "class_type": "ImageResizeKJv2",
+    "_meta": {
+      "title": "Resize Image v2"
+    }
+  },
+  "122:247": {
+    "inputs": {
+      "string": "409920, 921600, 2073600, 3686400, 8294400"
+    },
+    "class_type": "easy stringToIntList",
+    "_meta": {
+      "title": "easy stringToIntList"
+    }
+  },
+  "122:249": {
+    "inputs": {
+      "choice": "480p",
+      "index": 0,
+      "option1": "480p",
+      "option2": "720p",
+      "option3": "1080p",
+      "option4": "1440p",
+      "option5": "4k",
+      "option6": ""
+    },
+    "class_type": "CustomCombo",
+    "_meta": {
+      "title": "Custom Combo"
+    }
+  }
+}

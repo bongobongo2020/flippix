@@ -40,8 +40,11 @@ namespace FlipPix.UI.Models
                 };
         }
 
-        /// <summary>1-based position of this pair in the batch.</summary>
-        public int Index { get; }
+        /// <summary>1-based position of this pair in the batch. Mutable so the pair can be
+        /// reordered (moved up/down) and renumbered to drive the final video sequence.</summary>
+        [ObservableProperty]
+        [NotifyPropertyChangedFor(nameof(Label))]
+        private int _index;
 
         public string FirstImagePath { get; }
         public string LastImagePath { get; }

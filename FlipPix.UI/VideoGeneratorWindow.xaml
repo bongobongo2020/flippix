@@ -2539,6 +2539,11 @@
                                                     <Button Content="Browse…" Command="{Binding BrowseChar2Command}"
                                                             Height="26" FontSize="10" Margin="0,5,0,0"
                                                             Background="#1F2937" Foreground="#C7D2FE" BorderThickness="0" Cursor="Hand"/>
+                                                    <Button Content="Replace Both"
+                                                            Command="{Binding SwapCharactersCommand}"
+                                                            Height="26" FontSize="10" Margin="0,4,0,0"
+                                                            Background="#7C3AED" Foreground="White" BorderThickness="0" Cursor="Hand"
+                                                            ToolTip="Replace both people in the current base frame with Character 1 (left) and Character 2 (right), then use the result as the character image"/>
                                                 </StackPanel>
 
                                                 <TextBlock Grid.Column="2" Text="→" FontSize="20" Foreground="#7C3AED"
@@ -2561,13 +2566,12 @@
                                                             </Border>
                                                         </Grid>
                                                     </Border>
-                                                    <Button Content="Swap characters"
-                                                            Command="{Binding SwapCharactersCommand}"
+                                                    <Button Content="Browse…" Command="{Binding BrowseFinalImageCommand}"
                                                             Height="26" FontSize="10" Margin="0,5,0,0"
-                                                            Background="#7C3AED" Foreground="White" BorderThickness="0" Cursor="Hand"
-                                                            ToolTip="Replace both people in the current base frame with Character 1 (left) and Character 2 (right), then use the result as the character image"/>
-                                                    <TextBlock Text="Built when you press Swap" FontSize="9"
-                                                               Foreground="#6B7280" FontStyle="Italic" Margin="0,5,0,0"/>
+                                                            Background="#1F2937" Foreground="#C7D2FE" BorderThickness="0" Cursor="Hand"
+                                                            ToolTip="Upload your own image to use as the final character image instead of running a swap"/>
+                                                    <TextBlock Text="Built by Replace Both / Replace this one only, or upload your own" FontSize="9"
+                                                               Foreground="#6B7280" FontStyle="Italic" Margin="0,5,0,0" TextWrapping="Wrap"/>
                                                 </StackPanel>
                                             </Grid>
 
@@ -4653,14 +4657,13 @@
                                                 <StackPanel Margin="0,8,0,0"
                                                             Visibility="{Binding IsBatchMode, Converter={StaticResource BooleanToVisibilityConverter}}">
                                                     <TextBlock Text="{Binding BatchInfo}" FontSize="11" FontWeight="Bold" Foreground="#6D28D9"/>
-                                                    <TextBlock Text="Selected pair prompt:" FontSize="9" Foreground="#9CA3AF" Margin="0,6,0,2"/>
-                                                    <Border Background="#F5F3FF" BorderBrush="#DDD6FE" BorderThickness="1"
-                                                            CornerRadius="4" Padding="6" MaxHeight="120">
-                                                        <ScrollViewer VerticalScrollBarVisibility="Auto">
-                                                            <TextBlock Text="{Binding SelectedPair.Prompt}" TextWrapping="Wrap"
-                                                                       FontSize="10" Foreground="#374151"/>
-                                                        </ScrollViewer>
-                                                    </Border>
+                                                    <TextBlock Text="Selected pair prompt (edit before rerolling):" FontSize="9" Foreground="#9CA3AF" Margin="0,6,0,2"/>
+                                                    <TextBox Text="{Binding SelectedPair.Prompt, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                                                             TextWrapping="Wrap" AcceptsReturn="True" MinHeight="60" MaxHeight="120"
+                                                             VerticalScrollBarVisibility="Auto" Padding="6"
+                                                             Background="#F5F3FF" BorderBrush="#DDD6FE" BorderThickness="1"
+                                                             FontSize="10" Foreground="#374151"
+                                                             ToolTip="The action that bridges this pair's first frame to its last frame. Edit freely, then Reroll This Pair to regenerate with the new prompt."/>
                                                     <Button Content="✕ Exit Batch Mode" Command="{Binding ClearFolderCommand}"
                                                             Height="26" Margin="0,8,0,0" Background="#6B7280" Foreground="White" BorderThickness="0"/>
                                                 </StackPanel>
@@ -4850,29 +4853,48 @@
                                                 <DataTemplate>
                                                     <Border CornerRadius="6" Background="White" BorderBrush="#DDD6FE"
                                                             BorderThickness="1" Padding="6">
-                                                        <StackPanel>
-                                                            <Grid Height="46">
-                                                                <Grid.ColumnDefinitions>
-                                                                    <ColumnDefinition Width="*"/>
-                                                                    <ColumnDefinition Width="14"/>
-                                                                    <ColumnDefinition Width="*"/>
-                                                                </Grid.ColumnDefinitions>
-                                                                <Image Grid.Column="0" Source="{Binding FirstThumb}" Stretch="UniformToFill"/>
-                                                                <TextBlock Grid.Column="1" Text="→" VerticalAlignment="Center"
-                                                                           HorizontalAlignment="Center" Foreground="#7C3AED" FontWeight="Bold"/>
-                                                                <Image Grid.Column="2" Source="{Binding LastThumb}" Stretch="UniformToFill"/>
-                                                            </Grid>
-                                                            <TextBlock Text="{Binding Label}" FontSize="10" Foreground="#374151"
-                                                                       TextTrimming="CharacterEllipsis" Margin="0,4,0,0"/>
-                                                            <Grid Margin="0,2,0,0">
-                                                                <TextBlock HorizontalAlignment="Left" Text="{Binding StatusText}"
-                                                                           FontSize="9" Foreground="#7C3AED"/>
-                                                                <TextBlock HorizontalAlignment="Right" FontSize="9" FontWeight="Bold"
-                                                                           Foreground="#059669"
-                                                                           Text="{Binding SelectedCount, StringFormat=✓{0} queued}"
-                                                                           Visibility="{Binding HasSelection, Converter={StaticResource BooleanToVisibilityConverter}}"/>
-                                                            </Grid>
-                                                        </StackPanel>
+                                                        <Grid>
+                                                            <Grid.ColumnDefinitions>
+                                                                <ColumnDefinition Width="*"/>
+                                                                <ColumnDefinition Width="Auto"/>
+                                                            </Grid.ColumnDefinitions>
+                                                            <StackPanel Grid.Column="0">
+                                                                <Grid Height="46">
+                                                                    <Grid.ColumnDefinitions>
+                                                                        <ColumnDefinition Width="*"/>
+                                                                        <ColumnDefinition Width="14"/>
+                                                                        <ColumnDefinition Width="*"/>
+                                                                    </Grid.ColumnDefinitions>
+                                                                    <Image Grid.Column="0" Source="{Binding FirstThumb}" Stretch="UniformToFill"/>
+                                                                    <TextBlock Grid.Column="1" Text="→" VerticalAlignment="Center"
+                                                                               HorizontalAlignment="Center" Foreground="#7C3AED" FontWeight="Bold"/>
+                                                                    <Image Grid.Column="2" Source="{Binding LastThumb}" Stretch="UniformToFill"/>
+                                                                </Grid>
+                                                                <TextBlock Text="{Binding Label}" FontSize="10" Foreground="#374151"
+                                                                           TextTrimming="CharacterEllipsis" Margin="0,4,0,0"/>
+                                                                <Grid Margin="0,2,0,0">
+                                                                    <TextBlock HorizontalAlignment="Left" Text="{Binding StatusText}"
+                                                                               FontSize="9" Foreground="#7C3AED"/>
+                                                                    <TextBlock HorizontalAlignment="Right" FontSize="9" FontWeight="Bold"
+                                                                               Foreground="#059669"
+                                                                               Text="{Binding SelectedCount, StringFormat=✓{0} queued}"
+                                                                               Visibility="{Binding HasSelection, Converter={StaticResource BooleanToVisibilityConverter}}"/>
+                                                                </Grid>
+                                                            </StackPanel>
+                                                            <!-- Reorder this pair up/down → changes the sequence in the final joined video. -->
+                                                            <StackPanel Grid.Column="1" VerticalAlignment="Center" Margin="6,0,0,0">
+                                                                <Button Content="▲" FontSize="10" Width="22" Height="22" Padding="0"
+                                                                        Foreground="#7C3AED" Background="#F5F3FF" BorderBrush="#DDD6FE"
+                                                                        BorderThickness="1" Cursor="Hand" ToolTip="Move pair up"
+                                                                        Command="{Binding DataContext.MovePairUpCommand, RelativeSource={RelativeSource AncestorType=ListBox}}"
+                                                                        CommandParameter="{Binding}"/>
+                                                                <Button Content="▼" FontSize="10" Width="22" Height="22" Padding="0" Margin="0,4,0,0"
+                                                                        Foreground="#7C3AED" Background="#F5F3FF" BorderBrush="#DDD6FE"
+                                                                        BorderThickness="1" Cursor="Hand" ToolTip="Move pair down"
+                                                                        Command="{Binding DataContext.MovePairDownCommand, RelativeSource={RelativeSource AncestorType=ListBox}}"
+                                                                        CommandParameter="{Binding}"/>
+                                                            </StackPanel>
+                                                        </Grid>
                                                     </Border>
                                                 </DataTemplate>
                                             </ListBox.ItemTemplate>

@@ -357,12 +357,40 @@ namespace FlipPix.UI.ViewModels.Video
 
                 var fileInfo = new FileInfo(ImagePath);
                 ImageInfo = $"{bitmap.PixelWidth}x{bitmap.PixelHeight} • {fileInfo.Length / 1024}KB";
+
+                // Match the output aspect ratio to the uploaded image. The workflow's resize node
+                // (281) crops the image to Width×Height, so leaving these square (640×640) forces a
+                // square video regardless of the source. Derive W/H from the image, preserving its
+                // aspect while keeping roughly the same pixel budget, snapped to /16 (WAN requirement).
+                UpdateDimensionsFromImage(bitmap.PixelWidth, bitmap.PixelHeight);
             }
             catch (Exception ex)
             {
                 AddLog($"Error loading image preview: {ex.Message}");
                 ImageInfo = "Error loading image";
             }
+        }
+
+        /// <summary>
+        /// Sets <see cref="Width"/>/<see cref="Height"/> to the source image's aspect ratio while
+        /// keeping the total pixel count near the 640×640 baseline (so render cost stays comparable),
+        /// snapped to multiples of 16 as WAN/the resize node require. The user can still override
+        /// the values manually afterward.
+        /// </summary>
+        private void UpdateDimensionsFromImage(int pixelWidth, int pixelHeight)
+        {
+            if (pixelWidth <= 0 || pixelHeight <= 0) return;
+
+            const double targetArea = 640.0 * 640.0;
+            double aspect = (double)pixelWidth / pixelHeight;
+
+            int Snap16(double v) => Math.Max(16, (int)Math.Round(v / 16.0) * 16);
+            int w = Snap16(Math.Sqrt(targetArea * aspect));
+            int h = Snap16(Math.Sqrt(targetArea / aspect));
+
+            Width = w;
+            Height = h;
+            AddLog($"Output dimensions set to {w}x{h} from image aspect ({pixelWidth}x{pixelHeight})");
         }
 
         private void LoadAudioInfo()
@@ -572,7 +600,12 @@ namespace FlipPix.UI.ViewModels.Video
                     }
                 });
 
-                var promptId = await _comfyUIService.ExecuteWorkflowAsync(updatedWorkflow, progress);
+                // InfiniteTalk renders the whole (often multi-thousand-frame) video in a single
+                // prompt, so the default 30-min ceiling aborts long jobs even though ComfyUI is
+                // still working. Use a generous ceiling — real completion is detected within ~5s
+                // via /history, so this costs nothing for normal-length jobs.
+                var promptId = await _comfyUIService.ExecuteWorkflowAsync(
+                    updatedWorkflow, progress, CancellationToken.None, TimeSpan.FromHours(4));
                 AddLog($"Workflow completed, prompt ID: {promptId}");
 
                 // Wait for output video

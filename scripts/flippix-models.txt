@@ -10,6 +10,7 @@
 clip/qwen_2.5_vl_7b_fp8_scaled.safetensors | ~4.2 GB | https://huggingface.co/Comfy-Org/Qwen-Image_ComfyUI/resolve/main/split_files/text_encoders/qwen_2.5_vl_7b_fp8_scaled.safetensors
 clip/umt5_xxl_fp8_e4m3fn_scaled.safetensors | ~4.9 GB | https://huggingface.co/Kijai/WanVideoGenerator/resolve/main/text_encoders/umt5_xxl_fp8_e4m3fn_scaled.safetensors
 clip/qwen_3_4b.safetensors | ~2.5 GB | https://huggingface.co/Comfy-Org/ZhipuAI_Z-Image-Turbo_models/resolve/main/qwen_3_4b.safetensors
+text_encoders/gemma_2_2b_it_elm_bf16.safetensors | ~5.2 GB | https://huggingface.co/Comfy-Org/PixelDiT/resolve/main/text_encoders/gemma_2_2b_it_elm_bf16.safetensors
 
 # --- VAE (~500 MB) ---
 vae/qwen_image_vae.safetensors | ~168 MB | https://huggingface.co/QuantStack/Qwen-Image-GGUF/resolve/main/VAE/Qwen_Image-VAE.safetensors

@@ -1,52 +1,12 @@
 {
-  "1": {
-    "inputs": {
-      "unet_name": "krea/krea2_turbo_fp8.safetensors",
-      "weight_dtype": "default"
-    },
-    "class_type": "UNETLoader",
-    "_meta": {
-      "title": "UNET Loader - Krea2 Turbo FP8"
-    }
-  },
-  "2": {
-    "inputs": {
-      "seed": 422939123805033,
-      "steps": 8,
-      "cfg": 1,
-      "sampler_name": "er_sde",
-      "scheduler": "sgm_uniform",
-      "denoise": 1,
-      "model": [
-        "17",
-        0
-      ],
-      "positive": [
-        "6",
-        0
-      ],
-      "negative": [
-        "8",
-        0
-      ],
-      "latent_image": [
-        "10",
-        0
-      ]
-    },
-    "class_type": "KSampler",
-    "_meta": {
-      "title": "KSampler"
-    }
-  },
   "3": {
     "inputs": {
       "samples": [
-        "2",
+        "27",
         0
       ],
       "vae": [
-        "4",
+        "31",
         0
       ]
     },
@@ -55,19 +15,10 @@
       "title": "VAE Decode"
     }
   },
-  "4": {
-    "inputs": {
-      "vae_name": "qwen_image_vae.safetensors"
-    },
-    "class_type": "VAELoader",
-    "_meta": {
-      "title": "VAE Loader"
-    }
-  },
   "5": {
     "inputs": {
       "images": [
-        "22",
+        "28",
         0
       ]
     },
@@ -78,9 +29,9 @@
   },
   "6": {
     "inputs": {
-      "text": "A casual mirror selfie of an East Asian woman in a minimalist, high-end clothing boutique. She’s doing a \"fit check,\" posing with one hand on her waist to show off a tiny white ribbed baby-tee and low-rise baggy grey cargo pants. She has a small designer shoulder bag and is wearing thin silver wire glasses. Her expression is neutral and effortless. The lighting is the bright, sterile white overhead light of the store, reflecting clearly in the massive floor-to-ceiling mirrors and polished concrete floors.",
+      "text": "radhika pointing a gun at the viewer. grainy nineties film",
       "clip": [
-        "17",
+        "26",
         1
       ]
     },
@@ -103,14 +54,8 @@
   },
   "10": {
     "inputs": {
-      "width": [
-        "16",
-        0
-      ],
-      "height": [
-        "16",
-        1
-      ],
+      "width": 1280,
+      "height": 720,
       "batch_size": 1
     },
     "class_type": "EmptyLatentImage",
@@ -129,19 +74,6 @@
       "title": "CLIP Loader - Krea2"
     }
   },
-  "16": {
-    "inputs": {
-      "megapixel": "2.5",
-      "aspect_ratio": "7:9 (Modern Portrait)",
-      "divisible_by": "64",
-      "custom_ratio": false,
-      "custom_aspect_ratio": "1:1"
-    },
-    "class_type": "FluxResolutionNode",
-    "_meta": {
-      "title": "Flux Resolution Calc"
-    }
-  },
   "17": {
     "inputs": {
       "PowerLoraLoaderHeaderWidget": {
@@ -152,9 +84,19 @@
         "lora": "Krea2\\Krea2-realism-V1.safetensors",
         "strength": 1
       },
+      "lora_2": {
+        "on": false,
+        "lora": "krea2/grainy-nineties-film-comfy.safetensors",
+        "strength": 1
+      },
+      "lora_3": {
+        "on": false,
+        "lora": "krea2/radhika_000002250.safetensors",
+        "strength": 1
+      },
       "➕ Add Lora": "",
       "model": [
-        "1",
+        "30",
         0
       ],
       "clip": [
@@ -167,9 +109,79 @@
       "title": "Power Lora Loader (rgthree)"
     }
   },
-  "22": {
+  "23": {
     "inputs": {
-      "scale": 2.01,
+      "filename_prefix": "Krea2",
+      "output_folder": "output",
+      "caption_file_extension": ".txt",
+      "images": [
+        "28",
+        0
+      ]
+    },
+    "class_type": "SaveImageKJ",
+    "_meta": {
+      "title": "Save Image KJ"
+    }
+  },
+  "26": {
+    "inputs": {
+      "lora_name": "krea2-system/krea2filterbypass.safetensors",
+      "strength_model": 4,
+      "strength_clip": 1,
+      "prompt": "",
+      "example": "[none]",
+      "model": [
+        "29",
+        0
+      ],
+      "clip": [
+        "29",
+        1
+      ]
+    },
+    "class_type": "LoraLoader|pysssss",
+    "_meta": {
+      "title": "Lora Loader 🐍"
+    }
+  },
+  "27": {
+    "inputs": {
+      "eta": 0.5,
+      "sampler_name": "linear/euler",
+      "scheduler": "beta57",
+      "steps": 12,
+      "steps_to_run": -1,
+      "denoise": 1,
+      "cfg": 1,
+      "seed": 996038716553838,
+      "sampler_mode": "standard",
+      "bongmath": true,
+      "model": [
+        "26",
+        0
+      ],
+      "positive": [
+        "6",
+        0
+      ],
+      "negative": [
+        "8",
+        0
+      ],
+      "latent_image": [
+        "10",
+        0
+      ]
+    },
+    "class_type": "ClownsharKSampler_Beta",
+    "_meta": {
+      "title": "ClownsharKSampler"
+    }
+  },
+  "28": {
+    "inputs": {
+      "scale": 2,
       "quality": "ULTRA",
       "images": [
         "3",
@@ -181,19 +193,50 @@
       "title": "RTX Video Super Resolution"
     }
   },
-  "23": {
+  "29": {
     "inputs": {
-      "filename_prefix": "Krea2",
-      "output_folder": "output",
-      "caption_file_extension": ".txt",
-      "images": [
-        "22",
+      "lora_name": "krea2-system/krea2_turbo_lora_rank_64_bf16.safetensors",
+      "strength_model": 0.6,
+      "strength_clip": 1,
+      "prompt": "",
+      "example": "[none]",
+      "model": [
+        "17",
         0
+      ],
+      "clip": [
+        "17",
+        1
       ]
     },
-    "class_type": "SaveImageKJ",
+    "class_type": "LoraLoader|pysssss",
     "_meta": {
-      "title": "Save Image KJ"
+      "title": "Lora Loader 🐍"
+    }
+  },
+  "30": {
+    "inputs": {
+      "unet_name": "krea/krea2_raw_int8_convrot.safetensors",
+      "weight_dtype": "default",
+      "model_type": "wan",
+      "on_the_fly_quantization": false,
+      "enable_convrot": true,
+      "lora_mode": "None"
+    },
+    "class_type": "OTUNetLoaderW8A8",
+    "_meta": {
+      "title": "Load Diffusion Model INT8 (W8A8)"
+    }
+  },
+  "31": {
+    "inputs": {
+      "vae_name": "Wan2_1_VAE_bf16.safetensors",
+      "device": "main_device",
+      "weight_dtype": "bf16"
+    },
+    "class_type": "VAELoaderKJ",
+    "_meta": {
+      "title": "VAELoader KJ"
     }
   }
 }
