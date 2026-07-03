@@ -1,3 +1,4 @@
+using System.Collections.Generic;
 using System.Text.Json.Serialization;
 using FlipPix.UI.ViewModels;
 
@@ -16,7 +17,26 @@ namespace FlipPix.UI.Models
         public double Denoise { get; set; } = 1.0;
         public bool LoraEnabled { get; set; } = false;
         public string SelectedLora { get; set; } = string.Empty;
-        public string SelectedKreaLora { get; set; } = string.Empty;
+
+        /// <summary>Krea2 LoRA stack (name + strength), applied in order to Power Lora Loader slots.</summary>
+        public List<KreaLoraDto> SelectedKreaLoras { get; set; } = new();
+
+        /// <summary>
+        /// Legacy single-LoRA field from older saved queues. The getter returns null so it is never
+        /// written back (kept out of new files); the setter runs on deserialize and back-fills
+        /// <see cref="SelectedKreaLoras"/> when an old item carries it and no list.
+        /// </summary>
+        [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+        public string? SelectedKreaLora
+        {
+            get => null;
+            set
+            {
+                if (!string.IsNullOrEmpty(value) && SelectedKreaLoras.Count == 0)
+                    SelectedKreaLoras.Add(new KreaLoraDto { Name = value, Strength = 1.0 });
+            }
+        }
+
         public TextGeneratorWorkflow SelectedWorkflow { get; set; } = TextGeneratorWorkflow.Zimage;
 
         // Style tracking (for Zimage ZStyle workflows)

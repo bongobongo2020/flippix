@@ -127,6 +127,8 @@ namespace FlipPix.UI.ViewModels.Video
             SelectFolderCommand = new RelayCommand(async () => await SelectFolderAsync());
             RunBatchCommand = new RelayCommand(async () => await RunBatchAsync(), () => CanRunBatch);
             RerollPairCommand = new RelayCommand(async () => await RerollPairAsync(), () => CanRerollPair);
+            MovePairUpCommand = new RelayCommand<FflfPair>(p => MovePair(p, -1), _ => !IsProcessing && !IsAnalyzing);
+            MovePairDownCommand = new RelayCommand<FflfPair>(p => MovePair(p, +1), _ => !IsProcessing && !IsAnalyzing);
             ClearFolderCommand = new RelayCommand(ClearFolder, () => IsBatchMode && !IsProcessing && !IsAnalyzing);
             AnalyzeCommand = new RelayCommand(async () => await AnalyzeAsync(), () => CanAnalyze);
             HuntCommand = new RelayCommand(async () => await RunHuntAsync(), () => CanHunt);
@@ -151,6 +153,8 @@ namespace FlipPix.UI.ViewModels.Video
         public ICommand SelectFolderCommand { get; }
         public RelayCommand RunBatchCommand { get; }
         public RelayCommand RerollPairCommand { get; }
+        public RelayCommand<FflfPair> MovePairUpCommand { get; }
+        public RelayCommand<FflfPair> MovePairDownCommand { get; }
         public RelayCommand ClearFolderCommand { get; }
         public RelayCommand AnalyzeCommand { get; }
         public RelayCommand HuntCommand { get; }
@@ -1310,6 +1314,32 @@ namespace FlipPix.UI.ViewModels.Video
         private void SetPairStatus(FflfPair pair, string status) =>
             Application.Current.Dispatcher.Invoke(() => pair.Status = status);
 
+        /// <summary>
+        /// Moves a pair one slot up (<paramref name="delta"/> = -1) or down (+1) in the batch order.
+        /// Pairs are renumbered so labels follow the new order, and Finish concatenates the final
+        /// clips in this same order — so reordering pairs reorders the joined output video.
+        /// </summary>
+        private void MovePair(FflfPair? pair, int delta)
+        {
+            if (pair == null || IsProcessing || IsAnalyzing) return;
+            int i = _pairs.IndexOf(pair);
+            if (i < 0) return;
+            int j = i + delta;
+            if (j < 0 || j >= _pairs.Count) return;
+
+            _pairs.Move(i, j);
+            RenumberPairs();
+            SelectedPair = pair; // keep the moved pair selected/highlighted
+            AddLog($"Moved pair to position {j + 1} of {_pairs.Count}");
+        }
+
+        /// <summary>Re-assigns each pair's 1-based <see cref="FflfPair.Index"/> to its current position.</summary>
+        private void RenumberPairs()
+        {
+            for (int k = 0; k < _pairs.Count; k++)
+                _pairs[k].Index = k + 1;
+        }
+
         #endregion
 
         #region Shared workflow runner
@@ -1547,6 +1577,8 @@ namespace FlipPix.UI.ViewModels.Video
             HuntCommand.NotifyCanExecuteChanged();
             RunBatchCommand.NotifyCanExecuteChanged();
             RerollPairCommand.NotifyCanExecuteChanged();
+            MovePairUpCommand.NotifyCanExecuteChanged();
+            MovePairDownCommand.NotifyCanExecuteChanged();
             ClearFolderCommand.NotifyCanExecuteChanged();
             FinishCommand.NotifyCanExecuteChanged();
             CancelCommand.NotifyCanExecuteChanged();

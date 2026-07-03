@@ -89,6 +89,7 @@ namespace FlipPix.UI.ViewModels.Video
 
             BrowseChar1Command = new RelayCommand(async () => await BrowseChar1Async(), () => !IsCharSwapping);
             BrowseChar2Command = new RelayCommand(async () => await BrowseChar2Async(), () => !IsCharSwapping);
+            BrowseFinalImageCommand = new RelayCommand(async () => await BrowseFinalImageAsync(), () => !IsCharSwapping);
             SwapCharactersCommand = new RelayCommand(async () => await RunCharSwapStageAsync(), () => CanSwapCharacters);
             SwapChar1OnlyCommand = new RelayCommand(async () => await RunChar1OnlySwapAsync(), () => CanSwapChar1Only);
             RemoveChar1Command = new RelayCommand(ClearChar1Image, () => HasChar1Image && !IsCharSwapping);
@@ -193,6 +194,7 @@ namespace FlipPix.UI.ViewModels.Video
                 OnPropertyChanged(nameof(CanSwapChar1Only));
                 BrowseChar1Command.NotifyCanExecuteChanged();
                 BrowseChar2Command.NotifyCanExecuteChanged();
+                BrowseFinalImageCommand.NotifyCanExecuteChanged();
                 SwapCharactersCommand.NotifyCanExecuteChanged();
                 SwapChar1OnlyCommand.NotifyCanExecuteChanged();
                 RemoveChar1Command.NotifyCanExecuteChanged();
@@ -212,6 +214,7 @@ namespace FlipPix.UI.ViewModels.Video
 
         public RelayCommand BrowseChar1Command { get; }
         public RelayCommand BrowseChar2Command { get; }
+        public RelayCommand BrowseFinalImageCommand { get; }
         public RelayCommand SwapCharactersCommand { get; }
         public RelayCommand SwapChar1OnlyCommand { get; }
         public RelayCommand RemoveChar1Command { get; }
@@ -239,6 +242,29 @@ namespace FlipPix.UI.ViewModels.Video
                 "Image Files|*.png;*.jpg;*.jpeg;*.bmp;*.webp",
                 persistKey: "scail2.char2");
             if (!string.IsNullOrEmpty(path)) SetChar2Image(path);
+        }
+
+        // Lets the user supply their own final image instead of (or in place of) a Klein char-swap
+        // composite. The picked image becomes the SCAIL II character image directly.
+        private async Task BrowseFinalImageAsync()
+        {
+            var path = await _fileDialogService.OpenFileDialogAsync(
+                "Select the final image (used as the character image)",
+                "Image Files|*.png;*.jpg;*.jpeg;*.bmp;*.webp",
+                persistKey: "scail2.final");
+            if (!string.IsNullOrEmpty(path)) SetFinalImage(path);
+        }
+
+        public void SetFinalImage(string path)
+        {
+            if (!File.Exists(path)) return;
+            try { CharSwapResultSource = LoadBitmap(path); }
+            catch (Exception ex) { AddLog($"ERROR loading final image: {ex.Message}"); return; }
+            HasCharSwapResult = true;
+            // Drives the inherited preview + enables the SCAIL II stage.
+            CharacterImagePath = path;
+            AddLog($"Scail 2: final image = {Path.GetFileName(path)} (user-supplied)");
+            RefreshSwapReadiness();
         }
 
         public void SetChar1Image(string path)
@@ -669,6 +695,117 @@ namespace FlipPix.UI.ViewModels.Video
                 CharSwapStatus = $"Generate failed: {ex.Message}";
                 AddLog($"ERROR (motion-transfer): {ex.Message}");
             }
+        }
+
+        #endregion
+
+        #region Stage B — workflow (high-res-fix long video)
+
+        // Scail 2 uses the "Long Videos High-Res Fix" SCAIL-2 workflow instead of the simple
+        // single-node one inherited from WanScailGgufViewModel. It loops over the whole clip
+        // internally (VideoChunkPlanner + forLoopStart/forLoopEnd, BlendVideoChunks crossfade),
+        // so the C# side still runs one whole-video execution (FramesPerChunk == int.MaxValue,
+        // inherited). The node layout is completely different from the simple workflow, so the
+        // whole UpdateWorkflowParameters mapping is overridden below.
+        protected override string WorkflowFileName =>
+            Path.Combine("video", "wan", "scail2LongVideosHighResFix_v10 (1).json");
+
+        protected override JsonElement UpdateWorkflowParameters(
+            JsonElement workflow,
+            string characterImageName,
+            string videoName,
+            int startFrame,
+            int framesInChunk,
+            string prompt,
+            string negativePrompt,
+            int fps,
+            int maxEdge,
+            long seed,
+            int outputWidth = 0,
+            int outputHeight = 0,
+            WanScailQueueItem? item = null)
+        {
+            // Drop the terminal preview sinks (pose-mask preview 105, input-video preview 110, and
+            // the SAM object-id preview 245) so the only video that lands in /history is the final
+            // combine (node 238). TryGetVideoFromHistoryAsync takes the first mp4 it finds and does
+            // not filter out save_output=false temp previews, so leaving these in risks returning a
+            // preview clip instead of the result. They are terminal (nothing reads their output), so
+            // removing them only skips preview-only rendering.
+            var dict = JsonSerializer.Deserialize<Dictionary<string, JsonElement>>(workflow.GetRawText())
+                ?? throw new InvalidOperationException("Failed to parse SCAIL2 hi-res workflow JSON");
+            foreach (var previewNode in new[] { "105", "110", "245" })
+                dict.Remove(previewNode);
+            var workflowJson = JsonSerializer.Serialize(dict);
+
+            var subject = string.IsNullOrWhiteSpace(item?.Subject) ? "person" : item!.Subject.Trim();
+
+            // Node 39 "Activate replacement mode?" is the inverse of ReplaceBackground: replacement
+            // mode keeps the original background (character only), while leaving it off regenerates
+            // the whole frame (character + background).
+            bool replaceBackground = item?.ReplaceBackground ?? true;
+            bool replacementMode = !replaceBackground;
+
+            // The new workflow takes a start offset and a max length in SECONDS (nodes 38 / 46) and
+            // derives skip_first_frames / frame_load_cap internally, so convert the frame-based trim.
+            // framesInChunk == int.MaxValue means the frame count was unknown — leave the authored
+            // max-duration default in that case.
+            int skipFrames = item?.TrimSkipFrames ?? 0;
+            int capFrames = item?.TrimFrameCap ?? 0;
+            double skipSeconds = fps > 0 && skipFrames > 0 ? skipFrames / (double)fps : 0;
+            double maxDurationSeconds =
+                capFrames > 0 && fps > 0 ? capFrames / (double)fps
+                : (framesInChunk > 0 && framesInChunk < int.MaxValue && fps > 0 ? framesInChunk / (double)fps : 0);
+
+            AddLog($"Updating SCAIL2 hi-res workflow: whole video, fps={fps}, subject=\"{subject}\", " +
+                   $"replacementMode={replacementMode}, skip={skipSeconds:F2}s, " +
+                   $"maxDuration={(maxDurationSeconds > 0 ? maxDurationSeconds.ToString("F1") + "s" : "authored")}");
+
+            // Node 94: main character / reference image (LoadImage)
+            WorkflowNodeUpdater.UpdateNodeInput(ref workflowJson, "94", "image", characterImageName);
+
+            // Node 120: reference (driving) video. skip/cap/force_rate stay wired to helper nodes.
+            WorkflowNodeUpdater.UpdateNodeInput(ref workflowJson, "120", "video", videoName);
+
+            // Node 40: target frame rate (easy float)
+            WorkflowNodeUpdater.UpdateNodeInput(ref workflowJson, "40", "value", fps);
+
+            // Node 41: positive prompt, Node 22: negative prompt (CLIPTextEncode)
+            WorkflowNodeUpdater.UpdateNodeInput(ref workflowJson, "41", "text", prompt);
+            WorkflowNodeUpdater.UpdateNodeInput(ref workflowJson, "22", "text", negativePrompt);
+
+            // Node 256:101: SAM3 subject to detect / track
+            WorkflowNodeUpdater.UpdateNodeInput(ref workflowJson, "256:101", "text", subject);
+
+            // Node 39: replacement (keep background) vs. animation (regenerate everything)
+            WorkflowNodeUpdater.UpdateNodeInput(ref workflowJson, "39", "value", replacementMode);
+
+            // Node 38: skip first N seconds (trim in-point)
+            WorkflowNodeUpdater.UpdateNodeInput(ref workflowJson, "38", "value", skipSeconds);
+
+            // Node 46: max video duration in seconds — only when we know a concrete length.
+            if (maxDurationSeconds > 0)
+                WorkflowNodeUpdater.UpdateNodeInput(ref workflowJson, "46", "value", maxDurationSeconds);
+
+            // Seed: drive both the global seed controller (174) and the sampler noise (145) so the
+            // run is reproducible regardless of which one the sampler ultimately reads.
+            WorkflowNodeUpdater.UpdateNodeInputMultiple(ref workflowJson, "174", new Dictionary<string, object>
+            {
+                { "value", seed },
+                { "last_seed", seed }
+            });
+            WorkflowNodeUpdater.UpdateNodeInput(ref workflowJson, "145", "noise_seed", seed);
+
+            // Node 238: final combine — match the frame rate and pin into the wan_scail subfolder so
+            // the filesystem-polling fallback (OutputSubfolder = "wan_scail") can find it.
+            WorkflowNodeUpdater.UpdateNodeInputMultiple(ref workflowJson, "238", new Dictionary<string, object>
+            {
+                { "frame_rate", fps },
+                { "filename_prefix", "wan_scail/SCAIL2_hires" },
+                { "save_output", true }
+            });
+
+            AddLog("✓ SCAIL2 hi-res workflow nodes updated");
+            return JsonSerializer.Deserialize<JsonElement>(workflowJson);
         }
 
         #endregion

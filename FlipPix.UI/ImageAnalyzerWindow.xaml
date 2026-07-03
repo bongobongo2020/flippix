@@ -442,32 +442,47 @@
                         </StackPanel>
                     </Border>
 
-                    <!-- Section D2: Krea2 LoRA -->
+                    <!-- Section D2: Krea2 LoRAs — multiple LoRAs, each with its own strength -->
                     <Border Style="{StaticResource SectionPanelStyle}" Visibility="{Binding ShowKreaLoraOptions, Converter={StaticResource BooleanToVisibilityConverter}}">
                         <StackPanel>
-                            <TextBlock Text="Krea2 LoRA" Style="{StaticResource HeaderTextStyle}" Foreground="#8B5CF6"/>
-                            <Grid Margin="0,4,0,0">
-                                <Grid.ColumnDefinitions>
-                                    <ColumnDefinition Width="*"/>
-                                    <ColumnDefinition Width="Auto"/>
-                                </Grid.ColumnDefinitions>
-                                <ComboBox Grid.Column="0"
-                                         ItemsSource="{Binding KreaLoras}"
-                                         SelectedItem="{Binding SelectedKreaLora, Mode=TwoWay}"
-                                         Padding="8"
-                                         Background="White"
-                                         BorderBrush="#CED4DA"
-                                         FontSize="11"
-                                         Height="32"
-                                         Margin="0,0,6,0"/>
-                                <Button Grid.Column="1"
-                                       Content="Refresh"
-                                       Command="{Binding RefreshKreaLorasCommand}"
-                                       Style="{StaticResource SecondaryButtonStyle}"
-                                       Width="60"
-                                       Height="32"
-                                       Padding="10,5"/>
-                            </Grid>
+                            <TextBlock Text="Krea2 LoRAs" Style="{StaticResource HeaderTextStyle}" Foreground="#8B5CF6"/>
+                            <ItemsControl ItemsSource="{Binding SelectedKreaLoras}" Margin="0,4,0,0">
+                                <ItemsControl.ItemTemplate>
+                                    <DataTemplate>
+                                        <Grid Margin="0,0,0,4">
+                                            <Grid.ColumnDefinitions>
+                                                <ColumnDefinition Width="*"/>
+                                                <ColumnDefinition Width="Auto"/>
+                                                <ColumnDefinition Width="Auto"/>
+                                            </Grid.ColumnDefinitions>
+                                            <ComboBox Grid.Column="0"
+                                                     ItemsSource="{Binding DataContext.KreaLoras, RelativeSource={RelativeSource AncestorType=ItemsControl}}"
+                                                     SelectedItem="{Binding LoraName, Mode=TwoWay}"
+                                                     Padding="8"
+                                                     Background="White"
+                                                     BorderBrush="#CED4DA"
+                                                     FontSize="11"
+                                                     Height="32"
+                                                     Margin="0,0,6,0"/>
+                                            <TextBox Grid.Column="1"
+                                                     Text="{Binding Strength, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged, StringFormat=0.##}"
+                                                     ToolTip="LoRA strength"
+                                                     FontSize="11" Width="46" Height="32" Margin="0,0,6,0"
+                                                     VerticalContentAlignment="Center" TextAlignment="Center"/>
+                                            <Button Grid.Column="2" Content="✕"
+                                                    Command="{Binding DataContext.RemoveKreaLoraCommand, RelativeSource={RelativeSource AncestorType=ItemsControl}}"
+                                                    CommandParameter="{Binding}"
+                                                    Style="{StaticResource SecondaryButtonStyle}"
+                                                    ToolTip="Remove this LoRA"
+                                                    Width="32" Height="32" Padding="0"/>
+                                        </Grid>
+                                    </DataTemplate>
+                                </ItemsControl.ItemTemplate>
+                            </ItemsControl>
+                            <StackPanel Orientation="Horizontal" Margin="0,4,0,0">
+                                <Button Content="➕ Add LoRA" Command="{Binding AddKreaLoraCommand}" Style="{StaticResource SecondaryButtonStyle}" Height="30" Padding="10,5" Margin="0,0,6,0"/>
+                                <Button Content="Refresh" Command="{Binding RefreshKreaLorasCommand}" Style="{StaticResource SecondaryButtonStyle}" Width="60" Height="30" Padding="10,5"/>
+                            </StackPanel>
                         </StackPanel>
                     </Border>
 

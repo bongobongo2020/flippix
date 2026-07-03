@@ -440,17 +440,41 @@
                                                     </Grid>
                                                 </StackPanel>
 
-                                                <!-- LoRA (Krea2 only) -->
+                                                <!-- LoRA (Krea2 only) — multiple LoRAs, each with its own strength -->
                                                 <StackPanel Margin="0,0,0,12" Visibility="{Binding ShowKreaLoraOptions, Converter={StaticResource BooleanToVisibilityConverter}}">
-                                                    <TextBlock Text="Krea2 LoRA" FontWeight="SemiBold" FontSize="11" Margin="0,0,0,6"/>
-                                                    <Grid>
-                                                        <Grid.ColumnDefinitions>
-                                                            <ColumnDefinition Width="*"/>
-                                                            <ColumnDefinition Width="Auto"/>
-                                                        </Grid.ColumnDefinitions>
-                                                        <ComboBox Grid.Column="0" ItemsSource="{Binding KreaLoras}" SelectedItem="{Binding SelectedKreaLora, Mode=TwoWay}" FontSize="11" Height="32" Margin="0,0,6,0"/>
-                                                        <Button Grid.Column="1" Content="Refresh" Command="{Binding RefreshKreaLorasCommand}" Style="{StaticResource SecondaryButtonStyle}" Width="60" Height="32" Padding="10,5"/>
-                                                    </Grid>
+                                                    <TextBlock Text="Krea2 LoRAs" FontWeight="SemiBold" FontSize="11" Margin="0,0,0,6"/>
+                                                    <ItemsControl ItemsSource="{Binding SelectedKreaLoras}">
+                                                        <ItemsControl.ItemTemplate>
+                                                            <DataTemplate>
+                                                                <Grid Margin="0,0,0,4">
+                                                                    <Grid.ColumnDefinitions>
+                                                                        <ColumnDefinition Width="*"/>
+                                                                        <ColumnDefinition Width="Auto"/>
+                                                                        <ColumnDefinition Width="Auto"/>
+                                                                    </Grid.ColumnDefinitions>
+                                                                    <ComboBox Grid.Column="0"
+                                                                              ItemsSource="{Binding DataContext.KreaLoras, RelativeSource={RelativeSource AncestorType=ItemsControl}}"
+                                                                              SelectedItem="{Binding LoraName, Mode=TwoWay}"
+                                                                              FontSize="11" Height="32" Margin="0,0,6,0"/>
+                                                                    <TextBox Grid.Column="1"
+                                                                             Text="{Binding Strength, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged, StringFormat=0.##}"
+                                                                             ToolTip="LoRA strength"
+                                                                             FontSize="11" Width="46" Height="32" Margin="0,0,6,0"
+                                                                             VerticalContentAlignment="Center" TextAlignment="Center"/>
+                                                                    <Button Grid.Column="2" Content="✕"
+                                                                            Command="{Binding DataContext.RemoveKreaLoraCommand, RelativeSource={RelativeSource AncestorType=ItemsControl}}"
+                                                                            CommandParameter="{Binding}"
+                                                                            Style="{StaticResource SecondaryButtonStyle}"
+                                                                            ToolTip="Remove this LoRA"
+                                                                            Width="32" Height="32" Padding="0"/>
+                                                                </Grid>
+                                                            </DataTemplate>
+                                                        </ItemsControl.ItemTemplate>
+                                                    </ItemsControl>
+                                                    <StackPanel Orientation="Horizontal" Margin="0,4,0,0">
+                                                        <Button Content="➕ Add LoRA" Command="{Binding AddKreaLoraCommand}" Style="{StaticResource SecondaryButtonStyle}" Height="30" Padding="10,5" Margin="0,0,6,0"/>
+                                                        <Button Content="Refresh" Command="{Binding RefreshKreaLorasCommand}" Style="{StaticResource SecondaryButtonStyle}" Width="60" Height="30" Padding="10,5"/>
+                                                    </StackPanel>
                                                 </StackPanel>
 
                                                 <!-- Aspect Ratio -->
@@ -1716,26 +1740,39 @@
                                 </Style>
                             </Border.Style>
                             <StackPanel>
-                                <TextBlock Text="🔧 Krea2 LoRA" FontWeight="SemiBold" FontSize="13" Foreground="#6D28D9" Margin="0,0,0,8"/>
-                                <Grid>
-                                    <Grid.ColumnDefinitions>
-                                        <ColumnDefinition Width="*"/>
-                                        <ColumnDefinition Width="Auto"/>
-                                    </Grid.ColumnDefinitions>
-                                    <ComboBox Grid.Column="0"
-                                              ItemsSource="{Binding StoryGeneratorQ.KreaLoras}"
-                                              SelectedItem="{Binding StoryGeneratorQ.KreaSelectedLora, Mode=TwoWay}"
-                                              FontSize="12"
-                                              Height="32"
-                                              Margin="0,0,6,0"/>
-                                    <Button Grid.Column="1"
-                                            Content="Refresh"
-                                            Command="{Binding StoryGeneratorQ.RefreshKreaLorasCommand}"
-                                            Style="{StaticResource SecondaryButtonStyle}"
-                                            Width="60"
-                                            Height="32"
-                                            Padding="10,5"/>
-                                </Grid>
+                                <TextBlock Text="🔧 Krea2 LoRAs" FontWeight="SemiBold" FontSize="13" Foreground="#6D28D9" Margin="0,0,0,8"/>
+                                <ItemsControl ItemsSource="{Binding StoryGeneratorQ.SelectedKreaLoras}">
+                                    <ItemsControl.ItemTemplate>
+                                        <DataTemplate>
+                                            <Grid Margin="0,0,0,4">
+                                                <Grid.ColumnDefinitions>
+                                                    <ColumnDefinition Width="*"/>
+                                                    <ColumnDefinition Width="Auto"/>
+                                                    <ColumnDefinition Width="Auto"/>
+                                                </Grid.ColumnDefinitions>
+                                                <ComboBox Grid.Column="0"
+                                                          ItemsSource="{Binding DataContext.StoryGeneratorQ.KreaLoras, RelativeSource={RelativeSource AncestorType=ItemsControl}}"
+                                                          SelectedItem="{Binding LoraName, Mode=TwoWay}"
+                                                          FontSize="12" Height="32" Margin="0,0,6,0"/>
+                                                <TextBox Grid.Column="1"
+                                                         Text="{Binding Strength, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged, StringFormat=0.##}"
+                                                         ToolTip="LoRA strength"
+                                                         FontSize="12" Width="46" Height="32" Margin="0,0,6,0"
+                                                         VerticalContentAlignment="Center" TextAlignment="Center"/>
+                                                <Button Grid.Column="2" Content="✕"
+                                                        Command="{Binding DataContext.StoryGeneratorQ.RemoveKreaLoraCommand, RelativeSource={RelativeSource AncestorType=ItemsControl}}"
+                                                        CommandParameter="{Binding}"
+                                                        Style="{StaticResource SecondaryButtonStyle}"
+                                                        ToolTip="Remove this LoRA"
+                                                        Width="32" Height="32" Padding="0"/>
+                                            </Grid>
+                                        </DataTemplate>
+                                    </ItemsControl.ItemTemplate>
+                                </ItemsControl>
+                                <StackPanel Orientation="Horizontal" Margin="0,4,0,0">
+                                    <Button Content="➕ Add LoRA" Command="{Binding StoryGeneratorQ.AddKreaLoraCommand}" Style="{StaticResource SecondaryButtonStyle}" Height="30" Padding="10,5" Margin="0,0,6,0"/>
+                                    <Button Content="Refresh" Command="{Binding StoryGeneratorQ.RefreshKreaLorasCommand}" Style="{StaticResource SecondaryButtonStyle}" Width="60" Height="30" Padding="10,5"/>
+                                </StackPanel>
                             </StackPanel>
                         </Border>
 
@@ -1938,6 +1975,36 @@
                                                FontSize="12"
                                                Style="{StaticResource SecondaryButtonStyle}"/>
                                     </Grid>
+
+                                    <!-- Character Name Input -->
+                                    <TextBlock Text="Character Name (optional)"
+                                               FontSize="12"
+                                               Foreground="#6B7280"
+                                               Margin="0,0,0,6"/>
+                                    <TextBox Text="{Binding StoryGeneratorQ.CharacterName, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                                             Padding="10"
+                                             Background="#F9FAFB"
+                                             BorderBrush="#E5E7EB"
+                                             VerticalContentAlignment="Center"
+                                             FontSize="11"
+                                             Height="38"
+                                             Margin="0,0,0,10"
+                                             ToolTip="e.g. Tara — replaces generic character references (like 'a woman') with this name in every scene"/>
+
+                                    <!-- Character Clothing Input -->
+                                    <TextBlock Text="Character Clothing (optional)"
+                                               FontSize="12"
+                                               Foreground="#6B7280"
+                                               Margin="0,0,0,6"/>
+                                    <TextBox Text="{Binding StoryGeneratorQ.CharacterClothing, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                                             Padding="10"
+                                             Background="#F9FAFB"
+                                             BorderBrush="#E5E7EB"
+                                             VerticalContentAlignment="Center"
+                                             FontSize="11"
+                                             Height="38"
+                                             Margin="0,0,0,10"
+                                             ToolTip="e.g. a red leather jacket and blue jeans — keeps the character in this same outfit across every scene"/>
 
                                     <!-- Story Concept Input -->
                                     <TextBlock Text="Story Concept (optional)"
