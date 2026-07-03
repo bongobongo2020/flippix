@@ -109,8 +109,11 @@ namespace FlipPix.UI.Services
         }
 
         /// <summary>
-        /// Clones the pack that provides <paramref name="node"/> into custom_nodes (or pulls if it's
-        /// already there) and installs its requirements. Reports progress lines via <paramref name="log"/>.
+        /// Installs the pack that provides <paramref name="node"/>. For a local ComfyUI this is a plain
+        /// git clone into custom_nodes — the safe path: it only writes files and never runs pip (a
+        /// node's requirements can pull a CPU-only torch that shadows the portable CUDA build and stops
+        /// ComfyUI from starting). For a remote server, where we can't reach custom_nodes on disk, it
+        /// asks ComfyUI-Manager to install by git URL. Reports progress via <paramref name="log"/>.
         /// </summary>
         public async Task<NodeInstallResult> InstallAsync(
             MissingNodeInfo node, IProgress<string>? log, CancellationToken ct)
@@ -118,10 +121,54 @@ namespace FlipPix.UI.Services
             if (string.IsNullOrEmpty(node.RepoUrl)) return NodeInstallResult.NoRepo;
             var packName = NodeCatalog.PackNameFromRepo(node.RepoUrl);
 
-            // Preferred path: let ComfyUI-Manager install the pack. Manager clones it AND installs its
-            // Python requirements using its own torch-aware pip routine, so it won't replace the
-            // portable build's CUDA torch with a CPU wheel (which is what breaks ComfyUI startup with
-            // "Torch not compiled with CUDA enabled"). Works for remote servers too.
+            // Preferred path: clone the pack into the local custom_nodes ourselves. Cloning is safe
+            // (files only, no pip); most catalog packs are pure-Python and need nothing else. We do
+            // NOT run pip on the node's requirements — that's what previously pulled a CPU torch and
+            // broke ComfyUI. Packs that genuinely need Python deps get them from ComfyUI-Manager's
+            // own (torch-safe) requirements install when it re-scans custom_nodes on restart.
+            var customDir = ResolveCustomNodesDir();
+            if (customDir != null && GitAvailable())
+            {
+                try
+                {
+                    Directory.CreateDirectory(customDir);
+                    var dest = Path.Combine(customDir, packName);
+
+                    if (Directory.Exists(dest) && Directory.EnumerateFileSystemEntries(dest).Any())
+                    {
+                        log?.Report($"{packName} already present — updating.");
+                        await Task.Run(() => RunProcess("git", $"-C \"{dest}\" pull --ff-only", customDir, log, TimeSpan.FromMinutes(3)), ct);
+                        return NodeInstallResult.AlreadyPresent;
+                    }
+
+                    log?.Report($"Cloning {packName} ...");
+                    var clone = await Task.Run(
+                        () => RunProcess("git", $"clone --depth 1 \"{node.RepoUrl}\" \"{dest}\"", customDir, log, TimeSpan.FromMinutes(10)), ct);
+                    if (clone != 0 || !Directory.Exists(dest))
+                    {
+                        _logger.LogError($"git clone failed for {node.RepoUrl} (exit {clone})");
+                        return NodeInstallResult.Failed;
+                    }
+
+                    if (File.Exists(Path.Combine(dest, "requirements.txt")))
+                        log?.Report($"Cloned {packName}. It has Python requirements — if the node still errors after " +
+                                    "restart, install them via ComfyUI-Manager (Install Missing Custom Nodes).");
+                    else
+                        log?.Report($"Cloned {packName}.");
+
+                    return NodeInstallResult.Installed;
+                }
+                catch (OperationCanceledException) { throw; }
+                catch (Exception ex)
+                {
+                    _logger.LogError(ex, $"Local clone of {node.RepoUrl} failed");
+                    // fall through to the Manager path as a last resort
+                }
+            }
+
+            // Remote server (or no local git): ask ComfyUI-Manager to install it. Note Manager blocks
+            // git-URL installs unless allow_git_url_install=true in its config.ini, so this may be
+            // Forbidden — in which case we tell the user how to proceed.
             var mgr = await TryManagerInstallGitUrlAsync(node.RepoUrl, log, ct);
             if (mgr == ManagerInstall.Ok)
             {
@@ -129,61 +176,17 @@ namespace FlipPix.UI.Services
                 return NodeInstallResult.Installed;
             }
             if (mgr == ManagerInstall.Forbidden)
-                log?.Report($"{packName}: ComfyUI-Manager blocked git-URL install (security level). " +
-                            "Install it from Manager's node list, or enable git-URL installs in Manager.");
-
-            // Fallback (Manager unavailable): clone the pack into custom_nodes locally. We deliberately
-            // do NOT run pip on the node's requirements ourselves — a requirements file can pull a
-            // CPU-only torch/xformers that shadows the portable CUDA build and stops ComfyUI from
-            // starting. Cloning only is safe; ComfyUI-Manager installs any Python deps on next start.
-            var customDir = ResolveCustomNodesDir();
+            {
+                log?.Report($"{packName}: ComfyUI-Manager blocks git-URL installs (allow_git_url_install=false). " +
+                            "Install it from Manager's node list, or set allow_git_url_install=true in ComfyUI-Manager's config.ini.");
+                return NodeInstallResult.Failed;
+            }
             if (customDir == null)
-            {
-                // Remote server and Manager couldn't do it -> we can't install from here.
-                return NodeInstallResult.NoRepo;
-            }
-            if (!GitAvailable())
-            {
+                log?.Report($"{packName}: can't reach a local custom_nodes folder and ComfyUI-Manager isn't installing it. " +
+                            $"Install it manually from {node.RepoUrl}.");
+            else
                 log?.Report($"{packName}: git isn't available to clone the pack. Install it via ComfyUI-Manager.");
-                return NodeInstallResult.Failed;
-            }
-
-            try
-            {
-                Directory.CreateDirectory(customDir);
-                var dest = Path.Combine(customDir, packName);
-
-                if (Directory.Exists(dest) && Directory.EnumerateFileSystemEntries(dest).Any())
-                {
-                    log?.Report($"{packName} already present — updating.");
-                    await Task.Run(() => RunProcess("git", $"-C \"{dest}\" pull --ff-only", customDir, log, TimeSpan.FromMinutes(3)), ct);
-                    return NodeInstallResult.AlreadyPresent;
-                }
-
-                log?.Report($"Cloning {packName} ...");
-                var clone = await Task.Run(
-                    () => RunProcess("git", $"clone --depth 1 \"{node.RepoUrl}\" \"{dest}\"", customDir, log, TimeSpan.FromMinutes(10)), ct);
-                if (clone != 0 || !Directory.Exists(dest))
-                {
-                    _logger.LogError($"git clone failed for {node.RepoUrl} (exit {clone})");
-                    return NodeInstallResult.Failed;
-                }
-
-                // Warn if the pack has Python requirements we intentionally skipped, so the user knows
-                // to let ComfyUI-Manager install them (safely) rather than assuming it's fully ready.
-                if (File.Exists(Path.Combine(dest, "requirements.txt")))
-                    log?.Report($"Cloned {packName}. It has Python requirements — ComfyUI-Manager will install them on restart.");
-                else
-                    log?.Report($"Cloned {packName}.");
-
-                return NodeInstallResult.Installed;
-            }
-            catch (OperationCanceledException) { throw; }
-            catch (Exception ex)
-            {
-                _logger.LogError(ex, $"Install of {node.RepoUrl} failed");
-                return NodeInstallResult.Failed;
-            }
+            return NodeInstallResult.Failed;
         }
 
         private enum ManagerInstall { Ok, Forbidden, Unavailable }
