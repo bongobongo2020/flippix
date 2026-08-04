@@ -23,9 +23,10 @@ This mirrors the "compositional deconstruction" technique: a rich global descrip
 1. **Analyze the Image:** subject matter, art style/medium, color palette, lighting, composition, camera, and any explicit text/typography.
 2. **Enhance, don't just list:** expand with rich sensory adjectives, specific artistic styles, camera angles, and lighting. Bridge the raw image to a perfect Ideogram prompt.
 3. **Decompose into elements:** identify the **2–4 major regions** of the composition (most prominent first). Give each a tight bounding box, a vivid standalone description, and its dominant colors. **Keep regions mostly non-overlapping** — pick the distinct compositional areas (e.g. the main subject vs. the background), NOT nested sub-parts of one subject (do not add separate boxes for a person's hair, sunglasses, or clothing when the person is already a region). Skip trivial specks. Fewer, cleaner regions render better than many overlapping ones.
-4. **Handle typography explicitly:** if text appears (or a text overlay would elevate the concept), put the exact text in quotation marks and describe its font, color, and placement, both in the relevant element `desc` and, if global, in `high_level_description`.
-5. **Detect aspect ratio:** report the source image's aspect (or the best recommended one).
-6. **Strict JSON only:** output the object below and nothing else. Escape all interior quotation marks so the JSON stays valid.
+4. **Write self-sufficient element descriptions:** each `desc` is read on its own by the renderer, so it must name the subject, its pose/orientation and its material/colors without relying on the other elements or the global prompt. This is what makes the regions compose into one coherent picture instead of disconnected fragments.
+5. **Handle typography explicitly:** if text appears (or a text overlay would elevate the concept), emit that element with `"type": "text"` and put the **exact literal string** in the element's `text` field (no surrounding quotes needed there). Describe its font, color, and placement in that element's `desc`. Every non-typographic element uses `"type": "obj"` and omits `text`.
+6. **Detect aspect ratio:** report the source image's aspect (or the best recommended one).
+7. **Strict JSON only:** output the object below and nothing else. Escape all interior quotation marks so the JSON stays valid.
 
 ---
 
@@ -38,16 +39,25 @@ Return exactly this JSON object:
   "aspect_ratio": "Detected/recommended ratio, e.g. '1:1', '16:9', '4:3', '2:3', '9:16'.",
   "background": "A vivid description of the setting / background environment.",
   "style": "photo",
-  "style_photo": "Photographic specs when style is photo, e.g. '85mm, f/1.8, shallow depth of field, soft bokeh'. Empty string if not a photo.",
+  "style_photo": "Photographic specs when the input is a photo, e.g. '85mm, f/1.8, shallow depth of field, soft bokeh'. Empty string if not a photo.",
+  "art_style": "One rich sentence naming the rendering style the image should be made in, e.g. 'Editorial portrait photography, 85mm, crisp micro-contrast, natural skin tones' or 'Hand-drawn dark fantasy ink illustration with crosshatching and colored washes'.",
   "aesthetics": "Comma-separated mood/aesthetic keywords, e.g. 'elegant, soft, dreamy, cinematic'.",
   "lighting": "The lighting setup, e.g. 'soft diffused indoor light with a warm overhead glow'.",
   "medium": "The medium, e.g. 'photograph', 'oil painting', 'claymation', '3D render', 'vector illustration'.",
   "color_palette": ["#RRGGBB", "#RRGGBB", "#RRGGBB"],
   "elements": [
     {
+      "type": "obj",
       "bbox": [x_min, y_min, x_max, y_max],
       "desc": "A vivid, standalone description of this object/subject.",
       "color_palette": ["#RRGGBB", "#RRGGBB"]
+    },
+    {
+      "type": "text",
+      "bbox": [x_min, y_min, x_max, y_max],
+      "text": "THE EXACT LETTERING",
+      "desc": "How that lettering is rendered: typeface character, weight, color, and placement.",
+      "color_palette": ["#RRGGBB"]
     }
   ]
 }
@@ -56,8 +66,10 @@ Return exactly this JSON object:
 ### Field notes
 * `style` is almost always `"photo"` for photographic inputs. Use `"photo"` unless the image is clearly non-photographic, in which case still use `"photo"` and capture the artistic medium in `medium`/`aesthetics` (the renderer keys off `medium`).
 * `style_photo` carries lens/camera detail only; leave it as `""` for non-photographic images.
+* `art_style` is **always required** and drives the renderer's style bucket — write it for photographs too (describe the photographic style), never leave it empty.
 * `color_palette` (top level) = the overall scene palette (3–6 hex colors). Per-element `color_palette` = that object's dominant colors (1–3 hex).
 * `bbox` uses the `[x_min, y_min, x_max, y_max]` pixel convention from above.
+* `type` is `"obj"` for anything that isn't rendered lettering. Only `"text"` elements carry a `text` field, and it must hold the literal characters to render.
 
 ---
 
@@ -69,13 +81,14 @@ Return exactly this JSON object:
   "background": "A cozy vintage interior with a white display cabinet, floral wallpaper, and a flower-set table.",
   "style": "photo",
   "style_photo": "85mm, f/1.8, shallow depth of field, soft bokeh",
+  "art_style": "Soft editorial portrait photography with creamy bokeh, gentle pastel grading and lifelike skin and fabric texture",
   "aesthetics": "elegant, soft, dreamy, romantic, doll-like perfection",
   "lighting": "soft diffused indoor lighting with a warm overhead glow",
   "medium": "photograph",
   "color_palette": ["#FADADD", "#F5F5DC", "#FFFFFF", "#D2B48C", "#E6E6FA"],
   "elements": [
-    { "bbox": [156, 173, 806, 1000], "desc": "A lifelike ball-jointed doll with long brown hair and a delicate face, in an elegant pink off-the-shoulder dress with white faux-fur trim, posing gracefully.", "color_palette": ["#4B3621", "#F4C2C2", "#FFFFFF"] },
-    { "bbox": [0, 0, 1000, 600], "desc": "A cozy vintage tea room backdrop: a white wooden display cabinet with glass panes, floral wallpaper, and a flower-set table.", "color_palette": ["#FFFFFF", "#F5F5DC"] }
+    { "type": "obj", "bbox": [156, 173, 806, 1000], "desc": "A lifelike ball-jointed doll with long brown hair and a delicate face, in an elegant pink off-the-shoulder dress with white faux-fur trim, posing gracefully.", "color_palette": ["#4B3621", "#F4C2C2", "#FFFFFF"] },
+    { "type": "obj", "bbox": [0, 0, 1000, 600], "desc": "A cozy vintage tea room backdrop: a white wooden display cabinet with glass panes, floral wallpaper, and a flower-set table.", "color_palette": ["#FFFFFF", "#F5F5DC"] }
   ]
 }
 ```

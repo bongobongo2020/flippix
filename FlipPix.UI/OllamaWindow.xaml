@@ -7,96 +7,35 @@
         mc:Ignorable="d"
         Title="Ollama Prompt Enhancer" Height="600" Width="800"
         WindowStartupLocation="CenterScreen"
-        Background="#1a1a1a">
+        Background="{StaticResource AppBackgroundBrush}">
 
+    <!--
+        This window used to carry a full dark-theme override of Button/TextBox/ComboBox/
+        GroupBox, which made it the odd one out. The local copies are gone: TextBox,
+        ComboBox and ProgressBar now inherit the app-wide implicit styles, and the rest
+        derive from the shared keyed styles.
+    -->
     <Window.Resources>
-        <Style TargetType="Button">
-            <Setter Property="Background" Value="#4a4a4a"/>
-            <Setter Property="Foreground" Value="White"/>
-            <Setter Property="BorderThickness" Value="0"/>
-            <Setter Property="Padding" Value="10,5"/>
+        <Style TargetType="Button" BasedOn="{StaticResource SecondaryButtonStyle}">
             <Setter Property="Margin" Value="5"/>
-            <Setter Property="Cursor" Value="Hand"/>
-            <Setter Property="Template">
-                <Setter.Value>
-                    <ControlTemplate TargetType="Button">
-                        <Border Background="{TemplateBinding Background}"
-                                BorderThickness="{TemplateBinding BorderThickness}"
-                                CornerRadius="5">
-                            <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center"
-                                              Margin="{TemplateBinding Padding}"/>
-                        </Border>
-                        <ControlTemplate.Triggers>
-                            <Trigger Property="IsMouseOver" Value="True">
-                                <Setter Property="Background" Value="#5a5a5a"/>
-                            </Trigger>
-                            <Trigger Property="IsPressed" Value="True">
-                                <Setter Property="Background" Value="#3a3a3a"/>
-                            </Trigger>
-                            <Trigger Property="IsEnabled" Value="False">
-                                <Setter Property="Background" Value="#2a2a2a"/>
-                                <Setter Property="Foreground" Value="#666666"/>
-                            </Trigger>
-                        </ControlTemplate.Triggers>
-                    </ControlTemplate>
-                </Setter.Value>
-            </Setter>
-        </Style>
-
-        <Style TargetType="TextBox">
-            <Setter Property="Background" Value="#2a2a2a"/>
-            <Setter Property="Foreground" Value="White"/>
-            <Setter Property="BorderBrush" Value="#4a4a4a"/>
-            <Setter Property="BorderThickness" Value="1"/>
-            <Setter Property="Padding" Value="8"/>
-            <Setter Property="SelectionBrush" Value="#0078d4"/>
-        </Style>
-
-        <Style TargetType="ComboBox">
-            <Setter Property="Background" Value="#2a2a2a"/>
-            <Setter Property="Foreground" Value="White"/>
-            <Setter Property="BorderBrush" Value="#4a4a4a"/>
-            <Setter Property="BorderThickness" Value="1"/>
-            <Setter Property="Padding" Value="8"/>
-        </Style>
-
-        <Style TargetType="ComboBoxItem">
-            <Setter Property="Background" Value="#2a2a2a"/>
-            <Setter Property="Foreground" Value="White"/>
-            <Setter Property="BorderBrush" Value="#4a4a4a"/>
-            <Style.Triggers>
-                <Trigger Property="IsMouseOver" Value="True">
-                    <Setter Property="Background" Value="#4a4a4a"/>
-                </Trigger>
-                <Trigger Property="IsSelected" Value="True">
-                    <Setter Property="Background" Value="#0078d4"/>
-                    <Setter Property="Foreground" Value="White"/>
-                </Trigger>
-            </Style.Triggers>
         </Style>
 
         <Style TargetType="Label">
-            <Setter Property="Foreground" Value="#cccccc"/>
+            <Setter Property="Foreground" Value="{StaticResource TextSecondaryBrush}"/>
             <Setter Property="Margin" Value="0,0,0,5"/>
         </Style>
 
         <Style TargetType="TextBlock">
-            <Setter Property="Foreground" Value="#cccccc"/>
+            <Setter Property="Foreground" Value="{StaticResource TextSecondaryBrush}"/>
             <Setter Property="TextWrapping" Value="Wrap"/>
         </Style>
 
         <Style TargetType="GroupBox">
-            <Setter Property="Background" Value="#2a2a2a"/>
-            <Setter Property="BorderBrush" Value="#4a4a4a"/>
-            <Setter Property="Foreground" Value="White"/>
+            <Setter Property="Background" Value="{StaticResource SurfaceBrush}"/>
+            <Setter Property="BorderBrush" Value="{StaticResource BorderBrush}"/>
+            <Setter Property="Foreground" Value="{StaticResource TextPrimaryBrush}"/>
             <Setter Property="Margin" Value="10"/>
             <Setter Property="Padding" Value="10"/>
-        </Style>
-
-        <Style TargetType="ProgressBar">
-            <Setter Property="Height" Value="20"/>
-            <Setter Property="Background" Value="#2a2a2a"/>
-            <Setter Property="Foreground" Value="#0078d4"/>
         </Style>
     </Window.Resources>
 
@@ -206,8 +145,8 @@
         </Grid>
 
         <!-- Status Bar -->
-        <StatusBar Grid.Row="3" Height="30" Background="#1a1a1a"
-                   BorderBrush="#4a4a4a" BorderThickness="0,1,0,0">
+        <StatusBar Grid.Row="3" Height="30" Background="{StaticResource AppBackgroundBrush}"
+                   BorderBrush="{StaticResource BorderBrush}" BorderThickness="0,1,0,0">
             <StatusBarItem>
                 <StackPanel Orientation="Horizontal">
                     <TextBlock Text="{Binding StatusMessage}" Margin="10,0"/>

@@ -29,7 +29,7 @@
             <StackPanel Margin="25,18">
                 <TextBlock Text="Story Video Generator" FontSize="26" FontWeight="Bold" Foreground="White"/>
                 <TextBlock Text="Queue multiple batches — each with its own prompts and workflow"
-                           FontSize="12" Foreground="#FFFAF0" Margin="0,4,0,0"/>
+                           FontSize="12" Foreground="#E6FFFFFF" Margin="0,4,0,0"/>
             </StackPanel>
         </Border>
 
@@ -41,7 +41,7 @@
                 <Border Style="{StaticResource SectionPanelStyle}">
                     <StackPanel>
                         <TextBlock Text="Step 1: Configure a New Batch"
-                                   Style="{StaticResource HeaderTextStyle}" Foreground="#9C27B0"/>
+                                   Style="{StaticResource HeaderTextStyle}" Foreground="{StaticResource AccentVioletBrush}"/>
                         <TextBlock Text="Load a prompts file (.json or .txt), choose a workflow, then add to the queue."
                                    FontSize="12" Foreground="#666" Margin="0,0,0,15"/>
 
@@ -50,11 +50,11 @@
                         <ComboBox ItemsSource="{Binding WorkflowNames}"
                                   SelectedIndex="{Binding SelectedWorkflowIndex, Mode=TwoWay}"
                                   Height="34" Padding="10,6"
-                                  Background="White" BorderBrush="#CED4DA" FontSize="11"
+                                  Background="White" BorderBrush="{StaticResource BorderBrush}" FontSize="11"
                                   Margin="0,0,0,4"/>
                         <TextBlock FontSize="10" Foreground="#999" Margin="0,0,0,15">
                             <Run Text="Selected: "/>
-                            <Run Text="{Binding SelectedWorkflowName}" Foreground="#4CAF50" FontWeight="SemiBold"/>
+                            <Run Text="{Binding SelectedWorkflowName}" Foreground="{StaticResource SuccessTextBrush}" FontWeight="SemiBold"/>
                         </TextBlock>
 
                         <!-- Load prompts file -->
@@ -63,8 +63,8 @@
                                 <ColumnDefinition Width="*"/>
                                 <ColumnDefinition Width="Auto"/>
                             </Grid.ColumnDefinitions>
-                            <Border Grid.Column="0" BorderBrush="#CED4DA" BorderThickness="1" CornerRadius="4"
-                                    Background="#F8F9FA" Padding="10,8">
+                            <Border Grid.Column="0" BorderBrush="{StaticResource BorderBrush}" BorderThickness="1" CornerRadius="4"
+                                    Background="{StaticResource SurfaceAltBrush}" Padding="10,8">
                                 <TextBlock Text="{Binding PendingBatchSummary}" FontSize="11"
                                            Foreground="#555" TextWrapping="Wrap" VerticalAlignment="Center"/>
                             </Border>
@@ -81,7 +81,7 @@
                                 Width="180" Height="38" HorizontalAlignment="Left"/>
 
                         <TextBlock Text="⚠ Each video clip takes 2–10 min depending on hardware"
-                                   FontSize="11" Foreground="#E91E63" FontWeight="SemiBold" Margin="0,10,0,0"/>
+                                   FontSize="11" Foreground="{StaticResource AccentRoseBrush}" FontWeight="SemiBold" Margin="0,10,0,0"/>
                     </StackPanel>
                 </Border>
 
@@ -94,7 +94,7 @@
                                 <ColumnDefinition Width="Auto"/>
                             </Grid.ColumnDefinitions>
                             <TextBlock Grid.Column="0"
-                                       Style="{StaticResource HeaderTextStyle}" Foreground="#9C27B0">
+                                       Style="{StaticResource HeaderTextStyle}" Foreground="{StaticResource AccentVioletBrush}">
                                 <Run Text="Step 2: Batch Queue"/>
                                 <Run Text=" (" Foreground="#999" FontSize="13" FontWeight="Normal"/>
                                 <Run Text="{Binding BatchQueue.Count}" Foreground="#999" FontSize="13" FontWeight="Normal"/>
@@ -108,7 +108,7 @@
 
                         <!-- Empty state -->
                         <Border Visibility="{Binding HasNoBatchItems, Converter={StaticResource BooleanToVisibilityConverter}}"
-                                Background="#F8F9FA" BorderBrush="#E0E0E0" BorderThickness="1"
+                                Background="{StaticResource SurfaceAltBrush}" BorderBrush="{StaticResource BorderBrush}" BorderThickness="1"
                                 CornerRadius="4" Padding="20" Margin="0,0,0,5">
                             <TextBlock Text="No batches queued yet — configure a batch above and click 'Add to Queue'"
                                        FontSize="12" Foreground="#999" HorizontalAlignment="Center"/>
@@ -173,7 +173,7 @@
                                                                 <Setter Property="Foreground" Value="#FF9800"/>
                                                             </DataTrigger>
                                                             <DataTrigger Binding="{Binding Status}" Value="Done">
-                                                                <Setter Property="Foreground" Value="#4CAF50"/>
+                                                                <Setter Property="Foreground" Value="{StaticResource SuccessBrush}"/>
                                                             </DataTrigger>
                                                             <DataTrigger Binding="{Binding Status}" Value="Failed">
                                                                 <Setter Property="Foreground" Value="#F44336"/>
@@ -242,10 +242,10 @@
                                     Height="30" Padding="14,0" Margin="12,0,0,0"/>
                         </Grid>
                         <ProgressBar Value="{Binding ProcessingProgress}"
-                                     Height="18" Foreground="#9C27B0" Margin="0,0,0,4"/>
+                                     Height="18" Foreground="{StaticResource AccentVioletBrush}" Margin="0,0,0,4"/>
                         <TextBlock Text="{Binding ProgressPercentage}"
                                    HorizontalAlignment="Center" FontSize="11"
-                                   FontWeight="Bold" Foreground="#9C27B0"/>
+                                   FontWeight="Bold" Foreground="{StaticResource AccentVioletBrush}"/>
                     </StackPanel>
                 </Border>
 
@@ -254,7 +254,7 @@
                         Visibility="{Binding HasResultVideo, Converter={StaticResource BooleanToVisibilityConverter}}">
                     <StackPanel>
                         <TextBlock Text="Videos Generated Successfully"
-                                   FontWeight="Bold" FontSize="14" Foreground="#4CAF50" Margin="0,0,0,6"/>
+                                   FontWeight="Bold" FontSize="14" Foreground="{StaticResource SuccessTextBrush}" Margin="0,0,0,6"/>
                         <TextBlock Text="{Binding ResultVideoPath}" FontSize="11" Foreground="#666"
                                    TextWrapping="Wrap" Margin="0,0,0,10"/>
                         <Button Content="Open Output Folder"
@@ -266,7 +266,7 @@
 
                 <!-- ═══ Log ═══ -->
                 <Expander Header="Processing Log" IsExpanded="True">
-                    <Border Background="White" BorderBrush="#DEE2E6" BorderThickness="1" Margin="0,8,0,0">
+                    <Border Background="White" BorderBrush="{StaticResource BorderBrush}" BorderThickness="1" Margin="0,8,0,0">
                         <ScrollViewer MaxHeight="200" VerticalScrollBarVisibility="Auto">
                             <TextBox Text="{Binding LogOutput}"
                                      TextWrapping="Wrap" IsReadOnly="True"
@@ -280,7 +280,7 @@
         </ScrollViewer>
 
         <!-- Status Bar -->
-        <StatusBar Grid.Row="2" Background="#F8F9FA" BorderBrush="#DEE2E6" BorderThickness="0,1,0,0" Height="28">
+        <StatusBar Grid.Row="2" Background="{StaticResource SurfaceAltBrush}" BorderBrush="{StaticResource BorderBrush}" BorderThickness="0,1,0,0" Height="28">
             <StatusBarItem>
                 <TextBlock Text="{Binding StatusBarMessage}" FontSize="11"/>
             </StatusBarItem>

@@ -1,16 +1,17 @@
 using System;
 using System.Collections.Generic;
 using System.Collections.ObjectModel;
+using System.Globalization;
 using System.IO;
 using System.Linq;
 using System.Text.Json;
+using System.Text.RegularExpressions;
 using System.Threading;
 using System.Threading.Tasks;
 using System.Windows;
 using System.Windows.Input;
 using System.Windows.Media.Imaging;
 using CommunityToolkit.Mvvm.Input;
-using FlipPix.ComfyUI.Models;
 using FlipPix.ComfyUI.Services;
 using FlipPix.Core.Interfaces;
 using FlipPix.UI.Models;
@@ -21,52 +22,47 @@ using Application = System.Windows.Application;
 namespace FlipPix.UI.ViewModels.Video
 {
     /// <summary>
-    /// "FFLF Seed Hunter" page. Upload a FIRST and LAST frame → Analyze (both images → llama-server
-    /// with <c>fflf-seedhunter.md</c> → a prompt describing the action that bridges them) → generate
-    /// 3 fast low-res samples (reroll for fresh seeds) → pick one → Stage 2 + Stage 3 upscale for the
-    /// final high-res video. Drives <c>ltx23fflf-seedhunter-api.json</c> by editing/pruning nodes,
-    /// the same node-pruning two-phase strategy as <see cref="SeedHuntViewModel"/>.
+    /// "MiniMax FFLF" page — the first/last-frame seed-hunter flow driven by the MiniMax H3
+    /// first/last-frame workflow.
+    ///
+    /// Upload a first and last frame (or a whole folder, chained into overlapping pairs) → Analyze
+    /// (both frames → llama-server with <c>h3minimax-fflf.md</c> → a full FL2VA H3 prompt) → generate 3
+    /// cheap seed previews per pair (low megapixels, few steps) → tick the ones worth keeping → Finish
+    /// re-renders each at full resolution and the full step count, then joins them into one video.
+    ///
+    /// H3 renders one video per submission (no in-graph sample batch), so a hunt is 3 sequential
+    /// submissions with seeds base, base+1, base+2 — the same loop the FaceID engine uses in the LTX
+    /// seed hunter. Preview and final differ only in <c>megapixels</c> and <c>steps</c>; the prompt,
+    /// duration, aspect and seed are identical, so a final closely tracks the preview it came from.
     /// </summary>
-    public partial class FflfSeedHuntViewModel : VideoProcessingBaseViewModel
+    public partial class MiniMaxFflfSeedHuntViewModel : VideoProcessingBaseViewModel
     {
-        private const string WorkflowFileName = "workflow/video/ltx/ltx23fflf-seedhunter-api.json";
-        private const string OutputSubfolder = "fflf_seedhunt";
-        private const string SystemPromptFile = "fflf-seedhunter.md";
+        private const string WorkflowFileName = "workflow/video/h3-minimax/video_minimax_h3_fflf_api.json";
+        private const string OutputSubfolder = "minimax_fflf";
+        private const string SystemPromptFile = "h3minimax-fflf.md";
+        private const int SampleSlots = 3;
 
-        // ── Workflow node ids (locked from the generated ltx23fflf-seedhunter-api.json) ──────────
-        private const string NodeImageFirst = "5052";   // LoadImage "Input Img"
-        private const string NodeImageLast = "5075";     // LoadImage "End Image"
-        private const string NodePrompt = "5109:5108";   // positive CLIPTextEncode (Prompt subgraph)
-        private const string NodeTargetWidth = "5013:5167";   // PrimitiveInt "Width"  (Settings subgraph)
-        private const string NodeTargetHeight = "5013:5168";  // PrimitiveInt "Height" (Settings subgraph)
-        private const string NodeLength = "5110";        // mxSlider "Length (seconds)"
-        private const string NodeInputRefStrength = "5151";   // mxSlider INPUT reference strength
-        private const string NodeEndRefStrength = "5152";     // mxSlider END reference strength
-        private const string NodeBatchSeed = "5038";     // easy seed "Start from Scratch" (drives all 3 samples)
-        private const string NodeStage2Seed = "5040";    // easy seed "Start Finish Mode / Reroll 2nd Stage"
-        private const string NodeSelect = "5174";        // mxSlider "Which Gen To Proceed with?" (UI-only under raw API)
-        private const string NodeSelectSwitch = "5173";  // ImpactSwitch (API-incompatible; pruned on Finish)
-        private const string NodeSepAfterSwitch = "5177"; // LTXVSeparateAVLatent fed by the switch
-        private const string NodeFinalOutput = "5033";   // final VHS_VideoCombine "Final Video"
+        // ── Workflow node ids (locked from video_minimax_h3_fflf_api.json) ──────────────────────
+        private const string NodeFirstImage = "137";  // LoadImage → MiniMaxH3ImageToVideo.first_frame
+        private const string NodeLastImage = "139";   // LoadImage → MiniMaxH3ImageToVideo.last_frame
+        private const string NodePrompt = "138";      // PrimitiveStringMultiline → .prompt
+        private const string NodeResolution = "115";  // ResolutionSelector (aspect_ratio, megapixels)
+        private const string NodeSteps = "124";       // BasicScheduler steps
+        private const string NodeSeed = "129";        // RandomNoise noise_seed
+        private const string NodeDuration = "132";    // PrimitiveFloat seconds (node 131 → frames)
+        private const string NodeOutput = "92";       // SaveVideo
 
-        // slot → SamplerCustomAdvanced av-latent output the ImpactSwitch would have selected.
-        private static readonly Dictionary<int, string> SamplerOutputBySlot = new()
-        {
-            { 1, "5002:4829" },
-            { 2, "5190:5185" },
-            { 3, "5206:5201" },
-        };
+        /// <summary>Matches the "N.NN-second mark" timestamps inside the FL2VA alignment line.</summary>
+        private static readonly Regex SecondMarkRegex =
+            new(@"\d+(?:\.\d+)?-second mark", RegexOptions.Compiled);
 
-        // slot (1-based, == select value) → preview VHS_VideoCombine node id
-        private static readonly Dictionary<int, string> PreviewNodeBySlot = new()
-        {
-            { 1, "5062" }, // sample 1 (seed = base)
-            { 2, "5186" }, // sample 2 (seed = base+1)
-            { 3, "5202" }, // sample 3 (seed = base+2)
-        };
-
-        private static readonly Dictionary<string, int> SlotByPreviewNode =
-            PreviewNodeBySlot.ToDictionary(kv => kv.Value, kv => kv.Key);
+        // Client-side ceilings on a single ComfyUI run. ComfyUIService defaults to 30 minutes, which a
+        // full-resolution 20-step H3 render at 15s blows straight through — the client then aborts a job
+        // that is still happily running on the server. Real completion is detected within ~5s via the
+        // /history poll and a server that died mid-run is caught by the lost-prompt check, so a generous
+        // ceiling costs nothing. Same magnitude as WanScail's 3-hour ExecutionTimeout.
+        private static readonly TimeSpan PreviewRunTimeout = TimeSpan.FromHours(1);
+        private static readonly TimeSpan FinishRunTimeout = TimeSpan.FromHours(4);
 
         // ── Input state ────────────────────────────────────────────────────────
         private string _firstImagePath = string.Empty;
@@ -76,14 +72,15 @@ namespace FlipPix.UI.ViewModels.Video
         private string _firstImageInfo = string.Empty;
         private string _lastImageInfo = string.Empty;
         private string _prompt = string.Empty;
+        private string _selectedAspectRatio = MiniMaxH3ViewModel.AutoAspect;
+        private double _previewMegapixels = 0.3;
+        private int _previewSteps = 6;
+        private double _finalMegapixels = 1.0;
+        private int _finalSteps = 20;
         private double _lengthSeconds = 5;
-        private double _inputRefStrength = 0.75;
-        private double _endRefStrength = 0.75;
         private long _baseSeed = -1;
         private bool _isAnalyzing;
         private string _currentPhase = string.Empty;
-        private string? _uploadedFirstName;
-        private string? _uploadedLastName;
         private string? _activePreviewUri;
         private long _currentBatchSeed = -1; // seed that produced the on-screen samples
 
@@ -101,7 +98,6 @@ namespace FlipPix.UI.ViewModels.Video
         private string _batchInfo = string.Empty;
         // path → ComfyUI uploaded filename (overlapping pairs share frames; upload once).
         private readonly Dictionary<string, string> _uploadCache = new(StringComparer.OrdinalIgnoreCase);
-        // batch pair samples we've subscribed to (so we can detach on reload/clear).
         private readonly List<SeedHuntSample> _batchSampleSubs = new();
 
         private readonly IFileDialogService _fileDialogService;
@@ -109,7 +105,7 @@ namespace FlipPix.UI.ViewModels.Video
         private CancellationTokenSource? _analyzeCts;
         private CancellationTokenSource? _runCts;
 
-        public FflfSeedHuntViewModel(
+        public MiniMaxFflfSeedHuntViewModel(
             ComfyUIService comfyUIService,
             LMStudioService lmStudioService,
             IAppLogger logger,
@@ -139,11 +135,10 @@ namespace FlipPix.UI.ViewModels.Video
             RandomSeedCommand = new RelayCommand(() => BaseSeed = NewSeed());
             OpenResultFolderCommand = new RelayCommand(OpenResultFolder, () => HasResult);
 
-            // Per-sample checkbox selection drives Finish enablement.
             foreach (var s in _samples)
                 s.PropertyChanged += OnSampleSelectionChanged;
 
-            AddLog("FFLF Seed Hunter initialized");
+            AddLog("MiniMax FFLF Seed Hunter initialized");
         }
 
         #region Commands
@@ -177,12 +172,12 @@ namespace FlipPix.UI.ViewModels.Video
                 if (_firstImagePath != value)
                 {
                     _firstImagePath = value;
-                    _uploadedFirstName = null;
                     OnPropertyChanged();
                     OnPropertyChanged(nameof(HasFirstImage));
                     _firstImagePreview = LoadPreview(value, out _firstImageInfo);
                     OnPropertyChanged(nameof(FirstImagePreview));
                     OnPropertyChanged(nameof(FirstImageInfo));
+                    OnPropertyChanged(nameof(ResolvedAspectRatio));
                     OnCanExecuteChanged();
                 }
             }
@@ -196,7 +191,6 @@ namespace FlipPix.UI.ViewModels.Video
                 if (_lastImagePath != value)
                 {
                     _lastImagePath = value;
-                    _uploadedLastName = null;
                     OnPropertyChanged();
                     OnPropertyChanged(nameof(HasLastImage));
                     _lastImagePreview = LoadPreview(value, out _lastImageInfo);
@@ -212,37 +206,88 @@ namespace FlipPix.UI.ViewModels.Video
         public string FirstImageInfo => _firstImageInfo;
         public string LastImageInfo => _lastImageInfo;
 
+        /// <summary>The full FL2VA H3 prompt: alignment line + the three core fields.</summary>
         public string Prompt
         {
             get => _prompt;
             set { if (_prompt != value) { _prompt = value; OnPropertyChanged(); OnCanExecuteChanged(); } }
         }
 
-        public long BaseSeed
+        public IReadOnlyList<string> AspectRatioOptions { get; } =
+            new[] { MiniMaxH3ViewModel.AutoAspect }
+                .Concat(MiniMaxH3ViewModel.AspectRatios.Select(a => a.Option)).ToList();
+
+        public string SelectedAspectRatio
         {
-            get => _baseSeed;
-            set { if (_baseSeed != value) { _baseSeed = value; OnPropertyChanged(); } }
+            get => _selectedAspectRatio;
+            set
+            {
+                if (_selectedAspectRatio != value && value != null)
+                {
+                    _selectedAspectRatio = value;
+                    OnPropertyChanged();
+                    OnPropertyChanged(nameof(ResolvedAspectRatio));
+                }
+            }
         }
 
-        /// <summary>Video length in seconds (clamped to 1–60 when applied to the workflow).</summary>
+        /// <summary>The aspect shown in the UI — the picked one, or the single-mode first frame's match.</summary>
+        public string ResolvedAspectRatio => ResolveAspect(FirstImagePath);
+
+        /// <summary>Cheap canvas sizes for the seed previews. H3's native short edge is 768px, so these
+        /// are all well below native — fast to sample, enough to judge composition and motion.</summary>
+        public IReadOnlyList<MegapixelOption> PreviewMegapixelOptions { get; } = new[]
+        {
+            new MegapixelOption(0.2, "0.2 MP — fastest (≈608×352)"),
+            new MegapixelOption(0.3, "0.3 MP — default (≈736×416)"),
+            new MegapixelOption(0.4, "0.4 MP — sharper (≈864×480)"),
+        };
+
+        /// <summary>Canvas sizes for the finished videos. 1.0 MP ≈ 1344×768 is H3's native canvas.</summary>
+        public IReadOnlyList<MegapixelOption> FinalMegapixelOptions { get; } = new[]
+        {
+            new MegapixelOption(0.7, "0.7 MP — balanced (≈1120×640)"),
+            new MegapixelOption(1.0, "1.0 MP — native (≈1344×768)"),
+            new MegapixelOption(1.3, "1.3 MP — oversized (≈1536×864)"),
+        };
+
+        public double PreviewMegapixels
+        {
+            get => _previewMegapixels;
+            set { if (Math.Abs(_previewMegapixels - value) > 0.0001) { _previewMegapixels = value; OnPropertyChanged(); } }
+        }
+
+        public double FinalMegapixels
+        {
+            get => _finalMegapixels;
+            set { if (Math.Abs(_finalMegapixels - value) > 0.0001) { _finalMegapixels = value; OnPropertyChanged(); } }
+        }
+
+        /// <summary>Sampling steps for the seed previews (clamped 1–100 when applied).</summary>
+        public int PreviewSteps
+        {
+            get => _previewSteps;
+            set { if (_previewSteps != value) { _previewSteps = value; OnPropertyChanged(); } }
+        }
+
+        /// <summary>Sampling steps for the finished videos (clamped 1–100 when applied).</summary>
+        public int FinalSteps
+        {
+            get => _finalSteps;
+            set { if (_finalSteps != value) { _finalSteps = value; OnPropertyChanged(); } }
+        }
+
+        /// <summary>Clip length in seconds (H3 supports 4–15; clamped when applied to the workflow).</summary>
         public double LengthSeconds
         {
             get => _lengthSeconds;
             set { if (Math.Abs(_lengthSeconds - value) > 0.0001) { _lengthSeconds = value; OnPropertyChanged(); } }
         }
 
-        /// <summary>First-frame reference strength (best 0.6–0.9), clamped 0–1 when applied.</summary>
-        public double InputRefStrength
+        public long BaseSeed
         {
-            get => _inputRefStrength;
-            set { if (Math.Abs(_inputRefStrength - value) > 0.0001) { _inputRefStrength = value; OnPropertyChanged(); } }
-        }
-
-        /// <summary>Last-frame reference strength (best 0.6–0.9), clamped 0–1 when applied.</summary>
-        public double EndRefStrength
-        {
-            get => _endRefStrength;
-            set { if (Math.Abs(_endRefStrength - value) > 0.0001) { _endRefStrength = value; OnPropertyChanged(); } }
+            get => _baseSeed;
+            set { if (_baseSeed != value) { _baseSeed = value; OnPropertyChanged(); } }
         }
 
         public bool IsAnalyzing
@@ -266,7 +311,7 @@ namespace FlipPix.UI.ViewModels.Video
             private set { if (_currentPhase != value) { _currentPhase = value; OnPropertyChanged(); } }
         }
 
-        /// <summary>Single shared player source — the selected sample, or the final video once finished.</summary>
+        /// <summary>Single shared player source — the selected sample, or a finished video.</summary>
         public string? ActivePreviewUri
         {
             get => _activePreviewUri;
@@ -286,7 +331,7 @@ namespace FlipPix.UI.ViewModels.Video
         /// <summary>
         /// The three sample tiles bound by the view. In single-pair mode these are the VM's own
         /// <see cref="_samples"/>; in batch mode they mirror the currently <see cref="SelectedPair"/>'s
-        /// previews (each pair keeps its own tick state, so switching pairs preserves selection).
+        /// previews, so each pair keeps its own tick state.
         /// </summary>
         public ObservableCollection<SeedHuntSample> Samples =>
             IsBatchMode ? (SelectedPair?.Samples ?? _emptySamples) : _samples;
@@ -330,7 +375,6 @@ namespace FlipPix.UI.ViewModels.Video
                     _selectedPair = value;
                     OnPropertyChanged();
                     OnPropertyChanged(nameof(Samples));
-                    // Auto-load this pair's first ready preview into the shared player.
                     SelectedSampleForPreview = null;
                     var firstReady = value?.Samples.FirstOrDefault(s => s.HasVideo);
                     ActivePreviewUri = firstReady?.VideoFileUri;
@@ -345,8 +389,6 @@ namespace FlipPix.UI.ViewModels.Video
         private IEnumerable<SeedHuntSample> AllSamples =>
             IsBatchMode ? _pairs.SelectMany(p => p.Samples) : _samples;
 
-        // ListBox selection (which sample tile is currently being previewed). Setting it loads the
-        // sample into the shared player — same mechanism the FflfDasiwa segment list uses.
         private SeedHuntSample? _selectedSampleForPreview;
         public SeedHuntSample? SelectedSampleForPreview
         {
@@ -378,20 +420,19 @@ namespace FlipPix.UI.ViewModels.Video
         public bool HasSelection => AllSamples.Any(s => s.IsSelected && s.HasVideo);
 
         public bool CanAnalyze => !IsBatchMode && HasFirstImage && HasLastImage && !IsAnalyzing && !IsProcessing;
-        public bool CanHunt => !IsBatchMode && HasFirstImage && HasLastImage && !string.IsNullOrWhiteSpace(Prompt)
-                               && !IsProcessing && !IsAnalyzing;
+        public bool CanHunt => !IsBatchMode && HasFirstImage && HasLastImage
+                               && !string.IsNullOrWhiteSpace(Prompt) && !IsProcessing && !IsAnalyzing;
         public bool CanRunBatch => IsBatchMode && _pairs.Count > 0 && !IsProcessing && !IsAnalyzing;
         public bool CanRerollPair => IsBatchMode && SelectedPair != null
                                      && !string.IsNullOrWhiteSpace(SelectedPair.Prompt)
                                      && !IsProcessing && !IsAnalyzing;
         public bool CanFinish => !IsProcessing && !IsAnalyzing && HasSelection;
 
-        public string HuntButtonText => HasSamples ? "🎲 Reroll — new 3 seeds" : "🎯 Generate 3 Samples";
         /// <summary>Single-mode reroll button is shown only once there are samples to replace.</summary>
         public bool ShowSingleReroll => IsSingleMode && HasSamples;
         public string FinishButtonText => SelectedCount > 1
-            ? $"✅ Finish {SelectedCount} Selected → Final Videos"
-            : "✅ Finish Selected → Final Video";
+            ? $"✅ Finish {SelectedCount} Selected → {FinalSteps}-step Full Res"
+            : $"✅ Finish Selected → {FinalSteps}-step Full Res";
 
         #endregion
 
@@ -407,7 +448,7 @@ namespace FlipPix.UI.ViewModels.Video
                 isFirst ? "Select First Frame" : "Select Last Frame",
                 "Image Files|*.jpg;*.jpeg;*.png;*.bmp;*.webp|All Files|*.*",
                 initialDir,
-                persistKey: isFirst ? "fflfseedhunt.first" : "fflfseedhunt.last");
+                persistKey: isFirst ? "minimaxfflf.first" : "minimaxfflf.last");
 
             if (path != null)
             {
@@ -440,6 +481,33 @@ namespace FlipPix.UI.ViewModels.Video
             }
         }
 
+        /// <summary>
+        /// The ResolutionSelector aspect for a pair: the user's pick, or (on Auto) the nearest option
+        /// to the FIRST frame's own aspect ratio.
+        /// </summary>
+        private string ResolveAspect(string firstImagePath)
+        {
+            if (SelectedAspectRatio != MiniMaxH3ViewModel.AutoAspect) return SelectedAspectRatio;
+
+            int w = 0, h = 0;
+            if (!IsBatchMode && FirstImagePreview is { } preview
+                && string.Equals(firstImagePath, FirstImagePath, StringComparison.OrdinalIgnoreCase))
+            {
+                w = preview.PixelWidth; h = preview.PixelHeight;
+            }
+            if ((w <= 0 || h <= 0) && !string.IsNullOrEmpty(firstImagePath) && File.Exists(firstImagePath))
+            {
+                try
+                {
+                    using var fs = File.OpenRead(firstImagePath);
+                    var frame = BitmapFrame.Create(fs, BitmapCreateOptions.DelayCreation, BitmapCacheOption.None);
+                    w = frame.PixelWidth; h = frame.PixelHeight;
+                }
+                catch { /* fall through to the 16:9 default */ }
+            }
+            return MiniMaxH3ViewModel.ClosestAspectRatio(w, h);
+        }
+
         #endregion
 
         #region Analysis
@@ -455,12 +523,12 @@ namespace FlipPix.UI.ViewModels.Video
 
             try
             {
-                var selectedModel = await ResolveLlmModelAsync(token);
-                var cleaned = await AnalyzePairAsync(selectedModel, FirstImagePath, LastImagePath, token);
+                var model = await ResolveLlmModelAsync(token);
+                var cleaned = await AnalyzePairAsync(model, FirstImagePath, LastImagePath, Prompt, token);
                 if (!string.IsNullOrWhiteSpace(cleaned))
                 {
                     Prompt = cleaned;
-                    AddLog($"Prompt generated ({cleaned.Length} chars)");
+                    AddLog($"H3 prompt written ({cleaned.Length} chars)");
                 }
                 else
                 {
@@ -482,12 +550,13 @@ namespace FlipPix.UI.ViewModels.Video
         }
 
         /// <summary>
-        /// Sends a first/last frame pair to the LLM (<c>fflf-seedhunter.md</c> system prompt) and
-        /// returns the cleaned transition prompt. Shared by the manual Analyze button and the batch runner.
+        /// Sends a first/last frame pair to the LLM (<c>h3minimax-fflf.md</c> system prompt) and returns
+        /// the cleaned FL2VA prompt, alignment line guaranteed. Shared by Analyze and the batch runner.
         /// </summary>
-        private async Task<string> AnalyzePairAsync(string model, string firstPath, string lastPath, CancellationToken token)
+        private async Task<string> AnalyzePairAsync(string model, string firstPath, string lastPath,
+            string draft, CancellationToken token)
         {
-            AddLog($"Analyzing first + last frame with model: {model}");
+            AddLog($"Writing the MiniMax H3 FL2VA prompt from both frames with model: {model}");
 
             var promptFilePath = Path.Combine(AppDomain.CurrentDomain.BaseDirectory,
                 "prompts", "prompt2json", SystemPromptFile);
@@ -495,16 +564,26 @@ namespace FlipPix.UI.ViewModels.Video
                 throw new FileNotFoundException($"System prompt not found: {promptFilePath}");
 
             var systemPrompt = await File.ReadAllTextAsync(promptFilePath, token);
+            var len = ClampLength(LengthSeconds);
+            var idea = string.IsNullOrWhiteSpace(draft)
+                ? "(none — invent the most natural transition between the two frames)"
+                : draft.Trim();
+
+            var userMessage =
+                $"Image 1 is Picture 1, the FIRST frame at 0.00 seconds.\n" +
+                $"Image 2 is Picture 2, the LAST frame at {len.ToString("0.00", CultureInfo.InvariantCulture)} seconds.\n" +
+                $"Target duration: {len.ToString("0.00", CultureInfo.InvariantCulture)} seconds.\n" +
+                $"Draft idea from the user:\n{idea}";
 
             var result = await _lmStudioService.AnalyzeMultipleImagesWithSystemPromptAsync(
                 model,
                 new[] { firstPath, lastPath },
-                "Image 1 is the FIRST frame. Image 2 is the LAST frame. Write the FFLF video prompt that bridges them.",
+                userMessage,
                 systemPrompt,
                 maxTokens: 4000,
                 cancellationToken: token);
 
-            return CleanOutput(result);
+            return EnsureFl2vaInstruction(CleanOutput(result), len);
         }
 
         /// <summary>Resolves the LLM model id once (shared by Analyze and batch). Throws if none.</summary>
@@ -522,18 +601,69 @@ namespace FlipPix.UI.ViewModels.Video
             return selectedModel;
         }
 
+        /// <summary>
+        /// Strips the wrappers small vision models like to add (code fences, bold markers, a leading
+        /// "prompt:" label, surrounding quotes) without touching the H3 field structure.
+        /// </summary>
         private static string CleanOutput(string text)
         {
-            if (string.IsNullOrWhiteSpace(text)) return text;
+            if (string.IsNullOrWhiteSpace(text)) return string.Empty;
             text = text.Replace("**", "").Trim();
-            var lower = text.ToLowerInvariant();
-            if (lower.StartsWith("prompt:") || lower.StartsWith("prompt :"))
-                text = text.Substring(text.IndexOf(':') + 1).Trim();
-            // Strip a single pair of wrapping quotes if the model added them.
+
+            if (text.StartsWith("```"))
+            {
+                var firstBreak = text.IndexOf('\n');
+                if (firstBreak > 0) text = text[(firstBreak + 1)..];
+                var lastFence = text.LastIndexOf("```", StringComparison.Ordinal);
+                if (lastFence >= 0) text = text[..lastFence];
+                text = text.Trim();
+            }
+
+            if (text.StartsWith("prompt:", StringComparison.OrdinalIgnoreCase))
+                text = text[7..].TrimStart();
             if (text.Length > 1 && text[0] == '"' && text[^1] == '"')
                 text = text[1..^1].Trim();
-            return text;
+
+            return text.Trim();
         }
+
+        /// <summary>The fixed FL2VA alignment sentence, carrying the clip's real duration.</summary>
+        private static string Fl2vaInstruction(double seconds) =>
+            "How the reference pictures align with the target video — Picture 1 (from Shot 1) aligns with " +
+            "the 0.00-second mark of the target video; Picture 2 (from Shot 1) aligns with the " +
+            seconds.ToString("0.00", CultureInfo.InvariantCulture) + "-second mark of the target video.";
+
+        /// <summary>
+        /// Guarantees the FL2VA alignment sentence is the first line and that its last-frame timestamp
+        /// matches the duration actually being submitted — H3 reads that line as the instruction pinning
+        /// Picture 1 to 0.00s and Picture 2 to the end. An existing line is edited in place (only its
+        /// final timestamp), so a multi-shot prompt keeps whichever shot the model assigned Picture 2 to.
+        /// </summary>
+        private static string EnsureFl2vaInstruction(string prompt, double seconds)
+        {
+            var t = (prompt ?? string.Empty).Trim();
+            if (t.Length == 0) return t;
+            if (!t.StartsWith("How the reference pictures align", StringComparison.OrdinalIgnoreCase))
+                return $"{Fl2vaInstruction(seconds)}\n\n{t}";
+
+            var brk = t.IndexOf('\n');
+            var line = brk > 0 ? t[..brk] : t;
+            var rest = brk > 0 ? t[(brk + 1)..] : string.Empty;
+
+            var marks = SecondMarkRegex.Matches(line);
+            if (marks.Count >= 2)
+            {
+                var last = marks[^1];
+                line = line[..last.Index]
+                       + seconds.ToString("0.00", CultureInfo.InvariantCulture) + "-second mark"
+                       + line[(last.Index + last.Length)..];
+            }
+            return rest.Length == 0 ? line : $"{line}\n{rest}";
+        }
+
+        /// <summary>H3's supported clip length is 4–15 seconds at 24 fps.</summary>
+        private static double ClampLength(double seconds) =>
+            Math.Clamp(seconds <= 0 ? 5 : seconds, 4, 15);
 
         #endregion
 
@@ -542,9 +672,6 @@ namespace FlipPix.UI.ViewModels.Video
         private void PreviewSample(SeedHuntSample? sample)
         {
             if (sample == null || !sample.HasVideo) return;
-            // Drive the tile highlight (SelectedSampleForPreview) and the shared player. The setter
-            // loads the player on first click; set ActivePreviewUri explicitly too so re-clicking the
-            // same (already-selected) tile still (re)loads it.
             SelectedSampleForPreview = sample;
             ActivePreviewUri = sample.VideoFileUri;
         }
@@ -570,8 +697,7 @@ namespace FlipPix.UI.ViewModels.Video
         {
             if (!CanHunt) return;
 
-            // Reroll always gets a fresh seed so ComfyUI re-samples instead of returning the cached
-            // batch. First-time gen honors a user-pinned seed.
+            // Reroll always gets a fresh seed; a first-time run honors a user-pinned seed.
             if (HasSamples || BaseSeed < 0) BaseSeed = NewSeed();
             var batchSeed = BaseSeed;
             _currentBatchSeed = batchSeed;
@@ -584,19 +710,21 @@ namespace FlipPix.UI.ViewModels.Video
                 ActivePreviewUri = null;
                 HasResult = false;
 
-                var (firstName, lastName) = await EnsureImagesUploadedAsync();
-                reportPhase("Generating 3 samples — previews appear as each finishes...");
+                var firstName = await EnsureUploadedAsync(FirstImagePath);
+                var lastName = await EnsureUploadedAsync(LastImagePath);
+
                 var found = await HuntCoreAsync(token, firstName, lastName, Prompt, FirstImagePath,
-                    batchSeed, batchId, _samples, 0, 95, reportPhase);
+                    batchSeed, batchId, _samples, 0, 100, reportPhase);
                 if (found == 0)
                     throw new Exception("No sample previews were produced.");
-                ProcessingStatus = $"{found}/3 samples ready — pick one, then Finish";
+                ProcessingStatus = $"{found}/{SampleSlots} samples ready — pick one, then Finish";
             });
         }
 
         /// <summary>
-        /// Runs one Stage-1 batch (3 fast previews) for a first/last pair and fills <paramref name="samples"/>.
-        /// Used by both the single-pair hunt and the folder batch. Returns the number of previews produced.
+        /// Runs one hunt batch for a first/last pair: <see cref="SampleSlots"/> sequential submissions at
+        /// preview quality with seeds base, base+1, base+2, filling <paramref name="samples"/>. Used by
+        /// the single-pair hunt, the folder batch and the per-pair reroll. Returns previews produced.
         /// </summary>
         private async Task<int> HuntCoreAsync(CancellationToken token, string firstName, string lastName,
             string prompt, string firstImagePath, long batchSeed, string batchId,
@@ -608,73 +736,120 @@ namespace FlipPix.UI.ViewModels.Video
             OnPropertyChanged(nameof(HasSelection));
             OnPropertyChanged(nameof(SelectedCount));
 
-            var (tw, th) = ComputeTargetResolution(firstImagePath);
-            AddLog($"Output: {tw}×{th} ({(tw == th ? "square" : tw > th ? "widescreen" : "portrait")}), " +
-                   $"{Math.Clamp(LengthSeconds <= 0 ? 5 : LengthSeconds, 1, 60):0.#}s, " +
-                   $"ref in/out {Math.Clamp(InputRefStrength, 0, 1):0.##}/{Math.Clamp(EndRefStrength, 0, 1):0.##}");
+            var aspect = ResolveAspect(firstImagePath);
+            var len = ClampLength(LengthSeconds);
+            var steps = ClampSteps(PreviewSteps);
+            var mp = ClampMegapixels(PreviewMegapixels);
+            AddLog($"Previews: {aspect}, {mp:0.0} MP, {steps} steps, {len:0.#}s — seeds {batchSeed}..{batchSeed + SampleSlots - 1}");
 
-            var json = await LoadWorkflowJsonAsync(token);
-            ApplyCommonInputs(ref json, firstName, lastName, prompt, firstImagePath);
-            WorkflowNodeUpdater.UpdateNodeInput(ref json, NodeBatchSeed, "seed", batchSeed);
-
-            // Make the 3 previews retrievable: save to output/fflf_seedhunt with per-slot prefixes.
-            foreach (var (slot, nodeId) in PreviewNodeBySlot)
+            var span = progressTo - progressFrom;
+            int found = 0;
+            for (int slot = 1; slot <= samples.Count; slot++)
             {
-                WorkflowNodeUpdater.UpdateNodeInputMultiple(ref json, nodeId, new Dictionary<string, object>
+                token.ThrowIfCancellationRequested();
+                var seed = batchSeed + (slot - 1);
+                reportPhase($"Sample {slot}/{samples.Count} (seed {seed})...");
+                SetSampleStatus(samples, slot, "generating");
+
+                var json = await LoadWorkflowJsonAsync(token);
+                ApplyCommonInputs(ref json, firstName, lastName, prompt, aspect, mp, steps, len);
+                WorkflowNodeUpdater.UpdateNodeInput(ref json, NodeSeed, "noise_seed", seed);
+                var runToken = $"mmf{batchId}_p{slot}";
+                WorkflowNodeUpdater.UpdateNodeInput(ref json, NodeOutput, "filename_prefix",
+                    $"{OutputSubfolder}/{runToken}");
+
+                var from = progressFrom + (slot - 1) * span / samples.Count;
+                var to = progressFrom + slot * span / samples.Count;
+                var local = await SubmitAndRetrieveAsync(json, runToken, from, to, PreviewRunTimeout, token);
+                if (local != null)
                 {
-                    { "save_output", true },
-                    { "filename_prefix", $"{OutputSubfolder}/fsh{batchId}_p{slot}" },
-                });
+                    SetSampleVideo(samples, slot, local);
+                    found++;
+                }
+                else
+                {
+                    SetSampleStatus(samples, slot, "no output");
+                    AddLog($"  Sample {slot}: no output produced");
+                }
             }
 
-            // Prune the final output so Stage 2/3 don't run (nothing downstream of the samplers
-            // is left with an output consumer) → only the 3 fast samples render.
-            json = RemoveNodes(json, NodeFinalOutput);
-
-            var filled = new HashSet<int>();
-            var downloads = new List<Task>();
-            void OnNode(object? s, NodeExecutedEventArgs e) => HandleHuntNode(e, samples, filled, downloads, token);
-            _comfyUIService.NodeExecuted += OnNode;
-            try
-            {
-                var promptId = await SubmitAsync(json, progressFrom, progressTo, token);
-
-                Task[] pending;
-                lock (downloads) pending = downloads.ToArray();
-                try { await Task.WhenAll(pending); } catch { /* per-task errors handled inside */ }
-                await FillMissingSamplesAsync(promptId, samples, filled, batchId, token);
-            }
-            finally
-            {
-                _comfyUIService.NodeExecuted -= OnNode;
-            }
-
-            var found = samples.Count(x => x.HasVideo);
             OnPropertyChanged(nameof(HasSamples));
             return found;
         }
 
-        private void HandleHuntNode(NodeExecutedEventArgs e, ObservableCollection<SeedHuntSample> samples,
-            HashSet<int> filled, List<Task> downloads, CancellationToken token)
+        /// <summary>
+        /// Writes every per-run input into the workflow. Preview and finish differ only in
+        /// <paramref name="megapixels"/> and <paramref name="steps"/>; the seed and output prefix are
+        /// set by the caller.
+        /// </summary>
+        private void ApplyCommonInputs(ref string json, string firstName, string lastName, string prompt,
+            string aspect, double megapixels, int steps, double lengthSeconds)
         {
-            if (!SlotByPreviewNode.TryGetValue(e.NodeId, out var slot)) return;
-            var file = e.Files.FirstOrDefault(f => f.Filename.IndexOf("-audio", StringComparison.OrdinalIgnoreCase) >= 0)
-                       ?? e.Files.FirstOrDefault();
-            if (file == null) return;
+            WorkflowNodeUpdater.UpdateNodeInput(ref json, NodeFirstImage, "image", firstName);
+            WorkflowNodeUpdater.UpdateNodeInput(ref json, NodeLastImage, "image", lastName);
+            WorkflowNodeUpdater.UpdateNodeInput(ref json, NodePrompt, "value",
+                EnsureFl2vaInstruction(prompt.Trim(), lengthSeconds));
+            WorkflowNodeUpdater.UpdateNodeInput(ref json, NodeResolution, "aspect_ratio", aspect);
+            WorkflowNodeUpdater.UpdateNodeInput(ref json, NodeResolution, "megapixels", megapixels);
+            WorkflowNodeUpdater.UpdateNodeInput(ref json, NodeSteps, "steps", steps);
+            WorkflowNodeUpdater.UpdateNodeInput(ref json, NodeDuration, "value", lengthSeconds);
+        }
 
-            lock (filled) { if (!filled.Add(slot)) return; }
+        private static int ClampSteps(int steps) => Math.Clamp(steps <= 0 ? 6 : steps, 1, 100);
 
-            var task = Task.Run(async () =>
+        /// <summary>ResolutionSelector accepts 0.1–16.0 MP; anything above ~2 MP is far off H3's canvas.</summary>
+        private static double ClampMegapixels(double mp) => Math.Clamp(mp <= 0 ? 0.3 : mp, 0.1, 4.0);
+
+        /// <summary>Submits one H3 render, waits, and resolves the SaveVideo (node 92) output to a local
+        /// file — via /history node outputs first, then a disk scan for this run's token. The disk-scan
+        /// window matches <paramref name="runTimeout"/> so it can't give up before the render could.</summary>
+        private async Task<string?> SubmitAndRetrieveAsync(string json, string runToken,
+            double from, double to, TimeSpan runTimeout, CancellationToken token)
+        {
+            var existing = GetExistingVideoFiles("*.mp4", OutputSubfolder);
+            var promptId = await SubmitAsync(json, from, to, token, runTimeout);
+
+            var byNode = await _comfyUIService.HttpClient.GetOutputsByNodeAsync(promptId, token);
+            if (byNode.TryGetValue(NodeOutput, out var outs) && outs.Count > 0)
             {
-                try
+                var pick = outs.FirstOrDefault(f => f.EndsWith(".mp4", StringComparison.OrdinalIgnoreCase)) ?? outs[0];
+                var local = await ResolveOutputToLocalAsync(pick);
+                if (local != null) return local;
+            }
+
+            var found = await WaitForNewVideoAsync(existing, "*.mp4",
+                runTimeout, TimeSpan.FromSeconds(4), OutputSubfolder);
+            if (found != null && Path.GetFileName(found).IndexOf(runToken, StringComparison.OrdinalIgnoreCase) >= 0)
+                return found;
+            return found ?? FindTokenFileOnDisk(runToken);
+        }
+
+        /// <summary>Disk fallback: newest mp4 in the output (sub)folder whose name carries the run token.</summary>
+        private string? FindTokenFileOnDisk(string runToken)
+        {
+            try
+            {
+                var settings = _settingsService.Settings;
+                if (settings == null) return null;
+                var baseUrl = GetComfyUIBaseUrl();
+                bool isRemote = IsComfyUIRemote(new Uri(baseUrl).Host);
+                var outputFolder = isRemote ? settings.RemoteOutputFolderPath : settings.OutputFolderPath;
+                if (string.IsNullOrEmpty(outputFolder)) return null;
+
+                var candidates = new List<string>();
+                foreach (var folder in new[] { outputFolder, Path.Combine(outputFolder, OutputSubfolder) })
                 {
-                    var local = await DownloadRefToTempAsync(file, token);
-                    if (local != null) SetSampleVideo(samples, slot, local);
-                    else { lock (filled) { filled.Remove(slot); } }
+                    if (Directory.Exists(folder))
+                        candidates.AddRange(Directory.GetFiles(folder, "*.mp4")
+                            .Where(f => Path.GetFileName(f).IndexOf(runToken, StringComparison.OrdinalIgnoreCase) >= 0));
                 }
-                catch { lock (filled) { filled.Remove(slot); } }
-            }, token);
-            lock (downloads) downloads.Add(task);
+                return candidates.OrderByDescending(File.GetLastWriteTime).FirstOrDefault();
+            }
+            catch (Exception ex)
+            {
+                AddLog($"Disk scan failed: {ex.Message}");
+                return null;
+            }
         }
 
         private void SetSampleVideo(ObservableCollection<SeedHuntSample> samples, int slot, string localPath)
@@ -696,13 +871,16 @@ namespace FlipPix.UI.ViewModels.Video
                     samples.First(s => s.Slot == slot).ThumbnailImage = thumb);
         }
 
+        private void SetSampleStatus(ObservableCollection<SeedHuntSample> samples, int slot, string status) =>
+            Application.Current.Dispatcher.Invoke(() => samples.First(s => s.Slot == slot).Status = status);
+
         private BitmapImage? ExtractFirstFrame(string videoPath)
         {
             try
             {
                 var ffmpeg = FindFFmpeg();
                 if (ffmpeg == null) return null;
-                var outPath = Path.Combine(Path.GetTempPath(), $"fflfsh_thumb_{Guid.NewGuid():N}.png");
+                var outPath = Path.Combine(Path.GetTempPath(), $"mmfflf_thumb_{Guid.NewGuid():N}.png");
                 var psi = new System.Diagnostics.ProcessStartInfo
                 {
                     FileName = ffmpeg,
@@ -734,104 +912,11 @@ namespace FlipPix.UI.ViewModels.Video
             }
         }
 
-        private async Task FillMissingSamplesAsync(string promptId, ObservableCollection<SeedHuntSample> samples,
-            HashSet<int> filled, string batchId, CancellationToken token)
-        {
-            List<KeyValuePair<int, string>> missing;
-            lock (filled) missing = PreviewNodeBySlot.Where(kv => !filled.Contains(kv.Key)).ToList();
-            if (missing.Count == 0) return;
-
-            var byNode = await _comfyUIService.HttpClient.GetOutputsByNodeAsync(promptId, token);
-            AddLog($"Backfill: history reported {byNode.Count} output node(s)");
-            foreach (var (slot, nodeId) in missing)
-            {
-                string? local = null;
-                if (byNode.TryGetValue(nodeId, out var outs) && outs.Count > 0)
-                {
-                    var pick = outs.FirstOrDefault(f => f.IndexOf("-audio", StringComparison.OrdinalIgnoreCase) >= 0)
-                               ?? outs[0];
-                    local = await ResolveOutputToLocalAsync(pick);
-                }
-                local ??= FindSlotFileOnDisk(batchId, slot);
-
-                if (local != null)
-                {
-                    lock (filled) filled.Add(slot);
-                    SetSampleVideo(samples, slot, local);
-                }
-                else
-                {
-                    SetSampleStatus(samples, slot, "no output");
-                    AddLog($"  Sample {slot}: no output found (node {nodeId})");
-                }
-            }
-        }
-
-        private string? FindSlotFileOnDisk(string batchId, int slot)
-        {
-            try
-            {
-                var settings = _settingsService.Settings;
-                if (settings == null) return null;
-                var baseUrl = GetComfyUIBaseUrl();
-                bool isRemote = IsComfyUIRemote(new Uri(baseUrl).Host);
-                var outputFolder = isRemote ? settings.RemoteOutputFolderPath : settings.OutputFolderPath;
-                if (string.IsNullOrEmpty(outputFolder) || !Directory.Exists(outputFolder)) return null;
-
-                var token = $"fsh{batchId}_p{slot}";
-                var candidates = new List<string>();
-                foreach (var folder in new[] { outputFolder, Path.Combine(outputFolder, OutputSubfolder) })
-                {
-                    if (Directory.Exists(folder))
-                        candidates.AddRange(Directory.GetFiles(folder, "*.mp4")
-                            .Where(f => Path.GetFileName(f).IndexOf(token, StringComparison.OrdinalIgnoreCase) >= 0));
-                }
-                if (candidates.Count == 0) return null;
-                return candidates
-                    .OrderByDescending(f => f.IndexOf("-audio", StringComparison.OrdinalIgnoreCase) >= 0)
-                    .ThenByDescending(File.GetLastWriteTime)
-                    .First();
-            }
-            catch (Exception ex)
-            {
-                AddLog($"Disk scan failed: {ex.Message}");
-                return null;
-            }
-        }
-
-        private void SetSampleStatus(ObservableCollection<SeedHuntSample> samples, int slot, string status) =>
-            Application.Current.Dispatcher.Invoke(() => samples.First(s => s.Slot == slot).Status = status);
-
-        private async Task<string?> DownloadRefToTempAsync(OutputFileRef r, CancellationToken token)
-        {
-            var settings = _settingsService.Settings;
-            if (settings != null)
-            {
-                var baseUrl = GetComfyUIBaseUrl();
-                bool isRemote = IsComfyUIRemote(new Uri(baseUrl).Host);
-                string outputFolder = isRemote ? settings.RemoteOutputFolderPath : settings.OutputFolderPath;
-                if (!string.IsNullOrEmpty(outputFolder) && r.Type == "output")
-                {
-                    var localPath = Path.Combine(outputFolder, r.RelativePath.Replace('/', Path.DirectorySeparatorChar));
-                    if (File.Exists(localPath)) { await WaitForFileStableAsync(localPath); return localPath; }
-                }
-            }
-
-            var bytes = await _comfyUIService.HttpClient.DownloadViewFileAsync(r.Filename, r.Subfolder, r.Type, token);
-            if (bytes is { Length: > 0 })
-            {
-                var tempPath = Path.Combine(Path.GetTempPath(), $"fflfsh_{Guid.NewGuid():N}_{r.Filename}");
-                await File.WriteAllBytesAsync(tempPath, bytes, token);
-                return tempPath;
-            }
-            return null;
-        }
-
         #endregion
 
-        #region Stage 2/3 — Finish
+        #region Finish — full resolution, full steps
 
-        /// <summary>One queued seed preview to upscale at Finish (covers both single and batch flows).</summary>
+        /// <summary>One queued seed preview to re-render at full quality (covers single and batch flows).</summary>
         private sealed record FinishItem(string FirstPath, string LastPath, string Prompt,
             long BatchSeed, int Slot, int PairIndex);
 
@@ -860,6 +945,10 @@ namespace FlipPix.UI.ViewModels.Video
 
             await RunWorkflowAsync("Finish", async (token, reportPhase) =>
             {
+                var steps = ClampSteps(FinalSteps);
+                var mp = ClampMegapixels(FinalMegapixels);
+                var len = ClampLength(LengthSeconds);
+
                 int done = 0;
                 var finishedPaths = new List<string>(); // completed videos, in work order — joined at the end
                 foreach (var item in work)
@@ -867,48 +956,39 @@ namespace FlipPix.UI.ViewModels.Video
                     token.ThrowIfCancellationRequested();
                     var ts = DateTime.Now.ToString("yyyyMMdd_HHmmss");
                     var label = item.PairIndex > 0 ? $"Pair {item.PairIndex} · Sample {item.Slot}" : $"Sample {item.Slot}";
-                    reportPhase($"Finishing {label} ({done + 1}/{work.Count}) — Stage 2 → Stage 3...");
+                    reportPhase($"Finishing {label} ({done + 1}/{work.Count}) — {mp:0.0} MP, {steps} steps...");
 
                     var firstName = await EnsureUploadedAsync(item.FirstPath);
                     var lastName = await EnsureUploadedAsync(item.LastPath);
+                    var aspect = ResolveAspect(item.FirstPath);
 
+                    // Same prompt, duration, aspect and seed as the chosen preview — only the canvas
+                    // size and step count go up.
                     var json = await LoadWorkflowJsonAsync(token);
-                    // Identical Stage-1 inputs → ComfyUI reuses this sample's cached latent.
-                    ApplyCommonInputs(ref json, firstName, lastName, item.Prompt, item.FirstPath);
-                    WorkflowNodeUpdater.UpdateNodeInput(ref json, NodeBatchSeed, "seed", item.BatchSeed);
+                    ApplyCommonInputs(ref json, firstName, lastName, item.Prompt, aspect, mp, steps, len);
+                    WorkflowNodeUpdater.UpdateNodeInput(ref json, NodeSeed, "noise_seed",
+                        item.BatchSeed + (item.Slot - 1));
 
-                    // Wire the chosen sampler's av-latent straight into the downstream Separate node.
-                    // The ImpactSwitch (5173) + selector mxSlider (5174) are UI-only nodes that throw
-                    // KeyError('inputs') under raw /prompt submission, so we drop them.
-                    WorkflowNodeUpdater.UpdateNodeInput(ref json, NodeSepAfterSwitch, "av_latent",
-                        new object[] { SamplerOutputBySlot[item.Slot], 0 });
-
-                    // Fresh Stage 2/3 seed each finish.
-                    WorkflowNodeUpdater.UpdateNodeInput(ref json, NodeStage2Seed, "seed", NewSeed());
-
-                    var prefix = item.PairIndex > 0
-                        ? $"{OutputSubfolder}/final_p{item.PairIndex}_s{item.Slot}_{ts}"
-                        : $"{OutputSubfolder}/final_s{item.Slot}_{ts}";
-                    WorkflowNodeUpdater.UpdateNodeInput(ref json, NodeFinalOutput, "filename_prefix", prefix);
-                    json = RemoveNodes(json, PreviewNodeBySlot.Values
-                        .Append(NodeSelect).Append(NodeSelectSwitch).ToArray());
+                    var runToken = item.PairIndex > 0
+                        ? $"final_p{item.PairIndex}_s{item.Slot}_{ts}"
+                        : $"final_s{item.Slot}_{ts}";
+                    WorkflowNodeUpdater.UpdateNodeInput(ref json, NodeOutput, "filename_prefix",
+                        $"{OutputSubfolder}/{runToken}");
 
                     var from = done * 100.0 / work.Count;
                     var to = (done + 1) * 100.0 / work.Count;
-                    var existing = GetExistingVideoFiles("*.mp4", OutputSubfolder);
-                    var promptId = await SubmitAsync(json, from, to, token);
-
-                    AddLog($"Retrieving final video for {label}...");
-                    string? outputVideo = null;
-                    var byNode = await _comfyUIService.HttpClient.GetOutputsByNodeAsync(promptId, token);
-                    if (byNode.TryGetValue(NodeFinalOutput, out var outs) && outs.Count > 0)
+                    string? outputVideo;
+                    try
                     {
-                        var pick = outs.FirstOrDefault(f => f.IndexOf("-audio", StringComparison.OrdinalIgnoreCase) >= 0)
-                                   ?? outs[0];
-                        outputVideo = await ResolveOutputToLocalAsync(pick);
+                        outputVideo = await SubmitAndRetrieveAsync(json, runToken, from, to, FinishRunTimeout, token);
                     }
-                    outputVideo ??= await WaitForNewVideoAsync(
-                        existing, "*.mp4", TimeSpan.FromMinutes(30), TimeSpan.FromSeconds(5), OutputSubfolder);
+                    catch (OperationCanceledException) { throw; }
+                    catch (Exception ex)
+                    {
+                        // One bad render shouldn't discard the rest of the queue — log it and keep going.
+                        AddLog($"{label} failed: {ex.Message}");
+                        continue;
+                    }
 
                     if (outputVideo == null || !File.Exists(outputVideo))
                     {
@@ -917,11 +997,11 @@ namespace FlipPix.UI.ViewModels.Video
                     }
 
                     var outputDir = Path.Combine(
-                        _settingsService.Settings?.OutputFolderPath ?? Path.GetTempPath(), "FflfSeedHunt");
+                        _settingsService.Settings?.OutputFolderPath ?? Path.GetTempPath(), "MiniMaxFflf");
                     Directory.CreateDirectory(outputDir);
                     var nameStem = item.PairIndex > 0
-                        ? $"FflfSeedHunt_p{item.PairIndex}_s{item.Slot}_{ts}"
-                        : $"FflfSeedHunt_s{item.Slot}_{ts}";
+                        ? $"MiniMaxFflf_p{item.PairIndex}_s{item.Slot}_{ts}"
+                        : $"MiniMaxFflf_s{item.Slot}_{ts}";
                     var finalPath = Path.Combine(outputDir, $"{nameStem}.mp4");
                     File.Copy(outputVideo, finalPath, true);
                     await LocalCopyService.CopyVideoAsync(finalPath);
@@ -933,7 +1013,7 @@ namespace FlipPix.UI.ViewModels.Video
                         PairIndex = item.PairIndex,
                         VideoPath = finalPath,
                         VideoFileUri = finalPath,
-                        Info = $"{label} • {fi.Length / 1024 / 1024.0:F1}MB"
+                        Info = $"{label} • {mp:0.0} MP • {fi.Length / 1024 / 1024.0:F1}MB"
                     };
                     Application.Current.Dispatcher.Invoke(() =>
                     {
@@ -979,10 +1059,10 @@ namespace FlipPix.UI.ViewModels.Video
                 }
 
                 var outputDir = Path.Combine(
-                    _settingsService.Settings?.OutputFolderPath ?? Path.GetTempPath(), "FflfSeedHunt");
+                    _settingsService.Settings?.OutputFolderPath ?? Path.GetTempPath(), "MiniMaxFflf");
                 Directory.CreateDirectory(outputDir);
                 var joinedPath = Path.Combine(outputDir,
-                    $"FflfSeedHunt_joined_{DateTime.Now:yyyyMMdd_HHmmss}.mp4");
+                    $"MiniMaxFflf_joined_{DateTime.Now:yyyyMMdd_HHmmss}.mp4");
 
                 await ConcatClipsAsync(ffmpeg, clips, joinedPath, token);
                 if (!File.Exists(joinedPath) || new FileInfo(joinedPath).Length == 0)
@@ -1018,8 +1098,8 @@ namespace FlipPix.UI.ViewModels.Video
             }
         }
 
-        /// <summary>Concatenates clips (all share the workflow's output resolution/fps) into one MP4 via
-        /// FFmpeg's concat demuxer with a re-encode (robust to copy/codec edge-cases; keeps audio).</summary>
+        /// <summary>Concatenates clips (all share the run's resolution/fps) into one MP4 via FFmpeg's
+        /// concat demuxer with a re-encode (robust to codec edge-cases; keeps H3's generated audio).</summary>
         private async Task ConcatClipsAsync(string ffmpeg, IReadOnlyList<string> clips, string outPath, CancellationToken token)
         {
             if (clips.Count == 1)
@@ -1028,7 +1108,7 @@ namespace FlipPix.UI.ViewModels.Video
                 return;
             }
 
-            var listPath = Path.Combine(Path.GetTempPath(), $"fflfsh_concat_{Guid.NewGuid():N}.txt");
+            var listPath = Path.Combine(Path.GetTempPath(), $"mmfflf_concat_{Guid.NewGuid():N}.txt");
             var sb = new System.Text.StringBuilder();
             foreach (var clip in clips)
                 sb.AppendLine($"file '{clip.Replace("'", "'\\''")}'");
@@ -1080,8 +1160,8 @@ namespace FlipPix.UI.ViewModels.Video
         #region Folder batch
 
         /// <summary>
-        /// Pick a folder of images, order them by creation time, and build overlapping
-        /// first→last pairs (image i → image i+1). Enters batch mode.
+        /// Pick a folder of images, order them by creation time, and build overlapping first→last
+        /// pairs (image i → image i+1). Enters batch mode.
         /// </summary>
         private async Task SelectFolderAsync()
         {
@@ -1093,17 +1173,15 @@ namespace FlipPix.UI.ViewModels.Video
 
             var folder = await _fileDialogService.OpenFolderDialogAsync(
                 "Select a folder of images (ordered by creation time → overlapping FFLF pairs)",
-                initialDir, showNewFolderButton: false, persistKey: "fflfseedhunt.folder");
+                initialDir, showNewFolderButton: false, persistKey: "minimaxfflf.folder");
             if (string.IsNullOrEmpty(folder) || !Directory.Exists(folder)) return;
 
             LoadFolder(folder);
         }
 
         /// <summary>
-        /// Loads a folder of images into batch mode without showing a dialog. Images are ordered by
-        /// creation time (then filename) and chained into overlapping FFLF pairs. Used by the folder
-        /// picker and by the "open in FFLF Seed Hunter" handoff from Story Image Q's keyframes.
-        /// Must be called on the UI thread.
+        /// Loads a folder of images into batch mode. Images are ordered by creation time (then filename)
+        /// and chained into overlapping FFLF pairs. Must be called on the UI thread.
         /// </summary>
         public void LoadFolder(string folder)
         {
@@ -1205,8 +1283,8 @@ namespace FlipPix.UI.ViewModels.Video
         }
 
         /// <summary>
-        /// Walks every pair sequentially: analyze first+last → write the transition prompt → generate
-        /// 3 seed previews. A failed pair is logged and skipped; the batch continues.
+        /// Walks every pair sequentially: analyze first+last into an FL2VA prompt → generate 3 seed
+        /// previews. A failed pair is logged and skipped; the batch continues.
         /// </summary>
         private async Task RunBatchAsync()
         {
@@ -1231,7 +1309,8 @@ namespace FlipPix.UI.ViewModels.Video
                     {
                         SetPairStatus(pair, "analyzing");
                         reportPhase($"Pair {idx}/{total}: analyzing {Path.GetFileName(pair.FirstImagePath)} → {Path.GetFileName(pair.LastImagePath)}...");
-                        var prompt = await AnalyzePairAsync(model, pair.FirstImagePath, pair.LastImagePath, token);
+                        var prompt = await AnalyzePairAsync(model, pair.FirstImagePath, pair.LastImagePath,
+                            pair.Prompt, token);
                         if (string.IsNullOrWhiteSpace(prompt))
                             throw new Exception("LLM returned an empty prompt");
                         Application.Current.Dispatcher.Invoke(() => pair.Prompt = prompt);
@@ -1248,7 +1327,7 @@ namespace FlipPix.UI.ViewModels.Video
                             seed, batchId, pair.Samples, from, from + span,
                             status => reportPhase($"Pair {idx}/{total}: {status}"));
 
-                        SetPairStatus(pair, found > 0 ? $"ready {found}/3" : "no output");
+                        SetPairStatus(pair, found > 0 ? $"ready {found}/{SampleSlots}" : "no output");
                         if (found > 0) ok++;
 
                         // Surface the first finished pair in the player as soon as it's ready.
@@ -1269,9 +1348,8 @@ namespace FlipPix.UI.ViewModels.Video
         }
 
         /// <summary>
-        /// Rerolls just the currently <see cref="SelectedPair"/> with a fresh random seed → 3 new
-        /// seed previews, reusing the pair's existing transition prompt (no re-analyze). For when the
-        /// user doesn't like a pair's samples but the prompt is fine. Leaves every other pair untouched.
+        /// Rerolls just the currently <see cref="SelectedPair"/> with a fresh seed → 3 new previews,
+        /// reusing the pair's existing prompt (no re-analyze). Leaves every other pair untouched.
         /// </summary>
         private async Task RerollPairAsync()
         {
@@ -1296,18 +1374,18 @@ namespace FlipPix.UI.ViewModels.Video
                 SetPairStatus(pair, "rerolling");
                 var batchId = DateTime.Now.ToString("yyyyMMddHHmmss") + $"_p{pair.Index}r";
 
-                reportPhase($"Pair {pair.Index}: rerolling 3 new seeds — previews appear as each finishes...");
+                reportPhase($"Pair {pair.Index}: rerolling {SampleSlots} new seeds...");
                 var found = await HuntCoreAsync(token, firstName, lastName, pair.Prompt, pair.FirstImagePath,
-                    seed, batchId, pair.Samples, 0, 95,
+                    seed, batchId, pair.Samples, 0, 100,
                     status => reportPhase($"Pair {pair.Index}: {status}"));
 
-                SetPairStatus(pair, found > 0 ? $"ready {found}/3" : "no output");
+                SetPairStatus(pair, found > 0 ? $"ready {found}/{SampleSlots}" : "no output");
                 if (found == 0)
                     throw new Exception("No sample previews were produced.");
 
                 Application.Current.Dispatcher.Invoke(() =>
                     ActivePreviewUri = pair.Samples.FirstOrDefault(s => s.HasVideo)?.VideoFileUri);
-                ProcessingStatus = $"Pair {pair.Index}: {found}/3 fresh samples ready — pick one, then Finish";
+                ProcessingStatus = $"Pair {pair.Index}: {found}/{SampleSlots} fresh samples ready — pick one, then Finish";
             });
         }
 
@@ -1316,8 +1394,8 @@ namespace FlipPix.UI.ViewModels.Video
 
         /// <summary>
         /// Moves a pair one slot up (<paramref name="delta"/> = -1) or down (+1) in the batch order.
-        /// Pairs are renumbered so labels follow the new order, and Finish concatenates the final
-        /// clips in this same order — so reordering pairs reorders the joined output video.
+        /// Pairs are renumbered so labels follow the new order, and Finish concatenates the final clips
+        /// in this same order — so reordering pairs reorders the joined output video.
         /// </summary>
         private void MovePair(FflfPair? pair, int delta)
         {
@@ -1333,7 +1411,6 @@ namespace FlipPix.UI.ViewModels.Video
             AddLog($"Moved pair to position {j + 1} of {_pairs.Count}");
         }
 
-        /// <summary>Re-assigns each pair's 1-based <see cref="FflfPair.Index"/> to its current position.</summary>
         private void RenumberPairs()
         {
             for (int k = 0; k < _pairs.Count; k++)
@@ -1358,9 +1435,9 @@ namespace FlipPix.UI.ViewModels.Video
             WorkflowQueueCoordinator.WorkflowLease? lease = null;
             try
             {
-                AddLog($"=== FFLF Seed Hunter {phase} ===");
+                AddLog($"=== MiniMax FFLF {phase} ===");
                 AddLog("Waiting for other workflows to finish...");
-                lease = await _workflowCoordinator.AcquireAsync("FflfSeedHunt", token);
+                lease = await _workflowCoordinator.AcquireAsync("MiniMaxFflf", token);
 
                 ProcessingStatus = "Checking ComfyUI...";
                 var comfyOk = await _comfyUIService.DetectAndRestartIfCrashedAsync(s => AddLog($"[Auto-Restart] {s}"));
@@ -1384,7 +1461,7 @@ namespace FlipPix.UI.ViewModels.Video
             {
                 AddLog($"ERROR ({phase}): {ex.Message}");
                 ProcessingStatus = $"Error: {ex.Message}";
-                MessageBox.Show($"{phase} failed:\n{ex.Message}", "FFLF Seed Hunter Error",
+                MessageBox.Show($"{phase} failed:\n{ex.Message}", "MiniMax FFLF Error",
                     MessageBoxButton.OK, MessageBoxImage.Error);
             }
             finally
@@ -1398,16 +1475,9 @@ namespace FlipPix.UI.ViewModels.Video
             }
         }
 
-        private async Task<(string first, string last)> EnsureImagesUploadedAsync()
-        {
-            _uploadedFirstName ??= await EnsureUploadedAsync(FirstImagePath);
-            _uploadedLastName ??= await EnsureUploadedAsync(LastImagePath);
-            return (_uploadedFirstName!, _uploadedLastName!);
-        }
-
         /// <summary>
-        /// Uploads an image to ComfyUI once, caching the returned filename by path so overlapping
-        /// batch pairs (which share a frame) don't re-upload the same file.
+        /// Uploads an image to ComfyUI once, caching the returned filename by path so overlapping batch
+        /// pairs (which share a frame) don't re-upload the same file.
         /// </summary>
         private async Task<string> EnsureUploadedAsync(string path)
         {
@@ -1429,67 +1499,8 @@ namespace FlipPix.UI.ViewModels.Video
             return await File.ReadAllTextAsync(path, token);
         }
 
-        private void ApplyCommonInputs(ref string json, string firstName, string lastName,
-            string prompt, string firstImagePath)
-        {
-            WorkflowNodeUpdater.UpdateNodeInput(ref json, NodeImageFirst, "image", firstName);
-            WorkflowNodeUpdater.UpdateNodeInput(ref json, NodeImageLast, "image", lastName);
-            WorkflowNodeUpdater.UpdateNodeInput(ref json, NodePrompt, "text", prompt);
-
-            var (tw, th) = ComputeTargetResolution(firstImagePath);
-            WorkflowNodeUpdater.UpdateNodeInput(ref json, NodeTargetWidth, "value", tw);
-            WorkflowNodeUpdater.UpdateNodeInput(ref json, NodeTargetHeight, "value", th);
-
-            // Reference strengths — mxSliders run in float mode (isfloatX=1) so the Xf value is used.
-            var inStr = Math.Clamp(InputRefStrength, 0, 1);
-            var endStr = Math.Clamp(EndRefStrength, 0, 1);
-            WorkflowNodeUpdater.UpdateNodeInputMultiple(ref json, NodeInputRefStrength, new Dictionary<string, object>
-            {
-                { "Xf", inStr }, { "isfloatX", 1 },
-            });
-            WorkflowNodeUpdater.UpdateNodeInputMultiple(ref json, NodeEndRefStrength, new Dictionary<string, object>
-            {
-                { "Xf", endStr }, { "isfloatX", 1 },
-            });
-
-            // Video length (seconds) → drives the Stage-1 latent frame count.
-            var len = Math.Clamp(LengthSeconds <= 0 ? 5 : LengthSeconds, 1, 60);
-            WorkflowNodeUpdater.UpdateNodeInputMultiple(ref json, NodeLength, new Dictionary<string, object>
-            {
-                { "Xi", len }, { "Xf", len },
-            });
-        }
-
-        /// <summary>
-        /// Picks the output resolution from the FIRST frame's aspect ratio:
-        /// 1024×1024 (square), 1920×1024 (widescreen) or 1024×1920 (portrait).
-        /// </summary>
-        private (int width, int height) ComputeTargetResolution(string firstImagePath)
-        {
-            int iw = 0, ih = 0;
-            // Reuse the already-decoded preview when it matches the single-pair image (avoids re-read).
-            if (!IsBatchMode && string.Equals(firstImagePath, FirstImagePath, StringComparison.OrdinalIgnoreCase)
-                && FirstImagePreview is { } preview)
-            {
-                iw = preview.PixelWidth; ih = preview.PixelHeight;
-            }
-            if ((iw <= 0 || ih <= 0) && File.Exists(firstImagePath))
-            {
-                try
-                {
-                    using var fs = File.OpenRead(firstImagePath);
-                    var frame = BitmapFrame.Create(fs, BitmapCreateOptions.DelayCreation, BitmapCacheOption.None);
-                    iw = frame.PixelWidth; ih = frame.PixelHeight;
-                }
-                catch { /* fall through to square default */ }
-            }
-            if (iw <= 0 || ih <= 0) return (1024, 1024);
-            if (iw > ih * 1.1) return (1920, 1024); // widescreen
-            if (ih > iw * 1.1) return (1024, 1920); // portrait
-            return (1024, 1024);                     // square
-        }
-
-        private async Task<string> SubmitAsync(string json, double progressFrom, double progressTo, CancellationToken token)
+        private async Task<string> SubmitAsync(string json, double progressFrom, double progressTo,
+            CancellationToken token, TimeSpan? executionTimeout = null)
         {
             var workflow = JsonSerializer.Deserialize<JsonElement>(json);
             var span = progressTo - progressFrom;
@@ -1506,17 +1517,9 @@ namespace FlipPix.UI.ViewModels.Video
                 }
             });
 
-            var promptId = await _comfyUIService.ExecuteWorkflowAsync(workflow, progress, token);
+            var promptId = await _comfyUIService.ExecuteWorkflowAsync(workflow, progress, token, executionTimeout);
             AddLog($"Workflow submitted, ID: {promptId}");
             return promptId;
-        }
-
-        private static string RemoveNodes(string json, params string[] ids)
-        {
-            var dict = JsonSerializer.Deserialize<Dictionary<string, JsonElement>>(json);
-            if (dict == null) return json;
-            foreach (var id in ids) dict.Remove(id);
-            return JsonSerializer.Serialize(dict);
         }
 
         private async Task<string?> ResolveOutputToLocalAsync(string videoFile)
@@ -1546,14 +1549,14 @@ namespace FlipPix.UI.ViewModels.Video
                 var bytes = await _comfyUIService.HttpClient.DownloadOutputVideoAsync(filename, subfolder);
                 if (bytes is { Length: > 0 })
                 {
-                    var tempPath = Path.Combine(Path.GetTempPath(), $"fflfsh_{Guid.NewGuid():N}_{filename}");
+                    var tempPath = Path.Combine(Path.GetTempPath(), $"mmfflf_{Guid.NewGuid():N}_{filename}");
                     await File.WriteAllBytesAsync(tempPath, bytes);
                     return tempPath;
                 }
             }
             catch (Exception ex)
             {
-                AddLog($"Resolve preview failed: {ex.Message}");
+                AddLog($"Resolve output failed: {ex.Message}");
             }
             return null;
         }
@@ -1570,7 +1573,6 @@ namespace FlipPix.UI.ViewModels.Video
             OnPropertyChanged(nameof(CanRunBatch));
             OnPropertyChanged(nameof(CanRerollPair));
             OnPropertyChanged(nameof(CanFinish));
-            OnPropertyChanged(nameof(HuntButtonText));
             OnPropertyChanged(nameof(ShowSingleReroll));
             OnPropertyChanged(nameof(FinishButtonText));
             AnalyzeCommand.NotifyCanExecuteChanged();

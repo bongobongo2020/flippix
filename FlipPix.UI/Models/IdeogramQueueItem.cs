@@ -13,6 +13,14 @@ namespace FlipPix.UI.Models
         /// <summary>Normalized elements_data JSON for the composition regions (may be empty → full-frame).</summary>
         public string RegionsJson { get; set; } = string.Empty;
 
+        /// <summary>
+        /// Full scene document (high_level_description + style_description +
+        /// compositional_deconstruction) fed to Ideogram4PromptBuilderKJ's import_json.
+        /// Empty on items queued before the ideogram4 workflow switch — those fall back
+        /// to the node's widget inputs.
+        /// </summary>
+        public string ImportJson { get; set; } = string.Empty;
+
         /// <summary>"Square" | "Widescreen" | "Portrait".</summary>
         public string AspectRatio { get; set; } = "Square";
 
@@ -23,8 +31,11 @@ namespace FlipPix.UI.Models
         /// <summary>Style bucket, normally "photo" (node 105 "style").</summary>
         public string Style { get; set; } = "photo";
 
-        /// <summary>Photographic / lens detail (node 105 "style.photo").</summary>
+        /// <summary>Photographic / lens detail (kept for the "photo" style bucket).</summary>
         public string StylePhoto { get; set; } = string.Empty;
+
+        /// <summary>Art-style description (node 4864 "style.art_style" — the bucket ideogram4.json is wired to).</summary>
+        public string ArtStyle { get; set; } = string.Empty;
 
         /// <summary>Mood / aesthetic keywords (node 105 "aesthetics").</summary>
         public string Aesthetics { get; set; } = string.Empty;
@@ -41,8 +52,8 @@ namespace FlipPix.UI.Models
         /// <summary>When false the enriched style detail is dropped at build time (only the high-level prompt + regions drive the image).</summary>
         public bool UseEnrichedStyle { get; set; } = true;
 
-        /// <summary>Target output resolution budget (FluxResolutionNode "megapixel"), e.g. "2.5".</summary>
-        public string Megapixel { get; set; } = "2.5";
+        /// <summary>Base (first pass) resolution budget in megapixels, e.g. "1.0"; the saved image is 2× larger per edge.</summary>
+        public string Megapixel { get; set; } = "1.0";
 
         public string LlmModel { get; set; } = string.Empty;
 

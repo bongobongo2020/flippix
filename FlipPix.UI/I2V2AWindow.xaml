@@ -216,7 +216,7 @@
                                 <ItemsControl ItemsSource="{Binding LoRAItems}">
                                     <ItemsControl.ItemTemplate>
                                         <DataTemplate>
-                                            <Border BorderBrush="#E0E0E0" BorderThickness="1" Padding="10" Margin="0,0,0,5" CornerRadius="3">
+                                            <Border BorderBrush="{StaticResource BorderBrush}" BorderThickness="1" Padding="10" Margin="0,0,0,5" CornerRadius="3">
                                                 <Grid>
                                                     <Grid.ColumnDefinitions>
                                                         <ColumnDefinition Width="*"/>
@@ -352,7 +352,7 @@
                                      Height="150"
                                      IsReadOnly="True"
                                      VerticalScrollBarVisibility="Auto"
-                                     Background="#F8F8F8"
+                                     Background="{StaticResource SurfaceAltBrush}"
                                      FontFamily="Consolas"
                                      FontSize="11"/>
                         </StackPanel>

@@ -110,13 +110,16 @@ namespace FlipPix.UI.ViewModels
             var loraManager = serviceProvider?.GetRequiredService<LoraManager>() ?? throw new InvalidOperationException("LoraManager is required");
             var imageRetriever = serviceProvider?.GetRequiredService<ComfyUIImageRetriever>() ?? throw new InvalidOperationException("ComfyUIImageRetriever is required");
 
-            // Initialize nested ViewModels
+            // Initialize nested ViewModels.
+            // Hand down _promptService (the base already resolved the nullable ctor arg to a real
+            // instance) rather than the raw parameter: passing null here reached ImageAnalyzer's
+            // non-nullable IPromptService and left every child holding a separate service.
             var lmStudioService = serviceProvider?.GetRequiredService<LMStudioService>();
-            _analyzer = new ImageAnalyzerViewModel(comfyUIService, lmStudioService ?? throw new InvalidOperationException("LMStudioService is required"), logger, settingsService, _workflowCoordinator, fileDialogService, promptService);
-            _cameraEdit = new FlipPixViewModel(comfyUIService, logger, settingsService, serviceProvider, promptService, fileDialogService);
+            _analyzer = new ImageAnalyzerViewModel(comfyUIService, lmStudioService ?? throw new InvalidOperationException("LMStudioService is required"), logger, settingsService, _workflowCoordinator, fileDialogService, _promptService);
+            _cameraEdit = new FlipPixViewModel(comfyUIService, logger, settingsService, serviceProvider, _promptService, fileDialogService);
             _storyGeneratorQ = new StoryImageGeneratorQViewModel(comfyUIService, logger, settingsService, _workflowCoordinator, fileDialogService, loraManager, imageRetriever, lmStudioService ?? throw new InvalidOperationException("LMStudioService is required"));
             _storyGeneratorAmateur = new StoryImageGeneratorAmateurViewModel(comfyUIService, logger, settingsService, _workflowCoordinator, fileDialogService, loraManager, imageRetriever);
-            _amateurGenerator = new AmateurGeneratorViewModel(comfyUIService, logger, settingsService, promptService, loraManager, imageRetriever, _workflowCoordinator, lmStudioService, fileDialogService);
+            _amateurGenerator = new AmateurGeneratorViewModel(comfyUIService, logger, settingsService, _promptService, loraManager, imageRetriever, _workflowCoordinator, lmStudioService, fileDialogService);
             _cameraAngle = new CameraAngleViewModel(comfyUIService, logger, settingsService, fileDialogService, imageRetriever);
             _inpaintEditor = new InpaintEditorViewModel(comfyUIService, logger, settingsService, fileDialogService);
             _kleinInpaintEditor = new KleinInpaintViewModel(comfyUIService, logger, settingsService, fileDialogService);
@@ -169,7 +172,7 @@ namespace FlipPix.UI.ViewModels
             SendToCameraAngleCommand = new RelayCommand(SendToCameraAngle);
             SendToVideoGeneratorCommand = new RelayCommand(SendToVideoGenerator);
             SendToStoryCommand = new RelayCommand(SendToStory);
-            OpenKeyframesInFflfSeedHunterCommand = new RelayCommand(OpenKeyframesInFflfSeedHunter);
+            OpenKeyframesInMiniMaxFflfCommand = new RelayCommand(OpenKeyframesInMiniMaxFflf);
             NavigateToImageAnalyzerCommand = new RelayCommand(NavigateToImageAnalyzer);
             NavigateToVideoGeneratorCommand = new RelayCommand(NavigateToVideoGenerator);
                 NavigateToStoryVideoCommand = new RelayCommand(NavigateToStoryVideo);
@@ -531,7 +534,7 @@ namespace FlipPix.UI.ViewModels
         public ICommand SendToCameraAngleCommand { get; }
         public ICommand SendToVideoGeneratorCommand { get; }
         public ICommand SendToStoryCommand { get; }
-        public ICommand OpenKeyframesInFflfSeedHunterCommand { get; }
+        public ICommand OpenKeyframesInMiniMaxFflfCommand { get; }
         public ICommand NavigateToImageAnalyzerCommand { get; }
         public ICommand NavigateToVideoGeneratorCommand { get; }
               public ICommand NavigateToStoryVideoCommand { get; }
@@ -3243,10 +3246,10 @@ namespace FlipPix.UI.ViewModels
         }
 
         /// <summary>
-        /// Opens the Video Generator's FFLF Seed Hunter tab and loads the current Story Image Q
+        /// Opens the Video Generator's MiniMax FFLF tab and loads the current Story Image Q
         /// session's generated keyframes as a folder batch (overlapping FFLF pairs → continuous shot).
         /// </summary>
-        private void OpenKeyframesInFflfSeedHunter()
+        private void OpenKeyframesInMiniMaxFflf()
         {
             if (_serviceProvider == null) return;
 
@@ -3285,18 +3288,18 @@ namespace FlipPix.UI.ViewModels
 
                 if (videoWindow.DataContext is VideoGeneratorViewModel vm)
                 {
-                    // FFLF Seed Hunter is the last tab in VideoGeneratorWindow's TabControl (index 11).
-                    vm.SelectedTabIndex = 11;
-                    vm.FflfSeedHuntVM.LoadFolder(folder);
-                    AddLog($"Opened FFLF Seed Hunter with {pngCount} keyframes from: {folder}");
-                    StatusBarMessage = $"Loaded {pngCount} keyframes into FFLF Seed Hunter";
+                    // MiniMax FFLF is the last tab in VideoGeneratorWindow's TabControl (index 8).
+                    vm.SelectedTabIndex = 8;
+                    vm.MiniMaxFflfVM.LoadFolder(folder);
+                    AddLog($"Opened MiniMax FFLF with {pngCount} keyframes from: {folder}");
+                    StatusBarMessage = $"Loaded {pngCount} keyframes into MiniMax FFLF";
                 }
             }
             catch (Exception ex)
             {
-                AddLog($"ERROR opening FFLF Seed Hunter: {ex.Message}");
-                _logger.LogError($"Error opening FFLF Seed Hunter: {ex}");
-                System.Windows.MessageBox.Show($"Error opening FFLF Seed Hunter:\n\n{ex.Message}", "Error", System.Windows.MessageBoxButton.OK, System.Windows.MessageBoxImage.Error);
+                AddLog($"ERROR opening MiniMax FFLF: {ex.Message}");
+                _logger.LogError($"Error opening MiniMax FFLF: {ex}");
+                System.Windows.MessageBox.Show($"Error opening MiniMax FFLF:\n\n{ex.Message}", "Error", System.Windows.MessageBoxButton.OK, System.Windows.MessageBoxImage.Error);
             }
         }
 

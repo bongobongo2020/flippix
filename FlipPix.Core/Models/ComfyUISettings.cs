@@ -78,6 +78,28 @@ public class ComfyUISettings
     public string SelectedVideoWorkflow { get; set; } = "ltx2_i2v"; // Default to LTXV
     public int Ltx23FrameCount { get; set; } = 240;
 
+    // Scail 2 tab: internal per-chunk window (frames) for the SCAIL2 hi-res loop (workflow node 45
+    // "VIDEO BATCH SIZE"). Lower = less peak VRAM per pass (avoids OOM on long clips). Default 40 is
+    // safe on a 24GB card; persisted so the choice survives restarts.
+    public int Scail2VideoBatchSize { get; set; } = 40;
+
+    // Scail 2 tab: output resolution override for the final SCAIL II video, as "WxH" (e.g. "1280x720").
+    // Empty or "0x0" keeps the workflow's authored ResolutionMaster default; a concrete value forces the
+    // generation canvas (EmptyImage node 30) to exactly that size. Persisted so the choice survives restarts.
+    public string Scail2Resolution { get; set; } = "0x0";
+
+    // Scail 2 tab: keep the driving video's original background (SCAIL2 "replacement" mode, node 39) and
+    // regenerate only the swapped character, instead of regenerating the whole frame ("animation" mode).
+    // Keeping the original background composites the real scene every frame, so a static background (e.g.
+    // a waterfall) cannot colour-drift or soften across the autoregressive chunks. Persisted per user.
+    public bool Scail2KeepOriginalBackground { get; set; } = false;
+
+    // Scail 2 tab: run the segmentation-control workflow's post pass — RIFE frame interpolation (2×) then
+    // the RTX Video Super Resolution upscale (2×) — instead of saving the raw sampler output. Doubles both
+    // the frame rate and the resolution at the cost of a longer run, and needs the RIFE + nvidia-vfx nodes
+    // installed. Off by default so the tab works on a plain SCAIL install. Persisted per user.
+    public bool Scail2Interpolate { get; set; } = false;
+
     // Painter (WAN 2.2 LightX2V) workflow model names — adjust to match your ComfyUI server
     public string PainterHighNoiseModel { get; set; } = @"wan\wan2.2_i2v_high_noise_14B_Q8_0.gguf";
     public string PainterLowNoiseModel { get; set; } = @"wan\wan2.2_i2v_low_noise_14B_Q8_0.gguf";

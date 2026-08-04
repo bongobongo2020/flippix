@@ -45,11 +45,11 @@ namespace FlipPix.UI
             _viewModel.PlayRequested += OnPlayRequested;
             _viewModel.Scail2VM.SeekRequested += OnScail2SeekRequested;
             _viewModel.Scail2VM.PropertyChanged += Scail2VM_PropertyChanged;
-            // Drive the FFLF Seed Hunter / FFLF-Dasiwa player Source from code-behind: a string
-            // {Binding} to MediaElement.Source silently fails to load the Z:\ output paths (black
-            // frame, no MediaOpened/MediaFailed). Set an absolute Uri explicitly instead.
-            _viewModel.FflfSeedHuntVM.PropertyChanged += FflfSeedHuntVM_PropertyChanged;
-            _viewModel.FflfDasiwaVM.PropertyChanged += FflfDasiwaVM_PropertyChanged;
+            // Drive the seed-preview player Sources from code-behind: a string {Binding} to
+            // MediaElement.Source silently fails to load the Z:\ output paths (black frame, no
+            // MediaOpened/MediaFailed). Set an absolute Uri explicitly instead.
+            _viewModel.ErosConvRotVM.PropertyChanged += ErosConvRotVM_PropertyChanged;
+            _viewModel.MiniMaxFflfVM.PropertyChanged += MiniMaxFflfVM_PropertyChanged;
         }
 
         private void OnLoaded(object sender, RoutedEventArgs e)
@@ -57,8 +57,8 @@ namespace FlipPix.UI
             _windowPositionService.EnsureWindowVisible(this);
             // Pick up a video that was already loaded before this window's handlers wired up.
             ApplyScail2RefSource();
-            ApplyFflfSeedHuntSource();
-            ApplyFflfDasiwaSource();
+            ApplyErosConvRotSource();
+            ApplyMiniMaxFflfSource();
         }
 
         private void Header_MouseLeftButtonDown(object sender, MouseButtonEventArgs e)
@@ -69,32 +69,6 @@ namespace FlipPix.UI
 
         private void OnPlayRequested(object? sender, System.EventArgs e)
         {
-            // Single Video tab — story-workflow branch
-            if (LTX23VideoPlayer != null && LTX23VideoPlayer.Source != null)
-            {
-                LTX23VideoPlayer.Position = System.TimeSpan.Zero;
-                LTX23VideoPlayer.Play();
-            }
-
-            // Single Video tab — Wan 2.2 Remix branch
-            if (Wan22VideoPlayer != null && Wan22VideoPlayer.Source != null)
-            {
-                Wan22VideoPlayer.Position = System.TimeSpan.Zero;
-                Wan22VideoPlayer.Play();
-            }
-
-            if (LongVideoPlayer != null && LongVideoPlayer.Source != null)
-            {
-                LongVideoPlayer.Position = System.TimeSpan.Zero;
-                LongVideoPlayer.Play();
-            }
-
-            if (LtxControlVideoPlayer != null && LtxControlVideoPlayer.Source != null)
-            {
-                LtxControlVideoPlayer.Position = System.TimeSpan.Zero;
-                LtxControlVideoPlayer.Play();
-            }
-
             if (Vr180VideoPlayer != null && Vr180VideoPlayer.Source != null)
             {
                 Vr180VideoPlayer.Position = System.TimeSpan.Zero;
@@ -107,16 +81,22 @@ namespace FlipPix.UI
                 VideoSoundVideoPlayer.Play();
             }
 
-            if (SeedDirectorPlayer != null && SeedDirectorPlayer.Source != null)
-            {
-                SeedDirectorPlayer.Position = System.TimeSpan.Zero;
-                SeedDirectorPlayer.Play();
-            }
-
             if (Scail2VideoPlayer != null && Scail2VideoPlayer.Source != null)
             {
                 Scail2VideoPlayer.Position = System.TimeSpan.Zero;
                 Scail2VideoPlayer.Play();
+            }
+
+            if (FaceIdCharSheetVideoPlayer != null && FaceIdCharSheetVideoPlayer.Source != null)
+            {
+                FaceIdCharSheetVideoPlayer.Position = System.TimeSpan.Zero;
+                FaceIdCharSheetVideoPlayer.Play();
+            }
+
+            if (MiniMaxH3VideoPlayer != null && MiniMaxH3VideoPlayer.Source != null)
+            {
+                MiniMaxH3VideoPlayer.Position = System.TimeSpan.Zero;
+                MiniMaxH3VideoPlayer.Play();
             }
         }
 
@@ -135,24 +115,6 @@ namespace FlipPix.UI
             if (!e.Data.GetDataPresent(System.Windows.DataFormats.FileDrop)) return;
             if (e.Data.GetData(System.Windows.DataFormats.FileDrop) is string[] paths && paths.Length > 0)
                 _viewModel.LtxDirectorVM.AddImagesFromPaths(paths);
-            e.Handled = true;
-        }
-
-        // ── Seed Director: drag-drop images onto the timeline ────────────────
-
-        private void SeedDirectorTimeline_DragOver(object sender, System.Windows.DragEventArgs e)
-        {
-            e.Effects = e.Data.GetDataPresent(System.Windows.DataFormats.FileDrop)
-                ? System.Windows.DragDropEffects.Copy
-                : System.Windows.DragDropEffects.None;
-            e.Handled = true;
-        }
-
-        private void SeedDirectorTimeline_Drop(object sender, System.Windows.DragEventArgs e)
-        {
-            if (!e.Data.GetDataPresent(System.Windows.DataFormats.FileDrop)) return;
-            if (e.Data.GetData(System.Windows.DataFormats.FileDrop) is string[] paths && paths.Length > 0)
-                _viewModel.SeedDirectorVM.AddImagesFromPaths(paths);
             e.Handled = true;
         }
 
@@ -183,10 +145,10 @@ namespace FlipPix.UI
         // WAN processes the clip in 81-frame chunks; the timeline marks each boundary.
         private const int ScailChunkFrames = 81;
 
-        private void LtxControlRefPlayer_MediaOpened(object sender, RoutedEventArgs e)
+        private void FaceIdCharSheetRefPlayer_MediaOpened(object sender, RoutedEventArgs e)
         {
-            LtxControlRefVideoPlayer.Play();
-            LtxControlRefVideoPlayer.Pause();
+            FaceIdCharSheetRefPlayer.Play();
+            FaceIdCharSheetRefPlayer.Pause();
         }
 
         private void Vr180InputPlayer_MediaOpened(object sender, RoutedEventArgs e)
@@ -210,38 +172,18 @@ namespace FlipPix.UI
                 _viewModel.VideoSoundVM.SetOutputAspectFromVideo(w, h);
         }
 
-        // ── Seed Director shared player playback (auto-loop) ─────────────────
-
-        private void SeedDirectorPlayer_MediaOpened(object sender, RoutedEventArgs e)
+        private void MiniMaxFflfVM_PropertyChanged(object? sender, System.ComponentModel.PropertyChangedEventArgs e)
         {
-            SeedDirectorPlayer.Play();
+            if (e.PropertyName != nameof(ViewModels.Video.MiniMaxFflfSeedHuntViewModel.ActivePreviewUri)) return;
+            if (Dispatcher.CheckAccess()) ApplyMiniMaxFflfSource();
+            else Dispatcher.Invoke(ApplyMiniMaxFflfSource);
         }
 
-        private void SeedDirectorPlayer_MediaEnded(object sender, RoutedEventArgs e)
+        private void ApplyMiniMaxFflfSource()
         {
-            SeedDirectorPlayer.Position = System.TimeSpan.FromMilliseconds(1);
-            SeedDirectorPlayer.Play();
-        }
-
-        private void SeedDirectorReplay_Click(object sender, RoutedEventArgs e)
-        {
-            if (SeedDirectorPlayer.Source == null) return;
-            SeedDirectorPlayer.Position = System.TimeSpan.Zero;
-            SeedDirectorPlayer.Play();
-        }
-
-        private void FflfDasiwaVM_PropertyChanged(object? sender, System.ComponentModel.PropertyChangedEventArgs e)
-        {
-            if (e.PropertyName != nameof(ViewModels.Video.FflfDasiwaViewModel.ActivePreviewUri)) return;
-            if (Dispatcher.CheckAccess()) ApplyFflfDasiwaSource();
-            else Dispatcher.Invoke(ApplyFflfDasiwaSource);
-        }
-
-        private void ApplyFflfDasiwaSource()
-        {
-            var p = FflfDasiwaPlayer;
+            var p = MiniMaxFflfPlayer;
             if (p == null) return;
-            var path = _viewModel.FflfDasiwaVM.ActivePreviewUri;
+            var path = _viewModel.MiniMaxFflfVM.ActivePreviewUri;
             if (string.IsNullOrEmpty(path))
             {
                 p.Stop();
@@ -249,60 +191,50 @@ namespace FlipPix.UI
                 return;
             }
 
-            // Always build an ABSOLUTE Uri — the string→Uri auto-conversion a Binding would do can
-            // produce a relative Uri for "Z:\..." paths that MediaElement silently refuses to load.
+            // Always build an ABSOLUTE Uri — see ApplyErosConvRotSource for why a Binding won't do.
             Uri target;
             try { target = new Uri(System.IO.Path.GetFullPath(path), UriKind.Absolute); }
             catch { target = new Uri(path, UriKind.RelativeOrAbsolute); }
 
             if (string.Equals(p.Source?.OriginalString, target.OriginalString, StringComparison.OrdinalIgnoreCase))
             {
-                // Re-selecting the same clip — restart it rather than no-op.
                 p.Position = System.TimeSpan.Zero;
                 p.Play();
                 return;
             }
-            // Reset before swapping so the engine reliably re-opens the new file.
             p.Stop();
             p.Source = target; // MediaOpened handler starts playback.
         }
 
-        private void FflfDasiwaPlayer_MediaOpened(object sender, RoutedEventArgs e)
+        private void MiniMaxFflfPlayer_MediaOpened(object sender, RoutedEventArgs e)
         {
-            _viewModel.FflfDasiwaVM.ReportPreviewOpened(FflfDasiwaPlayer.Source?.OriginalString ?? "");
-            FflfDasiwaPlayer.Play();
+            _viewModel.MiniMaxFflfVM.ReportPreviewOpened(MiniMaxFflfPlayer.Source?.OriginalString ?? "");
+            MiniMaxFflfPlayer.Play();
         }
 
-        private void FflfDasiwaPlayer_MediaFailed(object sender, ExceptionRoutedEventArgs e)
+        private void MiniMaxFflfPlayer_MediaEnded(object sender, RoutedEventArgs e)
         {
-            _viewModel.FflfDasiwaVM.ReportPreviewFailed(e.ErrorException?.Message ?? "unknown media error");
+            MiniMaxFflfPlayer.Position = System.TimeSpan.FromMilliseconds(1);
+            MiniMaxFflfPlayer.Play();
         }
 
-        private void FflfDasiwaPlayer_MediaEnded(object sender, RoutedEventArgs e)
+        private void MiniMaxFflfPlayer_MediaFailed(object sender, ExceptionRoutedEventArgs e)
         {
-            FflfDasiwaPlayer.Position = System.TimeSpan.FromMilliseconds(1);
-            FflfDasiwaPlayer.Play();
+            _viewModel.MiniMaxFflfVM.ReportPreviewFailed(e.ErrorException?.Message ?? "unknown media error");
         }
 
-        private void FflfDasiwaReplay_Click(object sender, RoutedEventArgs e)
+        private void ErosConvRotVM_PropertyChanged(object? sender, System.ComponentModel.PropertyChangedEventArgs e)
         {
-            if (FflfDasiwaPlayer.Source == null) return;
-            FflfDasiwaPlayer.Position = System.TimeSpan.Zero;
-            FflfDasiwaPlayer.Play();
+            if (e.PropertyName != nameof(ViewModels.Video.ErosConvRotViewModel.ActivePreviewUri)) return;
+            if (Dispatcher.CheckAccess()) ApplyErosConvRotSource();
+            else Dispatcher.Invoke(ApplyErosConvRotSource);
         }
 
-        private void FflfSeedHuntVM_PropertyChanged(object? sender, System.ComponentModel.PropertyChangedEventArgs e)
+        private void ApplyErosConvRotSource()
         {
-            if (e.PropertyName != nameof(ViewModels.Video.FflfSeedHuntViewModel.ActivePreviewUri)) return;
-            if (Dispatcher.CheckAccess()) ApplyFflfSeedHuntSource();
-            else Dispatcher.Invoke(ApplyFflfSeedHuntSource);
-        }
-
-        private void ApplyFflfSeedHuntSource()
-        {
-            var p = FflfSeedHuntPlayer;
+            var p = ErosConvRotPlayer;
             if (p == null) return;
-            var path = _viewModel.FflfSeedHuntVM.ActivePreviewUri;
+            var path = _viewModel.ErosConvRotVM.ActivePreviewUri;
             if (string.IsNullOrEmpty(path))
             {
                 p.Stop();
@@ -310,39 +242,35 @@ namespace FlipPix.UI
                 return;
             }
 
-            // Always build an ABSOLUTE Uri — the string→Uri auto-conversion a Binding would do can
-            // produce a relative Uri for "Z:\..." paths that MediaElement silently refuses to load.
             Uri target;
             try { target = new Uri(System.IO.Path.GetFullPath(path), UriKind.Absolute); }
             catch { target = new Uri(path, UriKind.RelativeOrAbsolute); }
 
             if (string.Equals(p.Source?.OriginalString, target.OriginalString, StringComparison.OrdinalIgnoreCase))
             {
-                // Re-selecting the same clip — restart it rather than no-op.
                 p.Position = System.TimeSpan.Zero;
                 p.Play();
                 return;
             }
-            // Reset before swapping so the engine reliably re-opens the new file.
             p.Stop();
             p.Source = target; // MediaOpened handler starts playback.
         }
 
-        private void FflfSeedHuntPlayer_MediaOpened(object sender, RoutedEventArgs e)
+        private void ErosConvRotPlayer_MediaOpened(object sender, RoutedEventArgs e)
         {
-            _viewModel.FflfSeedHuntVM.ReportPreviewOpened(FflfSeedHuntPlayer.Source?.OriginalString ?? "");
-            FflfSeedHuntPlayer.Play();
+            _viewModel.ErosConvRotVM.ReportPreviewOpened(ErosConvRotPlayer.Source?.OriginalString ?? "");
+            ErosConvRotPlayer.Play();
         }
 
-        private void FflfSeedHuntPlayer_MediaEnded(object sender, RoutedEventArgs e)
+        private void ErosConvRotPlayer_MediaEnded(object sender, RoutedEventArgs e)
         {
-            FflfSeedHuntPlayer.Position = System.TimeSpan.FromMilliseconds(1);
-            FflfSeedHuntPlayer.Play();
+            ErosConvRotPlayer.Position = System.TimeSpan.FromMilliseconds(1);
+            ErosConvRotPlayer.Play();
         }
 
-        private void FflfSeedHuntPlayer_MediaFailed(object sender, ExceptionRoutedEventArgs e)
+        private void ErosConvRotPlayer_MediaFailed(object sender, ExceptionRoutedEventArgs e)
         {
-            _viewModel.FflfSeedHuntVM.ReportPreviewFailed(e.ErrorException?.Message ?? "unknown media error");
+            _viewModel.ErosConvRotVM.ReportPreviewFailed(e.ErrorException?.Message ?? "unknown media error");
         }
 
         // ──────────────────────────────────────────────────────────────────────
@@ -568,20 +496,17 @@ namespace FlipPix.UI
         {
             _scrubTimerScail2?.Stop();
 
-            LTX23VideoPlayer?.Stop();
-            Wan22VideoPlayer?.Stop();
-            LongVideoPlayer?.Stop();
-            LtxControlRefVideoPlayer?.Stop();
-            LtxControlVideoPlayer?.Stop();
             Vr180InputPlayer?.Stop();
             Vr180VideoPlayer?.Stop();
             VideoSoundInputPlayer?.Stop();
             VideoSoundVideoPlayer?.Stop();
-            SeedDirectorPlayer?.Stop();
-            FflfDasiwaPlayer?.Stop();
-            FflfSeedHuntPlayer?.Stop();
+            ErosConvRotPlayer?.Stop();
             Scail2RefVideoPlayer?.Stop();
             Scail2VideoPlayer?.Stop();
+            FaceIdCharSheetRefPlayer?.Stop();
+            FaceIdCharSheetVideoPlayer?.Stop();
+            MiniMaxH3VideoPlayer?.Stop();
+            MiniMaxFflfPlayer?.Stop();
         }
 
         protected override void OnClosing(System.ComponentModel.CancelEventArgs e)

@@ -1,0 +1,1007 @@
+{
+  "8": {
+    "inputs": {
+      "frame_rate": 25,
+      "loop_count": 0,
+      "filename_prefix": "wan/2026_07_27/Scail-2_Final_",
+      "format": "video/h264-mp4",
+      "pix_fmt": "yuv420p",
+      "crf": 19,
+      "save_metadata": false,
+      "trim_to_audio": false,
+      "pingpong": false,
+      "save_output": true,
+      "images": [
+        "196",
+        0
+      ],
+      "audio": [
+        "414",
+        0
+      ]
+    },
+    "class_type": "VHS_VideoCombine",
+    "_meta": {
+      "title": "Final Interpolated & Upscaled Video"
+    }
+  },
+  "88": {
+    "inputs": {
+      "frame_rate": 16,
+      "loop_count": 0,
+      "filename_prefix": "Wan21_SCAIL2",
+      "format": "video/h264-mp4",
+      "pix_fmt": "yuv420p",
+      "crf": 19,
+      "save_metadata": true,
+      "trim_to_audio": false,
+      "pingpong": false,
+      "save_output": false,
+      "images": [
+        "199:104",
+        0
+      ]
+    },
+    "class_type": "VHS_VideoCombine",
+    "_meta": {
+      "title": "Segmented Input Video"
+    }
+  },
+  "92": {
+    "inputs": {
+      "images": [
+        "199:104",
+        1
+      ]
+    },
+    "class_type": "PreviewImage",
+    "_meta": {
+      "title": "Segmented Input Image"
+    }
+  },
+  "194": {
+    "inputs": {
+      "image": [
+        "199:575",
+        0
+      ]
+    },
+    "class_type": "GetImageSizeAndCount",
+    "_meta": {
+      "title": "Get Image Size & Count"
+    }
+  },
+  "196": {
+    "inputs": {
+      "scale": 2,
+      "resize_type": "scale by multiplier",
+      "resize_type.scale": 2,
+      "quality": "HIGH",
+      "deblur": "HIGH",
+      "images": [
+        "624",
+        0
+      ]
+    },
+    "class_type": "RTXVideoSuperResolution",
+    "_meta": {
+      "title": "RTX Upscale"
+    }
+  },
+  "204": {
+    "inputs": {
+      "audio": "ltx_flow.mp3",
+      "start_time": 0,
+      "duration": 0
+    },
+    "class_type": "VHS_LoadAudioUpload",
+    "_meta": {
+      "title": "Load Audio 🎥🅥🅗🅢"
+    }
+  },
+  "207": {
+    "inputs": {
+      "video": "benndji.cascade.tkd - ChDGuNnjlFS.mp4",
+      "force_rate": 16,
+      "custom_width": 0,
+      "custom_height": 0,
+      "frame_load_cap": 0,
+      "skip_first_frames": 0,
+      "select_every_nth": 1,
+      "format": "Wan"
+    },
+    "class_type": "VHS_LoadVideo",
+    "_meta": {
+      "title": "Load Input Video  🎥🅥🅗🅢"
+    }
+  },
+  "208": {
+    "inputs": {
+      "image": "Flux2Klein9B-camera-angles-20260711_163741_00019_-qwenvl-15.png"
+    },
+    "class_type": "LoadImage",
+    "_meta": {
+      "title": "Load Input Image"
+    }
+  },
+  "414": {
+    "inputs": {
+      "select": 2,
+      "sel_mode": true,
+      "input1": [
+        "204",
+        0
+      ],
+      "input2": [
+        "207",
+        2
+      ]
+    },
+    "class_type": "ImpactSwitch",
+    "_meta": {
+      "title": "Loaded Audio Output:  1 = Audio | 2 = Video"
+    }
+  },
+  "425": {
+    "inputs": {
+      "frame_rate": 16,
+      "loop_count": 0,
+      "filename_prefix": "wan/2026_07_27/Scail-2_",
+      "format": "video/h264-mp4",
+      "pix_fmt": "yuv420p",
+      "crf": 19,
+      "save_metadata": true,
+      "trim_to_audio": false,
+      "pingpong": false,
+      "save_output": true,
+      "images": [
+        "194",
+        0
+      ],
+      "audio": [
+        "414",
+        0
+      ]
+    },
+    "class_type": "VHS_VideoCombine",
+    "_meta": {
+      "title": "Final Video"
+    }
+  },
+  "430": {
+    "inputs": {
+      "anything": [
+        "436",
+        0
+      ]
+    },
+    "class_type": "easy cleanGpuUsed",
+    "_meta": {
+      "title": "Clean VRAM Used"
+    }
+  },
+  "436": {
+    "inputs": {
+      "select": 2,
+      "sel_mode": true,
+      "input1": [
+        "207",
+        0
+      ],
+      "input2": [
+        "194",
+        0
+      ]
+    },
+    "class_type": "ImpactSwitch",
+    "_meta": {
+      "title": "1 = Input Video | 2 = Output Video"
+    }
+  },
+  "510": {
+    "inputs": {
+      "__lm_autocomplete_meta_text": {
+        "version": 1,
+        "textWidgetName": "text",
+        "lastAccepted": {
+          "start": 0,
+          "end": 68,
+          "insertedText": "<lora:ltx-2.3-22b-distilled-lora-dynamic_fro09_avg_rank_105_bf16:1>,",
+          "textSnapshot": "<lora:ltx-2.3-22b-distilled-lora-dynamic_fro09_avg_rank_105_bf16:1>,"
+        }
+      },
+      "text": "<lora:bounceV_01:0.80> <lora:wan2.1_SCAIL_2_DPO_lora_bf16:1.00>",
+      "loras": {
+        "__value__": [
+          {
+            "name": "bounceV_01",
+            "strength": "0.80",
+            "active": false,
+            "expanded": false,
+            "clipStrength": "0.80",
+            "selected": true,
+            "locked": false
+          },
+          {
+            "name": "wan2.1_SCAIL_2_DPO_lora_bf16",
+            "strength": 1,
+            "active": false,
+            "expanded": false,
+            "clipStrength": 1,
+            "selected": false,
+            "locked": false
+          }
+        ]
+      },
+      "model": [
+        "199:542",
+        0
+      ]
+    },
+    "class_type": "Lora Loader (LoraManager)",
+    "_meta": {
+      "title": "Lora Loader (LoraManager)"
+    }
+  },
+  "520": {
+    "inputs": {
+      "anything": [
+        "430",
+        0
+      ]
+    },
+    "class_type": "easy clearCacheAll",
+    "_meta": {
+      "title": "Clear Cache All"
+    }
+  },
+  "525": {
+    "inputs": {
+      "sage_attention": "auto",
+      "allow_compile": true,
+      "model": [
+        "510",
+        0
+      ]
+    },
+    "class_type": "PathchSageAttentionKJ",
+    "_meta": {
+      "title": "Patch Sage Attention KJ"
+    }
+  },
+  "526": {
+    "inputs": {
+      "enable_fp16_accumulation": true,
+      "model": [
+        "525",
+        0
+      ]
+    },
+    "class_type": "ModelPatchTorchSettings",
+    "_meta": {
+      "title": "Model Patch Torch Settings"
+    }
+  },
+  "599": {
+    "inputs": {
+      "ckpt_name": "rife49.pth",
+      "clear_cache_after_n_frames": 250,
+      "multiplier": 2,
+      "fast_mode": true,
+      "ensemble": true,
+      "scale_factor": 1,
+      "dtype": "float32",
+      "torch_compile": false,
+      "batch_size": 10,
+      "frames": [
+        "602",
+        0
+      ]
+    },
+    "class_type": "RIFE VFI",
+    "_meta": {
+      "title": "RIFE VFI (recommend rife47 and rife49)"
+    }
+  },
+  "602": {
+    "inputs": {
+      "select": 2,
+      "sel_mode": true,
+      "input1": [
+        "603",
+        0
+      ],
+      "input2": [
+        "520",
+        0
+      ]
+    },
+    "class_type": "ImpactSwitch",
+    "_meta": {
+      "title": "Image Color Match :  1 = ON | 2 = OFF"
+    }
+  },
+  "603": {
+    "inputs": {
+      "method": "mkl",
+      "image_output": "Hide",
+      "save_prefix": "ComfyUI",
+      "image_ref": [
+        "208",
+        0
+      ],
+      "image_target": [
+        "520",
+        0
+      ]
+    },
+    "class_type": "easy imageColorMatch",
+    "_meta": {
+      "title": "Image Color Match"
+    }
+  },
+  "605": {
+    "inputs": {
+      "text": "A beautiful, dark-skinned woman with a fierce expression, posing on the ground in a lush, tropical forest. She has large, round breasts and is covered in a black leopard-print bodysuit that covers her entire body.",
+      "clip": [
+        "199:9",
+        0
+      ]
+    },
+    "class_type": "CLIPTextEncode",
+    "_meta": {
+      "title": "Positiv Prompt"
+    }
+  },
+  "624": {
+    "inputs": {
+      "select": 1,
+      "sel_mode": true,
+      "input1": [
+        "599",
+        0
+      ],
+      "input2": [
+        "602",
+        0
+      ]
+    },
+    "class_type": "ImpactSwitch",
+    "_meta": {
+      "title": "Interpolation :  1 = ON | 2 = OFF"
+    }
+  },
+  "199:190": {
+    "inputs": {
+      "vae_name": "wan_2.1_vae.safetensors"
+    },
+    "class_type": "VAELoader",
+    "_meta": {
+      "title": "Load VAE"
+    }
+  },
+  "199:75": {
+    "inputs": {
+      "clip_name": "clip_vision_h.safetensors"
+    },
+    "class_type": "CLIPVisionLoader",
+    "_meta": {
+      "title": "Load CLIP Vision"
+    }
+  },
+  "199:76": {
+    "inputs": {
+      "crop": "none",
+      "clip_vision": [
+        "199:75",
+        0
+      ],
+      "image": [
+        "199:500",
+        0
+      ]
+    },
+    "class_type": "CLIPVisionEncode",
+    "_meta": {
+      "title": "CLIP Vision Encode"
+    }
+  },
+  "199:514": {
+    "inputs": {
+      "model_name": "wan2.1_14B_SCAIL_2_fp8_scaled.safetensors",
+      "weight_dtype": "default",
+      "compute_dtype": "default",
+      "patch_cublaslinear": false,
+      "sage_attention": "auto",
+      "enable_fp16_accumulation": true
+    },
+    "class_type": "DiffusionModelLoaderKJ",
+    "_meta": {
+      "title": "Diffusion Model Loader KJ"
+    }
+  },
+  "199:9": {
+    "inputs": {
+      "clip_name": "umt5_xxl_fp8_e4m3fn_scaled.safetensors",
+      "type": "wan",
+      "device": "default"
+    },
+    "class_type": "CLIPLoader",
+    "_meta": {
+      "title": "Load CLIP"
+    }
+  },
+  "199:484": {
+    "inputs": {
+      "ckpt_name": "sam3.1_multiplex_fp16.safetensors"
+    },
+    "class_type": "CheckpointLoaderSimple",
+    "_meta": {
+      "title": "Load Checkpoint"
+    }
+  },
+  "199:485": {
+    "inputs": {
+      "text": "A Person",
+      "clip": [
+        "199:484",
+        1
+      ]
+    },
+    "class_type": "CLIPTextEncode",
+    "_meta": {
+      "title": "CLIP Text Encode (Prompt)"
+    }
+  },
+  "199:18": {
+    "inputs": {
+      "scheduler": "simple",
+      "steps": [
+        "199:625",
+        0
+      ],
+      "denoise": 1,
+      "model": [
+        "526",
+        0
+      ]
+    },
+    "class_type": "BasicScheduler",
+    "_meta": {
+      "title": "BasicScheduler"
+    }
+  },
+  "199:95": {
+    "inputs": {
+      "shift": 5,
+      "model": [
+        "526",
+        0
+      ]
+    },
+    "class_type": "ModelSamplingSD3",
+    "_meta": {
+      "title": "ModelSamplingSD3"
+    }
+  },
+  "199:534": {
+    "inputs": {
+      "value": 7
+    },
+    "class_type": "INTConstant",
+    "_meta": {
+      "title": "Seed"
+    }
+  },
+  "199:513": {
+    "inputs": {
+      "lora_name": "WAN/wan21/wan21-lightx2v-i2v-14b-480p-cfg-step-distill-rank64-bf16.safetensors",
+      "strength_model": 1,
+      "model": [
+        "199:514",
+        0
+      ]
+    },
+    "class_type": "LoraLoaderModelOnly",
+    "_meta": {
+      "title": "Load LoRA"
+    }
+  },
+  "199:502": {
+    "inputs": {
+      "value": false
+    },
+    "class_type": "PrimitiveBoolean",
+    "_meta": {
+      "title": "replacement_mode"
+    }
+  },
+  "199:542": {
+    "inputs": {
+      "lora_name": "WAN/wan21/Wan21_PusaV1_LoRA_14B_rank512_bf16.safetensors",
+      "strength_model": 1,
+      "model": [
+        "199:513",
+        0
+      ]
+    },
+    "class_type": "LoraLoaderModelOnly",
+    "_meta": {
+      "title": "Load LoRA"
+    }
+  },
+  "199:594": {
+    "inputs": {
+      "select": [
+        "199:596",
+        0
+      ],
+      "sel_mode": false,
+      "input": [
+        "199:76",
+        0
+      ]
+    },
+    "class_type": "ImpactInversedSwitch",
+    "_meta": {
+      "title": "Inversed Switch (Any)"
+    }
+  },
+  "199:595": {
+    "inputs": {
+      "select": [
+        "199:596",
+        0
+      ],
+      "sel_mode": false,
+      "input": [
+        "199:104",
+        1
+      ]
+    },
+    "class_type": "ImpactInversedSwitch",
+    "_meta": {
+      "title": "Inversed Switch (Any)"
+    }
+  },
+  "199:593": {
+    "inputs": {
+      "select": [
+        "199:596",
+        0
+      ],
+      "sel_mode": false,
+      "input": [
+        "199:500",
+        0
+      ]
+    },
+    "class_type": "ImpactInversedSwitch",
+    "_meta": {
+      "title": "Inversed Switch (Any)"
+    }
+  },
+  "199:592": {
+    "inputs": {
+      "select": [
+        "199:596",
+        0
+      ],
+      "sel_mode": false,
+      "input": [
+        "199:104",
+        0
+      ]
+    },
+    "class_type": "ImpactInversedSwitch",
+    "_meta": {
+      "title": "Inversed Switch (Any)"
+    }
+  },
+  "199:591": {
+    "inputs": {
+      "select": [
+        "199:596",
+        0
+      ],
+      "sel_mode": false,
+      "input": [
+        "199:89",
+        0
+      ]
+    },
+    "class_type": "ImpactInversedSwitch",
+    "_meta": {
+      "title": "Inversed Switch (Any)"
+    }
+  },
+  "199:586": {
+    "inputs": {
+      "select": [
+        "199:596",
+        0
+      ],
+      "sel_mode": false,
+      "input": [
+        "199:190",
+        0
+      ]
+    },
+    "class_type": "ImpactInversedSwitch",
+    "_meta": {
+      "title": "Inversed Switch (Any)"
+    }
+  },
+  "199:528": {
+    "inputs": {
+      "width": [
+        "199:89",
+        1
+      ],
+      "height": [
+        "199:89",
+        2
+      ],
+      "seed": [
+        "199:534",
+        0
+      ],
+      "steps": [
+        "199:625",
+        0
+      ],
+      "cfg": 1,
+      "sampler_name": "euler",
+      "scheduler": "simple",
+      "denoise": 1,
+      "window_length": 81,
+      "previous_frame_count": 5,
+      "max_frames": 0,
+      "decode_tiled": false,
+      "vary_seed_per_window": false,
+      "pose_strength": 1,
+      "pose_start": 0,
+      "pose_end": 1,
+      "replacement_mode": [
+        "199:502",
+        0
+      ],
+      "positive": [
+        "605",
+        0
+      ],
+      "negative": [
+        "199:4",
+        0
+      ],
+      "model": [
+        "199:95",
+        0
+      ],
+      "vae": [
+        "199:586",
+        1
+      ],
+      "pose_video": [
+        "199:591",
+        1
+      ],
+      "pose_video_mask": [
+        "199:592",
+        1
+      ],
+      "reference_image": [
+        "199:593",
+        1
+      ],
+      "reference_image_mask": [
+        "199:595",
+        1
+      ],
+      "clip_vision_output": [
+        "199:594",
+        1
+      ]
+    },
+    "class_type": "WanSCAILInfinity",
+    "_meta": {
+      "title": "SCAIL-2 Infinity Sampler"
+    }
+  },
+  "199:596": {
+    "inputs": {
+      "value": 1
+    },
+    "class_type": "easy int",
+    "_meta": {
+      "title": "Select Sampler"
+    }
+  },
+  "199:180": {
+    "inputs": {
+      "width": [
+        "199:89",
+        1
+      ],
+      "height": [
+        "199:89",
+        2
+      ],
+      "noise_seed": [
+        "199:534",
+        0
+      ],
+      "cfg": 1,
+      "chunk_length": 81,
+      "overlap": 5,
+      "seed_mode": "fixed",
+      "color_transfer": true,
+      "replacement_mode": [
+        "199:502",
+        0
+      ],
+      "pose_strength": 1,
+      "pose_start": 0,
+      "pose_end": 1,
+      "add_noise": true,
+      "model": [
+        "199:95",
+        0
+      ],
+      "positive": [
+        "605",
+        0
+      ],
+      "negative": [
+        "199:4",
+        0
+      ],
+      "vae": [
+        "199:586",
+        0
+      ],
+      "sampler": [
+        "199:27",
+        0
+      ],
+      "sigmas": [
+        "199:18",
+        0
+      ],
+      "pose_video": [
+        "199:591",
+        0
+      ],
+      "pose_video_mask": [
+        "199:592",
+        0
+      ],
+      "reference_image": [
+        "199:593",
+        0
+      ],
+      "reference_image_mask": [
+        "199:595",
+        0
+      ],
+      "clip_vision_output": [
+        "199:594",
+        0
+      ]
+    },
+    "class_type": "SCAILAutoExtend",
+    "_meta": {
+      "title": "SCAIL Auto Extend Sampler"
+    }
+  },
+  "199:500": {
+    "inputs": {
+      "width": [
+        "199:89",
+        1
+      ],
+      "height": [
+        "199:89",
+        2
+      ],
+      "upscale_method": "lanczos",
+      "keep_proportion": "stretch",
+      "pad_color": "255,255,255",
+      "crop_position": "bottom",
+      "divisible_by": 32,
+      "device": "cpu",
+      "image": [
+        "208",
+        0
+      ]
+    },
+    "class_type": "ImageResizeKJv2",
+    "_meta": {
+      "title": "Resize Image v2"
+    }
+  },
+  "199:575": {
+    "inputs": {
+      "select": [
+        "199:596",
+        0
+      ],
+      "sel_mode": true,
+      "input1": [
+        "199:180",
+        0
+      ],
+      "input2": [
+        "199:528",
+        0
+      ]
+    },
+    "class_type": "ImpactSwitch",
+    "_meta": {
+      "title": "Select Sampler Output"
+    }
+  },
+  "199:104": {
+    "inputs": {
+      "object_indices": "0",
+      "sort_by": "none",
+      "replacement_mode": [
+        "199:502",
+        0
+      ],
+      "driving_track_data": [
+        "199:492",
+        1
+      ],
+      "ref_track_data": [
+        "199:492",
+        0
+      ]
+    },
+    "class_type": "SCAIL2ColoredMask",
+    "_meta": {
+      "title": "Create SCAIL-2 Colored Mask"
+    }
+  },
+  "199:617": {
+    "inputs": {
+      "frame_rate": 1,
+      "loop_count": 0,
+      "filename_prefix": "Wan21_SCAIL2",
+      "format": "video/h264-mp4",
+      "pix_fmt": "yuv420p",
+      "crf": 19,
+      "save_metadata": false,
+      "trim_to_audio": false,
+      "pingpong": false,
+      "save_output": false,
+      "images": [
+        "199:104",
+        1
+      ]
+    },
+    "class_type": "VHS_VideoCombine",
+    "_meta": {
+      "title": "Preview  Image"
+    }
+  },
+  "199:609": {
+    "inputs": {
+      "frame_rate": 16,
+      "loop_count": 0,
+      "filename_prefix": "Wan21_SCAIL2",
+      "format": "video/h264-mp4",
+      "pix_fmt": "yuv420p",
+      "crf": 19,
+      "save_metadata": false,
+      "trim_to_audio": false,
+      "pingpong": false,
+      "save_output": false,
+      "images": [
+        "199:104",
+        0
+      ]
+    },
+    "class_type": "VHS_VideoCombine",
+    "_meta": {
+      "title": "Preview Video"
+    }
+  },
+  "199:89": {
+    "inputs": {
+      "width": 640,
+      "height": 960,
+      "upscale_method": "lanczos",
+      "keep_proportion": "crop",
+      "pad_color": "0, 0, 0",
+      "crop_position": "center",
+      "divisible_by": 16,
+      "device": "cpu",
+      "image": [
+        "207",
+        0
+      ]
+    },
+    "class_type": "ImageResizeKJv2",
+    "_meta": {
+      "title": "Resize Image Video v2"
+    }
+  },
+  "199:4": {
+    "inputs": {
+      "text": "色调艳丽，过曝，静态，细节模糊不清，字幕，风格，作品，画作，画面，静止，整体发灰，最差质量，低质量，JPEG压缩残留，丑陋的，残缺的，多余的手指，画得不好的手部，画得不好的脸部，畸形的，毁容的，形态畸形的肢体，手指融合，静止不动的画面，杂乱的背景，三条腿，背景人很多，倒着走 ",
+      "clip": [
+        "199:9",
+        0
+      ]
+    },
+    "class_type": "CLIPTextEncode",
+    "_meta": {
+      "title": "Negative Prompt"
+    }
+  },
+  "199:27": {
+    "inputs": {
+      "sampler_name": "euler"
+    },
+    "class_type": "KSamplerSelect",
+    "_meta": {
+      "title": "KSamplerSelect"
+    }
+  },
+  "199:625": {
+    "inputs": {
+      "value": 6
+    },
+    "class_type": "INTConstant",
+    "_meta": {
+      "title": "Steps"
+    }
+  },
+  "199:492": {
+    "inputs": {
+      "refine_iterations": 2,
+      "auto_detect": true,
+      "detection_threshold": 0.5,
+      "detect_interval": 1,
+      "markers": "{\"reference\":[],\"driving\":[]}",
+      "sam3_model": [
+        "199:484",
+        0
+      ],
+      "reference_image": [
+        "199:500",
+        0
+      ],
+      "pose_video": [
+        "199:89",
+        0
+      ],
+      "reference_conditioning": [
+        "199:497",
+        0
+      ],
+      "driving_conditioning": [
+        "199:485",
+        0
+      ]
+    },
+    "class_type": "SCAIL2IdentityTracker",
+    "_meta": {
+      "title": "SCAIL-2 Identity Tracker"
+    }
+  },
+  "199:497": {
+    "inputs": {
+      "text": "a powerful female warrior with long, flowing blonde hair and a fierce expression, crouching on a rocky terrain with a glowing orb in front of her. She is wearing a white dress with red accents and a red cape draped over her shoulders",
+      "clip": [
+        "199:484",
+        1
+      ]
+    },
+    "class_type": "CLIPTextEncode",
+    "_meta": {
+      "title": "CLIP Text Encode (Prompt)"
+    }
+  }
+}

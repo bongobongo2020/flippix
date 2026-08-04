@@ -106,9 +106,12 @@ public class ComfyUIWebSocketClient : IDisposable
                 {
                     _logger.LogInfo("WebSocket reconnection attempt {Attempt}/{MaxAttempts}", attempt, _maxReconnectAttempts);
 
-                    // Clean up old connection
+                    // Clean up old connection. Null the field as well as disposing it so a
+                    // failure before the replacement is assigned can never leave a disposed
+                    // source reachable (reading .Token on one throws ObjectDisposedException).
                     _cancellationTokenSource?.Cancel();
                     _cancellationTokenSource?.Dispose();
+                    _cancellationTokenSource = null;
                     _webSocket?.Dispose();
 
                     // Create new connection
@@ -144,7 +147,7 @@ public class ComfyUIWebSocketClient : IDisposable
                     // Exponential backoff: delay = baseDelay * 2^(attempt-1), capped at 30 seconds
                     var delay = Math.Min(_reconnectDelayMs * (int)Math.Pow(2, attempt - 1), 30000);
                     _logger.LogInfo("Waiting {Delay}ms before next reconnection attempt", delay);
-                    await Task.Delay(delay, _cancellationTokenSource.Token);
+                    await Task.Delay(delay, _cancellationTokenSource?.Token ?? CancellationToken.None);
                 }
             }
         }

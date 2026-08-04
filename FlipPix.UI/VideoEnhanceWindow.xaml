@@ -51,7 +51,7 @@
                                 <StackPanel>
                                     <TextBlock Text="Input Video"
                                                FontSize="14" FontWeight="Bold"
-                                               Foreground="#1565C0" Margin="0,0,0,10"/>
+                                               Foreground="{StaticResource AccentIndigoBrush}" Margin="0,0,0,10"/>
 
                                     <Grid>
                                         <Grid.ColumnDefinitions>
@@ -64,7 +64,7 @@
                                                  Padding="8,6"
                                                  FontSize="12"
                                                  Background="White"
-                                                 BorderBrush="#CED4DA"
+                                                 BorderBrush="{StaticResource BorderBrush}"
                                                  VerticalContentAlignment="Center"
                                                  Height="34"/>
                                         <Button Grid.Column="1"
@@ -76,7 +76,7 @@
                                     </Grid>
 
                                     <TextBlock Text="{Binding InterpolateVideoInfo}"
-                                               FontSize="11" Foreground="#6C757D"
+                                               FontSize="11" Foreground="{StaticResource TextSecondaryBrush}"
                                                Margin="0,6,0,0"
                                                Visibility="{Binding HasInterpolateVideo, Converter={StaticResource BooleanToVisibilityConverter}}"/>
 
@@ -103,9 +103,9 @@
                                         <StackPanel Grid.Column="0" Orientation="Horizontal">
                                             <TextBlock Text="Queue"
                                                        FontSize="14" FontWeight="Bold"
-                                                       Foreground="#1565C0" VerticalAlignment="Center"/>
+                                                       Foreground="{StaticResource AccentIndigoBrush}" VerticalAlignment="Center"/>
                                             <TextBlock Text="{Binding InterpolateQueueStatus}"
-                                                       FontSize="11" Foreground="#6C757D"
+                                                       FontSize="11" Foreground="{StaticResource TextSecondaryBrush}"
                                                        VerticalAlignment="Center"
                                                        Margin="10,0,0,0"/>
                                         </StackPanel>
@@ -115,7 +115,7 @@
                                                 IsEnabled="{Binding HasInterpolateFailedItems}"
                                                 Height="28" Width="90" FontSize="11"
                                                 Margin="4,0,4,0"
-                                                Background="#FFA500" Foreground="White"
+                                                Background="{StaticResource AccentAmberBrush}" Foreground="White"
                                                 BorderThickness="0" FontWeight="SemiBold"/>
                                         <Button Grid.Column="2"
                                                 Content="⏹ Stop"
@@ -123,13 +123,13 @@
                                                 IsEnabled="{Binding IsProcessingInterpolateQueue}"
                                                 Height="28" Width="65" FontSize="11"
                                                 Margin="0,0,4,0"
-                                                Background="#F59E0B" Foreground="White"
+                                                Background="{StaticResource AccentAmberBrush}" Foreground="White"
                                                 BorderThickness="0" FontWeight="SemiBold"/>
                                         <Button Grid.Column="3"
                                                 Content="🗑️ Clear"
                                                 Command="{Binding ClearInterpolateQueueCommand}"
                                                 Height="28" Width="65" FontSize="11"
-                                                Background="#DC3545" Foreground="White"
+                                                Background="{StaticResource DangerBrush}" Foreground="White"
                                                 BorderThickness="0" FontWeight="SemiBold"/>
                                     </Grid>
 
@@ -137,7 +137,7 @@
                                         <ItemsControl.ItemTemplate>
                                             <DataTemplate>
                                                 <Border Background="White"
-                                                        BorderBrush="#DEE2E6"
+                                                        BorderBrush="{StaticResource BorderBrush}"
                                                         BorderThickness="1"
                                                         CornerRadius="5"
                                                         Padding="10,8"
@@ -152,13 +152,13 @@
                                                         <StackPanel Grid.Column="0">
                                                             <TextBlock Text="{Binding DisplayText}"
                                                                        FontSize="12" FontWeight="SemiBold"
-                                                                       Foreground="#212529"/>
+                                                                       Foreground="{StaticResource TextPrimaryBrush}"/>
                                                             <TextBlock Text="{Binding StatusDisplay}"
                                                                        FontSize="11"
                                                                        Foreground="{Binding StatusColor}"
                                                                        Margin="0,2,0,0"/>
                                                             <TextBlock Text="{Binding ErrorMessage}"
-                                                                       FontSize="10" Foreground="#DC3545"
+                                                                       FontSize="10" Foreground="{StaticResource DangerBrush}"
                                                                        Margin="0,2,0,0"
                                                                        Visibility="{Binding ErrorMessage, Converter={StaticResource BooleanToVisibilityConverter}}"/>
                                                         </StackPanel>
@@ -169,7 +169,7 @@
                                                                      Width="80" Height="6"
                                                                      Margin="10,0,10,0"
                                                                      VerticalAlignment="Center"
-                                                                     Foreground="#1565C0"/>
+                                                                     Foreground="{StaticResource AccentIndigoBrush}"/>
 
                                                         <Button Grid.Column="2"
                                                                 Content="✕"
@@ -177,7 +177,7 @@
                                                                 FontSize="10"
                                                                 Background="Transparent"
                                                                 BorderThickness="0"
-                                                                Foreground="#6C757D"
+                                                                Foreground="{StaticResource TextSecondaryBrush}"
                                                                 Cursor="Hand"
                                                                 Command="{Binding DataContext.RemoveInterpolateQueueItemCommand,
                                                                           RelativeSource={RelativeSource AncestorType=ItemsControl}}"
@@ -202,7 +202,7 @@
                                 <StackPanel>
                                     <TextBlock Text="Input Video"
                                                FontSize="14" FontWeight="Bold"
-                                               Foreground="#1565C0" Margin="0,0,0,10"/>
+                                               Foreground="{StaticResource AccentIndigoBrush}" Margin="0,0,0,10"/>
 
                                     <Grid>
                                         <Grid.ColumnDefinitions>
@@ -215,7 +215,7 @@
                                                  Padding="8,6"
                                                  FontSize="12"
                                                  Background="White"
-                                                 BorderBrush="#CED4DA"
+                                                 BorderBrush="{StaticResource BorderBrush}"
                                                  VerticalContentAlignment="Center"
                                                  Height="34"/>
                                         <Button Grid.Column="1"
@@ -227,7 +227,7 @@
                                     </Grid>
 
                                     <TextBlock Text="{Binding UpscaleVideoInfo}"
-                                               FontSize="11" Foreground="#6C757D"
+                                               FontSize="11" Foreground="{StaticResource TextSecondaryBrush}"
                                                Margin="0,6,0,0"
                                                Visibility="{Binding HasUpscaleVideo, Converter={StaticResource BooleanToVisibilityConverter}}"/>
 
@@ -254,9 +254,9 @@
                                         <StackPanel Grid.Column="0" Orientation="Horizontal">
                                             <TextBlock Text="Queue"
                                                        FontSize="14" FontWeight="Bold"
-                                                       Foreground="#1565C0" VerticalAlignment="Center"/>
+                                                       Foreground="{StaticResource AccentIndigoBrush}" VerticalAlignment="Center"/>
                                             <TextBlock Text="{Binding UpscaleQueueStatus}"
-                                                       FontSize="11" Foreground="#6C757D"
+                                                       FontSize="11" Foreground="{StaticResource TextSecondaryBrush}"
                                                        VerticalAlignment="Center"
                                                        Margin="10,0,0,0"/>
                                         </StackPanel>
@@ -266,7 +266,7 @@
                                                 IsEnabled="{Binding HasUpscaleFailedItems}"
                                                 Height="28" Width="90" FontSize="11"
                                                 Margin="4,0,4,0"
-                                                Background="#FFA500" Foreground="White"
+                                                Background="{StaticResource AccentAmberBrush}" Foreground="White"
                                                 BorderThickness="0" FontWeight="SemiBold"/>
                                         <Button Grid.Column="2"
                                                 Content="⏹ Stop"
@@ -274,13 +274,13 @@
                                                 IsEnabled="{Binding IsProcessingUpscaleQueue}"
                                                 Height="28" Width="65" FontSize="11"
                                                 Margin="0,0,4,0"
-                                                Background="#F59E0B" Foreground="White"
+                                                Background="{StaticResource AccentAmberBrush}" Foreground="White"
                                                 BorderThickness="0" FontWeight="SemiBold"/>
                                         <Button Grid.Column="3"
                                                 Content="🗑️ Clear"
                                                 Command="{Binding ClearUpscaleQueueCommand}"
                                                 Height="28" Width="65" FontSize="11"
-                                                Background="#DC3545" Foreground="White"
+                                                Background="{StaticResource DangerBrush}" Foreground="White"
                                                 BorderThickness="0" FontWeight="SemiBold"/>
                                     </Grid>
 
@@ -288,7 +288,7 @@
                                         <ItemsControl.ItemTemplate>
                                             <DataTemplate>
                                                 <Border Background="White"
-                                                        BorderBrush="#DEE2E6"
+                                                        BorderBrush="{StaticResource BorderBrush}"
                                                         BorderThickness="1"
                                                         CornerRadius="5"
                                                         Padding="10,8"
@@ -303,13 +303,13 @@
                                                         <StackPanel Grid.Column="0">
                                                             <TextBlock Text="{Binding DisplayText}"
                                                                        FontSize="12" FontWeight="SemiBold"
-                                                                       Foreground="#212529"/>
+                                                                       Foreground="{StaticResource TextPrimaryBrush}"/>
                                                             <TextBlock Text="{Binding StatusDisplay}"
                                                                        FontSize="11"
                                                                        Foreground="{Binding StatusColor}"
                                                                        Margin="0,2,0,0"/>
                                                             <TextBlock Text="{Binding ErrorMessage}"
-                                                                       FontSize="10" Foreground="#DC3545"
+                                                                       FontSize="10" Foreground="{StaticResource DangerBrush}"
                                                                        Margin="0,2,0,0"
                                                                        Visibility="{Binding ErrorMessage, Converter={StaticResource BooleanToVisibilityConverter}}"/>
                                                         </StackPanel>
@@ -320,7 +320,7 @@
                                                                      Width="80" Height="6"
                                                                      Margin="10,0,10,0"
                                                                      VerticalAlignment="Center"
-                                                                     Foreground="#1565C0"/>
+                                                                     Foreground="{StaticResource AccentIndigoBrush}"/>
 
                                                         <Button Grid.Column="2"
                                                                 Content="✕"
@@ -328,7 +328,7 @@
                                                                 FontSize="10"
                                                                 Background="Transparent"
                                                                 BorderThickness="0"
-                                                                Foreground="#6C757D"
+                                                                Foreground="{StaticResource TextSecondaryBrush}"
                                                                 Cursor="Hand"
                                                                 Command="{Binding DataContext.RemoveUpscaleQueueItemCommand,
                                                                           RelativeSource={RelativeSource AncestorType=ItemsControl}}"
@@ -352,16 +352,16 @@
                     <StackPanel>
                         <TextBlock Text="Processing"
                                    FontSize="14" FontWeight="Bold"
-                                   Foreground="#1565C0" Margin="0,0,0,8"/>
+                                   Foreground="{StaticResource AccentIndigoBrush}" Margin="0,0,0,8"/>
                         <TextBlock Text="{Binding ProcessingStatus}"
-                                   FontSize="12" Foreground="#495057"
+                                   FontSize="12" Foreground="{StaticResource TextSecondaryBrush}"
                                    Margin="0,0,0,6"/>
                         <ProgressBar Value="{Binding ProcessingProgress}"
                                      Minimum="0" Maximum="100"
                                      Height="10"
-                                     Foreground="#1565C0"/>
+                                     Foreground="{StaticResource AccentIndigoBrush}"/>
                         <TextBlock Text="{Binding ProgressPercentage}"
-                                   FontSize="11" Foreground="#6C757D"
+                                   FontSize="11" Foreground="{StaticResource TextSecondaryBrush}"
                                    HorizontalAlignment="Right"
                                    Margin="0,4,0,0"/>
                     </StackPanel>
@@ -373,7 +373,7 @@
                     <StackPanel>
                         <TextBlock Text="Result"
                                    FontSize="14" FontWeight="Bold"
-                                   Foreground="#28A745" Margin="0,0,0,8"/>
+                                   Foreground="{StaticResource SuccessBrush}" Margin="0,0,0,8"/>
 
                         <MediaElement x:Name="VideoPlayer"
                                       Source="{Binding ResultVideoPath}"
@@ -384,7 +384,7 @@
                                       Margin="0,0,0,10"/>
 
                         <TextBlock Text="{Binding ResultVideoInfo}"
-                                   FontSize="11" Foreground="#6C757D"
+                                   FontSize="11" Foreground="{StaticResource TextSecondaryBrush}"
                                    Margin="0,0,0,10"/>
 
                         <StackPanel Orientation="Horizontal">
@@ -406,16 +406,16 @@
                     <StackPanel>
                         <TextBlock Text="Log"
                                    FontSize="13" FontWeight="Bold"
-                                   Foreground="#495057" Margin="0,0,0,6"/>
+                                   Foreground="{StaticResource TextSecondaryBrush}" Margin="0,0,0,6"/>
                         <ScrollViewer Height="120"
                                       VerticalScrollBarVisibility="Auto"
                                       Background="White"
-                                      BorderBrush="#DEE2E6"
+                                      BorderBrush="{StaticResource BorderBrush}"
                                       BorderThickness="1">
                             <TextBlock Text="{Binding LogOutput}"
                                        FontFamily="Consolas"
                                        FontSize="10"
-                                       Foreground="#495057"
+                                       Foreground="{StaticResource TextSecondaryBrush}"
                                        Padding="8"
                                        TextWrapping="Wrap"/>
                         </ScrollViewer>
@@ -426,7 +426,7 @@
         </ScrollViewer>
 
         <!-- Status Bar -->
-        <Border Grid.Row="2" Background="#F8F9FA" BorderBrush="#DEE2E6" BorderThickness="0,1,0,0" Padding="15,6">
+        <Border Grid.Row="2" Background="{StaticResource SurfaceAltBrush}" BorderBrush="{StaticResource BorderBrush}" BorderThickness="0,1,0,0" Padding="15,6">
             <Grid>
                 <Grid.ColumnDefinitions>
                     <ColumnDefinition Width="*"/>
@@ -434,11 +434,11 @@
                 </Grid.ColumnDefinitions>
                 <TextBlock Grid.Column="0"
                            Text="{Binding ProcessingStatus}"
-                           FontSize="11" Foreground="#495057"
+                           FontSize="11" Foreground="{StaticResource TextSecondaryBrush}"
                            VerticalAlignment="Center"/>
                 <StackPanel Grid.Column="1" Orientation="Horizontal">
                     <TextBlock Text="Interpolate: "
-                               FontSize="11" Foreground="#6C757D"
+                               FontSize="11" Foreground="{StaticResource TextSecondaryBrush}"
                                VerticalAlignment="Center"/>
                     <TextBlock FontSize="11" VerticalAlignment="Center" Margin="0,0,12,0">
                         <TextBlock.Style>
@@ -455,7 +455,7 @@
                         </TextBlock.Style>
                     </TextBlock>
                     <TextBlock Text="Upscale: "
-                               FontSize="11" Foreground="#6C757D"
+                               FontSize="11" Foreground="{StaticResource TextSecondaryBrush}"
                                VerticalAlignment="Center"/>
                     <TextBlock FontSize="11" VerticalAlignment="Center">
                         <TextBlock.Style>

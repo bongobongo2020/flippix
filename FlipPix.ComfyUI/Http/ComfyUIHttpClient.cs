@@ -452,6 +452,11 @@ public class ComfyUIHttpClient : IDisposable
                 }
             }
 
+            // Self-healing pass: pull any numeric widget back inside the limits this ComfyUI
+            // declares, so a node pack tightening its max (seeds, batch sizes, steps) doesn't
+            // fail the run and force a manual edit.
+            workflow = await ClampOutOfRangeInputsAsync(workflow, cancellationToken);
+
             var request = new PromptRequest
             {
                 Prompt = workflow,
@@ -477,9 +482,27 @@ public class ComfyUIHttpClient : IDisposable
             {
                 var responseContent = await response.Content.ReadAsStringAsync(cancellationToken);
                 var result = JsonSerializer.Deserialize<PromptResponse>(responseContent);
-                
+
+                // ComfyUI returns HTTP 200 with a prompt_id even when SOME output nodes
+                // failed validation: those nodes (and their whole upstream chain) are
+                // silently pruned from execution and reported in `node_errors`, while any
+                // still-valid output runs. That means the prompt can "succeed" yet never
+                // produce the image the user asked for (e.g. a required node input the
+                // exported API JSON omits). Treat a populated node_errors as a hard failure
+                // so the caller sees a clear message instead of a phantom "done" with no output.
+                if (result != null && result.NodeErrors.Count > 0)
+                {
+                    var detail = FormatNodeErrors(responseContent);
+                    _logger.LogError($"Prompt accepted but {result.NodeErrors.Count} node(s) failed validation and were dropped: {detail}");
+                    throw new FlipPix.ComfyUI.Exceptions.ComfyUIExecutionException(
+                        "ComfyUI rejected part of the workflow during validation, so it would not have produced an output:\n\n"
+                        + detail
+                        + "\n\nThis usually means a node input is missing or invalid (e.g. a custom node gained a required input the saved workflow doesn't set).",
+                        result.PromptId);
+                }
+
                 _logger.LogInfo("Workflow submitted successfully: {PromptId}", result?.PromptId ?? "unknown");
-                
+
                 return result?.PromptId ?? throw new InvalidOperationException("Prompt response missing ID");
             }
             else
@@ -492,6 +515,47 @@ public class ComfyUIHttpClient : IDisposable
         {
             _logger.LogError(ex, "Failed to submit workflow");
             throw;
+        }
+    }
+
+    /// <summary>
+    /// Turns ComfyUI's /prompt `node_errors` map into a readable, per-node bullet list.
+    /// Shape: { "&lt;nodeId&gt;": { "class_type": ..., "errors": [ { "message", "details" }, ... ] } }.
+    /// </summary>
+    private static string FormatNodeErrors(string responseContent)
+    {
+        try
+        {
+            using var doc = JsonDocument.Parse(responseContent);
+            if (!doc.RootElement.TryGetProperty("node_errors", out var nodeErrors) ||
+                nodeErrors.ValueKind != JsonValueKind.Object)
+                return "(no error detail)";
+
+            var lines = new List<string>();
+            foreach (var node in nodeErrors.EnumerateObject())
+            {
+                var classType = node.Value.TryGetProperty("class_type", out var ct) ? ct.GetString() : null;
+                var header = string.IsNullOrEmpty(classType)
+                    ? $"  • node {node.Name}:"
+                    : $"  • node {node.Name} ({classType}):";
+                lines.Add(header);
+
+                if (node.Value.TryGetProperty("errors", out var errs) && errs.ValueKind == JsonValueKind.Array)
+                {
+                    foreach (var e in errs.EnumerateArray())
+                    {
+                        var msg = e.TryGetProperty("message", out var m) ? m.GetString() : null;
+                        var details = e.TryGetProperty("details", out var d) ? d.GetString() : null;
+                        var text = string.IsNullOrEmpty(details) ? msg : $"{msg}: {details}";
+                        if (!string.IsNullOrEmpty(text)) lines.Add($"      - {text}");
+                    }
+                }
+            }
+            return lines.Count > 0 ? string.Join("\n", lines) : "(no error detail)";
+        }
+        catch
+        {
+            return "(could not parse node_errors)";
         }
     }
 
@@ -1404,6 +1468,146 @@ public class ComfyUIHttpClient : IDisposable
         _objectInfoCacheJson = json;
         _objectInfoCacheUtc = DateTime.UtcNow;
         return json;
+    }
+
+    /// <summary>
+    /// True when the prompt is still running or waiting in ComfyUI's queue. Read from the raw
+    /// /queue JSON rather than the typed model because ComfyUI serialises queue entries as
+    /// heterogeneous arrays ([number, prompt_id, prompt, extra_data, outputs]), which the typed
+    /// QueueItem cannot bind. Returns true on any error so a transient network blip is never
+    /// mistaken for a lost prompt.
+    /// </summary>
+    public async Task<bool> IsPromptQueuedAsync(string promptId, CancellationToken cancellationToken = default)
+    {
+        try
+        {
+            using var cts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+            cts.CancelAfter(TimeSpan.FromSeconds(15));
+            var response = await _httpClient.GetAsync("/queue", cts.Token);
+            if (!response.IsSuccessStatusCode) return true;
+
+            var json = await response.Content.ReadAsStringAsync(cts.Token);
+            using var doc = JsonDocument.Parse(json);
+            foreach (var section in new[] { "queue_running", "queue_pending" })
+            {
+                if (!doc.RootElement.TryGetProperty(section, out var arr) || arr.ValueKind != JsonValueKind.Array)
+                    continue;
+                foreach (var entry in arr.EnumerateArray())
+                    if (entry.GetRawText().Contains(promptId, StringComparison.Ordinal))
+                        return true;
+            }
+            return false;
+        }
+        catch (Exception ex)
+        {
+            _logger.LogDebug($"IsPromptQueuedAsync failed (assuming still queued): {ex.Message}");
+            return true;
+        }
+    }
+
+    /// <summary>
+    /// Self-healing pre-submit pass: brings every numeric widget value inside the min/max the
+    /// connected ComfyUI declares for it in /object_info. Node packs change their limits between
+    /// versions (e.g. "easy globalSeed" caps seeds at 2^50 while other seed widgets accept 2^63),
+    /// which otherwise drops the node during validation and fails the whole run with
+    /// "Value bigger than max". Out-of-range seeds are wrapped (modulo) so they stay random;
+    /// everything else is clamped to the nearest bound. Best-effort — on any error the workflow is
+    /// returned untouched and the server decides.
+    /// </summary>
+    public async Task<object> ClampOutOfRangeInputsAsync(object workflow, CancellationToken cancellationToken)
+    {
+        try
+        {
+            var oiJson = await GetObjectInfoJsonAsync(cancellationToken);
+            if (oiJson == null) return workflow;
+
+            var json = workflow is JsonElement je ? je.GetRawText() : JsonSerializer.Serialize(workflow);
+            if (JsonNode.Parse(json) is not JsonObject nodes) return workflow;
+
+            using var oiDoc = JsonDocument.Parse(oiJson);
+            var oiRoot = oiDoc.RootElement;
+
+            var fixes = new List<string>();
+            foreach (var node in nodes)
+            {
+                if (node.Value is not JsonObject obj) continue;
+                var classType = (obj["class_type"] as JsonValue)?.GetValue<string>();
+                if (string.IsNullOrEmpty(classType)) continue;
+                if (obj["inputs"] is not JsonObject inputs) continue;
+                if (!oiRoot.TryGetProperty(classType!, out var oiNode)) continue;
+                if (!oiNode.TryGetProperty("input", out var oiInput)) continue;
+
+                // Collect first, then assign — mutating a JsonObject mid-enumeration throws.
+                var changes = new List<KeyValuePair<string, double>>();
+                foreach (var input in inputs)
+                {
+                    if (input.Value is not JsonValue v || !v.TryGetValue<double>(out var current)) continue;
+                    if (!TryGetNumericRange(oiInput, input.Key, out var min, out var max)) continue;
+                    if (current >= min && current <= max) continue;
+
+                    // Seed widgets are often named just "value" on dedicated seed nodes
+                    // (e.g. "easy globalSeed"), so check the class type too — wrapping keeps
+                    // the run random where clamping would pin every run to the same seed.
+                    bool isSeed = input.Key.IndexOf("seed", StringComparison.OrdinalIgnoreCase) >= 0
+                                  || classType!.IndexOf("seed", StringComparison.OrdinalIgnoreCase) >= 0;
+                    double repaired = current > max
+                        ? (isSeed && max > 0 ? Math.Floor(current % max) : max)
+                        : min;
+
+                    changes.Add(new(input.Key, repaired));
+                    fixes.Add($"node {node.Key} ({classType}).{input.Key}: {current:F0} → {repaired:F0}");
+                }
+
+                foreach (var c in changes)
+                    inputs[c.Key] = c.Value == Math.Floor(c.Value) && Math.Abs(c.Value) < long.MaxValue
+                        ? JsonValue.Create((long)c.Value)
+                        : JsonValue.Create(c.Value);
+            }
+
+            if (fixes.Count == 0) return workflow;
+
+            _logger.LogWarning($"Auto-repaired {fixes.Count} out-of-range input(s) before submit: {string.Join("; ", fixes)}");
+            return nodes;
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning($"ClampOutOfRangeInputsAsync failed (skipping): {ex.Message}");
+            return workflow;
+        }
+    }
+
+    /// <summary>
+    /// Reads an INT/FLOAT input's declared min/max from an /object_info node "input" block.
+    /// False for combo/string/link inputs or when no bounds are declared.
+    /// </summary>
+    private static bool TryGetNumericRange(JsonElement oiInput, string inputKey, out double min, out double max)
+    {
+        min = double.MinValue;
+        max = double.MaxValue;
+        foreach (var section in new[] { "required", "optional" })
+        {
+            if (!oiInput.TryGetProperty(section, out var sec) || sec.ValueKind != JsonValueKind.Object) continue;
+            if (!sec.TryGetProperty(inputKey, out var spec)) continue;
+            if (spec.ValueKind != JsonValueKind.Array || spec.GetArrayLength() < 2) return false;
+
+            var type = spec[0].ValueKind == JsonValueKind.String ? spec[0].GetString() : null;
+            if (type is not ("INT" or "FLOAT")) return false;
+            if (spec[1].ValueKind != JsonValueKind.Object) return false;
+
+            bool hasBound = false;
+            if (spec[1].TryGetProperty("min", out var minEl) && minEl.ValueKind == JsonValueKind.Number)
+            {
+                min = minEl.GetDouble();
+                hasBound = true;
+            }
+            if (spec[1].TryGetProperty("max", out var maxEl) && maxEl.ValueKind == JsonValueKind.Number)
+            {
+                max = maxEl.GetDouble();
+                hasBound = true;
+            }
+            return hasBound;
+        }
+        return false;
     }
 
     /// <summary>

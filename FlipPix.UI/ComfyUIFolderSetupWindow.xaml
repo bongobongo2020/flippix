@@ -11,7 +11,7 @@
         Width="650"
         WindowStartupLocation="CenterScreen"
         ResizeMode="CanResizeWithGrip"
-        Background="#1E1E1E">
+        Background="{StaticResource AppBackgroundBrush}">
     <ScrollViewer VerticalScrollBarVisibility="Auto" Padding="0">
         <Grid Margin="20">
         <Grid.RowDefinitions>
@@ -37,13 +37,13 @@
                    Text="ComfyUI Setup"
                    FontSize="20"
                    FontWeight="Bold"
-                   Foreground="White"
+                   Foreground="{StaticResource TextPrimaryBrush}"
                    Margin="0,0,0,20"/>
 
         <!-- Description -->
         <TextBlock Grid.Row="1"
                    TextWrapping="Wrap"
-                   Foreground="#CCCCCC"
+                   Foreground="{StaticResource TextSecondaryBrush}"
                    Margin="0,0,0,20">
             <Run Text="Please configure your ComfyUI installation by setting the folder path and server address."/>
             <LineBreak/>
@@ -62,9 +62,9 @@
                      Text="{Binding FolderPath, UpdateSourceTrigger=PropertyChanged}"
                      Padding="8"
                      FontSize="14"
-                     Background="#2D2D30"
-                     Foreground="White"
-                     BorderBrush="#3F3F46"
+                     Background="{StaticResource SurfaceAltBrush}"
+                     Foreground="{StaticResource TextPrimaryBrush}"
+                     BorderBrush="{StaticResource BorderBrush}"
                      BorderThickness="1"/>
 
             <Button Grid.Column="1"
@@ -72,9 +72,7 @@
                     Command="{Binding BrowseFolderCommand}"
                     Margin="10,0,0,0"
                     Padding="20,8"
-                    Background="#0E639C"
-                    Foreground="White"
-                    BorderThickness="0"
+                    Style="{StaticResource PrimaryButtonStyle}"
                     Cursor="Hand"/>
         </Grid>
 
@@ -83,13 +81,13 @@
                    Text="ComfyUI Server Address:"
                    FontSize="14"
                    FontWeight="SemiBold"
-                   Foreground="White"
+                   Foreground="{StaticResource TextPrimaryBrush}"
                    Margin="0,0,0,5"/>
 
         <TextBlock Grid.Row="4"
                    Text="Enter the IP address and port where ComfyUI is running (e.g., localhost:8188)"
                    FontSize="12"
-                   Foreground="#AAAAAA"
+                   Foreground="{StaticResource TextMutedBrush}"
                    Margin="0,0,0,8"/>
 
         <!-- Server URL Input -->
@@ -104,9 +102,9 @@
                      Text="{Binding ServerUrl, UpdateSourceTrigger=PropertyChanged}"
                      Padding="8"
                      FontSize="14"
-                     Background="#2D2D30"
-                     Foreground="White"
-                     BorderBrush="#3F3F46"
+                     Background="{StaticResource SurfaceAltBrush}"
+                     Foreground="{StaticResource TextPrimaryBrush}"
+                     BorderBrush="{StaticResource BorderBrush}"
                      BorderThickness="1"
                      VerticalContentAlignment="Center"/>
 
@@ -115,16 +113,14 @@
                     Command="{Binding TestConnectionCommand}"
                     Margin="10,0,0,0"
                     Padding="15,8"
-                    Background="#007ACC"
-                    Foreground="White"
-                    BorderThickness="0"
+                    Style="{StaticResource PrimaryButtonStyle}"
                     Cursor="Hand"/>
         </Grid>
 
         <!-- Server Connection Status -->
         <Border Grid.Row="6"
-                Background="#2D2D30"
-                BorderBrush="#3F3F46"
+                Background="{StaticResource SurfaceAltBrush}"
+                BorderBrush="{StaticResource BorderBrush}"
                 BorderThickness="1"
                 CornerRadius="4"
                 Padding="12,8"
@@ -143,13 +139,13 @@
                          VerticalAlignment="Center">
                     <Ellipse.Style>
                         <Style TargetType="Ellipse">
-                            <Setter Property="Fill" Value="#666666"/>
+                            <Setter Property="Fill" Value="{StaticResource TextMutedBrush}"/>
                             <Style.Triggers>
                                 <DataTrigger Binding="{Binding IsServerConnected}" Value="True">
-                                    <Setter Property="Fill" Value="#00FF00"/>
+                                    <Setter Property="Fill" Value="{StaticResource SuccessTextBrush}"/>
                                 </DataTrigger>
                                 <DataTrigger Binding="{Binding IsTestingConnection}" Value="True">
-                                    <Setter Property="Fill" Value="#FFA500"/>
+                                    <Setter Property="Fill" Value="{StaticResource AccentAmberBrush}"/>
                                 </DataTrigger>
                             </Style.Triggers>
                         </Style>
@@ -160,16 +156,16 @@
                 <TextBlock Grid.Column="1"
                            Text="{Binding ServerConnectionMessage}"
                            FontSize="12"
-                           Foreground="#CCCCCC"
+                           Foreground="{StaticResource TextSecondaryBrush}"
                            VerticalAlignment="Center">
                     <TextBlock.Style>
                         <Style TargetType="TextBlock">
                             <Style.Triggers>
                                 <DataTrigger Binding="{Binding IsServerConnected}" Value="True">
-                                    <Setter Property="Foreground" Value="#00FF00"/>
+                                    <Setter Property="Foreground" Value="{StaticResource SuccessTextBrush}"/>
                                 </DataTrigger>
                                 <DataTrigger Binding="{Binding IsTestingConnection}" Value="True">
-                                    <Setter Property="Foreground" Value="#FFA500"/>
+                                    <Setter Property="Foreground" Value="{StaticResource AccentAmberBrush}"/>
                                 </DataTrigger>
                             </Style.Triggers>
                         </Style>
@@ -183,13 +179,13 @@
                    Text="Remote ComfyUI Output Folder:"
                    FontSize="14"
                    FontWeight="SemiBold"
-                   Foreground="White"
+                   Foreground="{StaticResource TextPrimaryBrush}"
                    Margin="0,0,0,5"/>
 
         <TextBlock Grid.Row="8"
                    Text="Enter the network path to the remote ComfyUI output folder (required for remote servers)"
                    FontSize="12"
-                   Foreground="#AAAAAA"
+                   Foreground="{StaticResource TextMutedBrush}"
                    Margin="0,0,0,8"/>
 
         <!-- Remote Output Folder Input -->
@@ -204,9 +200,9 @@
                      Text="{Binding RemoteOutputFolderPath, UpdateSourceTrigger=PropertyChanged}"
                      Padding="8"
                      FontSize="14"
-                     Background="#2D2D30"
-                     Foreground="White"
-                     BorderBrush="#3F3F46"
+                     Background="{StaticResource SurfaceAltBrush}"
+                     Foreground="{StaticResource TextPrimaryBrush}"
+                     BorderBrush="{StaticResource BorderBrush}"
                      BorderThickness="1"/>
 
             <Button Grid.Column="1"
@@ -214,9 +210,7 @@
                     Command="{Binding BrowseRemoteOutputFolderCommand}"
                     Margin="10,0,0,0"
                     Padding="20,8"
-                    Background="#0E639C"
-                    Foreground="White"
-                    BorderThickness="0"
+                    Style="{StaticResource PrimaryButtonStyle}"
                     Cursor="Hand"/>
         </Grid>
 
@@ -225,13 +219,13 @@
                    Text="Remote ComfyUI LoRA Folder:"
                    FontSize="14"
                    FontWeight="SemiBold"
-                   Foreground="White"
+                   Foreground="{StaticResource TextPrimaryBrush}"
                    Margin="0,0,0,5"/>
 
         <TextBlock Grid.Row="11"
                    Text="Enter the network path to the remote ComfyUI LoRA folder (e.g., Y:\\ai-models\\loras\\zimage)"
                    FontSize="12"
-                   Foreground="#AAAAAA"
+                   Foreground="{StaticResource TextMutedBrush}"
                    Margin="0,0,0,8"/>
 
         <!-- Remote LoRA Folder Input -->
@@ -246,9 +240,9 @@
                      Text="{Binding RemoteLoraFolderPath, UpdateSourceTrigger=PropertyChanged}"
                      Padding="8"
                      FontSize="14"
-                     Background="#2D2D30"
-                     Foreground="White"
-                     BorderBrush="#3F3F46"
+                     Background="{StaticResource SurfaceAltBrush}"
+                     Foreground="{StaticResource TextPrimaryBrush}"
+                     BorderBrush="{StaticResource BorderBrush}"
                      BorderThickness="1"/>
 
             <Button Grid.Column="1"
@@ -256,9 +250,7 @@
                     Command="{Binding BrowseRemoteLoraFolderCommand}"
                     Margin="10,0,0,0"
                     Padding="20,8"
-                    Background="#0E639C"
-                    Foreground="White"
-                    BorderThickness="0"
+                    Style="{StaticResource PrimaryButtonStyle}"
                     Cursor="Hand"/>
         </Grid>
 
@@ -275,7 +267,7 @@
         <TextBlock Grid.Row="14"
                    x:Name="OutputFolderTextBlock"
                    Text="{Binding OutputFolderInfo}"
-                   Foreground="#888888"
+                   Foreground="{StaticResource TextMutedBrush}"
                    FontSize="11"
                    Margin="0,0,0,20"
                    TextWrapping="Wrap"
@@ -292,8 +284,8 @@
                     Command="{Binding InstallMinimalComfyUICommand}"
                     Padding="20,10"
                     Margin="0,0,10,0"
-                    Background="#FF6B35"
-                    Foreground="White"
+                    Background="{StaticResource BrandBrush}"
+                    Foreground="{StaticResource TextPrimaryBrush}"
                     BorderThickness="0"
                     Cursor="Hand"
                     ToolTip="Installs a stripped-down ComfyUI (image gen + edit) and downloads only the core models. VRAM tier is auto-detected."/>
@@ -301,17 +293,13 @@
                     Command="{Binding CancelCommand}"
                     Padding="30,10"
                     Margin="0,0,10,0"
-                    Background="#3F3F46"
-                    Foreground="White"
-                    BorderThickness="0"
+                    Style="{StaticResource SecondaryButtonStyle}"
                     Cursor="Hand"/>
             <Button Content="Save"
                     Command="{Binding SaveCommand}"
                     IsEnabled="{Binding CanSave}"
                     Padding="30,10"
-                    Background="#0E639C"
-                    Foreground="White"
-                    BorderThickness="0"
+                    Style="{StaticResource PrimaryButtonStyle}"
                     Cursor="Hand"/>
         </StackPanel>
         </Grid>

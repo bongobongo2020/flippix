@@ -10,7 +10,7 @@
         Width="600"
         WindowStartupLocation="CenterScreen"
         ResizeMode="NoResize"
-        Background="#1E1E1E">
+        Background="{StaticResource AppBackgroundBrush}">
     <Grid Margin="20">
         <Grid.RowDefinitions>
             <RowDefinition Height="Auto"/>
@@ -28,7 +28,7 @@
                    Text="Remote ComfyUI Setup"
                    FontSize="20"
                    FontWeight="Bold"
-                   Foreground="White"
+                   Foreground="{StaticResource TextPrimaryBrush}"
                    Margin="0,0,0,20"/>
 
         <!-- Server URL -->
@@ -36,7 +36,7 @@
                    Text="ComfyUI Server Address:"
                    FontSize="14"
                    FontWeight="SemiBold"
-                   Foreground="White"
+                   Foreground="{StaticResource TextPrimaryBrush}"
                    Margin="0,0,0,5"/>
 
         <TextBox Grid.Row="2"
@@ -44,9 +44,9 @@
                  Text="http://192.168.1.218:8188"
                  Padding="8"
                  FontSize="14"
-                 Background="#2D2D30"
-                 Foreground="White"
-                 BorderBrush="#3F3F46"
+                 Background="{StaticResource SurfaceAltBrush}"
+                 Foreground="{StaticResource TextPrimaryBrush}"
+                 BorderBrush="{StaticResource BorderBrush}"
                  BorderThickness="1"
                  Margin="0,0,0,15"/>
 
@@ -55,13 +55,13 @@
                    Text="Remote Output Folder:"
                    FontSize="14"
                    FontWeight="SemiBold"
-                   Foreground="White"
+                   Foreground="{StaticResource TextPrimaryBrush}"
                    Margin="0,0,0,5"/>
 
         <TextBlock Grid.Row="4"
                    Text="Enter the network path to the remote ComfyUI output folder"
                    FontSize="12"
-                   Foreground="#AAAAAA"
+                   Foreground="{StaticResource TextMutedBrush}"
                    Margin="0,0,0,5"/>
 
         <!-- Remote Output Folder Input -->
@@ -75,9 +75,9 @@
                      Name="RemoteOutputFolderTextBox"
                      Padding="8"
                      FontSize="14"
-                     Background="#2D2D30"
-                     Foreground="White"
-                     BorderBrush="#3F3F46"
+                     Background="{StaticResource SurfaceAltBrush}"
+                     Foreground="{StaticResource TextPrimaryBrush}"
+                     BorderBrush="{StaticResource BorderBrush}"
                      BorderThickness="1"/>
 
             <Button Grid.Column="1"
@@ -85,9 +85,7 @@
                     Click="BrowseButton_Click"
                     Margin="10,0,0,0"
                     Padding="20,8"
-                    Background="#0E639C"
-                    Foreground="White"
-                    BorderThickness="0"
+                    Style="{StaticResource PrimaryButtonStyle}"
                     Cursor="Hand"/>
         </Grid>
 
@@ -102,16 +100,12 @@
                     Click="CancelButton_Click"
                     Padding="30,10"
                     Margin="0,0,10,0"
-                    Background="#3F3F46"
-                    Foreground="White"
-                    BorderThickness="0"
+                    Style="{StaticResource SecondaryButtonStyle}"
                     Cursor="Hand"/>
             <Button Content="Save"
                     Click="SaveButton_Click"
                     Padding="30,10"
-                    Background="#0E639C"
-                    Foreground="White"
-                    BorderThickness="0"
+                    Style="{StaticResource PrimaryButtonStyle}"
                     Cursor="Hand"/>
         </StackPanel>
     </Grid>

@@ -50,6 +50,30 @@ namespace FlipPix.UI.ViewModels.Video
         private const string KleinCharReplacerWorkflowFile = "workflow/image/klein/Flux.2 Character Replacer v2.4.json";
         private const string KleinCharReplacerSavePrefix = "char_replaced";
 
+        // Alternative single-character path: the "Klein Flux2 Control" workflow from the Image Generator
+        // (Advanced ▸ Control). It self-analyses the subject appearance + pose via QwenVL and drives a
+        // Flux.2 Klein reference-latent generation, which tends to hold the subject's likeness far more
+        // accurately than the Character Replacer. node 1 = reference/subject, node 19 = pose (base frame),
+        // node 7 = RandomNoise, saved by node 9 with the "flux2_klein" prefix.
+        private const string KleinControlWorkflowFile = "workflow/image/klein/flux2_klein_control_netAPI.json";
+        private const string KleinControlSavePrefix = "flux2_klein";
+
+        // The image this workflow saves is painted by its PiD 4K stage (nodes 203-212), not by Klein —
+        // the Klein result only feeds it as guidance. PiD drifts off that guidance into a cool colour
+        // cast once an axis runs past MaxPidAxis, so the canvas is clamped. Mirrors KleinControlViewModel.
+        private const int MaxPidAxis = 4096;
+        private const int PidScale = 4;                     // canvas stays exactly 4x the base
+        private const int MaxBaseAxis = MaxPidAxis / PidScale;
+        private const int BaseTargetPixels = 1024 * 1024;
+
+        // Third single-character path: the "Krea2 Edit (two ref)" workflow. Node 72 = image A (the base
+        // scene frame containing the person to replace), node 86 = image B (Character 1, the replacement
+        // likeness). The grounded-encode prompt on node 84 replaces the person in image A with the subject
+        // in image B; node 53 is the KSampler (reseeded per run) and node 29 saves with the "krea2_edit"
+        // prefix. Unlike the Klein paths it keeps the base scene composition while swapping the subject in.
+        private const string Krea2EditWorkflowFile = "workflow/image/krea/krea2_edit_two_ref.json";
+        private const string Krea2EditSavePrefix = "krea2_edit";
+
         // Own references — the base keeps these private, so Scail 2 stores its own copies from DI.
         private readonly IFileDialogService _fileDialogService;
 
@@ -71,6 +95,20 @@ namespace FlipPix.UI.ViewModels.Video
 
         private CancellationTokenSource? _charSwapCts;
 
+        // ── Pinned pose frame ────────────────────────────────────────────────
+        // The Scail 2 equivalent of the Image Generator ▸ Advanced ▸ Control "📌 Use This Frame" button:
+        // one frame is grabbed from the base video and held, so Analyze and every subsequent Generate run
+        // against the *same* pose. Without it each pass re-grabbed the frame at whatever position the
+        // playhead happened to be at, so a nudged scrubber silently changed the pose between the analyze
+        // and the generate. Nothing pinned = fall back to grabbing at the current position (old behaviour).
+        private string _poseFramePath = string.Empty;
+        private BitmapImage? _poseFrameSource;
+        private bool _hasPoseFrame;
+        private double _poseFrameSeconds;
+        private bool _isGrabbingPoseFrame;
+
+        // 0–100 progress for the Klein Control analyze/generate passes (mirrors the Control tab's bar).
+        private double _kleinProgress;
 
         public Scail2ViewModel(
             ComfyUIService comfyUIService,
@@ -87,11 +125,32 @@ namespace FlipPix.UI.ViewModels.Video
             // SAM3 subject default for the SCAIL II stage (settings are hidden).
             Subject = "person";
 
+            // Restore the persisted internal chunk size (VRAM tuning). Set the backing field directly so
+            // this initial load doesn't trigger a redundant save.
+            var savedBatch = _settingsService.Settings?.Scail2VideoBatchSize ?? 0;
+            if (savedBatch >= 8) _videoBatchSize = savedBatch;
+
+            // Restore the persisted output-resolution choice (backing field so no redundant save fires).
+            var savedRes = _settingsService.Settings?.Scail2Resolution;
+            if (!string.IsNullOrWhiteSpace(savedRes)) _outputResolution = savedRes.Trim();
+
+            // Restore the persisted "keep original background" choice. ReplaceBackground is the inverse:
+            // keep-original == replacement mode == !ReplaceBackground. Set the inherited property directly
+            // (its own change notification fires, but nothing is persisted from that setter).
+            ReplaceBackground = !(_settingsService.Settings?.Scail2KeepOriginalBackground ?? false);
+
+            // Restore the persisted RIFE + RTX post-pass choice (backing field so no redundant save fires).
+            _interpolateAndUpscale = _settingsService.Settings?.Scail2Interpolate ?? false;
+
             BrowseChar1Command = new RelayCommand(async () => await BrowseChar1Async(), () => !IsCharSwapping);
             BrowseChar2Command = new RelayCommand(async () => await BrowseChar2Async(), () => !IsCharSwapping);
             BrowseFinalImageCommand = new RelayCommand(async () => await BrowseFinalImageAsync(), () => !IsCharSwapping);
             SwapCharactersCommand = new RelayCommand(async () => await RunCharSwapStageAsync(), () => CanSwapCharacters);
             SwapChar1OnlyCommand = new RelayCommand(async () => await RunChar1OnlySwapAsync(), () => CanSwapChar1Only);
+            AnalyzeKleinPromptCommand = new RelayCommand(async () => await RunKleinAnalyzeAsync(), () => CanAnalyzeKleinPrompt);
+            GenerateKleinImageCommand = new RelayCommand(async () => await RunKleinGenerateAsync(), () => CanGenerateKleinImage);
+            UsePoseFrameCommand = new RelayCommand(async () => await UsePoseFrameAsync(), () => CanUsePoseFrame);
+            ClearPoseFrameCommand = new RelayCommand(ClearPoseFrame, () => HasPoseFrame && !IsCharSwapping);
             RemoveChar1Command = new RelayCommand(ClearChar1Image, () => HasChar1Image && !IsCharSwapping);
             RemoveChar2Command = new RelayCommand(ClearChar2Image, () => HasChar2Image && !IsCharSwapping);
 
@@ -111,6 +170,8 @@ namespace FlipPix.UI.ViewModels.Video
                 CharSwapResultSource = null;
                 HasCharSwapResult = false;
                 CharacterImagePath = string.Empty;
+                // The pinned pose frame belonged to the old video, so it goes too.
+                ClearPoseFrame();
                 RefreshSwapReadiness();
             }
         }
@@ -192,11 +253,18 @@ namespace FlipPix.UI.ViewModels.Video
                 OnPropertyChanged();
                 OnPropertyChanged(nameof(CanSwapCharacters));
                 OnPropertyChanged(nameof(CanSwapChar1Only));
+                OnPropertyChanged(nameof(CanAnalyzeKleinPrompt));
+                OnPropertyChanged(nameof(CanGenerateKleinImage));
+                OnPropertyChanged(nameof(CanUsePoseFrame));
                 BrowseChar1Command.NotifyCanExecuteChanged();
                 BrowseChar2Command.NotifyCanExecuteChanged();
                 BrowseFinalImageCommand.NotifyCanExecuteChanged();
                 SwapCharactersCommand.NotifyCanExecuteChanged();
                 SwapChar1OnlyCommand.NotifyCanExecuteChanged();
+                AnalyzeKleinPromptCommand.NotifyCanExecuteChanged();
+                GenerateKleinImageCommand.NotifyCanExecuteChanged();
+                UsePoseFrameCommand.NotifyCanExecuteChanged();
+                ClearPoseFrameCommand.NotifyCanExecuteChanged();
                 RemoveChar1Command.NotifyCanExecuteChanged();
                 RemoveChar2Command.NotifyCanExecuteChanged();
             }
@@ -208,6 +276,315 @@ namespace FlipPix.UI.ViewModels.Video
             private set { if (_charSwapStatus != value) { _charSwapStatus = value; OnPropertyChanged(); } }
         }
 
+        // 0–100 progress of the running Klein Control pass, so the tab can show the same bar the
+        // Image Generator ▸ Advanced ▸ Control tab does.
+        public double KleinProgress
+        {
+            get => _kleinProgress;
+            private set { if (Math.Abs(_kleinProgress - value) > 0.01) { _kleinProgress = value; OnPropertyChanged(); } }
+        }
+
+        #endregion
+
+        #region Pinned pose frame
+
+        /// <summary>Path of the frame pinned with “Use this frame”, or empty when nothing is pinned.</summary>
+        public string PoseFramePath
+        {
+            get => _poseFramePath;
+            private set { _poseFramePath = value; OnPropertyChanged(); }
+        }
+
+        public BitmapImage? PoseFrameSource
+        {
+            get => _poseFrameSource;
+            private set { _poseFrameSource = value; OnPropertyChanged(); }
+        }
+
+        public bool HasPoseFrame
+        {
+            get => _hasPoseFrame;
+            private set
+            {
+                _hasPoseFrame = value;
+                OnPropertyChanged();
+                OnPropertyChanged(nameof(NoPoseFrame));
+                OnPropertyChanged(nameof(PoseFrameInfo));
+                ClearPoseFrameCommand?.NotifyCanExecuteChanged();
+            }
+        }
+
+        public bool NoPoseFrame => !_hasPoseFrame;
+
+        public bool IsGrabbingPoseFrame
+        {
+            get => _isGrabbingPoseFrame;
+            private set
+            {
+                _isGrabbingPoseFrame = value;
+                OnPropertyChanged();
+                OnPropertyChanged(nameof(CanUsePoseFrame));
+                UsePoseFrameCommand?.NotifyCanExecuteChanged();
+            }
+        }
+
+        /// <summary>Caption under the pinned-frame thumbnail: which timestamp the pose was taken from.</summary>
+        public string PoseFrameInfo => _hasPoseFrame
+            ? $"✓ Pose frame pinned at {TimeSpan.FromSeconds(_poseFrameSeconds):mm\\:ss\\.ff}"
+            : "No pose frame pinned — the frame under the playhead is used";
+
+        public bool CanUsePoseFrame => HasInputVideo && !IsCharSwapping && !IsGrabbingPoseFrame;
+
+        /// <summary>
+        /// Grabs the frame under the playhead and holds it as the pose source, exactly like the Control
+        /// tab's “📌 Use This Frame”. Everything downstream (Analyze, Generate, both replacer paths)
+        /// then works from this one still, so re-generating never silently changes the pose.
+        /// </summary>
+        private async Task UsePoseFrameAsync()
+        {
+            if (!CanUsePoseFrame) return;
+            try
+            {
+                IsGrabbingPoseFrame = true;
+                var seconds = PlaybackPositionSeconds;
+                var grabbed = await ExtractFrameAtAsync(InputVideoPath, seconds, App.ShutdownToken);
+                if (grabbed == null || !File.Exists(grabbed))
+                    throw new Exception("Could not grab a frame from the base video (is ffmpeg installed?).");
+
+                // Move it out of the volatile temp name into a stable per-pin file so the thumbnail keeps
+                // working and the run-time cleanup never deletes a frame the user pinned.
+                var dir = Path.Combine(Path.GetTempPath(), "flippix-frames");
+                Directory.CreateDirectory(dir);
+                var pinned = Path.Combine(dir, $"scail2_pose_{DateTime.Now:yyyyMMdd_HHmmss_fff}.png");
+                File.Move(grabbed, pinned, overwrite: true);
+
+                PoseFramePath = pinned;
+                _poseFrameSeconds = seconds;
+                Application.Current?.Dispatcher.Invoke(() =>
+                {
+                    PoseFrameSource = LoadBitmap(pinned);
+                    HasPoseFrame = true;
+                });
+                AddLog($"Scail 2: pose frame pinned at {seconds:F2}s → {Path.GetFileName(pinned)}");
+                RefreshSwapReadiness();
+            }
+            catch (Exception ex)
+            {
+                AddLog($"ERROR pinning pose frame: {ex.Message}");
+                CharSwapStatus = $"Could not pin the frame: {ex.Message}";
+            }
+            finally
+            {
+                IsGrabbingPoseFrame = false;
+            }
+        }
+
+        public void ClearPoseFrame()
+        {
+            PoseFramePath = string.Empty;
+            PoseFrameSource = null;
+            HasPoseFrame = false;
+            _poseFrameSeconds = 0;
+        }
+
+        /// <summary>
+        /// Resolves the pose still for a run: the pinned frame when there is one (never deleted), else a
+        /// throw-away grab at the current playhead. <c>isTemporary</c> tells the caller whether to delete it.
+        /// </summary>
+        private async Task<(string path, bool isTemporary)> ResolvePoseFrameAsync(CancellationToken token)
+        {
+            if (HasPoseFrame && File.Exists(PoseFramePath))
+            {
+                AddLog($"Pose frame: pinned still from {_poseFrameSeconds:F2}s ({Path.GetFileName(PoseFramePath)})");
+                return (PoseFramePath, false);
+            }
+
+            var grabbed = await ExtractFrameAtAsync(InputVideoPath, PlaybackPositionSeconds, token);
+            if (grabbed == null || !File.Exists(grabbed))
+                throw new Exception("Could not grab a frame from the base video (is ffmpeg installed?).");
+            AddLog($"Pose frame: grabbed at {PlaybackPositionSeconds:F2}s → {Path.GetFileName(grabbed)}");
+            return (grabbed, true);
+        }
+
+        #endregion
+
+        #region Replace method + SCAIL II settings
+
+        // Which workflow the single-character "Replace this one only" button runs:
+        //   0 = Klein Flux2 Control (default — more accurate likeness), 1 = Character Replacer (legacy),
+        //   2 = Krea2 Edit (two ref — keeps the base scene composition while swapping the subject in).
+        // The two-character "Replace Both" path always uses the 2-character replacer (Klein Control is
+        // single-subject only), so this selector only affects the single-character swap.
+        private int _charReplaceMethodIndex;
+        public int CharReplaceMethodIndex
+        {
+            get => _charReplaceMethodIndex;
+            set
+            {
+                if (_charReplaceMethodIndex != value)
+                {
+                    _charReplaceMethodIndex = value;
+                    OnPropertyChanged();
+                    OnPropertyChanged(nameof(IsKrea2EditSelected));
+                    OnPropertyChanged(nameof(IsKleinControlSelected));
+                    OnPropertyChanged(nameof(CanAnalyzeKleinPrompt));
+                    OnPropertyChanged(nameof(CanGenerateKleinImage));
+                    AnalyzeKleinPromptCommand?.NotifyCanExecuteChanged();
+                    GenerateKleinImageCommand?.NotifyCanExecuteChanged();
+                    // The status hint is method-specific (Klein has its own Analyze → edit → Generate flow).
+                    RefreshSwapReadiness();
+                }
+            }
+        }
+
+        private bool UseKleinControl => CharReplaceMethodIndex == 0;
+        private bool UseKrea2Edit => CharReplaceMethodIndex == 2;
+
+        // Only the Krea2 Edit path exposes an editable instruction prompt (the Klein/Character Replacer
+        // paths bake their prompt into the workflow), so the prompt field is shown only for that method.
+        public bool IsKrea2EditSelected => CharReplaceMethodIndex == 2;
+
+        // The Klein Flux2 Control path mirrors the Image Generator ▸ Advanced ▸ Control tab: an Analyze
+        // pass runs the workflow's two QwenVL nodes (subject appearance + base-frame pose), shows the
+        // combined prompt for editing, and the swap then generates from the edited text. So this method
+        // gets its own prompt box + Analyze button.
+        public bool IsKleinControlSelected => CharReplaceMethodIndex == 0;
+
+        // Default instruction for the Krea2 Edit (two ref) grounded-encode node (84). The authored
+        // workflow phrasing is gendered ("the woman … facing the man"); this neutral default works for
+        // either sex. The user can edit it in the UI, and it is written into node 84 at run time.
+        private const string DefaultKrea2EditPrompt =
+            "replace the person in image a with the person in image b, keeping the original pose and scene.";
+        private string _krea2EditPrompt = DefaultKrea2EditPrompt;
+        public string Krea2EditPrompt
+        {
+            get => _krea2EditPrompt;
+            set { if (_krea2EditPrompt != value) { _krea2EditPrompt = value; OnPropertyChanged(); } }
+        }
+
+        // Positive prompt for the Klein Flux2 Control path. Empty means "let the workflow write it" —
+        // node 6 keeps its authored link to the combined QwenVL prompt (node 59), exactly as the swap
+        // behaved before. Pressing Analyze fills this in with that generated text so it can be edited,
+        // and any non-empty value is written into the text encoders in place of the link.
+        private string _kleinControlPrompt = string.Empty;
+        public string KleinControlPrompt
+        {
+            get => _kleinControlPrompt;
+            set { if (_kleinControlPrompt != value) { _kleinControlPrompt = value; OnPropertyChanged(); } }
+        }
+
+        // Internal per-chunk window (frames) for the SCAIL II sampler = the SCAILAutoExtend
+        // "chunk_length" / WanSCAILInfinity "window_length". The sampler loops over the clip in windows of
+        // this many frames and only ever holds one window at a time, so this value is the main driver of
+        // peak VRAM. Lowering it splits the clip into smaller chunks to avoid out-of-memory errors on long
+        // videos, at the cost of more chunks and slightly more seams. The value is snapped to 4n+1 (the
+        // WAN latent temporal stride) before it is written into the workflow, and the windows are still
+        // blended back into one continuous output, so this stays user-invisible unless deliberately set.
+        // The workflow's authored driving-video canvas (ImageResizeKJv2 node 199:89), reported in the log
+        // when no resolution override is picked.
+        private const int AuthoredCanvasWidth = 640;
+        private const int AuthoredCanvasHeight = 960;
+
+        private int _videoBatchSize = 40;
+        public int VideoBatchSize
+        {
+            get => _videoBatchSize;
+            set
+            {
+                var v = Math.Max(8, value);
+                if (_videoBatchSize == v) return;
+                _videoBatchSize = v;
+                OnPropertyChanged();
+                // Persist the choice so it survives restarts.
+                if (_settingsService.Settings != null)
+                {
+                    _settingsService.Settings.Scail2VideoBatchSize = v;
+                    _settingsService.SaveSettings(_settingsService.Settings);
+                }
+            }
+        }
+
+        // Output resolution for the final SCAIL II video, as "WxH" (e.g. "1280x720"). Defaults to
+        // 960×544 — the measured sweet spot that survives long clips without OOM (see node-45 comment
+        // in UpdateWorkflowParameters). "0x0" (or empty) instead keeps the workflow's authored
+        // ResolutionMaster default (480×853 portrait); any concrete value forces the generation canvas
+        // (EmptyImage node 30) to exactly that size. Pushing to 1280×720 is only safe on short trims,
+        // as it OOMs the server on full-length clips. Persisted so the choice survives restarts.
+        private string _outputResolution = "960x544";
+        public string OutputResolution
+        {
+            get => _outputResolution;
+            set
+            {
+                var v = string.IsNullOrWhiteSpace(value) ? "0x0" : value.Trim();
+                if (_outputResolution == v) return;
+                _outputResolution = v;
+                OnPropertyChanged();
+                if (_settingsService.Settings != null)
+                {
+                    _settingsService.Settings.Scail2Resolution = v;
+                    _settingsService.SaveSettings(_settingsService.Settings);
+                }
+            }
+        }
+
+        // User-facing "Keep original background" toggle for the Scail 2 tab. This is the inverse of the
+        // inherited ReplaceBackground: when checked, SCAIL2 runs in replacement mode (node 39 = true),
+        // compositing the driving video's real background every frame and regenerating only the swapped
+        // character. That stops a static background (e.g. a waterfall) colour-drifting or softening across
+        // the autoregressive chunks. Unchecked regenerates the whole frame (animation mode). Persisted.
+        public bool KeepOriginalBackground
+        {
+            get => !ReplaceBackground;
+            set
+            {
+                var replace = !value;
+                if (ReplaceBackground == replace) return;
+                ReplaceBackground = replace;
+                OnPropertyChanged();
+                if (_settingsService.Settings != null)
+                {
+                    _settingsService.Settings.Scail2KeepOriginalBackground = value;
+                    _settingsService.SaveSettings(_settingsService.Settings);
+                }
+            }
+        }
+
+        // Runs the workflow's post pass — RIFE 2× frame interpolation followed by the RTX Video Super
+        // Resolution 2× upscale — instead of saving the raw sampler output. Doubles the frame rate and the
+        // resolution, at the cost of a longer run and two extra custom-node dependencies (RIFE VFI and
+        // nvidia-vfx), so it stays off by default. Whichever branch is off is stripped from the submitted
+        // graph, leaving exactly one saved video for the history reader to find. Persisted.
+        private bool _interpolateAndUpscale;
+        public bool InterpolateAndUpscale
+        {
+            get => _interpolateAndUpscale;
+            set
+            {
+                if (_interpolateAndUpscale == value) return;
+                _interpolateAndUpscale = value;
+                OnPropertyChanged();
+                if (_settingsService.Settings != null)
+                {
+                    _settingsService.Settings.Scail2Interpolate = value;
+                    _settingsService.SaveSettings(_settingsService.Settings);
+                }
+            }
+        }
+
+        // Parses OutputResolution into (width, height). Returns (0, 0) for the "keep authored default"
+        // sentinel or any unparseable/non-positive value, so the workflow is left untouched in that case.
+        private (int width, int height) ParseOutputResolution()
+        {
+            var parts = (_outputResolution ?? string.Empty).Split('x', 'X');
+            if (parts.Length == 2
+                && int.TryParse(parts[0].Trim(), out var w)
+                && int.TryParse(parts[1].Trim(), out var h)
+                && w > 0 && h > 0)
+                return (w, h);
+            return (0, 0);
+        }
+
         #endregion
 
         #region Commands
@@ -217,6 +594,10 @@ namespace FlipPix.UI.ViewModels.Video
         public RelayCommand BrowseFinalImageCommand { get; }
         public RelayCommand SwapCharactersCommand { get; }
         public RelayCommand SwapChar1OnlyCommand { get; }
+        public RelayCommand AnalyzeKleinPromptCommand { get; }
+        public RelayCommand GenerateKleinImageCommand { get; }
+        public RelayCommand UsePoseFrameCommand { get; }
+        public RelayCommand ClearPoseFrameCommand { get; }
         public RelayCommand RemoveChar1Command { get; }
         public RelayCommand RemoveChar2Command { get; }
 
@@ -225,6 +606,14 @@ namespace FlipPix.UI.ViewModels.Video
 
         // The single-character button only needs a base video + Character 1.
         public bool CanSwapChar1Only => HasInputVideo && HasChar1Image && !IsCharSwapping;
+
+        // Analyze is Klein-Control-only and needs the same two inputs as the single-character swap
+        // (Character 1 = the subject QwenVL describes, base frame = the pose QwenVL describes).
+        public bool CanAnalyzeKleinPrompt => IsKleinControlSelected && HasInputVideo && HasChar1Image && !IsCharSwapping;
+
+        // Step 3 of the Control-tab flow: generate (and re-generate) from the edited prompt. Same inputs
+        // as Analyze — an empty prompt box just means "let QwenVL write it", as it always has.
+        public bool CanGenerateKleinImage => CanAnalyzeKleinPrompt;
 
         private async Task BrowseChar1Async()
         {
@@ -337,8 +726,15 @@ namespace FlipPix.UI.ViewModels.Video
         {
             OnPropertyChanged(nameof(CanSwapCharacters));
             OnPropertyChanged(nameof(CanSwapChar1Only));
+            OnPropertyChanged(nameof(CanAnalyzeKleinPrompt));
+            OnPropertyChanged(nameof(CanGenerateKleinImage));
+            OnPropertyChanged(nameof(CanUsePoseFrame));
             SwapCharactersCommand?.NotifyCanExecuteChanged();
             SwapChar1OnlyCommand?.NotifyCanExecuteChanged();
+            AnalyzeKleinPromptCommand?.NotifyCanExecuteChanged();
+            GenerateKleinImageCommand?.NotifyCanExecuteChanged();
+            UsePoseFrameCommand?.NotifyCanExecuteChanged();
+            ClearPoseFrameCommand?.NotifyCanExecuteChanged();
 
             if (IsCharSwapping) return;
             if (HasCharSwapResult)
@@ -356,6 +752,13 @@ namespace FlipPix.UI.ViewModels.Video
                 CharSwapStatus = "Add Character 1 (and optionally Character 2), then press Swap";
                 return;
             }
+            if (IsKleinControlSelected)
+            {
+                CharSwapStatus = HasPoseFrame
+                    ? "Pose frame pinned — press Analyze, edit the prompt, then Generate image"
+                    : "Scrub to a frame and press “📌 Use this frame”, then Analyze → edit prompt → Generate";
+                return;
+            }
             CharSwapStatus = HasChar2Image
                 ? "Scrub to a frame showing both people, then press “Swap characters”"
                 : "Scrub to a frame, then press “Swap (Char 1)” — or add Character 2 for a two-person swap";
@@ -370,6 +773,7 @@ namespace FlipPix.UI.ViewModels.Video
             _charSwapCts = CancellationTokenSource.CreateLinkedTokenSource(App.ShutdownToken);
             var token = _charSwapCts.Token;
             string? baseStill = null;
+            bool baseStillIsTemp = false;
 
             try
             {
@@ -377,12 +781,9 @@ namespace FlipPix.UI.ViewModels.Video
                 HasCharSwapResult = false;
                 AddLog("=== Scail 2: char-swap stage ===");
 
-                // 1) Grab the current scrub frame as the base still for the swap.
+                // 1) Take the pinned pose frame, or grab the current scrub frame if nothing is pinned.
                 CharSwapStatus = "Grabbing base frame…";
-                baseStill = await ExtractFrameAtAsync(InputVideoPath, PlaybackPositionSeconds, token);
-                if (baseStill == null || !File.Exists(baseStill))
-                    throw new Exception("Could not grab a frame from the base video (is ffmpeg installed?).");
-                AddLog($"Base frame at {PlaybackPositionSeconds:F2}s → {Path.GetFileName(baseStill)}");
+                (baseStill, baseStillIsTemp) = await ResolvePoseFrameAsync(token);
 
                 // 2) Run the Flux.2 Character Replacer (2 characters) workflow. Character 1 → left
                 //    (node 40), Character 2 → right (node 60), base frame = pose (node 39). The left/right
@@ -420,7 +821,7 @@ namespace FlipPix.UI.ViewModels.Video
             }
             finally
             {
-                if (!string.IsNullOrEmpty(baseStill))
+                if (baseStillIsTemp && !string.IsNullOrEmpty(baseStill))
                     try { File.Delete(baseStill); } catch { }
                 IsCharSwapping = false;
             }
@@ -436,24 +837,32 @@ namespace FlipPix.UI.ViewModels.Video
             if (IsCharSwapping) return;
             if (!HasInputVideo || !HasChar1Image) return;
 
+            // Klein Flux2 Control has its own Analyze → edit → Generate flow (the Control tab's steps 1–3),
+            // so the button just runs step 3 with whatever is in the prompt box.
+            if (UseKleinControl)
+            {
+                await RunKleinGenerateAsync();
+                return;
+            }
+
             _charSwapCts?.Dispose();
             _charSwapCts = CancellationTokenSource.CreateLinkedTokenSource(App.ShutdownToken);
             var token = _charSwapCts.Token;
             string? baseStill = null;
+            bool baseStillIsTemp = false;
 
             try
             {
                 IsCharSwapping = true;
                 HasCharSwapResult = false;
-                AddLog("=== Scail 2: single-character swap (Character 1, Character Replacer v2.4) ===");
+                bool useKrea2 = UseKrea2Edit;
+                string methodName = useKrea2 ? "Krea2 Edit (two ref)" : "Character Replacer v2.4";
+                AddLog($"=== Scail 2: single-character swap (Character 1, {methodName}) ===");
 
                 CharSwapStatus = "Grabbing base frame…";
-                baseStill = await ExtractFrameAtAsync(InputVideoPath, PlaybackPositionSeconds, token);
-                if (baseStill == null || !File.Exists(baseStill))
-                    throw new Exception("Could not grab a frame from the base video (is ffmpeg installed?).");
-                AddLog($"Base frame at {PlaybackPositionSeconds:F2}s → {Path.GetFileName(baseStill)}");
+                (baseStill, baseStillIsTemp) = await ResolvePoseFrameAsync(token);
 
-                CharSwapStatus = "Running Character Replacer (subject + pose)…";
+                CharSwapStatus = $"Running {methodName} (subject + pose)…";
                 using var lease = await _workflowCoordinator.AcquireAsync("Scail2CharSwap", token);
 
                 if (!_comfyUIService.IsConnected)
@@ -462,13 +871,24 @@ namespace FlipPix.UI.ViewModels.Video
                     AddLog("Connected to ComfyUI");
                 }
 
-                // Character 1 = subject/likeness (node 40); base frame = pose source (node 39).
+                // Character 1 = subject/likeness; base frame = pose source.
                 var uploadedSubject = await _comfyUIService.UploadImageAsync(Char1ImagePath, token);
                 var uploadedPose = await _comfyUIService.UploadImageAsync(baseStill, token);
                 AddLog($"Uploaded subject(char1)={uploadedSubject} pose(base)={uploadedPose}");
 
-                var workflow = BuildCharReplacerWorkflow(uploadedSubject, uploadedPose);
-                await ExecuteKleinAndAdoptAsync(workflow, KleinCharReplacerSavePrefix, token);
+                if (useKrea2)
+                {
+                    // Match the output aspect ratio to the base scene frame (landscape stays landscape,
+                    // portrait stays portrait) instead of the workflow's authored 1:1 default.
+                    var (targetW, targetH) = ComputeKrea2TargetDimensions(baseStill);
+                    var workflow = BuildKrea2EditWorkflow(uploadedSubject, uploadedPose, targetW, targetH);
+                    await ExecuteKleinAndAdoptAsync(workflow, Krea2EditSavePrefix, token);
+                }
+                else
+                {
+                    var workflow = BuildCharReplacerWorkflow(uploadedSubject, uploadedPose);
+                    await ExecuteKleinAndAdoptAsync(workflow, KleinCharReplacerSavePrefix, token);
+                }
 
                 CharSwapStatus = "Character image ready — set the In/Out markers to generate the video";
                 AddLog("=== Single-character swap complete ===");
@@ -485,7 +905,7 @@ namespace FlipPix.UI.ViewModels.Video
             }
             finally
             {
-                if (!string.IsNullOrEmpty(baseStill))
+                if (baseStillIsTemp && !string.IsNullOrEmpty(baseStill))
                     try { File.Delete(baseStill); } catch { }
                 IsCharSwapping = false;
             }
@@ -504,6 +924,12 @@ namespace FlipPix.UI.ViewModels.Video
             if (bytes == null)
                 throw new Exception("No image returned from the Klein workflow — check ComfyUI logs.");
 
+            await SaveAndAdoptCharacterImageAsync(bytes, token);
+        }
+
+        // Writes a generated still to output/scail2 and adopts it as the SCAIL II character image.
+        private async Task SaveAndAdoptCharacterImageAsync(byte[] bytes, CancellationToken token)
+        {
             var outDir = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "output", "scail2");
             Directory.CreateDirectory(outDir);
             var resultPath = Path.Combine(outDir, $"charswap_{DateTime.Now:yyyyMMdd_HHmmss}.png");
@@ -517,6 +943,211 @@ namespace FlipPix.UI.ViewModels.Video
                 CharacterImagePath = resultPath;
             });
             AddLog($"Saved character image: {Path.GetFileName(resultPath)}");
+        }
+
+        /// <summary>
+        /// Step 1 of the Image Generator ▸ Advanced ▸ Control flow. Runs the Klein Control workflow with
+        /// its authored wiring, so the two QwenVL nodes write the prompt themselves, and reads the combined
+        /// text back out of ShowText node 59 into <see cref="KleinControlPrompt"/> for editing. The pass
+        /// also produces a finished image, so that image is adopted as the character image.
+        /// </summary>
+        public Task RunKleinAnalyzeAsync() => RunKleinControlPassAsync(isAnalyze: true);
+
+        /// <summary>
+        /// Step 3 of the same flow: generate from the (edited) prompt. Re-runnable — press it again for
+        /// another take when the first image isn't good enough; each run reseeds node 7, and the pinned
+        /// pose frame keeps every take on the same pose. An empty prompt box falls back to letting QwenVL
+        /// write the prompt, exactly as the swap behaved before.
+        /// </summary>
+        public Task RunKleinGenerateAsync() => RunKleinControlPassAsync(isAnalyze: false);
+
+        // Shared Klein Control pass. Analyze runs the workflow with its authored QwenVL wiring and reads
+        // the generated prompt back; Generate feeds the prompt box text into node 6 instead. Both adopt
+        // the resulting image as the SCAIL II character image.
+        private async Task RunKleinControlPassAsync(bool isAnalyze)
+        {
+            if (IsCharSwapping) return;
+            if (!IsKleinControlSelected || !HasInputVideo || !HasChar1Image) return;
+
+            _charSwapCts?.Dispose();
+            _charSwapCts = CancellationTokenSource.CreateLinkedTokenSource(App.ShutdownToken);
+            var token = _charSwapCts.Token;
+            string? baseStill = null;
+            bool baseStillIsTemp = false;
+
+            // Analyze always runs the QwenVL wiring; Generate uses the prompt box, and only falls back to
+            // QwenVL when it is empty (in which case the generated text is worth reading back too).
+            var typedPrompt = string.IsNullOrWhiteSpace(KleinControlPrompt) ? null : KleinControlPrompt;
+            string? customPrompt = isAnalyze ? null : typedPrompt;
+            bool readPromptBack = customPrompt == null;
+
+            try
+            {
+                IsCharSwapping = true;
+                if (!isAnalyze) HasCharSwapResult = false;
+                KleinProgress = 0;
+                AddLog(isAnalyze
+                    ? "=== Scail 2: Klein Control analyze (QwenVL subject + pose) ==="
+                    : "=== Scail 2: Klein Control generate ===");
+
+                CharSwapStatus = "Grabbing base frame…";
+                (baseStill, baseStillIsTemp) = await ResolvePoseFrameAsync(token);
+
+                CharSwapStatus = isAnalyze ? "Analyzing subject + pose…" : "Running Klein Flux2 Control…";
+                using var lease = await _workflowCoordinator.AcquireAsync(
+                    isAnalyze ? "Scail2KleinAnalyze" : "Scail2KleinGenerate", token);
+
+                if (!_comfyUIService.IsConnected)
+                {
+                    await _comfyUIService.ConnectAsync(token);
+                    AddLog("Connected to ComfyUI");
+                }
+
+                KleinProgress = 10;
+                var uploadedSubject = await _comfyUIService.UploadImageAsync(Char1ImagePath, token);
+                var uploadedPose = await _comfyUIService.UploadImageAsync(baseStill, token);
+                AddLog($"Uploaded subject(char1)={uploadedSubject} pose(base)={uploadedPose}");
+
+                KleinProgress = 18;
+                var workflow = BuildKleinControlWorkflow(uploadedSubject, uploadedPose, baseStill, customPrompt);
+
+                // Same live sampler progress the Control tab shows.
+                var reporter = new Progress<FlipPix.ComfyUI.Models.ProgressMessage>(msg =>
+                {
+                    if (msg.Data?.Value == null || msg.Data?.Max == null || msg.Data.Max <= 0) return;
+                    var pct = (double)msg.Data.Value / msg.Data.Max * 100;
+                    Application.Current?.Dispatcher.Invoke(() =>
+                    {
+                        KleinProgress = 18 + pct * 0.72;
+                        CharSwapStatus = $"Generating: {msg.Data.Value}/{msg.Data.Max}";
+                    });
+                });
+
+                var promptId = await _comfyUIService.ExecuteWorkflowAsync(workflow, reporter, token);
+                AddLog($"Klein {(isAnalyze ? "analyze" : "generate")} submitted: {promptId}");
+
+                if (readPromptBack)
+                {
+                    KleinProgress = 92;
+                    CharSwapStatus = "Reading generated prompt…";
+                    var text = await GetTextFromHistoryAsync(promptId, "59", token);
+                    if (!string.IsNullOrWhiteSpace(text))
+                    {
+                        var cleaned = StripThinkingTokens(text);
+                        Application.Current?.Dispatcher.Invoke(() => KleinControlPrompt = cleaned);
+                        AddLog($"Generated prompt ({cleaned.Length} chars): {cleaned}");
+                    }
+                    else
+                    {
+                        AddLog("WARNING: no text returned from ShowText node 59");
+                    }
+                }
+
+                // Every pass produces an image — adopt it so the run isn't wasted.
+                CharSwapStatus = "Retrieving image…";
+                var bytes = await RetrieveKleinImageAsync(promptId, KleinControlSavePrefix, token);
+                if (bytes != null)
+                    await SaveAndAdoptCharacterImageAsync(bytes, token);
+                else
+                    AddLog($"WARNING: {(isAnalyze ? "analyze" : "generate")} produced no image");
+
+                KleinProgress = 100;
+                CharSwapStatus = isAnalyze
+                    ? (string.IsNullOrWhiteSpace(KleinControlPrompt)
+                        ? "Analyze finished but no prompt came back — check ComfyUI logs"
+                        : "Prompt ready — edit it, then press “Generate image” for another take")
+                    : "Character image ready — press “Generate image” again for another take, or set the In/Out markers";
+                AddLog($"=== Klein Control {(isAnalyze ? "analyze" : "generate")} complete ===");
+            }
+            catch (OperationCanceledException)
+            {
+                CharSwapStatus = isAnalyze ? "Analyze cancelled" : "Generate cancelled";
+                KleinProgress = 0;
+                AddLog($"Klein Control {(isAnalyze ? "analyze" : "generate")} cancelled");
+            }
+            catch (Exception ex)
+            {
+                CharSwapStatus = $"{(isAnalyze ? "Analyze" : "Generate")} failed: {ex.Message}";
+                KleinProgress = 0;
+                AddLog($"ERROR (Klein {(isAnalyze ? "analyze" : "generate")}): {ex.GetType().Name}: {ex.Message}");
+            }
+            finally
+            {
+                if (baseStillIsTemp && !string.IsNullOrEmpty(baseStill))
+                    try { File.Delete(baseStill); } catch { }
+                IsCharSwapping = false;
+            }
+        }
+
+        // Polls /history for a text output (ShowText|pysssss) on the given node. Mirrors the Image
+        // Generator's Klein Control reader: the text can lag the execution-complete signal slightly, so
+        // it retries for ~20 s before giving up.
+        private async Task<string?> GetTextFromHistoryAsync(string promptId, string nodeId, CancellationToken token)
+        {
+            var baseUrl = _settingsService.Settings?.BaseUrl ?? "http://127.0.0.1:8188";
+            Uri uri;
+            try { uri = new Uri(baseUrl); } catch { uri = new Uri("http://127.0.0.1:8188"); }
+
+            for (int i = 0; i < 10; i++)
+            {
+                if (i > 0) await Task.Delay(2000, token);
+                token.ThrowIfCancellationRequested();
+                try
+                {
+                    using var http = new System.Net.Http.HttpClient { BaseAddress = uri };
+                    var response = await http.GetAsync("/history", token);
+                    if (!response.IsSuccessStatusCode) continue;
+                    var history = JsonSerializer.Deserialize<Dictionary<string, JsonElement>>(
+                        await response.Content.ReadAsStringAsync(token));
+                    if (history == null || !history.TryGetValue(promptId, out var entry)) continue;
+                    JsonElement outputs = default;
+                    if (!entry.TryGetProperty("outputs", out outputs) &&
+                        !(entry.TryGetProperty("result", out var r) && r.TryGetProperty("outputs", out outputs)))
+                        continue;
+                    if (outputs.TryGetProperty(nodeId, out var nodeOut) &&
+                        nodeOut.TryGetProperty("text", out var textArr) &&
+                        textArr.ValueKind == JsonValueKind.Array)
+                    {
+                        var sb = new System.Text.StringBuilder();
+                        foreach (var el in textArr.EnumerateArray())
+                        {
+                            var s = el.GetString();
+                            if (!string.IsNullOrWhiteSpace(s)) sb.AppendLine(s);
+                        }
+                        var text = sb.ToString().Trim();
+                        if (!string.IsNullOrWhiteSpace(text)) return text;
+                    }
+                }
+                catch (OperationCanceledException) { throw; }
+                catch (Exception ex) { AddLog($"History poll: {ex.Message}"); }
+            }
+            return null;
+        }
+
+        // Drops <think>…</think> blocks and the commentary some QwenVL builds append after the prompt,
+        // so only the usable prompt text reaches the editor. Same cleanup as the Image Generator's
+        // Klein Control tab.
+        private static string StripThinkingTokens(string text)
+        {
+            var opts = System.Text.RegularExpressions.RegexOptions.IgnoreCase;
+            var result = System.Text.RegularExpressions.Regex.Replace(
+                text, @"<think>[\s\S]*?</think>", string.Empty, opts).Trim();
+            var kept = new List<string>();
+            bool hasContent = false;
+            foreach (var line in result.Split('\n'))
+            {
+                var t = line.Trim();
+                if (hasContent && string.IsNullOrWhiteSpace(t)) break;
+                if (string.IsNullOrWhiteSpace(t)) continue;
+                if (System.Text.RegularExpressions.Regex.IsMatch(t, @"^\(?(Note|Note:)\b", opts)) break;
+                if (System.Text.RegularExpressions.Regex.IsMatch(t, @"^\(\d+\)\s+The (input|output)\b", opts)) break;
+                if (System.Text.RegularExpressions.Regex.IsMatch(t, @"^(Therefore|However|Additionally|The original|I'll ensure|Since we must|Corrected version)\b", opts)) break;
+                if (System.Text.RegularExpressions.Regex.IsMatch(t, @"(corrected version should read|per instructions|based on instruction)", opts)) break;
+                if (hasContent && t.Length > 40 && kept.Any(k => k.Contains(t.Substring(0, Math.Min(40, t.Length))))) break;
+                hasContent = true;
+                kept.Add(System.Text.RegularExpressions.Regex.Replace(line, @"\*\*", string.Empty));
+            }
+            return string.Join("\n", kept).Trim();
         }
 
         // Flux.2 Character Replacer (2 characters): LoadImage 40 = Character 1 (left), 60 = Character 2
@@ -575,6 +1206,168 @@ namespace FlipPix.UI.ViewModels.Video
             UpdateNode(dict, "28:174", inputs => inputs["noise_seed"] = rng.NextInt64(0, 999_999_999_999_999L)); // face fix
 
             return JsonSerializer.SerializeToElement(dict);
+        }
+
+        // Klein Flux2 Control (flux2_klein_control_netAPI) — the same pipeline and models as the Image
+        // Generator ▸ Advanced ▸ Control tab. LoadImage 1 = reference/subject (likeness), LoadImage 19 =
+        // pose source (base scene frame), node 7 = RandomNoise. node 9 saves with the "flux2_klein" prefix
+        // and the graph sizes the output to the pose image, keeping the base scene's aspect.
+        //
+        // customPrompt == null: leave the authored wiring, so QwenVL writes the prompt itself (node 57 =
+        // subject appearance, node 62 = pose description, combined at 63 and shown by 59). That is the
+        // Analyze pass, and it is also what Generate does when the prompt box is empty.
+        //
+        // customPrompt set: write the text into node 6 (the base Flux.2 positive encode) and nothing else.
+        // This deliberately mirrors KleinControlViewModel.BuildWorkflow line for line — an earlier version
+        // here also overrode node 201 (the PiD 4K encode) and pruned the QwenVL chain, which changed the
+        // images relative to the Control tab. The graph is left exactly as the Control tab submits it.
+        private JsonElement BuildKleinControlWorkflow(string uploadedSubject, string uploadedPose, string? posePath, string? customPrompt)
+        {
+            var workflowPath = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, KleinControlWorkflowFile);
+            if (!File.Exists(workflowPath))
+                throw new FileNotFoundException($"Klein Control workflow not found: {workflowPath}");
+
+            var dict = JsonSerializer.Deserialize<Dictionary<string, JsonElement>>(File.ReadAllText(workflowPath))
+                ?? throw new InvalidOperationException("Failed to parse Klein Control workflow JSON");
+
+            UpdateNode(dict, "1", inputs => inputs["image"] = uploadedSubject); // reference = Character 1
+            UpdateNode(dict, "19", inputs => inputs["image"] = uploadedPose);    // pose = base scene frame
+            UpdateNode(dict, "7", inputs => inputs["noise_seed"] = new Random().NextInt64(0, 999_999_999_999_999L));
+
+            // Size both stages from one base size instead of letting the graph derive them from two
+            // independent rescales (1 MP via nodes 17/45/46, 16 MP via nodes 205/206). That mismatch
+            // put the long axis at ~5461 px on a 9:16 frame and tinted the bottom quarter. Keeping the
+            // canvas at exactly 4x the base is what the other PiD workflows in this repo do.
+            var (baseWidth, baseHeight) = ComputeBaseSize(posePath);
+            int pidWidth = baseWidth * PidScale;
+            int pidHeight = baseHeight * PidScale;
+
+            UpdateNode(dict, "8:17", inputs => { inputs["width"] = baseWidth; inputs["height"] = baseHeight; });
+            UpdateNode(dict, "8:18", inputs => { inputs["width"] = baseWidth; inputs["height"] = baseHeight; });
+            UpdateNode(dict, "207", inputs => { inputs["width"] = pidWidth; inputs["height"] = pidHeight; });
+            AddLog($"Klein Control base {baseWidth}x{baseHeight} → PiD canvas {pidWidth}x{pidHeight}");
+
+            if (customPrompt != null)
+            {
+                UpdateNode(dict, "6", inputs => inputs["text"] = customPrompt);
+                AddLog($"Klein Control prompt (user): {customPrompt}");
+            }
+            else
+            {
+                AddLog("Klein Control prompt: auto (QwenVL appearance + pose)");
+            }
+
+            return JsonSerializer.SerializeToElement(dict);
+        }
+
+        // Base render size at the pose frame's aspect: ~1 MP, but never more than MaxBaseAxis on the
+        // long edge so the 4x PiD canvas stays inside MaxPidAxis.
+        private (int Width, int Height) ComputeBaseSize(string? posePath)
+        {
+            int srcW = 1024, srcH = 1024;
+            try
+            {
+                using var stream = File.OpenRead(posePath!);
+                var frame = BitmapFrame.Create(stream, BitmapCreateOptions.DelayCreation, BitmapCacheOption.None);
+                if (frame.PixelWidth > 0 && frame.PixelHeight > 0)
+                {
+                    srcW = frame.PixelWidth;
+                    srcH = frame.PixelHeight;
+                }
+            }
+            catch (Exception ex)
+            {
+                AddLog($"Could not read pose frame dimensions ({ex.Message}) — using {srcW}x{srcH}");
+            }
+
+            var scale = Math.Sqrt(BaseTargetPixels / ((double)srcW * srcH));
+            scale = Math.Min(scale, (double)MaxBaseAxis / Math.Max(srcW, srcH));
+
+            return (SnapToBlock(srcW * scale), SnapToBlock(srcH * scale));
+        }
+
+        private static int SnapToBlock(double value)
+            => Math.Clamp((int)Math.Round(value / 16.0) * 16, 256, MaxBaseAxis);
+
+        // Krea2 Edit (two ref): LoadImage 72 = image A (base scene frame, the person to replace),
+        // LoadImage 86 = image B (subject/likeness = Character 1). The grounded-encode prompt (node 84)
+        // replaces the person in image A with the subject in image B; node 53 is the KSampler (reseeded)
+        // and node 29 saves with the "krea2_edit" prefix. The graph sizes the output from the Resolution
+        // Selector (node 83), and the prompt is authored inside the workflow, so we only wire the two
+        // images and reseed the sampler.
+        private JsonElement BuildKrea2EditWorkflow(string uploadedSubject, string uploadedPose, int targetWidth, int targetHeight)
+        {
+            var workflowPath = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, Krea2EditWorkflowFile);
+            if (!File.Exists(workflowPath))
+                throw new FileNotFoundException($"Krea2 Edit workflow not found: {workflowPath}");
+
+            var dict = JsonSerializer.Deserialize<Dictionary<string, JsonElement>>(File.ReadAllText(workflowPath))
+                ?? throw new InvalidOperationException("Failed to parse Krea2 Edit workflow JSON");
+
+            UpdateNode(dict, "72", inputs => inputs["image"] = uploadedPose);    // image A = base scene frame
+            UpdateNode(dict, "86", inputs => inputs["image"] = uploadedSubject); // image B = Character 1
+
+            // Node 84 = grounded-encode instruction. Use the user's edited prompt, falling back to the
+            // authored default if it was cleared.
+            var editPrompt = string.IsNullOrWhiteSpace(Krea2EditPrompt) ? DefaultKrea2EditPrompt : Krea2EditPrompt.Trim();
+            UpdateNode(dict, "84", inputs => inputs["prompt"] = editPrompt);
+            AddLog($"Krea2 Edit prompt: {editPrompt}");
+
+            // Match the output to the base frame's aspect ratio instead of the authored 1:1. The
+            // ResolutionSelector (node 83) feeds both the latent size (node 82) and the pose resize
+            // (node 77); overriding those literal width/height detaches them from the square selector so
+            // a landscape frame produces a landscape image (and portrait → portrait). targetWidth == 0
+            // means we couldn't read the frame, so leave the authored square wiring in that case.
+            if (targetWidth > 0 && targetHeight > 0)
+            {
+                UpdateNode(dict, "82", inputs => { inputs["width"] = targetWidth; inputs["height"] = targetHeight; });
+                UpdateNode(dict, "77", inputs =>
+                {
+                    inputs["resize_type.width"] = targetWidth;
+                    inputs["resize_type.height"] = targetHeight;
+                });
+                AddLog($"Krea2 Edit output size matched to base frame: {targetWidth}×{targetHeight}");
+            }
+
+            // Reseed the sampler so successive runs differ.
+            UpdateNode(dict, "53", inputs => inputs["seed"] = new Random().NextInt64(0, 999_999_999_999_999L));
+
+            return JsonSerializer.SerializeToElement(dict);
+        }
+
+        // Derives an output width/height that matches the base frame's aspect ratio, at ~1 megapixel
+        // (matching the workflow's authored megapixels) and rounded to a multiple of 8 (Krea2/Flux latent
+        // requirement). Returns (0, 0) if the frame dimensions can't be read, so the caller keeps the
+        // workflow's authored square default.
+        private (int width, int height) ComputeKrea2TargetDimensions(string? baseFramePath, double megapixels = 1.0)
+        {
+            try
+            {
+                if (string.IsNullOrEmpty(baseFramePath) || !File.Exists(baseFramePath)) return (0, 0);
+
+                int srcW, srcH;
+                using (var stream = File.OpenRead(baseFramePath))
+                {
+                    var decoder = BitmapDecoder.Create(stream, BitmapCreateOptions.IgnoreColorProfile, BitmapCacheOption.None);
+                    srcW = decoder.Frames[0].PixelWidth;
+                    srcH = decoder.Frames[0].PixelHeight;
+                }
+                if (srcW <= 0 || srcH <= 0) return (0, 0);
+
+                double aspect = srcW / (double)srcH;
+                double area = megapixels * 1_000_000.0;
+                double h = Math.Sqrt(area / aspect);
+                double w = aspect * h;
+
+                int W = Math.Max(8, (int)(Math.Round(w / 8.0) * 8));
+                int H = Math.Max(8, (int)(Math.Round(h / 8.0) * 8));
+                return (W, H);
+            }
+            catch (Exception ex)
+            {
+                AddLog($"Krea2 Edit: could not read base frame size ({ex.Message}); using authored square output");
+                return (0, 0);
+            }
         }
 
         private static void UpdateNode(
@@ -699,16 +1492,16 @@ namespace FlipPix.UI.ViewModels.Video
 
         #endregion
 
-        #region Stage B — workflow (high-res-fix long video)
+        #region Stage B — workflow (SCAIL-2 segmentation control)
 
-        // Scail 2 uses the "Long Videos High-Res Fix" SCAIL-2 workflow instead of the simple
-        // single-node one inherited from WanScailGgufViewModel. It loops over the whole clip
-        // internally (VideoChunkPlanner + forLoopStart/forLoopEnd, BlendVideoChunks crossfade),
-        // so the C# side still runs one whole-video execution (FramesPerChunk == int.MaxValue,
-        // inherited). The node layout is completely different from the simple workflow, so the
-        // whole UpdateWorkflowParameters mapping is overridden below.
+        // Scail 2 uses the "Wan SCAIL-2 segmentation control" workflow instead of the simple single-node
+        // one inherited from WanScailGgufViewModel. Its sampler (SCAILAutoExtend, node 199:180) walks the
+        // whole clip autoregressively in overlapping windows, so the C# side still runs one whole-video
+        // execution (FramesPerChunk == int.MaxValue, inherited). The node layout is completely different
+        // from both the simple workflow and the previous hi-res-fix one, so the whole
+        // UpdateWorkflowParameters mapping is overridden below.
         protected override string WorkflowFileName =>
-            Path.Combine("video", "wan", "scail2LongVideosHighResFix_v10 (1).json");
+            Path.Combine("video", "wan", "Wan SCAIL-2 segmentation control.json");
 
         protected override JsonElement UpdateWorkflowParameters(
             JsonElement workflow,
@@ -725,86 +1518,153 @@ namespace FlipPix.UI.ViewModels.Video
             int outputHeight = 0,
             WanScailQueueItem? item = null)
         {
-            // Drop the terminal preview sinks (pose-mask preview 105, input-video preview 110, and
-            // the SAM object-id preview 245) so the only video that lands in /history is the final
-            // combine (node 238). TryGetVideoFromHistoryAsync takes the first mp4 it finds and does
-            // not filter out save_output=false temp previews, so leaving these in risks returning a
-            // preview clip instead of the result. They are terminal (nothing reads their output), so
-            // removing them only skips preview-only rendering.
             var dict = JsonSerializer.Deserialize<Dictionary<string, JsonElement>>(workflow.GetRawText())
-                ?? throw new InvalidOperationException("Failed to parse SCAIL2 hi-res workflow JSON");
-            foreach (var previewNode in new[] { "105", "110", "245" })
+                ?? throw new InvalidOperationException("Failed to parse SCAIL2 segmentation-control workflow JSON");
+
+            // TryGetVideoFromHistoryAsync takes the FIRST mp4 the prompt produced and does not filter out
+            // save_output=false temp previews, so every video sink except the final combine has to go:
+            //   88      "Segmented Input Video"  — the coloured SAM mask rendered over the driving clip
+            //   199:609 "Preview Video"          — the same mask stack, inside the SCAIL subgraph
+            //   199:617 "Preview  Image"         — the per-frame mask preview
+            //   92      "Segmented Input Image"  — a PreviewImage (no mp4, but pure preview work)
+            // All four are terminal (nothing reads their output), so removing them only skips rendering.
+            foreach (var previewNode in new[] { "88", "92", "199:609", "199:617" })
                 dict.Remove(previewNode);
+
+            // Audio: node 414 picks between an uploaded mp3 (node 204) and the driving video's own audio
+            // (node 207 output 2), and the authored graph selects the video. Node 204 still names a
+            // hard-coded "ltx_flow.mp3" that will not exist on the server, and ComfyUI validates inputs it
+            // never executes, so the whole prompt would be rejected. Point both switch branches at the
+            // video's audio and drop the upload node — matching the previous workflow, which also fed the
+            // final combine from the driving video's audio track.
+            var videoAudio = new object[] { "207", 2 };
+            UpdateNode(dict, "414", inputs => { inputs["input1"] = videoAudio; inputs["input2"] = videoAudio; });
+            dict.Remove("204");
+
+            // Post pass: node 624 chooses between the RIFE-interpolated frames (1) and the raw sampler
+            // frames (2). The interpolated branch continues into the RTX upscale (196) and is saved by
+            // node 8; the raw branch is saved by node 425. Keeping both leaves two mp4s in /history, so we
+            // keep exactly one — the unselected sink (and, when off, the RIFE + RTX nodes themselves) is
+            // removed. Node 425 is re-pointed at node 624 so the authored VRAM-cleanup chain
+            // (436 → 430 cleanGpuUsed → 520 clearCacheAll → 602) still runs on the raw path.
+            bool interpolate = InterpolateAndUpscale;
+            string finalCombineNode;
+            if (interpolate)
+            {
+                UpdateNode(dict, "624", inputs => inputs["select"] = 1);
+                dict.Remove("425");
+                finalCombineNode = "8";
+            }
+            else
+            {
+                // Both branches of 624 have to point at the raw frames (602) before 599 goes, otherwise the
+                // unselected input1 is a link to a node that no longer exists and ComfyUI rejects the whole
+                // prompt at validation — it checks every declared input, including ones a lazy switch will
+                // never pull on.
+                var rawFrames = new object[] { "602", 0 };
+                UpdateNode(dict, "624", inputs =>
+                {
+                    inputs["select"] = 2;
+                    inputs["input1"] = rawFrames;
+                    inputs["input2"] = rawFrames;
+                });
+                UpdateNode(dict, "425", inputs => inputs["images"] = new object[] { "624", 0 });
+                foreach (var n in new[] { "8", "196", "599" })
+                    dict.Remove(n);
+                finalCombineNode = "425";
+            }
+
             var workflowJson = JsonSerializer.Serialize(dict);
 
             var subject = string.IsNullOrWhiteSpace(item?.Subject) ? "person" : item!.Subject.Trim();
 
-            // Node 39 "Activate replacement mode?" is the inverse of ReplaceBackground: replacement
-            // mode keeps the original background (character only), while leaving it off regenerates
-            // the whole frame (character + background).
+            // Node 199:502 "replacement_mode" is the inverse of ReplaceBackground: replacement mode keeps
+            // the original background (character only), while leaving it off regenerates the whole frame
+            // (character + background).
             bool replaceBackground = item?.ReplaceBackground ?? true;
             bool replacementMode = !replaceBackground;
 
-            // The new workflow takes a start offset and a max length in SECONDS (nodes 38 / 46) and
-            // derives skip_first_frames / frame_load_cap internally, so convert the frame-based trim.
-            // framesInChunk == int.MaxValue means the frame count was unknown — leave the authored
-            // max-duration default in that case.
-            int skipFrames = item?.TrimSkipFrames ?? 0;
-            int capFrames = item?.TrimFrameCap ?? 0;
-            double skipSeconds = fps > 0 && skipFrames > 0 ? skipFrames / (double)fps : 0;
-            double maxDurationSeconds =
-                capFrames > 0 && fps > 0 ? capFrames / (double)fps
-                : (framesInChunk > 0 && framesInChunk < int.MaxValue && fps > 0 ? framesInChunk / (double)fps : 0);
+            // This workflow trims in FRAMES on the loader itself (node 207 skip_first_frames /
+            // frame_load_cap, both applied after force_rate), so the trim markers map straight across —
+            // no seconds conversion like the previous graph needed. cap 0 = load the whole clip.
+            int skipFrames = Math.Max(0, item?.TrimSkipFrames ?? 0);
+            int capFrames = Math.Max(0, item?.TrimFrameCap ?? 0);
 
-            AddLog($"Updating SCAIL2 hi-res workflow: whole video, fps={fps}, subject=\"{subject}\", " +
-                   $"replacementMode={replacementMode}, skip={skipSeconds:F2}s, " +
-                   $"maxDuration={(maxDurationSeconds > 0 ? maxDurationSeconds.ToString("F1") + "s" : "authored")}");
+            // Sampler window, snapped to the 4n+1 the WAN latent temporal stride wants (24→25, 40→41,
+            // 60→61, 80→81 — 81 being the workflow's authored value).
+            int windowFrames = Math.Max(5, (int)Math.Round(VideoBatchSize / 4.0) * 4 + 1);
 
-            // Node 94: main character / reference image (LoadImage)
-            WorkflowNodeUpdater.UpdateNodeInput(ref workflowJson, "94", "image", characterImageName);
+            var (outResW, outResH) = ParseOutputResolution();
 
-            // Node 120: reference (driving) video. skip/cap/force_rate stay wired to helper nodes.
-            WorkflowNodeUpdater.UpdateNodeInput(ref workflowJson, "120", "video", videoName);
+            AddLog($"Updating SCAIL2 segmentation-control workflow: whole video, fps={fps}, " +
+                   $"subject=\"{subject}\", replacementMode={replacementMode}, skip={skipFrames} frames, " +
+                   $"cap={(capFrames > 0 ? capFrames + " frames" : "all")}, " +
+                   $"post={(interpolate ? "RIFE 2× + RTX upscale 2×" : "none")}");
 
-            // Node 40: target frame rate (easy float)
-            WorkflowNodeUpdater.UpdateNodeInput(ref workflowJson, "40", "value", fps);
+            // Node 208: main character / reference image (LoadImage)
+            WorkflowNodeUpdater.UpdateNodeInput(ref workflowJson, "208", "image", characterImageName);
 
-            // Node 41: positive prompt, Node 22: negative prompt (CLIPTextEncode)
-            WorkflowNodeUpdater.UpdateNodeInput(ref workflowJson, "41", "text", prompt);
-            WorkflowNodeUpdater.UpdateNodeInput(ref workflowJson, "22", "text", negativePrompt);
-
-            // Node 256:101: SAM3 subject to detect / track
-            WorkflowNodeUpdater.UpdateNodeInput(ref workflowJson, "256:101", "text", subject);
-
-            // Node 39: replacement (keep background) vs. animation (regenerate everything)
-            WorkflowNodeUpdater.UpdateNodeInput(ref workflowJson, "39", "value", replacementMode);
-
-            // Node 38: skip first N seconds (trim in-point)
-            WorkflowNodeUpdater.UpdateNodeInput(ref workflowJson, "38", "value", skipSeconds);
-
-            // Node 46: max video duration in seconds — only when we know a concrete length.
-            if (maxDurationSeconds > 0)
-                WorkflowNodeUpdater.UpdateNodeInput(ref workflowJson, "46", "value", maxDurationSeconds);
-
-            // Seed: drive both the global seed controller (174) and the sampler noise (145) so the
-            // run is reproducible regardless of which one the sampler ultimately reads.
-            WorkflowNodeUpdater.UpdateNodeInputMultiple(ref workflowJson, "174", new Dictionary<string, object>
+            // Node 207: reference (driving) video, resampled to the target fps and trimmed to the markers.
+            WorkflowNodeUpdater.UpdateNodeInputMultiple(ref workflowJson, "207", new Dictionary<string, object>
             {
-                { "value", seed },
-                { "last_seed", seed }
+                { "video", videoName },
+                { "force_rate", fps },
+                { "skip_first_frames", skipFrames },
+                { "frame_load_cap", capFrames }
             });
-            WorkflowNodeUpdater.UpdateNodeInput(ref workflowJson, "145", "noise_seed", seed);
 
-            // Node 238: final combine — match the frame rate and pin into the wan_scail subfolder so
-            // the filesystem-polling fallback (OutputSubfolder = "wan_scail") can find it.
-            WorkflowNodeUpdater.UpdateNodeInputMultiple(ref workflowJson, "238", new Dictionary<string, object>
+            // Node 605: positive prompt, node 199:4: negative prompt (both CLIPTextEncode).
+            WorkflowNodeUpdater.UpdateNodeInput(ref workflowJson, "605", "text", prompt);
+            WorkflowNodeUpdater.UpdateNodeInput(ref workflowJson, "199:4", "text", negativePrompt);
+
+            // SAM3 grounding text for the identity tracker (node 199:492): 199:497 segments the subject in
+            // the reference image, 199:485 segments it in the driving video. Both get the same subject so
+            // the tracker links the same person across the two.
+            WorkflowNodeUpdater.UpdateNodeInput(ref workflowJson, "199:497", "text", subject);
+            WorkflowNodeUpdater.UpdateNodeInput(ref workflowJson, "199:485", "text", subject);
+
+            // Node 199:502: replacement (keep background) vs. animation (regenerate everything).
+            WorkflowNodeUpdater.UpdateNodeInput(ref workflowJson, "199:502", "value", replacementMode);
+
+            // Seed: node 199:534 is the single INTConstant both samplers read.
+            WorkflowNodeUpdater.UpdateNodeInput(ref workflowJson, "199:534", "value", seed);
+
+            // Sampler window. Node 199:596 selects which sampler runs (1 = SCAILAutoExtend 199:180,
+            // 2 = WanSCAILInfinity 199:528); both are written so the setting holds either way.
+            WorkflowNodeUpdater.UpdateNodeInput(ref workflowJson, "199:180", "chunk_length", windowFrames);
+            WorkflowNodeUpdater.UpdateNodeInput(ref workflowJson, "199:528", "window_length", windowFrames);
+            AddLog($"SCAIL2 sampler window: {windowFrames} frames (from chunk size {VideoBatchSize})");
+
+            // Final combine — match the frame rate and pin into the wan_scail subfolder so the
+            // filesystem-polling fallback (OutputSubfolder = "wan_scail") can find it. RIFE doubles the
+            // frame count, so the interpolated sink plays back at twice the source rate.
+            WorkflowNodeUpdater.UpdateNodeInputMultiple(ref workflowJson, finalCombineNode, new Dictionary<string, object>
             {
-                { "frame_rate", fps },
-                { "filename_prefix", "wan_scail/SCAIL2_hires" },
+                { "frame_rate", interpolate ? fps * 2 : fps },
+                { "filename_prefix", interpolate ? "wan_scail/SCAIL2_seg_hires" : "wan_scail/SCAIL2_seg" },
                 { "save_output", true }
             });
 
-            AddLog("✓ SCAIL2 hi-res workflow nodes updated");
+            // Output resolution: node 199:89 (ImageResizeKJv2) crops/resizes the driving video, and its
+            // width/height outputs drive both samplers and the reference-image resize (199:500) — so it is
+            // the single knob that sets the resolution the whole SCAIL II loop generates at. "0x0" leaves
+            // the authored default.
+            if (outResW > 0 && outResH > 0)
+            {
+                WorkflowNodeUpdater.UpdateNodeInputMultiple(ref workflowJson, "199:89", new Dictionary<string, object>
+                {
+                    { "width", outResW },
+                    { "height", outResH }
+                });
+                AddLog($"SCAIL2 output resolution override: {outResW}×{outResH} (Resize Image Video node 199:89)");
+            }
+            else
+            {
+                AddLog($"SCAIL2 output resolution: authored default " +
+                       $"({AuthoredCanvasWidth}×{AuthoredCanvasHeight} portrait, node 199:89)");
+            }
+
+            AddLog("✓ SCAIL2 segmentation-control workflow nodes updated");
             return JsonSerializer.Deserialize<JsonElement>(workflowJson);
         }
 

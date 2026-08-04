@@ -1,0 +1,43 @@
+<UserControl x:Class="FlipPix.UI.Controls.SectionHeader"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+             xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+             mc:Ignorable="d"
+             x:Name="Root"
+             Margin="0,0,0,8">
+    <!--
+        Compact section heading for a tab's side rail:
+
+            <ctrl:SectionHeader Title="SOURCE PHOTO"/>
+
+        The dot takes the tab's accent automatically (DynamicResource walks up to
+        whichever TabAccentBrush the enclosing tab defined), so a section header
+        never needs a colour of its own.
+
+        The default bottom margin sits on the UserControl itself, so a caller that
+        needs different spacing (or Grid.Column placement) just sets it and gets no
+        double gap from the inner panel.
+    -->
+    <StackPanel Orientation="Horizontal">
+        <Ellipse Width="6" Height="6"
+                 Fill="{DynamicResource TabAccentBrush}"
+                 Margin="0,0,6,0"
+                 VerticalAlignment="Center"/>
+        <TextBlock Text="{Binding Title, ElementName=Root}"
+                   FontSize="10"
+                   FontWeight="Bold"
+                   Foreground="{StaticResource TextSecondaryBrush}"
+                   VerticalAlignment="Center"/>
+        <!-- Optional qualifier ("· required", "· optional"). Hidden when unset so the
+             separator never shows up on its own. -->
+        <TextBlock Text="{Binding Note, ElementName=Root}"
+                   FontSize="10"
+                   Foreground="{StaticResource TextMutedBrush}"
+                   VerticalAlignment="Center"
+                   Margin="5,0,0,0"
+                   TextTrimming="CharacterEllipsis"
+                   Visibility="{Binding Note, ElementName=Root,
+                                Converter={StaticResource StringToVisibilityConverter}}"/>
+    </StackPanel>
+</UserControl>

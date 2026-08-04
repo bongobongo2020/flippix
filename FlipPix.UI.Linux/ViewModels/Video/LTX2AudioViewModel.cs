@@ -690,7 +690,7 @@ namespace FlipPix.UI.Linux.ViewModels.Video
             AddLog($"Merging {chunkFiles.Count} video chunks...");
 
             // Concatenate chunks
-            RunFFmpegCommand(ffmpegPath, $"-f concat -safe 0 -i \"{listFile}\" -c copy \"{outputPath}\"");
+            RunFFmpeg(ffmpegPath, $"-y -f concat -safe 0 -i \"{listFile}\" -c copy \"{outputPath}\"");
 
             try { File.Delete(listFile); } catch { }
 
@@ -698,33 +698,12 @@ namespace FlipPix.UI.Linux.ViewModels.Video
             AddLog("Replacing audio with original for perfect sync...");
             var tempOutput = outputPath + ".temp.mp4";
 
-            RunFFmpegCommand(ffmpegPath, $"-i \"{outputPath}\" -i \"{originalAudioPath}\" -c:v copy -c:a aac -map 0:v:0 -map 1:a:0 -shortest \"{tempOutput}\"");
+            RunFFmpeg(ffmpegPath, $"-y -i \"{outputPath}\" -i \"{originalAudioPath}\" -c:v copy -c:a aac -map 0:v:0 -map 1:a:0 -shortest \"{tempOutput}\"");
 
             File.Delete(outputPath);
             File.Move(tempOutput, outputPath);
 
             AddLog($"Video merged successfully: {outputPath}");
-        }
-
-        private void RunFFmpegCommand(string ffmpegPath, string arguments)
-        {
-            var startInfo = new ProcessStartInfo
-            {
-                FileName = ffmpegPath,
-                Arguments = arguments,
-                RedirectStandardOutput = true,
-                RedirectStandardError = true,
-                UseShellExecute = false,
-                CreateNoWindow = true
-            };
-
-            using var process = Process.Start(startInfo);
-            if (process != null)
-            {
-                process.StandardOutput.ReadToEnd();
-                process.StandardError.ReadToEnd();
-                process.WaitForExit();
-            }
         }
 
         #endregion

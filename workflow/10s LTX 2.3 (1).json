@@ -951,13 +951,13 @@
   },
   "755": {
     "inputs": {
-      "resize_type": "scale by multiplier",
-      "resize_type.scale": 2,
+      "scale": 2,
       "quality": "HIGH",
       "images": [
         "740",
         0
-      ]
+      ],
+      "deblur": "OFF"
     },
     "class_type": "RTXVideoSuperResolution",
     "_meta": {

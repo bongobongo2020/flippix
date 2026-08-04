@@ -26,6 +26,19 @@ namespace FlipPix.UI.ViewModels
         private const string WorkflowFile = "workflow/image/klein/flux2_klein_control_netAPI.json";
         private const string SavePrefix = "flux2_klein";
 
+        // The saved image is painted by the PiD 4K stage (nodes 203-212), not by Klein — the
+        // Klein result only feeds it as guidance. PiD drifts off that guidance into a cool
+        // colour cast once an axis runs past MaxPidAxis, so the canvas is clamped here.
+        private const int MaxPidAxis = 4096;
+        private const int PidScale = 4;                     // canvas stays exactly 4x the base
+        private const int MaxBaseAxis = MaxPidAxis / PidScale;
+        private const int BaseTargetPixels = 1024 * 1024;
+
+        // Krea2 two-reference edit workflow (alternative pipeline)
+        private const string Krea2WorkflowFile = "workflow/image/krea/krea2_edit_two_ref.json";
+        private const string Krea2SavePrefix = "krea2_edit";
+        private const string Krea2DefaultPrompt = "replace the woman in image a with the woman in image b.";
+
         private readonly ComfyUIService _comfyUIService;
         private readonly SettingsService _settingsService;
         private readonly IFileDialogService _fileDialogService;
@@ -56,6 +69,9 @@ namespace FlipPix.UI.ViewModels
 
         // Prompt
         private string _prompt = string.Empty;
+
+        // Workflow selection (0 = Klein Flux 2 control net, 1 = Krea2 two-reference edit)
+        private int _selectedWorkflowIndex;
 
         // Workflow state
         private bool _isAnalyzing;
@@ -248,6 +264,53 @@ namespace FlipPix.UI.ViewModels
             }
         }
 
+        // ── Workflow selection ────────────────────────────────────────────────
+        public IReadOnlyList<string> WorkflowOptions { get; } = new[]
+        {
+            "Klein Flux 2 — Control Net",
+            "Krea2 Edit — Two Reference",
+        };
+
+        public int SelectedWorkflowIndex
+        {
+            get => _selectedWorkflowIndex;
+            set
+            {
+                if (_selectedWorkflowIndex == value) return;
+                _selectedWorkflowIndex = value;
+                OnPropertyChanged();
+                OnPropertyChanged(nameof(IsKleinMode));
+                OnPropertyChanged(nameof(IsKrea2Mode));
+                OnPropertyChanged(nameof(RefImageLabel));
+                OnPropertyChanged(nameof(PoseImageLabel));
+                OnPropertyChanged(nameof(WorkflowTitle));
+                OnPropertyChanged(nameof(WorkflowDescription));
+                OnPropertyChanged(nameof(ShowAnalyzeSection));
+                OnPropertyChanged(nameof(CanAnalyze));
+                OnPropertyChanged(nameof(CanGenerate));
+                NotifyCommands();
+
+                // Seed a sensible default prompt when switching into Krea2 mode
+                if (IsKrea2Mode && string.IsNullOrWhiteSpace(Prompt))
+                    Prompt = Krea2DefaultPrompt;
+            }
+        }
+
+        public bool IsKleinMode => _selectedWorkflowIndex == 0;
+        public bool IsKrea2Mode => _selectedWorkflowIndex == 1;
+
+        public string RefImageLabel => IsKrea2Mode ? "Image A (scene to edit)" : "Reference Image (subject)";
+        public string PoseImageLabel => IsKrea2Mode ? "Image B (new subject / reference)" : "Pose Image / Video (DWPose source + analysis)";
+        public bool ShowAnalyzeSection => IsKleinMode;
+
+        public string WorkflowTitle => IsKrea2Mode
+            ? "🎛️ Krea2 Edit — Two Reference"
+            : "🎛️ Klein Flux 2 — Control Net";
+
+        public string WorkflowDescription => IsKrea2Mode
+            ? "Upload image A (the scene) and image B (the new subject), then write a prompt describing the edit (e.g. \"replace the woman in image a with the woman in image b\") and click Generate."
+            : "Upload a reference image (subject) and a pose image. Click Analyze to let QwenVL generate a prompt, then edit it and click Generate.";
+
         // ── Workflow state ────────────────────────────────────────────────────
         public bool IsAnalyzing
         {
@@ -327,7 +390,7 @@ namespace FlipPix.UI.ViewModels
             set { _resultImagePath = value; OnPropertyChanged(); }
         }
 
-        public bool CanAnalyze => HasRefImage && HasPoseImage && !IsBusy;
+        public bool CanAnalyze => IsKleinMode && HasRefImage && HasPoseImage && !IsBusy;
         public bool CanGenerate => HasRefImage && HasPoseImage && !string.IsNullOrWhiteSpace(Prompt) && !IsBusy;
 
         // ── Commands ──────────────────────────────────────────────────────────
@@ -722,6 +785,9 @@ namespace FlipPix.UI.ViewModels
         // ── Workflow building ─────────────────────────────────────────────────
         private JsonElement BuildWorkflow(string uploadedRef, string uploadedPose, string? customPrompt)
         {
+            if (IsKrea2Mode)
+                return BuildKrea2Workflow(uploadedRef, uploadedPose, customPrompt);
+
             var workflowPath = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, WorkflowFile);
             if (!File.Exists(workflowPath))
                 throw new FileNotFoundException($"Workflow not found: {workflowPath}");
@@ -733,11 +799,75 @@ namespace FlipPix.UI.ViewModels
             UpdateNode(dict, "19", inputs => inputs["image"] = uploadedPose);
             UpdateNode(dict, "7", inputs => inputs["noise_seed"] = new Random().NextInt64(0, 999_999_999_999_999L));
 
+            // Size both stages here rather than in-graph. The workflow used to take the base
+            // from a 1 MP rescale of the pose (nodes 17/45/46) and the PiD canvas from an
+            // independent 16 MP rescale (nodes 205/206), which put the long axis at ~5461 px
+            // on a 9:16 source and tinted the bottom quarter. Driving 8:17/8:18 and 207 from
+            // one base size keeps the canvas at exactly 4x, as the other PiD workflows do.
+            var (baseWidth, baseHeight) = ComputeBaseSize(PoseImagePath);
+            int pidWidth = baseWidth * PidScale;
+            int pidHeight = baseHeight * PidScale;
+
+            UpdateNode(dict, "8:17", inputs => { inputs["width"] = baseWidth; inputs["height"] = baseHeight; });
+            UpdateNode(dict, "8:18", inputs => { inputs["width"] = baseWidth; inputs["height"] = baseHeight; });
+            UpdateNode(dict, "207", inputs => { inputs["width"] = pidWidth; inputs["height"] = pidHeight; });
+            AddLog($"Base {baseWidth}x{baseHeight} → PiD canvas {pidWidth}x{pidHeight}");
+
             if (customPrompt != null)
                 UpdateNode(dict, "6", inputs => inputs["text"] = customPrompt);
 
             return JsonSerializer.SerializeToElement(dict);
         }
+
+        // Krea2 two-reference edit: node 72 = image A (scene), node 86 = image B (new subject),
+        // node 84 = edit prompt, node 53 = KSampler seed.
+        private JsonElement BuildKrea2Workflow(string uploadedImageA, string uploadedImageB, string? customPrompt)
+        {
+            var workflowPath = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, Krea2WorkflowFile);
+            if (!File.Exists(workflowPath))
+                throw new FileNotFoundException($"Workflow not found: {workflowPath}");
+
+            var dict = JsonSerializer.Deserialize<Dictionary<string, JsonElement>>(File.ReadAllText(workflowPath))
+                ?? throw new InvalidOperationException("Failed to parse workflow JSON");
+
+            UpdateNode(dict, "72", inputs => inputs["image"] = uploadedImageA);
+            UpdateNode(dict, "86", inputs => inputs["image"] = uploadedImageB);
+            UpdateNode(dict, "53", inputs => inputs["seed"] = new Random().NextInt64(0, 999_999_999_999_999L));
+
+            if (!string.IsNullOrWhiteSpace(customPrompt))
+                UpdateNode(dict, "84", inputs => inputs["prompt"] = customPrompt);
+
+            return JsonSerializer.SerializeToElement(dict);
+        }
+
+        // Base render size at the pose image's aspect: ~1 MP, but never more than MaxBaseAxis
+        // on the long edge so the 4x PiD canvas stays inside MaxPidAxis.
+        private (int Width, int Height) ComputeBaseSize(string posePath)
+        {
+            int srcW = 1024, srcH = 1024;
+            try
+            {
+                using var stream = File.OpenRead(posePath);
+                var frame = BitmapFrame.Create(stream, BitmapCreateOptions.DelayCreation, BitmapCacheOption.None);
+                if (frame.PixelWidth > 0 && frame.PixelHeight > 0)
+                {
+                    srcW = frame.PixelWidth;
+                    srcH = frame.PixelHeight;
+                }
+            }
+            catch (Exception ex)
+            {
+                AddLog($"Could not read pose dimensions ({ex.Message}) — using {srcW}x{srcH}");
+            }
+
+            var scale = Math.Sqrt(BaseTargetPixels / ((double)srcW * srcH));
+            scale = Math.Min(scale, (double)MaxBaseAxis / Math.Max(srcW, srcH));
+
+            return (SnapToBlock(srcW * scale), SnapToBlock(srcH * scale));
+        }
+
+        private static int SnapToBlock(double value)
+            => Math.Clamp((int)Math.Round(value / 16.0) * 16, 256, MaxBaseAxis);
 
         private static void UpdateNode(
             Dictionary<string, JsonElement> dict,
@@ -799,6 +929,7 @@ namespace FlipPix.UI.ViewModels
         // ── Output image retrieval ────────────────────────────────────────────
         private async Task<byte[]?> RetrieveOutputImageAsync(string promptId, CancellationToken token)
         {
+            var savePrefix = IsKrea2Mode ? Krea2SavePrefix : SavePrefix;
             var baseUrl = _settingsService.Settings?.BaseUrl ?? "http://127.0.0.1:8188";
             Uri uri;
             try { uri = new Uri(baseUrl); } catch { uri = new Uri("http://127.0.0.1:8188"); }
@@ -817,7 +948,7 @@ namespace FlipPix.UI.ViewModels
                     var files = await _comfyUIService.HttpClient.GetOutputFilesForPromptAsync(promptId);
                     AddLog($"History: {files.Count} file(s)");
                     var imgFile = files.FirstOrDefault(f =>
-                        Path.GetFileName(f).StartsWith(SavePrefix, StringComparison.OrdinalIgnoreCase) && IsImageExt(f));
+                        Path.GetFileName(f).StartsWith(savePrefix, StringComparison.OrdinalIgnoreCase) && IsImageExt(f));
                     imgFile ??= files.FirstOrDefault(f =>
                         IsImageExt(f) && !Path.GetFileName(f).StartsWith("ComfyUI_temp_", StringComparison.OrdinalIgnoreCase));
                     if (imgFile != null)
@@ -836,7 +967,7 @@ namespace FlipPix.UI.ViewModels
                 {
                     if (i > 0) { AddLog($"Retry {i}/{maxRetries}..."); await Task.Delay(retryDelayMs, token); }
                     token.ThrowIfCancellationRequested();
-                    var files = Directory.GetFiles(outputDir, $"{SavePrefix}_*.png", SearchOption.AllDirectories)
+                    var files = Directory.GetFiles(outputDir, $"{savePrefix}_*.png", SearchOption.AllDirectories)
                         .OrderByDescending(File.GetLastWriteTime).ToList();
                     if (files.Any())
                     {

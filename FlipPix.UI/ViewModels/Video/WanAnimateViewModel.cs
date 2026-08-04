@@ -1462,44 +1462,9 @@ namespace FlipPix.UI.ViewModels.Video
         }
 
         private void MergeVideoChunksWithFFmpeg(List<string> chunkFiles, string outputPath)
-        {
-            var ffmpegPath = FindFFmpeg();
-            if (string.IsNullOrEmpty(ffmpegPath))
-                throw new InvalidOperationException("ffmpeg is required to merge video chunks but was not found.");
-
-            var listFile = Path.Combine(Path.GetTempPath(), $"ffmpeg_wananimate_{Guid.NewGuid()}.txt");
-            using (var writer = new StreamWriter(listFile))
-                foreach (var f in chunkFiles)
-                    writer.WriteLine($"file '{f.Replace("\\", "/")}'");
-
-            AddLog($"Merging {chunkFiles.Count} chunks with ffmpeg...");
-            var si = new ProcessStartInfo
-            {
-                FileName = ffmpegPath,
-                Arguments = $"-f concat -safe 0 -i \"{listFile}\" -c copy \"{outputPath}\"",
-                RedirectStandardOutput = true, RedirectStandardError = true,
-                UseShellExecute = false, CreateNoWindow = true,
-            };
-            using var proc = Process.Start(si);
-            if (proc == null) throw new InvalidOperationException("Failed to start ffmpeg.");
-            proc.WaitForExit(120000);
-            try { File.Delete(listFile); } catch { }
-            if (!File.Exists(outputPath)) throw new InvalidOperationException($"ffmpeg merge failed. Output not found: {outputPath}");
-            AddLog($"Merge complete: {Path.GetFileName(outputPath)}");
-        }
+            => MergeVideoChunks(chunkFiles, outputPath, "wananimate");
 
         #endregion
-
-        private static string CleanLLMOutput(string text)
-        {
-            if (string.IsNullOrWhiteSpace(text)) return text;
-            text = text.Replace("**", "");
-            var trimmed = text.TrimStart();
-            var lower = trimmed.ToLowerInvariant();
-            if (lower.StartsWith("prompt:") || lower.StartsWith("prompt :"))
-                trimmed = trimmed[(trimmed.IndexOf(':') + 1)..];
-            return trimmed.Trim();
-        }
 
         protected override void OnCanExecuteChanged()
         {

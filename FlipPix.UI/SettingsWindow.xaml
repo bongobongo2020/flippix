@@ -18,10 +18,10 @@
         </Grid.RowDefinitions>
 
         <!-- Header -->
-        <Border Grid.Row="0" Margin="0,0,0,20" Padding="0,0,0,15" BorderBrush="#DEE2E6" BorderThickness="0,0,0,1">
+        <Border Grid.Row="0" Margin="0,0,0,20" Padding="0,0,0,15" BorderBrush="{StaticResource BorderBrush}" BorderThickness="0,0,0,1">
             <StackPanel>
-                <TextBlock Text="Settings" FontSize="24" FontWeight="Bold" Foreground="#FF6B35"/>
-                <TextBlock Text="Configure your ComfyUI and application settings" FontSize="13" Foreground="#6C757D" Margin="0,5,0,0"/>
+                <TextBlock Text="Settings" FontSize="24" FontWeight="Bold" Foreground="{StaticResource TextPrimaryBrush}"/>
+                <TextBlock Text="Configure your ComfyUI and application settings" FontSize="13" Foreground="{StaticResource TextSecondaryBrush}" Margin="0,5,0,0"/>
             </StackPanel>
         </Border>
 
@@ -29,9 +29,9 @@
         <ScrollViewer Grid.Row="1" VerticalScrollBarVisibility="Auto">
             <StackPanel>
                 <!-- ComfyUI Settings -->
-                <Border Background="#F8F9FA" BorderBrush="#DEE2E6" BorderThickness="1" CornerRadius="8" Padding="20" Margin="0,0,0,15">
+                <Border Background="{StaticResource SurfaceAltBrush}" BorderBrush="{StaticResource BorderBrush}" BorderThickness="1" CornerRadius="8" Padding="20" Margin="0,0,0,15">
                     <StackPanel>
-                        <TextBlock Text="ComfyUI Configuration" FontWeight="Bold" FontSize="16" Margin="0,0,0,15" Foreground="#212529"/>
+                        <TextBlock Text="ComfyUI Configuration" FontWeight="Bold" FontSize="16" Margin="0,0,0,15" Foreground="{StaticResource TextPrimaryBrush}"/>
 
                         <!-- ComfyUI Server Settings -->
                         <Grid Margin="0,0,0,15">
@@ -59,7 +59,7 @@
                         <Separator Margin="0,0,0,15"/>
 
                         <!-- ComfyUI Path Settings -->
-                        <TextBlock Text="ComfyUI Installation Path" FontWeight="SemiBold" FontSize="14" Margin="0,0,0,10" Foreground="#495057"/>
+                        <TextBlock Text="ComfyUI Installation Path" FontWeight="SemiBold" FontSize="14" Margin="0,0,0,10" Foreground="{StaticResource TextSecondaryBrush}"/>
                         <Grid Margin="0,0,0,15">
                             <Grid.ColumnDefinitions>
                                 <ColumnDefinition Width="*"/>
@@ -71,21 +71,21 @@
 
                         <!-- Crash Detection & Auto-Restart Settings -->
                         <Separator Margin="0,0,0,15"/>
-                        <TextBlock Text="Crash Detection &amp; Auto-Restart" FontWeight="SemiBold" FontSize="14" Margin="0,0,0,10" Foreground="#495057"/>
+                        <TextBlock Text="Crash Detection &amp; Auto-Restart" FontWeight="SemiBold" FontSize="14" Margin="0,0,0,10" Foreground="{StaticResource TextSecondaryBrush}"/>
                         <CheckBox x:Name="AutoRestartCheckBox" Content="Auto-start ComfyUI on launch and restart on crash" IsChecked="{Binding AutoRestartComfyUI}" Margin="0,0,0,10"/>
 
                         <!-- VRAM workflow tier -->
-                        <TextBlock Text="GPU VRAM / workflow tier:" FontWeight="SemiBold" FontSize="13" Margin="0,5,0,5" Foreground="#6C757D"/>
-                        <TextBlock Text="On ~16 GB GPUs FlipPix loads memory-optimized workflows (workflow/16gb) so they fit instead of crashing." FontSize="11" Foreground="#868E96" TextWrapping="Wrap" Margin="0,0,0,5"/>
+                        <TextBlock Text="GPU VRAM / workflow tier:" FontWeight="SemiBold" FontSize="13" Margin="0,5,0,5" Foreground="{StaticResource TextSecondaryBrush}"/>
+                        <TextBlock Text="On ~16 GB GPUs FlipPix loads memory-optimized workflows (workflow/16gb) so they fit instead of crashing." FontSize="11" Foreground="{StaticResource TextMutedBrush}" TextWrapping="Wrap" Margin="0,0,0,5"/>
                         <ComboBox x:Name="VramTierComboBox" Margin="0,0,0,5" Width="320" HorizontalAlignment="Left">
                             <ComboBoxItem Tag="auto" Content="Auto-detect from connected ComfyUI (recommended)"/>
                             <ComboBoxItem Tag="16gb" Content="Force 16 GB mode (memory-optimized workflows)"/>
                             <ComboBoxItem Tag="full" Content="Force full mode (full-size workflows)"/>
                         </ComboBox>
-                        <TextBlock x:Name="DetectedVramText" FontSize="11" Foreground="#868E96" Margin="0,0,0,10"/>
+                        <TextBlock x:Name="DetectedVramText" FontSize="11" Foreground="{StaticResource TextMutedBrush}" Margin="0,0,0,10"/>
 
-                        <TextBlock Text="ComfyUI Restart Script (.bat):" FontWeight="SemiBold" FontSize="13" Margin="0,0,0,5" Foreground="#6C757D"/>
-                        <TextBlock Text="Script to restart ComfyUI (e.g., run_nvidia_gpu.bat)" FontSize="11" Foreground="#868E96" Margin="0,0,0,5"/>
+                        <TextBlock Text="ComfyUI Restart Script (.bat):" FontWeight="SemiBold" FontSize="13" Margin="0,0,0,5" Foreground="{StaticResource TextSecondaryBrush}"/>
+                        <TextBlock Text="Script to restart ComfyUI (e.g., run_nvidia_gpu.bat)" FontSize="11" Foreground="{StaticResource TextMutedBrush}" Margin="0,0,0,5"/>
                         <Grid Margin="0,0,0,10">
                             <Grid.ColumnDefinitions>
                                 <ColumnDefinition Width="*"/>
@@ -101,19 +101,19 @@
                                 <ColumnDefinition Width="*"/>
                             </Grid.ColumnDefinitions>
                             <StackPanel Grid.Column="0" Margin="0,0,10,0">
-                                <TextBlock Text="Restart Delay (sec):" FontSize="12" Foreground="#6C757D" Margin="0,0,0,5"/>
+                                <TextBlock Text="Restart Delay (sec):" FontSize="12" Foreground="{StaticResource TextSecondaryBrush}" Margin="0,0,0,5"/>
                                 <TextBox x:Name="RestartDelayTextBox" Text="{Binding ComfyUIRestartDelaySeconds}" />
                             </StackPanel>
                             <StackPanel Grid.Column="1">
-                                <TextBlock Text="Startup Timeout (sec):" FontSize="12" Foreground="#6C757D" Margin="0,0,0,5"/>
+                                <TextBlock Text="Startup Timeout (sec):" FontSize="12" Foreground="{StaticResource TextSecondaryBrush}" Margin="0,0,0,5"/>
                                 <TextBox x:Name="StartupTimeoutTextBox" Text="{Binding ComfyUIStartupTimeoutSeconds}" />
                             </StackPanel>
                         </Grid>
 
                         <Separator Margin="0,15,0,15"/>
 
-                        <TextBlock Text="ComfyUI Output Folder" FontWeight="SemiBold" FontSize="14" Margin="0,0,0,10" Foreground="#495057"/>
-                        <TextBlock Text="This is where ComfyUI saves generated images" FontSize="12" Foreground="#6C757D" Margin="0,0,0,5"/>
+                        <TextBlock Text="ComfyUI Output Folder" FontWeight="SemiBold" FontSize="14" Margin="0,0,0,10" Foreground="{StaticResource TextSecondaryBrush}"/>
+                        <TextBlock Text="This is where ComfyUI saves generated images" FontSize="12" Foreground="{StaticResource TextSecondaryBrush}" Margin="0,0,0,5"/>
                         <Grid Margin="0,0,0,15">
                             <Grid.ColumnDefinitions>
                                 <ColumnDefinition Width="*"/>
@@ -123,8 +123,8 @@
                             <Button Grid.Column="1" Content="Browse..." Click="BrowseOutputPath_Click" Padding="15,5"/>
                         </Grid>
 
-                        <TextBlock Text="Remote LoRA Folder (Optional)" FontWeight="SemiBold" FontSize="14" Margin="0,0,0,10" Foreground="#495057"/>
-                        <TextBlock Text="Network path to remote ComfyUI LoRA models folder (e.g., \\server\ComfyUI\models\loras)" FontSize="12" Foreground="#6C757D" Margin="0,0,0,5"/>
+                        <TextBlock Text="Remote LoRA Folder (Optional)" FontWeight="SemiBold" FontSize="14" Margin="0,0,0,10" Foreground="{StaticResource TextSecondaryBrush}"/>
+                        <TextBlock Text="Network path to remote ComfyUI LoRA models folder (e.g., \\server\ComfyUI\models\loras)" FontSize="12" Foreground="{StaticResource TextSecondaryBrush}" Margin="0,0,0,5"/>
                         <Grid Margin="0,0,0,0">
                             <Grid.ColumnDefinitions>
                                 <ColumnDefinition Width="*"/>
@@ -134,8 +134,8 @@
                             <Button Grid.Column="1" Content="Browse..." Click="BrowseRemoteLoraPath_Click" Padding="15,5"/>
                         </Grid>
 
-                        <TextBlock Text="Krea2 LoRA Folder (Optional)" FontWeight="SemiBold" FontSize="14" Margin="0,15,0,10" Foreground="#495057"/>
-                        <TextBlock Text="Folder holding the Krea2 LoRAs, used by the Krea2 image workflows (e.g., \\server\ComfyUI\models\loras\krea2)" FontSize="12" Foreground="#6C757D" Margin="0,0,0,5"/>
+                        <TextBlock Text="Krea2 LoRA Folder (Optional)" FontWeight="SemiBold" FontSize="14" Margin="0,15,0,10" Foreground="{StaticResource TextSecondaryBrush}"/>
+                        <TextBlock Text="Folder holding the Krea2 LoRAs, used by the Krea2 image workflows (e.g., \\server\ComfyUI\models\loras\krea2)" FontSize="12" Foreground="{StaticResource TextSecondaryBrush}" Margin="0,0,0,5"/>
                         <Grid Margin="0,0,0,0">
                             <Grid.ColumnDefinitions>
                                 <ColumnDefinition Width="*"/>
@@ -148,10 +148,10 @@
                 </Border>
 
                 <!-- ComfyUI Backup & Restore -->
-                <Border Background="#F8F9FA" BorderBrush="#6F42C1" BorderThickness="1" CornerRadius="8" Padding="20" Margin="0,0,0,15">
+                <Border Background="{StaticResource SurfaceAltBrush}" BorderBrush="{StaticResource AccentVioletBrush}" BorderThickness="1" CornerRadius="8" Padding="20" Margin="0,0,0,15">
                     <StackPanel>
-                        <TextBlock Text="ComfyUI Backup &amp; Restore" FontWeight="Bold" FontSize="16" Margin="0,0,0,8" Foreground="#6F42C1"/>
-                        <TextBlock TextWrapping="Wrap" FontSize="12" Foreground="#6C757D" Margin="0,0,0,12"
+                        <TextBlock Text="ComfyUI Backup &amp; Restore" FontWeight="Bold" FontSize="16" Margin="0,0,0,8" Foreground="{StaticResource AccentVioletBrush}"/>
+                        <TextBlock TextWrapping="Wrap" FontSize="12" Foreground="{StaticResource TextSecondaryBrush}" Margin="0,0,0,12"
                                    Text="Set up a ready-to-run ComfyUI in one click (downloads a known-good bundle with all custom nodes, then verifies + extracts it). Or snapshot your current ComfyUI install so you can move/restore it on another same-OS machine."/>
 
                         <Grid Margin="0,0,0,12">
@@ -166,18 +166,18 @@
 
                         <StackPanel Orientation="Horizontal" Margin="0,0,0,10">
                             <Button x:Name="RestoreComfyUIButton" Content="Set up / Restore ComfyUI…" Click="RestoreComfyUI_Click"
-                                    Padding="15,8" Margin="0,0,10,0" Background="#6F42C1" Foreground="White" BorderThickness="0" FontWeight="SemiBold"/>
+                                    Padding="15,8" Margin="0,0,10,0" Background="{StaticResource AccentVioletBrush}" Foreground="White" BorderThickness="0" FontWeight="SemiBold"/>
                             <Button x:Name="BackupComfyUIButton" Content="Back up this ComfyUI…" Click="BackupComfyUI_Click"
                                     Padding="15,8" Background="#8E44AD" Foreground="White" BorderThickness="0"/>
                         </StackPanel>
 
-                        <TextBlock x:Name="BackupRestoreStatus" TextWrapping="Wrap" FontSize="11" Foreground="#868E96"
+                        <TextBlock x:Name="BackupRestoreStatus" TextWrapping="Wrap" FontSize="11" Foreground="{StaticResource TextMutedBrush}"
                                    Text="Restore targets WSL (download a Linux bundle) or a fresh Windows install. Backup uses the path above and Windows' built-in tar; models/outputs are excluded."/>
 
                         <Separator Margin="0,14,0,14"/>
 
-                        <TextBlock Text="Model files for a WSL ComfyUI" FontWeight="SemiBold" FontSize="13" Margin="0,0,0,4" Foreground="#6F42C1"/>
-                        <TextBlock TextWrapping="Wrap" FontSize="12" Foreground="#6C757D" Margin="0,0,0,8"
+                        <TextBlock Text="Model files for a WSL ComfyUI" FontWeight="SemiBold" FontSize="13" Margin="0,0,0,4" Foreground="{StaticResource AccentVioletBrush}"/>
+                        <TextBlock TextWrapping="Wrap" FontSize="12" Foreground="{StaticResource TextSecondaryBrush}" Margin="0,0,0,8"
                                    Text="A WSL ComfyUI ships without weights. Point it at your existing Windows models folder (the one containing checkpoints, loras, vae, unet, ...) and FlipPix writes its extra_model_paths.yaml inside WSL for you (translating E:\ to /mnt/e). Then restart ComfyUI."/>
                         <Grid Margin="0,0,0,10">
                             <Grid.ColumnDefinitions>
@@ -189,15 +189,15 @@
                                      ToolTip="Windows models folder, e.g. E:\aimodels\comfyui\models"/>
                             <Button Grid.Column="1" Content="Browse..." Click="BrowseWslModels_Click" Padding="15,5" Margin="0,0,10,0"/>
                             <Button Grid.Column="2" x:Name="ApplyWslModelsButton" Content="Apply to WSL" Click="ApplyWslModels_Click"
-                                    Padding="15,5" Background="#6F42C1" Foreground="White" BorderThickness="0" FontWeight="SemiBold"/>
+                                    Padding="15,5" Background="{StaticResource AccentVioletBrush}" Foreground="White" BorderThickness="0" FontWeight="SemiBold"/>
                         </Grid>
                     </StackPanel>
                 </Border>
 
                 <!-- LM Studio Settings -->
-                <Border Background="#F8F9FA" BorderBrush="#10B981" BorderThickness="1" CornerRadius="8" Padding="20" Margin="0,0,0,15">
+                <Border Background="{StaticResource SurfaceAltBrush}" BorderBrush="{StaticResource SuccessBrush}" BorderThickness="1" CornerRadius="8" Padding="20" Margin="0,0,0,15">
                     <StackPanel>
-                        <TextBlock Text="LM Studio Configuration" FontWeight="Bold" FontSize="16" Margin="0,0,0,15" Foreground="#10B981"/>
+                        <TextBlock Text="LM Studio Configuration" FontWeight="Bold" FontSize="16" Margin="0,0,0,15" Foreground="{StaticResource SuccessTextBrush}"/>
 
                         <!-- Saved Servers (switch between remote computers) -->
                         <Grid Margin="0,0,0,12">
@@ -245,7 +245,7 @@
                         </Grid>
 
                         <TextBlock Text="LM Studio is used for AI image analysis. Make sure it's running on your local machine or remote server."
-                                  FontSize="12" Foreground="#6C757D" TextWrapping="Wrap"/>
+                                  FontSize="12" Foreground="{StaticResource TextSecondaryBrush}" TextWrapping="Wrap"/>
                     </StackPanel>
                 </Border>
 
@@ -261,10 +261,10 @@
 
         <!-- Buttons -->
         <StackPanel Grid.Row="2" Orientation="Horizontal" HorizontalAlignment="Right" Margin="0,20,0,0">
-            <Button Content="Test Connection" Click="TestConnection_Click" Margin="0,0,10,0" Padding="20,10" Background="#28A745" Foreground="White" BorderThickness="0"/>
-            <Button Content="Test WebSocket" Click="TestWebSocket_Click" Margin="0,0,10,0" Padding="20,10" Background="#17A2B8" Foreground="White" BorderThickness="0"/>
+            <Button Content="Test Connection" Click="TestConnection_Click" Margin="0,0,10,0" Padding="20,10" Background="{StaticResource SuccessBrush}" Foreground="White" BorderThickness="0"/>
+            <Button Content="Test WebSocket" Click="TestWebSocket_Click" Margin="0,0,10,0" Padding="20,10" Background="{StaticResource AccentCyanBrush}" Foreground="White" BorderThickness="0"/>
             <Button Content="Cancel" Click="Cancel_Click" Margin="0,0,10,0" Padding="20,10"/>
-            <Button Content="Save" Click="Save_Click" Padding="20,10" Background="#FF6B35" Foreground="White" BorderThickness="0" FontWeight="Bold"/>
+            <Button Content="Save" Click="Save_Click" Padding="20,10" Background="{StaticResource BrandBrush}" Foreground="White" BorderThickness="0" FontWeight="Bold"/>
         </StackPanel>
     </Grid>
 </Window>

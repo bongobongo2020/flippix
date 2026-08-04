@@ -181,13 +181,13 @@
   },
   "28": {
     "inputs": {
-      "resize_type": "scale by multiplier",
-      "resize_type.scale": 2,
+      "scale": 2,
       "quality": "ULTRA",
       "images": [
         "3",
         0
-      ]
+      ],
+      "deblur": "OFF"
     },
     "class_type": "RTXVideoSuperResolution",
     "_meta": {

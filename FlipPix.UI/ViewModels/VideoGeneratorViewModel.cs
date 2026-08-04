@@ -69,30 +69,6 @@ namespace FlipPix.UI.ViewModels
         public InfiniteTalkViewModel InfiniteTalkVM { get; }
 
         /// <summary>
-        /// LTX 2.3 basic image-to-video ViewModel - handles single reference image input,
-        /// AI analysis, prompt enhancement, and video generation with the LTX 2.3 GGUF workflow.
-        /// </summary>
-        public LTX23BasicViewModel LTX23BasicVM { get; }
-
-        /// <summary>
-        /// LTX 2.3 text-to-video ViewModel - generates video purely from a text prompt
-        /// using the LTX-2.3T2VGGUFAPI workflow with no image reference required.
-        /// </summary>
-        public LTX23T2VViewModel LTX23T2VVM { get; }
-
-        /// <summary>
-        /// Wan 2.2 Remix single image-to-video ViewModel - analyzes image via llamaserver,
-        /// generates a prompt, and auto-queues processing with the Wan 2.2 Remix workflow.
-        /// </summary>
-        public Wan22SingleViewModel Wan22SingleVM { get; }
-
-        /// <summary>
-        /// Long Video ViewModel - uploads a video, extracts its last frame, analyzes it,
-        /// generates a new video, then repeats up to 5 times using each output as the next input.
-        /// </summary>
-        public LongVideoViewModel LongVideoVM { get; }
-
-        /// <summary>
         /// WAN SCAIL ViewModel - handles character image + reference video for the
         /// SCAIL Multi-Character Motion Transfer workflow, processed in 121-frame chunks.
         /// </summary>
@@ -102,12 +78,6 @@ namespace FlipPix.UI.ViewModels
         /// </summary>
         public Scail2ViewModel Scail2VM { get; }
         public WanCharReplaceViewModel WanCharReplaceVM { get; }
-
-        /// <summary>
-        /// LTX Control ViewModel - handles reference image + reference video for IC-LoRA
-        /// control-signal-based video generation (pose, depth, canny edge).
-        /// </summary>
-        public LtxControlViewModel LtxControlVM { get; }
 
         /// <summary>
         /// LTX Director ViewModel - timeline of images, each with its own prompt + duration,
@@ -135,51 +105,32 @@ namespace FlipPix.UI.ViewModels
         public SeedHuntViewModel SeedHuntVM { get; }
 
         /// <summary>
-        /// Seed Director ViewModel - LTX Director timeline fused with SeedHunt: per-shot 4-seed
-        /// previews, pick seeds per shot, then high-res finish + FFmpeg concat into one joined video.
+        /// 10Eros ConvRot ViewModel - single face-reference image + prompt, generate 4 LTX 2.3 FaceID
+        /// seed previews (reroll for more), then re-render the chosen seed(s) at full resolution.
         /// </summary>
-        public SeedDirectorViewModel SeedDirectorVM { get; }
+        public ErosConvRotViewModel ErosConvRotVM { get; }
 
         /// <summary>
-        /// FFLF-Dasiwa ViewModel - upload one image, analyze, then render an autoregressive I2V
-        /// chain on the WAN 2.2 DaSiWa FFLF workflow where each clip's extracted last frame seeds
-        /// the next clip (re-analyzed each step); segments are joined into one continuous video.
+        /// FaceID Character Sheet ViewModel - single-shot LTX 2.3 FaceID + Union-Control video from a
+        /// character image (with image Analyze), an audio file, and a reference video (pose/depth/edge control).
         /// </summary>
-        public FflfDasiwaViewModel FflfDasiwaVM { get; }
+        public FaceIdCharSheetViewModel FaceIdCharSheetVM { get; }
 
         /// <summary>
-        /// FFLF Seed Hunter ViewModel - upload a first AND last frame, analyze both into an FFLF
-        /// transition prompt, generate 3 LTX 2.3 seed previews (reroll for more), then finish the
-        /// chosen one through Stage 2/3 upscale.
+        /// MiniMax H3 ViewModel - single-shot image-to-video with synchronized audio: the uploaded image
+        /// is the first frame, Analyze turns it into a full H3 prompt, then one video is generated.
         /// </summary>
-        public FflfSeedHuntViewModel FflfSeedHuntVM { get; }
+        public MiniMaxH3ViewModel MiniMaxH3VM { get; }
 
-        // 0-4 = story workflows (Vantage Sulphur 2, 10Eros, LTX-22-B, DaSiWa, WAN 2.2 FunCamera),
-        // matching VideoGeneratorMainViewModel.StoryVideoWorkflow; 5 = Wan 2.2 Remix.
-        private const int SingleVideoWan22Index = 5;
-        private int _singleVideoWorkflowIndex = 0;
-        public int SingleVideoWorkflowIndex
-        {
-            get => _singleVideoWorkflowIndex;
-            set
-            {
-                if (_singleVideoWorkflowIndex != value)
-                {
-                    _singleVideoWorkflowIndex = value;
-                    // Indices 0-4 line up with the StoryVideoWorkflow enum order.
-                    if (value >= 0 && value < SingleVideoWan22Index)
-                        LTX23BasicVM.SelectedStoryWorkflow = (VideoGeneratorMainViewModel.StoryVideoWorkflow)value;
-                    OnPropertyChanged();
-                    OnPropertyChanged(nameof(SingleVideoIsStory));
-                    OnPropertyChanged(nameof(SingleVideoIsWan22));
-                }
-            }
-        }
-        public bool SingleVideoIsStory => _singleVideoWorkflowIndex >= 0 && _singleVideoWorkflowIndex < SingleVideoWan22Index;
-        public bool SingleVideoIsWan22 => _singleVideoWorkflowIndex == SingleVideoWan22Index;
+        /// <summary>
+        /// MiniMax FFLF ViewModel - the seed-hunter flow on the MiniMax H3 first/last-frame workflow:
+        /// a first+last frame (or a folder of overlapping pairs) analyzed into an FL2VA prompt, 3 cheap
+        /// low-step seed previews per pair, then a full-resolution 20-step re-render of the picks.
+        /// </summary>
+        public MiniMaxFflfSeedHuntViewModel MiniMaxFflfVM { get; }
 
         // Bound to the main TabControl so code can switch tabs programmatically.
-        // 0 = Single Video tab.
+        // 0 = Story Video Generator tab.
         private int _selectedTabIndex = 0;
         public int SelectedTabIndex
         {
@@ -258,40 +209,6 @@ namespace FlipPix.UI.ViewModels
                 _workflowCoordinator,
                 _fileDialogService);
 
-            LTX23BasicVM = new LTX23BasicViewModel(
-                comfyUIService,
-                logger,
-                lmStudioService,
-                settingsService,
-                serviceProvider,
-                _workflowCoordinator,
-                _fileDialogService);
-
-            LTX23T2VVM = new LTX23T2VViewModel(
-                comfyUIService,
-                logger,
-                settingsService,
-                serviceProvider,
-                _workflowCoordinator);
-
-            Wan22SingleVM = new Wan22SingleViewModel(
-                comfyUIService,
-                logger,
-                lmStudioService,
-                settingsService,
-                serviceProvider,
-                _workflowCoordinator,
-                _fileDialogService);
-
-            LongVideoVM = new LongVideoViewModel(
-                comfyUIService,
-                logger,
-                lmStudioService,
-                settingsService,
-                serviceProvider,
-                _workflowCoordinator,
-                _fileDialogService);
-
             WanScailVM = new WanScailViewModel(
                 comfyUIService,
                 lmStudioService,
@@ -311,15 +228,6 @@ namespace FlipPix.UI.ViewModels
                 _fileDialogService);
 
             WanCharReplaceVM = new WanCharReplaceViewModel(
-                comfyUIService,
-                lmStudioService,
-                logger,
-                settingsService,
-                serviceProvider,
-                _workflowCoordinator,
-                _fileDialogService);
-
-            LtxControlVM = new LtxControlViewModel(
                 comfyUIService,
                 lmStudioService,
                 logger,
@@ -364,7 +272,7 @@ namespace FlipPix.UI.ViewModels
                 _workflowCoordinator,
                 _fileDialogService);
 
-            SeedDirectorVM = new SeedDirectorViewModel(
+            ErosConvRotVM = new ErosConvRotViewModel(
                 comfyUIService,
                 lmStudioService,
                 logger,
@@ -373,7 +281,7 @@ namespace FlipPix.UI.ViewModels
                 _workflowCoordinator,
                 _fileDialogService);
 
-            FflfDasiwaVM = new FflfDasiwaViewModel(
+            FaceIdCharSheetVM = new FaceIdCharSheetViewModel(
                 comfyUIService,
                 lmStudioService,
                 logger,
@@ -382,7 +290,16 @@ namespace FlipPix.UI.ViewModels
                 _workflowCoordinator,
                 _fileDialogService);
 
-            FflfSeedHuntVM = new FflfSeedHuntViewModel(
+            MiniMaxH3VM = new MiniMaxH3ViewModel(
+                comfyUIService,
+                lmStudioService,
+                logger,
+                settingsService,
+                serviceProvider,
+                _workflowCoordinator,
+                _fileDialogService);
+
+            MiniMaxFflfVM = new MiniMaxFflfSeedHuntViewModel(
                 comfyUIService,
                 lmStudioService,
                 logger,
@@ -397,21 +314,17 @@ namespace FlipPix.UI.ViewModels
             LTX2AudioVM.PlayRequested += (s, e) => PlayRequested?.Invoke(this, e);
             MochaVM.PlayRequested += (s, e) => PlayRequested?.Invoke(this, e);
             InfiniteTalkVM.PlayRequested += (s, e) => PlayRequested?.Invoke(this, e);
-            LTX23BasicVM.PlayRequested += (s, e) => PlayRequested?.Invoke(this, e);
-            LTX23T2VVM.PlayRequested += (s, e) => PlayRequested?.Invoke(this, e);
-            Wan22SingleVM.PlayRequested += (s, e) => PlayRequested?.Invoke(this, e);
-            LongVideoVM.PlayRequested += (s, e) => PlayRequested?.Invoke(this, e);
             WanScailVM.PlayRequested += (s, e) => PlayRequested?.Invoke(this, e);
             Scail2VM.PlayRequested += (s, e) => PlayRequested?.Invoke(this, e);
             WanCharReplaceVM.PlayRequested += (s, e) => PlayRequested?.Invoke(this, e);
-            LtxControlVM.PlayRequested += (s, e) => PlayRequested?.Invoke(this, e);
             LtxDirectorVM.PlayRequested += (s, e) => PlayRequested?.Invoke(this, e);
             Vr180VM.PlayRequested += (s, e) => PlayRequested?.Invoke(this, e);
             VideoSoundVM.PlayRequested += (s, e) => PlayRequested?.Invoke(this, e);
             SeedHuntVM.PlayRequested += (s, e) => PlayRequested?.Invoke(this, e);
-            SeedDirectorVM.PlayRequested += (s, e) => PlayRequested?.Invoke(this, e);
-            FflfDasiwaVM.PlayRequested += (s, e) => PlayRequested?.Invoke(this, e);
-            FflfSeedHuntVM.PlayRequested += (s, e) => PlayRequested?.Invoke(this, e);
+            ErosConvRotVM.PlayRequested += (s, e) => PlayRequested?.Invoke(this, e);
+            FaceIdCharSheetVM.PlayRequested += (s, e) => PlayRequested?.Invoke(this, e);
+            MiniMaxH3VM.PlayRequested += (s, e) => PlayRequested?.Invoke(this, e);
+            MiniMaxFflfVM.PlayRequested += (s, e) => PlayRequested?.Invoke(this, e);
 
             // Forward PropertyChanged events from all sub-VMs for backward compatibility
             MainVM.PropertyChanged += ForwardPropertyChanged;
@@ -419,21 +332,17 @@ namespace FlipPix.UI.ViewModels
             LTX2AudioVM.PropertyChanged += ForwardPropertyChanged;
             MochaVM.PropertyChanged += ForwardPropertyChanged;
             InfiniteTalkVM.PropertyChanged += ForwardPropertyChanged;
-            LTX23BasicVM.PropertyChanged += ForwardPropertyChanged;
-            LTX23T2VVM.PropertyChanged += ForwardPropertyChanged;
-            Wan22SingleVM.PropertyChanged += ForwardPropertyChanged;
-            LongVideoVM.PropertyChanged += ForwardPropertyChanged;
             WanScailVM.PropertyChanged += ForwardPropertyChanged;
             Scail2VM.PropertyChanged += ForwardPropertyChanged;
             WanCharReplaceVM.PropertyChanged += ForwardPropertyChanged;
-            LtxControlVM.PropertyChanged += ForwardPropertyChanged;
             LtxDirectorVM.PropertyChanged += ForwardPropertyChanged;
             Vr180VM.PropertyChanged += ForwardPropertyChanged;
             VideoSoundVM.PropertyChanged += ForwardPropertyChanged;
             SeedHuntVM.PropertyChanged += ForwardPropertyChanged;
-            SeedDirectorVM.PropertyChanged += ForwardPropertyChanged;
-            FflfDasiwaVM.PropertyChanged += ForwardPropertyChanged;
-            FflfSeedHuntVM.PropertyChanged += ForwardPropertyChanged;
+            ErosConvRotVM.PropertyChanged += ForwardPropertyChanged;
+            FaceIdCharSheetVM.PropertyChanged += ForwardPropertyChanged;
+            MiniMaxH3VM.PropertyChanged += ForwardPropertyChanged;
+            MiniMaxFflfVM.PropertyChanged += ForwardPropertyChanged;
 
             NavigateToImageGeneratorCommand = new RelayCommand(NavigateToImageGenerator);
 
@@ -828,165 +737,6 @@ namespace FlipPix.UI.ViewModels
 
         #endregion
 
-        #region LTX23T2VVM Backward Compatibility Properties
-
-        public string T2VPrompt { get => LTX23T2VVM.Prompt; set => LTX23T2VVM.Prompt = value; }
-        public int T2VLength { get => LTX23T2VVM.Length; set => LTX23T2VVM.Length = value; }
-        public int T2VWidth { get => LTX23T2VVM.Width; set => LTX23T2VVM.Width = value; }
-        public int T2VHeight { get => LTX23T2VVM.Height; set => LTX23T2VVM.Height = value; }
-        public long T2VSeed { get => LTX23T2VVM.Seed; set => LTX23T2VVM.Seed = value; }
-        public bool T2VCanAddToQueue => LTX23T2VVM.CanAddToQueue;
-        public bool IsProcessingT2V { get => LTX23T2VVM.IsProcessing; set => LTX23T2VVM.IsProcessing = value; }
-        public string T2VProcessingStatus => LTX23T2VVM.ProcessingStatus;
-        public double T2VProcessingProgress => LTX23T2VVM.ProcessingProgress;
-        public string T2VProgressPercentage => LTX23T2VVM.ProgressPercentage;
-        public string T2VLogOutput => LTX23T2VVM.LogOutput;
-        public bool HasT2VResult => LTX23T2VVM.HasResult;
-        public string T2VResultPath => LTX23T2VVM.ResultVideoPath;
-        public string T2VVideoInfo => LTX23T2VVM.ResultVideoInfo;
-        public ObservableCollection<QueueItem> T2VQueue => LTX23T2VVM.Queue;
-        public bool T2VHasQueueItems => LTX23T2VVM.HasQueueItems;
-        public bool T2VIsProcessingQueue => LTX23T2VVM.IsProcessingQueue;
-        public string T2VQueueStatus => LTX23T2VVM.QueueStatus;
-
-        public ICommand T2VGenerateCommand => LTX23T2VVM.GenerateVideoCommand;
-        public ICommand T2VRemoveQueueItemCommand => LTX23T2VVM.RemoveQueueItemCommand;
-        public ICommand T2VPlayVideoCommand => LTX23T2VVM.PlayVideoCommand;
-        public ICommand T2VOpenResultFolderCommand => LTX23T2VVM.OpenResultFolderCommand;
-
-        #endregion
-
-        #region LTX23BasicVM Backward Compatibility Properties
-
-        public string LTX23ImagePath { get => LTX23BasicVM.ImagePath; set => LTX23BasicVM.ImagePath = value; }
-        public BitmapImage? LTX23ImagePreview { get => LTX23BasicVM.ImagePreview; set => LTX23BasicVM.ImagePreview = value; }
-        public string LTX23ImageInfo { get => LTX23BasicVM.ImageInfo; set => LTX23BasicVM.ImageInfo = value; }
-        public string LTX23Prompt { get => LTX23BasicVM.Prompt; set => LTX23BasicVM.Prompt = value; }
-        public bool IsProcessingLTX23 { get => LTX23BasicVM.IsProcessing; set => LTX23BasicVM.IsProcessing = value; }
-        public string LTX23ProcessingStatus => LTX23BasicVM.ProcessingStatus;
-        public double LTX23ProcessingProgress => LTX23BasicVM.ProcessingProgress;
-        public string LTX23ProgressPercentage => LTX23BasicVM.ProgressPercentage;
-        public string LTX23LogOutput => LTX23BasicVM.LogOutput;
-        public bool HasLTX23Result => LTX23BasicVM.HasResult;
-        public string LTX23ResultPath => LTX23BasicVM.ResultVideoPath;
-        public string LTX23VideoInfo => LTX23BasicVM.ResultVideoInfo;
-        public bool CanGenerateLTX23Video => LTX23BasicVM.CanAddToQueue;
-        public bool CanLTX23AddToQueue => LTX23BasicVM.CanAddToQueue;
-
-        public int LTX23FrameCount { get => LTX23BasicVM.FrameCount; set => LTX23BasicVM.FrameCount = value; }
-        public string LTX23FrameCountHint => LTX23BasicVM.FrameCountHint;
-
-        // LMStudio AI properties
-        public bool LTX23IsAnalyzing => LTX23BasicVM.IsAnalyzing;
-        public bool CanLTX23AnalyzeImage => LTX23BasicVM.CanAnalyzeImage;
-        public bool CanLTX23EnhancePrompt => LTX23BasicVM.CanEnhancePrompt;
-        public bool ShowLTX23VideoPrompt => LTX23BasicVM.ShowVideoPrompt;
-        public string LTX23AnalysisResult => LTX23BasicVM.AnalysisResult;
-        public bool HasLTX23Analysis => LTX23BasicVM.HasAnalysis;
-
-        // Queue
-        public ObservableCollection<QueueItem> LTX23Queue => LTX23BasicVM.Queue;
-        public bool LTX23HasQueueItems => LTX23BasicVM.HasQueueItems;
-        public bool LTX23IsProcessingQueue => LTX23BasicVM.IsProcessingQueue;
-        public string LTX23QueueStatus => LTX23BasicVM.QueueStatus;
-
-        // LTX23BasicVM Commands
-        public ICommand SelectLTX23ImageCommand => LTX23BasicVM.SelectImageCommand;
-        public ICommand AnalyzeLTX23ImageCommand => LTX23BasicVM.AnalyzeImageCommand;
-        public ICommand EnhanceLTX23PromptCommand => LTX23BasicVM.EnhancePromptCommand;
-        public ICommand GenerateLTX23VideoCommand => LTX23BasicVM.GenerateVideoCommand;
-        public ICommand RemoveLTX23QueueItemCommand => LTX23BasicVM.RemoveQueueItemCommand;
-        public ICommand ClearLTX23QueueCommand => LTX23BasicVM.ClearQueueCommand;
-        public ICommand StopLTX23QueueCommand => LTX23BasicVM.StopQueueCommand;
-        public ICommand ReprocessLTX23FailedCommand => LTX23BasicVM.ReprocessAllFailedCommand;
-        public bool LTX23HasFailedItems => LTX23BasicVM.HasFailedItems;
-        public ICommand PlayLTX23VideoCommand => LTX23BasicVM.PlayVideoCommand;
-        public ICommand OpenLTX23ResultFolderCommand => LTX23BasicVM.OpenResultFolderCommand;
-        public ICommand SendLTX23ToEditCameraCommand => LTX23BasicVM.SendToEditCameraCommand;
-
-        #endregion
-
-        #region Wan22SingleVM Backward Compatibility Properties
-
-        public string Wan22ImagePath { get => Wan22SingleVM.ImagePath; set => Wan22SingleVM.ImagePath = value; }
-        public BitmapImage? Wan22ImagePreview { get => Wan22SingleVM.ImagePreview; set => Wan22SingleVM.ImagePreview = value; }
-        public string Wan22ImageInfo { get => Wan22SingleVM.ImageInfo; set => Wan22SingleVM.ImageInfo = value; }
-        public string Wan22Prompt { get => Wan22SingleVM.Prompt; set => Wan22SingleVM.Prompt = value; }
-        public bool IsProcessingWan22 { get => Wan22SingleVM.IsProcessing; set => Wan22SingleVM.IsProcessing = value; }
-        public string Wan22ProcessingStatus => Wan22SingleVM.ProcessingStatus;
-        public double Wan22ProcessingProgress => Wan22SingleVM.ProcessingProgress;
-        public string Wan22ProgressPercentage => Wan22SingleVM.ProgressPercentage;
-        public string Wan22LogOutput => Wan22SingleVM.LogOutput;
-        public bool HasWan22Result => Wan22SingleVM.HasResult;
-        public string Wan22ResultPath => Wan22SingleVM.ResultVideoPath;
-        public string Wan22VideoInfo => Wan22SingleVM.ResultVideoInfo;
-        public bool Wan22IsAnalyzing => Wan22SingleVM.IsAnalyzing;
-        public bool CanWan22AnalyzeImage => Wan22SingleVM.CanAnalyzeImage;
-        public string Wan22AnalysisResult => Wan22SingleVM.AnalysisResult;
-        public bool HasWan22Analysis => Wan22SingleVM.HasAnalysis;
-        public bool CanWan22AddToQueue => Wan22SingleVM.CanAddToQueue;
-        public ObservableCollection<QueueItem> Wan22Queue => Wan22SingleVM.Queue;
-        public bool Wan22HasQueueItems => Wan22SingleVM.HasQueueItems;
-        public bool Wan22IsProcessingQueue => Wan22SingleVM.IsProcessingQueue;
-        public string Wan22QueueStatus => Wan22SingleVM.QueueStatus;
-
-        public ICommand SelectWan22ImageCommand => Wan22SingleVM.SelectImageCommand;
-        public ICommand AnalyzeWan22ImageCommand => Wan22SingleVM.AnalyzeImageCommand;
-        public ICommand GenerateWan22VideoCommand => Wan22SingleVM.GenerateVideoCommand;
-        public ICommand RemoveWan22QueueItemCommand => Wan22SingleVM.RemoveQueueItemCommand;
-        public ICommand ClearWan22QueueCommand => Wan22SingleVM.ClearQueueCommand;
-        public ICommand StopWan22QueueCommand => Wan22SingleVM.StopQueueCommand;
-        public ICommand ReprocessWan22FailedCommand => Wan22SingleVM.ReprocessAllFailedCommand;
-        public bool Wan22HasFailedItems => Wan22SingleVM.HasFailedItems;
-        public ICommand PlayWan22VideoCommand => Wan22SingleVM.PlayVideoCommand;
-        public ICommand OpenWan22ResultFolderCommand => Wan22SingleVM.OpenResultFolderCommand;
-        public ICommand SendWan22ToEditCameraCommand => Wan22SingleVM.SendToEditCameraCommand;
-
-        #endregion
-
-        #region LongVideoVM Backward Compatibility Properties
-
-        public string LongVideoPath { get => LongVideoVM.VideoPath; set => LongVideoVM.VideoPath = value; }
-        public string LongVideoInfo => LongVideoVM.VideoInfo;
-        public bool LongVideoHasVideo => LongVideoVM.HasVideo;
-        public int LongVideoMaxIterations { get => LongVideoVM.MaxIterations; set => LongVideoVM.MaxIterations = value; }
-        public int LongVideoCurrentIteration => LongVideoVM.CurrentIteration;
-        public bool LongVideoIsRunning => LongVideoVM.IsRunning;
-        public bool LongVideoCanStart => LongVideoVM.CanStart;
-        public BitmapImage? LongVideoFramePreview => LongVideoVM.CurrentFramePreview;
-        public string LongVideoCurrentAnalysis => LongVideoVM.CurrentAnalysis;
-        public bool LongVideoIsProcessing { get => LongVideoVM.IsProcessing; set => LongVideoVM.IsProcessing = value; }
-        public string LongVideoProcessingStatus => LongVideoVM.ProcessingStatus;
-        public double LongVideoProcessingProgress => LongVideoVM.ProcessingProgress;
-        public string LongVideoProgressPercentage => LongVideoVM.ProgressPercentage;
-        public string LongVideoLogOutput => LongVideoVM.LogOutput;
-        public bool HasLongVideoResult => LongVideoVM.HasResult;
-        public string LongVideoResultPath => LongVideoVM.ResultVideoPath;
-        public string LongVideoResultInfo => LongVideoVM.ResultVideoInfo;
-        public ObservableCollection<LongVideoIterationItem> LongVideoIterations => LongVideoVM.Iterations;
-        public bool LongVideoHasIterations => LongVideoVM.HasIterations;
-
-        public bool LongVideoUseWan => LongVideoVM.UseWanWorkflow;
-        public bool LongVideoUseLTX23 => LongVideoVM.UseLTX23Workflow;
-        public int LongVideoQueueCount => LongVideoVM.QueuedJobCount;
-        public bool LongVideoHasQueuedJobs => LongVideoVM.HasQueuedJobs;
-        public string LongVideoStartButtonContent => LongVideoVM.StartButtonContent;
-
-        public ICommand SelectLongVideoCommand => LongVideoVM.SelectVideoCommand;
-        public ICommand StartLongVideoCommand => LongVideoVM.StartCommand;
-        public ICommand StopLongVideoCommand => LongVideoVM.StopCommand;
-        public ICommand PlayLongVideoResultCommand => LongVideoVM.PlayResultCommand;
-        public ICommand OpenLongVideoResultFolderCommand => LongVideoVM.OpenResultFolderCommand;
-        public ICommand PlayLongVideoIterationCommand => LongVideoVM.PlayIterationVideoCommand;
-        public ICommand OpenLongVideoIterationFolderCommand => LongVideoVM.OpenIterationFolderCommand;
-        public ICommand ToggleLongVideoWorkflowCommand => LongVideoVM.ToggleWorkflowCommand;
-        public bool LongVideoUseWanSinglePrompt => LongVideoVM.UseWanSinglePrompt;
-        public bool LongVideoUseWanFightPrompt => LongVideoVM.UseWanFightPrompt;
-        public ICommand SelectLongVideoWanSinglePromptCommand => LongVideoVM.SelectWanSinglePromptCommand;
-        public ICommand SelectLongVideoWanFightPromptCommand => LongVideoVM.SelectWanFightPromptCommand;
-
-        #endregion
-
         #region WanScailVM Backward Compatibility Properties
 
         public string WanScailCharacterImagePath { get => WanScailVM.CharacterImagePath; set => WanScailVM.CharacterImagePath = value; }
@@ -1127,58 +877,6 @@ namespace FlipPix.UI.ViewModels
 
         #endregion
 
-        #region LtxControlVM Backward Compatibility Properties
-
-        public string LtxControlRefImagePath { get => LtxControlVM.RefImagePath; set => LtxControlVM.RefImagePath = value; }
-        public System.Windows.Media.Imaging.BitmapImage? LtxControlRefImagePreview { get => LtxControlVM.RefImagePreview; set => LtxControlVM.RefImagePreview = value; }
-        public string LtxControlRefImageInfo { get => LtxControlVM.RefImageInfo; set => LtxControlVM.RefImageInfo = value; }
-        public bool LtxControlHasRefImage => LtxControlVM.HasRefImage;
-
-        public string LtxControlRefVideoPath { get => LtxControlVM.RefVideoPath; set => LtxControlVM.RefVideoPath = value; }
-        public string LtxControlRefVideoInfo { get => LtxControlVM.RefVideoInfo; set => LtxControlVM.RefVideoInfo = value; }
-        public bool LtxControlHasRefVideo => LtxControlVM.HasRefVideo;
-        public string? LtxControlRefVideoFileUri => LtxControlVM.RefVideoFileUri;
-
-        public string LtxControlPrompt { get => LtxControlVM.Prompt; set => LtxControlVM.Prompt = value; }
-        public string LtxControlNegativePrompt { get => LtxControlVM.NegativePrompt; set => LtxControlVM.NegativePrompt = value; }
-        public long LtxControlSeed { get => LtxControlVM.Seed; set => LtxControlVM.Seed = value; }
-
-        public bool LtxControlCanAddToQueue => LtxControlVM.CanAddToQueue;
-        public bool LtxControlCanAnalyze => LtxControlVM.CanAnalyze;
-        public bool LtxControlIsAnalyzing => LtxControlVM.IsAnalyzing;
-
-        public bool IsProcessingLtxControl { get => LtxControlVM.IsProcessing; set => LtxControlVM.IsProcessing = value; }
-        public string LtxControlProcessingStatus => LtxControlVM.ProcessingStatus;
-        public double LtxControlProcessingProgress => LtxControlVM.ProcessingProgress;
-        public string LtxControlProgressPercentage => LtxControlVM.ProgressPercentage;
-        public string LtxControlLogOutput => LtxControlVM.LogOutput;
-
-        public bool HasLtxControlResult => LtxControlVM.HasResult;
-        public string LtxControlResultPath => LtxControlVM.ResultVideoPath;
-        public string LtxControlResultVideoInfo => LtxControlVM.ResultVideoInfo;
-
-        public System.Collections.ObjectModel.ObservableCollection<Models.LtxControlQueueItem> LtxControlQueue => LtxControlVM.Queue;
-        public bool LtxControlHasQueueItems => LtxControlVM.HasQueueItems;
-        public bool LtxControlIsProcessingQueue => LtxControlVM.IsProcessingQueue;
-        public string LtxControlQueueStatus => LtxControlVM.QueueStatus;
-        public bool LtxControlHasFailedItems => LtxControlVM.HasFailedItems;
-
-        public System.Windows.Input.ICommand SelectLtxControlRefImageCommand => LtxControlVM.SelectRefImageCommand;
-        public System.Windows.Input.ICommand SelectLtxControlRefVideoCommand => LtxControlVM.SelectRefVideoCommand;
-        public System.Windows.Input.ICommand AnalyzeLtxControlCommand => LtxControlVM.AnalyzeCommand;
-        public System.Windows.Input.ICommand GenerateLtxControlVideoCommand => LtxControlVM.GenerateVideoCommand;
-        public System.Windows.Input.ICommand RemoveLtxControlQueueItemCommand => LtxControlVM.RemoveQueueItemCommand;
-        public System.Windows.Input.ICommand ClearLtxControlQueueCommand => LtxControlVM.ClearQueueCommand;
-        public System.Windows.Input.ICommand StopLtxControlQueueCommand => LtxControlVM.StopQueueCommand;
-        public System.Windows.Input.ICommand StartLtxControlQueueCommand => LtxControlVM.StartQueueCommand;
-        public System.Windows.Input.ICommand ReprocessAllLtxControlFailedCommand => LtxControlVM.ReprocessAllFailedCommand;
-        public System.Windows.Input.ICommand PlayLtxControlVideoCommand => LtxControlVM.PlayVideoCommand;
-        public System.Windows.Input.ICommand OpenLtxControlResultFolderCommand => LtxControlVM.OpenResultFolderCommand;
-        public System.Windows.Input.ICommand SendLtxControlToEditCameraCommand => LtxControlVM.SendToEditCameraCommand;
-        public System.Windows.Input.ICommand RandomLtxControlSeedCommand => LtxControlVM.RandomSeedCommand;
-
-        #endregion
-
         #region Public Methods
 
         /// <summary>
@@ -1186,11 +884,10 @@ namespace FlipPix.UI.ViewModels
         /// </summary>
         public void SetImagePath(string imagePath)
         {
-            // Load the image into the Single Video tab's reference image and bring that
-            // tab to the front so the user lands on it with the image already loaded.
-            SingleVideoWorkflowIndex = 0; // first story workflow (Vantage Sulphur 2)
-            LTX23ImagePath = imagePath;
-            SelectedTabIndex = 0; // Single Video is the first tab
+            // Load the image as the MiniMax H3 first frame and bring that tab to the front,
+            // so the user lands on it with the image already loaded.
+            MiniMaxH3VM.ImagePath = imagePath;
+            SelectedTabIndex = 7; // MiniMax H3 tab
         }
 
         #endregion
@@ -1207,19 +904,16 @@ namespace FlipPix.UI.ViewModels
                 LTX2AudioVM.PropertyChanged -= ForwardPropertyChanged;
                 MochaVM.PropertyChanged -= ForwardPropertyChanged;
                 InfiniteTalkVM.PropertyChanged -= ForwardPropertyChanged;
-                LTX23BasicVM.PropertyChanged -= ForwardPropertyChanged;
-                LTX23T2VVM.PropertyChanged -= ForwardPropertyChanged;
-                Wan22SingleVM.PropertyChanged -= ForwardPropertyChanged;
-                LongVideoVM.PropertyChanged -= ForwardPropertyChanged;
                 WanScailVM.PropertyChanged -= ForwardPropertyChanged;
                 WanCharReplaceVM.PropertyChanged -= ForwardPropertyChanged;
-                LtxControlVM.PropertyChanged -= ForwardPropertyChanged;
                 LtxDirectorVM.PropertyChanged -= ForwardPropertyChanged;
                 Vr180VM.PropertyChanged -= ForwardPropertyChanged;
                 VideoSoundVM.PropertyChanged -= ForwardPropertyChanged;
                 SeedHuntVM.PropertyChanged -= ForwardPropertyChanged;
-                FflfDasiwaVM.PropertyChanged -= ForwardPropertyChanged;
-                FflfSeedHuntVM.PropertyChanged -= ForwardPropertyChanged;
+                ErosConvRotVM.PropertyChanged -= ForwardPropertyChanged;
+                FaceIdCharSheetVM.PropertyChanged -= ForwardPropertyChanged;
+                MiniMaxH3VM.PropertyChanged -= ForwardPropertyChanged;
+                MiniMaxFflfVM.PropertyChanged -= ForwardPropertyChanged;
 
                 // Dispose all sub-ViewModels
                 (MainVM as IDisposable)?.Dispose();
@@ -1227,18 +921,14 @@ namespace FlipPix.UI.ViewModels
                 (LTX2AudioVM as IDisposable)?.Dispose();
                 (MochaVM as IDisposable)?.Dispose();
                 (InfiniteTalkVM as IDisposable)?.Dispose();
-                (LTX23BasicVM as IDisposable)?.Dispose();
-                (LTX23T2VVM as IDisposable)?.Dispose();
-                (Wan22SingleVM as IDisposable)?.Dispose();
-                (LongVideoVM as IDisposable)?.Dispose();
                 (WanScailVM as IDisposable)?.Dispose();
-                (LtxControlVM as IDisposable)?.Dispose();
                 (LtxDirectorVM as IDisposable)?.Dispose();
                 (Vr180VM as IDisposable)?.Dispose();
                 (VideoSoundVM as IDisposable)?.Dispose();
-                (SeedDirectorVM as IDisposable)?.Dispose();
-                (FflfDasiwaVM as IDisposable)?.Dispose();
-                (FflfSeedHuntVM as IDisposable)?.Dispose();
+                (ErosConvRotVM as IDisposable)?.Dispose();
+                (FaceIdCharSheetVM as IDisposable)?.Dispose();
+                (MiniMaxH3VM as IDisposable)?.Dispose();
+                (MiniMaxFflfVM as IDisposable)?.Dispose();
 
                 _disposed = true;
             }

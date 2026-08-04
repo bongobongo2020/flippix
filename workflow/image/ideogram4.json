@@ -1,0 +1,835 @@
+{
+  "4801": {
+    "inputs": {
+      "noise_seed": 330188979339145
+    },
+    "class_type": "RandomNoise",
+    "_meta": {
+      "title": "RandomNoise"
+    }
+  },
+  "4806": {
+    "inputs": {
+      "step": 16,
+      "sigmas": [
+        "4807",
+        0
+      ]
+    },
+    "class_type": "SplitSigmas",
+    "_meta": {
+      "title": "SplitSigmas"
+    }
+  },
+  "4807": {
+    "inputs": {
+      "scheduler": "simple",
+      "steps": 24,
+      "denoise": 1,
+      "model": [
+        "4900",
+        0
+      ]
+    },
+    "class_type": "BasicScheduler",
+    "_meta": {
+      "title": "BasicScheduler"
+    }
+  },
+  "4808": {
+    "inputs": {
+      "sampler_name": "euler"
+    },
+    "class_type": "KSamplerSelect",
+    "_meta": {
+      "title": "KSamplerSelect"
+    }
+  },
+  "4820": {
+    "inputs": {
+      "noise": [
+        "4801",
+        0
+      ],
+      "guider": [
+        "4853",
+        0
+      ],
+      "sampler": [
+        "4808",
+        0
+      ],
+      "sigmas": [
+        "4806",
+        0
+      ],
+      "latent_image": [
+        "4839",
+        0
+      ]
+    },
+    "class_type": "SamplerCustomAdvanced",
+    "_meta": {
+      "title": "SamplerCustomAdvanced"
+    }
+  },
+  "4821": {
+    "inputs": {
+      "add_noise": "enable",
+      "noise_seed": 1013827099547316,
+      "steps": 8,
+      "cfg": 1,
+      "sampler_name": "euler",
+      "scheduler": "beta",
+      "start_at_step": 2,
+      "end_at_step": 10000,
+      "return_with_leftover_noise": "disable",
+      "model": [
+        "4895",
+        0
+      ],
+      "positive": [
+        "4837",
+        0
+      ],
+      "negative": [
+        "4838",
+        0
+      ],
+      "latent_image": [
+        "4874",
+        0
+      ]
+    },
+    "class_type": "KSamplerAdvanced",
+    "_meta": {
+      "title": "KSampler (Advanced)"
+    }
+  },
+  "4830": {
+    "inputs": {
+      "filename_prefix": "ideogram",
+      "images": [
+        "4933:4931",
+        0
+      ]
+    },
+    "class_type": "SaveImage",
+    "_meta": {
+      "title": "Save Image"
+    }
+  },
+  "4837": {
+    "inputs": {
+      "text": [
+        "4864",
+        0
+      ],
+      "clip": [
+        "4896",
+        0
+      ]
+    },
+    "class_type": "CLIPTextEncode",
+    "_meta": {
+      "title": "CLIP Text Encode (Positive Prompt)"
+    }
+  },
+  "4838": {
+    "inputs": {
+      "conditioning": [
+        "4837",
+        0
+      ]
+    },
+    "class_type": "ConditioningZeroOut",
+    "_meta": {
+      "title": "ConditioningZeroOut"
+    }
+  },
+  "4839": {
+    "inputs": {
+      "width": 800,
+      "height": 1152,
+      "batch_size": 1
+    },
+    "class_type": "EmptyFlux2LatentImage",
+    "_meta": {
+      "title": "Empty Flux 2 Latent"
+    }
+  },
+  "4850": {
+    "inputs": {
+      "cfg": 3,
+      "start_percent": 0.7,
+      "end_percent": 1,
+      "model": [
+        "4900",
+        0
+      ]
+    },
+    "class_type": "CFGOverride",
+    "_meta": {
+      "title": "CFG Override"
+    }
+  },
+  "4853": {
+    "inputs": {
+      "cfg": 7,
+      "model": [
+        "4850",
+        0
+      ],
+      "positive": [
+        "4837",
+        0
+      ],
+      "model_negative": [
+        "4899",
+        0
+      ],
+      "negative": [
+        "4838",
+        0
+      ]
+    },
+    "class_type": "DualModelGuider",
+    "_meta": {
+      "title": "Dual Model CFG Guider"
+    }
+  },
+  "4864": {
+    "inputs": {
+      "width": 800,
+      "height": 1152,
+      "high_level_description": "An authentic, in-universe Abyssal manuscript scroll drawn on ancient, weathered parchment by Lyza the Unreaped. The page presents a meticulous hand-drawn ink blueprint and field study of Reg's iconic helmet (empty) resting on a stone ledge alongside the Star Compass relic. The entire document is covered in handwritten field notes, measurement lines, and archaic Abyssal runic script, rendered using dip-pen line art, crosshatching, and varied colored inks.",
+      "background": "A heavily aged, brittle parchment paper scroll with burnt brown edges, organic ink smudges, subtle water stains, and vertical fold lines, giving the feel of a centuries-old Abyssal document.",
+      "style": "art_style",
+      "style.art_style": "Hand-drawn dark fantasy field journal illustration, fine-nib dip pen crosshatching, colored ink washes, handwritten calligraphy, weathered antique manuscript texture.",
+      "aesthetics": "A raw, atmospheric in-universe field-notes manuscript featuring fine-nib ink line art, heavy crosshatching, variable ink bleed, coffee ring stains, and worn parchment creases. Blends precise relic schematic drawings with expressive explorer journal notes.",
+      "lighting": "Flat overhead lighting illuminating the organic texture of yellowed paper grain, brittle burnt scroll edges, and subtle ink transparency.",
+      "medium": "graphic_design",
+      "style_palette_data": "[\"#271A12\",\"#78350F\",\"#6B21A8\",\"#D97706\",\"#FEF3C7\"]",
+      "elements_data": "{\"_refresh\":5}",
+      "bg_brightness": 22,
+      "import_mode": "always",
+      "output_format": "compact",
+      "coord_mode": "normalized",
+      "bbox_order": "yx",
+      "import_json": [
+        "4868",
+        0
+      ]
+    },
+    "class_type": "Ideogram4PromptBuilderKJ",
+    "_meta": {
+      "title": "Ideogram 4 Prompt Builder KJ"
+    }
+  },
+  "4868": {
+    "inputs": {
+      "value": "{\n  \"high_level_description\": \"An authentic, in-universe Abyssal manuscript scroll drawn on ancient, weathered parchment by Lyza the Unreaped. The page presents a meticulous hand-drawn ink blueprint and field study of Reg's iconic helmet (empty) resting on a stone ledge alongside the Star Compass relic. The entire document is covered in handwritten field notes, measurement lines, and archaic Abyssal runic script, rendered using dip-pen line art, crosshatching, and varied colored inks.\",\n  \"style_description\": {\n    \"aesthetics\": \"A raw, atmospheric in-universe field-notes manuscript featuring fine-nib ink line art, heavy crosshatching, variable ink bleed, coffee ring stains, and worn parchment creases. Blends precise relic schematic drawings with expressive explorer journal notes.\",\n    \"lighting\": \"Flat overhead lighting illuminating the organic texture of yellowed paper grain, brittle burnt scroll edges, and subtle ink transparency.\",\n    \"medium\": \"graphic_design\",\n    \"art_style\": \"Hand-drawn dark fantasy field journal illustration, fine-nib dip pen crosshatching, colored ink washes, handwritten calligraphy, weathered antique manuscript texture.\",\n    \"color_palette\": [\n      \"#271A12\",\n      \"#78350F\",\n      \"#6B21A8\",\n      \"#D97706\",\n      \"#FEF3C7\"\n    ]\n  },\n  \"compositional_deconstruction\": {\n    \"background\": \"A heavily aged, brittle parchment paper scroll with burnt brown edges, organic ink smudges, subtle water stains, and vertical fold lines, giving the feel of a centuries-old Abyssal document.\",\n    \"elements\": [\n      {\n        \"type\": \"text\",\n        \"bbox\": [\n          30,\n          100,\n          120,\n          900\n        ],\n        \"text\": \"᚛ ᚔᚓᚏᚑᚌᚂᚎᚉ ᚜\",\n        \"desc\": \"An expansive header written in Lyza's bold, handwritten Abyssal runic script '᚛ ᚔᚓᚏᚑᚌᚂᚎᚉ ᚜' using rich dark-brown iron gall ink across the top margin.\",\n        \"color_palette\": [\n          \"#271A12\"\n        ]\n      },\n      {\n        \"type\": \"text\",\n        \"bbox\": [\n          130,\n          100,\n          200,\n          900\n        ],\n        \"text\": \"᚛ ᚐᚁᚔᚄᚄᚐᚂ ᚅᚑᚈᚓᚄ ᚜\",\n        \"desc\": \"A secondary line of archaic Abyssal runes '᚛ ᚐᚁᚔᚄᚄᚐᚂ ᚅᚑᚈᚓᚄ ᚜' written in diluted crimson red ink directly beneath the main header.\",\n        \"color_palette\": [\n          \"#991B1B\"\n        ]\n      },\n      {\n        \"type\": \"text\",\n        \"bbox\": [\n          210,\n          100,\n          280,\n          450\n        ],\n        \"text\": \"'Lens mechanism: single forehead aperture, no eye holes.'\",\n        \"desc\": \"A block of delicate, handwritten marginal notes reading 'Lens mechanism: single forehead aperture, no eye holes.' in black ink, detailing the mechanical properties of the helmet's visor assembly.\",\n        \"color_palette\": [\n          \"#1C1917\"\n        ]\n      },\n      {\n        \"type\": \"text\",\n        \"bbox\": [\n          210,\n          500,\n          280,\n          850\n        ],\n        \"text\": \"'Horn structure: unknown Abyssal relic metal.'\",\n        \"desc\": \"A block of fine-nib handwritten cursive notes reading 'Horn structure: unknown Abyssal relic metal.' in dark sepia ink, describing the strange metal composition of the horns.\",\n        \"color_palette\": [\n          \"#271A12\"\n        ]\n      },\n      {\n        \"type\": \"text\",\n        \"bbox\": [\n          290,\n          100,\n          360,\n          450\n        ],\n        \"text\": \"'Depth: 12,000 meters - Grade 1 Relic.'\",\n        \"desc\": \"A short column of handwritten Abyssal shorthand reading 'Depth: 12,000 meters - Grade 1 Relic.' in red ink along the left edge.\",\n        \"color_palette\": [\n          \"#991B1B\"\n        ]\n      },\n      {\n        \"type\": \"text\",\n        \"bbox\": [\n          290,\n          500,\n          360,\n          850\n        ],\n        \"text\": \"'Forehead lens emits faint aura.'\",\n        \"desc\": \"Handwritten observations reading 'Forehead lens emits faint aura.' in faded blue-black ink, pointing toward the central brow emblem with fine leader lines.\",\n        \"color_palette\": [\n          \"#1E3A8A\"\n        ]\n      },\n      {\n        \"type\": \"obj\",\n        \"bbox\": [\n          420,\n          280,\n          880,\n          970\n        ],\n        \"desc\": \"A precise field-sketch blueprint of Reg's helmet resting empty on a rough stone ledge, viewed from a 3/4 angle showing its interior cavity. The helmet is a solid dark slate-grey metallic dome with NO eye holes, NO visor slits, and NO goggles for human eyes; the front face shield is completely solid metal with a smooth, continuous brow band. Mounted on the upper forehead rim is a single, large, protruding circular lens housing containing a glass-like purple-black sphere with a bright white glossy highlight. Two dark grey curved horns extend from the sides: a smaller forward-curving horn on the left, and a larger upward-pointing horn on the right anchored by a distinct three-pronged metallic claw base attached to the temple. Drawn with fine dip-pen crosshatching, dark sepia ink washes, and rich dark purple ink highlights on the central lens.\",\n        \"color_palette\": [\n          \"#271A12\",\n          \"#334155\",\n          \"#6B21A8\",\n          \"#475569\"\n        ]\n      },\n      {\n        \"type\": \"obj\",\n        \"bbox\": [\n          690,\n          90,\n          960,\n          360\n        ],\n        \"desc\": \"A detailed line sketch of the Star Compass resting on the lower left rock ledge, drawn with precise dark brown ink linework and soft yellow-gold ink washes.\",\n        \"color_palette\": [\n          \"#271A12\",\n          \"#B45309\"\n        ]\n      },\n      {\n        \"type\": \"obj\",\n        \"bbox\": [\n          880,\n          520,\n          980,\n          950\n        ],\n        \"desc\": \"Hand-drawn quick sketches of a Red Whistle and small glowing relic fragments along the bottom margin, colored with light crimson and indigo ink washes.\",\n        \"color_palette\": [\n          \"#991B1B\",\n          \"#1E3A8A\"\n        ]\n      }\n    ]\n  }\n}"
+    },
+    "class_type": "PrimitiveStringMultiline",
+    "_meta": {
+      "title": "Manual JSON"
+    }
+  },
+  "4874": {
+    "inputs": {
+      "upscale_method": "bislerp",
+      "scale_by": [
+        "4939",
+        0
+      ],
+      "samples": [
+        "4820",
+        0
+      ]
+    },
+    "class_type": "LatentUpscaleBy",
+    "_meta": {
+      "title": "Upscale Latent By"
+    }
+  },
+  "4890": {
+    "inputs": {
+      "unet_name": "ideogram4_fp8_scaled.safetensors",
+      "weight_dtype": "default"
+    },
+    "class_type": "UNETLoader",
+    "_meta": {
+      "title": "Load Diffusion Model"
+    }
+  },
+  "4891": {
+    "inputs": {
+      "unet_name": "ideogram4_unconditional_fp8_scaled.safetensors",
+      "weight_dtype": "default"
+    },
+    "class_type": "UNETLoader",
+    "_meta": {
+      "title": "Load Diffusion Model"
+    }
+  },
+  "4892": {
+    "inputs": {
+      "shift": 3,
+      "model": [
+        "4890",
+        0
+      ]
+    },
+    "class_type": "ModelSamplingAuraFlow",
+    "_meta": {
+      "title": "ModelSamplingAuraFlow"
+    }
+  },
+  "4893": {
+    "inputs": {
+      "clip_name": "qwen3vl_8b_fp8_scaled.safetensors",
+      "type": "ideogram4",
+      "device": "default"
+    },
+    "class_type": "CLIPLoader",
+    "_meta": {
+      "title": "Load CLIP"
+    }
+  },
+  "4894": {
+    "inputs": {
+      "value1": [
+        "4892",
+        0
+      ],
+      "value2": [
+        "4891",
+        0
+      ]
+    },
+    "class_type": "ImpactMakeAnyList",
+    "_meta": {
+      "title": "Make List (Any)"
+    }
+  },
+  "4895": {
+    "inputs": {
+      "__lm_autocomplete_meta_text": {
+        "version": 1,
+        "textWidgetName": "text"
+      },
+      "text": "<lora:ideogram_4_turbotime_v1:1.00:1.00>",
+      "loras": {
+        "__value__": [
+          {
+            "name": "ideogram_4_turbotime_v1",
+            "strength": 1,
+            "active": false,
+            "expanded": false,
+            "clipStrength": 1,
+            "selected": true,
+            "locked": false
+          }
+        ]
+      },
+      "model": [
+        "4892",
+        0
+      ],
+      "clip": [
+        "4893",
+        0
+      ]
+    },
+    "class_type": "Lora Loader (LoraManager)",
+    "_meta": {
+      "title": "LoRA for Turbo mode"
+    }
+  },
+  "4896": {
+    "inputs": {
+      "index": 0,
+      "any": [
+        "4898",
+        1
+      ]
+    },
+    "class_type": "easy indexAnything",
+    "_meta": {
+      "title": "Clip"
+    }
+  },
+  "4897": {
+    "inputs": {
+      "vae_name": "flux2-vae.safetensors"
+    },
+    "class_type": "VAELoader",
+    "_meta": {
+      "title": "Load VAE"
+    }
+  },
+  "4898": {
+    "inputs": {
+      "__lm_autocomplete_meta_text": {
+        "version": 1,
+        "textWidgetName": "text"
+      },
+      "text": "<lora:Realism_Engine_Ideogram_V2:0.35>, <lora:vintage-anime-ideogram_v3:0.90>, <lora:anime-ideo4_v1:0.75>, <lora:ghibli-ideogram_v1:1.00>",
+      "loras": {
+        "__value__": [
+          {
+            "name": "Realism_Engine_Ideogram_V2",
+            "strength": "0.35",
+            "active": false,
+            "expanded": false,
+            "clipStrength": "0.35",
+            "selected": false,
+            "locked": false
+          },
+          {
+            "name": "vintage-anime-ideogram_v3",
+            "strength": "0.90",
+            "active": false,
+            "expanded": false,
+            "clipStrength": "0.90",
+            "selected": false,
+            "locked": false
+          },
+          {
+            "name": "anime-ideo4_v1",
+            "strength": "0.75",
+            "active": false,
+            "expanded": false,
+            "clipStrength": "0.75",
+            "selected": false,
+            "locked": false
+          },
+          {
+            "name": "ghibli-ideogram_v1",
+            "strength": 1,
+            "active": false,
+            "expanded": false,
+            "clipStrength": 1,
+            "selected": false,
+            "locked": false
+          }
+        ]
+      },
+      "model": [
+        "4894",
+        0
+      ],
+      "clip": [
+        "4893",
+        0
+      ]
+    },
+    "class_type": "Lora Loader (LoraManager)",
+    "_meta": {
+      "title": "LoRA for double model"
+    }
+  },
+  "4899": {
+    "inputs": {
+      "index": 1,
+      "any": [
+        "4898",
+        0
+      ]
+    },
+    "class_type": "easy indexAnything",
+    "_meta": {
+      "title": "Unconditional model"
+    }
+  },
+  "4900": {
+    "inputs": {
+      "index": 0,
+      "any": [
+        "4898",
+        0
+      ]
+    },
+    "class_type": "easy indexAnything",
+    "_meta": {
+      "title": "Main model"
+    }
+  },
+  "4912": {
+    "inputs": {
+      "add_noise": "enable",
+      "noise_seed": 1013827099547316,
+      "steps": 8,
+      "cfg": 1,
+      "sampler_name": "euler",
+      "scheduler": "beta",
+      "start_at_step": 3,
+      "end_at_step": 10000,
+      "return_with_leftover_noise": "disable",
+      "model": [
+        "4895",
+        0
+      ],
+      "positive": [
+        "4837",
+        0
+      ],
+      "negative": [
+        "4838",
+        0
+      ],
+      "latent_image": [
+        "4904:4905",
+        0
+      ]
+    },
+    "class_type": "KSamplerAdvanced",
+    "_meta": {
+      "title": "KSampler (Advanced)"
+    }
+  },
+  "4914": {
+    "inputs": {
+      "samples": [
+        "4925",
+        0
+      ],
+      "vae": [
+        "4897",
+        0
+      ]
+    },
+    "class_type": "VAEDecode",
+    "_meta": {
+      "title": "VAE Decode"
+    }
+  },
+  "4923": {
+    "inputs": {
+      "noise": [
+        "4924",
+        0
+      ],
+      "guider": [
+        "4853",
+        0
+      ],
+      "sampler": [
+        "4808",
+        0
+      ],
+      "sigmas": [
+        "4806",
+        1
+      ],
+      "latent_image": [
+        "4820",
+        0
+      ]
+    },
+    "class_type": "SamplerCustomAdvanced",
+    "_meta": {
+      "title": "SamplerCustomAdvanced"
+    }
+  },
+  "4924": {
+    "inputs": {},
+    "class_type": "DisableNoise",
+    "_meta": {
+      "title": "DisableNoise"
+    }
+  },
+  "4925": {
+    "inputs": {
+      "switch": [
+        "4927",
+        0
+      ],
+      "on_false": [
+        "4821",
+        0
+      ],
+      "on_true": [
+        "4912",
+        0
+      ]
+    },
+    "class_type": "ComfySwitchNode",
+    "_meta": {
+      "title": "Switch"
+    }
+  },
+  "4927": {
+    "inputs": {
+      "value": true
+    },
+    "class_type": "PrimitiveBoolean",
+    "_meta": {
+      "title": "Use method 2 (for text)"
+    }
+  },
+  "4939": {
+    "inputs": {
+      "value": 2
+    },
+    "class_type": "easy float",
+    "_meta": {
+      "title": "Upscale second pass"
+    }
+  },
+  "4941": {
+    "inputs": {
+      "source": [
+        "4864",
+        0
+      ]
+    },
+    "class_type": "PreviewAny",
+    "_meta": {
+      "title": "Preview (run this to refresh JSON import)"
+    }
+  },
+  "4904:4646": {
+    "inputs": {
+      "model_name": "4x_IllustrationJaNai_V1_DAT2_190k.pth"
+    },
+    "class_type": "UpscaleModelLoader",
+    "_meta": {
+      "title": "Load Upscale Model"
+    }
+  },
+  "4904:4767": {
+    "inputs": {
+      "value": [
+        "4939",
+        0
+      ]
+    },
+    "class_type": "easy float",
+    "_meta": {
+      "title": "Float"
+    }
+  },
+  "4904:4645": {
+    "inputs": {
+      "upscale_model": [
+        "4904:4646",
+        0
+      ],
+      "image": [
+        "4904:4907",
+        0
+      ]
+    },
+    "class_type": "ImageUpscaleWithModel",
+    "_meta": {
+      "title": "Upscale Image (using Model)"
+    }
+  },
+  "4904:4765": {
+    "inputs": {
+      "expression": "a * b",
+      "values.a": [
+        "4904:4763",
+        0
+      ],
+      "values.b": [
+        "4904:4767",
+        0
+      ]
+    },
+    "class_type": "ComfyMathExpression",
+    "_meta": {
+      "title": "Math Expression"
+    }
+  },
+  "4904:4766": {
+    "inputs": {
+      "expression": "a * b",
+      "values.a": [
+        "4904:4763",
+        1
+      ],
+      "values.b": [
+        "4904:4767",
+        0
+      ]
+    },
+    "class_type": "ComfyMathExpression",
+    "_meta": {
+      "title": "Math Expression"
+    }
+  },
+  "4904:4905": {
+    "inputs": {
+      "pixels": [
+        "4904:4764",
+        0
+      ],
+      "vae": [
+        "4897",
+        0
+      ]
+    },
+    "class_type": "VAEEncode",
+    "_meta": {
+      "title": "VAE Encode"
+    }
+  },
+  "4904:4764": {
+    "inputs": {
+      "resize_type": "scale dimensions",
+      "resize_type.width": [
+        "4904:4765",
+        1
+      ],
+      "resize_type.height": [
+        "4904:4766",
+        1
+      ],
+      "resize_type.crop": "disabled",
+      "scale_method": "lanczos",
+      "input": [
+        "4904:4645",
+        0
+      ]
+    },
+    "class_type": "ResizeImageMaskNode",
+    "_meta": {
+      "title": "Resize Image/Mask"
+    }
+  },
+  "4904:4763": {
+    "inputs": {
+      "image": [
+        "4904:4907",
+        0
+      ]
+    },
+    "class_type": "GetImageSize",
+    "_meta": {
+      "title": "Get Image Size"
+    }
+  },
+  "4904:4906": {
+    "inputs": {
+      "samples": [
+        "4923",
+        0
+      ],
+      "vae": [
+        "4897",
+        0
+      ]
+    },
+    "class_type": "VAEDecode",
+    "_meta": {
+      "title": "VAE Decode"
+    }
+  },
+  "4904:4907": {
+    "inputs": {
+      "switch": true,
+      "on_false": [
+        "4904:4920",
+        7
+      ],
+      "on_true": [
+        "4904:4906",
+        0
+      ]
+    },
+    "class_type": "ComfySwitchNode",
+    "_meta": {
+      "title": "Switch"
+    }
+  },
+  "4904:4920": {
+    "inputs": {},
+    "class_type": "Context (rgthree)",
+    "_meta": {
+      "title": "Context (rgthree)"
+    }
+  },
+  "4933:4930": {
+    "inputs": {
+      "value": [
+        "4927",
+        0
+      ]
+    },
+    "class_type": "ComfyNotNode",
+    "_meta": {
+      "title": "Not"
+    }
+  },
+  "4933:4931": {
+    "inputs": {
+      "switch": false,
+      "on_false": [
+        "4914",
+        0
+      ],
+      "on_true": [
+        "4933:4932",
+        0
+      ]
+    },
+    "class_type": "ComfySwitchNode",
+    "_meta": {
+      "title": "Switch"
+    }
+  },
+  "4933:4929": {
+    "inputs": {
+      "switch": [
+        "4933:4930",
+        0
+      ],
+      "on_false": [
+        "4821",
+        0
+      ],
+      "on_true": [
+        "4912",
+        0
+      ]
+    },
+    "class_type": "ComfySwitchNode",
+    "_meta": {
+      "title": "Switch"
+    }
+  },
+  "4933:4928": {
+    "inputs": {
+      "samples": [
+        "4933:4929",
+        0
+      ],
+      "vae": [
+        "4897",
+        0
+      ]
+    },
+    "class_type": "VAEDecode",
+    "_meta": {
+      "title": "VAE Decode"
+    }
+  },
+  "4933:4932": {
+    "inputs": {
+      "images.image0": [
+        "4914",
+        0
+      ],
+      "images.image1": [
+        "4933:4928",
+        0
+      ]
+    },
+    "class_type": "BatchImagesNode",
+    "_meta": {
+      "title": "Batch Images"
+    }
+  }
+}

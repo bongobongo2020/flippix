@@ -366,11 +366,66 @@ public class ComfyUIService : IDisposable
         }
     }
 
+    /// <summary>
+    /// Submits a workflow and waits for it to finish. If the ComfyUI server restarts mid-run and
+    /// loses the job (see <see cref="ComfyUIPromptLostException"/>), waits for the server to come
+    /// back and resubmits once — the server has no record of the lost prompt, so this cannot
+    /// duplicate work. A second loss is surfaced to the caller rather than retried forever, since
+    /// a job that reliably kills ComfyUI (e.g. too high a resolution for the card) needs a real fix.
+    /// </summary>
     public async Task<string> ExecuteWorkflowAsync(
         object workflow,
         IProgress<ProgressMessage>? progress = null,
         CancellationToken cancellationToken = default,
         TimeSpan? executionTimeout = null)
+    {
+        try
+        {
+            return await ExecuteWorkflowAttemptAsync(workflow, progress, cancellationToken, executionTimeout);
+        }
+        catch (ComfyUIPromptLostException ex)
+        {
+            _logger.LogWarning($"Job lost to a ComfyUI restart ({ex.PromptId}); waiting for the server to come back to resubmit once.");
+
+            if (!await WaitForServerReadyAsync(TimeSpan.FromMinutes(5), cancellationToken))
+            {
+                throw new ComfyUIPromptLostException(
+                    ex.Message + " The server did not come back within 5 minutes, so the job could not be resubmitted.",
+                    ex.PromptId);
+            }
+
+            _logger.LogInfo("ComfyUI is back; resubmitting the lost job.");
+            return await ExecuteWorkflowAttemptAsync(workflow, progress, cancellationToken, executionTimeout);
+        }
+    }
+
+    /// <summary>
+    /// Polls until ComfyUI answers /object_info (fully loaded, not just listening), or the wait
+    /// budget runs out. False on timeout.
+    /// </summary>
+    private async Task<bool> WaitForServerReadyAsync(TimeSpan budget, CancellationToken cancellationToken)
+    {
+        var deadline = DateTime.UtcNow + budget;
+        while (DateTime.UtcNow < deadline)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            try
+            {
+                if (await _httpClient.IsComfyUIReadyAsync(cancellationToken)) return true;
+            }
+            catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested) { throw; }
+            catch (Exception ex) { _logger.LogDebug("Readiness check failed: " + ex.Message); }
+
+            await Task.Delay(TimeSpan.FromSeconds(10), cancellationToken);
+        }
+        return false;
+    }
+
+    private async Task<string> ExecuteWorkflowAttemptAsync(
+        object workflow,
+        IProgress<ProgressMessage>? progress,
+        CancellationToken cancellationToken,
+        TimeSpan? executionTimeout)
     {
         try
         {
@@ -417,8 +472,22 @@ public class ComfyUIService : IDisposable
                         if (!isCompleted)
                         {
                             isCompleted = true;
-                            _logger.LogInfo("Completion source set for prompt: {PromptId}", promptId);
-                            completionSource.TrySetResult(promptId);
+                            // An "execution_error" message means ComfyUI aborted the prompt
+                            // (a node threw at runtime). Fail the call so the caller surfaces
+                            // the reason instead of proceeding to hunt for an output that
+                            // was never produced.
+                            if (completeMsg.Type == "execution_error")
+                            {
+                                var reason = completeMsg.Data?.ErrorMessage ?? "ComfyUI reported an execution error";
+                                _logger.LogError($"Completion source faulted for prompt {promptId}: {reason}");
+                                completionSource.TrySetException(
+                                    new ComfyUIExecutionException($"ComfyUI execution failed: {reason}", promptId));
+                            }
+                            else
+                            {
+                                _logger.LogInfo("Completion source set for prompt: {PromptId}", promptId);
+                                completionSource.TrySetResult(promptId);
+                            }
                         }
                         else
                         {
@@ -459,6 +528,17 @@ public class ComfyUIService : IDisposable
             // once it has fully finished, so its presence there means we are done.
             var historyPollTask = Task.Run(async () =>
             {
+                // A prompt that is in neither /history nor /queue no longer exists. ComfyUI holds
+                // both in memory only, so this means the server process restarted or was killed
+                // mid-run (typically a VRAM OOM) and the job is gone. Without this, the client
+                // polls a dead prompt until the full execution timeout (hours for video work).
+                // Require several consecutive misses after a grace period so a restarting server
+                // or a momentary queue/history gap can't trip it.
+                const int lostThreshold = 3;
+                var submittedAt = DateTime.UtcNow;
+                var gracePeriod = TimeSpan.FromSeconds(30);
+                int consecutiveMisses = 0;
+
                 while (!isCompleted)
                 {
                     try
@@ -479,6 +559,36 @@ public class ComfyUIService : IDisposable
                             }
                             return;
                         }
+
+                        // Not in history yet — is it still queued/running?
+                        if (DateTime.UtcNow - submittedAt < gracePeriod) continue;
+
+                        if (await _httpClient.IsPromptQueuedAsync(promptId, combinedCts.Token))
+                        {
+                            consecutiveMisses = 0;
+                            continue;
+                        }
+
+                        if (++consecutiveMisses < lostThreshold)
+                        {
+                            _logger.LogWarning($"Prompt {promptId} is in neither /history nor /queue ({consecutiveMisses}/{lostThreshold})");
+                            continue;
+                        }
+
+                        lock (lockObj)
+                        {
+                            if (!isCompleted)
+                            {
+                                isCompleted = true;
+                                _logger.LogError($"Prompt {promptId} vanished from ComfyUI (not queued, not in history) — server restarted mid-run");
+                                completionSource.TrySetException(new ComfyUIPromptLostException(
+                                    "ComfyUI no longer knows about this job — it is neither queued nor in the run history. " +
+                                    "The ComfyUI server restarted or was killed mid-run (most often a VRAM out-of-memory). " +
+                                    "Nothing is running on the server.",
+                                    promptId));
+                            }
+                        }
+                        return;
                     }
                     catch (OperationCanceledException) { return; }
                     catch (Exception ex) { _logger.LogDebug("History poll error: " + ex.Message); }
@@ -597,7 +707,11 @@ public class ComfyUIService : IDisposable
                                 var errorComplete = new ExecutionCompleteMessage
                                 {
                                     Type = "execution_error",
-                                    Data = new ExecutionCompleteData { PromptId = errorPromptId }
+                                    Data = new ExecutionCompleteData
+                                    {
+                                        PromptId = errorPromptId,
+                                        ErrorMessage = $"node {errorNode}: {errorMsg}"
+                                    }
                                 };
                                 ExecutionCompleted?.Invoke(this, errorComplete);
                             }

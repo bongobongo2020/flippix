@@ -29,7 +29,7 @@
         </Style>
 
         <Style x:Key="PrimaryButtonStyle" TargetType="Button">
-            <Setter Property="Background" Value="#6366F1"/>
+            <Setter Property="Background" Value="{StaticResource AccentIndigoBrush}"/>
             <Setter Property="Foreground" Value="White"/>
             <Setter Property="BorderThickness" Value="0"/>
             <Setter Property="Padding" Value="16,8"/>
@@ -49,7 +49,7 @@
             </Setter>
             <Style.Triggers>
                 <Trigger Property="IsMouseOver" Value="True">
-                    <Setter Property="Background" Value="#4F46E5"/>
+                    <Setter Property="Background" Value="{StaticResource AccentIndigoBrush}"/>
                 </Trigger>
                 <Trigger Property="IsEnabled" Value="False">
                     <Setter Property="Background" Value="#CBD5E1"/>
@@ -60,7 +60,7 @@
         </Style>
 
         <Style x:Key="SecondaryButtonStyle" TargetType="Button">
-            <Setter Property="Background" Value="#10B981"/>
+            <Setter Property="Background" Value="{StaticResource SuccessBrush}"/>
             <Setter Property="Foreground" Value="White"/>
             <Setter Property="BorderThickness" Value="0"/>
             <Setter Property="Padding" Value="12,6"/>
@@ -80,7 +80,7 @@
             </Setter>
             <Style.Triggers>
                 <Trigger Property="IsMouseOver" Value="True">
-                    <Setter Property="Background" Value="#059669"/>
+                    <Setter Property="Background" Value="{StaticResource SuccessBrush}"/>
                 </Trigger>
                 <Trigger Property="IsEnabled" Value="False">
                     <Setter Property="Background" Value="#CBD5E1"/>
@@ -91,7 +91,7 @@
         </Style>
 
         <Style x:Key="AnalyzeButtonStyle" TargetType="Button">
-            <Setter Property="Background" Value="#F59E0B"/>
+            <Setter Property="Background" Value="{StaticResource AccentAmberBrush}"/>
             <Setter Property="Foreground" Value="White"/>
             <Setter Property="BorderThickness" Value="0"/>
             <Setter Property="Padding" Value="14,8"/>
@@ -111,7 +111,7 @@
             </Setter>
             <Style.Triggers>
                 <Trigger Property="IsMouseOver" Value="True">
-                    <Setter Property="Background" Value="#D97706"/>
+                    <Setter Property="Background" Value="{StaticResource AccentAmberBrush}"/>
                 </Trigger>
                 <Trigger Property="IsEnabled" Value="False">
                     <Setter Property="Background" Value="#CBD5E1"/>
@@ -149,9 +149,9 @@
                     <Setter Property="Background" Value="#DEE2E6"/>
                 </Trigger>
                 <Trigger Property="IsChecked" Value="True">
-                    <Setter Property="Background" Value="#6366F1"/>
+                    <Setter Property="Background" Value="{StaticResource AccentIndigoBrush}"/>
                     <Setter Property="Foreground" Value="White"/>
-                    <Setter Property="BorderBrush" Value="#6366F1"/>
+                    <Setter Property="BorderBrush" Value="{StaticResource AccentIndigoBrush}"/>
                 </Trigger>
             </Style.Triggers>
         </Style>
@@ -206,7 +206,7 @@
                     <!-- Section A: Input Mode -->
                     <Border Style="{StaticResource SectionPanelStyle}">
                         <StackPanel>
-                            <TextBlock Text="Input Mode" Style="{StaticResource HeaderTextStyle}" Foreground="#6366F1"/>
+                            <TextBlock Text="Input Mode" Style="{StaticResource HeaderTextStyle}" Foreground="{StaticResource AccentIndigoBrush}"/>
 
                             <!-- Input Mode Toggle -->
                             <StackPanel Orientation="Horizontal" Margin="0,0,0,12">
@@ -240,7 +240,7 @@
                                             IsReadOnly="True"
                                             Padding="8"
                                             Background="White"
-                                            BorderBrush="#CED4DA"
+                                            BorderBrush="{StaticResource BorderBrush}"
                                             VerticalContentAlignment="Center"
                                             FontSize="11"
                                             Height="30"/>
@@ -255,7 +255,7 @@
                                 </Grid>
 
                                 <!-- Image Preview -->
-                                <Border BorderBrush="#DEE2E6" BorderThickness="2"
+                                <Border BorderBrush="{StaticResource BorderBrush}" BorderThickness="2"
                                         Background="White" Height="180"
                                         CornerRadius="5" Margin="0,0,0,8">
                                     <Grid>
@@ -292,7 +292,7 @@
                                        Height="38"/>
 
                                 <!-- Processing Status for Analysis -->
-                                <Border Background="#FEF3C7"
+                                <Border Background="{StaticResource SurfaceAltBrush}"
                                         BorderBrush="#FCD34D"
                                         BorderThickness="2"
                                         CornerRadius="6"
@@ -308,7 +308,7 @@
                                                   Foreground="#92400E"/>
                                         <ProgressBar IsIndeterminate="True"
                                                     Height="18"
-                                                    Foreground="#F59E0B"/>
+                                                    Foreground="{StaticResource AccentAmberBrush}"/>
                                     </StackPanel>
                                 </Border>
 
@@ -327,7 +327,7 @@
                                             <Button Grid.Column="1" Content="&#x1F4BE; Save" Style="{StaticResource SecondaryButtonStyle}"
                                                     Command="{Binding SavePromptCommand}" Padding="10,5" Margin="5,0,5,0"
                                                     ToolTip="Save current prompt settings"
-                                                    Background="#4CAF50"/>
+                                                    Background="{StaticResource SuccessBrush}"/>
                                             <Button Grid.Column="2" Content="&#x1F5D1;&#xFE0F; Delete" Style="{StaticResource SecondaryButtonStyle}"
                                                     Command="{Binding DeletePromptCommand}" Padding="10,5" Margin="0,0,0,0"
                                                     ToolTip="Delete selected saved prompt"
@@ -339,7 +339,7 @@
                                                   SelectedValuePath="Id"
                                                   Padding="10"
                                                   Background="White"
-                                                  BorderBrush="#CED4DA"
+                                                  BorderBrush="{StaticResource BorderBrush}"
                                                   FontSize="12"
                                                   Margin="0,5,0,10"
                                                   Height="40">
@@ -366,7 +366,7 @@
                                     Padding="10"
                                     VerticalScrollBarVisibility="Auto"
                                     Background="White"
-                                    BorderBrush="#CED4DA"
+                                    BorderBrush="{StaticResource BorderBrush}"
                                     FontSize="12"/>
                         </StackPanel>
                     </Border>
@@ -374,14 +374,14 @@
                     <!-- Section B: Workflow Selection -->
                     <Border Style="{StaticResource SectionPanelStyle}">
                         <StackPanel>
-                            <TextBlock Text="Workflow Selection" Style="{StaticResource HeaderTextStyle}" Foreground="#8B5CF6"/>
+                            <TextBlock Text="Workflow Selection" Style="{StaticResource HeaderTextStyle}" Foreground="{StaticResource AccentVioletBrush}"/>
 
                             <TextBlock Text="Select the AI workflow to use for generation" FontSize="11" Foreground="#666" Margin="0,0,0,8"/>
 
                             <ComboBox SelectedIndex="{Binding SelectedWorkflowIndex, Mode=TwoWay}"
                                      Padding="8"
                                      Background="White"
-                                     BorderBrush="#CED4DA"
+                                     BorderBrush="{StaticResource BorderBrush}"
                                      FontSize="11"
                                      Height="32">
                                 <ComboBoxItem Content="Zimage (Style-based generation)"/>
@@ -396,12 +396,12 @@
                     <!-- Section C: Style Preset (extracted from Generation Settings Expander) -->
                     <Border Style="{StaticResource SectionPanelStyle}" Visibility="{Binding ShowStyleOptions, Converter={StaticResource BooleanToVisibilityConverter}}">
                         <StackPanel>
-                            <TextBlock Text="Style Preset" Style="{StaticResource HeaderTextStyle}" Foreground="#8B5CF6"/>
+                            <TextBlock Text="Style Preset" Style="{StaticResource HeaderTextStyle}" Foreground="{StaticResource AccentVioletBrush}"/>
                             <ComboBox SelectedIndex="{Binding SelectedStyleIndex, Mode=TwoWay}"
                                      ItemsSource="{Binding StyleNames}"
                                      Padding="8"
                                      Background="White"
-                                     BorderBrush="#CED4DA"
+                                     BorderBrush="{StaticResource BorderBrush}"
                                      FontSize="11"
                                      Height="32"
                                      Margin="0,4,0,0"/>
@@ -411,7 +411,7 @@
                     <!-- Section D: LoRA (extracted from Generation Settings Expander) -->
                     <Border Style="{StaticResource SectionPanelStyle}" Visibility="{Binding ShowLoraOptions, Converter={StaticResource BooleanToVisibilityConverter}}">
                         <StackPanel>
-                            <TextBlock Text="LoRA Model" Style="{StaticResource HeaderTextStyle}" Foreground="#8B5CF6"/>
+                            <TextBlock Text="LoRA Model" Style="{StaticResource HeaderTextStyle}" Foreground="{StaticResource AccentVioletBrush}"/>
                             <CheckBox Content="Enable LoRA"
                                      IsChecked="{Binding LoraEnabled, Mode=TwoWay}"
                                      FontWeight="SemiBold"
@@ -427,7 +427,7 @@
                                          SelectedItem="{Binding SelectedLora, Mode=TwoWay}"
                                          Padding="8"
                                          Background="White"
-                                         BorderBrush="#CED4DA"
+                                         BorderBrush="{StaticResource BorderBrush}"
                                          FontSize="11"
                                          Height="32"
                                          Margin="0,0,6,0"/>
@@ -445,7 +445,7 @@
                     <!-- Section D2: Krea2 LoRAs — multiple LoRAs, each with its own strength -->
                     <Border Style="{StaticResource SectionPanelStyle}" Visibility="{Binding ShowKreaLoraOptions, Converter={StaticResource BooleanToVisibilityConverter}}">
                         <StackPanel>
-                            <TextBlock Text="Krea2 LoRAs" Style="{StaticResource HeaderTextStyle}" Foreground="#8B5CF6"/>
+                            <TextBlock Text="Krea2 LoRAs" Style="{StaticResource HeaderTextStyle}" Foreground="{StaticResource AccentVioletBrush}"/>
                             <ItemsControl ItemsSource="{Binding SelectedKreaLoras}" Margin="0,4,0,0">
                                 <ItemsControl.ItemTemplate>
                                     <DataTemplate>
@@ -460,7 +460,7 @@
                                                      SelectedItem="{Binding LoraName, Mode=TwoWay}"
                                                      Padding="8"
                                                      Background="White"
-                                                     BorderBrush="#CED4DA"
+                                                     BorderBrush="{StaticResource BorderBrush}"
                                                      FontSize="11"
                                                      Height="32"
                                                      Margin="0,0,6,0"/>
@@ -489,7 +489,7 @@
                     <!-- Section E: Queue Actions (moved up from bottom) -->
                     <Border Style="{StaticResource SectionPanelStyle}">
                         <StackPanel>
-                            <TextBlock Text="Queue Actions" Style="{StaticResource HeaderTextStyle}" Foreground="#10B981"/>
+                            <TextBlock Text="Queue Actions" Style="{StaticResource HeaderTextStyle}" Foreground="{StaticResource SuccessTextBrush}"/>
 
                             <Button Content="Add to Queue"
                                    Style="{StaticResource PrimaryButtonStyle}"
@@ -518,7 +518,7 @@
                                     <ComboBox SelectedIndex="{Binding AspectRatioIndex, Mode=TwoWay}"
                                              Padding="8"
                                              Background="White"
-                                             BorderBrush="#CED4DA"
+                                             BorderBrush="{StaticResource BorderBrush}"
                                              FontSize="11"
                                              Height="30">
                                         <ComboBoxItem Content="Landscape"/>
@@ -584,7 +584,7 @@
                     <Expander Header="🔌 LM Studio Connection" Margin="0,0,0,10" IsExpanded="False">
                         <Border Style="{StaticResource SectionPanelStyle}" Margin="0,8,0,0">
                             <StackPanel>
-                                <TextBlock Text="LM Studio Settings" Style="{StaticResource HeaderTextStyle}" Foreground="#10B981"/>
+                                <TextBlock Text="LM Studio Settings" Style="{StaticResource HeaderTextStyle}" Foreground="{StaticResource SuccessTextBrush}"/>
 
                                 <Grid Margin="0,0,0,10">
                                     <Grid.ColumnDefinitions>
@@ -598,7 +598,7 @@
                                         <TextBox Text="{Binding LMStudioServer, UpdateSourceTrigger=PropertyChanged}"
                                                  Padding="8"
                                                  Background="White"
-                                                 BorderBrush="#CED4DA"
+                                                 BorderBrush="{StaticResource BorderBrush}"
                                                  FontSize="11"
                                                  Height="30"/>
                                     </StackPanel>
@@ -608,7 +608,7 @@
                                         <TextBox Text="{Binding LMStudioPort, UpdateSourceTrigger=PropertyChanged}"
                                                  Padding="8"
                                                  Background="White"
-                                                 BorderBrush="#CED4DA"
+                                                 BorderBrush="{StaticResource BorderBrush}"
                                                  FontSize="11"
                                                  Height="30"/>
                                     </StackPanel>
@@ -636,7 +636,7 @@
                                                   SelectedValuePath="Name"
                                                   Padding="8"
                                                   Background="White"
-                                                  BorderBrush="#CED4DA"
+                                                  BorderBrush="{StaticResource BorderBrush}"
                                                   FontSize="11"
                                                   Height="30">
                                             <ComboBox.ItemTemplate>
@@ -668,10 +668,10 @@
                     <!-- Section E: Queue Status Bar -->
                     <Border Style="{StaticResource SectionPanelStyle}">
                         <StackPanel>
-                            <TextBlock Text="Queue Status" Style="{StaticResource HeaderTextStyle}" Foreground="#EC4899"/>
+                            <TextBlock Text="Queue Status" Style="{StaticResource HeaderTextStyle}" Foreground="{StaticResource AccentRoseBrush}"/>
 
-                            <Border Background="#F8F9FA"
-                                    BorderBrush="#DEE2E6"
+                            <Border Background="{StaticResource SurfaceAltBrush}"
+                                    BorderBrush="{StaticResource BorderBrush}"
                                     BorderThickness="1"
                                     CornerRadius="5"
                                     Padding="12">
@@ -699,20 +699,20 @@
                                               Margin="10,0"
                                               VerticalAlignment="Center"
                                               FontSize="11"
-                                              Foreground="#28A745"/>
+                                              Foreground="{StaticResource SuccessBrush}"/>
 
                                     <TextBlock Grid.Column="3"
                                               Text="{Binding FailedCount, StringFormat={}Failed: {0}}"
                                               Margin="10,0"
                                               VerticalAlignment="Center"
                                               FontSize="11"
-                                              Foreground="#DC3545"/>
+                                              Foreground="{StaticResource DangerBrush}"/>
                                 </Grid>
                             </Border>
 
                             <!-- Processing Progress -->
-                            <Border Background="#FFF9F0"
-                                    BorderBrush="#FFE0B0"
+                            <Border Background="{StaticResource SurfaceAltBrush}"
+                                    BorderBrush="{StaticResource BorderBrush}"
                                     BorderThickness="1"
                                     CornerRadius="5"
                                     Padding="12"
@@ -727,7 +727,7 @@
                                     <ProgressBar Value="{Binding QueueProgress, Mode=OneWay}"
                                                 Maximum="{Binding QueueTotal, Mode=OneWay}"
                                                 Height="16"
-                                                Foreground="#FF6B35"
+                                                Foreground="{StaticResource TextPrimaryBrush}"
                                                 Margin="0,0,0,5"/>
 
                                     <!-- Pause/Resume/Cancel Buttons -->
@@ -768,7 +768,7 @@
                                                HorizontalAlignment="Center"
                                                Padding="8,4"
                                                FontSize="11"
-                                               Background="#DC3545"
+                                               Background="{StaticResource DangerBrush}"
                                                Foreground="White"
                                                BorderThickness="0"
                                                Margin="5,0,0,0">
@@ -807,7 +807,7 @@
 
                     <!-- Section F: Queue Items List -->
                     <Border x:Name="QueueBorder"
-                            BorderBrush="#DEE2E6"
+                            BorderBrush="{StaticResource BorderBrush}"
                             BorderThickness="2"
                             CornerRadius="8"
                             Background="White"
@@ -818,7 +818,7 @@
                             </Style>
                         </Border.Style>
                         <StackPanel>
-                            <TextBlock Text="Queue Items" Style="{StaticResource HeaderTextStyle}" Foreground="#6366F1" Padding="15,15,15,0"/>
+                            <TextBlock Text="Queue Items" Style="{StaticResource HeaderTextStyle}" Foreground="{StaticResource AccentIndigoBrush}" Padding="15,15,15,0"/>
 
                             <ScrollViewer VerticalScrollBarVisibility="Auto" MaxHeight="350" Padding="15">
                                 <ItemsControl ItemsSource="{Binding QueueItems}">
@@ -890,7 +890,7 @@
                                                                         <Setter.Value>
                                                                             <ControlTemplate TargetType="Button">
                                                                                 <Border Background="Transparent"
-                                                                                        BorderBrush="#DEE2E6"
+                                                                                        BorderBrush="{StaticResource BorderBrush}"
                                                                                         BorderThickness="1"
                                                                                         CornerRadius="4"
                                                                                         Padding="2"
@@ -990,7 +990,7 @@
                     <!-- Section G: Queue Control Buttons -->
                     <Border Style="{StaticResource SectionPanelStyle}">
                         <StackPanel>
-                            <TextBlock Text="Queue Controls" Style="{StaticResource HeaderTextStyle}" Foreground="#10B981"/>
+                            <TextBlock Text="Queue Controls" Style="{StaticResource HeaderTextStyle}" Foreground="{StaticResource SuccessTextBrush}"/>
 
                             <Grid Margin="0,0,0,8">
                                 <Grid.ColumnDefinitions>
@@ -1036,10 +1036,10 @@
                                        Height="38">
                                     <Button.Style>
                                         <Style TargetType="Button" BasedOn="{StaticResource SecondaryButtonStyle}">
-                                            <Setter Property="Background" Value="#FFA500"/>
+                                            <Setter Property="Background" Value="{StaticResource AccentAmberBrush}"/>
                                             <Style.Triggers>
                                                 <Trigger Property="IsMouseOver" Value="True">
-                                                    <Setter Property="Background" Value="#FF8C00"/>
+                                                    <Setter Property="Background" Value="{StaticResource AccentAmberBrush}"/>
                                                 </Trigger>
                                                 <Trigger Property="IsEnabled" Value="False">
                                                     <Setter Property="Background" Value="#CCC"/>
@@ -1057,10 +1057,10 @@
                                        Height="38">
                                     <Button.Style>
                                         <Style TargetType="Button" BasedOn="{StaticResource SecondaryButtonStyle}">
-                                            <Setter Property="Background" Value="#F59E0B"/>
+                                            <Setter Property="Background" Value="{StaticResource AccentAmberBrush}"/>
                                             <Style.Triggers>
                                                 <Trigger Property="IsMouseOver" Value="True">
-                                                    <Setter Property="Background" Value="#D97706"/>
+                                                    <Setter Property="Background" Value="{StaticResource AccentAmberBrush}"/>
                                                 </Trigger>
                                                 <Trigger Property="IsEnabled" Value="False">
                                                     <Setter Property="Background" Value="#CCC"/>
@@ -1085,9 +1085,9 @@
                     <!-- Section H: Result Preview -->
                     <Border Style="{StaticResource SectionPanelStyle}">
                         <StackPanel>
-                            <TextBlock Text="Latest Result" Style="{StaticResource HeaderTextStyle}" Foreground="#10B981"/>
+                            <TextBlock Text="Latest Result" Style="{StaticResource HeaderTextStyle}" Foreground="{StaticResource SuccessTextBrush}"/>
 
-                            <Border BorderBrush="#DEE2E6" BorderThickness="2"
+                            <Border BorderBrush="{StaticResource BorderBrush}" BorderThickness="2"
                                     Background="White" Height="180"
                                     CornerRadius="5" Margin="0,0,0,8">
                                 <Grid>
@@ -1134,7 +1134,7 @@
         </ScrollViewer>
 
         <!-- Status Bar -->
-        <StatusBar Grid.Row="2" Background="#F8F9FA" BorderBrush="#DEE2E6" BorderThickness="0,1,0,0" Height="26">
+        <StatusBar Grid.Row="2" Background="{StaticResource SurfaceAltBrush}" BorderBrush="{StaticResource BorderBrush}" BorderThickness="0,1,0,0" Height="26">
             <StatusBarItem>
                 <TextBlock Text="{Binding StatusBarMessage}" FontSize="10" FontWeight="SemiBold"/>
             </StatusBarItem>
@@ -1145,12 +1145,12 @@
                     <TextBlock Text=":" FontSize="10"/>
                     <TextBlock Text="{Binding ComfyUIPort}" FontSize="10" FontWeight="Bold"/>
                     <TextBlock Text=" | " FontSize="10"/>
-                    <TextBlock Text="LM Studio: " FontSize="10" Foreground="#10B981"/>
+                    <TextBlock Text="LM Studio: " FontSize="10" Foreground="{StaticResource SuccessTextBrush}"/>
                     <TextBlock Text="{Binding LMStudioServer}" FontSize="10" FontWeight="Bold"/>
                     <TextBlock Text=":" FontSize="10"/>
                     <TextBlock Text="{Binding LMStudioPort}" FontSize="10" FontWeight="Bold"/>
                     <TextBlock Text=" (" FontSize="10"/>
-                    <TextBlock Text="{Binding SelectedModel}" FontSize="10" FontWeight="Bold" Foreground="#10B981"/>
+                    <TextBlock Text="{Binding SelectedModel}" FontSize="10" FontWeight="Bold" Foreground="{StaticResource SuccessTextBrush}"/>
                     <TextBlock Text=")" FontSize="10"/>
                 </StackPanel>
             </StatusBarItem>

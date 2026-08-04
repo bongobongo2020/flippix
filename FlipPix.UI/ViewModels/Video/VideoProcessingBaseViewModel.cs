@@ -959,6 +959,133 @@ namespace FlipPix.UI.ViewModels.Video
             return 0;
         }
 
+        /// <summary>
+        /// Stream-copy concatenates rendered chunks into one mp4 via FFmpeg's concat demuxer.
+        /// Shared by every chunked workflow (VACE, WAN Animate, Char Replace, SCAIL, LTX audio)
+        /// so they all get the same correct process handling.
+        /// </summary>
+        /// <param name="tempPrefix">
+        /// Short tag for the temp list file, so a stray file is traceable to the feature that made it.
+        /// </param>
+        protected void MergeVideoChunks(IReadOnlyList<string> chunkFiles, string outputPath, string tempPrefix)
+        {
+            var ffmpegPath = FindFFmpeg();
+            if (string.IsNullOrEmpty(ffmpegPath))
+            {
+                AddLog("ERROR: ffmpeg not found. Cannot merge video chunks.");
+                throw new InvalidOperationException("ffmpeg is required to merge video chunks but was not found.");
+            }
+
+            if (chunkFiles == null || chunkFiles.Count == 0)
+                throw new InvalidOperationException("No video chunks to merge.");
+
+            var listFile = Path.Combine(Path.GetTempPath(), $"ffmpeg_{tempPrefix}_{Guid.NewGuid()}.txt");
+            try
+            {
+                using (var writer = new StreamWriter(listFile))
+                {
+                    foreach (var f in chunkFiles)
+                    {
+                        // The concat demuxer treats a backslash as an escape and a single quote as
+                        // the path delimiter, so normalise separators and escape any quote.
+                        var escaped = f.Replace("\\", "/").Replace("'", @"'\''");
+                        writer.WriteLine($"file '{escaped}'");
+                    }
+                }
+
+                AddLog($"Merging {chunkFiles.Count} chunks with ffmpeg...");
+                RunFFmpeg(ffmpegPath, $"-y -f concat -safe 0 -i \"{listFile}\" -c copy \"{outputPath}\"");
+            }
+            finally
+            {
+                try { File.Delete(listFile); } catch { /* temp file: best effort */ }
+            }
+
+            if (!File.Exists(outputPath))
+                throw new InvalidOperationException($"ffmpeg merge failed. Output not found: {outputPath}");
+
+            AddLog($"Merge complete: {Path.GetFileName(outputPath)}");
+        }
+
+        /// <summary>
+        /// Runs FFmpeg to completion and throws with FFmpeg's own error text when it fails.
+        /// </summary>
+        /// <remarks>
+        /// Both pipes are drained concurrently and the process is killed if it overruns. Reading one
+        /// pipe to the end before the other deadlocks: FFmpeg writes its entire log to stderr, so once
+        /// that pipe's ~4 KB buffer fills it blocks writing while the caller is still blocked reading
+        /// stdout — neither side moves. Leaving both pipes unread deadlocks the same way, just with the
+        /// timeout as the escape hatch, which then leaves an orphaned process holding the output file.
+        /// </remarks>
+        protected void RunFFmpeg(string ffmpegPath, string arguments, int timeoutMs = 600000)
+        {
+            var startInfo = new ProcessStartInfo
+            {
+                FileName = ffmpegPath,
+                Arguments = arguments,
+                RedirectStandardOutput = true,
+                RedirectStandardError = true,
+                UseShellExecute = false,
+                CreateNoWindow = true
+            };
+
+            using var process = Process.Start(startInfo)
+                ?? throw new InvalidOperationException($"Failed to start ffmpeg: {ffmpegPath}");
+
+            var stdoutTask = process.StandardOutput.ReadToEndAsync();
+            var stderrTask = process.StandardError.ReadToEndAsync();
+
+            if (!process.WaitForExit(timeoutMs))
+            {
+                try { process.Kill(entireProcessTree: true); } catch { /* already gone */ }
+                throw new TimeoutException($"ffmpeg did not finish within {timeoutMs / 1000}s and was stopped.");
+            }
+
+            // Only safe once the process has exited: unlike the timeout overload above, the
+            // parameterless one also waits for the redirected streams to flush and close.
+            process.WaitForExit();
+
+            // Observe both reads before inspecting the result so neither is left dangling.
+            var stderr = ReadPipe(stderrTask);
+            _ = ReadPipe(stdoutTask);
+
+            if (process.ExitCode != 0)
+            {
+                // FFmpeg puts the actual reason on the last non-empty line; everything above it is
+                // banner and per-stream info that would bury the message in the UI log.
+                var reason = stderr
+                    .Split('\n')
+                    .Select(l => l.Trim())
+                    .LastOrDefault(l => !string.IsNullOrWhiteSpace(l)) ?? "no error output";
+
+                AddLog($"ERROR: ffmpeg exited with code {process.ExitCode}: {reason}");
+                throw new InvalidOperationException($"ffmpeg failed (exit code {process.ExitCode}): {reason}");
+            }
+        }
+
+        /// <summary>
+        /// Completes a redirected-stream read, yielding empty text if the pipe was torn down.
+        /// </summary>
+        private static string ReadPipe(Task<string> readTask)
+        {
+            try { return readTask.GetAwaiter().GetResult(); }
+            catch { return string.Empty; }
+        }
+
+        /// <summary>
+        /// Strips the markdown bold and "Prompt:" preamble local LLMs habitually add around a caption.
+        /// </summary>
+        protected static string CleanLLMOutput(string text)
+        {
+            if (string.IsNullOrWhiteSpace(text)) return text;
+            text = text.Replace("**", "");
+            var trimmed = text.TrimStart();
+            var lower = trimmed.ToLowerInvariant();
+            if (lower.StartsWith("prompt:") || lower.StartsWith("prompt :"))
+                trimmed = trimmed[(trimmed.IndexOf(':') + 1)..];
+            return trimmed.Trim();
+        }
+
         #endregion
 
         #region Command Management

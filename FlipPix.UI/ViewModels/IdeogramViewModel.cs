@@ -21,25 +21,40 @@ using FlipPix.UI.Services;
 namespace FlipPix.UI.ViewModels
 {
     /// <summary>
-    /// Ideogram v4 tab: a high-level scene prompt plus an optional set of
-    /// bounding-box composition regions drawn on a canvas, rendered to a single
-    /// image. Aspect ratio (square / widescreen / portrait) and a target
-    /// megapixel budget drive the output resolution via the Flux Resolution Calc
-    /// node. Workflow: workflow/image/Ideogram-4-NSFW.json.
+    /// Ideogram v4 tab: an uploaded reference image is analyzed by the LLM into a
+    /// high-level scene prompt, an enriched style block and a set of bounding-box
+    /// composition segments, which are then rendered to a single image.
+    /// Workflow: workflow/image/ideogram4.json (dual-model guider, first pass at the
+    /// chosen base resolution then a 2x latent upscale + refine second pass).
+    ///
+    /// The whole scene is handed to Ideogram4PromptBuilderKJ (node 4864) through its
+    /// `import_json` input — node 4868 carries the full
+    /// {high_level_description, style_description, compositional_deconstruction}
+    /// document, which with import_mode "always" is the authoritative description.
+    /// The node's own widgets are written in sync as a fallback.
     /// </summary>
     public class IdeogramViewModel : INotifyPropertyChanged
     {
-        private const string WorkflowFile = "workflow/image/Ideogram-4-NSFW.json";
+        private const string WorkflowFile = "workflow/image/ideogram4.json";
         private const string PromptFile = "prompts/prompt2json/ideagram.md";
         private const string SavePrefix = "gram";
 
-        // Node ids in Ideogram-4-NSFW.json.
-        private const string PromptBuilderNode = "185";   // Ideogram4PromptBuilderKJ
-        private const string LatentNode = "160";          // EmptyFlux2LatentImage
-        private const string SeedNode = "197";            // Seed (rgthree)
+        // Node ids in ideogram4.json.
+        private const string PromptBuilderNode = "4864";  // Ideogram4PromptBuilderKJ
+        private const string ImportJsonNode = "4868";     // PrimitiveStringMultiline → 4864.import_json
+        private const string LatentNode = "4839";         // EmptyFlux2LatentImage
+        private const string BaseNoiseNode = "4801";      // RandomNoise (first pass)
+        private const string SaveImageNode = "4830";      // SaveImage
+        // KSamplerAdvanced nodes of the second (upscale/refine) pass.
+        private static readonly string[] RefinePassNodes = { "4821", "4912" };
 
-        // Selectable target resolutions (FluxResolutionNode "megapixel" input).
-        private static readonly string[] MegapixelOptions = { "1.0", "1.5", "2.0", "2.5", "3.0" };
+        // The workflow's second pass upscales the latent by this factor (node 4939),
+        // so the saved image is this much larger than the base resolution below.
+        private const double SecondPassScale = 2.0;
+
+        // Selectable BASE resolutions in megapixels. The final image is
+        // SecondPassScale larger on each edge, so 1.0 MP here ≈ 4 MP saved.
+        private static readonly string[] MegapixelOptions = { "0.5", "0.75", "1.0", "1.25", "1.5" };
 
         private readonly ComfyUIService _comfyUIService;
         private readonly SettingsService _settingsService;
@@ -68,8 +83,10 @@ namespace FlipPix.UI.ViewModels
         // Composition
         private string _highLevelPrompt = string.Empty;
         private string _selectedAspectRatio = "Square";
-        private string _megapixel = "2.5";
-        private bool _useRegions;
+        private string _megapixel = "1.0";
+        // On by default: the analyzed segments are what let Ideogram place each
+        // subject deliberately instead of re-interpreting one flat sentence.
+        private bool _useRegions = true;
         private readonly ObservableCollection<IdeogramRegion> _regions = new();
 
         // Enriched style fields produced by the autoprompter analysis and fed
@@ -78,6 +95,7 @@ namespace FlipPix.UI.ViewModels
         private string _background = string.Empty;
         private string _style = "photo";
         private string _stylePhoto = string.Empty;
+        private string _artStyle = string.Empty;
         private string _aesthetics = string.Empty;
         private string _lighting = string.Empty;
         private string _medium = string.Empty;
@@ -272,13 +290,13 @@ namespace FlipPix.UI.ViewModels
 
         public ObservableCollection<string> MegapixelChoices { get; } = new(MegapixelOptions);
 
-        /// <summary>Target output resolution budget (FluxResolutionNode "megapixel").</summary>
+        /// <summary>Base (first pass) resolution budget in megapixels; the saved image is <see cref="SecondPassScale"/>× larger per edge.</summary>
         public string Megapixel
         {
             get => _megapixel;
             set
             {
-                _megapixel = string.IsNullOrWhiteSpace(value) ? "2.5" : value;
+                _megapixel = string.IsNullOrWhiteSpace(value) ? "1.0" : value;
                 OnPropertyChanged();
                 OnPropertyChanged(nameof(AspectSummary));
             }
@@ -289,12 +307,16 @@ namespace FlipPix.UI.ViewModels
             get
             {
                 var (w, h) = ApproxResolution(_selectedAspectRatio, _megapixel);
-                return $"≈ {w}×{h}";
+                var (fw, fh) = FinalResolution(w, h);
+                return $"≈ {w}×{h} → {fw}×{fh}";
             }
         }
 
-        // Approximate the resolution FluxResolutionNode produces (megapixel budget at
-        // the chosen ratio, rounded to /16) purely for an informative UI label.
+        /// <summary>Saved-image size after the workflow's 2× latent upscale second pass.</summary>
+        private static (int W, int H) FinalResolution(int baseW, int baseH)
+            => ((int)(baseW * SecondPassScale), (int)(baseH * SecondPassScale));
+
+        // Base latent size: the megapixel budget at the chosen ratio, rounded to /16.
         private static (int W, int H) ApproxResolution(string aspect, string megapixel)
         {
             var ratioStr = AspectToRatioString(aspect);
@@ -303,8 +325,12 @@ namespace FlipPix.UI.ViewModels
             double rh = parts.Length > 1 && double.TryParse(parts[1], out var b) ? b : 1;
             if (rh == 0) rh = 1;
             double ratio = rw / rh;
-            double mp = double.TryParse(megapixel, out var m) ? m : 2.5;
-            double total = Math.Max(0.1, mp) * 1_000_000;
+            double mp = double.TryParse(megapixel, out var m) ? m : 1.0;
+            // Clamp to the offered range: this is the BASE size and the workflow's
+            // second pass squares it up (2× per edge = 4× the pixels), so a legacy
+            // queue item saved at "2.5" would otherwise ask for a 10 MP render.
+            mp = Math.Clamp(mp, 0.25, 1.5);
+            double total = mp * 1_000_000;
             int w = (int)(Math.Round(Math.Sqrt(total * ratio) / 16) * 16);
             int h = (int)(Math.Round(Math.Sqrt(total / ratio) / 16) * 16);
             return (Math.Max(16, w), Math.Max(16, h));
@@ -327,6 +353,17 @@ namespace FlipPix.UI.ViewModels
         {
             get => _stylePhoto;
             set { _stylePhoto = value; OnPropertyChanged(); OnPropertyChanged(nameof(StyleSummary)); OnPropertyChanged(nameof(HasStyleDetails)); }
+        }
+
+        /// <summary>
+        /// Free-text art-style description. This workflow's prompt builder is wired to
+        /// the "art_style" bucket (node 4864 style / style.art_style), which accepts a
+        /// photographic description just as well as an illustrative one.
+        /// </summary>
+        public string ArtStyle
+        {
+            get => _artStyle;
+            set { _artStyle = value; OnPropertyChanged(); OnPropertyChanged(nameof(StyleSummary)); OnPropertyChanged(nameof(HasStyleDetails)); }
         }
 
         public string Aesthetics
@@ -370,6 +407,7 @@ namespace FlipPix.UI.ViewModels
             !string.IsNullOrWhiteSpace(_aesthetics) ||
             !string.IsNullOrWhiteSpace(_lighting) ||
             !string.IsNullOrWhiteSpace(_medium) ||
+            !string.IsNullOrWhiteSpace(_artStyle) ||
             !string.IsNullOrWhiteSpace(_stylePhoto);
 
         /// <summary>Compact read-only summary of the enriched style for the UI.</summary>
@@ -379,6 +417,7 @@ namespace FlipPix.UI.ViewModels
             {
                 var parts = new List<string>();
                 if (!string.IsNullOrWhiteSpace(_medium)) parts.Add(_medium);
+                if (!string.IsNullOrWhiteSpace(_artStyle)) parts.Add(_artStyle);
                 if (!string.IsNullOrWhiteSpace(_aesthetics)) parts.Add(_aesthetics);
                 if (!string.IsNullOrWhiteSpace(_lighting)) parts.Add(_lighting);
                 if (!string.IsNullOrWhiteSpace(_stylePhoto)) parts.Add(_stylePhoto);
@@ -388,11 +427,10 @@ namespace FlipPix.UI.ViewModels
         }
 
         /// <summary>
-        /// When false (default) generation sends a single full-frame element carrying
-        /// the high-level prompt — matching the manual workflow, which renders a clean
-        /// proportional image. When true the drawn composition regions are sent as
-        /// multiple elements (advanced; this model can split/garble or trip the
-        /// per-region safety filter when regions are under-defined).
+        /// When true (default) the analyzed composition segments are sent as discrete
+        /// elements with bounding boxes, which is what lets Ideogram 4 place each
+        /// subject where the reference image had it. When false a single full-frame
+        /// element carrying the high-level prompt is sent instead.
         /// </summary>
         public bool UseRegions
         {
@@ -744,6 +782,8 @@ namespace FlipPix.UI.ViewModels
                         Width = w,
                         Height = h,
                         Description = string.IsNullOrWhiteSpace(el.Desc) ? fallbackDesc : el.Desc,
+                        Type = string.IsNullOrWhiteSpace(el.Type) ? "obj" : el.Type,
+                        Text = el.Text ?? string.Empty,
                         Palette = el.Palette ?? new List<string>(),
                     });
                 }
@@ -780,7 +820,14 @@ namespace FlipPix.UI.ViewModels
                 SetInputImage(path);
         }
 
-        public void SetInputImage(string path)
+        /// <summary>
+        /// Loads a reference image and — unless the caller drives the analysis itself
+        /// (<paramref name="autoAnalyze"/> false) — immediately sends it to the LLM so
+        /// the enhanced prompt, style block and composition segments are populated
+        /// without a second click. Analysis is fire-and-forget; the UI shows its
+        /// progress via IsAnalyzing/StatusMessage.
+        /// </summary>
+        public void SetInputImage(string path, bool autoAnalyze = true)
         {
             if (!File.Exists(path)) return;
             InputImagePath = path;
@@ -790,7 +837,19 @@ namespace FlipPix.UI.ViewModels
                 HasInputImage = true;
                 AddLog($"Reference image: {Path.GetFileName(path)}");
             }
-            catch (Exception ex) { AddLog($"ERROR loading image: {ex.Message}"); }
+            catch (Exception ex) { AddLog($"ERROR loading image: {ex.Message}"); return; }
+
+            if (!autoAnalyze) return;
+
+            if (string.IsNullOrWhiteSpace(SelectedLlmModel))
+            {
+                StatusMessage = "Pick an LLM model, then click Analyze";
+                AddLog("No LLM model selected — image loaded but not analyzed");
+                return;
+            }
+
+            AddLog("Auto-analyzing uploaded image...");
+            _ = RestartAnalyzeAsync(preserveAspect: false);
         }
 
         /// <summary>
@@ -804,7 +863,9 @@ namespace FlipPix.UI.ViewModels
                 "Image Files|*.png;*.jpg;*.jpeg;*.bmp;*.webp",
                 persistKey: "ideogram.image");
             if (string.IsNullOrEmpty(path)) return;
-            SetInputImage(path);
+            // This path awaits the analysis itself (so it can queue the result), so
+            // suppress SetInputImage's own auto-analyze instead of running two.
+            SetInputImage(path, autoAnalyze: false);
 
             if (string.IsNullOrWhiteSpace(SelectedLlmModel))
             {
@@ -989,7 +1050,9 @@ namespace FlipPix.UI.ViewModels
                 var progressReporter = MakeProgressReporter(null);
 
                 StatusMessage = "Running ComfyUI...";
-                var promptId = await _comfyUIService.ExecuteWorkflowAsync(workflow, progressReporter, _cts.Token);
+                string promptId;
+                using (StartWaitHeartbeat(null))
+                    promptId = await _comfyUIService.ExecuteWorkflowAsync(workflow, progressReporter, _cts.Token);
                 AddLog($"Done: {promptId}");
 
                 Progress = 94;
@@ -1031,6 +1094,9 @@ namespace FlipPix.UI.ViewModels
             {
                 if (msg.Data?.Value != null && msg.Data?.Max != null && msg.Data.Max > 0)
                 {
+                    // Real per-step progress arrived over the websocket — stop the elapsed-time
+                    // heartbeat from also driving the bar so they don't fight.
+                    _realProgressSeen = true;
                     var pct = (double)msg.Data.Value / msg.Data.Max * 100;
                     WpfApp.Current?.Dispatcher.Invoke(() =>
                     {
@@ -1049,79 +1115,163 @@ namespace FlipPix.UI.ViewModels
                 }
             });
 
+        // Set true once a real websocket progress message is seen for the current run.
+        // Many remote ComfyUI servers never push step-progress (this app then relies on the
+        // /history completion poll), leaving the UI on a static status for the whole ~30s+
+        // generation — which reads as "stuck". The heartbeat below fills that silence.
+        private volatile bool _realProgressSeen;
+
+        /// <summary>
+        /// Drives an elapsed-time status + a gentle progress crawl while a generation is in
+        /// flight, so the tab visibly stays alive even when the server sends no step-progress
+        /// over the websocket. As soon as a real progress message arrives (<see cref="_realProgressSeen"/>)
+        /// the crawl backs off and lets the accurate reporter own the bar. Dispose to stop.
+        /// </summary>
+        private IDisposable StartWaitHeartbeat(IdeogramQueueItem? queueItem)
+        {
+            _realProgressSeen = false;
+            var start = DateTime.Now;
+            // ~2%/s reaches the 90% ceiling around 37s, matching a typical Ideogram gen; it
+            // holds at 90% until real completion bumps it to 94/100, so it never claims "done".
+            var timer = new System.Threading.Timer(_ =>
+            {
+                if (_realProgressSeen) return;
+                var elapsed = (DateTime.Now - start).TotalSeconds;
+                WpfApp.Current?.Dispatcher.Invoke(() =>
+                {
+                    if (_realProgressSeen || !IsGenerating) return;
+                    Progress = Math.Min(90, 15 + elapsed * 2.0);
+                    StatusMessage = $"Generating on ComfyUI… {elapsed:F0}s";
+                    if (queueItem != null) queueItem.Progress = Progress;
+                });
+            }, null, TimeSpan.FromSeconds(1), TimeSpan.FromSeconds(1));
+            return timer;
+        }
+
         // ── Workflow building ─────────────────────────────────────────────
+        /// <summary>
+        /// Everything one generation needs, snapshotted so a queued item renders from
+        /// its own values while the live editor moves on to the next image.
+        /// </summary>
+        private sealed class IdeogramComposition
+        {
+            public string Aspect { get; init; } = "Square";
+            public string Megapixel { get; init; } = "1.0";
+            public string HighLevelPrompt { get; init; } = string.Empty;
+            /// <summary>Elements array for node 4864's `elements_data` widget.</summary>
+            public string ElementsJson { get; init; } = "[]";
+            /// <summary>Full scene document for node 4868 → node 4864's `import_json`.</summary>
+            public string ImportJson { get; init; } = string.Empty;
+            public bool UseEnrichedStyle { get; init; } = true;
+            public string Background { get; init; } = string.Empty;
+            public string StylePhoto { get; init; } = string.Empty;
+            public string ArtStyle { get; init; } = string.Empty;
+            public string Aesthetics { get; init; } = string.Empty;
+            public string Lighting { get; init; } = string.Empty;
+            public string Medium { get; init; } = string.Empty;
+            public string StylePaletteJson { get; init; } = string.Empty;
+        }
+
         private JsonElement BuildWorkflow()
+        {
+            var composition = new IdeogramComposition
+            {
+                Aspect = _selectedAspectRatio,
+                Megapixel = _megapixel,
+                HighLevelPrompt = HighLevelPrompt,
+                ElementsJson = BuildElementsJson(),
+                ImportJson = BuildImportJson(),
+                UseEnrichedStyle = UseEnrichedStyle,
+                Background = Background,
+                StylePhoto = StylePhoto,
+                ArtStyle = ArtStyle,
+                Aesthetics = Aesthetics,
+                Lighting = Lighting,
+                Medium = Medium,
+                StylePaletteJson = StylePaletteJson,
+            };
+
+            var dict = LoadWorkflowDict();
+            ApplyToWorkflow(dict, composition);
+
+            var (w, h) = ApproxResolution(_selectedAspectRatio, _megapixel);
+            var (fw, fh) = FinalResolution(w, h);
+            AddLog($"Resolution {w}×{h} → {fw}×{fh} after the 2× second pass ({AspectRatioString})");
+            AddLog($"Segments: {(UseRegions ? _regions.Count : 1)}");
+
+            return JsonSerializer.SerializeToElement(dict);
+        }
+
+        private static Dictionary<string, JsonElement> LoadWorkflowDict()
         {
             var workflowPath = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, WorkflowFile);
             if (!File.Exists(workflowPath))
                 throw new FileNotFoundException($"Workflow not found: {workflowPath}");
 
-            var dict = JsonSerializer.Deserialize<Dictionary<string, JsonElement>>(File.ReadAllText(workflowPath))
+            return JsonSerializer.Deserialize<Dictionary<string, JsonElement>>(File.ReadAllText(workflowPath))
                 ?? throw new InvalidOperationException("Failed to parse workflow JSON");
-
-            ApplyToWorkflow(dict, _selectedAspectRatio, _megapixel, HighLevelPrompt, BuildElementsJson(),
-                UseEnrichedStyle, Background, Style, StylePhoto, Aesthetics, Lighting, Medium, StylePaletteJson);
-
-            var (w, h) = ApproxResolution(_selectedAspectRatio, _megapixel);
-            AddLog($"Resolution ≈ {w}×{h} ({_megapixel} MP, {AspectRatioString})");
-
-            return JsonSerializer.SerializeToElement(dict);
         }
 
         /// <summary>
-        /// Applies all per-generation inputs to a parsed Ideogram-4-NSFW workflow:
-        /// fresh seed (node 197), output resolution via the Flux Resolution Calc node
-        /// (191, custom ratio + megapixel), and the prompt builder (185 — high-level
-        /// prompt, regions and enriched style). Node 185's width/height are wired from
-        /// node 191, so they are intentionally left untouched.
+        /// Applies one composition to a parsed ideogram4 graph: fresh seeds on both
+        /// passes (4801 / 4821 / 4912), base latent size (4839), the save prefix the
+        /// retrieval loop looks for (4830), the full scene document (4868) and the
+        /// prompt builder's own widgets (4864).
         /// </summary>
-        private static void ApplyToWorkflow(
-            Dictionary<string, JsonElement> dict,
-            string aspect, string megapixel,
-            string highLevelPrompt, string elementsJson,
-            bool useEnriched, string background, string style, string stylePhoto,
-            string aesthetics, string lighting, string medium, string stylePaletteJson)
+        private static void ApplyToWorkflow(Dictionary<string, JsonElement> dict, IdeogramComposition c)
         {
             var rng = new Random();
-            var (w, h) = ApproxResolution(aspect, megapixel);
+            var (w, h) = ApproxResolution(c.Aspect, c.Megapixel);
 
-            // Node 197 — fresh random seed each generation.
-            UpdateNode(dict, SeedNode, inputs => inputs["seed"] = rng.NextInt64(0, 999_999_999_999_999L));
+            UpdateNode(dict, BaseNoiseNode, inputs => inputs["noise_seed"] = rng.NextInt64(0, 999_999_999_999_999L));
+            foreach (var nodeId in RefinePassNodes)
+                UpdateNode(dict, nodeId, inputs => inputs["noise_seed"] = rng.NextInt64(0, 999_999_999_999_999L));
 
-            // Resolution: write explicit pixel dimensions into the latent (160) and the
-            // prompt builder (185). The shipped workflow drives these from node 191
-            // (Flux Resolution Calc). We compute the same megapixel-at-ratio size and set
-            // it directly, bypassing that node — its custom-ratio path was collapsing the
-            // output toward square (squished images), while manual runs use its dropdown.
             UpdateNode(dict, LatentNode, inputs =>
             {
                 inputs["width"] = w;
                 inputs["height"] = h;
             });
 
-            // Node 185 — Ideogram4PromptBuilderKJ: prompt + resolution + regions + style.
+            // RetrieveOutputImageAsync matches saved files by this prefix.
+            UpdateNode(dict, SaveImageNode, inputs => inputs["filename_prefix"] = SavePrefix);
+
+            // Node 4868 (PrimitiveStringMultiline) feeds node 4864's `import_json`.
+            // With import_mode "always" this document, not the widgets, describes the
+            // scene — it is the same shape the workflow ships with by hand.
+            UpdateNode(dict, ImportJsonNode, inputs => inputs["value"] = c.ImportJson);
+
             UpdateNode(dict, PromptBuilderNode, inputs =>
             {
-                inputs["high_level_description"] = highLevelPrompt;
+                inputs["high_level_description"] = c.HighLevelPrompt;
                 inputs["width"] = w;
                 inputs["height"] = h;
-                inputs["elements_data"] = elementsJson;
-                // Required inputs the trimmed workflow JSON omits (the node rejects the
-                // prompt without them). Match the values from the prior working graph.
-                inputs["import_mode"] = "when empty";
-                inputs["bg_brightness"] = 0;
-                ApplyStyleInputs(inputs, useEnriched,
-                    background, style, stylePhoto, aesthetics, lighting, medium, stylePaletteJson);
+                inputs["elements_data"] = c.ElementsJson;
+                // Import only when we actually produced a document, otherwise fall back
+                // to the widgets rather than re-importing whatever was there before.
+                inputs["import_mode"] = string.IsNullOrWhiteSpace(c.ImportJson) ? "when empty" : "always";
+                // The bbox convention BuildElements emits: [y_min, x_min, y_max, x_max]
+                // on a 0..1000 grid. These two inputs are what make the node read it
+                // that way, so they are pinned here rather than trusted from the file.
+                inputs["coord_mode"] = "normalized";
+                inputs["bbox_order"] = "yx";
+                ApplyStyleInputs(inputs, c);
             });
         }
 
+        /// <summary>0..1000 normalized, y-first bbox for one canvas-space region.</summary>
+        private static int[] BboxYx(double x, double y, double w, double h)
+        {
+            int Norm(double v) => (int)Math.Round(Clamp01(v) * 1000);
+            return new[] { Norm(y), Norm(x), Norm(y + h), Norm(x + w) };
+        }
+
         /// <summary>
-        /// Normalized elements_data for the prompt builder. By default (UseRegions off)
-        /// this is a single full-frame element carrying the high-level prompt — exactly
-        /// what the manual workflow sends, which renders a clean proportional image.
-        /// Only when UseRegions is on are the drawn regions emitted as multiple elements.
+        /// The composition segments as Ideogram element objects. With UseRegions on
+        /// these are the analyzed/drawn boxes; with it off, a single full-frame element
+        /// carrying the high-level prompt.
         /// </summary>
-        private string BuildElementsJson()
+        private List<Dictionary<string, object>> BuildElements()
         {
             var elements = new List<Dictionary<string, object>>();
 
@@ -1136,67 +1286,113 @@ namespace FlipPix.UI.ViewModels
                     double h = Clamp01(r.Height / ch);
                     if (x + w > 1) w = 1 - x;
                     if (y + h > 1) h = 1 - y;
-                    elements.Add(new Dictionary<string, object>
+
+                    var element = new Dictionary<string, object>
                     {
-                        ["x"] = x,
-                        ["y"] = y,
-                        ["w"] = w,
-                        ["h"] = h,
-                        ["type"] = "obj",
-                        ["text"] = "",
+                        ["type"] = string.IsNullOrWhiteSpace(r.Type) ? "obj" : r.Type,
+                        ["bbox"] = BboxYx(x, y, w, h),
                         ["desc"] = string.IsNullOrWhiteSpace(r.Description) ? HighLevelPrompt : r.Description,
-                        ["palette"] = (object?)r.Palette ?? Array.Empty<object>(),
-                    });
+                        ["color_palette"] = (object?)r.Palette ?? new List<string>(),
+                    };
+                    // `text` is only meaningful for typography elements; sending an empty
+                    // one on every object invites the model to render stray lettering.
+                    if (!string.IsNullOrWhiteSpace(r.Text))
+                        element["text"] = r.Text;
+                    elements.Add(element);
                 }
             }
             else
             {
                 elements.Add(new Dictionary<string, object>
                 {
-                    ["x"] = 0.0,
-                    ["y"] = 0.0,
-                    ["w"] = 1.0,
-                    ["h"] = 1.0,
                     ["type"] = "obj",
-                    ["text"] = "",
+                    ["bbox"] = BboxYx(0, 0, 1, 1),
                     ["desc"] = HighLevelPrompt,
-                    ["palette"] = Array.Empty<object>(),
+                    ["color_palette"] = new List<string>(),
                 });
             }
 
-            return JsonSerializer.Serialize(elements);
+            return elements;
         }
+
+        private string BuildElementsJson() => Serialize(BuildElements());
+
+        /// <summary>
+        /// The full scene document fed to node 4864's `import_json` — the same
+        /// {high_level_description, style_description, compositional_deconstruction}
+        /// shape the workflow ships with, so the app-driven run is byte-for-byte the
+        /// kind of input the graph was authored around.
+        /// </summary>
+        private string BuildImportJson()
+        {
+            var doc = new Dictionary<string, object>
+            {
+                ["high_level_description"] = HighLevelPrompt ?? string.Empty,
+                ["style_description"] = new Dictionary<string, object>
+                {
+                    ["aesthetics"] = UseEnrichedStyle ? Aesthetics ?? string.Empty : string.Empty,
+                    ["lighting"] = UseEnrichedStyle ? Lighting ?? string.Empty : string.Empty,
+                    ["medium"] = UseEnrichedStyle ? Medium ?? string.Empty : string.Empty,
+                    ["art_style"] = UseEnrichedStyle ? EffectiveArtStyle() : string.Empty,
+                    ["color_palette"] = UseEnrichedStyle ? ParsePalette(StylePaletteJson) : new List<string>(),
+                },
+                ["compositional_deconstruction"] = new Dictionary<string, object>
+                {
+                    ["background"] = UseEnrichedStyle ? Background ?? string.Empty : string.Empty,
+                    ["elements"] = BuildElements(),
+                },
+            };
+
+            return Serialize(doc);
+        }
+
+        /// <summary>
+        /// Art-style text for the builder's "art_style" bucket. Falls back to the
+        /// photographic/lens detail and then the medium so the bucket is never empty
+        /// when the analysis produced any style at all.
+        /// </summary>
+        private string EffectiveArtStyle()
+        {
+            if (!string.IsNullOrWhiteSpace(ArtStyle)) return ArtStyle;
+            if (!string.IsNullOrWhiteSpace(StylePhoto)) return StylePhoto;
+            return Medium ?? string.Empty;
+        }
+
+        private static List<string> ParsePalette(string paletteJson)
+        {
+            if (string.IsNullOrWhiteSpace(paletteJson)) return new List<string>();
+            try { return JsonSerializer.Deserialize<List<string>>(paletteJson) ?? new List<string>(); }
+            catch { return new List<string>(); }
+        }
+
+        // Relaxed escaping keeps the document readable in the ComfyUI node (and leaves
+        // accented characters and quotes in prompts intact rather than \uXXXX soup).
+        private static readonly JsonSerializerOptions JsonOut = new()
+        {
+            Encoder = System.Text.Encodings.Web.JavaScriptEncoder.UnsafeRelaxedJsonEscaping,
+        };
+
+        private static string Serialize(object value) => JsonSerializer.Serialize(value, JsonOut);
 
         private static double Clamp01(double v) => v < 0 ? 0 : v > 1 ? 1 : v;
 
         /// <summary>
-        /// Writes the enriched autoprompter fields onto an Ideogram4PromptBuilderKJ
-        /// (node 105) inputs map. The node carries a dotted "style.photo" key. When
-        /// <paramref name="useEnriched"/> is false the detected style detail is
-        /// dropped (only the base "photo" style bucket is kept) so the image renders
-        /// from the high-level prompt + regions alone.
+        /// Writes the enriched autoprompter fields onto the Ideogram4PromptBuilderKJ
+        /// (node 4864) inputs map. The node exposes one dotted sub-field per style
+        /// bucket; this workflow is wired to "art_style", so that is the bucket kept in
+        /// sync (an out-of-list `style` value is silently dropped by ComfyUI's input
+        /// gather and then fails the node with "missing required argument: 'style'").
+        /// When <paramref name="c"/> has UseEnrichedStyle off, the detected detail is
+        /// cleared and only the high-level prompt + segments drive the image.
         /// </summary>
-        private static void ApplyStyleInputs(
-            Dictionary<string, object> inputs,
-            bool useEnriched,
-            string background, string style, string stylePhoto,
-            string aesthetics, string lighting, string medium, string stylePaletteJson)
+        private static void ApplyStyleInputs(Dictionary<string, object> inputs, IdeogramComposition c)
         {
-            // `style` is a ComfyUI combo on Ideogram4PromptBuilderKJ. A value outside the
-            // node's option list is silently dropped during v3 input-gather, which then
-            // surfaces as "execute() missing 1 required positional argument: 'style'" and
-            // fails the prompt at 0.01s. The autoprompter (ParseIdeogramAnalysis) feeds the
-            // model's free-text `style` straight in, so a non-compliant answer like
-            // "photographic"/"cinematic" intermittently crashes generation. The app only
-            // ever populates the photo bucket (it sets `style.photo`, never `style.design`
-            // etc.) and the autoprompter prompt mandates "photo", so pin the combo to the
-            // one bucket we actually support. Detail still rides in style.photo/medium.
-            inputs["style"] = "photo";
+            inputs["style"] = "art_style";
 
-            if (!useEnriched)
+            if (!c.UseEnrichedStyle)
             {
                 inputs["background"] = string.Empty;
-                inputs["style.photo"] = string.Empty;
+                inputs["style.art_style"] = string.Empty;
                 inputs["aesthetics"] = string.Empty;
                 inputs["lighting"] = string.Empty;
                 inputs["medium"] = string.Empty;
@@ -1204,12 +1400,16 @@ namespace FlipPix.UI.ViewModels
                 return;
             }
 
-            inputs["background"] = background ?? string.Empty;
-            inputs["style.photo"] = stylePhoto ?? string.Empty;
-            inputs["aesthetics"] = aesthetics ?? string.Empty;
-            inputs["lighting"] = lighting ?? string.Empty;
-            inputs["medium"] = medium ?? string.Empty;
-            inputs["style_palette_data"] = stylePaletteJson ?? string.Empty;
+            var artStyle = !string.IsNullOrWhiteSpace(c.ArtStyle) ? c.ArtStyle
+                         : !string.IsNullOrWhiteSpace(c.StylePhoto) ? c.StylePhoto
+                         : c.Medium ?? string.Empty;
+
+            inputs["background"] = c.Background ?? string.Empty;
+            inputs["style.art_style"] = artStyle;
+            inputs["aesthetics"] = c.Aesthetics ?? string.Empty;
+            inputs["lighting"] = c.Lighting ?? string.Empty;
+            inputs["medium"] = c.Medium ?? string.Empty;
+            inputs["style_palette_data"] = c.StylePaletteJson ?? string.Empty;
         }
 
         private static void UpdateNode(
@@ -1255,12 +1455,14 @@ namespace FlipPix.UI.ViewModels
                 InputImagePath = InputImagePath,
                 Prompt = HighLevelPrompt,
                 RegionsJson = BuildElementsJson(),
+                ImportJson = BuildImportJson(),
                 AspectRatio = SelectedAspectRatio,
                 Megapixel = Megapixel,
                 LlmModel = SelectedLlmModel,
                 Background = Background,
                 Style = Style,
                 StylePhoto = StylePhoto,
+                ArtStyle = ArtStyle,
                 Aesthetics = Aesthetics,
                 Lighting = Lighting,
                 Medium = Medium,
@@ -1437,7 +1639,9 @@ namespace FlipPix.UI.ViewModels
                 var progressReporter = MakeProgressReporter(queueItem);
 
                 StatusMessage = "Running ComfyUI...";
-                var promptId = await _comfyUIService.ExecuteWorkflowAsync(workflow, progressReporter, token);
+                string promptId;
+                using (StartWaitHeartbeat(queueItem))
+                    promptId = await _comfyUIService.ExecuteWorkflowAsync(workflow, progressReporter, token);
                 AddLog($"Done: {promptId}");
 
                 Progress = 94;
@@ -1468,25 +1672,34 @@ namespace FlipPix.UI.ViewModels
         }
 
         /// <summary>
-        /// Builds the workflow from a queued item's stored settings (regions are
-        /// taken from the item's RegionsJson rather than the live canvas).
+        /// Builds the workflow from a queued item's stored snapshot (segments come from
+        /// the item's own JSON rather than the live canvas, which by now may belong to a
+        /// different image).
         /// </summary>
         private JsonElement BuildQueuedWorkflow(IdeogramQueueItem queueItem)
         {
-            var workflowPath = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, WorkflowFile);
-            if (!File.Exists(workflowPath))
-                throw new FileNotFoundException($"Workflow not found: {workflowPath}");
+            var dict = LoadWorkflowDict();
 
-            var dict = JsonSerializer.Deserialize<Dictionary<string, JsonElement>>(File.ReadAllText(workflowPath))
-                ?? throw new InvalidOperationException("Failed to parse workflow JSON");
-
-            var elementsJson = string.IsNullOrWhiteSpace(queueItem.RegionsJson)
-                ? BuildElementsJson()
-                : queueItem.RegionsJson;
-
-            ApplyToWorkflow(dict, queueItem.AspectRatio, queueItem.Megapixel, queueItem.Prompt, elementsJson,
-                queueItem.UseEnrichedStyle, queueItem.Background, queueItem.Style, queueItem.StylePhoto,
-                queueItem.Aesthetics, queueItem.Lighting, queueItem.Medium, queueItem.StylePaletteJson);
+            ApplyToWorkflow(dict, new IdeogramComposition
+            {
+                Aspect = queueItem.AspectRatio,
+                Megapixel = queueItem.Megapixel,
+                HighLevelPrompt = queueItem.Prompt,
+                ElementsJson = string.IsNullOrWhiteSpace(queueItem.RegionsJson)
+                    ? BuildElementsJson()
+                    : queueItem.RegionsJson,
+                // Items queued before this workflow switch carry no import document;
+                // they fall back to the widget path (import_mode "when empty").
+                ImportJson = queueItem.ImportJson,
+                UseEnrichedStyle = queueItem.UseEnrichedStyle,
+                Background = queueItem.Background,
+                StylePhoto = queueItem.StylePhoto,
+                ArtStyle = queueItem.ArtStyle,
+                Aesthetics = queueItem.Aesthetics,
+                Lighting = queueItem.Lighting,
+                Medium = queueItem.Medium,
+                StylePaletteJson = queueItem.StylePaletteJson,
+            });
 
             return JsonSerializer.SerializeToElement(dict);
         }
@@ -1570,6 +1783,7 @@ namespace FlipPix.UI.ViewModels
             Background = a.Background;
             Style = string.IsNullOrWhiteSpace(a.Style) ? "photo" : a.Style;
             StylePhoto = a.StylePhoto;
+            ArtStyle = a.ArtStyle;
             Aesthetics = a.Aesthetics;
             Lighting = a.Lighting;
             Medium = a.Medium;
@@ -1626,6 +1840,7 @@ namespace FlipPix.UI.ViewModels
                     Style = Str("style"),
                     // accept both "style_photo" and a literal "style.photo" key
                     StylePhoto = !string.IsNullOrWhiteSpace(Str("style_photo")) ? Str("style_photo") : Str("style.photo"),
+                    ArtStyle = !string.IsNullOrWhiteSpace(Str("art_style")) ? Str("art_style") : Str("style.art_style"),
                     Aesthetics = Str("aesthetics"),
                     Lighting = Str("lighting"),
                     Medium = Str("medium"),
@@ -1666,6 +1881,9 @@ namespace FlipPix.UI.ViewModels
                         double nx1 = Clamp01(x1 / sx), ny1 = Clamp01(y1 / sy);
                         double nx2 = Clamp01(x2 / sx), ny2 = Clamp01(y2 / sy);
 
+                        var type = elEl.TryGetProperty("type", out var tEl) ? tEl.GetString() ?? "obj" : "obj";
+                        var text = elEl.TryGetProperty("text", out var txEl) ? txEl.GetString() ?? "" : "";
+
                         var el = new ParsedElement
                         {
                             X = Math.Min(nx1, nx2),
@@ -1673,6 +1891,10 @@ namespace FlipPix.UI.ViewModels
                             W = Math.Abs(nx2 - nx1),
                             H = Math.Abs(ny2 - ny1),
                             Desc = elEl.TryGetProperty("desc", out var dEl) ? dEl.GetString() ?? "" : "",
+                            // A "text" element with no literal string is just an object.
+                            Type = string.Equals(type, "text", StringComparison.OrdinalIgnoreCase)
+                                   && !string.IsNullOrWhiteSpace(text) ? "text" : "obj",
+                            Text = text,
                             Palette = ReadPaletteList(elEl, "color_palette"),
                         };
                         if (el.W <= 0 || el.H <= 0) continue;
@@ -1756,9 +1978,11 @@ namespace FlipPix.UI.ViewModels
 
                     var imgFile = files.FirstOrDefault(f =>
                         Path.GetFileName(f).StartsWith(savePrefix, StringComparison.OrdinalIgnoreCase) && IsImageExt(f));
+                    // Only fall back to non-prefixed images that aren't ComfyUI temp/preview
+                    // outputs (e.g. SigmasPreview_temp_*.png). Those aren't downloadable as
+                    // type=output, so picking one sends the retry loop spinning to no purpose.
                     imgFile ??= files.FirstOrDefault(f =>
-                        IsImageExt(f) && !Path.GetFileName(f).StartsWith("ComfyUI_temp_", StringComparison.OrdinalIgnoreCase));
-                    imgFile ??= files.FirstOrDefault(IsImageExt);
+                        IsImageExt(f) && !IsTempPreview(f));
 
                     if (imgFile != null)
                     {
@@ -1852,6 +2076,16 @@ namespace FlipPix.UI.ViewModels
             f.EndsWith(".png", StringComparison.OrdinalIgnoreCase) ||
             f.EndsWith(".jpg", StringComparison.OrdinalIgnoreCase) ||
             f.EndsWith(".jpeg", StringComparison.OrdinalIgnoreCase);
+
+        // ComfyUI temp/preview outputs (e.g. ComfyUI_temp_*, SigmasPreview_temp_*) are
+        // written to the temp folder and aren't retrievable via /view?type=output, so
+        // they must never be treated as the final result image.
+        private static bool IsTempPreview(string f)
+        {
+            var name = Path.GetFileName(f);
+            return name.StartsWith("ComfyUI_temp_", StringComparison.OrdinalIgnoreCase)
+                || name.Contains("_temp_", StringComparison.OrdinalIgnoreCase);
+        }
 
         private void OpenResultFolder()
         {
@@ -2032,6 +2266,8 @@ namespace FlipPix.UI.ViewModels
         public string Background { get; set; } = string.Empty;
         public string Style { get; set; } = "photo";
         public string StylePhoto { get; set; } = string.Empty;
+        /// <summary>Free-text art style fed to the builder's "art_style" bucket.</summary>
+        public string ArtStyle { get; set; } = string.Empty;
         public string Aesthetics { get; set; } = string.Empty;
         public string Lighting { get; set; } = string.Empty;
         public string Medium { get; set; } = string.Empty;
@@ -2048,6 +2284,10 @@ namespace FlipPix.UI.ViewModels
         public double W { get; set; }
         public double H { get; set; }
         public string Desc { get; set; } = string.Empty;
+        /// <summary>"obj" (subject) or "text" (rendered typography).</summary>
+        public string Type { get; set; } = "obj";
+        /// <summary>Literal string to render, for "text" elements.</summary>
+        public string Text { get; set; } = string.Empty;
         public List<string> Palette { get; set; } = new();
     }
 }

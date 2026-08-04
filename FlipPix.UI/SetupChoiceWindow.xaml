@@ -10,7 +10,7 @@
         Width="500"
         WindowStartupLocation="CenterScreen"
         ResizeMode="NoResize"
-        Background="#1E1E1E">
+        Background="{StaticResource AppBackgroundBrush}">
     <Grid Margin="30">
         <Grid.RowDefinitions>
             <RowDefinition Height="Auto"/>
@@ -24,7 +24,7 @@
                    Text="Welcome to FlipPix!"
                    FontSize="24"
                    FontWeight="Bold"
-                   Foreground="White"
+                   Foreground="{StaticResource TextPrimaryBrush}"
                    HorizontalAlignment="Center"
                    Margin="0,0,0,30"/>
 
@@ -33,7 +33,7 @@
                    Text="Where is your ComfyUI installed?"
                    FontSize="16"
                    FontWeight="SemiBold"
-                   Foreground="White"
+                   Foreground="{StaticResource TextPrimaryBrush}"
                    HorizontalAlignment="Center"
                    Margin="0,0,0,20"/>
 
@@ -48,9 +48,7 @@
                     FontSize="16"
                     Padding="40,20"
                     Margin="0,0,0,20"
-                    Background="#0E639C"
-                    Foreground="White"
-                    BorderThickness="0"
+                    Style="{StaticResource PrimaryButtonStyle}"
                     Cursor="Hand"
                     Click="LocalButton_Click">
                 <Button.LayoutTransform>
@@ -63,9 +61,7 @@
                     Content="Remote Server"
                     FontSize="16"
                     Padding="40,20"
-                    Background="#007ACC"
-                    Foreground="White"
-                    BorderThickness="0"
+                    Style="{StaticResource PrimaryButtonStyle}"
                     Cursor="Hand"
                     Click="RemoteButton_Click">
                 <Button.LayoutTransform>
@@ -78,7 +74,7 @@
         <TextBlock Grid.Row="3"
                    Text="Choose Local if ComfyUI is on this computer, or Remote if it's on another machine."
                    FontSize="12"
-                   Foreground="#AAAAAA"
+                   Foreground="{StaticResource TextMutedBrush}"
                    HorizontalAlignment="Center"
                    TextWrapping="Wrap"/>
     </Grid>

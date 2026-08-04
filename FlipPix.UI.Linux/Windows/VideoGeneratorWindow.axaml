@@ -473,44 +473,6 @@
                         </ScrollViewer>
                     </TabItem>
 
-                    <!-- ── Tab 4: Single Video ── -->
-                    <TabItem Header="Single Video">
-                        <ScrollViewer>
-                            <StackPanel Margin="10" Spacing="15">
-                                <Border Background="#F8F9FA" BorderBrush="#DEE2E6" BorderThickness="1" CornerRadius="8" Padding="15">
-                                    <StackPanel Spacing="8">
-                                        <TextBlock Text="Single Video Generation" FontSize="14" FontWeight="Bold" Foreground="#FF6B35"/>
-                                        <TextBlock Text="Prompt" FontWeight="SemiBold" FontSize="11"/>
-                                        <TextBox Text="{Binding LTX23BasicVM.VideoPrompt, Mode=TwoWay}"
-                                                 TextWrapping="Wrap" AcceptsReturn="True" Height="100" Padding="10" FontSize="12"/>
-                                        <Grid ColumnDefinitions="*,*">
-                                            <Button Grid.Column="0" Content="Generate Video" Classes="primary"
-                                                    Command="{Binding LTX23BasicVM.GenerateVideoCommand}" Margin="0,0,5,0" Height="40"/>
-                                            <Button Grid.Column="1" Content="Cancel" Classes="danger"
-                                                    Command="{Binding LTX23BasicVM.CancelGenerationCommand}" Margin="5,0,0,0" Height="40"/>
-                                        </Grid>
-                                        <Border Background="#FFF9F0" BorderBrush="#FFE0B0" BorderThickness="1" CornerRadius="5" Padding="10"
-                                                IsVisible="{Binding LTX23BasicVM.IsProcessing}">
-                                            <StackPanel Spacing="5">
-                                                <TextBlock Text="{Binding LTX23BasicVM.ProcessingStatus}" FontSize="11"/>
-                                                <ProgressBar Value="{Binding LTX23BasicVM.ProcessingProgress}" Maximum="100" Height="14"/>
-                                            </StackPanel>
-                                        </Border>
-                                    </StackPanel>
-                                </Border>
-                                <Expander Header="Processing Log" IsExpanded="True">
-                                    <Border Background="White" BorderBrush="#DEE2E6" BorderThickness="1" Margin="0,8,0,0">
-                                        <ScrollViewer MaxHeight="150">
-                                            <TextBox Text="{Binding LTX23BasicVM.LogOutput, Mode=OneWay}" IsReadOnly="True"
-                                                     FontFamily="Monospace" FontSize="10" Background="Transparent"
-                                                     BorderThickness="0" Padding="10" TextWrapping="Wrap"/>
-                                        </ScrollViewer>
-                                    </Border>
-                                </Expander>
-                            </StackPanel>
-                        </ScrollViewer>
-                    </TabItem>
-
                     <!-- ── Tab 5: Infinite Talk ── -->
                     <TabItem Header="Infinite Talk">
                         <ScrollViewer>
@@ -541,70 +503,6 @@
                                         </Grid>
                                         <ProgressBar Value="{Binding InfiniteTalkVM.ProcessingProgress}" Maximum="100" Height="14"
                                                      IsVisible="{Binding InfiniteTalkVM.IsProcessing}"/>
-                                    </StackPanel>
-                                </Border>
-                            </StackPanel>
-                        </ScrollViewer>
-                    </TabItem>
-
-                    <!-- ── Tab 6: Text to Video ── -->
-                    <TabItem Header="Text to Video">
-                        <ScrollViewer>
-                            <StackPanel Margin="10" Spacing="15">
-                                <Border Background="#F8F9FA" BorderBrush="#DEE2E6" BorderThickness="1" CornerRadius="8" Padding="15">
-                                    <StackPanel Spacing="8">
-                                        <TextBlock Text="Text to Video (LTX23)" FontSize="14" FontWeight="Bold" Foreground="#1565C0"/>
-                                        <TextBlock Text="Prompt" FontWeight="SemiBold" FontSize="11"/>
-                                        <TextBox Text="{Binding LTX23T2VVM.VideoPrompt, Mode=TwoWay}"
-                                                 TextWrapping="Wrap" AcceptsReturn="True" Height="120" Padding="10" FontSize="12"
-                                                 Watermark="Describe the video you want to generate..."/>
-                                        <TextBlock Text="Negative Prompt" FontWeight="SemiBold" FontSize="11"/>
-                                        <TextBox Text="{Binding LTX23T2VVM.NegativePrompt, Mode=TwoWay}"
-                                                 TextWrapping="Wrap" AcceptsReturn="True" Height="60" Padding="8" FontSize="11"/>
-                                        <Grid ColumnDefinitions="*,*">
-                                            <Button Grid.Column="0" Content="Generate Video" Classes="primary"
-                                                    Command="{Binding LTX23T2VVM.GenerateVideoCommand}" Margin="0,0,5,0" Height="40"/>
-                                            <Button Grid.Column="1" Content="Cancel" Classes="danger"
-                                                    Command="{Binding LTX23T2VVM.CancelGenerationCommand}" Margin="5,0,0,0" Height="40"/>
-                                        </Grid>
-                                        <Border Background="#FFF9F0" BorderBrush="#FFE0B0" BorderThickness="1" CornerRadius="5" Padding="10"
-                                                IsVisible="{Binding LTX23T2VVM.IsProcessing}">
-                                            <StackPanel Spacing="5">
-                                                <TextBlock Text="{Binding LTX23T2VVM.ProcessingStatus}" FontSize="11"/>
-                                                <ProgressBar Value="{Binding LTX23T2VVM.ProcessingProgress}" Maximum="100" Height="14"/>
-                                            </StackPanel>
-                                        </Border>
-                                    </StackPanel>
-                                </Border>
-                            </StackPanel>
-                        </ScrollViewer>
-                    </TabItem>
-
-                    <!-- ── Tab 7: Long Video ── -->
-                    <TabItem Header="Long Video">
-                        <ScrollViewer>
-                            <StackPanel Margin="10" Spacing="15">
-                                <Border Background="#F8F9FA" BorderBrush="#DEE2E6" BorderThickness="1" CornerRadius="8" Padding="15">
-                                    <StackPanel Spacing="8">
-                                        <TextBlock Text="Long Video Generator" FontSize="14" FontWeight="Bold" Foreground="#E91E63"/>
-                                        <TextBlock Text="Prompt" FontWeight="SemiBold" FontSize="11"/>
-                                        <TextBox Text="{Binding LongVideoVM.VideoPrompt, Mode=TwoWay}"
-                                                 TextWrapping="Wrap" AcceptsReturn="True" Height="100" Padding="10" FontSize="12"/>
-                                        <Grid ColumnDefinitions="*,Auto">
-                                            <TextBlock Grid.Column="0" Text="Number of Clips:" VerticalAlignment="Center"/>
-                                            <TextBox Grid.Column="1" Text="{Binding LongVideoVM.NumberOfClips, Mode=TwoWay}"
-                                                     Width="80" Padding="8" FontSize="11"/>
-                                        </Grid>
-                                        <Grid ColumnDefinitions="*,*">
-                                            <Button Grid.Column="0" Content="Generate" Classes="primary"
-                                                    Command="{Binding LongVideoVM.GenerateVideoCommand}" Margin="0,0,5,0" Height="40"/>
-                                            <Button Grid.Column="1" Content="Cancel" Classes="danger"
-                                                    Command="{Binding LongVideoVM.CancelGenerationCommand}" Margin="5,0,0,0" Height="40"/>
-                                        </Grid>
-                                        <ProgressBar Value="{Binding LongVideoVM.ProcessingProgress}" Maximum="100" Height="14"
-                                                     IsVisible="{Binding LongVideoVM.IsProcessing}"/>
-                                        <TextBlock Text="{Binding LongVideoVM.ProcessingStatus}" FontSize="11"
-                                                   IsVisible="{Binding LongVideoVM.IsProcessing}"/>
                                     </StackPanel>
                                 </Border>
                             </StackPanel>
@@ -686,68 +584,6 @@
                                                      IsVisible="{Binding WanScailVM.IsProcessing}"/>
                                         <TextBlock Text="{Binding WanScailVM.ProcessingStatus}" FontSize="11"
                                                    IsVisible="{Binding WanScailVM.IsProcessing}"/>
-                                    </StackPanel>
-                                </Border>
-                            </StackPanel>
-                        </ScrollViewer>
-                    </TabItem>
-
-                    <!-- Tab: LTX Control -->
-                    <TabItem Header="LTX Control" FontWeight="Bold" FontSize="13">
-                        <ScrollViewer>
-                            <StackPanel Margin="10" Spacing="15">
-                                <Border Background="#F8F9FA" BorderBrush="#BFDBFE" BorderThickness="1" CornerRadius="8" Padding="15">
-                                    <StackPanel Spacing="8">
-                                        <TextBlock Text="LTX IC-LoRA Control" FontSize="14" FontWeight="Bold" Foreground="#2563EB"/>
-
-                                        <!-- Reference Image -->
-                                        <TextBlock Text="Reference Image (subject &amp; aesthetics)" FontWeight="SemiBold" FontSize="11"/>
-                                        <Border BorderBrush="#BFDBFE" BorderThickness="1" Background="White" Height="120" CornerRadius="5">
-                                            <Grid>
-                                                <TextBlock Text="No image" HorizontalAlignment="Center" VerticalAlignment="Center"
-                                                           Foreground="#999" IsVisible="{Binding LtxControlVM.!HasRefImage}"/>
-                                                <Image Source="{Binding LtxControlVM.RefImagePreview}"
-                                                       Stretch="Uniform" IsVisible="{Binding LtxControlVM.HasRefImage}"/>
-                                            </Grid>
-                                        </Border>
-                                        <Button Content="Browse Reference Image" Classes="secondary"
-                                                Command="{Binding LtxControlVM.SelectRefImageCommand}" HorizontalAlignment="Left"/>
-                                        <TextBlock Text="{Binding LtxControlVM.RefImageInfo}" FontSize="10" Foreground="#666"/>
-
-                                        <!-- Reference Video -->
-                                        <TextBlock Text="Reference Video (motion &amp; structure)" FontWeight="SemiBold" FontSize="11"/>
-                                        <Grid ColumnDefinitions="*,Auto">
-                                            <TextBox Grid.Column="0" Text="{Binding LtxControlVM.RefVideoPath}" IsReadOnly="True" Padding="8"/>
-                                            <Button Grid.Column="1" Content="Browse" Classes="secondary"
-                                                    Command="{Binding LtxControlVM.SelectRefVideoCommand}" Margin="8,0,0,0"/>
-                                        </Grid>
-                                        <TextBlock Text="{Binding LtxControlVM.RefVideoInfo}" FontSize="10" Foreground="#666"/>
-
-                                        <!-- Analyze -->
-                                        <Button Content="🔍 Analyze Image" Classes="primary"
-                                                Command="{Binding LtxControlVM.AnalyzeCommand}"
-                                                IsEnabled="{Binding LtxControlVM.CanAnalyze}"
-                                                HorizontalAlignment="Left" Height="36"
-                                                ToolTip.Tip="Analyzes the reference image to generate an IC-LoRA aesthetic prompt."/>
-
-                                        <!-- Prompt -->
-                                        <TextBlock Text="Prompt" FontWeight="SemiBold" FontSize="11"/>
-                                        <TextBox Text="{Binding LtxControlVM.Prompt, Mode=TwoWay}"
-                                                 TextWrapping="Wrap" AcceptsReturn="True" Height="80" Padding="8" FontSize="11"/>
-
-                                        <!-- Actions -->
-                                        <Grid ColumnDefinitions="*,Auto">
-                                            <Button Grid.Column="0" Content="⚡ Generate Video" Classes="primary"
-                                                    Command="{Binding LtxControlVM.GenerateVideoCommand}"
-                                                    IsEnabled="{Binding LtxControlVM.CanAddToQueue}" Margin="0,0,5,0" Height="40"/>
-                                            <Button Grid.Column="1" Content="Cancel" Classes="danger"
-                                                    Command="{Binding LtxControlVM.StopQueueCommand}"
-                                                    IsEnabled="{Binding LtxControlVM.IsProcessingQueue}" Margin="5,0,0,0" Height="40"/>
-                                        </Grid>
-                                        <ProgressBar Value="{Binding LtxControlVM.ProcessingProgress}" Maximum="100" Height="14"
-                                                     IsVisible="{Binding LtxControlVM.IsProcessing}"/>
-                                        <TextBlock Text="{Binding LtxControlVM.ProcessingStatus}" FontSize="11"
-                                                   IsVisible="{Binding LtxControlVM.IsProcessing}"/>
                                     </StackPanel>
                                 </Border>
                             </StackPanel>
