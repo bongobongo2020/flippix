@@ -1226,8 +1226,8 @@ namespace FlipPix.UI.ViewModels
             try
             {
                 IsAnalyzingImage = true;
-                AnalysisStatus = "Analyzing image with Qwen VL...";
-                AddLog("Starting image analysis with Qwen VL...");
+                AnalysisStatus = $"Sending image to {_lmStudioService.DescribeTarget()}...";
+                AddLog($"Starting image analysis — sending to {_lmStudioService.DescribeTarget()}");
 
                 // Read system prompt from the selected template file
                 var promptFileName = SelectedStoryPromptTemplate?.FileName ?? "story-prompt.md";

@@ -230,8 +230,13 @@ namespace FlipPix.UI
                 var logger = provider.GetRequiredService<IAppLogger>();
                 var settingsService = provider.GetRequiredService<SettingsService>();
 
-                // Pass a function that dynamically retrieves the URL from settings
-                return new LMStudioService(httpClient, logger, () => settingsService.Settings.LMStudioSettings?.BaseUrl ?? "http://alien:8080");
+                // Pass functions that dynamically retrieve the URL (and the whole LLM settings
+                // block, for the friendly server/model names used in status messages) from settings
+                return new LMStudioService(
+                    httpClient,
+                    logger,
+                    () => settingsService.Settings.LMStudioSettings?.BaseUrl ?? "http://alien:8080",
+                    () => settingsService.Settings.LMStudioSettings);
             });
 
             // Prompt service

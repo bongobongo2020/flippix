@@ -361,7 +361,7 @@ namespace FlipPix.UI.ViewModels.Video
 
                 try
                 {
-                    AddLog($"Analyzing reference-video frame with model: {model}");
+                    AddLog($"Sending reference-video frame to {_lmStudioService.DescribeTarget(model)}");
 
                     var promptFilePath = Path.Combine(AppDomain.CurrentDomain.BaseDirectory,
                         "prompts", "prompt2json", SystemPromptFile);

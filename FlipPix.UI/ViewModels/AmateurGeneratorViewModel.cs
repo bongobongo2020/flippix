@@ -1292,7 +1292,7 @@ namespace FlipPix.UI.ViewModels
             {
                 IsAnalyzingImage = true;
                 AddLog($"Analyzing image: {Path.GetFileName(SourceImagePath)}");
-                AddLog("Sending to LM Studio for analysis and prompt enhancement...");
+                AddLog($"Sending it to {_lmStudioService.DescribeTarget()} for analysis and prompt enhancement...");
 
                 const string systemPrompt =
                     "You are an expert AI image prompt engineer specializing in photorealistic photography. " +

@@ -3081,6 +3081,29 @@ namespace FlipPix.UI.ViewModels
             LoadResultPreview(item.OutputImagePath);
             HasResultImage = true;
             StatusBarMessage = $"Loaded result: {Path.GetFileName(item.OutputImagePath)}";
+
+            // The in-app preview is downscaled, so clicking a queue thumbnail also hands the
+            // original file to the OS default image viewer for full-resolution inspection.
+            OpenInDefaultViewer(item.OutputImagePath);
+        }
+
+        /// <summary>
+        /// Open a file with the OS-associated application. Never throws.
+        /// </summary>
+        private void OpenInDefaultViewer(string imagePath)
+        {
+            try
+            {
+                Process.Start(new ProcessStartInfo
+                {
+                    FileName = imagePath,
+                    UseShellExecute = true
+                });
+            }
+            catch (Exception ex)
+            {
+                AddLog($"ERROR opening image in default viewer: {ex.Message}");
+            }
         }
 
         private void LoadResultPreview(string imagePath)

@@ -952,8 +952,8 @@ namespace FlipPix.UI.ViewModels
                 var systemPrompt = await File.ReadAllTextAsync(promptPath, _analyzeCts.Token);
 
                 SetAnalyzeProgress(10);
-                StatusMessage = "Sending image to LLM...";
-                AddLog($"Using model: {SelectedLlmModel}");
+                StatusMessage = $"Sending image to {_lmStudioService.DescribeTarget(SelectedLlmModel)}...";
+                AddLog(StatusMessage);
 
                 var result = await _lmStudioService.AnalyzeImageWithSystemPromptAsync(
                     SelectedLlmModel,

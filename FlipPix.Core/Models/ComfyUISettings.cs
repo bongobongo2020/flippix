@@ -138,6 +138,35 @@ public class ComfyUISettings
     /// <summary>Saved LM Studio server URLs (most-recent first), surfaced for UI binding.</summary>
     public List<string> LMStudioServerHistory => LMStudioSettings?.ServerHistory ?? new List<string>();
 
+    /// <summary>Friendly name of the default LLM server, for UI binding.</summary>
+    public string LMStudioServerName
+    {
+        get => LMStudioSettings?.DefaultProfile?.Name ?? string.Empty;
+        set
+        {
+            LMStudioSettings ??= new LMStudioSettings();
+            LMStudioSettings.EnsureProfiles();
+            var profile = LMStudioSettings.DefaultProfile;
+            if (profile != null) profile.Name = (value ?? string.Empty).Trim();
+        }
+    }
+
+    /// <summary>Friendly name of the default LLM model, for UI binding.</summary>
+    public string LMStudioModelName
+    {
+        get => LMStudioSettings?.DefaultProfile?.ModelName ?? string.Empty;
+        set
+        {
+            LMStudioSettings ??= new LMStudioSettings();
+            LMStudioSettings.EnsureProfiles();
+            var profile = LMStudioSettings.DefaultProfile;
+            if (profile != null) profile.ModelName = (value ?? string.Empty).Trim();
+        }
+    }
+
+    /// <summary>Where image analysis is currently sent, e.g. "Alien Box (http://alien:8080) · Qwen2.5-VL 7B".</summary>
+    public string LlmTargetDescription => LMStudioSettings?.DescribeTarget() ?? string.Empty;
+
     // Selected model for binding to the ComboBox
     public string SelectedModel
     {

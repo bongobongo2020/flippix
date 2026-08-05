@@ -556,7 +556,7 @@ namespace FlipPix.UI.ViewModels.Video
         private async Task<string> AnalyzePairAsync(string model, string firstPath, string lastPath,
             string draft, CancellationToken token)
         {
-            AddLog($"Writing the MiniMax H3 FL2VA prompt from both frames with model: {model}");
+            AddLog($"Writing the MiniMax H3 FL2VA prompt — sending both frames to {_lmStudioService.DescribeTarget(model)}");
 
             var promptFilePath = Path.Combine(AppDomain.CurrentDomain.BaseDirectory,
                 "prompts", "prompt2json", SystemPromptFile);

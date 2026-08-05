@@ -98,6 +98,18 @@ namespace FlipPix.UI
                 MiniMaxH3VideoPlayer.Position = System.TimeSpan.Zero;
                 MiniMaxH3VideoPlayer.Play();
             }
+
+            if (MiniMaxH3T2VVideoPlayer != null && MiniMaxH3T2VVideoPlayer.Source != null)
+            {
+                MiniMaxH3T2VVideoPlayer.Position = System.TimeSpan.Zero;
+                MiniMaxH3T2VVideoPlayer.Play();
+            }
+
+            if (MiniMaxCharacterVideoPlayer != null && MiniMaxCharacterVideoPlayer.Source != null)
+            {
+                MiniMaxCharacterVideoPlayer.Position = System.TimeSpan.Zero;
+                MiniMaxCharacterVideoPlayer.Play();
+            }
         }
 
         // ── LTX Director: drag-drop images onto the timeline ─────────────────
@@ -506,6 +518,8 @@ namespace FlipPix.UI
             FaceIdCharSheetRefPlayer?.Stop();
             FaceIdCharSheetVideoPlayer?.Stop();
             MiniMaxH3VideoPlayer?.Stop();
+            MiniMaxH3T2VVideoPlayer?.Stop();
+            MiniMaxCharacterVideoPlayer?.Stop();
             MiniMaxFflfPlayer?.Stop();
         }
 

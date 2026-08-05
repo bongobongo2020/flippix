@@ -29,8 +29,8 @@ namespace FlipPix.UI
             // Set DataContext for binding
             DataContext = _originalSettings;
 
-            // Populate the saved-servers dropdown
-            RefreshSavedServerItems();
+            // Populate the saved-servers dropdown and the friendly-name fields
+            InitLlmUi();
 
             // Reflect the saved VRAM tier + any detected VRAM
             InitVramTierUi();
@@ -67,14 +67,107 @@ namespace FlipPix.UI
                    ?? "auto";
         }
 
+        /// <summary>
+        /// Fills the LLM section from the saved profiles: the default server's friendly names go
+        /// into the text boxes, the dropdown lists every saved server, and the summary line shows
+        /// exactly where image analysis will be sent.
+        /// </summary>
+        private void InitLlmUi()
+        {
+            var lm = _originalSettings.LMStudioSettings;
+            lm?.EnsureProfiles();
+
+            var profile = lm?.DefaultProfile;
+            LMStudioServerNameTextBox.Text = profile?.Name ?? string.Empty;
+            LMStudioModelNameTextBox.Text = profile?.ModelName ?? string.Empty;
+
+            // Keep the summary line honest while the user edits, before anything is saved.
+            LMStudioServerNameTextBox.TextChanged += (_, __) => UpdateDefaultLlmTargetText();
+            LMStudioModelNameTextBox.TextChanged += (_, __) => UpdateDefaultLlmTargetText();
+            LMStudioServerTextBox.TextChanged += (_, __) => UpdateDefaultLlmTargetText();
+            LMStudioPortTextBox.TextChanged += (_, __) => UpdateDefaultLlmTargetText();
+
+            RefreshSavedServerItems();
+            UpdateDefaultLlmTargetText();
+        }
+
         private void RefreshSavedServerItems()
         {
-            var history = _originalSettings.LMStudioSettings?.ServerHistory ?? new List<string>();
+            var lm = _originalSettings.LMStudioSettings;
+            lm?.EnsureProfiles();
+            var servers = lm?.Servers?.ToList() ?? new List<LlmServerProfile>();
+
+            // Select whichever saved entry matches the address currently in the fields, so the
+            // dropdown keeps pointing at what the user is editing; fall back to the default.
+            var currentUrl = LMStudioSettings.BuildBaseUrl(LMStudioServerTextBox.Text, LMStudioPortTextBox.Text);
+            var selected = servers.FirstOrDefault(p =>
+                               string.Equals(p.BaseUrl?.TrimEnd('/'), currentUrl.TrimEnd('/'), StringComparison.OrdinalIgnoreCase))
+                           ?? servers.FirstOrDefault(p => p.IsDefault);
+
             // Avoid re-triggering SelectionChanged while we repopulate the list.
             SavedServerComboBox.SelectionChanged -= SavedServerComboBox_SelectionChanged;
-            SavedServerComboBox.ItemsSource = history;
-            SavedServerComboBox.SelectedItem = null;
+            SavedServerComboBox.ItemsSource = servers;
+            SavedServerComboBox.SelectedItem = selected;
             SavedServerComboBox.SelectionChanged += SavedServerComboBox_SelectionChanged;
+        }
+
+        /// <summary>The model id currently chosen in the dialog (combo selection, else the saved one).</summary>
+        private string CurrentModelId()
+        {
+            if (LMStudioModelComboBox.SelectedValue is string selected && !string.IsNullOrWhiteSpace(selected))
+                return selected.Trim();
+            return _originalSettings.LMStudioSettings?.SelectedModel?.Trim() ?? string.Empty;
+        }
+
+        /// <summary>
+        /// Restates the pending server/model choice in the same wording the analysis status
+        /// messages use, so it is obvious which machine and model a Save will switch the app to.
+        /// </summary>
+        private void UpdateDefaultLlmTargetText()
+        {
+            // A binding can raise SelectionChanged while InitializeComponent is still assigning
+            // the named fields further down the XAML tree, so nothing here is guaranteed yet.
+            if (DefaultLlmTargetText is null || LMStudioServerTextBox is null || LMStudioPortTextBox is null
+                || LMStudioServerNameTextBox is null || LMStudioModelNameTextBox is null || LMStudioModelComboBox is null)
+            {
+                return;
+            }
+
+            var url = LMStudioSettings.BuildBaseUrl(LMStudioServerTextBox.Text, LMStudioPortTextBox.Text);
+            var serverName = LMStudioServerNameTextBox.Text?.Trim() ?? string.Empty;
+            var modelId = CurrentModelId();
+            var modelName = LMStudioModelNameTextBox.Text?.Trim() ?? string.Empty;
+
+            var server = string.IsNullOrWhiteSpace(serverName) ? url : $"{serverName} ({url})";
+            var model = string.IsNullOrWhiteSpace(modelId)
+                ? "(no model selected — click Refresh)"
+                : string.IsNullOrWhiteSpace(modelName) ? modelId : $"{modelName} [{modelId}]";
+
+            DefaultLlmTargetText.Text = $"Image analysis will be sent to {server} · {model}";
+        }
+
+        private void LMStudioModelComboBox_SelectionChanged(object sender, SelectionChangedEventArgs e)
+        {
+            UpdateDefaultLlmTargetText();
+        }
+
+        private void RemoveSavedServer_Click(object sender, RoutedEventArgs e)
+        {
+            if (SavedServerComboBox.SelectedItem is not LlmServerProfile profile)
+            {
+                MessageBox.Show("Pick a saved server to remove first.", "Remove Server",
+                    MessageBoxButton.OK, MessageBoxImage.Information);
+                return;
+            }
+
+            var confirm = MessageBox.Show(
+                $"Forget the saved server \"{profile.DisplayName}\" ({profile.BaseUrl})?",
+                "Remove Server", MessageBoxButton.YesNo, MessageBoxImage.Question);
+            if (confirm != MessageBoxResult.Yes) return;
+
+            _originalSettings.LMStudioSettings?.RemoveProfile(profile.BaseUrl);
+            RefreshSavedServerItems();
+            UpdateDefaultLlmTargetText();
         }
 
         private ComfyUISettings CloneSettings(ComfyUISettings original)
@@ -110,7 +203,16 @@ namespace FlipPix.UI
                     AutoConnect = original.LMStudioSettings?.AutoConnect ?? true,
                     ServerHistory = original.LMStudioSettings?.ServerHistory != null
                         ? new List<string>(original.LMStudioSettings.ServerHistory)
-                        : new List<string>()
+                        : new List<string>(),
+                    // Deep-copy the named server profiles so edits here can still be cancelled.
+                    Servers = original.LMStudioSettings?.Servers?.Select(p => new LlmServerProfile
+                    {
+                        Name = p.Name,
+                        BaseUrl = p.BaseUrl,
+                        Model = p.Model,
+                        ModelName = p.ModelName,
+                        IsDefault = p.IsDefault
+                    }).ToList() ?? new List<LlmServerProfile>()
                 }
             };
         }
@@ -630,7 +732,18 @@ namespace FlipPix.UI
                         {
                             _originalSettings.LMStudioSettings.RememberServer(baseUrl);
                             RefreshSavedServerItems();
+
+                            // Re-select the model this server is configured with, if it's loaded.
+                            var savedModel = _originalSettings.LMStudioSettings.FindProfile(baseUrl)?.Model
+                                             ?? _originalSettings.LMStudioSettings.SelectedModel;
+                            if (!string.IsNullOrWhiteSpace(savedModel)
+                                && _availableModels.Any(m => string.Equals(m.Name, savedModel, StringComparison.OrdinalIgnoreCase)))
+                            {
+                                LMStudioModelComboBox.SelectedValue = savedModel;
+                            }
                         }
+
+                        UpdateDefaultLlmTargetText();
 
                         MessageBox.Show($"Successfully loaded {_availableModels.Count} models from LM Studio!", "Models Refreshed", MessageBoxButton.OK, MessageBoxImage.Information);
                     }
@@ -666,12 +779,27 @@ namespace FlipPix.UI
 
         private void SavedServerComboBox_SelectionChanged(object sender, SelectionChangedEventArgs e)
         {
-            if (sender is not System.Windows.Controls.ComboBox combo || combo.SelectedItem is not string url || string.IsNullOrWhiteSpace(url))
+            if (sender is not System.Windows.Controls.ComboBox combo || combo.SelectedItem is not LlmServerProfile profile)
                 return;
 
-            var (host, port) = LMStudioSettings.ParseBaseUrl(url);
+            var (host, port) = LMStudioSettings.ParseBaseUrl(profile.BaseUrl);
             LMStudioServerTextBox.Text = host;
             LMStudioPortTextBox.Text = port;
+            LMStudioServerNameTextBox.Text = profile.Name ?? string.Empty;
+            LMStudioModelNameTextBox.Text = profile.ModelName ?? string.Empty;
+
+            if (!string.IsNullOrWhiteSpace(profile.Model))
+            {
+                // The model list belongs to whichever server was last refreshed, so only move the
+                // combo when this server's model is actually in it; the id is kept either way.
+                if (_originalSettings.LMStudioSettings != null)
+                    _originalSettings.LMStudioSettings.SelectedModel = profile.Model;
+
+                if (_availableModels.Any(m => string.Equals(m.Name, profile.Model, StringComparison.OrdinalIgnoreCase)))
+                    LMStudioModelComboBox.SelectedValue = profile.Model;
+            }
+
+            UpdateDefaultLlmTargetText();
             UpdateStatus();
         }
 
@@ -712,35 +840,40 @@ namespace FlipPix.UI
                 }
 
                 // Rebuild the LM Studio URL from the server/port fields (robust against host
-                // names UriBuilder rejects) and remember it so the user can switch back to it.
+                // names UriBuilder rejects), store it under its friendly name, and make it the
+                // default target every image analysis is sent to.
                 var lmSettings = _originalSettings.LMStudioSettings ?? new LMStudioSettings();
-                lmSettings.BaseUrl = LMStudioSettings.BuildBaseUrl(
+                var lmBaseUrl = LMStudioSettings.BuildBaseUrl(
                     LMStudioServerTextBox.Text, LMStudioPortTextBox.Text);
-                lmSettings.RememberServer(lmSettings.BaseUrl);
+                var lmModel = CurrentModelId();
+                if (!string.IsNullOrEmpty(lmModel)) lmSettings.SelectedModel = lmModel;
+                lmSettings.SaveProfile(
+                    lmBaseUrl,
+                    LMStudioServerNameTextBox.Text,
+                    lmModel,
+                    LMStudioModelNameTextBox.Text,
+                    makeDefault: true);
 
-                // Update and save settings
-                var newSettings = new ComfyUISettings
-                {
-                    BaseUrl = ServerUrlTextBox.Text?.Trim() ?? "http://localhost:8188",
-                    ConnectionTimeout = int.TryParse(TimeoutTextBox.Text, out var timeout) ? timeout : 10000,
-                    MaxRetries = int.TryParse(MaxRetriesTextBox.Text, out var retries) ? retries : 3,
-                    RetryDelayMilliseconds = _originalSettings.RetryDelayMilliseconds,
-                    ComfyUIFolderPath = ComfyUIPathTextBox.Text?.Trim() ?? "",
-                    OutputFolderPath = OutputPathTextBox.Text?.Trim() ?? "",
-                    RemoteOutputFolderPath = _originalSettings.RemoteOutputFolderPath,
-                    RemoteLoraFolderPath = RemoteLoraPathTextBox.Text?.Trim() ?? "",
-                    KreaLoraFolderPath = KreaLoraPathTextBox.Text?.Trim() ?? "",
-                    WslModelsFolderPath = WslModelsFolderTextBox.Text?.Trim() ?? "",
-                    SavedCameraPrompts = _originalSettings.SavedCameraPrompts,
-                    AutoRestartComfyUI = AutoRestartCheckBox.IsChecked ?? true,
-                    VramTier = SelectedVramTier(),
-                    DetectedVramGb = _originalSettings.DetectedVramGb,
-                    ComfyUIRestartScriptPath = ComfyUIRestartScriptTextBox.Text?.Trim() ?? "",
-                    ComfyUIRestartDelaySeconds = int.TryParse(RestartDelayTextBox.Text, out var restartDelay) ? restartDelay : 10,
-                    ComfyUIStartupTimeoutSeconds = int.TryParse(StartupTimeoutTextBox.Text, out var startupTimeout) ? startupTimeout : 120,
-                    // Preserve LM Studio settings (URL + history updated above)
-                    LMStudioSettings = lmSettings
-                };
+                // Write the edited fields onto the live settings object rather than building a
+                // fresh one: this dialog only covers a fraction of ComfyUISettings, and starting
+                // from a blank instance silently reset everything it doesn't know about (last
+                // browse folders, Scail2 batch size / interpolate, Story generator folders, ...).
+                var newSettings = _settingsService.Settings;
+                newSettings.BaseUrl = ServerUrlTextBox.Text?.Trim() ?? "http://localhost:8188";
+                newSettings.ConnectionTimeout = int.TryParse(TimeoutTextBox.Text, out var timeout) ? timeout : 10000;
+                newSettings.MaxRetries = int.TryParse(MaxRetriesTextBox.Text, out var retries) ? retries : 3;
+                newSettings.ComfyUIFolderPath = ComfyUIPathTextBox.Text?.Trim() ?? "";
+                newSettings.OutputFolderPath = OutputPathTextBox.Text?.Trim() ?? "";
+                newSettings.RemoteLoraFolderPath = RemoteLoraPathTextBox.Text?.Trim() ?? "";
+                newSettings.KreaLoraFolderPath = KreaLoraPathTextBox.Text?.Trim() ?? "";
+                newSettings.WslModelsFolderPath = WslModelsFolderTextBox.Text?.Trim() ?? "";
+                newSettings.AutoRestartComfyUI = AutoRestartCheckBox.IsChecked ?? true;
+                newSettings.VramTier = SelectedVramTier();
+                newSettings.ComfyUIRestartScriptPath = ComfyUIRestartScriptTextBox.Text?.Trim() ?? "";
+                newSettings.ComfyUIRestartDelaySeconds = int.TryParse(RestartDelayTextBox.Text, out var restartDelay) ? restartDelay : 10;
+                newSettings.ComfyUIStartupTimeoutSeconds = int.TryParse(StartupTimeoutTextBox.Text, out var startupTimeout) ? startupTimeout : 120;
+                // LM Studio server/model + friendly names, updated above
+                newSettings.LMStudioSettings = lmSettings;
 
                 _settingsService.SaveSettings(newSettings);
 

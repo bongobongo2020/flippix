@@ -129,6 +129,20 @@ namespace FlipPix.UI.ViewModels
         /// </summary>
         public MiniMaxFflfSeedHuntViewModel MiniMaxFflfVM { get; }
 
+        /// <summary>
+        /// MiniMax H3 T2V ViewModel - the long-form variant: one image is analyzed into a dense ~15-second
+        /// multi-shot H3 prompt, then generated either with the image conditioned as the first frame or as
+        /// pure text-to-video with the image used only as inspiration for the prompt.
+        /// </summary>
+        public MiniMaxH3TextToVideoViewModel MiniMaxH3T2VVM { get; }
+
+        /// <summary>
+        /// MiniMax Character ViewModel - reference-to-video: one or two character images stay on model as
+        /// H3 reference frames while a third "scene" image (never uploaded) is analyzed into the multi-shot
+        /// prompt they act out, with optional Wan 2.2 / LTX 2.3 refinement passes.
+        /// </summary>
+        public MiniMaxCharacterViewModel MiniMaxCharacterVM { get; }
+
         // Bound to the main TabControl so code can switch tabs programmatically.
         // 0 = Story Video Generator tab.
         private int _selectedTabIndex = 0;
@@ -308,6 +322,24 @@ namespace FlipPix.UI.ViewModels
                 _workflowCoordinator,
                 _fileDialogService);
 
+            MiniMaxH3T2VVM = new MiniMaxH3TextToVideoViewModel(
+                comfyUIService,
+                lmStudioService,
+                logger,
+                settingsService,
+                serviceProvider,
+                _workflowCoordinator,
+                _fileDialogService);
+
+            MiniMaxCharacterVM = new MiniMaxCharacterViewModel(
+                comfyUIService,
+                lmStudioService,
+                logger,
+                settingsService,
+                serviceProvider,
+                _workflowCoordinator,
+                _fileDialogService);
+
             // Forward PlayRequested events from sub-VMs
             MainVM.PlayRequested += (s, e) => PlayRequested?.Invoke(this, e);
             VaceVM.PlayRequested += (s, e) => PlayRequested?.Invoke(this, e);
@@ -325,6 +357,8 @@ namespace FlipPix.UI.ViewModels
             FaceIdCharSheetVM.PlayRequested += (s, e) => PlayRequested?.Invoke(this, e);
             MiniMaxH3VM.PlayRequested += (s, e) => PlayRequested?.Invoke(this, e);
             MiniMaxFflfVM.PlayRequested += (s, e) => PlayRequested?.Invoke(this, e);
+            MiniMaxH3T2VVM.PlayRequested += (s, e) => PlayRequested?.Invoke(this, e);
+            MiniMaxCharacterVM.PlayRequested += (s, e) => PlayRequested?.Invoke(this, e);
 
             // Forward PropertyChanged events from all sub-VMs for backward compatibility
             MainVM.PropertyChanged += ForwardPropertyChanged;
@@ -343,6 +377,8 @@ namespace FlipPix.UI.ViewModels
             FaceIdCharSheetVM.PropertyChanged += ForwardPropertyChanged;
             MiniMaxH3VM.PropertyChanged += ForwardPropertyChanged;
             MiniMaxFflfVM.PropertyChanged += ForwardPropertyChanged;
+            MiniMaxH3T2VVM.PropertyChanged += ForwardPropertyChanged;
+            MiniMaxCharacterVM.PropertyChanged += ForwardPropertyChanged;
 
             NavigateToImageGeneratorCommand = new RelayCommand(NavigateToImageGenerator);
 
@@ -914,6 +950,8 @@ namespace FlipPix.UI.ViewModels
                 FaceIdCharSheetVM.PropertyChanged -= ForwardPropertyChanged;
                 MiniMaxH3VM.PropertyChanged -= ForwardPropertyChanged;
                 MiniMaxFflfVM.PropertyChanged -= ForwardPropertyChanged;
+                MiniMaxH3T2VVM.PropertyChanged -= ForwardPropertyChanged;
+                MiniMaxCharacterVM.PropertyChanged -= ForwardPropertyChanged;
 
                 // Dispose all sub-ViewModels
                 (MainVM as IDisposable)?.Dispose();
@@ -929,6 +967,8 @@ namespace FlipPix.UI.ViewModels
                 (FaceIdCharSheetVM as IDisposable)?.Dispose();
                 (MiniMaxH3VM as IDisposable)?.Dispose();
                 (MiniMaxFflfVM as IDisposable)?.Dispose();
+                (MiniMaxH3T2VVM as IDisposable)?.Dispose();
+                (MiniMaxCharacterVM as IDisposable)?.Dispose();
 
                 _disposed = true;
             }

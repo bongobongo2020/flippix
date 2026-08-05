@@ -387,7 +387,7 @@ namespace FlipPix.UI.ViewModels.Video
                 var systemPrompt = await File.ReadAllTextAsync(promptFilePath, token);
 
                 if (shots.Count > 1)
-                    AddLog($"Analyzing {shots.Count} shots with model: {selectedModel}");
+                    AddLog($"Analyzing {shots.Count} shots — sending images to {_lmStudioService.DescribeTarget(selectedModel)}");
 
                 foreach (var target in shots)
                 {

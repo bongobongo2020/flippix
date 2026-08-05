@@ -681,7 +681,7 @@ namespace FlipPix.UI.ViewModels.Video
                 if (allMotionCached)
                     AddLog($"=== CharReplace: video motion fully cached ({totalChunks} chunks) — analyzing image only ===");
                 else
-                    AddLog($"=== CharReplace analysis started (model: {selectedModel}, {chunksNeedingMotion}/{totalChunks} chunks need motion) ===");
+                    AddLog($"=== CharReplace analysis started — sending to {_lmStudioService.DescribeTarget(selectedModel)} ({chunksNeedingMotion}/{totalChunks} chunks need motion) ===");
 
                 // ── Step 1: Appearance (image-specific) ──────────────────────
                 string appearanceDescription;

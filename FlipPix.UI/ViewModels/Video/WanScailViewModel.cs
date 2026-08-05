@@ -759,7 +759,7 @@ namespace FlipPix.UI.ViewModels.Video
                     return;
                 }
 
-                AddLog($"=== WAN SCAIL analysis started (model: {selectedModel}) ===");
+                AddLog($"=== WAN SCAIL analysis started — sending to {_lmStudioService.DescribeTarget(selectedModel)} ===");
 
                 // Step 1: Extract character appearance from the reference image (once, reused for every chunk)
                 const string appearanceSystemPrompt =

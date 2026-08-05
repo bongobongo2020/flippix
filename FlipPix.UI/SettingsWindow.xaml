@@ -204,15 +204,19 @@
                             <Grid.ColumnDefinitions>
                                 <ColumnDefinition Width="120"/>
                                 <ColumnDefinition Width="*"/>
+                                <ColumnDefinition Width="Auto"/>
                             </Grid.ColumnDefinitions>
                             <TextBlock Grid.Column="0" Text="Saved Servers:" VerticalAlignment="Center" Margin="0,0,10,0"/>
                             <ComboBox Grid.Column="1" x:Name="SavedServerComboBox"
-                                      IsEditable="False"
-                                      ToolTip="Pick a previously used server to fill in the Server and Port below"/>
+                                      IsEditable="False" DisplayMemberPath="ListLabel" Margin="0,0,10,0"
+                                      ToolTip="Pick a saved server to load its address, friendly name and model below"/>
+                            <Button Grid.Column="2" x:Name="RemoveSavedServerButton" Content="Remove"
+                                    Click="RemoveSavedServer_Click" Padding="15,5"
+                                    ToolTip="Forget the selected saved server"/>
                         </Grid>
 
                         <!-- LM Studio Server Settings -->
-                        <Grid Margin="0,0,0,15">
+                        <Grid Margin="0,0,0,10">
                             <Grid.ColumnDefinitions>
                                 <ColumnDefinition Width="120"/>
                                 <ColumnDefinition Width="*"/>
@@ -223,28 +227,47 @@
                                 <RowDefinition Height="Auto"/>
                                 <RowDefinition Height="Auto"/>
                                 <RowDefinition Height="Auto"/>
+                                <RowDefinition Height="Auto"/>
                             </Grid.RowDefinitions>
 
-                            <TextBlock Grid.Row="0" Grid.Column="0" Text="Server:" VerticalAlignment="Center" Margin="0,0,10,10"/>
-                            <TextBox Grid.Row="0" Grid.Column="1" x:Name="LMStudioServerTextBox" Text="{Binding LMStudioServer, UpdateSourceTrigger=PropertyChanged}" Margin="0,0,10,10"/>
-                            <Button Grid.Row="0" Grid.Column="2" Content="Test" Click="TestLMStudioConnection_Click" Padding="15,5" Margin="0,0,0,10"/>
+                            <TextBlock Grid.Row="0" Grid.Column="0" Text="Friendly Name:" VerticalAlignment="Center" Margin="0,0,10,10"/>
+                            <TextBox Grid.Row="0" Grid.Column="1" Grid.ColumnSpan="2" x:Name="LMStudioServerNameTextBox" Margin="0,0,0,10"
+                                     ToolTip="What to call this machine in status messages, e.g. &quot;Alien Box&quot;. Leave blank to use the host name."/>
 
-                            <TextBlock Grid.Row="1" Grid.Column="0" Text="Port:" VerticalAlignment="Center" Margin="0,0,10,10"/>
-                            <TextBox Grid.Row="1" Grid.Column="1" x:Name="LMStudioPortTextBox" Text="{Binding LMStudioPort, UpdateSourceTrigger=PropertyChanged}" Margin="0,0,0,10"/>
+                            <TextBlock Grid.Row="1" Grid.Column="0" Text="Server:" VerticalAlignment="Center" Margin="0,0,10,10"/>
+                            <TextBox Grid.Row="1" Grid.Column="1" x:Name="LMStudioServerTextBox" Text="{Binding LMStudioServer, UpdateSourceTrigger=PropertyChanged}" Margin="0,0,10,10"/>
+                            <Button Grid.Row="1" Grid.Column="2" Content="Test" Click="TestLMStudioConnection_Click" Padding="15,5" Margin="0,0,0,10"/>
 
-                            <TextBlock Grid.Row="2" Grid.Column="0" Text="AI Model:" VerticalAlignment="Center" Margin="0,0,10,10"/>
-                            <Grid Grid.Row="2" Grid.Column="1" Grid.ColumnSpan="2" Margin="0,0,0,10">
+                            <TextBlock Grid.Row="2" Grid.Column="0" Text="Port:" VerticalAlignment="Center" Margin="0,0,10,10"/>
+                            <TextBox Grid.Row="2" Grid.Column="1" x:Name="LMStudioPortTextBox" Text="{Binding LMStudioPort, UpdateSourceTrigger=PropertyChanged}" Margin="0,0,0,10"/>
+
+                            <TextBlock Grid.Row="3" Grid.Column="0" Text="AI Model:" VerticalAlignment="Center" Margin="0,0,10,10"/>
+                            <Grid Grid.Row="3" Grid.Column="1" Grid.ColumnSpan="2" Margin="0,0,0,10">
                                 <Grid.ColumnDefinitions>
                                     <ColumnDefinition Width="*"/>
                                     <ColumnDefinition Width="Auto"/>
                                 </Grid.ColumnDefinitions>
                                 <ComboBox Grid.Column="0" x:Name="LMStudioModelComboBox"
-                                          SelectedValue="{Binding SelectedModel}" SelectedValuePath="Name" DisplayMemberPath="Name" Margin="0,0,10,0"/>
+                                          SelectedValue="{Binding SelectedModel}" SelectedValuePath="Name" DisplayMemberPath="Name" Margin="0,0,10,0"
+                                          SelectionChanged="LMStudioModelComboBox_SelectionChanged"/>
                                 <Button Grid.Column="1" Content="Refresh" Click="RefreshLMStudioModels_Click" Padding="15,5"/>
                             </Grid>
+
+                            <TextBlock Grid.Row="4" Grid.Column="0" Text="Model Name:" VerticalAlignment="Center" Margin="0,0,10,10"/>
+                            <TextBox Grid.Row="4" Grid.Column="1" Grid.ColumnSpan="2" x:Name="LMStudioModelNameTextBox" Margin="0,0,0,10"
+                                     ToolTip="What to call this model in status messages, e.g. &quot;Qwen2.5-VL 7B&quot;. Leave blank to use the model id."/>
                         </Grid>
 
-                        <TextBlock Text="LM Studio is used for AI image analysis. Make sure it's running on your local machine or remote server."
+                        <!-- What the app will actually use -->
+                        <Border Background="{StaticResource SurfaceBrush}" CornerRadius="6" Padding="10" Margin="0,0,0,10">
+                            <StackPanel>
+                                <TextBlock Text="Default for image analysis" FontWeight="SemiBold" FontSize="12" Margin="0,0,0,4"/>
+                                <TextBlock x:Name="DefaultLlmTargetText" FontSize="12" TextWrapping="Wrap"
+                                           Foreground="{StaticResource TextSecondaryBrush}" Text="Not configured yet."/>
+                            </StackPanel>
+                        </Border>
+
+                        <TextBlock Text="These settings are used for AI image analysis. Saving makes the server and model above the default, and remembers it under its friendly name."
                                   FontSize="12" Foreground="{StaticResource TextSecondaryBrush}" TextWrapping="Wrap"/>
                     </StackPanel>
                 </Border>

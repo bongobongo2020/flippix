@@ -284,7 +284,7 @@ namespace FlipPix.UI.ViewModels.Video
                     return;
                 }
 
-                AddLog($"Analyzing first frame with model: {selectedModel}");
+                AddLog($"Sending first frame to {_lmStudioService.DescribeTarget(selectedModel)}");
 
                 var promptFilePath = Path.Combine(AppDomain.CurrentDomain.BaseDirectory,
                     "prompts", "prompt2json", "vr180.md");

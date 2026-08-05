@@ -376,7 +376,7 @@ namespace FlipPix.UI.ViewModels.Video
             try
             {
                 var model = await ResolveLlmModelAsync(token);
-                AddLog($"Merging character appearance into prompt with model: {model}");
+                AddLog($"Merging character appearance into prompt — sending to {_lmStudioService.DescribeTarget(model)}");
 
                 var promptFilePath = Path.Combine(AppDomain.CurrentDomain.BaseDirectory,
                     "prompts", "prompt2json", SystemPromptFile);

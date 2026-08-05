@@ -788,7 +788,7 @@ namespace FlipPix.UI.ViewModels.Video
                     return;
                 }
 
-                AddLog($"=== WAN Animate analysis started (model: {selectedModel}) ===");
+                AddLog($"=== WAN Animate analysis started — sending to {_lmStudioService.DescribeTarget(selectedModel)} ===");
 
                 const string appearanceSystemPrompt =
                     "Describe only what the person is wearing and their physical appearance in this image. " +

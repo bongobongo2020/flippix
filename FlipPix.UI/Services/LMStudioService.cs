@@ -21,18 +21,38 @@ namespace FlipPix.UI.Services
         private readonly SemaphoreSlim _semaphore;
         private bool _disposed = false;
         private readonly Func<string> _getBaseUrl;
+        private readonly Func<FlipPix.Core.Models.LMStudioSettings?>? _getSettings;
 
-        public LMStudioService(HttpClient httpClient, IAppLogger logger, Func<string>? getBaseUrl = null)
+        public LMStudioService(
+            HttpClient httpClient,
+            IAppLogger logger,
+            Func<string>? getBaseUrl = null,
+            Func<FlipPix.Core.Models.LMStudioSettings?>? getSettings = null)
         {
             _httpClient = httpClient;
             _logger = logger;
             _getBaseUrl = getBaseUrl ?? (() => "http://alien:8080");
+            _getSettings = getSettings;
             // Don't set BaseAddress - we'll use full URLs instead to allow changing the URL
             _httpClient.Timeout = TimeSpan.FromMinutes(15); // 15 minute timeout for large generation tasks
             _semaphore = new SemaphoreSlim(1, 1); // Limit concurrent requests
         }
 
         private string _baseUrl => _getBaseUrl();
+
+        /// <summary>
+        /// Describes where a request is going using the friendly names configured in Settings,
+        /// e.g. "Alien Box (http://alien:8080) · Qwen2.5-VL 7B [qwen2.5-vl-7b-instruct]". Pass the
+        /// model actually being used; omit it to describe the configured default.
+        /// </summary>
+        public string DescribeTarget(string? modelName = null)
+        {
+            var settings = _getSettings?.Invoke();
+            if (settings != null) return settings.DescribeTarget(modelName);
+
+            var url = _baseUrl.TrimEnd('/');
+            return string.IsNullOrWhiteSpace(modelName) ? url : $"{url} · {modelName}";
+        }
 
         public async Task<bool> IsRunningAsync(CancellationToken cancellationToken = default)
         {
@@ -165,8 +185,7 @@ namespace FlipPix.UI.Services
                     PropertyNamingPolicy = JsonNamingPolicy.CamelCase
                 });
 
-                _logger.LogInfo($"Sending image analysis request to LM Studio for model: {modelName}");
-                _logger.LogInfo($"Image: {Path.GetFileName(imagePath)}, Size: {imageBytes.Length} bytes");
+                _logger.LogInfo($"Sending image {Path.GetFileName(imagePath)} ({imageBytes.Length} bytes) to {DescribeTarget(modelName)}");
 
                 var fullUrl = $"{_baseUrl.TrimEnd('/')}/v1/chat/completions";
                 using var content = new StringContent(json, Encoding.UTF8, "application/json");
@@ -241,7 +260,7 @@ namespace FlipPix.UI.Services
                 var firstDataUrl = ToDataUrl(firstImagePath);
                 var lastDataUrl  = ToDataUrl(lastImagePath);
 
-                _logger.LogInfo($"Sending two-image FFLF analysis (resized 512px): first={Path.GetFileName(firstImagePath)}, last={Path.GetFileName(lastImagePath)}, max_tokens={maxTokens}");
+                _logger.LogInfo($"Sending 2 images (first={Path.GetFileName(firstImagePath)}, last={Path.GetFileName(lastImagePath)}, resized 512px, max_tokens={maxTokens}) to {DescribeTarget(modelName)}");
 
                 var requestBody = new
                 {
@@ -387,8 +406,7 @@ namespace FlipPix.UI.Services
                     PropertyNamingPolicy = JsonNamingPolicy.CamelCase
                 });
 
-                _logger.LogInfo($"Sending image analysis request to LM Studio for model: {modelName}");
-                _logger.LogInfo($"Image: {Path.GetFileName(imagePath)}, Size: {imageBytes.Length} bytes");
+                _logger.LogInfo($"Sending image {Path.GetFileName(imagePath)} ({imageBytes.Length} bytes) to {DescribeTarget(modelName)}");
 
                 var fullUrl = $"{_baseUrl.TrimEnd('/')}/v1/chat/completions";
                 using var content = new StringContent(json, Encoding.UTF8, "application/json");
@@ -631,7 +649,7 @@ namespace FlipPix.UI.Services
                     contentParts.Add(new { type = "image_url", image_url = new { url = dataUrl } });
                 }
 
-                _logger.LogInfo($"Sending {contentParts.Count - 1} image(s) with system prompt, max_tokens: {maxTokens}");
+                _logger.LogInfo($"Sending {contentParts.Count - 1} image(s) with system prompt (max_tokens: {maxTokens}) to {DescribeTarget(modelName)}");
 
                 var requestBody = new
                 {

@@ -1272,7 +1272,6 @@ namespace FlipPix.UI.ViewModels.Video
 
                 var baseUrl = _settingsService.Settings?.LMStudioSettings?.BaseUrl ?? "http://alien:8080";
                 await _lmStudioService.SetBaseUrlAsync(baseUrl);
-                AddLog($"Using LM Studio at: {baseUrl}");
 
                 var models = await _lmStudioService.GetAvailableModelsAsync(_analysisCancellationTokenSource.Token);
                 string selectedModel = _settingsService.Settings?.LMStudioSettings?.SelectedModel ?? string.Empty;
@@ -1298,7 +1297,9 @@ namespace FlipPix.UI.ViewModels.Video
                     }
                 }
 
-                AnalysisStatus = "Analyzing with LM Studio...";
+                var analysisTarget = _lmStudioService.DescribeTarget(selectedModel);
+                AnalysisStatus = $"Sending image to {analysisTarget}...";
+                AddLog($"Sending image to {analysisTarget}");
                 AnalysisProgress = 30;
 
                 // Determine which prompt to use based on workflow selection

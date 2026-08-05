@@ -534,15 +534,16 @@
                                         <TextBlock Text="LM Studio Settings" Style="{StaticResource HeaderTextStyle}"/>
 
                                         <StackPanel Margin="0,0,0,8">
-                                            <TextBlock Text="Recent Servers" FontWeight="SemiBold" FontSize="11" Margin="0,0,0,4"/>
-                                            <ComboBox ItemsSource="{Binding Analyzer.ServerHistory}"
-                                                      SelectedValue="{Binding Analyzer.SelectedServerUrl, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                                            <TextBlock Text="Saved Servers" FontWeight="SemiBold" FontSize="11" Margin="0,0,0,4"/>
+                                            <ComboBox ItemsSource="{Binding Analyzer.ServerProfiles}"
+                                                      DisplayMemberPath="ListLabel"
+                                                      SelectedItem="{Binding Analyzer.SelectedServerProfile, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
                                                       Padding="8"
                                                       Background="White"
                                                       BorderBrush="{StaticResource BorderBrush}"
                                                       FontSize="11"
                                                       Height="30"
-                                                      ToolTip="Pick a previously used computer to switch the Server/Port below"/>
+                                                      ToolTip="Pick a saved computer (named in Settings) to switch the Server/Port below"/>
                                         </StackPanel>
 
                                         <Grid Margin="0,0,0,10">
@@ -1068,7 +1069,7 @@
                                                                        Background="Transparent"
                                                                        BorderThickness="0"
                                                                        Cursor="Hand"
-                                                                       ToolTip="Click to load into Latest Result preview"
+                                                                       ToolTip="Click to open the full-size image (also loads it into Latest Result)"
                                                                        Padding="0">
                                                                     <Button.Style>
                                                                         <Style TargetType="Button">
@@ -1198,7 +1199,7 @@
                                                                         Padding="0"
                                                                         Margin="0,8,0,0"
                                                                         HorizontalAlignment="Left"
-                                                                        ToolTip="Click to load into Latest Result preview">
+                                                                        ToolTip="Click to open the full-size image (also loads it into Latest Result)">
                                                                     <Button.Style>
                                                                         <Style TargetType="Button">
                                                                             <Setter Property="Visibility" Value="Collapsed"/>

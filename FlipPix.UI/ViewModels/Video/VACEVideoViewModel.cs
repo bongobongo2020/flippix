@@ -559,7 +559,7 @@ namespace FlipPix.UI.ViewModels.Video
                     return;
                 }
 
-                AddLog($"=== VACE analysis started (model: {selectedModel}) ===");
+                AddLog($"=== VACE analysis started — sending to {_lmStudioService.DescribeTarget(selectedModel)} ===");
 
                 // Step 1: Extract character appearance from reference image (once)
                 const string appearanceSystemPrompt =

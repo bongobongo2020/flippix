@@ -3494,6 +3494,816 @@
                         </Grid>
                     </TabItem>
 
+                    <!-- ════════════════════════════════════════════════════════════════ -->
+                    <!-- Tab: MiniMax H3 T2V (image → 15s multi-shot prompt → one video)   -->
+                    <!-- ════════════════════════════════════════════════════════════════ -->
+                    <TabItem Header="🌀📝 MiniMax H3 T2V">
+                        <Grid DataContext="{Binding MiniMaxH3T2VVM}" Style="{StaticResource TabPageStyle}">
+                            <Grid.Resources>
+                                <SolidColorBrush x:Key="TabAccentBrush" Color="{StaticResource AccentAmberColor}"/>
+                            </Grid.Resources>
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="340"/>
+                                <ColumnDefinition Width="*"/>
+                            </Grid.ColumnDefinitions>
+
+                            <!-- ═══ LEFT PANEL ═══════════════════════════════════════════════ -->
+                            <Border Grid.Column="0" Style="{StaticResource TabSideRailStyle}">
+                                <ScrollViewer VerticalScrollBarVisibility="Auto">
+                                    <StackPanel Margin="12">
+
+                                        <!-- Source Image -->
+                                        <Border Style="{StaticResource SectionCardStyle}">
+                                            <StackPanel>
+                                                <ctrl:SectionHeader Title="SOURCE IMAGE" Note="  · analyzed into the prompt" Margin="0,0,0,10"/>
+
+                                                <Border BorderBrush="{StaticResource BorderBrush}" BorderThickness="1" CornerRadius="6"
+                                                        Background="{StaticResource SurfaceAltBrush}" Height="130" Margin="0,0,0,8">
+                                                    <Grid>
+                                                        <TextBlock Text="No image selected"
+                                                                   HorizontalAlignment="Center" VerticalAlignment="Center"
+                                                                   Foreground="{StaticResource TextMutedBrush}" FontSize="11">
+                                                            <TextBlock.Style>
+                                                                <Style TargetType="TextBlock">
+                                                                    <Setter Property="Visibility" Value="Collapsed"/>
+                                                                    <Style.Triggers>
+                                                                        <DataTrigger Binding="{Binding ImagePreview}" Value="{x:Null}">
+                                                                            <Setter Property="Visibility" Value="Visible"/>
+                                                                        </DataTrigger>
+                                                                    </Style.Triggers>
+                                                                </Style>
+                                                            </TextBlock.Style>
+                                                        </TextBlock>
+                                                        <Image Source="{Binding ImagePreview}" Stretch="Uniform"/>
+                                                    </Grid>
+                                                </Border>
+
+                                                <Grid Margin="0,0,0,10">
+                                                    <Grid.ColumnDefinitions>
+                                                        <ColumnDefinition Width="*"/>
+                                                        <ColumnDefinition Width="Auto"/>
+                                                    </Grid.ColumnDefinitions>
+                                                    <TextBlock Grid.Column="0" Text="{Binding ImageInfo}"
+                                                               FontSize="10" Foreground="{StaticResource TextSecondaryBrush}" FontStyle="Italic"
+                                                               VerticalAlignment="Center" TextTrimming="CharacterEllipsis"/>
+                                                    <Button Grid.Column="1" Content="Browse…"
+                                                            Command="{Binding SelectImageCommand}"
+                                                            Height="28" Padding="10,0" FontSize="11"
+                                                            Background="{StaticResource SurfaceAltBrush}" Foreground="{DynamicResource TabAccentBrush}"
+                                                            BorderBrush="{StaticResource BorderBrush}" BorderThickness="1"/>
+                                                </Grid>
+
+                                                <!-- Image role: conditioned first frame, or LLM inspiration only -->
+                                                <CheckBox Content="Use image as first frame"
+                                                          IsChecked="{Binding UseImageAsFirstFrame}"
+                                                          FontSize="11" Margin="0,0,0,4"
+                                                          ToolTip="On: the image uploads to ComfyUI and becomes frame 0, and the prompt keeps its &lt;Picture 1&gt; anchor line. Off: pure text-to-video — the LoadImage node and the first_frame link are removed before submit, so the image only ever reaches the llama-server."/>
+                                                <TextBlock Text="{Binding ImageRoleDescription}"
+                                                           FontSize="10" Foreground="{StaticResource TextMutedBrush}" FontStyle="Italic"
+                                                           TextWrapping="Wrap" Margin="0,0,0,10"/>
+
+                                                <!-- Analyze (image + draft idea → 15s multi-shot H3 prompt) -->
+                                                <StackPanel Orientation="Horizontal">
+                                                    <Button Content="🔍 Analyze → 15s Prompt"
+                                                            Command="{Binding AnalyzeCommand}"
+                                                            IsEnabled="{Binding CanAnalyze}"
+                                                            Height="32" Padding="14,0" FontSize="11"
+                                                            Style="{StaticResource AccentButtonStyle}"
+                                                            ToolTip="Sends the image (plus whatever is in the prompt box as a draft idea) to the llama-server with texttovideoH3.md, and writes a dense multi-shot H3 prompt: 9–14 timestamped shots of continuous motion, beat-locked cuts, then overall_soundscape and non_diegetic_music."/>
+                                                    <TextBlock FontStyle="Italic" FontSize="11" VerticalAlignment="Center" Margin="8,0,0,0"
+                                                               Text="Analyzing…" Foreground="{DynamicResource TabAccentBrush}">
+                                                        <TextBlock.Style>
+                                                            <Style TargetType="TextBlock">
+                                                                <Setter Property="Visibility" Value="Collapsed"/>
+                                                                <Style.Triggers>
+                                                                    <DataTrigger Binding="{Binding IsAnalyzing}" Value="True">
+                                                                        <Setter Property="Visibility" Value="Visible"/>
+                                                                    </DataTrigger>
+                                                                </Style.Triggers>
+                                                            </Style>
+                                                        </TextBlock.Style>
+                                                    </TextBlock>
+                                                </StackPanel>
+                                            </StackPanel>
+                                        </Border>
+
+                                        <!-- Prompt -->
+                                        <Border Style="{StaticResource SectionCardStyle}">
+                                            <StackPanel>
+                                                <ctrl:SectionHeader Title="H3 PROMPT" Note="  · draft idea, or the full prompt"/>
+                                                <TextBox Text="{Binding Prompt, UpdateSourceTrigger=PropertyChanged}"
+                                                         TextWrapping="Wrap" AcceptsReturn="True"
+                                                         Height="260" VerticalScrollBarVisibility="Auto"
+                                                         BorderBrush="{StaticResource BorderBrush}" Background="{StaticResource SurfaceAltBrush}"
+                                                         FontSize="11" Padding="8"/>
+                                                <TextBlock Text="The &lt;Picture 1&gt; anchor line is added or removed automatically to match the first-frame setting."
+                                                           FontSize="10" Foreground="{StaticResource TextMutedBrush}" FontStyle="Italic" Margin="0,6,0,0"
+                                                           TextWrapping="Wrap"/>
+                                            </StackPanel>
+                                        </Border>
+
+                                        <!-- Settings -->
+                                        <Border Background="White" BorderBrush="{StaticResource BorderBrush}" BorderThickness="1"
+                                                CornerRadius="8" Padding="14">
+                                            <StackPanel>
+                                                <ctrl:SectionHeader Title="SETTINGS" Margin="0,0,0,10"/>
+
+                                                <TextBlock Text="Aspect ratio" FontSize="10" Foreground="{StaticResource TextSecondaryBrush}" Margin="0,0,0,4"/>
+                                                <ComboBox ItemsSource="{Binding AspectRatioOptions}"
+                                                          SelectedItem="{Binding SelectedAspectRatio}"
+                                                          Height="30" FontSize="11" Margin="0,0,0,4"/>
+                                                <TextBlock Text="{Binding ResolvedAspectRatio, StringFormat=→ {0}}"
+                                                           FontSize="10" Foreground="{StaticResource TextMutedBrush}" FontStyle="Italic" Margin="0,0,0,10"/>
+
+                                                <TextBlock Text="Quality (canvas size)" FontSize="10" Foreground="{StaticResource TextSecondaryBrush}" Margin="0,0,0,4"/>
+                                                <ComboBox ItemsSource="{Binding MegapixelOptions}"
+                                                          DisplayMemberPath="Label"
+                                                          SelectedValuePath="Value"
+                                                          SelectedValue="{Binding Megapixels}"
+                                                          Height="30" FontSize="11" Margin="0,0,0,10"/>
+
+                                                <TextBlock Text="Length (seconds · 4–15)" FontSize="10" Foreground="{StaticResource TextSecondaryBrush}" Margin="0,0,0,4"/>
+                                                <Slider Value="{Binding LengthSeconds}"
+                                                        Minimum="4" Maximum="15"
+                                                        TickFrequency="1" IsSnapToTickEnabled="True"
+                                                        Foreground="{DynamicResource TabAccentBrush}" Margin="0,0,0,2"/>
+                                                <TextBlock Text="{Binding LengthSummary}"
+                                                           FontSize="10" FontFamily="Consolas" Foreground="{StaticResource TextSecondaryBrush}"
+                                                           Margin="0,0,0,10"/>
+
+                                                <TextBlock Text="Seed (-1 = random)" FontSize="10" Foreground="{StaticResource TextSecondaryBrush}" Margin="0,0,0,4"/>
+                                                <Grid>
+                                                    <Grid.ColumnDefinitions>
+                                                        <ColumnDefinition Width="*"/>
+                                                        <ColumnDefinition Width="Auto"/>
+                                                    </Grid.ColumnDefinitions>
+                                                    <TextBox Grid.Column="0"
+                                                             Text="{Binding Seed, UpdateSourceTrigger=PropertyChanged}"
+                                                             Height="30" Padding="6,0" VerticalContentAlignment="Center"
+                                                             BorderBrush="{StaticResource BorderBrush}" Background="{StaticResource SurfaceAltBrush}"
+                                                             FontSize="12" FontFamily="Consolas" Margin="0,0,6,0"/>
+                                                    <Button Grid.Column="1" Content="🎲"
+                                                            Command="{Binding RandomSeedCommand}"
+                                                            Height="30" Width="36" FontSize="14"
+                                                            Background="{StaticResource SurfaceAltBrush}" Foreground="{DynamicResource TabAccentBrush}"
+                                                            BorderBrush="{StaticResource BorderBrush}" BorderThickness="1"/>
+                                                </Grid>
+                                            </StackPanel>
+                                        </Border>
+
+                                    </StackPanel>
+                                </ScrollViewer>
+                            </Border>
+
+                            <!-- ═══ RIGHT PANEL ══════════════════════════════════════════════ -->
+                            <ScrollViewer Grid.Column="1" VerticalScrollBarVisibility="Auto">
+                            <Grid>
+                                <Grid.RowDefinitions>
+                                    <RowDefinition Height="240"/>  <!-- Source image preview -->
+                                    <RowDefinition Height="3"/>    <!-- Progress bar -->
+                                    <RowDefinition Height="Auto"/> <!-- Status row -->
+                                    <RowDefinition Height="Auto"/> <!-- Action buttons -->
+                                    <RowDefinition Height="Auto"/> <!-- Result output -->
+                                    <RowDefinition Height="Auto"/> <!-- Log -->
+                                </Grid.RowDefinitions>
+
+                                <!-- ─── Source image preview ──────────────────────────────── -->
+                                <Border Grid.Row="0" Background="{StaticResource PlayerSurfaceBrush}">
+                                    <Grid>
+                                        <StackPanel HorizontalAlignment="Center" VerticalAlignment="Center">
+                                            <StackPanel.Style>
+                                                <Style TargetType="StackPanel">
+                                                    <Setter Property="Visibility" Value="Visible"/>
+                                                    <Style.Triggers>
+                                                        <DataTrigger Binding="{Binding HasImage}" Value="True">
+                                                            <Setter Property="Visibility" Value="Collapsed"/>
+                                                        </DataTrigger>
+                                                    </Style.Triggers>
+                                                </Style>
+                                            </StackPanel.Style>
+                                            <Border Width="64" Height="64" CornerRadius="14" Background="{StaticResource PlayerSurfaceRaisedBrush}"
+                                                    BorderBrush="{StaticResource TextSecondaryBrush}" BorderThickness="1"
+                                                    HorizontalAlignment="Center" Margin="0,0,0,10">
+                                                <TextBlock Text="📝" FontSize="28" HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                                            </Border>
+                                            <TextBlock Text="MiniMax H3 · Text to Video" FontSize="13" FontWeight="SemiBold"
+                                                       Foreground="{StaticResource PlayerTextBrush}" HorizontalAlignment="Center" Margin="0,0,0,4"/>
+                                            <TextBlock Text="Upload an image → Analyze into a 15s multi-shot prompt → Generate"
+                                                       FontSize="11" Foreground="{StaticResource PlayerTextBrush}" HorizontalAlignment="Center"/>
+                                        </StackPanel>
+
+                                        <Image Source="{Binding ImagePreview}" Stretch="Uniform"
+                                               Visibility="{Binding HasImage, Converter={StaticResource BooleanToVisibilityConverter}}"/>
+
+                                        <Border VerticalAlignment="Bottom" Margin="10,0,10,10"
+                                                CornerRadius="8" Padding="12,6"
+                                                Background="{StaticResource SurfaceBrush}"
+                                                BorderBrush="{StaticResource BorderStrongBrush}" BorderThickness="1"
+                                                Visibility="{Binding HasImage, Converter={StaticResource BooleanToVisibilityConverter}}">
+                                            <TextBlock FontSize="10" Foreground="{StaticResource TextSecondaryBrush}" TextWrapping="Wrap">
+                                                <Run Text="{Binding ImageRoleDescription, Mode=OneWay}"/>
+                                                <Run Text="  "/>
+                                                <Run Text="{Binding ResolvedAspectRatio, Mode=OneWay}" FontWeight="Bold" Foreground="{DynamicResource TabAccentBrush}" FontFamily="Consolas"/>
+                                            </TextBlock>
+                                        </Border>
+                                    </Grid>
+                                </Border>
+
+                                <!-- ─── Progress bar ──────────────────────────────────────── -->
+                                <ProgressBar Grid.Row="1"
+                                             Value="{Binding ProcessingProgress, Mode=OneWay}"
+                                             Foreground="{DynamicResource TabAccentBrush}" BorderThickness="0"
+                                             Visibility="{Binding IsProcessing, Converter={StaticResource BooleanToVisibilityConverter}}"/>
+
+                                <!-- ─── Status row ────────────────────────────────────────── -->
+                                <Border Grid.Row="2" Style="{StaticResource ToolStripStyle}"
+                                        BorderThickness="0,1,0,0" Padding="12,5">
+                                    <Grid>
+                                        <StackPanel Orientation="Horizontal">
+                                            <Ellipse Width="5" Height="5" VerticalAlignment="Center" Margin="0,0,7,0">
+                                                <Ellipse.Style>
+                                                    <Style TargetType="Ellipse">
+                                                        <Setter Property="Fill" Value="{StaticResource TextPrimaryBrush}"/>
+                                                        <Style.Triggers>
+                                                            <DataTrigger Binding="{Binding IsProcessing}" Value="True">
+                                                                <Setter Property="Fill" Value="{DynamicResource TabAccentBrush}"/>
+                                                            </DataTrigger>
+                                                        </Style.Triggers>
+                                                    </Style>
+                                                </Ellipse.Style>
+                                            </Ellipse>
+                                            <TextBlock Text="{Binding ProcessingStatus}"
+                                                       FontSize="11" Foreground="{StaticResource TextSecondaryBrush}"
+                                                       VerticalAlignment="Center" TextTrimming="CharacterEllipsis"/>
+                                        </StackPanel>
+                                        <TextBlock HorizontalAlignment="Right" VerticalAlignment="Center"
+                                                   Text="{Binding ProgressPercentage, Mode=OneWay}"
+                                                   FontSize="11" FontWeight="Bold" Foreground="{DynamicResource TabAccentBrush}"
+                                                   FontFamily="Consolas"
+                                                   Visibility="{Binding IsProcessing, Converter={StaticResource BooleanToVisibilityConverter}}"/>
+                                    </Grid>
+                                </Border>
+
+                                <!-- ─── Action Buttons ────────────────────────────────────── -->
+                                <Border Grid.Row="3" Style="{StaticResource ToolStripStyle}"
+                                        BorderThickness="0,1,0,0" Padding="10,8">
+                                    <Grid>
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="*"/>
+                                            <ColumnDefinition Width="Auto"/>
+                                        </Grid.ColumnDefinitions>
+
+                                        <Button Grid.Column="0" Margin="0,0,8,0" Height="40"
+                                                Command="{Binding GenerateCommand}"
+                                                IsEnabled="{Binding CanGenerate}"
+                                                Style="{StaticResource AccentButtonStyle}"
+                                                FontSize="12" FontWeight="Bold" BorderThickness="0">
+                                            <StackPanel Orientation="Horizontal">
+                                                <TextBlock Text="⚡ " VerticalAlignment="Center"/>
+                                                <TextBlock Text="Generate Video" VerticalAlignment="Center"/>
+                                            </StackPanel>
+                                        </Button>
+
+                                        <Button Grid.Column="1" Height="40" Width="82"
+                                                Command="{Binding CancelCommand}"
+                                                IsEnabled="{Binding IsProcessing}"
+                                                Style="{StaticResource DangerButtonStyle}"
+                                                FontSize="11">
+                                            <StackPanel Orientation="Horizontal">
+                                                <TextBlock Text="✕ " VerticalAlignment="Center"/>
+                                                <TextBlock Text="Cancel" VerticalAlignment="Center"/>
+                                            </StackPanel>
+                                        </Button>
+                                    </Grid>
+                                </Border>
+
+                                <!-- ─── Result Output ──────────────────────────────────────── -->
+                                <Border Grid.Row="4" Background="White" BorderBrush="{StaticResource BorderBrush}"
+                                        BorderThickness="0,1,0,0" Padding="12,10">
+                                    <StackPanel>
+                                        <TextBlock Text="🎥 Result Video" FontWeight="Bold" FontSize="13"
+                                                   Foreground="{DynamicResource TabAccentBrush}" Margin="0,0,0,8"/>
+
+                                        <Border BorderBrush="{StaticResource BorderBrush}" BorderThickness="1" Background="{StaticResource PlayerSurfaceBrush}"
+                                                Height="200" CornerRadius="6" Margin="0,0,0,8">
+                                            <Grid>
+                                                <TextBlock Text="Video will appear here after generation"
+                                                           HorizontalAlignment="Center" VerticalAlignment="Center"
+                                                           Foreground="{StaticResource PlayerTextBrush}" FontStyle="Italic">
+                                                    <TextBlock.Style>
+                                                        <Style TargetType="TextBlock">
+                                                            <Setter Property="Visibility" Value="Collapsed"/>
+                                                            <Style.Triggers>
+                                                                <DataTrigger Binding="{Binding HasResult}" Value="False">
+                                                                    <Setter Property="Visibility" Value="Visible"/>
+                                                                </DataTrigger>
+                                                            </Style.Triggers>
+                                                        </Style>
+                                                    </TextBlock.Style>
+                                                </TextBlock>
+                                                <MediaElement x:Name="MiniMaxH3T2VVideoPlayer"
+                                                              Source="{Binding ResultVideoPath}"
+                                                              LoadedBehavior="Manual" UnloadedBehavior="Stop"
+                                                              Stretch="Uniform"
+                                                              Visibility="{Binding HasResult, Converter={StaticResource BooleanToVisibilityConverter}}"/>
+                                            </Grid>
+                                        </Border>
+
+                                        <StackPanel Orientation="Horizontal" Margin="0,0,0,6">
+                                            <Button Content="▶ Play" Style="{StaticResource PrimaryButtonStyle}"
+                                                    Command="{Binding PlayVideoCommand}"
+                                                    IsEnabled="{Binding HasResult}" Margin="0,0,8,0"/>
+                                            <Button Content="📁 Open Folder" Style="{StaticResource SecondaryButtonStyle}"
+                                                    Command="{Binding OpenResultFolderCommand}"
+                                                    IsEnabled="{Binding HasResult}"/>
+                                        </StackPanel>
+                                        <TextBlock Text="{Binding ResultVideoInfo}"
+                                                   FontStyle="Italic" Foreground="#666" FontSize="11"/>
+                                    </StackPanel>
+                                </Border>
+
+                                <!-- ─── Log ───────────────────────────────────────────────── -->
+                                <ctrl:ProcessingLogPanel Grid.Row="5" LogText="{Binding LogOutput}" MaxLogHeight="130"/>
+
+                            </Grid>
+                            </ScrollViewer>
+                        </Grid>
+                    </TabItem>
+
+                    <!-- ════════════════════════════════════════════════════════════════ -->
+                    <!-- Tab: MiniMax Character (2 character refs + scene image → video)   -->
+                    <!-- ════════════════════════════════════════════════════════════════ -->
+                    <TabItem Header="🎭👥 MiniMax Character">
+                        <Grid DataContext="{Binding MiniMaxCharacterVM}" Style="{StaticResource TabPageStyle}">
+                            <Grid.Resources>
+                                <SolidColorBrush x:Key="TabAccentBrush" Color="{StaticResource AccentVioletColor}"/>
+                            </Grid.Resources>
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="340"/>
+                                <ColumnDefinition Width="*"/>
+                            </Grid.ColumnDefinitions>
+
+                            <!-- ═══ LEFT PANEL ═══════════════════════════════════════════════ -->
+                            <Border Grid.Column="0" Style="{StaticResource TabSideRailStyle}">
+                                <ScrollViewer VerticalScrollBarVisibility="Auto">
+                                    <StackPanel Margin="12">
+
+                                        <!-- Character references -->
+                                        <Border Style="{StaticResource SectionCardStyle}">
+                                            <StackPanel>
+                                                <ctrl:SectionHeader Title="CHARACTERS" Note="  · reference frames sent to H3" Margin="0,0,0,10"/>
+
+                                                <Grid Margin="0,0,0,6">
+                                                    <Grid.ColumnDefinitions>
+                                                        <ColumnDefinition Width="*"/>
+                                                        <ColumnDefinition Width="8"/>
+                                                        <ColumnDefinition Width="*"/>
+                                                    </Grid.ColumnDefinitions>
+
+                                                    <!-- Character 1 -->
+                                                    <StackPanel Grid.Column="0">
+                                                        <TextBlock Text="Character 1 · &lt;Picture 1&gt;" FontSize="10"
+                                                                   Foreground="{StaticResource TextSecondaryBrush}" Margin="0,0,0,4"/>
+                                                        <Border BorderBrush="{StaticResource BorderBrush}" BorderThickness="1" CornerRadius="6"
+                                                                Background="{StaticResource SurfaceAltBrush}" Height="112" Margin="0,0,0,6">
+                                                            <Grid>
+                                                                <TextBlock Text="Required"
+                                                                           HorizontalAlignment="Center" VerticalAlignment="Center"
+                                                                           Foreground="{StaticResource TextMutedBrush}" FontSize="10">
+                                                                    <TextBlock.Style>
+                                                                        <Style TargetType="TextBlock">
+                                                                            <Setter Property="Visibility" Value="Collapsed"/>
+                                                                            <Style.Triggers>
+                                                                                <DataTrigger Binding="{Binding Character1Preview}" Value="{x:Null}">
+                                                                                    <Setter Property="Visibility" Value="Visible"/>
+                                                                                </DataTrigger>
+                                                                            </Style.Triggers>
+                                                                        </Style>
+                                                                    </TextBlock.Style>
+                                                                </TextBlock>
+                                                                <Image Source="{Binding Character1Preview}" Stretch="Uniform"/>
+                                                            </Grid>
+                                                        </Border>
+                                                        <Button Content="Browse…" Command="{Binding SelectCharacter1Command}"
+                                                                Height="26" Padding="8,0" FontSize="11"
+                                                                Background="{StaticResource SurfaceAltBrush}" Foreground="{DynamicResource TabAccentBrush}"
+                                                                BorderBrush="{StaticResource BorderBrush}" BorderThickness="1"/>
+                                                        <TextBlock Text="{Binding Character1Info}" FontSize="9" Margin="0,4,0,0"
+                                                                   Foreground="{StaticResource TextSecondaryBrush}" FontStyle="Italic"
+                                                                   TextTrimming="CharacterEllipsis"/>
+                                                    </StackPanel>
+
+                                                    <!-- Character 2 -->
+                                                    <StackPanel Grid.Column="2">
+                                                        <TextBlock Text="Character 2 · &lt;Picture 2&gt;" FontSize="10"
+                                                                   Foreground="{StaticResource TextSecondaryBrush}" Margin="0,0,0,4"/>
+                                                        <Border BorderBrush="{StaticResource BorderBrush}" BorderThickness="1" CornerRadius="6"
+                                                                Background="{StaticResource SurfaceAltBrush}" Height="112" Margin="0,0,0,6">
+                                                            <Grid>
+                                                                <TextBlock Text="Optional"
+                                                                           HorizontalAlignment="Center" VerticalAlignment="Center"
+                                                                           Foreground="{StaticResource TextMutedBrush}" FontSize="10">
+                                                                    <TextBlock.Style>
+                                                                        <Style TargetType="TextBlock">
+                                                                            <Setter Property="Visibility" Value="Collapsed"/>
+                                                                            <Style.Triggers>
+                                                                                <DataTrigger Binding="{Binding Character2Preview}" Value="{x:Null}">
+                                                                                    <Setter Property="Visibility" Value="Visible"/>
+                                                                                </DataTrigger>
+                                                                            </Style.Triggers>
+                                                                        </Style>
+                                                                    </TextBlock.Style>
+                                                                </TextBlock>
+                                                                <Image Source="{Binding Character2Preview}" Stretch="Uniform"/>
+                                                            </Grid>
+                                                        </Border>
+                                                        <Grid>
+                                                            <Grid.ColumnDefinitions>
+                                                                <ColumnDefinition Width="*"/>
+                                                                <ColumnDefinition Width="Auto"/>
+                                                            </Grid.ColumnDefinitions>
+                                                            <Button Grid.Column="0" Content="Browse…" Command="{Binding SelectCharacter2Command}"
+                                                                    Height="26" Padding="8,0" FontSize="11" Margin="0,0,4,0"
+                                                                    Background="{StaticResource SurfaceAltBrush}" Foreground="{DynamicResource TabAccentBrush}"
+                                                                    BorderBrush="{StaticResource BorderBrush}" BorderThickness="1"/>
+                                                            <Button Grid.Column="1" Content="✕" Command="{Binding ClearCharacter2Command}"
+                                                                    IsEnabled="{Binding HasCharacter2}"
+                                                                    Height="26" Width="26" FontSize="11"
+                                                                    ToolTip="Clear the second character and run as a single-reference scene."
+                                                                    Background="{StaticResource SurfaceAltBrush}" Foreground="{StaticResource TextSecondaryBrush}"
+                                                                    BorderBrush="{StaticResource BorderBrush}" BorderThickness="1"/>
+                                                        </Grid>
+                                                        <TextBlock Text="{Binding Character2Info}" FontSize="9" Margin="0,4,0,0"
+                                                                   Foreground="{StaticResource TextSecondaryBrush}" FontStyle="Italic"
+                                                                   TextTrimming="CharacterEllipsis"/>
+                                                    </StackPanel>
+                                                </Grid>
+
+                                                <TextBlock Text="{Binding CharacterSummary}"
+                                                           FontSize="10" Foreground="{StaticResource TextMutedBrush}" FontStyle="Italic"
+                                                           TextWrapping="Wrap"/>
+                                            </StackPanel>
+                                        </Border>
+
+                                        <!-- Scene image -->
+                                        <Border Style="{StaticResource SectionCardStyle}">
+                                            <StackPanel>
+                                                <ctrl:SectionHeader Title="SCENE IMAGE" Note="  · analyzed into the prompt only" Margin="0,0,0,10"/>
+
+                                                <Border BorderBrush="{StaticResource BorderBrush}" BorderThickness="1" CornerRadius="6"
+                                                        Background="{StaticResource SurfaceAltBrush}" Height="130" Margin="0,0,0,8">
+                                                    <Grid>
+                                                        <TextBlock Text="No scene image selected"
+                                                                   HorizontalAlignment="Center" VerticalAlignment="Center"
+                                                                   Foreground="{StaticResource TextMutedBrush}" FontSize="11">
+                                                            <TextBlock.Style>
+                                                                <Style TargetType="TextBlock">
+                                                                    <Setter Property="Visibility" Value="Collapsed"/>
+                                                                    <Style.Triggers>
+                                                                        <DataTrigger Binding="{Binding SceneImagePreview}" Value="{x:Null}">
+                                                                            <Setter Property="Visibility" Value="Visible"/>
+                                                                        </DataTrigger>
+                                                                    </Style.Triggers>
+                                                                </Style>
+                                                            </TextBlock.Style>
+                                                        </TextBlock>
+                                                        <Image Source="{Binding SceneImagePreview}" Stretch="Uniform"/>
+                                                    </Grid>
+                                                </Border>
+
+                                                <Grid Margin="0,0,0,8">
+                                                    <Grid.ColumnDefinitions>
+                                                        <ColumnDefinition Width="*"/>
+                                                        <ColumnDefinition Width="Auto"/>
+                                                    </Grid.ColumnDefinitions>
+                                                    <TextBlock Grid.Column="0" Text="{Binding SceneImageInfo}"
+                                                               FontSize="10" Foreground="{StaticResource TextSecondaryBrush}" FontStyle="Italic"
+                                                               VerticalAlignment="Center" TextTrimming="CharacterEllipsis"/>
+                                                    <Button Grid.Column="1" Content="Browse…"
+                                                            Command="{Binding SelectSceneImageCommand}"
+                                                            Height="28" Padding="10,0" FontSize="11"
+                                                            Background="{StaticResource SurfaceAltBrush}" Foreground="{DynamicResource TabAccentBrush}"
+                                                            BorderBrush="{StaticResource BorderBrush}" BorderThickness="1"/>
+                                                </Grid>
+
+                                                <TextBlock Text="This image is never uploaded to ComfyUI — only the llama-server sees it. It sets the setting, lighting and art style the characters act in."
+                                                           FontSize="10" Foreground="{StaticResource TextMutedBrush}" FontStyle="Italic"
+                                                           TextWrapping="Wrap" Margin="0,0,0,10"/>
+
+                                                <StackPanel Orientation="Horizontal">
+                                                    <Button Content="🔍 Analyze → Scene Prompt"
+                                                            Command="{Binding AnalyzeCommand}"
+                                                            IsEnabled="{Binding CanAnalyze}"
+                                                            Height="32" Padding="14,0" FontSize="11"
+                                                            Style="{StaticResource AccentButtonStyle}"
+                                                            ToolTip="Sends the scene image (plus whatever is in the prompt box as a draft idea) to the llama-server with texttovideoH3.md, and writes a dense multi-shot H3 prompt in which the characters are referred to as &lt;Picture 1&gt; / &lt;Picture 2&gt;."/>
+                                                    <TextBlock FontStyle="Italic" FontSize="11" VerticalAlignment="Center" Margin="8,0,0,0"
+                                                               Text="Analyzing…" Foreground="{DynamicResource TabAccentBrush}">
+                                                        <TextBlock.Style>
+                                                            <Style TargetType="TextBlock">
+                                                                <Setter Property="Visibility" Value="Collapsed"/>
+                                                                <Style.Triggers>
+                                                                    <DataTrigger Binding="{Binding IsAnalyzing}" Value="True">
+                                                                        <Setter Property="Visibility" Value="Visible"/>
+                                                                    </DataTrigger>
+                                                                </Style.Triggers>
+                                                            </Style>
+                                                        </TextBlock.Style>
+                                                    </TextBlock>
+                                                </StackPanel>
+                                            </StackPanel>
+                                        </Border>
+
+                                        <!-- Prompt -->
+                                        <Border Style="{StaticResource SectionCardStyle}">
+                                            <StackPanel>
+                                                <ctrl:SectionHeader Title="H3 PROMPT" Note="  · draft idea, or the full prompt"/>
+                                                <TextBox Text="{Binding Prompt, UpdateSourceTrigger=PropertyChanged}"
+                                                         TextWrapping="Wrap" AcceptsReturn="True"
+                                                         Height="240" VerticalScrollBarVisibility="Auto"
+                                                         BorderBrush="{StaticResource BorderBrush}" Background="{StaticResource SurfaceAltBrush}"
+                                                         FontSize="11" Padding="8"/>
+
+                                                <!-- Scene library: analyzed prompts are filed automatically;
+                                                     this row is how they come back out. -->
+                                                <Grid Margin="0,8,0,0">
+                                                    <Grid.ColumnDefinitions>
+                                                        <ColumnDefinition Width="*"/>
+                                                        <ColumnDefinition Width="Auto"/>
+                                                    </Grid.ColumnDefinitions>
+                                                    <Button Grid.Column="0"
+                                                            Content="{Binding SceneLibraryLabel}"
+                                                            Command="{Binding OpenSceneLibraryCommand}"
+                                                            Height="28" Padding="10,0" FontSize="11" Margin="0,0,6,0"
+                                                            Background="{StaticResource SurfaceAltBrush}" Foreground="{DynamicResource TabAccentBrush}"
+                                                            BorderBrush="{StaticResource BorderBrush}" BorderThickness="1"
+                                                            ToolTip="Browse the scenes this tab has saved and drop one into the prompt box. Handy for reusing a scene with a different pair of characters."/>
+                                                    <Button Grid.Column="1" Content="💾 Save"
+                                                            Command="{Binding SaveSceneCommand}"
+                                                            Height="28" Width="76" FontSize="11"
+                                                            Background="{StaticResource SurfaceAltBrush}" Foreground="{StaticResource TextSecondaryBrush}"
+                                                            BorderBrush="{StaticResource BorderBrush}" BorderThickness="1"
+                                                            ToolTip="File the prompt box's current contents in the scene library. Analyzed and generated prompts are saved automatically — this is for hand-edited ones."/>
+                                                </Grid>
+
+                                                <TextBlock Text="The reference line is rewritten automatically to match how many character images are loaded."
+                                                           FontSize="10" Foreground="{StaticResource TextMutedBrush}" FontStyle="Italic" Margin="0,6,0,0"
+                                                           TextWrapping="Wrap"/>
+                                            </StackPanel>
+                                        </Border>
+
+                                        <!-- Settings -->
+                                        <Border Background="White" BorderBrush="{StaticResource BorderBrush}" BorderThickness="1"
+                                                CornerRadius="8" Padding="14">
+                                            <StackPanel>
+                                                <ctrl:SectionHeader Title="SETTINGS" Margin="0,0,0,10"/>
+
+                                                <TextBlock Text="Aspect ratio" FontSize="10" Foreground="{StaticResource TextSecondaryBrush}" Margin="0,0,0,4"/>
+                                                <ComboBox ItemsSource="{Binding AspectRatioOptions}"
+                                                          SelectedItem="{Binding SelectedAspectRatio}"
+                                                          Height="30" FontSize="11" Margin="0,0,0,4"/>
+                                                <TextBlock Text="{Binding ResolvedAspectRatio, StringFormat=→ {0}}"
+                                                           FontSize="10" Foreground="{StaticResource TextMutedBrush}" FontStyle="Italic" Margin="0,0,0,10"/>
+
+                                                <TextBlock Text="Quality (canvas size)" FontSize="10" Foreground="{StaticResource TextSecondaryBrush}" Margin="0,0,0,4"/>
+                                                <ComboBox ItemsSource="{Binding MegapixelOptions}"
+                                                          DisplayMemberPath="Label"
+                                                          SelectedValuePath="Value"
+                                                          SelectedValue="{Binding Megapixels}"
+                                                          Height="30" FontSize="11" Margin="0,0,0,10"/>
+
+                                                <TextBlock Text="Refinement pass" FontSize="10" Foreground="{StaticResource TextSecondaryBrush}" Margin="0,0,0,4"/>
+                                                <ComboBox ItemsSource="{Binding UpscaleOptions}"
+                                                          DisplayMemberPath="Label"
+                                                          SelectedItem="{Binding SelectedUpscale}"
+                                                          Height="30" FontSize="11" Margin="0,0,0,4"
+                                                          ToolTip="The H3 render is always saved. Wan 2.2 and LTX 2.3 add a second, larger pass on top of it — the unused branch is pruned from the graph so its models are never loaded."/>
+                                                <TextBlock Text="{Binding UpscaleSummary}"
+                                                           FontSize="10" Foreground="{StaticResource TextMutedBrush}" FontStyle="Italic"
+                                                           TextWrapping="Wrap" Margin="0,0,0,10"/>
+
+                                                <TextBlock Text="Length (seconds · 4–15)" FontSize="10" Foreground="{StaticResource TextSecondaryBrush}" Margin="0,0,0,4"/>
+                                                <Slider Value="{Binding LengthSeconds}"
+                                                        Minimum="4" Maximum="15"
+                                                        TickFrequency="1" IsSnapToTickEnabled="True"
+                                                        Foreground="{DynamicResource TabAccentBrush}" Margin="0,0,0,2"/>
+                                                <TextBlock Text="{Binding LengthSummary}"
+                                                           FontSize="10" FontFamily="Consolas" Foreground="{StaticResource TextSecondaryBrush}"
+                                                           Margin="0,0,0,10"/>
+
+                                                <TextBlock Text="Seed (-1 = random)" FontSize="10" Foreground="{StaticResource TextSecondaryBrush}" Margin="0,0,0,4"/>
+                                                <Grid>
+                                                    <Grid.ColumnDefinitions>
+                                                        <ColumnDefinition Width="*"/>
+                                                        <ColumnDefinition Width="Auto"/>
+                                                    </Grid.ColumnDefinitions>
+                                                    <TextBox Grid.Column="0"
+                                                             Text="{Binding Seed, UpdateSourceTrigger=PropertyChanged}"
+                                                             Height="30" Padding="6,0" VerticalContentAlignment="Center"
+                                                             BorderBrush="{StaticResource BorderBrush}" Background="{StaticResource SurfaceAltBrush}"
+                                                             FontSize="12" FontFamily="Consolas" Margin="0,0,6,0"/>
+                                                    <Button Grid.Column="1" Content="🎲"
+                                                            Command="{Binding RandomSeedCommand}"
+                                                            Height="30" Width="36" FontSize="14"
+                                                            Background="{StaticResource SurfaceAltBrush}" Foreground="{DynamicResource TabAccentBrush}"
+                                                            BorderBrush="{StaticResource BorderBrush}" BorderThickness="1"/>
+                                                </Grid>
+                                            </StackPanel>
+                                        </Border>
+
+                                    </StackPanel>
+                                </ScrollViewer>
+                            </Border>
+
+                            <!-- ═══ RIGHT PANEL ══════════════════════════════════════════════ -->
+                            <ScrollViewer Grid.Column="1" VerticalScrollBarVisibility="Auto">
+                            <Grid>
+                                <Grid.RowDefinitions>
+                                    <RowDefinition Height="240"/>  <!-- Cast strip -->
+                                    <RowDefinition Height="3"/>    <!-- Progress bar -->
+                                    <RowDefinition Height="Auto"/> <!-- Status row -->
+                                    <RowDefinition Height="Auto"/> <!-- Action buttons -->
+                                    <RowDefinition Height="Auto"/> <!-- Result output -->
+                                    <RowDefinition Height="Auto"/> <!-- Log -->
+                                </Grid.RowDefinitions>
+
+                                <!-- ─── Cast strip: the two references and the scene ─────────── -->
+                                <Border Grid.Row="0" Background="{StaticResource PlayerSurfaceBrush}">
+                                    <Grid>
+                                        <StackPanel HorizontalAlignment="Center" VerticalAlignment="Center">
+                                            <StackPanel.Style>
+                                                <Style TargetType="StackPanel">
+                                                    <Setter Property="Visibility" Value="Visible"/>
+                                                    <Style.Triggers>
+                                                        <DataTrigger Binding="{Binding HasCharacter1}" Value="True">
+                                                            <Setter Property="Visibility" Value="Collapsed"/>
+                                                        </DataTrigger>
+                                                    </Style.Triggers>
+                                                </Style>
+                                            </StackPanel.Style>
+                                            <Border Width="64" Height="64" CornerRadius="14" Background="{StaticResource PlayerSurfaceRaisedBrush}"
+                                                    BorderBrush="{StaticResource TextSecondaryBrush}" BorderThickness="1"
+                                                    HorizontalAlignment="Center" Margin="0,0,0,10">
+                                                <TextBlock Text="🎭" FontSize="28" HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                                            </Border>
+                                            <TextBlock Text="MiniMax H3 · Character Reference" FontSize="13" FontWeight="SemiBold"
+                                                       Foreground="{StaticResource PlayerTextBrush}" HorizontalAlignment="Center" Margin="0,0,0,4"/>
+                                            <TextBlock Text="Load 1–2 character images + a scene image → Analyze → Generate"
+                                                       FontSize="11" Foreground="{StaticResource PlayerTextBrush}" HorizontalAlignment="Center"/>
+                                        </StackPanel>
+
+                                        <Grid Visibility="{Binding HasCharacter1, Converter={StaticResource BooleanToVisibilityConverter}}"
+                                              Margin="10">
+                                            <Grid.ColumnDefinitions>
+                                                <ColumnDefinition Width="*"/>
+                                                <ColumnDefinition Width="*"/>
+                                                <ColumnDefinition Width="*"/>
+                                            </Grid.ColumnDefinitions>
+
+                                            <StackPanel Grid.Column="0" Margin="0,0,6,0">
+                                                <Image Source="{Binding Character1Preview}" Stretch="Uniform" Height="176"/>
+                                                <TextBlock Text="Character 1 · &lt;Picture 1&gt;" HorizontalAlignment="Center" Margin="0,6,0,0"
+                                                           FontSize="10" Foreground="{StaticResource PlayerTextBrush}"/>
+                                            </StackPanel>
+
+                                            <StackPanel Grid.Column="1" Margin="6,0"
+                                                        Visibility="{Binding HasCharacter2, Converter={StaticResource BooleanToVisibilityConverter}}">
+                                                <Image Source="{Binding Character2Preview}" Stretch="Uniform" Height="176"/>
+                                                <TextBlock Text="Character 2 · &lt;Picture 2&gt;" HorizontalAlignment="Center" Margin="0,6,0,0"
+                                                           FontSize="10" Foreground="{StaticResource PlayerTextBrush}"/>
+                                            </StackPanel>
+
+                                            <StackPanel Grid.Column="2" Margin="6,0,0,0"
+                                                        Visibility="{Binding HasSceneImage, Converter={StaticResource BooleanToVisibilityConverter}}">
+                                                <Image Source="{Binding SceneImagePreview}" Stretch="Uniform" Height="176"/>
+                                                <TextBlock Text="Scene · prompt only" HorizontalAlignment="Center" Margin="0,6,0,0"
+                                                           FontSize="10" Foreground="{StaticResource PlayerTextBrush}"/>
+                                            </StackPanel>
+                                        </Grid>
+                                    </Grid>
+                                </Border>
+
+                                <!-- ─── Progress bar ──────────────────────────────────────── -->
+                                <ProgressBar Grid.Row="1"
+                                             Value="{Binding ProcessingProgress, Mode=OneWay}"
+                                             Foreground="{DynamicResource TabAccentBrush}" BorderThickness="0"
+                                             Visibility="{Binding IsProcessing, Converter={StaticResource BooleanToVisibilityConverter}}"/>
+
+                                <!-- ─── Status row ────────────────────────────────────────── -->
+                                <Border Grid.Row="2" Style="{StaticResource ToolStripStyle}"
+                                        BorderThickness="0,1,0,0" Padding="12,5">
+                                    <Grid>
+                                        <StackPanel Orientation="Horizontal">
+                                            <Ellipse Width="5" Height="5" VerticalAlignment="Center" Margin="0,0,7,0">
+                                                <Ellipse.Style>
+                                                    <Style TargetType="Ellipse">
+                                                        <Setter Property="Fill" Value="{StaticResource TextPrimaryBrush}"/>
+                                                        <Style.Triggers>
+                                                            <DataTrigger Binding="{Binding IsProcessing}" Value="True">
+                                                                <Setter Property="Fill" Value="{DynamicResource TabAccentBrush}"/>
+                                                            </DataTrigger>
+                                                        </Style.Triggers>
+                                                    </Style>
+                                                </Ellipse.Style>
+                                            </Ellipse>
+                                            <TextBlock Text="{Binding ProcessingStatus}"
+                                                       FontSize="11" Foreground="{StaticResource TextSecondaryBrush}"
+                                                       VerticalAlignment="Center" TextTrimming="CharacterEllipsis"/>
+                                        </StackPanel>
+                                        <TextBlock HorizontalAlignment="Right" VerticalAlignment="Center"
+                                                   Text="{Binding ProgressPercentage, Mode=OneWay}"
+                                                   FontSize="11" FontWeight="Bold" Foreground="{DynamicResource TabAccentBrush}"
+                                                   FontFamily="Consolas"
+                                                   Visibility="{Binding IsProcessing, Converter={StaticResource BooleanToVisibilityConverter}}"/>
+                                    </Grid>
+                                </Border>
+
+                                <!-- ─── Action Buttons ────────────────────────────────────── -->
+                                <Border Grid.Row="3" Style="{StaticResource ToolStripStyle}"
+                                        BorderThickness="0,1,0,0" Padding="10,8">
+                                    <Grid>
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="*"/>
+                                            <ColumnDefinition Width="Auto"/>
+                                        </Grid.ColumnDefinitions>
+
+                                        <Button Grid.Column="0" Margin="0,0,8,0" Height="40"
+                                                Command="{Binding GenerateCommand}"
+                                                IsEnabled="{Binding CanGenerate}"
+                                                Style="{StaticResource AccentButtonStyle}"
+                                                FontSize="12" FontWeight="Bold" BorderThickness="0">
+                                            <StackPanel Orientation="Horizontal">
+                                                <TextBlock Text="⚡ " VerticalAlignment="Center"/>
+                                                <TextBlock Text="Generate Video" VerticalAlignment="Center"/>
+                                            </StackPanel>
+                                        </Button>
+
+                                        <Button Grid.Column="1" Height="40" Width="82"
+                                                Command="{Binding CancelCommand}"
+                                                IsEnabled="{Binding IsProcessing}"
+                                                Style="{StaticResource DangerButtonStyle}"
+                                                FontSize="11">
+                                            <StackPanel Orientation="Horizontal">
+                                                <TextBlock Text="✕ " VerticalAlignment="Center"/>
+                                                <TextBlock Text="Cancel" VerticalAlignment="Center"/>
+                                            </StackPanel>
+                                        </Button>
+                                    </Grid>
+                                </Border>
+
+                                <!-- ─── Result Output ──────────────────────────────────────── -->
+                                <Border Grid.Row="4" Background="White" BorderBrush="{StaticResource BorderBrush}"
+                                        BorderThickness="0,1,0,0" Padding="12,10">
+                                    <StackPanel>
+                                        <TextBlock Text="🎥 Result Video" FontWeight="Bold" FontSize="13"
+                                                   Foreground="{DynamicResource TabAccentBrush}" Margin="0,0,0,8"/>
+
+                                        <Border BorderBrush="{StaticResource BorderBrush}" BorderThickness="1" Background="{StaticResource PlayerSurfaceBrush}"
+                                                Height="200" CornerRadius="6" Margin="0,0,0,8">
+                                            <Grid>
+                                                <TextBlock Text="Video will appear here after generation"
+                                                           HorizontalAlignment="Center" VerticalAlignment="Center"
+                                                           Foreground="{StaticResource PlayerTextBrush}" FontStyle="Italic">
+                                                    <TextBlock.Style>
+                                                        <Style TargetType="TextBlock">
+                                                            <Setter Property="Visibility" Value="Collapsed"/>
+                                                            <Style.Triggers>
+                                                                <DataTrigger Binding="{Binding HasResult}" Value="False">
+                                                                    <Setter Property="Visibility" Value="Visible"/>
+                                                                </DataTrigger>
+                                                            </Style.Triggers>
+                                                        </Style>
+                                                    </TextBlock.Style>
+                                                </TextBlock>
+                                                <MediaElement x:Name="MiniMaxCharacterVideoPlayer"
+                                                              Source="{Binding ResultVideoPath}"
+                                                              LoadedBehavior="Manual" UnloadedBehavior="Stop"
+                                                              Stretch="Uniform"
+                                                              Visibility="{Binding HasResult, Converter={StaticResource BooleanToVisibilityConverter}}"/>
+                                            </Grid>
+                                        </Border>
+
+                                        <StackPanel Orientation="Horizontal" Margin="0,0,0,6">
+                                            <Button Content="▶ Play" Style="{StaticResource PrimaryButtonStyle}"
+                                                    Command="{Binding PlayVideoCommand}"
+                                                    IsEnabled="{Binding HasResult}" Margin="0,0,8,0"/>
+                                            <Button Content="📁 Open Folder" Style="{StaticResource SecondaryButtonStyle}"
+                                                    Command="{Binding OpenResultFolderCommand}"
+                                                    IsEnabled="{Binding HasResult}"/>
+                                        </StackPanel>
+                                        <TextBlock Text="{Binding ResultVideoInfo}"
+                                                   FontStyle="Italic" Foreground="#666" FontSize="11"/>
+                                    </StackPanel>
+                                </Border>
+
+                                <!-- ─── Log ───────────────────────────────────────────────── -->
+                                <ctrl:ProcessingLogPanel Grid.Row="5" LogText="{Binding LogOutput}" MaxLogHeight="130"/>
+
+                            </Grid>
+                            </ScrollViewer>
+                        </Grid>
+                    </TabItem>
+
         </TabControl>
 
         <!-- Status Bar -->

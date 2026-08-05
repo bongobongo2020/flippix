@@ -374,20 +374,29 @@ namespace FlipPix.UI.ViewModels
         }
 
         /// <summary>
-        /// Previously used LM Studio servers (most-recent first) for the quick-switch dropdown.
+        /// Saved LM Studio servers (most-recent first) for the quick-switch dropdown, listed under
+        /// the friendly names given in Settings.
         /// </summary>
-        public List<string> ServerHistory => _settingsService.Settings?.LMStudioSettings?.ServerHistory ?? new List<string>();
+        public List<FlipPix.Core.Models.LlmServerProfile> ServerProfiles
+        {
+            get
+            {
+                var lm = _settingsService.Settings?.LMStudioSettings;
+                lm?.EnsureProfiles();
+                return lm?.Servers?.ToList() ?? new List<FlipPix.Core.Models.LlmServerProfile>();
+            }
+        }
 
         /// <summary>
         /// Bound to the "Recent" quick-switch combo. Selecting a saved server applies its host+port.
         /// </summary>
-        public string? SelectedServerUrl
+        public FlipPix.Core.Models.LlmServerProfile? SelectedServerProfile
         {
             get => null; // always show the placeholder; the textboxes are the source of truth
             set
             {
-                if (string.IsNullOrWhiteSpace(value)) return;
-                var (host, port) = FlipPix.Core.Models.LMStudioSettings.ParseBaseUrl(value);
+                if (value == null) return;
+                var (host, port) = FlipPix.Core.Models.LMStudioSettings.ParseBaseUrl(value.BaseUrl);
                 LMStudioServer = host;
                 if (!string.IsNullOrEmpty(port)) LMStudioPort = port;
             }
@@ -884,7 +893,7 @@ namespace FlipPix.UI.ViewModels
                     {
                         _settingsService.Settings.LMStudioSettings.RememberServer(baseUrl);
                         _settingsService.SaveSettings(_settingsService.Settings);
-                        OnPropertyChanged(nameof(ServerHistory));
+                        OnPropertyChanged(nameof(ServerProfiles));
                     }
 
                     // Select previously saved model or find a good default
@@ -1561,7 +1570,7 @@ namespace FlipPix.UI.ViewModels
                 _logger.LogInfo("=== Starting image analysis with LM Studio QwenVL ===");
                 IsAnalyzing = true;
                 StatusBarMessage = "Analyzing image...";
-                AnalysisText = "Analyzing image with LM Studio QwenVL AI...";
+                AnalysisText = "Analyzing image...";
 
                 // Dynamically fetch whichever model is currently loaded on the server
                 string modelToUse = SelectedModel;
@@ -1579,6 +1588,12 @@ namespace FlipPix.UI.ViewModels
                 {
                     _logger.LogWarning($"Could not fetch active model from server, falling back to '{SelectedModel}': {ex.Message}");
                 }
+
+                // Name the machine and model so it's obvious where the image is going.
+                var target = _lmStudioService.DescribeTarget(modelToUse);
+                StatusBarMessage = $"Sending image to {target}...";
+                AnalysisText = $"Sending image to {target}...";
+                _logger.LogInfo($"Image analysis target: {target}");
 
                 // Use LM Studio for image analysis
                 string analysisResult;
@@ -1600,17 +1615,48 @@ namespace FlipPix.UI.ViewModels
                 else
                 {
                     // The analysis text is injected into the ZStyle template's {$@} slot, so it must
-                    // describe only the subject/action/composition. If it includes colors, lighting,
-                    // mood, or rendering style, those literal attributes override the style template's
-                    // intended aesthetic and every style collapses to the same look.
-                    var analysisPrompt = "Describe only the main subject(s), their pose/action, clothing, "
-                        + "and spatial composition in this image, in 1-2 plain sentences. Do NOT mention "
-                        + "colors, lighting, mood, art style, medium, or rendering — those are set separately.";
+                    // describe only the subject/action/composition. If it includes scene colors,
+                    // lighting, mood, or rendering style, those literal attributes override the style
+                    // template's intended aesthetic and every style collapses to the same look.
+                    // Exception: when a face is the subject, its identity traits (facial geometry,
+                    // hair/eye/skin colour, marks) are what the generated image must reproduce, so
+                    // those are described exhaustively — they belong to the person, not the style.
+                    var analysisPrompt =
+                        "Describe the main subject(s), their pose/action, clothing, and spatial composition "
+                        + "in this image. Do NOT mention scene colors, lighting, mood, art style, medium, or "
+                        + "rendering — those are set separately.\n\n"
+                        + "IF one or more human faces are clearly visible, the face is the priority: write a "
+                        + "forensically detailed portrait description precise enough to redraw that exact "
+                        + "person. Cover, in flowing prose:\n"
+                        + "- Apparent age range, sex, ethnicity/heritage, build\n"
+                        + "- Head and face shape (oval/round/square/heart/oblong), width-to-length proportion, "
+                        + "forehead height and slope, cheekbone height and prominence, cheek fullness or hollowing, "
+                        + "jawline definition and angle, chin shape (pointed/rounded/square, cleft, projection)\n"
+                        + "- Eyes: shape (almond/round/hooded/monolid/downturned/upturned), size, spacing, set depth, "
+                        + "canthal tilt, iris color and pattern, eyelid crease, lash density, under-eye area\n"
+                        + "- Eyebrows: shape, arch, thickness, density, length, spacing, color\n"
+                        + "- Nose: overall size, bridge width and profile (straight/convex/concave), tip shape and "
+                        + "rotation, nostril shape and flare, columella\n"
+                        + "- Mouth and lips: width, upper/lower lip fullness ratio, cupid's bow definition, philtrum "
+                        + "length and depth, mouth corners, visible teeth, natural lip color\n"
+                        + "- Ears if visible: size, protrusion, lobe attachment\n"
+                        + "- Skin: tone and undertone, texture, pores, freckles, moles/beauty marks with their exact "
+                        + "positions, scars, wrinkles and lines (nasolabial, forehead, crow's feet), blemishes\n"
+                        + "- Facial hair: type, coverage, density, length, color, grooming\n"
+                        + "- Hair: color (including roots/highlights), texture, length, density, hairline shape, "
+                        + "part, and how it is styled or falls\n"
+                        + "- Expression and micro-expression, gaze direction, head tilt and rotation relative to camera\n"
+                        + "- Any glasses, piercings, makeup, or jewelry on or near the face\n"
+                        + "Describe only what is actually visible; never invent traits. Be exhaustive and specific "
+                        + "(use comparative and geometric terms rather than vague adjectives), and put the facial "
+                        + "description first, followed by the body, clothing, and composition.\n\n"
+                        + "IF no face is clearly visible, answer in 1-2 plain sentences instead.\n\n"
+                        + "Output the description only — no headings, no bullet points, no preamble.";
                     analysisResult = await _lmStudioService.AnalyzeImageAsync(
                         modelToUse,
                         SourceImagePath,
                         analysisPrompt,
-                        maxTokens: 2000,
+                        maxTokens: 3000,
                         _cancellationTokenSource.Token);
                 }
 
@@ -4108,6 +4154,29 @@ namespace FlipPix.UI.ViewModels
             LoadResultPreview(item.OutputImagePath);
             HasResultImage = true;
             StatusBarMessage = $"Loaded result: {Path.GetFileName(item.OutputImagePath)}";
+
+            // The in-app preview is downscaled, so clicking a queue thumbnail also hands the
+            // original file to the OS default image viewer for full-resolution inspection.
+            OpenInDefaultViewer(item.OutputImagePath);
+        }
+
+        /// <summary>
+        /// Open a file with the OS-associated application. Never throws.
+        /// </summary>
+        private void OpenInDefaultViewer(string imagePath)
+        {
+            try
+            {
+                Process.Start(new ProcessStartInfo
+                {
+                    FileName = imagePath,
+                    UseShellExecute = true
+                });
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError($"Error opening image in default viewer: {ex.Message}");
+            }
         }
 
         private void LoadResultPreview(string imagePath)

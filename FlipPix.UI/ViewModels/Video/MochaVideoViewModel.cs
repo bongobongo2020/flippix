@@ -347,7 +347,7 @@ namespace FlipPix.UI.ViewModels.Video
                     return;
                 }
 
-                AddLog($"Sending {allImages.Count} image(s) to {selectedModel}...");
+                AddLog($"Sending {allImages.Count} image(s) to {_lmStudioService.DescribeTarget(selectedModel)}...");
 
                 var result = await _lmStudioService.AnalyzeMultipleImagesWithSystemPromptAsync(
                     selectedModel,

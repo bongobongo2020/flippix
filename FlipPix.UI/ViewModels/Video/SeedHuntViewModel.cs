@@ -547,7 +547,7 @@ namespace FlipPix.UI.ViewModels.Video
                 }
 
                 var template = SelectedPromptTemplate;
-                AddLog($"Analyzing image with model: {selectedModel} • template: {template.DisplayName}");
+                AddLog($"Sending image to {_lmStudioService.DescribeTarget(selectedModel)} • template: {template.DisplayName}");
 
                 var promptFilePath = Path.Combine(AppDomain.CurrentDomain.BaseDirectory,
                     "prompts", "prompt2json", template.FileName);
