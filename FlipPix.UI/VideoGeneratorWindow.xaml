@@ -3191,7 +3191,7 @@
                                                         <TextBlock Text="Steps" FontSize="10" Foreground="{StaticResource TextSecondaryBrush}" Margin="0,0,0,4"/>
                                                         <TextBox Text="{Binding PreviewSteps, UpdateSourceTrigger=PropertyChanged}"
                                                                  Height="28" Padding="6,0" VerticalContentAlignment="Center" BorderBrush="{StaticResource BorderBrush}"
-                                                                 ToolTip="Sampling steps for the 3 seed previews. 4–8 is enough to judge composition and motion."/>
+                                                                 ToolTip="Sampling steps for the 3 seed previews. The turbo LoRA needs only 4; previews also skip the RTX upscale pass."/>
                                                     </StackPanel>
                                                 </Border>
 
@@ -3208,8 +3208,8 @@
                                                         <TextBlock Text="Steps" FontSize="10" Foreground="{StaticResource TextSecondaryBrush}" Margin="0,0,0,4"/>
                                                         <TextBox Text="{Binding FinalSteps, UpdateSourceTrigger=PropertyChanged}"
                                                                  Height="28" Padding="6,0" VerticalContentAlignment="Center" BorderBrush="{StaticResource BorderBrush}"
-                                                                 ToolTip="Sampling steps for the finished videos. 20 is the H3 default."/>
-                                                        <TextBlock Text="Same prompt, duration, aspect and seed as the chosen preview — only the canvas and step count go up, so the final closely tracks the preview without matching it pixel for pixel."
+                                                                 ToolTip="Sampling steps for the finished videos. 8 is what the turbo workflow ships with; going much higher buys nothing on a 4-step LoRA."/>
+                                                        <TextBlock Text="Same prompt, duration, aspect and seed as the chosen preview — only the canvas, the step count and the ×2 RTX upscale go up, so the final closely tracks the preview without matching it pixel for pixel."
                                                                    FontSize="10" Foreground="{StaticResource TextMutedBrush}" TextWrapping="Wrap" Margin="0,6,0,0"/>
                                                     </StackPanel>
                                                 </Border>
@@ -3990,13 +3990,57 @@
                                                            FontSize="10" Foreground="{StaticResource TextMutedBrush}" FontStyle="Italic"
                                                            TextWrapping="Wrap" Margin="0,0,0,10"/>
 
+                                                <!-- Story guidance + total video duration.
+                                                     H3 caps out at ~15s, so a longer target is written as a
+                                                     chain of clips and queued one job per clip. -->
+                                                <Grid Margin="0,0,0,6">
+                                                    <Grid.ColumnDefinitions>
+                                                        <ColumnDefinition Width="*"/>
+                                                        <ColumnDefinition Width="8"/>
+                                                        <ColumnDefinition Width="118"/>
+                                                    </Grid.ColumnDefinitions>
+
+                                                    <StackPanel Grid.Column="0">
+                                                        <TextBlock Text="Story (optional)" FontSize="10"
+                                                                   Foreground="{StaticResource TextSecondaryBrush}" Margin="0,0,0,4"/>
+                                                        <TextBox Text="{Binding StoryGuidance, UpdateSourceTrigger=PropertyChanged}"
+                                                                 TextWrapping="Wrap" AcceptsReturn="True"
+                                                                 Height="86" VerticalScrollBarVisibility="Auto"
+                                                                 BorderBrush="{StaticResource BorderBrush}" Background="{StaticResource SurfaceAltBrush}"
+                                                                 FontSize="11" Padding="6"
+                                                                 ToolTip="What the video is about, from beginning to end. Left empty, Analyze invents a story that suits the scene image; filled, every clip is written against this."/>
+                                                    </StackPanel>
+
+                                                    <StackPanel Grid.Column="2">
+                                                        <TextBlock Text="Video duration" FontSize="10"
+                                                                   Foreground="{StaticResource TextSecondaryBrush}" Margin="0,0,0,4"/>
+                                                        <Border Background="{StaticResource SurfaceAltBrush}" BorderBrush="{StaticResource BorderBrush}"
+                                                                BorderThickness="1" CornerRadius="4" Padding="0,5" Margin="0,0,0,6">
+                                                            <TextBlock Text="{Binding StoryDurationSeconds, StringFormat={}{0:0} s}"
+                                                                       HorizontalAlignment="Center" FontFamily="Consolas"
+                                                                       FontSize="14" FontWeight="Bold"
+                                                                       Foreground="{DynamicResource TabAccentBrush}"/>
+                                                        </Border>
+                                                        <Slider Value="{Binding StoryDurationSeconds}"
+                                                                Minimum="5" Maximum="120"
+                                                                TickFrequency="5" IsSnapToTickEnabled="True"
+                                                                SmallChange="5" LargeChange="15"
+                                                                Foreground="{DynamicResource TabAccentBrush}"
+                                                                ToolTip="Length of the finished video, in 5-second steps up to 2 minutes. MiniMax H3 renders at most ~15s per pass, so anything longer is written as a chain of clips and queued one job per clip."/>
+                                                    </StackPanel>
+                                                </Grid>
+
+                                                <TextBlock Text="{Binding StorySummary}"
+                                                           FontSize="10" Foreground="{StaticResource TextMutedBrush}" FontStyle="Italic"
+                                                           TextWrapping="Wrap" Margin="0,0,0,10"/>
+
                                                 <StackPanel Orientation="Horizontal">
                                                     <Button Content="🔍 Analyze → Scene Prompt"
                                                             Command="{Binding AnalyzeCommand}"
                                                             IsEnabled="{Binding CanAnalyze}"
                                                             Height="32" Padding="14,0" FontSize="11"
                                                             Style="{StaticResource AccentButtonStyle}"
-                                                            ToolTip="Sends the scene image (plus whatever is in the prompt box as a draft idea) to the llama-server with texttovideoH3.md, and writes a dense multi-shot H3 prompt in which the characters are referred to as &lt;Picture 1&gt; / &lt;Picture 2&gt;."/>
+                                                            ToolTip="Sends the scene image, the story box and whatever is in the prompt box as a draft idea to the llama-server with texttovideoH3.md, and writes a dense multi-shot H3 prompt in which the characters are referred to as &lt;Picture 1&gt; / &lt;Picture 2&gt;. Past one clip's worth of duration it writes the whole chain in one reply — one complete prompt per clip, split by &quot;=== CLIP n of N ===&quot; headers."/>
                                                     <TextBlock FontStyle="Italic" FontSize="11" VerticalAlignment="Center" Margin="8,0,0,0"
                                                                Text="Analyzing…" Foreground="{DynamicResource TabAccentBrush}">
                                                         <TextBlock.Style>
@@ -4023,6 +4067,13 @@
                                                          Height="240" VerticalScrollBarVisibility="Auto"
                                                          BorderBrush="{StaticResource BorderBrush}" Background="{StaticResource SurfaceAltBrush}"
                                                          FontSize="11" Padding="8"/>
+
+                                                <!-- What Generate will actually queue: the chain is split on
+                                                     its headers, so hand-edits here are honoured. -->
+                                                <TextBlock Text="{Binding PromptClipSummary}"
+                                                           Visibility="{Binding HasPromptSequence, Converter={StaticResource BooleanToVisibilityConverter}}"
+                                                           FontSize="10" FontWeight="SemiBold" Margin="0,6,0,0"
+                                                           Foreground="{DynamicResource TabAccentBrush}" TextWrapping="Wrap"/>
 
                                                 <!-- Scene library: analyzed prompts are filed automatically;
                                                      this row is how they come back out. -->
@@ -4073,23 +4124,25 @@
                                                           Height="30" FontSize="11" Margin="0,0,0,10"/>
 
                                                 <TextBlock Text="Refinement pass" FontSize="10" Foreground="{StaticResource TextSecondaryBrush}" Margin="0,0,0,4"/>
-                                                <ComboBox ItemsSource="{Binding UpscaleOptions}"
-                                                          DisplayMemberPath="Label"
-                                                          SelectedItem="{Binding SelectedUpscale}"
-                                                          Height="30" FontSize="11" Margin="0,0,0,4"
-                                                          ToolTip="The H3 render is always saved. Wan 2.2 and LTX 2.3 add a second, larger pass on top of it — the unused branch is pruned from the graph so its models are never loaded."/>
+                                                <TextBlock Text="RTX Video Super Resolution ×2 (ULTRA)"
+                                                           FontSize="11" Foreground="{StaticResource TextPrimaryBrush}" Margin="0,0,0,4"
+                                                           ToolTip="Fixed. The H3 frames are upscaled ×2 on the way to the file — no second diffusion model, so it costs seconds rather than a second render. It replaced the old Wan 2.2 / LTX 2.3 branches, which are pruned out of the graph."/>
                                                 <TextBlock Text="{Binding UpscaleSummary}"
                                                            FontSize="10" Foreground="{StaticResource TextMutedBrush}" FontStyle="Italic"
                                                            TextWrapping="Wrap" Margin="0,0,0,10"/>
 
-                                                <TextBlock Text="Length (seconds · 4–15)" FontSize="10" Foreground="{StaticResource TextSecondaryBrush}" Margin="0,0,0,4"/>
+                                                <TextBlock Text="Clip length (seconds · 4–15)" FontSize="10" Foreground="{StaticResource TextSecondaryBrush}" Margin="0,0,0,4"/>
                                                 <Slider Value="{Binding LengthSeconds}"
                                                         Minimum="4" Maximum="15"
                                                         TickFrequency="1" IsSnapToTickEnabled="True"
-                                                        Foreground="{DynamicResource TabAccentBrush}" Margin="0,0,0,2"/>
+                                                        Foreground="{DynamicResource TabAccentBrush}" Margin="0,0,0,2"
+                                                        ToolTip="How long a single H3 pass is — the model's own limit. The Video duration slider divides by this to decide how many clips the story is split into."/>
                                                 <TextBlock Text="{Binding LengthSummary}"
                                                            FontSize="10" FontFamily="Consolas" Foreground="{StaticResource TextSecondaryBrush}"
-                                                           Margin="0,0,0,10"/>
+                                                           Margin="0,0,0,2"/>
+                                                <TextBlock Text="{Binding StorySummary}"
+                                                           FontSize="10" Foreground="{StaticResource TextMutedBrush}" FontStyle="Italic"
+                                                           TextWrapping="Wrap" Margin="0,0,0,10"/>
 
                                                 <TextBlock Text="Seed (-1 = random)" FontSize="10" Foreground="{StaticResource TextSecondaryBrush}" Margin="0,0,0,4"/>
                                                 <Grid>
@@ -4123,6 +4176,7 @@
                                     <RowDefinition Height="3"/>    <!-- Progress bar -->
                                     <RowDefinition Height="Auto"/> <!-- Status row -->
                                     <RowDefinition Height="Auto"/> <!-- Action buttons -->
+                                    <RowDefinition Height="Auto"/> <!-- Queue -->
                                     <RowDefinition Height="Auto"/> <!-- Result output -->
                                     <RowDefinition Height="Auto"/> <!-- Log -->
                                 </Grid.RowDefinitions>
@@ -4225,24 +4279,40 @@
                                         <Grid.ColumnDefinitions>
                                             <ColumnDefinition Width="*"/>
                                             <ColumnDefinition Width="Auto"/>
+                                            <ColumnDefinition Width="Auto"/>
                                         </Grid.ColumnDefinitions>
 
                                         <Button Grid.Column="0" Margin="0,0,8,0" Height="40"
                                                 Command="{Binding GenerateCommand}"
                                                 IsEnabled="{Binding CanGenerate}"
                                                 Style="{StaticResource AccentButtonStyle}"
-                                                FontSize="12" FontWeight="Bold" BorderThickness="0">
+                                                FontSize="12" FontWeight="Bold" BorderThickness="0"
+                                                ToolTip="Snapshots the characters, prompt and settings into the queue and starts rendering. A multi-clip story is split on its &quot;=== CLIP n of N ===&quot; headers and queued as one job per clip, rendered in order. The tab stays free — load the next scene image and Analyze it while this one runs.">
                                             <StackPanel Orientation="Horizontal">
                                                 <TextBlock Text="⚡ " VerticalAlignment="Center"/>
-                                                <TextBlock Text="Generate Video" VerticalAlignment="Center"/>
+                                                <TextBlock Text="Add to Queue &amp; Generate" VerticalAlignment="Center"/>
                                             </StackPanel>
                                         </Button>
 
-                                        <Button Grid.Column="1" Height="40" Width="82"
+                                        <!-- A story queued in this session joins itself when its last clip
+                                             lands; this is for clips already sitting on disk. -->
+                                        <Button Grid.Column="1" Height="40" Width="92" Margin="0,0,8,0"
+                                                Command="{Binding JoinClipsCommand}"
+                                                Style="{StaticResource AccentButtonStyle}"
+                                                FontSize="11"
+                                                ToolTip="Joins clips that are already on disk — for stories rendered in an earlier session, which the queue no longer knows about. Pick any ONE clip of a story and its siblings are collected automatically, in clip order; pick several files and exactly those are joined, in file-name order. Never overwrites an existing joined file.">
+                                            <StackPanel Orientation="Horizontal">
+                                                <TextBlock Text="🔗 " VerticalAlignment="Center"/>
+                                                <TextBlock Text="Join" VerticalAlignment="Center"/>
+                                            </StackPanel>
+                                        </Button>
+
+                                        <Button Grid.Column="2" Height="40" Width="82"
                                                 Command="{Binding CancelCommand}"
-                                                IsEnabled="{Binding IsProcessing}"
+                                                IsEnabled="{Binding IsProcessingQueue}"
                                                 Style="{StaticResource DangerButtonStyle}"
-                                                FontSize="11">
+                                                FontSize="11"
+                                                ToolTip="Stops the queue after cancelling the item currently on the GPU. Pending items stay queued.">
                                             <StackPanel Orientation="Horizontal">
                                                 <TextBlock Text="✕ " VerticalAlignment="Center"/>
                                                 <TextBlock Text="Cancel" VerticalAlignment="Center"/>
@@ -4251,8 +4321,94 @@
                                     </Grid>
                                 </Border>
 
+                                <!-- ─── Queue ─────────────────────────────────────────────────
+                                     Each row is a frozen snapshot of the whole form, so new scene
+                                     images can be loaded and analyzed while earlier jobs render. -->
+                                <Border Grid.Row="4" Background="{StaticResource SurfaceAltBrush}"
+                                        BorderBrush="{StaticResource BorderBrush}" BorderThickness="0,1,0,0" Padding="12,8"
+                                        Visibility="{Binding HasQueueItems, Converter={StaticResource BooleanToVisibilityConverter}}">
+                                    <StackPanel>
+                                        <Grid Margin="0,0,0,6">
+                                            <Grid.ColumnDefinitions>
+                                                <ColumnDefinition Width="Auto"/>
+                                                <ColumnDefinition Width="*"/>
+                                                <ColumnDefinition Width="Auto"/>
+                                                <ColumnDefinition Width="Auto"/>
+                                                <ColumnDefinition Width="Auto"/>
+                                                <ColumnDefinition Width="Auto"/>
+                                            </Grid.ColumnDefinitions>
+                                            <TextBlock Grid.Column="0" Text="🎭 Character Queue"
+                                                       FontWeight="Bold" FontSize="12" Foreground="{DynamicResource TabAccentBrush}"
+                                                       VerticalAlignment="Center" Margin="0,0,10,0"/>
+                                            <TextBlock Grid.Column="1" Text="{Binding QueueStatus}"
+                                                       FontStyle="Italic" Foreground="{StaticResource TextSecondaryBrush}" FontSize="11"
+                                                       VerticalAlignment="Center" TextTrimming="CharacterEllipsis"/>
+                                            <Button Grid.Column="2" Content="▶ Start"
+                                                    Command="{Binding StartQueueCommand}"
+                                                    Height="26" Padding="8,0" FontSize="11" Margin="0,0,5,0"
+                                                    Style="{StaticResource AccentButtonStyle}"
+                                                    ToolTip="Resume draining pending items."/>
+                                            <Button Grid.Column="3" Content="🔄 Retry"
+                                                    Command="{Binding ReprocessAllFailedCommand}"
+                                                    Height="26" Padding="8,0" FontSize="11" Margin="0,0,5,0"
+                                                    Style="{StaticResource AccentButtonStyle}"
+                                                    ToolTip="Put every failed item back to Pending and run them again."/>
+                                            <Button Grid.Column="4" Content="⏹ Stop"
+                                                    Command="{Binding StopQueueCommand}"
+                                                    Height="26" Padding="8,0" FontSize="11" Margin="0,0,5,0"
+                                                    Style="{StaticResource AccentButtonStyle}"/>
+                                            <Button Grid.Column="5" Content="🗑️ Clear"
+                                                    Command="{Binding ClearQueueCommand}"
+                                                    Height="26" Padding="8,0" FontSize="11"
+                                                    Style="{StaticResource AccentButtonStyle}"/>
+                                        </Grid>
+
+                                        <ItemsControl ItemsSource="{Binding Queue}">
+                                            <ItemsControl.ItemTemplate>
+                                                <DataTemplate>
+                                                    <Border BorderBrush="{StaticResource BorderBrush}" BorderThickness="1" CornerRadius="4"
+                                                            Padding="8,5" Margin="0,0,0,3" Background="White">
+                                                        <Grid>
+                                                            <Grid.ColumnDefinitions>
+                                                                <ColumnDefinition Width="Auto"/>
+                                                                <ColumnDefinition Width="Auto"/>
+                                                                <ColumnDefinition Width="*"/>
+                                                                <ColumnDefinition Width="Auto"/>
+                                                            </Grid.ColumnDefinitions>
+                                                            <Border Grid.Column="0" CornerRadius="3" Padding="6,2" Margin="0,0,8,0"
+                                                                    VerticalAlignment="Center"
+                                                                    Background="{Binding StatusColor}">
+                                                                <TextBlock Text="{Binding StatusDisplay}" FontSize="10"
+                                                                           FontWeight="SemiBold" Foreground="White"/>
+                                                            </Border>
+                                                            <Image Grid.Column="1" Source="{Binding QueueThumbnail}"
+                                                                   Height="34" Stretch="Uniform" Margin="0,0,8,0"/>
+                                                            <StackPanel Grid.Column="2" VerticalAlignment="Center">
+                                                                <TextBlock Text="{Binding DisplayText}" FontWeight="SemiBold" FontSize="11"
+                                                                           TextTrimming="CharacterEllipsis"/>
+                                                                <TextBlock Text="{Binding Prompt}" FontSize="10"
+                                                                           Foreground="{StaticResource TextSecondaryBrush}"
+                                                                           TextTrimming="CharacterEllipsis"/>
+                                                                <TextBlock Text="{Binding ErrorMessage}" FontSize="10"
+                                                                           Foreground="{StaticResource DangerBrush}"
+                                                                           TextTrimming="CharacterEllipsis"/>
+                                                            </StackPanel>
+                                                            <Button Grid.Column="3" Content="✕"
+                                                                    Style="{StaticResource SecondaryButtonStyle}"
+                                                                    Command="{Binding DataContext.RemoveQueueItemCommand, RelativeSource={RelativeSource AncestorType=ItemsControl}}"
+                                                                    CommandParameter="{Binding}"
+                                                                    VerticalAlignment="Center"
+                                                                    Width="26" Height="26" Padding="0" FontSize="10"/>
+                                                        </Grid>
+                                                    </Border>
+                                                </DataTemplate>
+                                            </ItemsControl.ItemTemplate>
+                                        </ItemsControl>
+                                    </StackPanel>
+                                </Border>
+
                                 <!-- ─── Result Output ──────────────────────────────────────── -->
-                                <Border Grid.Row="4" Background="White" BorderBrush="{StaticResource BorderBrush}"
+                                <Border Grid.Row="5" Background="White" BorderBrush="{StaticResource BorderBrush}"
                                         BorderThickness="0,1,0,0" Padding="12,10">
                                     <StackPanel>
                                         <TextBlock Text="🎥 Result Video" FontWeight="Bold" FontSize="13"
@@ -4297,7 +4453,7 @@
                                 </Border>
 
                                 <!-- ─── Log ───────────────────────────────────────────────── -->
-                                <ctrl:ProcessingLogPanel Grid.Row="5" LogText="{Binding LogOutput}" MaxLogHeight="130"/>
+                                <ctrl:ProcessingLogPanel Grid.Row="6" LogText="{Binding LogOutput}" MaxLogHeight="130"/>
 
                             </Grid>
                             </ScrollViewer>

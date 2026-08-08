@@ -141,6 +141,7 @@ namespace FlipPix.UI.Services
                 if (!string.IsNullOrEmpty(entry.SceneImagePath)) existing.SceneImagePath = entry.SceneImagePath;
                 if (!string.IsNullOrEmpty(entry.AspectRatio)) existing.AspectRatio = entry.AspectRatio;
                 if (entry.LengthSeconds > 0) existing.LengthSeconds = entry.LengthSeconds;
+                if (entry.StoryDurationSeconds > 0) existing.StoryDurationSeconds = entry.StoryDurationSeconds;
             }
             else
             {

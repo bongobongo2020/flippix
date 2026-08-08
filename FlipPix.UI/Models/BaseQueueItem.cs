@@ -24,6 +24,7 @@ namespace FlipPix.UI.Models
     public abstract class BaseQueueItem : INotifyPropertyChanged
     {
         private string _status = "Pending";
+        private string? _errorMessage;
         private double _progress = 0;
         private string? _outputImagePath;
         private BitmapImage? _thumbnailImage;
@@ -49,9 +50,14 @@ namespace FlipPix.UI.Models
         public DateTime? CompletedAt { get; set; }
 
         /// <summary>
-        /// Error message if processing failed
+        /// Error message if processing failed. Notifies, so a queue row that shows the reason updates
+        /// when the item flips to Failed instead of staying blank until the list is rebuilt.
         /// </summary>
-        public string? ErrorMessage { get; set; }
+        public string? ErrorMessage
+        {
+            get => _errorMessage;
+            set { if (_errorMessage != value) { _errorMessage = value; OnPropertyChanged(); } }
+        }
 
         /// <summary>
         /// Number of automatic retry attempts made (used by crash-detection logic)

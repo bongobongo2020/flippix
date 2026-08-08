@@ -1,0 +1,380 @@
+{
+  "2": {
+    "inputs": {
+      "samples": [
+        "12",
+        0
+      ],
+      "vae": [
+        "8",
+        0
+      ]
+    },
+    "class_type": "VAEDecodeAudio",
+    "_meta": {
+      "title": "VAE Decode Audio"
+    }
+  },
+  "3": {
+    "inputs": {
+      "samples": [
+        "12",
+        0
+      ],
+      "vae": [
+        "11",
+        0
+      ]
+    },
+    "class_type": "VAEDecode",
+    "_meta": {
+      "title": "VAE Decode"
+    }
+  },
+  "5": {
+    "inputs": {
+      "expression": "max(5, round(a * 24)) + (5 - (max(5, round(a * 24)) % 17)) % 17",
+      "values.a": [
+        "56",
+        0
+      ]
+    },
+    "class_type": "ComfyMathExpression",
+    "_meta": {
+      "title": "Math Expression"
+    }
+  },
+  "7": {
+    "inputs": {
+      "clip_name": "qwen3vl_32b_minimax_h3_nvfp4_awq.safetensors",
+      "type": "minimax",
+      "device": "default"
+    },
+    "class_type": "CLIPLoader",
+    "_meta": {
+      "title": "Load CLIP"
+    }
+  },
+  "8": {
+    "inputs": {
+      "vae_name": "minimax_h3_audio_vae_fp32.safetensors"
+    },
+    "class_type": "VAELoader",
+    "_meta": {
+      "title": "Load VAE"
+    }
+  },
+  "10": {
+    "inputs": {
+      "model": [
+        "59",
+        0
+      ],
+      "conditioning": [
+        "23",
+        0
+      ]
+    },
+    "class_type": "BasicGuider",
+    "_meta": {
+      "title": "Basic Guider"
+    }
+  },
+  "11": {
+    "inputs": {
+      "vae_name": "minimax_h3_video_vae_fp16.safetensors"
+    },
+    "class_type": "VAELoader",
+    "_meta": {
+      "title": "Load VAE"
+    }
+  },
+  "12": {
+    "inputs": {
+      "noise": [
+        "46",
+        0
+      ],
+      "guider": [
+        "10",
+        0
+      ],
+      "sampler": [
+        "60",
+        0
+      ],
+      "sigmas": [
+        "57",
+        0
+      ],
+      "latent_image": [
+        "23",
+        1
+      ]
+    },
+    "class_type": "SamplerCustomAdvanced",
+    "_meta": {
+      "title": "SamplerCustomAdvanced"
+    }
+  },
+  "13": {
+    "inputs": {
+      "width": [
+        "45",
+        0
+      ],
+      "height": [
+        "45",
+        1
+      ],
+      "upscale_method": "lanczos",
+      "keep_proportion": "crop",
+      "pad_color": "0, 0, 0",
+      "crop_position": "center",
+      "divisible_by": 32,
+      "device": "cpu",
+      "image": [
+        "44",
+        0
+      ]
+    },
+    "class_type": "ImageResizeKJv2",
+    "_meta": {
+      "title": "Resize Image v2"
+    }
+  },
+  "23": {
+    "inputs": {
+      "prompt": "",
+      "width": 1344,
+      "height": 768,
+      "length": 124,
+      "ref_image_size": "match",
+      "clip": [
+        "7",
+        0
+      ],
+      "vae": [
+        "11",
+        0
+      ],
+      "audio_vae": [
+        "8",
+        0
+      ],
+      "ref_images.ref_image_0": [
+        "13",
+        0
+      ]
+    },
+    "class_type": "MiniMaxH3ReferenceToVideo",
+    "_meta": {
+      "title": "MiniMax H3 Reference to Video"
+    }
+  },
+  "36": {
+    "inputs": {
+      "unet_name": "h3-minimax/minimax_h3_ref2va_pruned_int8_convrot.safetensors",
+      "weight_dtype": "default"
+    },
+    "class_type": "UNETLoader",
+    "_meta": {
+      "title": "Load Diffusion Model"
+    }
+  },
+  "44": {
+    "inputs": {
+      "image": "1782964721376184.jpg"
+    },
+    "class_type": "LoadImage",
+    "_meta": {
+      "title": "Ref Image 1"
+    }
+  },
+  "45": {
+    "inputs": {
+      "aspect_ratio": "16:9 (Widescreen)",
+      "megapixels": 1,
+      "multiple": 32
+    },
+    "class_type": "ResolutionSelector",
+    "_meta": {
+      "title": "Resolution Selector (Size)"
+    }
+  },
+  "46": {
+    "inputs": {
+      "noise_seed": 474817977625050
+    },
+    "class_type": "RandomNoise",
+    "_meta": {
+      "title": "RandomNoise"
+    }
+  },
+  "48": {
+    "inputs": {
+      "value": "YFor the target video, use <Picture 1> as a reference frame — Character 1 is <Picture 1>; keep their face, hair, build and clothing exactly as shown in the reference frame, identical and unchanged from the first frame to the last.\n\nintegrated_multimodal_description: [Shot 1] Live-action cinematic, medium-full shot of a woman walking forward in an endless white studio void, the camera tracking backward at normal speed while she strides aggressively with bruised legs and a stained white t-shirt, her arms swinging heavily with momentum and her head snapping slightly to the left. [Shot 2] At 00:01.200, The camera cuts to a low Dutch-angle close-up of her bare feet hitting the glossy white floor, the background rushing by in a blur of motion, her shadow stretching beneath her as the camera tilts up rapidly to follow her leg muscles bunching and relaxing. [Shot 3] At 00:02.400, A medium shot from the side captures <Picture 1> pivoting on her heel, her body twisting violently to face the camera, a red mark on her cheek becoming more prominent as she closes the distance, the camera shaking slightly with the impact of her turn. [Shot 4] At 00:03.600, The camera pushes in with large amplitude at fast speed to an extreme close-up of her face, her eyes darting wildly, sweat glistening on her skin as she throws her shoulder forward into the lens, her hair whipping across her field of view. [Shot 5] At 00:04.800, A high-angle overhead shot looking straight down at the subject, her form appearing small in the vast white space, she spins in a tight circle, arms flailing, creating a dynamic vortex of movement while the camera rotates counter-clockwise to match her momentum. [Shot 6] At 00:06.000, The camera cuts to a tracking shot from behind, following her sprint away from the lens toward a vanishing point, her t-shirt flapping wildly in the air, the lighting strobing sharply on every other step. [Shot 7] At 00:07.200, A low-angle shot from the ground level captures her leaping upward, suspended in mid-air, her expression intense and focused, her limbs extending fully before gravity begins to pull her back down, the camera tilting up to keep her centered. [Shot 8] At 00:08.400, A slow-motion close-up of her landing, the impact causing a ripple in the white floor, dust motes exploding outward from her feet, her body absorbing the shock with bent knees and a grimace of exertion. [Shot 9] At 00:09.400, The camera pulls out rapidly to a wide shot, <Picture 1> standing tall and still in the center of the frame, her chest heaving, her arms dropping to her sides, the motion freezing slightly before she takes one final breath.\n\noverall_soundscape: Heavy, rhythmic thuds of bare feet slapping against a hard surface, the sharp intake of breath from exertion, the soft rustle of cotton fabric whipping in the air, and a sharp crack of energy or wood when she pivots in Shot 3.\n\nnon_diegetic_music: A driving industrial electronic track with a heavy bass kick, starting with a slow build, hitting a sharp snare roll at the pivot in Shot 3, and ending with a sudden silence on the final frame."
+    },
+    "class_type": "PrimitiveStringMultiline",
+    "_meta": {
+      "title": "Input Text (Prompt)"
+    }
+  },
+  "52": {
+    "inputs": {
+      "model": [
+        "61",
+        0
+      ]
+    },
+    "class_type": "MiniMaxH3MemoryEfficientSageAttentionPatch",
+    "_meta": {
+      "title": "MiniMax H3 Mem Eff Sage Attention Patch"
+    }
+  },
+  "53": {
+    "inputs": {
+      "tau": 1.3,
+      "start_percent": 0.2,
+      "end_percent": 0.9,
+      "min_tokens": 4096,
+      "int8_qk": true,
+      "sink_conditioning": "exact_kv",
+      "morton": true,
+      "morton_curve": "3d",
+      "int8_pv": true,
+      "verbose": false,
+      "use_tma": false,
+      "dense_blocks": "",
+      "model": [
+        "52",
+        0
+      ]
+    },
+    "class_type": "SolAttnPatch",
+    "_meta": {
+      "title": "Patch Sol-Attn"
+    }
+  },
+  "54": {
+    "inputs": {
+      "sage_attention": "sageattn_qk_int8_pv_fp16_triton",
+      "allow_compile": false,
+      "model": [
+        "53",
+        0
+      ]
+    },
+    "class_type": "PathchSageAttentionKJ",
+    "_meta": {
+      "title": "Patch Sage Attention KJ"
+    }
+  },
+  "56": {
+    "inputs": {
+      "value": 4
+    },
+    "class_type": "PrimitiveFloat",
+    "_meta": {
+      "title": "Float (Duration)"
+    }
+  },
+  "57": {
+    "inputs": {
+      "scheduler": "simple",
+      "steps": 6,
+      "denoise": 1,
+      "model": [
+        "59",
+        0
+      ]
+    },
+    "class_type": "BasicScheduler",
+    "_meta": {
+      "title": "BasicScheduler"
+    }
+  },
+  "59": {
+    "inputs": {
+      "shift_video": 12,
+      "shift_audio": 3,
+      "model": [
+        "54",
+        0
+      ]
+    },
+    "class_type": "MiniMaxH3SigmaShift",
+    "_meta": {
+      "title": "MiniMax H3 Sigma Shift"
+    }
+  },
+  "60": {
+    "inputs": {},
+    "class_type": "MiniMaxH3TurboSampler",
+    "_meta": {
+      "title": "MiniMax-H3 Turbo Sampler (4-step)"
+    }
+  },
+  "61": {
+    "inputs": {
+      "PowerLoraLoaderHeaderWidget": {
+        "type": "PowerLoraLoaderHeaderWidget"
+      },
+      "lora_1": {
+        "on": true,
+        "lora": "minimax_h3_fl2v_lightx2v_turbo_4step_v0.1_comfy.safetensors",
+        "strength": 0.75
+      },
+      "➕ Add Lora": "",
+      "model": [
+        "36",
+        0
+      ]
+    },
+    "class_type": "Power Lora Loader (rgthree)",
+    "_meta": {
+      "title": "Power Lora Loader (rgthree)"
+    }
+  },
+  "64": {
+    "inputs": {
+      "scale": 2,
+      "quality": "ULTRA",
+      "deblur": "MEDIUM",
+      "images": [
+        "3",
+        0
+      ]
+    },
+    "class_type": "RTXVideoSuperResolution",
+    "_meta": {
+      "title": "RTX Video Super Resolution"
+    }
+  },
+  "65": {
+    "inputs": {
+      "frame_rate": 24,
+      "loop_count": 0,
+      "filename_prefix": "upscale",
+      "format": "video/h264-mp4",
+      "pix_fmt": "yuv420p",
+      "crf": 14,
+      "save_metadata": true,
+      "trim_to_audio": false,
+      "pingpong": false,
+      "save_output": true,
+      "images": [
+        "64",
+        0
+      ],
+      "audio": [
+        "2",
+        0
+      ]
+    },
+    "class_type": "VHS_VideoCombine",
+    "_meta": {
+      "title": "Video Combine 🎥🅥🅗🅢"
+    }
+  }
+}

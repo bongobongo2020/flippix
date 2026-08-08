@@ -33,8 +33,16 @@ namespace FlipPix.UI.Models
         /// <summary>Aspect ratio resolved when the prompt was written — restored with the scene.</summary>
         public string AspectRatio { get; set; } = string.Empty;
 
-        /// <summary>Duration the prompt was written for. A 15-shot prompt does not fit into 4 seconds.</summary>
+        /// <summary>Duration of a single clip the prompt was written for. A 15-shot prompt does not fit
+        /// into 4 seconds.</summary>
         public double LengthSeconds { get; set; }
+
+        /// <summary>
+        /// Target length of the whole video the prompt was written for. Above <see cref="LengthSeconds"/>
+        /// the prompt is a clip <i>chain</i> (one H3 prompt per <c>=== CLIP n of N ===</c> header) rather
+        /// than a single prompt. 0 on entries saved before story mode existed.
+        /// </summary>
+        public double StoryDurationSeconds { get; set; }
 
         /// <summary><c>[Shot n]</c> markers, shown in the picker so long and short prompts are told apart.</summary>
         public int Shots { get; set; }

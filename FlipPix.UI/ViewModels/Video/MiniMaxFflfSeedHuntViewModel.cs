@@ -5,6 +5,7 @@ using System.Globalization;
 using System.IO;
 using System.Linq;
 using System.Text.Json;
+using System.Text.Json.Nodes;
 using System.Text.RegularExpressions;
 using System.Threading;
 using System.Threading.Tasks;
@@ -32,25 +33,39 @@ namespace FlipPix.UI.ViewModels.Video
     ///
     /// H3 renders one video per submission (no in-graph sample batch), so a hunt is 3 sequential
     /// submissions with seeds base, base+1, base+2 — the same loop the FaceID engine uses in the LTX
-    /// seed hunter. Preview and final differ only in <c>megapixels</c> and <c>steps</c>; the prompt,
-    /// duration, aspect and seed are identical, so a final closely tracks the preview it came from.
+    /// seed hunter. Preview and final differ only in <c>megapixels</c>, <c>steps</c> and the RTX pass;
+    /// the prompt, duration, aspect and seed are identical, so a final closely tracks the preview it
+    /// came from.
+    ///
+    /// <para>The tab runs <c>fl2va-turbo-fflf.json</c> — the turbo stack (4-step EMA LoRA + Sage
+    /// attention + a ×2 RTX super-resolution pass) as authored. That export is a plain text-to-video
+    /// graph: its <c>MiniMaxH3ImageToVideo</c> carries the prompt as a literal widget and has no frame
+    /// inputs at all, so submission injects the two <c>LoadImage</c> nodes and links them to
+    /// <c>first_frame</c>/<c>last_frame</c> (see <see cref="AttachFrameLoaders"/>). Doing it in code
+    /// rather than in the file means a re-export from ComfyUI keeps working.</para>
     /// </summary>
     public partial class MiniMaxFflfSeedHuntViewModel : VideoProcessingBaseViewModel
     {
-        private const string WorkflowFileName = "workflow/video/h3-minimax/video_minimax_h3_fflf_api.json";
+        private const string WorkflowFileName = "workflow/video/h3-minimax/fl2va-turbo-fflf.json";
         private const string OutputSubfolder = "minimax_fflf";
         private const string SystemPromptFile = "h3minimax-fflf.md";
         private const int SampleSlots = 3;
 
-        // ── Workflow node ids (locked from video_minimax_h3_fflf_api.json) ──────────────────────
-        private const string NodeFirstImage = "137";  // LoadImage → MiniMaxH3ImageToVideo.first_frame
-        private const string NodeLastImage = "139";   // LoadImage → MiniMaxH3ImageToVideo.last_frame
-        private const string NodePrompt = "138";      // PrimitiveStringMultiline → .prompt
-        private const string NodeResolution = "115";  // ResolutionSelector (aspect_ratio, megapixels)
-        private const string NodeSteps = "124";       // BasicScheduler steps
-        private const string NodeSeed = "129";        // RandomNoise noise_seed
-        private const string NodeDuration = "132";    // PrimitiveFloat seconds (node 131 → frames)
-        private const string NodeOutput = "92";       // SaveVideo
+        // ── Workflow node ids (locked from fl2va-turbo-fflf.json) ──────────────────────────────
+        private const string NodeImageToVideo = "131"; // MiniMaxH3ImageToVideo (prompt widget + frames)
+        private const string NodeResolution = "115";   // ResolutionSelector (aspect_ratio, megapixels)
+        private const string NodeSteps = "124";        // BasicScheduler steps
+        private const string NodeSeed = "143";         // Seed (rgthree) → RandomNoise 129
+        private const string NodeDuration = "133";     // PrimitiveFloat seconds (node 132 → frames)
+        private const string NodeVaeDecode = "122";    // VAEDecode — the un-upscaled frames
+        private const string NodeRtx = "142";          // RTXVideoSuperResolution (×2, finals only)
+        private const string NodeCreateVideo = "130";  // CreateVideo (images source is switched)
+        private const string NodeOutput = "92";        // SaveVideo
+
+        // Injected at submission — the export has no frame loaders of its own. Picked well clear of the
+        // graph's own ids; AttachFrameLoaders still refuses to overwrite anything that isn't a LoadImage.
+        private const string NodeFirstImage = "300";   // LoadImage → MiniMaxH3ImageToVideo.first_frame
+        private const string NodeLastImage = "301";    // LoadImage → MiniMaxH3ImageToVideo.last_frame
 
         /// <summary>Matches the "N.NN-second mark" timestamps inside the FL2VA alignment line.</summary>
         private static readonly Regex SecondMarkRegex =
@@ -74,9 +89,9 @@ namespace FlipPix.UI.ViewModels.Video
         private string _prompt = string.Empty;
         private string _selectedAspectRatio = MiniMaxH3ViewModel.AutoAspect;
         private double _previewMegapixels = 0.3;
-        private int _previewSteps = 6;
+        private int _previewSteps = 4;
         private double _finalMegapixels = 1.0;
-        private int _finalSteps = 20;
+        private int _finalSteps = 8;
         private double _lengthSeconds = 5;
         private long _baseSeed = -1;
         private bool _isAnalyzing;
@@ -243,12 +258,13 @@ namespace FlipPix.UI.ViewModels.Video
             new MegapixelOption(0.4, "0.4 MP — sharper (≈864×480)"),
         };
 
-        /// <summary>Canvas sizes for the finished videos. 1.0 MP ≈ 1344×768 is H3's native canvas.</summary>
+        /// <summary>Canvas sizes for the finished videos. 1.0 MP ≈ 1344×768 is H3's native canvas; the
+        /// workflow's RTX pass then doubles it, so the file on disk is twice these numbers.</summary>
         public IReadOnlyList<MegapixelOption> FinalMegapixelOptions { get; } = new[]
         {
-            new MegapixelOption(0.7, "0.7 MP — balanced (≈1120×640)"),
-            new MegapixelOption(1.0, "1.0 MP — native (≈1344×768)"),
-            new MegapixelOption(1.3, "1.3 MP — oversized (≈1536×864)"),
+            new MegapixelOption(0.7, "0.7 MP — balanced (≈1120×640 → ×2 = 2240×1280)"),
+            new MegapixelOption(1.0, "1.0 MP — native (≈1344×768 → ×2 = 2688×1536)"),
+            new MegapixelOption(1.3, "1.3 MP — oversized (≈1536×864 → ×2 = 3072×1728)"),
         };
 
         public double PreviewMegapixels
@@ -740,7 +756,7 @@ namespace FlipPix.UI.ViewModels.Video
             var len = ClampLength(LengthSeconds);
             var steps = ClampSteps(PreviewSteps);
             var mp = ClampMegapixels(PreviewMegapixels);
-            AddLog($"Previews: {aspect}, {mp:0.0} MP, {steps} steps, {len:0.#}s — seeds {batchSeed}..{batchSeed + SampleSlots - 1}");
+            AddLog($"Previews (turbo, no RTX pass): {aspect}, {mp:0.0} MP, {steps} steps, {len:0.#}s — seeds {batchSeed}..{batchSeed + SampleSlots - 1}");
 
             var span = progressTo - progressFrom;
             int found = 0;
@@ -752,8 +768,9 @@ namespace FlipPix.UI.ViewModels.Video
                 SetSampleStatus(samples, slot, "generating");
 
                 var json = await LoadWorkflowJsonAsync(token);
-                ApplyCommonInputs(ref json, firstName, lastName, prompt, aspect, mp, steps, len);
-                WorkflowNodeUpdater.UpdateNodeInput(ref json, NodeSeed, "noise_seed", seed);
+                ApplyCommonInputs(ref json, firstName, lastName, prompt, aspect, mp, steps, len,
+                    upscale: false);
+                SetInput(ref json, NodeSeed, "seed", seed);
                 var runToken = $"mmf{batchId}_p{slot}";
                 WorkflowNodeUpdater.UpdateNodeInput(ref json, NodeOutput, "filename_prefix",
                     $"{OutputSubfolder}/{runToken}");
@@ -779,23 +796,103 @@ namespace FlipPix.UI.ViewModels.Video
 
         /// <summary>
         /// Writes every per-run input into the workflow. Preview and finish differ only in
-        /// <paramref name="megapixels"/> and <paramref name="steps"/>; the seed and output prefix are
-        /// set by the caller.
+        /// <paramref name="megapixels"/>, <paramref name="steps"/> and <paramref name="upscale"/>; the
+        /// seed and output prefix are set by the caller.
         /// </summary>
         private void ApplyCommonInputs(ref string json, string firstName, string lastName, string prompt,
-            string aspect, double megapixels, int steps, double lengthSeconds)
+            string aspect, double megapixels, int steps, double lengthSeconds, bool upscale)
         {
-            WorkflowNodeUpdater.UpdateNodeInput(ref json, NodeFirstImage, "image", firstName);
-            WorkflowNodeUpdater.UpdateNodeInput(ref json, NodeLastImage, "image", lastName);
-            WorkflowNodeUpdater.UpdateNodeInput(ref json, NodePrompt, "value",
+            json = AttachFrameLoaders(json, firstName, lastName, upscale);
+
+            SetInput(ref json, NodeImageToVideo, "prompt",
                 EnsureFl2vaInstruction(prompt.Trim(), lengthSeconds));
-            WorkflowNodeUpdater.UpdateNodeInput(ref json, NodeResolution, "aspect_ratio", aspect);
-            WorkflowNodeUpdater.UpdateNodeInput(ref json, NodeResolution, "megapixels", megapixels);
-            WorkflowNodeUpdater.UpdateNodeInput(ref json, NodeSteps, "steps", steps);
-            WorkflowNodeUpdater.UpdateNodeInput(ref json, NodeDuration, "value", lengthSeconds);
+            SetInput(ref json, NodeResolution, "aspect_ratio", aspect);
+            SetInput(ref json, NodeResolution, "megapixels", megapixels);
+            SetInput(ref json, NodeSteps, "steps", steps);
+            SetInput(ref json, NodeDuration, "value", lengthSeconds);
         }
 
-        private static int ClampSteps(int steps) => Math.Clamp(steps <= 0 ? 6 : steps, 1, 100);
+        /// <summary>
+        /// Turns the text-to-video export into a first/last-frame graph: injects the two
+        /// <c>LoadImage</c> nodes the file has none of and links them into
+        /// <c>MiniMaxH3ImageToVideo</c>'s <c>first_frame</c>/<c>last_frame</c>.
+        ///
+        /// <para>It also decides where <c>CreateVideo</c> takes its frames from. Finals go through the
+        /// workflow's ×2 <c>RTXVideoSuperResolution</c> pass as authored; seed previews are wired
+        /// straight off the <c>VAEDecode</c>, since paying for a super-resolution pass on a 0.3 MP
+        /// throwaway is the one thing a seed hunt must not do. The RTX node is simply left unreferenced
+        /// then, so ComfyUI never executes it.</para>
+        /// </summary>
+        private static string AttachFrameLoaders(string json, string firstName, string lastName, bool upscale)
+        {
+            var root = JsonNode.Parse(json)?.AsObject()
+                       ?? throw new Exception("Workflow JSON could not be parsed.");
+
+            RequireClass(root, NodeImageToVideo, "MiniMaxH3ImageToVideo");
+            RequireClass(root, NodeResolution, "ResolutionSelector");
+            RequireClass(root, NodeSteps, "BasicScheduler");
+            RequireClass(root, NodeSeed, "Seed (rgthree)");
+            RequireClass(root, NodeDuration, "PrimitiveFloat");
+            RequireClass(root, NodeVaeDecode, "VAEDecode");
+            RequireClass(root, NodeRtx, "RTXVideoSuperResolution");
+            RequireClass(root, NodeCreateVideo, "CreateVideo");
+            RequireClass(root, NodeOutput, "SaveVideo");
+
+            foreach (var (id, uploadedName, title) in new[]
+                     {
+                         (NodeFirstImage, firstName, "First Frame"),
+                         (NodeLastImage, lastName, "Last Frame"),
+                     })
+            {
+                // A re-export that happened to reuse these ids would otherwise be silently overwritten.
+                if (root[id] is JsonObject taken && taken["class_type"]?.GetValue<string>() != "LoadImage")
+                    throw new Exception(
+                        $"Workflow node '{id}' is already a {taken["class_type"]?.GetValue<string>() ?? "(none)"} — " +
+                        "the frame loaders this tab injects need that id free.");
+
+                root[id] = new JsonObject
+                {
+                    ["inputs"] = new JsonObject { ["image"] = uploadedName },
+                    ["class_type"] = "LoadImage",
+                    ["_meta"] = new JsonObject { ["title"] = title },
+                };
+            }
+
+            if (root[NodeImageToVideo]?["inputs"] is not JsonObject i2vInputs)
+                throw new Exception($"Workflow node '{NodeImageToVideo}' has no inputs — the workflow file no longer matches this tab.");
+            i2vInputs["first_frame"] = new JsonArray(NodeFirstImage, 0);
+            i2vInputs["last_frame"] = new JsonArray(NodeLastImage, 0);
+
+            if (root[NodeCreateVideo]?["inputs"] is not JsonObject videoInputs)
+                throw new Exception($"Workflow node '{NodeCreateVideo}' has no inputs — the workflow file no longer matches this tab.");
+            videoInputs["images"] = upscale ? new JsonArray(NodeRtx, 0) : new JsonArray(NodeVaeDecode, 0);
+
+            return root.ToJsonString();
+        }
+
+        /// <summary>Fails loudly when a node the patches rewire is missing or is no longer the class they
+        /// assume — both would otherwise produce a graph that only fails on the server, or worse,
+        /// silently renders the workflow's baked-in demo prompt.</summary>
+        private static void RequireClass(JsonObject root, string nodeId, string expected)
+        {
+            if (root[nodeId] is not JsonObject node)
+                throw new Exception($"Workflow node '{nodeId}' is not in the graph — the workflow file no longer matches this tab.");
+            var actual = node["class_type"]?.GetValue<string>();
+            if (actual != expected)
+                throw new Exception($"Workflow node '{nodeId}' is a {actual ?? "(none)"}, expected {expected} — the workflow file no longer matches this tab.");
+        }
+
+        /// <summary>Wrapper around <see cref="WorkflowNodeUpdater.UpdateNodeInput"/> that fails loudly on
+        /// a node id that is no longer in the graph — the updater silently no-ops instead.</summary>
+        private static void SetInput(ref string json, string nodeId, string input, object value)
+        {
+            if (WorkflowNodeUpdater.GetNodeInput(json, nodeId, input) == null)
+                throw new Exception($"Workflow node '{nodeId}' has no input '{input}' — the workflow file no longer matches this tab.");
+            WorkflowNodeUpdater.UpdateNodeInput(ref json, nodeId, input, value);
+        }
+
+        /// <summary>The turbo stack is a 4-step LoRA; the workflow ships 8 steps for a final.</summary>
+        private static int ClampSteps(int steps) => Math.Clamp(steps <= 0 ? 4 : steps, 1, 100);
 
         /// <summary>ResolutionSelector accepts 0.1–16.0 MP; anything above ~2 MP is far off H3's canvas.</summary>
         private static double ClampMegapixels(double mp) => Math.Clamp(mp <= 0 ? 0.3 : mp, 0.1, 4.0);
@@ -956,18 +1053,18 @@ namespace FlipPix.UI.ViewModels.Video
                     token.ThrowIfCancellationRequested();
                     var ts = DateTime.Now.ToString("yyyyMMdd_HHmmss");
                     var label = item.PairIndex > 0 ? $"Pair {item.PairIndex} · Sample {item.Slot}" : $"Sample {item.Slot}";
-                    reportPhase($"Finishing {label} ({done + 1}/{work.Count}) — {mp:0.0} MP, {steps} steps...");
+                    reportPhase($"Finishing {label} ({done + 1}/{work.Count}) — {mp:0.0} MP, {steps} steps, RTX ×2...");
 
                     var firstName = await EnsureUploadedAsync(item.FirstPath);
                     var lastName = await EnsureUploadedAsync(item.LastPath);
                     var aspect = ResolveAspect(item.FirstPath);
 
                     // Same prompt, duration, aspect and seed as the chosen preview — only the canvas
-                    // size and step count go up.
+                    // size, the step count and the RTX pass go up.
                     var json = await LoadWorkflowJsonAsync(token);
-                    ApplyCommonInputs(ref json, firstName, lastName, item.Prompt, aspect, mp, steps, len);
-                    WorkflowNodeUpdater.UpdateNodeInput(ref json, NodeSeed, "noise_seed",
-                        item.BatchSeed + (item.Slot - 1));
+                    ApplyCommonInputs(ref json, firstName, lastName, item.Prompt, aspect, mp, steps, len,
+                        upscale: true);
+                    SetInput(ref json, NodeSeed, "seed", item.BatchSeed + (item.Slot - 1));
 
                     var runToken = item.PairIndex > 0
                         ? $"final_p{item.PairIndex}_s{item.Slot}_{ts}"
