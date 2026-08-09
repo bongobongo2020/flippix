@@ -129,7 +129,7 @@ For detailed installation instructions, model downloads, and troubleshooting, se
 
 | Window | Description | Workflow File |
 |--------|-------------|---------------|
-| **Image Generator** | Multi-model text-to-image generation | `image_z_image-TEXTAPI.json`, `qwen2512API-text.json`, `Klien-Text-API.json` |
+| **Image Generator** | Multi-model text-to-image generation | `image_z_image-TEXTAPI.json`, `Qwen_Image_2512_INT8_Convrot_WF.json`, `Klien-Text-API.json` |
 | **Video Generator** | Video creation with LTX/Painter/Wan models | `LTX-2_image2video_distilledAPI.json`, `painteri2vAPI.json`, `benji_Wan_Vace-Native-V2V-CN_With_3_ExtendLongVideoAPI.json` |
 | **Story Video** | Narrative-driven video generation | `WCFMAPI.json` |
 | **FlipPix (Camera)** | Camera angle transformation | `qwen-edit-camera-API.json` |
@@ -256,7 +256,7 @@ The application currently includes 12 active workflow files:
 
 ### Image Processing
 1. **image_z_image-TEXTAPI.json** - Text-to-image generation with Z-Image models (supports LoRA)
-2. **qwen2512API-text.json** - Text-to-image generation with Qwen 2512 model
+2. **image/qwen/Qwen_Image_2512_INT8_Convrot_WF.json** - Text-to-image generation with Qwen 2512 (INT8 ConvRot + Lightning 8-step LoRA)
 3. **Klien-Text-API.json** - Text-to-image generation with Flux2 Klien model
 4. **amateurZimageAPI.json** - Amateur-style image generation with LoRA support
 5. **RapidEditAIO-API.json** - Qwen Rapid Edit for story image modification

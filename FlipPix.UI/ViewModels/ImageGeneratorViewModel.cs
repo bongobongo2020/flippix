@@ -772,8 +772,8 @@ namespace FlipPix.UI.ViewModels
                 switch (SelectedWorkflow)
                 {
                     case TextGeneratorWorkflow.Qwen2512:
-                        workflowPath = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "workflow", "qwen2512API-text.json");
-                        AddLog("Using Qwen2512 workflow");
+                        workflowPath = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "workflow", "image", "qwen", "Qwen_Image_2512_INT8_Convrot_WF.json");
+                        AddLog("Using Qwen2512 workflow (INT8 ConvRot)");
                         break;
 
                     case TextGeneratorWorkflow.Klien:
@@ -2233,6 +2233,13 @@ namespace FlipPix.UI.ViewModels
 
         private JsonElement UpdateQwen2512Workflow(Dictionary<string, JsonElement> workflowDict)
         {
+            // Qwen_Image_2512_INT8_Convrot_WF.json node map:
+            //   108 = CLIPTextEncode (positive prompt) → inputs.text
+            //         (the negative branch is a ConditioningZeroOut of 108, so there is nothing to set)
+            //   106 = KSampler → inputs.seed / steps / cfg / denoise
+            //   107 = EmptySD3LatentImage → inputs.width / height
+            //   130 = FantasticLoraLoader — Lightning 8-step LoRA is baked in by the workflow
+
             // Get resolution from aspect ratio index
             var resolutions = new[]
             {
@@ -2242,74 +2249,60 @@ namespace FlipPix.UI.ViewModels
             };
             var (width, height) = resolutions[Math.Min(AspectRatioIndex, resolutions.Length - 1)];
 
-            // Update prompt (node 71 - CLIPTextEncode)
-            if (workflowDict.ContainsKey("71"))
+            // Update prompt (node 108 - CLIPTextEncode)
+            if (workflowDict.ContainsKey("108"))
             {
-                var node71 = JsonSerializer.Deserialize<Dictionary<string, object>>(workflowDict["71"].GetRawText());
-                if (node71 != null && node71.ContainsKey("inputs"))
+                var node = JsonSerializer.Deserialize<Dictionary<string, object>>(workflowDict["108"].GetRawText());
+                if (node != null && node.ContainsKey("inputs"))
                 {
                     var inputs = JsonSerializer.Deserialize<Dictionary<string, object>>(
-                        JsonSerializer.Serialize(node71["inputs"]));
+                        JsonSerializer.Serialize(node["inputs"]));
                     if (inputs != null)
                     {
                         inputs["text"] = ImagePrompt;
-                        node71["inputs"] = inputs;
-                        workflowDict["71"] = JsonSerializer.SerializeToElement(node71);
+                        node["inputs"] = inputs;
+                        workflowDict["108"] = JsonSerializer.SerializeToElement(node);
                     }
                 }
             }
 
-            // Update seed (node 120 - Seed)
-            if (workflowDict.ContainsKey("120"))
+            // Update seed and sampler settings (node 106 - KSampler)
+            if (workflowDict.ContainsKey("106"))
             {
-                var node120 = JsonSerializer.Deserialize<Dictionary<string, object>>(workflowDict["120"].GetRawText());
-                if (node120 != null && node120.ContainsKey("inputs"))
+                var node = JsonSerializer.Deserialize<Dictionary<string, object>>(workflowDict["106"].GetRawText());
+                if (node != null && node.ContainsKey("inputs"))
                 {
                     var inputs = JsonSerializer.Deserialize<Dictionary<string, object>>(
-                        JsonSerializer.Serialize(node120["inputs"]));
+                        JsonSerializer.Serialize(node["inputs"]));
                     if (inputs != null)
                     {
-                        var actualSeed = Seed == 0 ? -1 : Seed;
+                        // KSampler takes the seed inline (no rgthree Seed node here), and the
+                        // widget is an unsigned INT — so 0 means "randomise", not "-1".
+                        var actualSeed = Seed == 0 ? new Random().NextInt64(0, 999999999999999) : Seed;
                         inputs["seed"] = actualSeed;
-                        node120["inputs"] = inputs;
-                        workflowDict["120"] = JsonSerializer.SerializeToElement(node120);
-                    }
-                }
-            }
-
-            // Update sampler settings (node 74 - KSampler)
-            if (workflowDict.ContainsKey("74"))
-            {
-                var node74 = JsonSerializer.Deserialize<Dictionary<string, object>>(workflowDict["74"].GetRawText());
-                if (node74 != null && node74.ContainsKey("inputs"))
-                {
-                    var inputs = JsonSerializer.Deserialize<Dictionary<string, object>>(
-                        JsonSerializer.Serialize(node74["inputs"]));
-                    if (inputs != null)
-                    {
                         inputs["steps"] = Steps;
                         inputs["cfg"] = Cfg;
                         inputs["denoise"] = Denoise;
-                        node74["inputs"] = inputs;
-                        workflowDict["74"] = JsonSerializer.SerializeToElement(node74);
+                        node["inputs"] = inputs;
+                        workflowDict["106"] = JsonSerializer.SerializeToElement(node);
                     }
                 }
             }
 
-            // Update resolution (node 51 - EmptyLatentImage)
-            if (workflowDict.ContainsKey("51"))
+            // Update resolution (node 107 - EmptySD3LatentImage)
+            if (workflowDict.ContainsKey("107"))
             {
-                var node51 = JsonSerializer.Deserialize<Dictionary<string, object>>(workflowDict["51"].GetRawText());
-                if (node51 != null && node51.ContainsKey("inputs"))
+                var node = JsonSerializer.Deserialize<Dictionary<string, object>>(workflowDict["107"].GetRawText());
+                if (node != null && node.ContainsKey("inputs"))
                 {
                     var inputs = JsonSerializer.Deserialize<Dictionary<string, object>>(
-                        JsonSerializer.Serialize(node51["inputs"]));
+                        JsonSerializer.Serialize(node["inputs"]));
                     if (inputs != null)
                     {
                         inputs["width"] = width;
                         inputs["height"] = height;
-                        node51["inputs"] = inputs;
-                        workflowDict["51"] = JsonSerializer.SerializeToElement(node51);
+                        node["inputs"] = inputs;
+                        workflowDict["107"] = JsonSerializer.SerializeToElement(node);
                     }
                 }
             }
@@ -2828,9 +2821,13 @@ namespace FlipPix.UI.ViewModels
                         return images;
                     }
 
-                    // Check if workflow is amateurZimageAPI (has node 760 or 107)
+                    // Check if workflow is amateurZimageAPI (has node 760 or 107).
+                    // Scoped to Zimage: other workflows (e.g. Qwen 2512 ConvRot) also use node id 107,
+                    // and must not be redirected into the ZImage output subfolder.
                     var workflowDict = JsonSerializer.Deserialize<Dictionary<string, JsonElement>>(_lastWorkflow.GetRawText());
-                    bool isAmateurZimageApi = workflowDict != null && (workflowDict.ContainsKey("760") || workflowDict.ContainsKey("107"));
+                    bool isAmateurZimageApi = SelectedWorkflow == TextGeneratorWorkflow.Zimage
+                        && workflowDict != null
+                        && (workflowDict.ContainsKey("760") || workflowDict.ContainsKey("107"));
 
                     // For Zimage (Zib-Zit workflow), the output is in a subdirectory: ZImage/%date/
                     string searchDirectory;
@@ -3969,8 +3966,8 @@ namespace FlipPix.UI.ViewModels
                 switch (queueItem.SelectedWorkflow)
                 {
                     case TextGeneratorWorkflow.Qwen2512:
-                        workflowPath = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "workflow", "qwen2512API-text.json");
-                        AddLog("Using Qwen2512 workflow");
+                        workflowPath = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "workflow", "image", "qwen", "Qwen_Image_2512_INT8_Convrot_WF.json");
+                        AddLog("Using Qwen2512 workflow (INT8 ConvRot)");
                         break;
 
                     case TextGeneratorWorkflow.Klien:

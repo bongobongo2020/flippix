@@ -1,0 +1,167 @@
+{
+  "103": {
+    "inputs": {
+      "vae_name": "qwen_image_vae.safetensors"
+    },
+    "class_type": "VAELoader",
+    "_meta": {
+      "title": "Load VAE"
+    }
+  },
+  "104": {
+    "inputs": {
+      "clip_name": "qwen_2.5_vl_7b_int8_convrot.safetensors",
+      "type": "qwen_image",
+      "device": "default"
+    },
+    "class_type": "CLIPLoader",
+    "_meta": {
+      "title": "Load CLIP"
+    }
+  },
+  "105": {
+    "inputs": {
+      "unet_name": "qwen/qwen_image_2512_int8_convrot.safetensors",
+      "weight_dtype": "default"
+    },
+    "class_type": "UNETLoader",
+    "_meta": {
+      "title": "Load Diffusion Model"
+    }
+  },
+  "106": {
+    "inputs": {
+      "seed": 826917996542695,
+      "steps": 20,
+      "cfg": 1,
+      "sampler_name": "res_2m",
+      "scheduler": "bong_tangent",
+      "denoise": 1,
+      "model": [
+        "110",
+        0
+      ],
+      "positive": [
+        "108",
+        0
+      ],
+      "negative": [
+        "128",
+        0
+      ],
+      "latent_image": [
+        "107",
+        0
+      ]
+    },
+    "class_type": "KSampler",
+    "_meta": {
+      "title": "KSampler"
+    }
+  },
+  "107": {
+    "inputs": {
+      "width": 1664,
+      "height": 928,
+      "batch_size": 1
+    },
+    "class_type": "EmptySD3LatentImage",
+    "_meta": {
+      "title": "EmptySD3LatentImage"
+    }
+  },
+  "108": {
+    "inputs": {
+      "text": "",
+      "clip": [
+        "104",
+        0
+      ]
+    },
+    "class_type": "CLIPTextEncode",
+    "_meta": {
+      "title": "CLIP Text Encode (Positive Prompt)"
+    }
+  },
+  "109": {
+    "inputs": {
+      "samples": [
+        "106",
+        0
+      ],
+      "vae": [
+        "103",
+        0
+      ]
+    },
+    "class_type": "VAEDecode",
+    "_meta": {
+      "title": "VAE Decode"
+    }
+  },
+  "110": {
+    "inputs": {
+      "shift": 3,
+      "model": [
+        "131",
+        0
+      ]
+    },
+    "class_type": "ModelSamplingAuraFlow",
+    "_meta": {
+      "title": "ModelSamplingAuraFlow"
+    }
+  },
+  "123": {
+    "inputs": {
+      "filename_prefix": "qwen2512",
+      "images": [
+        "109",
+        0
+      ]
+    },
+    "class_type": "SaveImage",
+    "_meta": {
+      "title": "Save Image"
+    }
+  },
+  "128": {
+    "inputs": {
+      "conditioning": [
+        "108",
+        0
+      ]
+    },
+    "class_type": "ConditioningZeroOut",
+    "_meta": {
+      "title": "Conditioning Zero Out"
+    }
+  },
+  "130": {
+    "inputs": {
+      "lora_data": "{\"loras\":[{\"on\":true,\"name\":\"Qwen Image 2512/Qwen-Image-2512-Lightning-8steps-V1.0-bf16.safetensors\",\"model\":1,\"clip\":1},{\"on\":false,\"name\":\"qwen-image-edit-plus-nsfw-lora.safetensors\",\"model\":1,\"clip\":1}],\"enabledFolders\":null}",
+      "model": [
+        "105",
+        0
+      ]
+    },
+    "class_type": "FantasticLoraLoader",
+    "_meta": {
+      "title": "Fantastic Lora Loader 📁"
+    }
+  },
+  "131": {
+    "inputs": {
+      "sage_attention": "auto",
+      "allow_compile": false,
+      "model": [
+        "130",
+        0
+      ]
+    },
+    "class_type": "PathchSageAttentionKJ",
+    "_meta": {
+      "title": "Patch Sage Attention KJ"
+    }
+  }
+}

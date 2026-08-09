@@ -280,7 +280,7 @@ ComfyUI workflows are JSON node graphs stored in `/workflow/`. Each workflow def
 
 | Category | Files | Purpose |
 |---|---|---|
-| Text-to-Image | image_z_image-TEXTAPI.json, qwen2512API-text.json, Klien-Text-API.json | Generate images from text |
+| Text-to-Image | image_z_image-TEXTAPI.json, image/qwen/Qwen_Image_2512_INT8_Convrot_WF.json, Klien-Text-API.json | Generate images from text |
 | Image Analysis | qwen-zimageAPI.json | Analyze + enhance images |
 | Camera Edit | qwen-edit-camera-API.json | Change camera perspectives |
 | Story Edit | RapidEditAIO-API.json | Story-driven image modification |

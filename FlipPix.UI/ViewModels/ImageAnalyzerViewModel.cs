@@ -2075,8 +2075,8 @@ namespace FlipPix.UI.ViewModels
                 switch (item.SelectedWorkflow)
                 {
                     case TextGeneratorWorkflow.Qwen2512:
-                        workflowPath = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "workflow", "qwen2512API-text.json");
-                        _logger.LogInfo($"Using Qwen2512 workflow");
+                        workflowPath = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "workflow", "image", "qwen", "Qwen_Image_2512_INT8_Convrot_WF.json");
+                        _logger.LogInfo($"Using Qwen2512 workflow (INT8 ConvRot)");
                         break;
 
                     case TextGeneratorWorkflow.Klien:
@@ -2759,7 +2759,7 @@ namespace FlipPix.UI.ViewModels
                 // Handle different workflows with their specific node IDs
                 string promptNodeId = selectedWorkflow switch
                 {
-                    TextGeneratorWorkflow.Qwen2512 => "71",
+                    TextGeneratorWorkflow.Qwen2512 => "108",
                     TextGeneratorWorkflow.Klien => "10",
                     TextGeneratorWorkflow.Anima => "60:11",
                     TextGeneratorWorkflow.Krea2 => "6",
@@ -2791,7 +2791,8 @@ namespace FlipPix.UI.ViewModels
                     {
                         if (selectedWorkflow == TextGeneratorWorkflow.Qwen2512)
                         {
-                            string emptyLatentNodeId = "51";
+                            // Qwen_Image_2512_INT8_Convrot_WF.json: node 107 = EmptySD3LatentImage
+                            string emptyLatentNodeId = "107";
 
                             if (workflow.ContainsKey(emptyLatentNodeId))
                             {
@@ -2939,8 +2940,9 @@ namespace FlipPix.UI.ViewModels
 
                     if (selectedWorkflow == TextGeneratorWorkflow.Qwen2512)
                     {
-                        // Node 120 is Seed (rgthree) - feeds into KSampler node 74
-                        string seedNodeId = "120";
+                        // Node 106 is the KSampler; it carries the seed inline (the old workflow's
+                        // rgthree Seed node is gone). Steps/cfg stay as authored in the workflow.
+                        string seedNodeId = "106";
                         if (workflow.ContainsKey(seedNodeId))
                         {
                             var seedNode = JsonSerializer.Deserialize<Dictionary<string, object>>(JsonSerializer.Serialize(workflow[seedNodeId]));
