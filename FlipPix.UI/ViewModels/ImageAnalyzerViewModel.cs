@@ -2941,20 +2941,24 @@ namespace FlipPix.UI.ViewModels
                     if (selectedWorkflow == TextGeneratorWorkflow.Qwen2512)
                     {
                         // Node 106 is the KSampler; it carries the seed inline (the old workflow's
-                        // rgthree Seed node is gone). Steps/cfg stay as authored in the workflow.
-                        string seedNodeId = "106";
-                        if (workflow.ContainsKey(seedNodeId))
+                        // rgthree Seed node is gone). Steps/cfg/denoise come from the UI sliders,
+                        // matching how the Image Generator drives this same workflow.
+                        string samplerNodeId = "106";
+                        if (workflow.ContainsKey(samplerNodeId))
                         {
-                            var seedNode = JsonSerializer.Deserialize<Dictionary<string, object>>(JsonSerializer.Serialize(workflow[seedNodeId]));
-                            if (seedNode != null && seedNode.ContainsKey("inputs"))
+                            var samplerNode = JsonSerializer.Deserialize<Dictionary<string, object>>(JsonSerializer.Serialize(workflow[samplerNodeId]));
+                            if (samplerNode != null && samplerNode.ContainsKey("inputs"))
                             {
-                                var inputs = JsonSerializer.Deserialize<Dictionary<string, object>>(JsonSerializer.Serialize(seedNode["inputs"]));
+                                var inputs = JsonSerializer.Deserialize<Dictionary<string, object>>(JsonSerializer.Serialize(samplerNode["inputs"]));
                                 if (inputs != null)
                                 {
                                     inputs["seed"] = randomSeed;
-                                    seedNode["inputs"] = inputs;
-                                    workflow[seedNodeId] = seedNode;
-                                    _logger.LogInfo($"✓ Updated Qwen2512 seed node {seedNodeId} with seed: {randomSeed}");
+                                    inputs["steps"] = Steps;
+                                    inputs["cfg"] = Cfg;
+                                    inputs["denoise"] = Denoise;
+                                    samplerNode["inputs"] = inputs;
+                                    workflow[samplerNodeId] = samplerNode;
+                                    _logger.LogInfo($"✓ Updated Qwen2512 sampler node {samplerNodeId} with seed: {randomSeed}, steps: {Steps}, cfg: {Cfg}, denoise: {Denoise}");
                                 }
                             }
                         }
