@@ -30,7 +30,7 @@
                 <TextBlock Text="Enhance Video"
                            FontSize="28" FontWeight="Bold"
                            Foreground="White"/>
-                <TextBlock Text="Interpolate frames for smooth slow-motion  •  Upscale resolution with RTX Super Resolution"
+                <TextBlock Text="Interpolate frames for smooth slow-motion  •  Upscale with RTX Super Resolution or SeedVR2"
                            FontSize="13" Foreground="#E3F2FD"
                            Margin="0,5,0,0"/>
             </StackPanel>
@@ -231,6 +231,51 @@
                                                Margin="0,6,0,0"
                                                Visibility="{Binding HasUpscaleVideo, Converter={StaticResource BooleanToVisibilityConverter}}"/>
 
+                                    <!-- Upscaler engine. Snapshotted onto the queue item, so a mixed queue
+                                         can hold both RTX and SeedVR2 jobs. -->
+                                    <TextBlock Text="Upscaler"
+                                               FontSize="12" FontWeight="SemiBold"
+                                               Foreground="{StaticResource TextPrimaryBrush}"
+                                               Margin="0,14,0,6"/>
+
+                                    <StackPanel Orientation="Horizontal">
+                                        <RadioButton Content="RTX Super Resolution"
+                                                     GroupName="UpscaleEngine"
+                                                     IsChecked="{Binding IsRtxSelected, Mode=TwoWay}"
+                                                     FontSize="12" VerticalContentAlignment="Center"
+                                                     Margin="0,0,18,0"
+                                                     ToolTip="Fast hardware upscale (upscale nvidaAPI.json). No model load."/>
+                                        <RadioButton Content="SeedVR2 7B INT8"
+                                                     GroupName="UpscaleEngine"
+                                                     IsChecked="{Binding IsSeedVr2Selected, Mode=TwoWay}"
+                                                     FontSize="12" VerticalContentAlignment="Center"
+                                                     Margin="0,0,14,0"
+                                                     ToolTip="Diffusion restore (utility_seedvr2_7b_int8_upscale_video.json): the clip is pre-resized, chunked on the temporal axis and denoised in one step. Reconstructs detail, but loads a 7B model and is far slower."/>
+
+                                        <TextBlock Text="Scale"
+                                                   FontSize="11" VerticalAlignment="Center"
+                                                   Foreground="{StaticResource TextSecondaryBrush}"
+                                                   Margin="0,0,6,0"
+                                                   Visibility="{Binding IsSeedVr2Selected, Converter={StaticResource BooleanToVisibilityConverter}}"/>
+                                        <ComboBox ItemsSource="{Binding SeedVr2ScaleOptions}"
+                                                  SelectedItem="{Binding SeedVr2Scale, Mode=TwoWay}"
+                                                  Width="78" Height="30" FontSize="11"
+                                                  VerticalContentAlignment="Center"
+                                                  Visibility="{Binding IsSeedVr2Selected, Converter={StaticResource BooleanToVisibilityConverter}}"
+                                                  ToolTip="Pre-resize multiplier fed to the graph — this is what sets the output resolution.">
+                                            <ComboBox.ItemTemplate>
+                                                <DataTemplate>
+                                                    <TextBlock Text="{Binding StringFormat={}{0:0.##}×}"/>
+                                                </DataTemplate>
+                                            </ComboBox.ItemTemplate>
+                                        </ComboBox>
+                                    </StackPanel>
+
+                                    <TextBlock Text="{Binding UpscaleEngineDescription}"
+                                               FontSize="11" Foreground="{StaticResource TextSecondaryBrush}"
+                                               TextWrapping="Wrap"
+                                               Margin="0,6,0,0"/>
+
                                     <Button Content="Add to Queue"
                                             Style="{StaticResource PrimaryButtonStyle}"
                                             Command="{Binding AddUpscaleToQueueCommand}"
@@ -301,9 +346,16 @@
                                                         </Grid.ColumnDefinitions>
 
                                                         <StackPanel Grid.Column="0">
-                                                            <TextBlock Text="{Binding DisplayText}"
-                                                                       FontSize="12" FontWeight="SemiBold"
-                                                                       Foreground="{StaticResource TextPrimaryBrush}"/>
+                                                            <StackPanel Orientation="Horizontal">
+                                                                <TextBlock Text="{Binding DisplayText}"
+                                                                           FontSize="12" FontWeight="SemiBold"
+                                                                           Foreground="{StaticResource TextPrimaryBrush}"/>
+                                                                <TextBlock Text="{Binding EngineDisplay}"
+                                                                           FontSize="10"
+                                                                           Foreground="{StaticResource AccentIndigoBrush}"
+                                                                           VerticalAlignment="Center"
+                                                                           Margin="8,0,0,0"/>
+                                                            </StackPanel>
                                                             <TextBlock Text="{Binding StatusDisplay}"
                                                                        FontSize="11"
                                                                        Foreground="{Binding StatusColor}"

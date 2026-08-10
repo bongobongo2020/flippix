@@ -18,6 +18,28 @@ namespace FlipPix.UI.ViewModels.Video
         private const string InterpolateOutputSubfolder = "AnimateDiff";
         private const string UpscaleOutputSubfolder = "upscale";
 
+        private const string RtxUpscaleWorkflow = "workflow/upscale nvidaAPI.json";
+        private const string RtxUpscaleVideoNode = "2";      // VHS_LoadVideo
+
+        // ── SeedVR2 graph (workflow/video/utility_seedvr2_7b_int8_upscale_video.json) ──────────
+        // A 1-step diffusion restore: the clip is pre-resized by a multiplier, chunked on the temporal
+        // axis, denoised by seedvr2_7b_int8_convrot, then merged back. Slower than RTX VSR and it loads a
+        // 7B model, but it reconstructs detail rather than interpolating it.
+        private const string SeedVr2UpscaleWorkflow = "workflow/video/utility_seedvr2_7b_int8_upscale_video.json";
+        private const string SeedVr2VideoNode = "125";       // VHS_LoadVideoFFmpeg — also feeds fps + audio through
+        private const string SeedVr2ResizeNode = "111";      // ResizeImageMaskNode — the actual upscale factor
+        private const string SeedVr2ResizeMultiplierInput = "resize_type.multiplier";
+        private const string SeedVr2SamplerNode = "109";     // KSampler — seed only; steps stay at the graph's 1
+        private const string SeedVr2CombineNode = "124";     // VHS_VideoCombine — the graph's only real output
+        private const string SeedVr2PlaySoundNode = "127";   // PlaySound|pysssss — stripped, see BuildSeedVr2Workflow
+
+        /// <summary>The multiplier the exported graph ships with, and what the tab offers first.</summary>
+        private const double DefaultSeedVr2Scale = 1.5;
+
+        /// <summary>Selectable pre-resize multipliers. SeedVR2 restores what the resize invents, so this is
+        /// the knob that decides the output resolution.</summary>
+        public static IReadOnlyList<double> SeedVr2Scales { get; } = new[] { 1.25, 1.5, 2.0, 3.0 };
+
         private string InterpolateQueueFilePath => Path.Combine(
             Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData),
             "FlipPix", "queue", "video_enhance_interpolate_queue.json");
@@ -37,6 +59,8 @@ namespace FlipPix.UI.ViewModels.Video
         // Upscale state
         private string _upscaleVideoPath = string.Empty;
         private string _upscaleVideoInfo = string.Empty;
+        private VideoUpscaleEngine _upscaleEngine = VideoUpscaleEngine.Rtx;
+        private double _seedVr2Scale = DefaultSeedVr2Scale;
         private bool _isProcessingUpscaleQueue = false;
         private string _upscaleQueueStatus = string.Empty;
         private readonly ObservableCollection<VideoEnhanceQueueItem> _upscaleQueue = new();
@@ -194,6 +218,53 @@ namespace FlipPix.UI.ViewModels.Video
 
         public bool HasUpscaleVideo => !string.IsNullOrEmpty(UpscaleVideoPath) && File.Exists(UpscaleVideoPath);
         public bool CanAddUpscale => HasUpscaleVideo;
+
+        /// <summary>Which graph "Add to Queue" will snapshot onto the next upscale item.</summary>
+        public VideoUpscaleEngine UpscaleEngine
+        {
+            get => _upscaleEngine;
+            set
+            {
+                if (_upscaleEngine == value) return;
+                _upscaleEngine = value;
+                OnPropertyChanged();
+                OnPropertyChanged(nameof(IsRtxSelected));
+                OnPropertyChanged(nameof(IsSeedVr2Selected));
+                OnPropertyChanged(nameof(UpscaleEngineDescription));
+            }
+        }
+
+        /// <summary>Bound by the radio buttons — <see cref="UpscaleEngine"/> is not directly two-way bindable
+        /// from a RadioButton without a converter, and the tab only has two engines.</summary>
+        public bool IsRtxSelected
+        {
+            get => _upscaleEngine == VideoUpscaleEngine.Rtx;
+            set { if (value) UpscaleEngine = VideoUpscaleEngine.Rtx; OnPropertyChanged(); }
+        }
+
+        public bool IsSeedVr2Selected
+        {
+            get => _upscaleEngine == VideoUpscaleEngine.SeedVr2;
+            set { if (value) UpscaleEngine = VideoUpscaleEngine.SeedVr2; OnPropertyChanged(); }
+        }
+
+        public double SeedVr2Scale
+        {
+            get => _seedVr2Scale;
+            set
+            {
+                if (Math.Abs(_seedVr2Scale - value) < 0.001) return;
+                _seedVr2Scale = value <= 0 ? DefaultSeedVr2Scale : value;
+                OnPropertyChanged();
+                OnPropertyChanged(nameof(UpscaleEngineDescription));
+            }
+        }
+
+        public IReadOnlyList<double> SeedVr2ScaleOptions => SeedVr2Scales;
+
+        public string UpscaleEngineDescription => _upscaleEngine == VideoUpscaleEngine.SeedVr2
+            ? $"SeedVR2 7B INT8 — diffusion restore at {_seedVr2Scale:0.##}×. Reconstructs detail; loads a 7B model and is much slower than RTX."
+            : "RTX Video Super Resolution — fast hardware upscale, no model load.";
 
         public ObservableCollection<VideoEnhanceQueueItem> UpscaleQueue => _upscaleQueue;
         public bool HasUpscaleQueueItems => _upscaleQueue.Any();
@@ -432,12 +503,14 @@ namespace FlipPix.UI.ViewModels.Video
             {
                 InputVideoPath = UpscaleVideoPath,
                 Mode = VideoEnhanceMode.Upscale,
+                UpscaleEngine = UpscaleEngine,
+                UpscaleScale = SeedVr2Scale,
                 ItemStatus = QueueItemStatus.Pending
             };
 
             _upscaleQueue.Add(item);
             SaveUpscaleQueueToFile();
-            AddLog($"Added to upscale queue: {item.DisplayText}");
+            AddLog($"Added to upscale queue: {item.DisplayText} ({item.EngineDisplay})");
             UpdateUpscaleQueueStatus();
 
             if (!IsProcessingUpscaleQueue)
@@ -723,7 +796,7 @@ namespace FlipPix.UI.ViewModels.Video
                 ResultVideoInfo = string.Empty;
                 ProcessingProgress = 0;
                 ProcessingStatus = "Preparing upscale workflow...";
-                AddLog($"=== Upscaling: {item.DisplayText} ===");
+                AddLog($"=== Upscaling: {item.DisplayText} ({item.EngineDisplay}) ===");
 
                 var comfyUIOk = await _comfyUIService.DetectAndRestartIfCrashedAsync(
                     s => AddLog($"[ComfyUI] {s}"));
@@ -741,16 +814,14 @@ namespace FlipPix.UI.ViewModels.Video
                     throw new Exception("Video upload failed.");
                 AddLog($"Uploaded: {uploadedName}");
 
-                var workflowPath = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "workflow", "upscale nvidaAPI.json");
-                if (!File.Exists(workflowPath))
-                    throw new FileNotFoundException($"Workflow not found: {workflowPath}");
-
-                var workflowJson = await File.ReadAllTextAsync(workflowPath);
-                WorkflowNodeUpdater.UpdateNodeInput(ref workflowJson, "2", "video", uploadedName);
-                var workflow = JsonSerializer.Deserialize<JsonElement>(workflowJson);
+                var workflow = item.UpscaleEngine == VideoUpscaleEngine.SeedVr2
+                    ? await BuildSeedVr2WorkflowAsync(uploadedName, item.UpscaleScale)
+                    : await BuildRtxWorkflowAsync(uploadedName);
 
                 ProcessingProgress = 20;
-                ProcessingStatus = "Executing upscale...";
+                ProcessingStatus = item.UpscaleEngine == VideoUpscaleEngine.SeedVr2
+                    ? "Executing SeedVR2 upscale..."
+                    : "Executing upscale...";
                 var existingFiles = GetExistingVideoFiles("*.mp4", UpscaleOutputSubfolder);
 
                 var progress = new Progress<FlipPix.ComfyUI.Models.ProgressMessage>(p =>
@@ -785,14 +856,15 @@ namespace FlipPix.UI.ViewModels.Video
                 var outputDir = Path.Combine(
                     _settingsService.Settings?.OutputFolderPath ?? Path.GetTempPath(), "Upscale");
                 Directory.CreateDirectory(outputDir);
-                var finalPath = Path.Combine(outputDir, $"Upscale_{DateTime.Now:yyyyMMdd_HHmmss}.mp4");
+                var namePrefix = item.UpscaleEngine == VideoUpscaleEngine.SeedVr2 ? "SeedVR2" : "Upscale";
+                var finalPath = Path.Combine(outputDir, $"{namePrefix}_{DateTime.Now:yyyyMMdd_HHmmss}.mp4");
                 File.Copy(outputVideo, finalPath, true);
 
                 item.OutputVideoPath = finalPath;
                 ResultVideoPath = finalPath;
                 await LocalCopyService.CopyVideoAsync(finalPath);
                 HasResult = true;
-                ResultVideoInfo = $"Upscaled • {new FileInfo(finalPath).Length / 1024.0 / 1024.0:F1} MB";
+                ResultVideoInfo = $"Upscaled ({item.EngineDisplay}) • {new FileInfo(finalPath).Length / 1024.0 / 1024.0:F1} MB";
                 ProcessingProgress = 100;
                 ProcessingStatus = "Upscale complete!";
                 AddLog($"=== Done: {finalPath} ===");
@@ -801,6 +873,71 @@ namespace FlipPix.UI.ViewModels.Video
             {
                 IsProcessing = false;
             }
+        }
+
+        /// <summary>RTX Video Super Resolution — the tab's original upscale path, unchanged.</summary>
+        private async Task<JsonElement> BuildRtxWorkflowAsync(string uploadedName)
+        {
+            var workflowJson = await ReadWorkflowAsync(RtxUpscaleWorkflow, RtxUpscaleVideoNode);
+            WorkflowNodeUpdater.UpdateNodeInput(ref workflowJson, RtxUpscaleVideoNode, "video", uploadedName);
+            return JsonSerializer.Deserialize<JsonElement>(workflowJson);
+        }
+
+        /// <summary>
+        /// SeedVR2 7B INT8. The export is already API-shaped, so only three things are patched: the uploaded
+        /// clip, the pre-resize multiplier that decides the output resolution, and a fresh sampler seed.
+        /// Frame rate and audio are carried through by the graph itself (node 126 reads them off the loaded
+        /// video), so nothing needs to be told the source fps.
+        /// <para>The exported graph also carries a <c>PlaySound|pysssss</c> node, which is an OUTPUT node: it
+        /// contributes nothing the app reads, beeps on the ComfyUI host once per job, and fails validation
+        /// outright on an install without pysssss. It is dropped here rather than in the file, so the file
+        /// stays a faithful export.</para>
+        /// </summary>
+        private async Task<JsonElement> BuildSeedVr2WorkflowAsync(string uploadedName, double scale)
+        {
+            var workflowJson = await ReadWorkflowAsync(
+                SeedVr2UpscaleWorkflow,
+                SeedVr2VideoNode, SeedVr2ResizeNode, SeedVr2SamplerNode, SeedVr2CombineNode);
+
+            if (scale <= 0) scale = DefaultSeedVr2Scale;
+
+            WorkflowNodeUpdater.UpdateNodeInput(ref workflowJson, SeedVr2VideoNode, "video", uploadedName);
+            WorkflowNodeUpdater.UpdateNodeInput(ref workflowJson, SeedVr2ResizeNode, SeedVr2ResizeMultiplierInput, scale);
+            WorkflowNodeUpdater.UpdateNodeInput(ref workflowJson, SeedVr2SamplerNode, "seed",
+                Random.Shared.NextInt64(0, long.MaxValue));
+            WorkflowNodeUpdater.UpdateNodeInput(ref workflowJson, SeedVr2CombineNode, "filename_prefix",
+                UpscaleOutputSubfolder);
+
+            var nodes = JsonSerializer.Deserialize<Dictionary<string, JsonElement>>(workflowJson)
+                        ?? throw new InvalidOperationException("Failed to parse the SeedVR2 workflow.");
+            if (nodes.Remove(SeedVr2PlaySoundNode))
+                AddLog("SeedVR2: dropped the PlaySound notification node");
+
+            AddLog($"SeedVR2: pre-resize ×{scale:0.##}, 1-step restore");
+            return JsonSerializer.SerializeToElement(nodes);
+        }
+
+        /// <summary>Loads a workflow from the build output and fails loudly if it is not the graph the node
+        /// ids above were written against — patching a renumbered export otherwise silently no-ops and the
+        /// job renders the wrong clip at the wrong size.</summary>
+        private static async Task<string> ReadWorkflowAsync(string relativePath, params string[] requiredNodeIds)
+        {
+            var path = Path.Combine(AppDomain.CurrentDomain.BaseDirectory,
+                relativePath.Replace('/', Path.DirectorySeparatorChar));
+            if (!File.Exists(path))
+                throw new FileNotFoundException($"Workflow not found: {path}");
+
+            var json = await File.ReadAllTextAsync(path);
+            var nodes = JsonSerializer.Deserialize<Dictionary<string, JsonElement>>(json)
+                        ?? throw new InvalidOperationException($"Failed to parse workflow: {path}");
+
+            var missing = requiredNodeIds.Where(id => !nodes.ContainsKey(id)).ToList();
+            if (missing.Any())
+                throw new InvalidOperationException(
+                    $"Workflow {Path.GetFileName(path)} is missing expected node(s) {string.Join(", ", missing)} — " +
+                    "it was re-exported with different node ids and the app can no longer patch it.");
+
+            return json;
         }
 
         #endregion
