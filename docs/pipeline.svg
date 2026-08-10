@@ -1,0 +1,68 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1280" height="386" viewBox="0 0 1280 386" role="img" aria-label="FlipPix processing pipeline">
+<rect width="1280" height="386" fill="#0d1220"/>
+<defs><marker id="a" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="#93a3bd"/></marker></defs>
+<text x="34" y="48" fill="#e8eef8" font-family="'Segoe UI',Inter,Helvetica,Arial,sans-serif" font-size="24" font-weight="700">How a job flows</text>
+<text x="34" y="72" fill="#93a3bd" font-family="'Segoe UI',Inter,Helvetica,Arial,sans-serif" font-size="12.5">The same path runs behind every tab &#8212; only the workflow JSON and the system prompt change.</text>
+<rect x="34" y="112" width="180" height="132" rx="12" fill="#151d2e" stroke="#26324a"/>
+<rect x="34" y="112" width="180" height="3.5" rx="1.75" fill="#8b7bff"/>
+<text x="50" y="144" fill="#e8eef8" font-family="'Segoe UI',Inter,Helvetica,Arial,sans-serif" font-size="13.5" font-weight="700">1 &#183; Input</text>
+<text x="50" y="168" fill="#93a3bd" font-family="'Segoe UI',Inter,Helvetica,Arial,sans-serif" font-size="10.8">Image, first/last frame pair</text>
+<text x="50" y="185" fill="#93a3bd" font-family="'Segoe UI',Inter,Helvetica,Arial,sans-serif" font-size="10.8">video, audio or reference cast</text>
+<text x="50" y="202" fill="#93a3bd" font-family="'Segoe UI',Inter,Helvetica,Arial,sans-serif" font-size="10.8">picked in the tab</text>
+<line x1="219" y1="178.0" x2="235" y2="178.0" stroke="#93a3bd" stroke-width="1.6" marker-end="url(#a)"/>
+<rect x="240" y="112" width="180" height="132" rx="12" fill="#151d2e" stroke="#26324a"/>
+<rect x="240" y="112" width="180" height="3.5" rx="1.75" fill="#8b7bff"/>
+<text x="256" y="144" fill="#e8eef8" font-family="'Segoe UI',Inter,Helvetica,Arial,sans-serif" font-size="13.5" font-weight="700">2 &#183; Analyze</text>
+<text x="256" y="168" fill="#93a3bd" font-family="'Segoe UI',Inter,Helvetica,Arial,sans-serif" font-size="10.8">Vision LLM reads the input</text>
+<text x="256" y="185" fill="#93a3bd" font-family="'Segoe UI',Inter,Helvetica,Arial,sans-serif" font-size="10.8">with that tab&#x27;s system prompt</text>
+<text x="256" y="202" fill="#93a3bd" font-family="'Segoe UI',Inter,Helvetica,Arial,sans-serif" font-size="10.8">from prompts/prompt2json/</text>
+<line x1="425" y1="178.0" x2="441" y2="178.0" stroke="#93a3bd" stroke-width="1.6" marker-end="url(#a)"/>
+<rect x="446" y="112" width="180" height="132" rx="12" fill="#151d2e" stroke="#26324a"/>
+<rect x="446" y="112" width="180" height="3.5" rx="1.75" fill="#34d3bd"/>
+<text x="462" y="144" fill="#e8eef8" font-family="'Segoe UI',Inter,Helvetica,Arial,sans-serif" font-size="13.5" font-weight="700">3 &#183; Patch</text>
+<text x="462" y="168" fill="#93a3bd" font-family="'Segoe UI',Inter,Helvetica,Arial,sans-serif" font-size="10.8">Workflow JSON is loaded and</text>
+<text x="462" y="185" fill="#93a3bd" font-family="'Segoe UI',Inter,Helvetica,Arial,sans-serif" font-size="10.8">prompt, seed, size, duration,</text>
+<text x="462" y="202" fill="#93a3bd" font-family="'Segoe UI',Inter,Helvetica,Arial,sans-serif" font-size="10.8">LoRAs and refs are injected</text>
+<line x1="631" y1="178.0" x2="647" y2="178.0" stroke="#93a3bd" stroke-width="1.6" marker-end="url(#a)"/>
+<rect x="652" y="112" width="180" height="132" rx="12" fill="#151d2e" stroke="#26324a"/>
+<rect x="652" y="112" width="180" height="3.5" rx="1.75" fill="#34d3bd"/>
+<text x="668" y="144" fill="#e8eef8" font-family="'Segoe UI',Inter,Helvetica,Arial,sans-serif" font-size="13.5" font-weight="700">4 &#183; Queue</text>
+<text x="668" y="168" fill="#93a3bd" font-family="'Segoe UI',Inter,Helvetica,Arial,sans-serif" font-size="10.8">WorkflowQueueCoordinator serialises</text>
+<text x="668" y="185" fill="#93a3bd" font-family="'Segoe UI',Inter,Helvetica,Arial,sans-serif" font-size="10.8">jobs; per-tab queues pause,</text>
+<text x="668" y="202" fill="#93a3bd" font-family="'Segoe UI',Inter,Helvetica,Arial,sans-serif" font-size="10.8">resume and survive restarts</text>
+<line x1="837" y1="178.0" x2="853" y2="178.0" stroke="#93a3bd" stroke-width="1.6" marker-end="url(#a)"/>
+<rect x="858" y="112" width="180" height="132" rx="12" fill="#151d2e" stroke="#26324a"/>
+<rect x="858" y="112" width="180" height="3.5" rx="1.75" fill="#f0a93b"/>
+<text x="874" y="144" fill="#e8eef8" font-family="'Segoe UI',Inter,Helvetica,Arial,sans-serif" font-size="13.5" font-weight="700">5 &#183; Execute</text>
+<text x="874" y="168" fill="#93a3bd" font-family="'Segoe UI',Inter,Helvetica,Arial,sans-serif" font-size="10.8">ComfyUI runs the graph;</text>
+<text x="874" y="185" fill="#93a3bd" font-family="'Segoe UI',Inter,Helvetica,Arial,sans-serif" font-size="10.8">progress streams back over</text>
+<text x="874" y="202" fill="#93a3bd" font-family="'Segoe UI',Inter,Helvetica,Arial,sans-serif" font-size="10.8">WebSocket, errors surface</text>
+<line x1="1043" y1="178.0" x2="1059" y2="178.0" stroke="#93a3bd" stroke-width="1.6" marker-end="url(#a)"/>
+<rect x="1064" y="112" width="180" height="132" rx="12" fill="#151d2e" stroke="#26324a"/>
+<rect x="1064" y="112" width="180" height="3.5" rx="1.75" fill="#f0a93b"/>
+<text x="1080" y="144" fill="#e8eef8" font-family="'Segoe UI',Inter,Helvetica,Arial,sans-serif" font-size="13.5" font-weight="700">6 &#183; Collect</text>
+<text x="1080" y="168" fill="#93a3bd" font-family="'Segoe UI',Inter,Helvetica,Arial,sans-serif" font-size="10.8">Images / videos / audio pulled</text>
+<text x="1080" y="185" fill="#93a3bd" font-family="'Segoe UI',Inter,Helvetica,Arial,sans-serif" font-size="10.8">from /history, previewed,</text>
+<text x="1080" y="202" fill="#93a3bd" font-family="'Segoe UI',Inter,Helvetica,Arial,sans-serif" font-size="10.8">optionally joined by FFmpeg</text>
+<text x="34" y="276" fill="#93a3bd" font-family="'Segoe UI',Inter,Helvetica,Arial,sans-serif" font-size="10.5" font-weight="700" letter-spacing="1.4">ALWAYS ON</text>
+<rect x="34" y="290" width="228.0" height="52" rx="9" fill="#1b2537" stroke="#26324a"/>
+<rect x="34" y="297" width="3" height="38" rx="1.5" fill="#34d3bd"/>
+<text x="48" y="309" fill="#e8eef8" font-family="'Segoe UI',Inter,Helvetica,Arial,sans-serif" font-size="12.5" font-weight="600">Missing models</text>
+<text x="48" y="324" fill="#93a3bd" font-family="'Segoe UI',Inter,Helvetica,Arial,sans-serif" font-size="10.5">download, locate or register</text>
+<rect x="280.0" y="290" width="228.0" height="52" rx="9" fill="#1b2537" stroke="#26324a"/>
+<rect x="280.0" y="297" width="3" height="38" rx="1.5" fill="#34d3bd"/>
+<text x="294.0" y="309" fill="#e8eef8" font-family="'Segoe UI',Inter,Helvetica,Arial,sans-serif" font-size="12.5" font-weight="600">Missing nodes</text>
+<text x="294.0" y="324" fill="#93a3bd" font-family="'Segoe UI',Inter,Helvetica,Arial,sans-serif" font-size="10.5">resolve pack, git clone, reboot</text>
+<rect x="526.0" y="290" width="228.0" height="52" rx="9" fill="#1b2537" stroke="#26324a"/>
+<rect x="526.0" y="297" width="3" height="38" rx="1.5" fill="#34d3bd"/>
+<text x="540.0" y="309" fill="#e8eef8" font-family="'Segoe UI',Inter,Helvetica,Arial,sans-serif" font-size="12.5" font-weight="600">Auto-start / restart</text>
+<text x="540.0" y="324" fill="#93a3bd" font-family="'Segoe UI',Inter,Helvetica,Arial,sans-serif" font-size="10.5">watches a local ComfyUI process</text>
+<rect x="772.0" y="290" width="228.0" height="52" rx="9" fill="#1b2537" stroke="#26324a"/>
+<rect x="772.0" y="297" width="3" height="38" rx="1.5" fill="#34d3bd"/>
+<text x="786.0" y="309" fill="#e8eef8" font-family="'Segoe UI',Inter,Helvetica,Arial,sans-serif" font-size="12.5" font-weight="600">16 GB tier</text>
+<text x="786.0" y="324" fill="#93a3bd" font-family="'Segoe UI',Inter,Helvetica,Arial,sans-serif" font-size="10.5">swaps in memory-lean graphs</text>
+<rect x="1018.0" y="290" width="228.0" height="52" rx="9" fill="#1b2537" stroke="#26324a"/>
+<rect x="1018.0" y="297" width="3" height="38" rx="1.5" fill="#34d3bd"/>
+<text x="1032.0" y="309" fill="#e8eef8" font-family="'Segoe UI',Inter,Helvetica,Arial,sans-serif" font-size="12.5" font-weight="600">Enhance pass</text>
+<text x="1032.0" y="324" fill="#93a3bd" font-family="'Segoe UI',Inter,Helvetica,Arial,sans-serif" font-size="10.5">interpolate + RTX / SeedVR2 upscale</text>
+</svg>
