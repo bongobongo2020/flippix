@@ -1460,8 +1460,8 @@ namespace FlipPix.UI.ViewModels
             }
             else
             {
-                workflowPath = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "workflow", "RapidEditAIO-API.json");
-                AddLog("Using Qwen workflow (RapidEditAIO)");
+                workflowPath = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "workflow", "image", "qwen-edit", "Qwen_Edit_2511_INT8_Convrot_WF.json");
+                AddLog("Using Qwen workflow (Qwen-Image-Edit 2511 INT8 ConvRot)");
             }
 
             if (!File.Exists(workflowPath))
@@ -1506,24 +1506,36 @@ namespace FlipPix.UI.ViewModels
         {
             var workflowJson = workflow.GetRawText();
 
-            // Node 213 - LoadImage
-            WorkflowNodeUpdater.UpdateNodeInput(ref workflowJson, "213", "image", inputImageName);
-            // Node 153 - TextEncodeQwenImageEditPlus (positive)
-            WorkflowNodeUpdater.UpdateNodeInput(ref workflowJson, "153", "prompt", promptText);
-            // Node 154 - TextEncodeQwenImageEditPlus (negative)
-            WorkflowNodeUpdater.UpdateNodeInput(ref workflowJson, "154", "prompt", NegativePrompt);
-            // Node 3 - KSampler
-            WorkflowNodeUpdater.UpdateNodeInputMultiple(ref workflowJson, "3", new Dictionary<string, object>
+            // Qwen_Edit_2511_INT8_Convrot_WF.json node map. The "115:" ids are literal keys in
+            // the API export (the graph was authored inside a subgraph), not a path expression.
+            // Node 78 - LoadImage (the scene being edited)
+            WorkflowNodeUpdater.UpdateNodeInput(ref workflowJson, "78", "image", inputImageName);
+            // Node 115:111 - TextEncodeQwenImageEditPlus (positive)
+            WorkflowNodeUpdater.UpdateNodeInput(ref workflowJson, "115:111", "prompt", promptText);
+            // Node 115:110 - TextEncodeQwenImageEditPlus (negative)
+            WorkflowNodeUpdater.UpdateNodeInput(ref workflowJson, "115:110", "prompt", NegativePrompt);
+            // Node 115:3 - KSampler (8-step lightning LoRA is baked into the graph)
+            WorkflowNodeUpdater.UpdateNodeInputMultiple(ref workflowJson, "115:3", new Dictionary<string, object>
             {
                 { "seed", Random.Shared.NextInt64(0, long.MaxValue) },
                 { "steps", Steps },
                 { "cfg", Cfg },
                 { "denoise", Denoise }
             });
-            // Node 145 - ModelSamplingAuraFlow
-            WorkflowNodeUpdater.UpdateNodeInput(ref workflowJson, "145", "shift", 3.1);
-            // Node 218 - SaveImage
-            WorkflowNodeUpdater.UpdateNodeInput(ref workflowJson, "218", "filename_prefix", $"{jsonFileName}/{jsonFileName}-{imageIndex}");
+            // Node 60 - SaveImage (fed from the 2x RTX upscale, node 115:124)
+            WorkflowNodeUpdater.UpdateNodeInput(ref workflowJson, "60", "filename_prefix", $"{jsonFileName}/{jsonFileName}-{imageIndex}");
+
+            // Drop the PreviewImage (115:116) and the unused EmptySD3LatentImage (115:112).
+            // PreviewImage is an OUTPUT_NODE, so its temp file lands in /history next to the
+            // saved image and the "any png from this prompt" fallback in
+            // GetOutputImagesFromComfyUI would try to fetch it from the output folder.
+            var root = JsonNode.Parse(workflowJson)?.AsObject();
+            if (root != null)
+            {
+                root.Remove("115:116");
+                root.Remove("115:112");
+                workflowJson = root.ToJsonString();
+            }
 
             return JsonSerializer.Deserialize<JsonElement>(workflowJson);
         }
