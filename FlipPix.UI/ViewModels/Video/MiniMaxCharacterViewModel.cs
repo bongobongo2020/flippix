@@ -27,8 +27,9 @@ namespace FlipPix.UI.ViewModels.Video
     /// <summary>
     /// "MiniMax Character" tab. Reference-to-video counterpart to <see cref="MiniMaxH3TextToVideoViewModel"/>:
     /// instead of conditioning on a first frame, MiniMax H3 is handed one or two <b>character reference
-    /// images</b> and keeps those characters' faces, hair and costumes consistent through a whole
-    /// multi-shot sequence.
+    /// images</b> and keeps those characters' faces, hair and build consistent through a whole
+    /// multi-shot sequence. Their <i>clothing</i> deliberately does not come from those images — see the
+    /// scene image below.
     ///
     /// Three images are uploaded, and they do not all reach ComfyUI:
     /// <list type="bullet">
@@ -39,7 +40,9 @@ namespace FlipPix.UI.ViewModels.Video
     /// reference.</item>
     /// <item><b>Scene image</b> — never uploaded. It is only ever seen by the llama-server: Analyze turns it
     /// into the same dense ~15-second multi-shot H3 prompt the 🌀📝 tab writes (<c>texttovideoH3.md</c>),
-    /// which then becomes the scene the referenced characters act out.</item>
+    /// which then becomes the scene the referenced characters act out. It is also the <b>only</b> source of
+    /// the cast's wardrobe: Analyze reads the outfits off this image and writes them into the prompt, and the
+    /// reference line tells H3 to take clothing from that text rather than from the character frames.</item>
     /// </list>
     ///
     /// <para><b>Turbo, as shipped.</b> The graph is <c>ref2va-turbo-character.json</c>: the ref2va UNet with
@@ -110,17 +113,21 @@ namespace FlipPix.UI.ViewModels.Video
         /// <summary>
         /// Reference line pinning both characters. Mirrors the phrasing the H3 reference workflow ships with
         /// ("use &lt;Picture n&gt; as reference frames").
-        /// <para>This line is written by code, identically, into <b>every</b> clip of a chain — which is what
-        /// makes it the one piece of wardrobe text guaranteed not to drift between clips. The clip bodies are
-        /// forbidden from describing appearance at all (see <c>texttovideoH3_story.md</c>): the LLM never sees
+        /// <para>This line is written by code, identically, into <b>every</b> clip of a chain, so the identity
+        /// pin cannot drift between clips. It pins <i>identity</i> only — face, hair, build. The clip bodies
+        /// are still forbidden from describing those (see <c>texttovideoH3_story.md</c>): the LLM never sees
         /// the character images, so anything it writes about them is invented afresh per clip, and H3 follows
         /// that text over the reference frame.</para>
+        /// <para><b>Clothing is deliberately excluded from the pin.</b> The wardrobe is supposed to come from
+        /// the <i>scene</i> image — the one image the LLM does see — so the prompt body dresses the cast and
+        /// this line has to say so explicitly, otherwise it fights the description and H3 falls back to the
+        /// outfit in the character reference frames.</para>
         /// </summary>
         private const string RefInstructionTwo =
-            "For the target video, use <Picture 1> and <Picture 2> as reference frames — Character 1 is <Picture 1> and Character 2 is <Picture 2>; keep each one's face, hair, build and clothing exactly as shown in their reference frame, identical and unchanged from the first frame to the last.";
+            "For the target video, use <Picture 1> and <Picture 2> as reference frames — Character 1 is <Picture 1> and Character 2 is <Picture 2>; keep each one's face, hair and build exactly as shown in their reference frame, identical and unchanged from the first frame to the last. Their clothing is NOT taken from the reference frames: dress each of them strictly in the outfit described below and keep that outfit unchanged throughout.";
 
         private const string RefInstructionOne =
-            "For the target video, use <Picture 1> as a reference frame — Character 1 is <Picture 1>; keep their face, hair, build and clothing exactly as shown in the reference frame, identical and unchanged from the first frame to the last.";
+            "For the target video, use <Picture 1> as a reference frame — Character 1 is <Picture 1>; keep their face, hair and build exactly as shown in the reference frame, identical and unchanged from the first frame to the last. Their clothing is NOT taken from the reference frame: dress them strictly in the outfit described below and keep that outfit unchanged throughout.";
 
         /// <summary>Every anchor/reference line the tab writes starts with this, so an existing one can be
         /// found and rewritten when the character count changes.</summary>
@@ -677,12 +684,17 @@ namespace FlipPix.UI.ViewModels.Video
                         : StripReferenceLine(Prompt).Trim();
 
                 // The scene image is REFERENCE ONLY (it is never uploaded), but the *characters* are real
-                // reference frames the generator will see, so they are named rather than described.
-                // Spelled out hard, because across a chain an invented wardrobe is re-invented per clip and
-                // the characters visibly change outfits mid-story.
+                // reference frames the generator will see, so their identity is named rather than described.
+                // Wardrobe is the deliberate exception: it comes from the scene image, which is the only
+                // image the LLM can actually see — so it must be written out, and written out identically
+                // everywhere, or across a chain it is re-invented per clip and the cast changes outfits
+                // mid-story.
+                const string wardrobeRule =
+                    "CLOTHING IS THE ONE EXCEPTION, and it is a hard requirement: the cast must be dressed exactly as the people in the SCENE image are dressed, NOT as their own reference frames show them. Read the wardrobe off the scene image and write it out explicitly the first time each character appears in a clip — garments, colours, materials, footwear, headwear and worn accessories — attached to their tag, e.g. \"<Picture 1>, wearing a <full outfit description from the scene image>,\". Then restate that same outfit in exactly the same words every later time it is mentioned, in every shot and in every clip. If the scene image shows no people, dress them in what the setting plainly calls for and keep that wording identical throughout.";
+
                 var cast = HasCharacter2
-                    ? "Two character reference images will additionally be given to the video model and are addressed as <Picture 1> (Character 1) and <Picture 2> (Character 2). You are NOT shown those images — the video model is. Write both characters into the action and refer to them ONLY by those tags. Do not write any word for their clothing, footwear, accessories, hair, face, skin, build or age; the tag already carries all of it, and anything you invent overrides the real reference frame."
-                    : "One character reference image will additionally be given to the video model and is addressed as <Picture 1> (Character 1). You are NOT shown that image — the video model is. Write them into the action and refer to them ONLY by that tag. Do not write any word for their clothing, footwear, accessories, hair, face, skin, build or age; the tag already carries all of it, and anything you invent overrides the real reference frame.";
+                    ? "Two character reference images will additionally be given to the video model and are addressed as <Picture 1> (Character 1) and <Picture 2> (Character 2). You are NOT shown those images — the video model is. Write both characters into the action and refer to them ONLY by those tags. Do not write any word for their hair, face, skin, build or age; the tag already carries all of it, and anything you invent overrides the real reference frame. " + wardrobeRule
+                    : "One character reference image will additionally be given to the video model and is addressed as <Picture 1> (Character 1). You are NOT shown that image — the video model is. Write them into the action and refer to them ONLY by that tag. Do not write any word for their hair, face, skin, build or age; the tag already carries all of it, and anything you invent overrides the real reference frame. " + wardrobeRule;
 
                 var story = string.IsNullOrWhiteSpace(StoryGuidance)
                     ? "(none — invent a story that suits the scene and carry it from beginning to end)"
@@ -697,8 +709,9 @@ namespace FlipPix.UI.ViewModels.Video
                     : $"Target duration: {len:0.##} seconds.\n";
 
                 var userMessage =
-                    "Image role: REFERENCE ONLY — this image is the SCENE (setting, lighting, art style, mood). " +
-                    "The video does not start on it and the generator will never see it, so describe the environment explicitly.\n" +
+                    "Image role: REFERENCE ONLY — this image is the SCENE (setting, lighting, art style, mood " +
+                    "and the wardrobe the cast wears). The video does not start on it and the generator will " +
+                    "never see it, so describe the environment — and the clothing — explicitly.\n" +
                     $"{cast}\n" +
                     lengthBlock +
                     $"Story the video must tell:\n{story}\n" +
@@ -735,9 +748,9 @@ namespace FlipPix.UI.ViewModels.Video
                     var drift = DescribeWardrobeDrift(SplitClips(cleaned).Select(StripReferenceLine).ToList());
                     if (drift != null)
                         AddLog($"WARNING: the clips describe the characters' appearance and {drift}. " +
-                               "The reference images are supposed to be the only source of that, so the cast " +
-                               "may change outfits between clips — re-run Analyze, or delete those words from " +
-                               "the prompt box before generating.");
+                               "The wardrobe is supposed to be read off the scene image and worded identically " +
+                               "in every clip, so the cast may change outfits between clips — re-run Analyze, " +
+                               "or harmonise those words in the prompt box before generating.");
 
                     await SaveCurrentSceneAsync(manual: false);
                 }
@@ -920,10 +933,11 @@ namespace FlipPix.UI.ViewModels.Video
         /// Flags wardrobe drift across a chain: an appearance word that appears in some clips but not all.
         /// Returns null when there is nothing to report.
         ///
-        /// <para>The LLM is told never to describe the cast at all — their look comes from the reference
-        /// images, which it has never seen — but when it disobeys it does so <i>per clip</i>, and the result
-        /// is a character who changes outfit mid-story. That only becomes visible after every clip has
-        /// rendered, which is minutes of GPU time per clip, so it is worth catching the moment the prompt is
+        /// <para>The LLM is told to dress the cast from the <i>scene</i> image and to restate that wardrobe in
+        /// the same words in every clip (identity — face, hair, build — it must not describe at all, since it
+        /// has never seen the character images). When it drifts it does so <i>per clip</i>, and the result is
+        /// a character who changes outfit mid-story. That only becomes visible after every clip has rendered,
+        /// which is minutes of GPU time per clip, so it is worth catching the moment the prompt is
         /// written.</para>
         ///
         /// <para>Only <b>inconsistent</b> terms are reported, which is what keeps the check quiet: a coat

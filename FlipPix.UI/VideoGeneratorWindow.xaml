@@ -3986,7 +3986,7 @@
                                                             BorderBrush="{StaticResource BorderBrush}" BorderThickness="1"/>
                                                 </Grid>
 
-                                                <TextBlock Text="This image is never uploaded to ComfyUI — only the llama-server sees it. It sets the setting, lighting and art style the characters act in."
+                                                <TextBlock Text="This image is never uploaded to ComfyUI — only the llama-server sees it. It sets the setting, lighting and art style the characters act in, and it is also where their clothing comes from: Analyze dresses the cast in what this image shows, not in what their character images are wearing."
                                                            FontSize="10" Foreground="{StaticResource TextMutedBrush}" FontStyle="Italic"
                                                            TextWrapping="Wrap" Margin="0,0,0,10"/>
 
@@ -4040,7 +4040,7 @@
                                                             IsEnabled="{Binding CanAnalyze}"
                                                             Height="32" Padding="14,0" FontSize="11"
                                                             Style="{StaticResource AccentButtonStyle}"
-                                                            ToolTip="Sends the scene image, the story box and whatever is in the prompt box as a draft idea to the llama-server with texttovideoH3.md, and writes a dense multi-shot H3 prompt in which the characters are referred to as &lt;Picture 1&gt; / &lt;Picture 2&gt;. Past one clip's worth of duration it writes the whole chain in one reply — one complete prompt per clip, split by &quot;=== CLIP n of N ===&quot; headers."/>
+                                                            ToolTip="Sends the scene image, the story box and whatever is in the prompt box as a draft idea to the llama-server with texttovideoH3.md, and writes a dense multi-shot H3 prompt in which the characters are referred to as &lt;Picture 1&gt; / &lt;Picture 2&gt; and are dressed in the outfits read off the scene image (their own images supply the face, hair and build only). Past one clip's worth of duration it writes the whole chain in one reply — one complete prompt per clip, split by &quot;=== CLIP n of N ===&quot; headers."/>
                                                     <TextBlock FontStyle="Italic" FontSize="11" VerticalAlignment="Center" Margin="8,0,0,0"
                                                                Text="Analyzing…" Foreground="{DynamicResource TabAccentBrush}">
                                                         <TextBlock.Style>

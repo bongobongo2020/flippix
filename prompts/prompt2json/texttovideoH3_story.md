@@ -26,20 +26,29 @@ The generator renders each clip in isolation and **remembers nothing** from the 
 - Timestamps restart at zero in every clip. `[Shot 1]` of every clip carries no timestamp, and every later timestamp in that clip must fall inside that clip's own duration — not the total.
 - The 9–14 shot target and the continuous-motion rule apply **per clip**, scaled to the per-clip duration.
 
-## NEVER DESCRIBE THE CHARACTERS — THIS IS THE RULE THAT KEEPS THEM ON MODEL
+## NEVER DESCRIBE THE CHARACTERS' IDENTITY — THIS IS THE RULE THAT KEEPS THEM ON MODEL
 
-The characters are supplied to the generator as **reference images**, attached to every single clip. Those images — not your words — are what fixes their faces, hair, build and clothing.
+The characters are supplied to the generator as **reference images**, attached to every single clip. Those images — not your words — are what fixes their faces, hair and build.
 
-**You have not seen those images.** Any garment, hair colour, eye colour or facial detail you write is therefore invented; and because you write each clip as its own block, you will invent something *different* each time. That is precisely how a character walks out of clip 3 in one outfit and into clip 4 in another.
+**You have not seen those images.** Any hair colour, eye colour or facial detail you write is therefore invented; and because you write each clip as its own block, you will invent something *different* each time.
 
 So, in every clip:
 
-- Refer to each character **only** by their tag — `<Picture 1>`, `<Picture 2>`. That tag is a complete description; nothing needs to be added to it.
-- Write **no** words for their clothing, footwear, accessories, hair, face, skin, build or age. Not even vague ones: no "her coat", "his boots", "her long hair", "the young woman". `<Picture 1>` covers all of it.
-- Do write what they **do** — posture, movement, gesture, contact with the scene, and what their body and any prop they are holding is doing through the whole shot. Action is yours to invent; appearance is not.
-- The one exception is a costume change the *story* deliberately calls for. If the user's story says a character puts on, removes or destroys something, write that change once, in the clip where it happens, and then carry the changed state forward in exactly the same words in every later clip. Never introduce a change the story did not ask for.
+- Refer to each character by their tag — `<Picture 1>`, `<Picture 2>`. That tag carries their whole identity; nothing about their face or body needs to be added to it.
+- Write **no** words for their hair, face, skin, build or age. Not even vague ones: no "her long hair", "the young woman". `<Picture 1>` covers all of it.
+- Do write what they **do** — posture, movement, gesture, contact with the scene, and what their body and any prop they are holding is doing through the whole shot. Action is yours to invent; identity is not.
 
-The same applies to secondary motion that belongs to them: say "fabric and hair drift on soft physics" rather than naming which fabric or what colour hair.
+Secondary motion follows the same rule: say "hair drifts on soft physics" rather than naming its length or colour.
+
+## CLOTHING IS THE EXCEPTION — IT COMES FROM THE SCENE IMAGE
+
+The wardrobe is **not** taken from the character reference images. It is taken from the **scene image** — the one image you have actually been shown — and the anchor line attached to every clip tells the generator exactly that.
+
+- Read the outfits off the scene image and write them out in full: garments, colours, materials, footwear, headwear, worn accessories.
+- State the outfit attached to the tag the first time each character appears in a clip — `<Picture 1>, wearing …` — then keep referring back to it consistently through the rest of that clip.
+- **Use the identical wording in every clip.** The clips are written as separate blocks and rendered separately, so a wardrobe re-phrased in clip 4 is a wardrobe *changed* in clip 4. Copy the sentence, do not rewrite it.
+- If the scene image shows no people, dress them in what the setting plainly calls for, decide that once, and repeat it word for word in every clip.
+- A costume change is allowed only when the *story* deliberately calls for one. If the user's story says a character puts on, removes or destroys something, write that change once, in the clip where it happens, and then carry the changed state forward in exactly the same words in every later clip. Never introduce a change the story did not ask for.
 
 ## THE STORY ARC ACROSS THE CHAIN
 
@@ -54,6 +63,6 @@ The clips are consecutive segments of one story, told from beginning to end.
 
 ## FINAL CHECK
 
-Exactly N headers, numbered 1..N in order, each on its own line; exactly N prompts, each passing the single-clip FINAL CHECK on its own; style, lighting and setting restated identically in every clip; **no clip describes any character's clothing, hair or face — they appear only as `<Picture 1>` / `<Picture 2>`**; no cross-clip references; no repeated beats; the story ends in clip N; the reply contains the headers and the prompts and nothing else.
+Exactly N headers, numbered 1..N in order, each on its own line; exactly N prompts, each passing the single-clip FINAL CHECK on its own; style, lighting and setting restated identically in every clip; **no clip describes any character's hair or face — their identity comes only from `<Picture 1>` / `<Picture 2>`**; **every clip dresses them in the same outfit, read off the scene image and worded identically**; no cross-clip references; no repeated beats; the story ends in clip N; the reply contains the headers and the prompts and nothing else.
 
-Before you answer, re-read your clips side by side and check the character sentences against each other. If clip 4 dresses or styles a character in words clip 1 did not use, delete those words rather than trying to harmonise them.
+Before you answer, re-read your clips side by side and check the character sentences against each other. If clip 4 styles a character's hair or face at all, delete those words. If clip 4 dresses them in words clip 1 did not use, replace them with clip 1's wording verbatim — unless the story asked for the change.
