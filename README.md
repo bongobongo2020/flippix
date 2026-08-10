@@ -21,6 +21,22 @@ Grab `FlipPix-Setup.zip`, extract, and double-click `Install-FlipPix.bat` — se
 
 ---
 
+## Demo
+
+<div align="center">
+
+[<img src="docs/demo-poster.jpg" alt="Watch the FlipPix demo video" width="100%">](https://github.com/bongobongo2020/flippix/releases/download/v1.2.0/FlipPix-demo.mp4)
+
+**▶ [Watch the 40-second demo](https://github.com/bongobongo2020/flippix/releases/download/v1.2.0/FlipPix-demo.mp4)** *(14 MB MP4)*
+
+</div>
+
+One job start to finish on the **🎭👥 MiniMax Character** tab — dropping in a character
+reference and a scene image, Analyze writing the H3 prompt, the queue running it, and the
+finished clip playing back in-app.
+
+---
+
 ## What's in the app
 
 <img src="docs/feature-map.svg" alt="FlipPix feature map: the Image Generator, Video Generator and Enhance windows and their tabs" width="100%">
@@ -199,7 +215,7 @@ flippix/
 ├── prompts/prompt2json/          # One system prompt per tab (h3minimax.md, vr180.md, …)
 ├── scripts/                      # Installers, backup/restore, model + node manifests
 ├── tools/                        # Workflow conversion + audit helpers
-├── docs/                         # README diagrams (regenerate: python docs/make-diagrams.py)
+├── docs/                         # README diagrams + demo poster (regenerate: python docs/make-diagrams.py)
 └── publish/                      # Built self-contained app
 ```
 

@@ -33,6 +33,7 @@ bld/
 # Exception for README assets
 !flippix.png
 !flippix.ico
+!docs/demo-poster.jpg
 
 
 # Test videos
@@ -44,6 +45,10 @@ bld/
 
 # Exception for README demo video
 !flippix.mp4
+
+# ...but the demo source in docs/ stays out of git — it ships as a release asset.
+# (The line above is a bare basename pattern, so it would otherwise match docs/Flippix.mp4.)
+docs/*.mp4
 
 # Publish folders and build artifacts
 publish/
