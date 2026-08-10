@@ -87,10 +87,10 @@
   "124": {
     "inputs": {
       "scheduler": "simple",
-      "steps": 20,
+      "steps": 8,
       "denoise": 1,
       "model": [
-        "127",
+        "142",
         0
       ]
     },
@@ -130,7 +130,7 @@
   "126": {
     "inputs": {
       "model": [
-        "127",
+        "142",
         0
       ],
       "conditioning": [
@@ -256,6 +256,48 @@
     "class_type": "LoadImage",
     "_meta": {
       "title": "Load Image (Optional First Frame)"
+    }
+  },
+  "140": {
+    "inputs": {
+      "lora_name": "minimax_h3_turbo_4step_ema_ckpt500_pruned_comfyui.safetensors",
+      "strength_model": 1,
+      "model": [
+        "127",
+        0
+      ]
+    },
+    "class_type": "LoraLoaderModelOnly",
+    "_meta": {
+      "title": "EMA ckpt500 Turbo LoRA"
+    }
+  },
+  "141": {
+    "inputs": {
+      "sage_attention": "auto",
+      "allow_compile": true,
+      "model": [
+        "140",
+        0
+      ]
+    },
+    "class_type": "PathchSageAttentionKJ",
+    "_meta": {
+      "title": "Patch Sage Attention KJ"
+    }
+  },
+  "142": {
+    "inputs": {
+      "shift_video": 12,
+      "shift_audio": 6,
+      "model": [
+        "141",
+        0
+      ]
+    },
+    "class_type": "MiniMaxH3SigmaShift",
+    "_meta": {
+      "title": "MiniMax H3 Sigma Shift"
     }
   },
   "138": {
