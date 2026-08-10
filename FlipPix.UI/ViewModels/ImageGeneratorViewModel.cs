@@ -81,9 +81,7 @@ namespace FlipPix.UI.ViewModels
 
         // Nested ViewModels for tabs
         private ImageAnalyzerViewModel _analyzer;
-        private FlipPixViewModel _cameraEdit;
         private StoryImageGeneratorQViewModel _storyGeneratorQ;
-        private StoryImageGeneratorAmateurViewModel _storyGeneratorAmateur;
         private AmateurGeneratorViewModel _amateurGenerator;
         private CameraAngleViewModel _cameraAngle;
         private InpaintEditorViewModel _inpaintEditor;
@@ -116,9 +114,7 @@ namespace FlipPix.UI.ViewModels
             // non-nullable IPromptService and left every child holding a separate service.
             var lmStudioService = serviceProvider?.GetRequiredService<LMStudioService>();
             _analyzer = new ImageAnalyzerViewModel(comfyUIService, lmStudioService ?? throw new InvalidOperationException("LMStudioService is required"), logger, settingsService, _workflowCoordinator, fileDialogService, _promptService);
-            _cameraEdit = new FlipPixViewModel(comfyUIService, logger, settingsService, serviceProvider, _promptService, fileDialogService);
             _storyGeneratorQ = new StoryImageGeneratorQViewModel(comfyUIService, logger, settingsService, _workflowCoordinator, fileDialogService, loraManager, imageRetriever, lmStudioService ?? throw new InvalidOperationException("LMStudioService is required"));
-            _storyGeneratorAmateur = new StoryImageGeneratorAmateurViewModel(comfyUIService, logger, settingsService, _workflowCoordinator, fileDialogService, loraManager, imageRetriever);
             _amateurGenerator = new AmateurGeneratorViewModel(comfyUIService, logger, settingsService, _promptService, loraManager, imageRetriever, _workflowCoordinator, lmStudioService, fileDialogService);
             _cameraAngle = new CameraAngleViewModel(comfyUIService, logger, settingsService, fileDialogService, imageRetriever);
             _inpaintEditor = new InpaintEditorViewModel(comfyUIService, logger, settingsService, fileDialogService);
@@ -173,9 +169,7 @@ namespace FlipPix.UI.ViewModels
             SendToVideoGeneratorCommand = new RelayCommand(SendToVideoGenerator);
             SendToStoryCommand = new RelayCommand(SendToStory);
             OpenKeyframesInMiniMaxFflfCommand = new RelayCommand(OpenKeyframesInMiniMaxFflf);
-            NavigateToImageAnalyzerCommand = new RelayCommand(NavigateToImageAnalyzer);
             NavigateToVideoGeneratorCommand = new RelayCommand(NavigateToVideoGenerator);
-                NavigateToStoryVideoCommand = new RelayCommand(NavigateToStoryVideo);
             NavigateToEnhanceVideoCommand = new RelayCommand(NavigateToEnhanceVideo);
             RefreshLorasCommand = new RelayCommand(RefreshLoras);
             RefreshKreaLorasCommand = new RelayCommand(RefreshKreaLoras);
@@ -302,9 +296,7 @@ namespace FlipPix.UI.ViewModels
 
         // Nested ViewModel properties
         public ImageAnalyzerViewModel Analyzer => _analyzer;
-        public FlipPixViewModel CameraEdit => _cameraEdit;
         public StoryImageGeneratorQViewModel StoryGeneratorQ => _storyGeneratorQ;
-        public StoryImageGeneratorAmateurViewModel StoryGeneratorAmateur => _storyGeneratorAmateur;
         public AmateurGeneratorViewModel AmateurGenerator => _amateurGenerator;
         public CameraAngleViewModel CameraAngle => _cameraAngle;
         public InpaintEditorViewModel InpaintEditor => _inpaintEditor;
@@ -535,9 +527,7 @@ namespace FlipPix.UI.ViewModels
         public ICommand SendToVideoGeneratorCommand { get; }
         public ICommand SendToStoryCommand { get; }
         public ICommand OpenKeyframesInMiniMaxFflfCommand { get; }
-        public ICommand NavigateToImageAnalyzerCommand { get; }
         public ICommand NavigateToVideoGeneratorCommand { get; }
-              public ICommand NavigateToStoryVideoCommand { get; }
         public ICommand NavigateToEnhanceVideoCommand { get; }
         public ICommand RefreshLorasCommand { get; }
         public ICommand RefreshKreaLorasCommand { get; }
@@ -3384,77 +3374,7 @@ namespace FlipPix.UI.ViewModels
             }
         }
 
-        private void NavigateToImageAnalyzer()
-        {
-            if (_serviceProvider == null) return;
-
-            try
-            {
-                var imageAnalyzerWindow = _serviceProvider.GetService(typeof(ImageAnalyzerWindow)) as ImageAnalyzerWindow;
-                if (imageAnalyzerWindow != null)
-                {
-                    // Ensure window appears on screen
-                    var screenWidth = SystemParameters.PrimaryScreenWidth;
-                    var screenHeight = SystemParameters.PrimaryScreenHeight;
-                    var windowWidth = imageAnalyzerWindow.Width;
-                    var windowHeight = imageAnalyzerWindow.Height;
-
-                    // Use conservative positioning
-                    imageAnalyzerWindow.Left = 150;
-                    imageAnalyzerWindow.Top = 150;
-
-                    // Ensure window is fully visible on screen
-                    if (imageAnalyzerWindow.Left + windowWidth > screenWidth)
-                        imageAnalyzerWindow.Left = Math.Max(50, screenWidth - windowWidth - 50);
-                    if (imageAnalyzerWindow.Top + windowHeight > screenHeight)
-                        imageAnalyzerWindow.Top = Math.Max(50, screenHeight - windowHeight - 50);
-
-                    imageAnalyzerWindow.Show();
-                    AddLog("Opened Image Analyzer window");
-                }
-            }
-            catch (Exception ex)
-            {
-                AddLog($"ERROR navigating to Image Analyzer: {ex.Message}");
-            }
-        }
-
   
-        private void NavigateToStoryVideo()
-        {
-            if (_serviceProvider == null) return;
-
-            try
-            {
-                var storyVideoWindow = _serviceProvider.GetService(typeof(StoryVideoWindow)) as StoryVideoWindow;
-                if (storyVideoWindow != null)
-                {
-                    // Ensure window appears on screen
-                    var screenWidth = SystemParameters.PrimaryScreenWidth;
-                    var screenHeight = SystemParameters.PrimaryScreenHeight;
-                    var windowWidth = storyVideoWindow.Width;
-                    var windowHeight = storyVideoWindow.Height;
-
-                    // Use conservative positioning
-                    storyVideoWindow.Left = 200;
-                    storyVideoWindow.Top = 200;
-
-                    // Ensure window is fully visible on screen
-                    if (storyVideoWindow.Left + windowWidth > screenWidth)
-                        storyVideoWindow.Left = Math.Max(50, screenWidth - windowWidth - 50);
-                    if (storyVideoWindow.Top + windowHeight > screenHeight)
-                        storyVideoWindow.Top = Math.Max(50, screenHeight - windowHeight - 50);
-
-                    storyVideoWindow.Show();
-                    AddLog("Opened Story Video window");
-                }
-            }
-            catch (Exception ex)
-            {
-                AddLog($"ERROR navigating to Story Video: {ex.Message}");
-            }
-        }
-
         private void PauseQueue()
         {
             IsQueuePaused = true;
@@ -4204,9 +4124,7 @@ namespace FlipPix.UI.ViewModels
 
                 // Dispose nested ViewModels
                 _analyzer?.Dispose();
-                _cameraEdit?.Dispose();
                 _storyGeneratorQ?.Dispose();
-                _storyGeneratorAmateur?.Dispose();
                 _amateurGenerator?.Dispose();
                 _cameraAngle?.Dispose();
 

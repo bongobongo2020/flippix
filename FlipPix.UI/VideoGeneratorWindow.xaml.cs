@@ -112,24 +112,6 @@ namespace FlipPix.UI
             }
         }
 
-        // ── LTX Director: drag-drop images onto the timeline ─────────────────
-
-        private void LtxDirectorTimeline_DragOver(object sender, System.Windows.DragEventArgs e)
-        {
-            e.Effects = e.Data.GetDataPresent(System.Windows.DataFormats.FileDrop)
-                ? System.Windows.DragDropEffects.Copy
-                : System.Windows.DragDropEffects.None;
-            e.Handled = true;
-        }
-
-        private void LtxDirectorTimeline_Drop(object sender, System.Windows.DragEventArgs e)
-        {
-            if (!e.Data.GetDataPresent(System.Windows.DataFormats.FileDrop)) return;
-            if (e.Data.GetData(System.Windows.DataFormats.FileDrop) is string[] paths && paths.Length > 0)
-                _viewModel.LtxDirectorVM.AddImagesFromPaths(paths);
-            e.Handled = true;
-        }
-
         // Never seek a scrub preview to the exact end of the clip. Landing on the final
         // frame fires MediaElement.MediaEnded, which rewinds/resets the player (the
         // "shrink and expand" flicker) and leaves it in an ended state where

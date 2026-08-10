@@ -211,9 +211,7 @@ namespace FlipPix.UI
             services.AddSingleton<IAppLogger, FileLogger>();
             services.AddSingleton<VideoAnalysisService>();
             services.AddSingleton<ImageAnalysisService>();
-            services.AddHttpClient<OllamaService>();
             services.AddSingleton<IFileDialogService, FileDialogService>();
-            services.AddSingleton<INavigationService, NavigationService>();
             services.AddSingleton<WindowPositionService>();
             services.AddSingleton<LoraManager>();
             services.AddSingleton<ComfyUIImageRetriever>();
@@ -268,15 +266,6 @@ namespace FlipPix.UI
             services.AddSingleton<WorkflowQueueCoordinator>();
 
             // ViewModels
-            services.AddTransient<FlipPixViewModel>(provider =>
-            {
-                var comfyUIService = provider.GetRequiredService<FlipPix.ComfyUI.Services.ComfyUIService>();
-                var logger = provider.GetRequiredService<IAppLogger>();
-                var settingsService = provider.GetRequiredService<SettingsService>();
-                var promptService = provider.GetRequiredService<IPromptService>();
-                var fileDialogService = provider.GetRequiredService<IFileDialogService>();
-                return new FlipPixViewModel(comfyUIService, logger, settingsService, provider, promptService, fileDialogService);
-            });
             services.AddTransient<VideoGeneratorViewModel>(provider =>
             {
                 var comfyUIService = provider.GetRequiredService<FlipPix.ComfyUI.Services.ComfyUIService>();
@@ -294,44 +283,11 @@ namespace FlipPix.UI
                 var promptService = provider.GetRequiredService<IPromptService>();
                 return new ImageGeneratorViewModel(comfyUIService, logger, settingsService, provider, promptService);
             });
-            services.AddTransient<ImageAnalyzerViewModel>(provider =>
-            {
-                var comfyUIService = provider.GetRequiredService<FlipPix.ComfyUI.Services.ComfyUIService>();
-                var lmStudioService = provider.GetRequiredService<LMStudioService>();
-                var logger = provider.GetRequiredService<IAppLogger>();
-                var settingsService = provider.GetRequiredService<SettingsService>();
-                var workflowCoordinator = provider.GetRequiredService<WorkflowQueueCoordinator>();
-                var fileDialogService = provider.GetRequiredService<IFileDialogService>();
-                var promptService = provider.GetRequiredService<IPromptService>();
-                return new ImageAnalyzerViewModel(comfyUIService, lmStudioService, logger, settingsService, workflowCoordinator, fileDialogService, promptService);
-            });
-            services.AddTransient<StoryVideoViewModel>(provider =>
-            {
-                var comfyUIService = provider.GetRequiredService<FlipPix.ComfyUI.Services.ComfyUIService>();
-                var logger = provider.GetRequiredService<IAppLogger>();
-                var settingsService = provider.GetRequiredService<SettingsService>();
-                var fileDialogService = provider.GetRequiredService<IFileDialogService>();
-                return new StoryVideoViewModel(comfyUIService, logger, settingsService, fileDialogService);
-            });
-            services.AddTransient<OllamaViewModel>(provider =>
-            {
-                var ollamaService = provider.GetRequiredService<OllamaService>();
-                var logger = provider.GetRequiredService<IAppLogger>();
-                return new OllamaViewModel(ollamaService, logger, provider);
-            });
             services.AddTransient<ComfyUIFolderSetupViewModel>(provider =>
             {
                 var settingsService = provider.GetRequiredService<SettingsService>();
                 var fileDialogService = provider.GetRequiredService<IFileDialogService>();
                 return new ComfyUIFolderSetupViewModel(settingsService, fileDialogService);
-            });
-            services.AddTransient<I2V2AViewModel>(provider =>
-            {
-                var comfyUIService = provider.GetRequiredService<FlipPix.ComfyUI.Services.ComfyUIService>();
-                var logger = provider.GetRequiredService<IAppLogger>();
-                var settingsService = provider.GetRequiredService<SettingsService>();
-                var fileDialogService = provider.GetRequiredService<IFileDialogService>();
-                return new I2V2AViewModel(comfyUIService, logger, settingsService, provider, fileDialogService);
             });
             services.AddTransient<VideoEnhanceViewModel>(provider =>
             {
@@ -344,12 +300,6 @@ namespace FlipPix.UI
             });
 
             // Views
-            services.AddTransient<FlipPixWindow>(provider =>
-            {
-                var viewModel = provider.GetRequiredService<FlipPixViewModel>();
-                var windowPositionService = provider.GetRequiredService<WindowPositionService>();
-                return new FlipPixWindow(viewModel, windowPositionService);
-            });
             // Singleton: the Video Generator window is expensive to build (20 sub-VMs + a large XAML
             // tree), so it is created once on first open and reused. Closing it hides it instead of
             // tearing it down (see VideoGeneratorWindow.OnClosing), making every reopen instant.
@@ -366,22 +316,7 @@ namespace FlipPix.UI
                 var windowPositionService = provider.GetRequiredService<WindowPositionService>();
                 return new ImageGeneratorWindow(viewModel, settingsService, windowPositionService);
             });
-            services.AddTransient<ImageAnalyzerWindow>();
-            services.AddTransient<StoryVideoWindow>(provider =>
-            {
-                var viewModel = provider.GetRequiredService<StoryVideoViewModel>();
-                var windowPositionService = provider.GetRequiredService<WindowPositionService>();
-                return new StoryVideoWindow(viewModel, windowPositionService);
-            });
-            services.AddTransient<OllamaWindow>();
             services.AddTransient<ComfyUIFolderSetupWindow>();
-            services.AddTransient<I2V2AWindow>(provider =>
-            {
-                var viewModel = provider.GetRequiredService<I2V2AViewModel>();
-                var navigationService = provider.GetRequiredService<INavigationService>();
-                var windowPositionService = provider.GetRequiredService<WindowPositionService>();
-                return new I2V2AWindow(viewModel, navigationService, windowPositionService);
-            });
             services.AddTransient<VideoEnhanceWindow>(provider =>
             {
                 var viewModel = provider.GetRequiredService<VideoEnhanceViewModel>();

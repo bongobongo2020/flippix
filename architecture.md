@@ -114,56 +114,62 @@ FlipPix.UI/
 +-- App.xaml.cs                     # DI setup, startup flow, server connectivity check
 +-- Commands/
 |   +-- RelayCommand.cs             # ICommand implementation (parameterless + generic)
-+-- Converters/
-|   +-- StringToVisibilityConverter.cs
-+-- Models/
-|   +-- ImagePromptQueueItem.cs     # Text-to-image queue item
++-- Converters/                     # BoolToVisibility, StringToVisibility, Subtract
++-- Controls/                       # SectionHeader, ProcessingLogPanel
++-- Models/                         # One queue-item type per tab + prompt/LLM payloads
+|   +-- BaseQueueItem.cs            # Shared queue-item state (status, paths, progress)
 |   +-- QueueItem.cs                # Video generation queue item
+|   +-- ImagePromptQueueItem.cs     # Text-to-image queue item
 |   +-- StoryPromptItem.cs          # Story generation queue item with thumbnail
-|   +-- CameraQueueItem.cs          # Camera transformation queue item
-|   +-- ImageAnalyzerQueueItem.cs   # Image analysis batch item
 |   +-- StoryVideoQueueItem.cs      # Story video batch item
-|   +-- SavedPrompt.cs              # Persisted prompt with usage stats
-|   +-- StoryPromptData.cs          # Story prompt JSON structure
-|   +-- LMStudioModels.cs           # LMStudio API types (ChatRequest, ChatResponse, etc.)
-|   +-- OllamaModels.cs             # Ollama API types
+|   +-- SavedPrompt.cs / ScenePrompt.cs  # Persisted prompts and the scene library
+|   +-- LMStudioModels.cs           # LLM API types (ChatRequest, ChatResponse, etc.)
 +-- Services/
-|   +-- ComfyUIService.cs           # Legacy simplified ComfyUI wrapper (55 lines, likely unused)
-|   +-- LMStudioService.cs          # LLM integration: vision analysis, prompt enhancement (438 lines)
-|   +-- OllamaService.cs            # Alternative LLM integration (220 lines)
-|   +-- PromptService.cs            # Save/load prompt history, auto-naming (187 lines)
-|   +-- VideoAnalysisService.cs     # FFMpeg-based video metadata extraction (116 lines)
+|   +-- LMStudioService.cs          # LLM integration: vision analysis, prompt enhancement
+|   +-- PromptService.cs            # Save/load prompt history, auto-naming
+|   +-- ScenePromptLibrary.cs       # Persistent saved-scene DB (index + thumbnails)
+|   +-- LoraManager.cs              # Local/network LoRA discovery
+|   +-- WorkflowLocator.cs          # Resolves a workflow path, honouring the VRAM tier
+|   +-- VramContext.cs              # Effective VRAM tier (auto/forced 16 GB/full)
+|   +-- MissingModelResolver.cs     # Offers download / locate / register for absent models
+|   +-- MissingNodeResolver.cs      # Resolves + installs missing custom-node packs
+|   +-- VideoAnalysisService.cs     # FFMpeg-based video metadata extraction
 |   +-- FileLogger.cs               # IAppLogger implementation, logs to %AppData%/FlipPix/logs/
-|   +-- WorkflowQueueCoordinator.cs # SemaphoreSlim mutex for workflow execution (25 lines)
-+-- ViewModels/
-|   +-- BasePromptViewModel.cs              # Abstract base: prompt save/load/delete (223 lines)
-|   +-- ImageGeneratorViewModel.cs          # Text-to-image + nested child VMs (2,523 lines)
-|   +-- VideoGeneratorViewModel.cs          # Image-to-video + VACE/LTX2Audio/Mocha (7,573 lines)
-|   +-- ImageAnalyzerViewModel.cs           # AI image analysis + generation (3,288 lines)
-|   +-- FlipPixViewModel.cs                 # Camera angle transformations (1,952 lines)
-|   +-- StoryImageGeneratorViewModel.cs     # Story batch generation - Z-Image (2,049 lines)
-|   +-- StoryImageGeneratorQViewModel.cs    # Story batch generation - Qwen (1,242 lines)
-|   +-- StoryImageGeneratorFViewModel.cs    # Story batch generation - Flux (1,296 lines)
-|   +-- StoryImageGeneratorAmateurViewModel.cs # Story batch - Amateur style (1,499 lines)
-|   +-- AmateurGeneratorViewModel.cs        # Amateur-style single generation (1,355 lines)
-|   +-- CameraAngleViewModel.cs             # Camera angle selection (810 lines)
-|   +-- StoryVideoViewModel.cs              # WCFM narrative video (1,423 lines)
-|   +-- I2V2AViewModel.cs                   # Image->Video->Audio pipeline (877 lines)
-|   +-- OllamaViewModel.cs                  # Ollama LLM integration (439 lines)
-|   +-- ComfyUIFolderSetupViewModel.cs      # Setup wizard (675 lines)
+|   +-- WorkflowQueueCoordinator.cs # SemaphoreSlim mutex for workflow execution
++-- ViewModels/                     # One ViewModel per tab
+|   +-- BasePromptViewModel.cs              # Abstract base: prompt save/load/delete
+|   +-- ImageGeneratorViewModel.cs          # Image Generator window composer + its own tab
+|   +-- ImageAnalyzerViewModel.cs           # Analysis-driven generation (the Analyzer child)
+|   +-- StoryImageGeneratorBaseViewModel.cs # Shared story batch machinery
+|   +-- StoryImageGeneratorQViewModel.cs    # Story Image Q tab
+|   +-- AmateurGeneratorViewModel.cs        # Amateur tab
+|   +-- CameraAngleViewModel.cs             # Camera Angle tab
+|   +-- InpaintEditorViewModel.cs           # Editor tab (mask painting)
+|   +-- KleinInpaintViewModel.cs            # Klein inpaint variant used by the Editor tab
+|   +-- KleinControlViewModel.cs            # Control tab (ControlNet / Krea2 two-reference)
+|   +-- IdeogramViewModel.cs                # Ideogram tab
+|   +-- QwenEditViewModel.cs                # Qwen Edit tab
+|   +-- RestoreViewModel.cs                 # Restore tab
+|   +-- VideoGeneratorViewModel.cs          # Video window composer (one sub-VM per tab)
+|   +-- Video/                              # VideoProcessingBaseViewModel + the 11 video tabs
+|   +-- ComfyUIFolderSetupViewModel.cs      # Setup wizard
 +-- Windows/ (XAML + Code-behind)
     +-- ImageGeneratorWindow.xaml[.cs]       # Main window (default at startup)
     +-- VideoGeneratorWindow.xaml[.cs]       # Video generation
-    +-- ImageAnalyzerWindow.xaml[.cs]        # Image analysis
-    +-- FlipPixWindow.xaml[.cs]              # Camera edits
-    +-- StoryVideoWindow.xaml[.cs]           # Story videos
-    +-- I2V2AWindow.xaml[.cs]               # Multimodal pipeline
-    +-- OllamaWindow.xaml[.cs]              # Ollama LLM
+    +-- VideoEnhanceWindow.xaml[.cs]         # Interpolate + upscale
     +-- SettingsWindow.xaml[.cs]             # Global settings
+    +-- ScenePromptLibraryWindow.xaml[.cs]   # Saved scenes browser
+    +-- MissingModelsWindow / MissingNodesWindow  # Resolver dialogs
     +-- ComfyUIFolderSetupWindow.xaml[.cs]   # Local setup
     +-- RemoteSetupWindow.xaml[.cs]          # Remote server setup
     +-- SetupChoiceWindow.xaml[.cs]          # Local vs remote choice
 ```
+
+> Only three windows are reachable from the UI: Image Generator (startup), Video Generator
+> and Enhance Video, plus the modal Settings/setup/resolver dialogs. Anything that isn't
+> reachable is dead code — the 2026-08 cleanup removed the previous crop (the standalone
+> Image Analyzer, Camera, Story Video, I2V2A and Ollama windows, and the VACE, Mocha,
+> LTX2Audio, SeedHunt, LTX Director, WanAnimate and CharReplace ViewModels).
 
 ---
 
@@ -213,9 +219,9 @@ Same pattern as image generation with additions:
 - Multi-step processing (encode, generate, decode, upscale)
 - Frame-level progress tracking
 - First/last frame image inputs for motion control
-- VACE extended generation for longer videos
-- LTX2Audio audio-synced generation
-- Mocha motion capture variant
+- Audio-synced generation (Infinite Talk, Video Sound, the MiniMax H3 family)
+- Chunked processing for long inputs (81/121-frame windows)
+- Seed-preview flows: cheap low-step samples first, full-resolution re-render of the picks
 
 ### 5.3 Batch Queue Processing Flow
 
@@ -265,10 +271,10 @@ Create ImageGeneratorWindow as MainWindow
 | ComfyUIHttpClient | Singleton | Managed HttpClient |
 | ComfyUIWebSocketClient | Singleton | Persistent WebSocket |
 | WorkflowQueueCoordinator | Singleton | Global mutex |
-| LMStudioService | Singleton | Dynamic URL from settings |
-| OllamaService | HttpClient-managed | Via AddHttpClient |
+| LMStudioService | Singleton | Dynamic URL from settings (OpenAI-compatible: LM Studio, Ollama, llama-server) |
 | IPromptService (PromptService) | Singleton | Prompt history cache |
-| All ViewModels | Transient | Fresh instance per window |
+| ViewModels | Transient | Fresh instance per window |
+| VideoGeneratorWindow | Singleton | Expensive to build; hidden on close and reused |
 
 ---
 
@@ -308,15 +314,13 @@ workflow["nodeId"]["inputs"]["parameter"] = value;
 - **HTTP Endpoints:** /system_stats, /object_info, /upload/image, /prompt, /queue
 - **WebSocket:** ws://host:port/ws?clientId={guid}
 
-### LMStudio
-- **Protocol:** HTTP REST (OpenAI-compatible)
+### LLM server (LMStudioService)
+- **Protocol:** HTTP REST (OpenAI-compatible), so LM Studio, Ollama and llama-server all work
 - **Default:** http://localhost:1234
 - **Endpoints:** /v1/models, /v1/chat/completions
-- **Used for:** Image analysis (vision), prompt enhancement
-
-### Ollama
-- **Protocol:** HTTP REST
-- **Used for:** Alternative local LLM inference
+- **Used for:** Image analysis (vision), prompt writing per tab
+- **Profiles:** Settings stores named server+model profiles; one is the default, and each
+  tab's analysis status line names the target it is talking to
 
 ---
 
@@ -359,43 +363,36 @@ workflow["nodeId"]["inputs"]["parameter"] = value;
 
 ## 11. Code Review Findings & Optimization Recommendations
 
-### CRITICAL: Massive ViewModel Bloat
+### RESOLVED: ViewModel bloat and duplication
 
-The ViewModels are extremely large and contain significant duplicated code:
+The monolithic VideoGeneratorViewModel (7,573 lines) has been split: it is now a ~570-line
+composer holding one sub-ViewModel per tab under `ViewModels/Video/`, with shared behaviour in
+`VideoProcessingBaseViewModel`. The four copy-pasted story generators collapsed into
+`StoryImageGeneratorBaseViewModel` + the surviving Q variant, and the duplicate
+`FlipPix.UI.Services.ComfyUIService` wrapper is gone.
+
+The composer still forwards MainVM and InfiniteTalkVM members under flat names because those
+two tabs' XAML predates the per-tab `DataContext` pattern. New tabs bind through their own VM
+property and add no forwarding.
+
+### Still large
 
 | File | Lines | Concern |
 |---|---|---|
-| VideoGeneratorViewModel.cs | **7,573** | Contains 5+ sub-features (LTX, VACE, LTX2Audio, Mocha, Story) in one file |
-| ImageAnalyzerViewModel.cs | 3,288 | Mixing analysis + generation + queue logic |
-| ImageGeneratorViewModel.cs | 2,523 | Hosts 8 nested child ViewModels |
-| StoryImageGeneratorViewModel.cs | 2,049 | Duplicated queue/processing pattern |
-| FlipPixViewModel.cs | 1,952 | |
-| **Total ViewModel code** | **27,551** | |
+| ImageAnalyzerViewModel.cs | 4,608 | Mixes analysis, generation and queue logic |
+| ImageGeneratorViewModel.cs | 4,150 | Composer for the Image Generator window *and* its own tab |
+| Video/VideoGeneratorMainViewModel.cs | 3,176 | Single-video state plus the whole story queue |
 
-**Recommendation:** VideoGeneratorViewModel should be split into separate ViewModels per feature (LTXVideoVM, VACEVideoVM, MochaVideoVM, LTX2AudioVM, StoryVideoQueueVM). Each sub-feature has its own state, commands, and processing logic that doesn't depend on the others.
+Both composers would benefit from the same treatment the video window got: move the tab's own
+state into a sibling ViewModel and leave the composer holding only children.
 
-### CRITICAL: StoryImageGenerator Code Duplication
+### Watch for dead code
 
-Four nearly identical ViewModels exist with copy-pasted code:
-- `StoryImageGeneratorViewModel` (2,049 lines)
-- `StoryImageGeneratorQViewModel` (1,242 lines)
-- `StoryImageGeneratorFViewModel` (1,296 lines)
-- `StoryImageGeneratorAmateurViewModel` (1,499 lines)
-
-All share the same structure: prompt JSON loading, queue management, pause/resume, processing loop, LoRA handling. The only differences are:
-- Which workflow JSON file to load
-- Default parameter values (steps, cfg, denoise)
-- Specific node IDs for parameter injection
-
-**Recommendation:** Extract a base `StoryImageGeneratorBaseViewModel` with all shared logic. Each variant only needs to override: the workflow file path, default settings, and the `InjectWorkflowParameters()` method.
-
-### HIGH: Duplicate ComfyUIService Classes
-
-Two `ComfyUIService` classes exist:
-1. `FlipPix.ComfyUI.Services.ComfyUIService` (568 lines) - Full implementation with WebSocket, retries, process management
-2. `FlipPix.UI.Services.ComfyUIService` (55 lines) - Simple HTTP wrapper, likely legacy/unused
-
-**Recommendation:** Remove `FlipPix.UI.Services.ComfyUIService`. It's registered in DI but appears unused since ViewModels reference the full `FlipPix.ComfyUI.Services.ComfyUIService`.
+Tabs get retired faster than their ViewModels do. A ViewModel is only alive if a tab sets it as
+`DataContext` **or** the composer forwards its members to names the XAML binds — neither shows up
+as a compiler warning, so removals leave a fully-compiling corpse behind. Same for windows: if
+nothing resolves them from the container behind a bound command, they are unreachable. The
+2026-08 pass removed 7 such ViewModels, 5 windows and their models.
 
 ### HIGH: WorkflowQueueCoordinator Missing Error Safety
 
@@ -514,31 +511,34 @@ ViewModels hold `CancellationTokenSource` and `ManualResetEventSlim` instances b
 
 ## 12. Suggested Refactoring Priority
 
-1. **WorkflowQueueCoordinator** - Add IDisposable lease pattern (prevents deadlocks, quick fix)
-2. **WebSocket buffer** - Fix message fragmentation (prevents silent failures)
-3. **Remove legacy UI ComfyUIService** - Dead code removal
-4. **Extract StoryImageGeneratorBase** - Eliminate ~3,000 lines of duplication
-5. **Split VideoGeneratorViewModel** - Break 7,500-line monolith into focused VMs
-6. **Migrate to CommunityToolkit.Mvvm attributes** - Reduce boilerplate across all VMs
-7. **Fix HttpClient disposal** - Prevent socket exhaustion
-8. **Add IFileDialogService** - Improve testability
-9. **Thread-safe settings** - Prevent data corruption
-10. **Remove manual GC calls** - Performance improvement
+Done since this document was first written: the legacy UI `ComfyUIService` is gone, the story
+generators share a base class, `VideoGeneratorViewModel` is split per tab, and
+`IFileDialogService` is injected everywhere.
+
+Still open:
+
+1. **Split the two remaining composers** - ImageGeneratorViewModel and VideoGeneratorMainViewModel
+   each hold a window's worth of children *and* their own tab's state
+2. **Migrate to CommunityToolkit.Mvvm attributes** - a lot of hand-written INotifyPropertyChanged remains
+3. **Link cancellation tokens** - orphaned tasks can outlive a window that closed mid-run
+4. **Thread-safe settings writes** - concurrent saves can clobber each other
+5. **Replace Debug.WriteLine with IAppLogger** - one log destination, not two
+6. **Remove manual GC calls**
 
 ---
 
 ## 13. File Size Summary
 
 ### Source Code (excluding obj/)
-- **ViewModels:** 27,551 lines across 15 files
-- **Services (UI):** 1,140 lines across 7 files
-- **Services (ComfyUI):** 1,074 lines across 2 files
-- **HTTP/WebSocket:** 1,181 lines across 2 files
-- **Models:** ~800 lines across 18 files
-- **Total source:** ~31,746 lines
+- **ViewModels:** ~40,300 lines across 31 files (one per tab, plus two window composers)
+- **Services (UI):** ~4,800 lines
+- **Services (ComfyUI):** ~1,380 lines
+- **HTTP/WebSocket:** ~2,310 lines
+- **Models:** ~1,800 lines
 
 ### Workflow Files
-- 37 workflow JSON files (including 14 style presets in image/zimage/)
+- 129 workflow JSON files under `workflow/`, including the `16gb/` memory-optimised variants
+  and the per-domain subfolders (`image/*`, `video/*`)
 - Average workflow: 200-500 node definitions
 
 ---

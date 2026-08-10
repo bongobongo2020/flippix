@@ -7,7 +7,7 @@
              x:Name="Root">
     <!--
         Reusable processing-log panel. Each tab binds its own log property:
-            <ctrl:ProcessingLogPanel LogText="{Binding WanScailGgufLogOutput}"/>
+            <ctrl:ProcessingLogPanel LogText="{Binding InfiniteTalkLogOutput}"/>
         Optional: Header, IsLogExpanded, MaxLogHeight.
     -->
     <Expander Header="{Binding Header, ElementName=Root}"
