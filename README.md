@@ -7,7 +7,15 @@
 FlipPix turns ~30 hand-tuned ComfyUI graphs into single-purpose tabs — each one with its own
 vision-LLM prompt writer, its own job queue, and no graph editing required.
 
-[Quick start](QUICKSTART.md) · [ComfyUI setup](COMFYUI_SETUP.md) · [Setup scripts](scripts/README.md) · [Architecture](architecture.md)
+### [⬇ Download FlipPix v1.2.0](https://github.com/bongobongo2020/flippix/releases/latest)
+
+[![latest release](https://img.shields.io/github/v/release/bongobongo2020/flippix?label=release&color=8b7bff)](https://github.com/bongobongo2020/flippix/releases/latest)
+[![downloads](https://img.shields.io/github/downloads/bongobongo2020/flippix/total?color=34d3bd)](https://github.com/bongobongo2020/flippix/releases)
+[![platform](https://img.shields.io/badge/platform-Windows%2010%2F11%20x64-93a3bd)](#requirements)
+
+Grab `FlipPix-Setup.zip`, extract, and double-click `Install-FlipPix.bat` — self-contained, no .NET runtime needed.
+
+[Quick start](QUICKSTART.md) · [ComfyUI setup](COMFYUI_SETUP.md) · [Setup scripts](scripts/README.md) · [Architecture](architecture.md) · [Release notes](https://github.com/bongobongo2020/flippix/releases/tag/v1.2.0)
 
 </div>
 
@@ -112,9 +120,13 @@ Along the way, three safety nets are always on:
 
 **New here? Start with [QUICKSTART.md](QUICKSTART.md).**
 
-1. Double-click **`Install-FlipPix.bat`** — a small wizard that installs the app and can also set
+1. Download **[`FlipPix-Setup.zip` from the latest release](https://github.com/bongobongo2020/flippix/releases/latest)** and extract it.
+2. Double-click **`Install-FlipPix.bat`** — a small wizard that installs the app and can also set
    up ComfyUI for you.
-2. Or grab the built app and run `publish\FlipPix.UI.exe`.
+3. Or skip the wizard and run `publish\FlipPix.UI.exe` straight from the extracted folder.
+
+The build is self-contained, so no .NET runtime is required. Upgrading? Install over the top —
+your settings, prompts and queues in `%APPDATA%\FlipPix` are kept.
 
 On first launch FlipPix asks whether your ComfyUI is **local** or **remote** and walks you
 through pointing at it. Everything else (server URL, output folder, LoRA folders, LLM server
