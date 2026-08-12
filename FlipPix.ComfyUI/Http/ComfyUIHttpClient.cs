@@ -1226,6 +1226,79 @@ public class ComfyUIHttpClient : IDisposable
     }
 
     /// <summary>
+    /// True once ComfyUI has recorded this prompt in /history — which it only does after the prompt has
+    /// fully finished, successfully or not.
+    /// <para>This is the honest completion test. <see cref="GetOutputFilesForPromptAsync"/> is not: it
+    /// returns the prompt's <i>media</i> outputs, and a workflow whose output nodes report only text
+    /// (the MiniMaxH3Chain* nodes report their file paths as <c>text</c>) finishes with zero files. Using
+    /// the file count as the completion signal makes such a run look like it never landed, and then like
+    /// it vanished once it also left /queue.</para>
+    /// </summary>
+    public async Task<bool> HasHistoryEntryAsync(string promptId, CancellationToken cancellationToken = default)
+    {
+        try
+        {
+            // The per-prompt route avoids pulling (and parsing) the entire run history every 5 seconds.
+            var response = await _httpClient.GetAsync($"/history/{Uri.EscapeDataString(promptId)}", cancellationToken);
+            if (!response.IsSuccessStatusCode) return false;
+
+            var content = await response.Content.ReadAsStringAsync(cancellationToken);
+            using var doc = JsonDocument.Parse(content);
+            return doc.RootElement.ValueKind == JsonValueKind.Object &&
+                   doc.RootElement.TryGetProperty(promptId, out _);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogDebug($"HasHistoryEntryAsync failed for {promptId}: {ex.Message}");
+            return false;
+        }
+    }
+
+    /// <summary>
+    /// Returns this prompt's <c>text</c> outputs grouped by the node that produced them.
+    /// <para>Nodes that report a result rather than a file — ShowText, and the MiniMaxH3Chain* nodes,
+    /// which report the absolute paths of the segments and the assembled video — put it under the
+    /// <c>text</c> key, which none of the media readers above look at.</para>
+    /// </summary>
+    public async Task<Dictionary<string, List<string>>> GetTextOutputsByNodeAsync(string promptId, CancellationToken cancellationToken = default)
+    {
+        var result = new Dictionary<string, List<string>>();
+        try
+        {
+            var response = await _httpClient.GetAsync($"/history/{Uri.EscapeDataString(promptId)}", cancellationToken);
+            if (!response.IsSuccessStatusCode) return result;
+
+            var content = await response.Content.ReadAsStringAsync(cancellationToken);
+            var history = JsonSerializer.Deserialize<Dictionary<string, JsonElement>>(content);
+            if (history == null || !history.TryGetValue(promptId, out var entry)) return result;
+
+            JsonElement outputs;
+            if (!entry.TryGetProperty("outputs", out outputs) &&
+                !(entry.TryGetProperty("result", out var r) && r.TryGetProperty("outputs", out outputs)))
+                return result;
+
+            foreach (var node in outputs.EnumerateObject())
+            {
+                if (!node.Value.TryGetProperty("text", out var arr) || arr.ValueKind != JsonValueKind.Array)
+                    continue;
+
+                var lines = new List<string>();
+                foreach (var item in arr.EnumerateArray())
+                {
+                    var s = item.ValueKind == JsonValueKind.String ? item.GetString() : item.ToString();
+                    if (!string.IsNullOrEmpty(s)) lines.Add(s);
+                }
+                if (lines.Count > 0) result[node.Name] = lines;
+            }
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Failed to get text outputs for prompt: {PromptId}", promptId);
+        }
+        return result;
+    }
+
+    /// <summary>
     /// Downloads a file from ComfyUI's /view endpoint using an explicit type ("output"/"temp"/"input").
     /// Falls back to the multi-pattern <see cref="DownloadOutputVideoAsync"/> if the direct request fails.
     /// </summary>

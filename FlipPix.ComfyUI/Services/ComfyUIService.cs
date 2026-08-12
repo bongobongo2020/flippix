@@ -545,8 +545,12 @@ public class ComfyUIService : IDisposable
                     {
                         await Task.Delay(TimeSpan.FromSeconds(5), combinedCts.Token);
                         if (isCompleted) return;
-                        var files = await _httpClient.GetOutputFilesForPromptAsync(promptId, combinedCts.Token);
-                        if (files.Count > 0)
+                        // Presence in /history — not the media-output count — is what says the prompt
+                        // finished. A workflow whose output nodes report only text (the MiniMaxH3Chain*
+                        // nodes report their file paths that way) lands in /history with zero files, and
+                        // testing the file count instead made a successful run look like it never
+                        // completed, and then like it had vanished once it also left /queue.
+                        if (await _httpClient.HasHistoryEntryAsync(promptId, combinedCts.Token))
                         {
                             lock (lockObj)
                             {
