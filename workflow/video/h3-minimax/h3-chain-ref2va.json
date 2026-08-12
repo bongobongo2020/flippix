@@ -1,0 +1,484 @@
+{
+  "1": {
+    "inputs": {
+      "unet_name": "h3-minimax/minimax_h3_fl2va_pruned_int8_convrot.safetensors",
+      "weight_dtype": "default"
+    },
+    "class_type": "UNETLoader",
+    "_meta": {
+      "title": "H3 REF2VA MODEL — REQUIRED"
+    }
+  },
+  "2": {
+    "inputs": {
+      "clip_name": "qwen3vl_32b_minimax_h3_nvfp4_awq.safetensors",
+      "type": "minimax",
+      "device": "default"
+    },
+    "class_type": "CLIPLoader",
+    "_meta": {
+      "title": "H3 TEXT ENCODER"
+    }
+  },
+  "3": {
+    "inputs": {
+      "vae_name": "minimax_h3_video_vae_fp16.safetensors"
+    },
+    "class_type": "VAELoader",
+    "_meta": {
+      "title": "H3 Video VAE"
+    }
+  },
+  "4": {
+    "inputs": {
+      "vae_name": "minimax_h3_audio_vae_fp32.safetensors"
+    },
+    "class_type": "VAELoader",
+    "_meta": {
+      "title": "H3 Audio VAE"
+    }
+  },
+  "5": {
+    "inputs": {
+      "shift_video": 12,
+      "shift_audio": 3,
+      "model": [
+        "1635",
+        0
+      ]
+    },
+    "class_type": "MiniMaxH3SigmaShift",
+    "_meta": {
+      "title": "MiniMax H3 Sigma Shift"
+    }
+  },
+  "110": {
+    "inputs": {
+      "prompt": [
+        "1702",
+        4
+      ],
+      "width": [
+        "1702",
+        8
+      ],
+      "height": [
+        "1702",
+        9
+      ],
+      "length": [
+        "1702",
+        6
+      ],
+      "ref_image_size": "match",
+      "clip": [
+        "2",
+        0
+      ],
+      "vae": [
+        "3",
+        0
+      ],
+      "audio_vae": [
+        "4",
+        0
+      ],
+      "ref_images.ref_image_0": [
+        "910",
+        0
+      ],
+      "ref_audios.ref_audio_0": [
+        "1702",
+        12
+      ],
+      "ref_images.ref_image_1": [
+        "911",
+        0
+      ]
+    },
+    "class_type": "MiniMaxH3ReferenceToVideo",
+    "_meta": {
+      "title": "H3 REF2VA — ONE REFERENCE SHEET"
+    }
+  },
+  "120": {
+    "inputs": {
+      "noise_seed": [
+        "1702",
+        5
+      ]
+    },
+    "class_type": "RandomNoise",
+    "_meta": {
+      "title": "Per-shot noise seed"
+    }
+  },
+  "121": {
+    "inputs": {
+      "model": [
+        "5",
+        0
+      ],
+      "conditioning": [
+        "1703",
+        0
+      ]
+    },
+    "class_type": "BasicGuider",
+    "_meta": {
+      "title": "Loop guider"
+    }
+  },
+  "122": {
+    "inputs": {
+      "sampler_name": "euler"
+    },
+    "class_type": "KSamplerSelect",
+    "_meta": {
+      "title": "Sampler algorithm"
+    }
+  },
+  "123": {
+    "inputs": {
+      "scheduler": "simple",
+      "steps": [
+        "1702",
+        7
+      ],
+      "denoise": 1,
+      "model": [
+        "5",
+        0
+      ]
+    },
+    "class_type": "BasicScheduler",
+    "_meta": {
+      "title": "Per-shot scheduler steps"
+    }
+  },
+  "124": {
+    "inputs": {
+      "noise": [
+        "120",
+        0
+      ],
+      "guider": [
+        "121",
+        0
+      ],
+      "sampler": [
+        "122",
+        0
+      ],
+      "sigmas": [
+        "123",
+        0
+      ],
+      "latent_image": [
+        "110",
+        1
+      ]
+    },
+    "class_type": "SamplerCustomAdvanced",
+    "_meta": {
+      "title": "H3 sampler — SINGLE LOOP BODY"
+    }
+  },
+  "130": {
+    "inputs": {
+      "samples": [
+        "124",
+        0
+      ],
+      "vae": [
+        "3",
+        0
+      ]
+    },
+    "class_type": "VAEDecode",
+    "_meta": {
+      "title": "Decode current clip frames"
+    }
+  },
+  "131": {
+    "inputs": {
+      "samples": [
+        "124",
+        0
+      ],
+      "vae": [
+        "4",
+        0
+      ]
+    },
+    "class_type": "VAEDecodeAudio",
+    "_meta": {
+      "title": "Decode current clip audio"
+    }
+  },
+  "132": {
+    "inputs": {
+      "trim_frames": [
+        "1703",
+        1
+      ],
+      "fps": 24,
+      "match_tail": true,
+      "images": [
+        "130",
+        0
+      ],
+      "audio": [
+        "131",
+        0
+      ]
+    },
+    "class_type": "MiniMaxH3LoopTrim",
+    "_meta": {
+      "title": "Trim overlap + frame-lock audio"
+    }
+  },
+  "910": {
+    "inputs": {
+      "image": "reference_1.png"
+    },
+    "class_type": "LoadImage",
+    "_meta": {
+      "title": "REFERENCE 1 - <Picture 1>"
+    }
+  },
+  "911": {
+    "inputs": {
+      "image": "reference_2.png"
+    },
+    "class_type": "LoadImage",
+    "_meta": {
+      "title": "REFERENCE 2 - <Picture 2>"
+    }
+  },
+  "940": {
+    "inputs": {
+      "audio": "soundtrack.wav"
+    },
+    "class_type": "LoadAudio",
+    "_meta": {
+      "title": "SOURCE AUDIO - <Audio 1>"
+    }
+  },
+  "1632": {
+    "inputs": {
+      "sage_attention": "auto",
+      "allow_compile": true,
+      "model": [
+        "1",
+        0
+      ]
+    },
+    "class_type": "PathchSageAttentionKJ",
+    "_meta": {
+      "title": "Patch Sage Attention KJ"
+    }
+  },
+  "1633": {
+    "inputs": {
+      "model": [
+        "1632",
+        0
+      ]
+    },
+    "class_type": "MiniMaxH3MemoryEfficientSageAttentionPatch",
+    "_meta": {
+      "title": "MiniMax H3 Mem Eff Sage Attention Patch"
+    }
+  },
+  "1634": {
+    "inputs": {
+      "tau": 1.5,
+      "start_percent": 0.2,
+      "end_percent": 0.9,
+      "min_tokens": 4096,
+      "int8_qk": true,
+      "sink_conditioning": "exact_kv_and_rows",
+      "morton": false,
+      "morton_curve": "2d_frame",
+      "int8_pv": true,
+      "verbose": false,
+      "use_tma": false,
+      "dense_blocks": "33-35, 39-42",
+      "model": [
+        "1633",
+        0
+      ]
+    },
+    "class_type": "SolAttnPatch",
+    "_meta": {
+      "title": "Patch Sol-Attn"
+    }
+  },
+  "1635": {
+    "inputs": {
+      "lora_name": "minimax_h3_fl2v_lightx2v_turbo_4step_v0.1_comfy.safetensors",
+      "strength_model": 0.8,
+      "model": [
+        "1634",
+        0
+      ]
+    },
+    "class_type": "LoraLoaderModelOnly",
+    "_meta": {
+      "title": "Load LoRA"
+    }
+  },
+  "1700": {
+    "inputs": {
+      "plan_json": "{\n  \"defaults\": {\n    \"duration_seconds\": 15,\n    \"steps\": 5\n  },\n  \"shots\": [\n    {\n      \"id\": \"clip_01\",\n      \"prompt\": \"Describe the opening segment.\",\n      \"seed\": \"1\"\n    },\n    {\n      \"id\": \"clip_02\",\n      \"prompt\": \"Continue the same uninterrupted take.\",\n      \"seed\": \"2\"\n    }\n  ]\n}",
+      "run_name": "h3_chain",
+      "generation_fingerprint": "",
+      "width": 960,
+      "height": 544,
+      "context_length": 22,
+      "encode_mode": "video",
+      "anchor_mode": "head",
+      "crop": "disabled",
+      "audio_mode": "source_track",
+      "audio_context_length": 0,
+      "default_duration_seconds": 15,
+      "default_steps": 5,
+      "base_seed": 0,
+      "segment_crf": 20
+    },
+    "class_type": "MiniMaxH3ChainPlan",
+    "_meta": {
+      "title": "H3 CHAIN PLAN — TIMED SEGMENTS"
+    }
+  },
+  "1701": {
+    "inputs": {
+      "start_clip": 1,
+      "scene_range": "",
+      "plan": [
+        "1700",
+        0
+      ],
+      "source_audio": [
+        "940",
+        0
+      ]
+    },
+    "class_type": "MiniMaxH3ChainLoopStart",
+    "_meta": {
+      "title": "H3 LOOP START / RESUME"
+    }
+  },
+  "1702": {
+    "inputs": {
+      "state": [
+        "1701",
+        1
+      ],
+      "source_audio": [
+        "940",
+        0
+      ]
+    },
+    "class_type": "MiniMaxH3ChainCurrent",
+    "_meta": {
+      "title": "CURRENT SHOT — prompt / seed / timing"
+    }
+  },
+  "1703": {
+    "inputs": {
+      "state": [
+        "1702",
+        0
+      ],
+      "conditioning": [
+        "110",
+        0
+      ],
+      "vae": [
+        "3",
+        0
+      ],
+      "latent": [
+        "110",
+        1
+      ]
+    },
+    "class_type": "MiniMaxH3ChainContext",
+    "_meta": {
+      "title": "AUTO CONTEXT — clip 1 bypass / continuation"
+    }
+  },
+  "1704": {
+    "inputs": {
+      "state": [
+        "1702",
+        0
+      ],
+      "images": [
+        "132",
+        0
+      ],
+      "sampled_latent": [
+        "124",
+        0
+      ],
+      "audio": [
+        "132",
+        1
+      ]
+    },
+    "class_type": "MiniMaxH3ChainSegmentSave",
+    "_meta": {
+      "title": "SAVE SEGMENT + TRANSACTIONAL CHECKPOINT"
+    }
+  },
+  "1705": {
+    "inputs": {
+      "flow": [
+        "1701",
+        0
+      ],
+      "state": [
+        "1702",
+        0
+      ],
+      "images": [
+        "132",
+        0
+      ],
+      "sampled_latent": [
+        "124",
+        0
+      ],
+      "segment": [
+        "1704",
+        0
+      ]
+    },
+    "class_type": "MiniMaxH3ChainLoopEnd",
+    "_meta": {
+      "title": "H3 LOOP END — recurse until segment 8"
+    }
+  },
+  "1706": {
+    "inputs": {
+      "audio_source": "plan",
+      "filename": "final",
+      "audio_bitrate": 256,
+      "manifest": [
+        "1705",
+        0
+      ],
+      "source_audio": [
+        "940",
+        0
+      ]
+    },
+    "class_type": "MiniMaxH3ChainAssemble",
+    "_meta": {
+      "title": "ASSEMBLE OPENING — SOURCE SONG"
+    }
+  }
+}
