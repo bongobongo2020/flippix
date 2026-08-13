@@ -123,6 +123,20 @@
                             <Button Grid.Column="1" Content="Browse..." Click="BrowseOutputPath_Click" Padding="15,5"/>
                         </Grid>
 
+                        <TextBlock Text="Remote ComfyUI Output Folder" FontWeight="SemiBold" FontSize="14" Margin="0,0,0,10" Foreground="{StaticResource TextSecondaryBrush}"/>
+                        <TextBlock TextWrapping="Wrap" FontSize="12" Foreground="{StaticResource TextSecondaryBrush}" Margin="0,0,0,5"
+                                   Text="When the Server URL above is another machine, the app reads generated files from THIS path — the folder above is ignored. Point it at the remote output folder as this PC sees it (e.g. a mapped drive or \\server\share\output)."/>
+                        <Grid Margin="0,0,0,5">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="*"/>
+                                <ColumnDefinition Width="Auto"/>
+                            </Grid.ColumnDefinitions>
+                            <TextBox Grid.Column="0" x:Name="RemoteOutputPathTextBox" Text="{Binding RemoteOutputFolderPath}" Margin="0,0,10,0"/>
+                            <Button Grid.Column="1" Content="Browse..." Click="BrowseRemoteOutputPath_Click" Padding="15,5"/>
+                        </Grid>
+                        <TextBlock x:Name="ActiveOutputFolderText" TextWrapping="Wrap" FontSize="12" FontStyle="Italic"
+                                   Foreground="{StaticResource TextSecondaryBrush}" Margin="0,0,0,15"/>
+
                         <TextBlock Text="Remote LoRA Folder (Optional)" FontWeight="SemiBold" FontSize="14" Margin="0,0,0,10" Foreground="{StaticResource TextSecondaryBrush}"/>
                         <TextBlock Text="Network path to remote ComfyUI LoRA models folder (e.g., \\server\ComfyUI\models\loras)" FontSize="12" Foreground="{StaticResource TextSecondaryBrush}" Margin="0,0,0,5"/>
                         <Grid Margin="0,0,0,0">

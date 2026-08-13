@@ -1771,7 +1771,7 @@ namespace FlipPix.UI.ViewModels.Video
             var settings = _settingsService.Settings;
             if (settings == null) return string.Empty;
             var isRemote = IsComfyUIRemote(new Uri(GetComfyUIBaseUrl()).Host);
-            return (isRemote ? settings.RemoteOutputFolderPath : settings.OutputFolderPath) ?? string.Empty;
+            return settings.ResolveOutputFolder(isRemote);
         }
 
         /// <summary>This run's <c>segments/</c> folder as this machine sees it, or empty when the output

@@ -712,7 +712,7 @@ namespace FlipPix.UI.ViewModels.Video
             {
                 var baseUrl = GetComfyUIBaseUrl();
                 bool isRemote = IsComfyUIRemote(new Uri(baseUrl).Host);
-                var outputFolder = isRemote ? settings.RemoteOutputFolderPath : settings.OutputFolderPath;
+                var outputFolder = settings.ResolveOutputFolder(isRemote);
                 if (!string.IsNullOrEmpty(outputFolder))
                 {
                     var local = Path.Combine(outputFolder, viewPath.Replace('/', Path.DirectorySeparatorChar));

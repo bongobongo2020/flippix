@@ -517,7 +517,7 @@ namespace FlipPix.UI.ViewModels.Video
                 {
                     var baseUrl = GetComfyUIBaseUrl();
                     bool isRemote = IsComfyUIRemote(new Uri(baseUrl).Host);
-                    string outputFolder = isRemote ? settings.RemoteOutputFolderPath : settings.OutputFolderPath;
+                    string outputFolder = settings.ResolveOutputFolder(isRemote);
                     if (!string.IsNullOrEmpty(outputFolder))
                     {
                         var srcPath = Path.Combine(outputFolder, imageFile.Replace('/', Path.DirectorySeparatorChar));
@@ -557,7 +557,7 @@ namespace FlipPix.UI.ViewModels.Video
                 if (settings == null) return null;
                 var baseUrl = GetComfyUIBaseUrl();
                 bool isRemote = IsComfyUIRemote(new Uri(baseUrl).Host);
-                var outputFolder = isRemote ? settings.RemoteOutputFolderPath : settings.OutputFolderPath;
+                var outputFolder = settings.ResolveOutputFolder(isRemote);
                 if (string.IsNullOrEmpty(outputFolder)) return null;
 
                 var candidates = new List<string>();
@@ -998,7 +998,7 @@ namespace FlipPix.UI.ViewModels.Video
                 if (settings == null) return null;
                 var baseUrl = GetComfyUIBaseUrl();
                 bool isRemote = IsComfyUIRemote(new Uri(baseUrl).Host);
-                var outputFolder = isRemote ? settings.RemoteOutputFolderPath : settings.OutputFolderPath;
+                var outputFolder = settings.ResolveOutputFolder(isRemote);
                 if (string.IsNullOrEmpty(outputFolder)) return null;
 
                 var candidates = new List<string>();
@@ -1082,7 +1082,7 @@ namespace FlipPix.UI.ViewModels.Video
                 {
                     var baseUrl = GetComfyUIBaseUrl();
                     bool isRemote = IsComfyUIRemote(new Uri(baseUrl).Host);
-                    string outputFolder = isRemote ? settings.RemoteOutputFolderPath : settings.OutputFolderPath;
+                    string outputFolder = settings.ResolveOutputFolder(isRemote);
                     if (!string.IsNullOrEmpty(outputFolder))
                     {
                         var localPath = Path.Combine(outputFolder, videoFile.Replace('/', Path.DirectorySeparatorChar));

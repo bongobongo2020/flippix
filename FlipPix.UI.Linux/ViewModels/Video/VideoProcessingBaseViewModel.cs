@@ -248,7 +248,7 @@ namespace FlipPix.UI.Linux.ViewModels.Video
             var baseUrl = GetComfyUIBaseUrl();
             bool isRemote = IsComfyUIRemote(new Uri(baseUrl).Host);
 
-            string outputFolder = isRemote ? settings.RemoteOutputFolderPath : settings.OutputFolderPath;
+            string outputFolder = settings.ResolveOutputFolder(isRemote);
             if (string.IsNullOrEmpty(outputFolder) || !Directory.Exists(outputFolder))
                 return existingFiles;
 
@@ -294,7 +294,7 @@ namespace FlipPix.UI.Linux.ViewModels.Video
             var baseUrl = GetComfyUIBaseUrl();
             bool isRemote = IsComfyUIRemote(new Uri(baseUrl).Host);
 
-            string outputFolder = isRemote ? settings.RemoteOutputFolderPath : settings.OutputFolderPath;
+            string outputFolder = settings.ResolveOutputFolder(isRemote);
             if (string.IsNullOrEmpty(outputFolder))
             {
                 AddLog("ERROR: Output folder not configured");
@@ -389,7 +389,7 @@ namespace FlipPix.UI.Linux.ViewModels.Video
                 {
                     var baseUrl = GetComfyUIBaseUrl();
                     bool isRemote = IsComfyUIRemote(new Uri(baseUrl).Host);
-                    string outputFolder = isRemote ? settings.RemoteOutputFolderPath : settings.OutputFolderPath;
+                    string outputFolder = settings.ResolveOutputFolder(isRemote);
 
                     if (!string.IsNullOrEmpty(outputFolder))
                     {

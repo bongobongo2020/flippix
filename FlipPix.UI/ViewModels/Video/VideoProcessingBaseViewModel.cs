@@ -124,11 +124,28 @@ namespace FlipPix.UI.ViewModels.Video
 
         #region Logging
 
+        /// <summary>
+        /// Upper bound on the in-memory log shown in the tab. The log is a single string bound straight
+        /// to a TextBox, so every append re-copies it and WPF re-measures the whole thing — during a long
+        /// poll loop that grows without limit and drags the whole UI down. The full history is still in
+        /// the log file; this only bounds what the tab keeps on screen.
+        /// </summary>
+        private const int MaxLogChars = 200_000;
+
         protected void AddLog(string message)
         {
             var timestamp = DateTime.Now.ToString("HH:mm:ss");
             var logEntry = $"[{timestamp}] {message}\n";
-            LogOutput += logEntry;
+
+            var updated = LogOutput + logEntry;
+            if (updated.Length > MaxLogChars)
+            {
+                // Drop the oldest quarter, cut at a line break so the view never starts mid-line.
+                var cut = updated.IndexOf('\n', updated.Length - (MaxLogChars * 3 / 4));
+                updated = cut >= 0 ? updated[(cut + 1)..] : updated[^(MaxLogChars * 3 / 4)..];
+            }
+            LogOutput = updated;
+
             _logger.LogInfo(message);
         }
 
@@ -248,7 +265,7 @@ namespace FlipPix.UI.ViewModels.Video
             var baseUrl = GetComfyUIBaseUrl();
             bool isRemote = IsComfyUIRemote(new Uri(baseUrl).Host);
 
-            string outputFolder = isRemote ? settings.RemoteOutputFolderPath : settings.OutputFolderPath;
+            string outputFolder = settings.ResolveOutputFolder(isRemote);
             if (string.IsNullOrEmpty(outputFolder) || !Directory.Exists(outputFolder))
                 return existingFiles;
 
@@ -274,6 +291,9 @@ namespace FlipPix.UI.ViewModels.Video
             return existingFiles;
         }
 
+        /// <summary>How often the wait loop below writes a "still waiting" line, regardless of tick rate.</summary>
+        private static readonly TimeSpan WaitLogInterval = TimeSpan.FromSeconds(30);
+
         /// <summary>
         /// Waits for a new video file to appear in the output folder.
         /// </summary>
@@ -294,10 +314,20 @@ namespace FlipPix.UI.ViewModels.Video
             var baseUrl = GetComfyUIBaseUrl();
             bool isRemote = IsComfyUIRemote(new Uri(baseUrl).Host);
 
-            string outputFolder = isRemote ? settings.RemoteOutputFolderPath : settings.OutputFolderPath;
+            string outputFolder = settings.ResolveOutputFolder(isRemote);
             if (string.IsNullOrEmpty(outputFolder))
             {
                 AddLog("ERROR: Output folder not configured");
+                return null;
+            }
+
+            // A folder that isn't there cannot ever produce the file we're waiting for, so don't spend
+            // the full timeout (up to an hour, for the long video tabs) discovering that. This is the
+            // usual symptom of an output path pointing at a network drive that has gone away.
+            if (!Directory.Exists(outputFolder))
+            {
+                AddLog($"ERROR: Output folder is not reachable: {outputFolder}");
+                AddLog("Fix the ComfyUI output folder in Settings (a remote server uses the remote path).");
                 return null;
             }
 
@@ -306,10 +336,26 @@ namespace FlipPix.UI.ViewModels.Video
             var actualMaxWait = maxWaitTime ?? TimeSpan.FromSeconds(60);
             var actualCheckInterval = checkInterval ?? TimeSpan.FromSeconds(2);
             var startTime = DateTime.Now;
+            var consecutiveUnreachable = 0;
+            var lastWaitLog = DateTime.MinValue;
 
             while (DateTime.Now - startTime < actualMaxWait)
             {
                 await Task.Delay(actualCheckInterval);
+
+                // The share can drop out mid-render; a few misses may just be a blip, but a folder that
+                // stays gone means the rest of the wait is dead time.
+                if (!Directory.Exists(outputFolder))
+                {
+                    if (++consecutiveUnreachable >= 3)
+                    {
+                        AddLog($"ERROR: Output folder went away and has not come back: {outputFolder}");
+                        return null;
+                    }
+                    AddLog($"Output folder is not reachable right now ({consecutiveUnreachable}/3): {outputFolder}");
+                    continue;
+                }
+                consecutiveUnreachable = 0;
 
                 // Rebuild folder list each iteration so subfolders created during generation are picked up
                 var foldersToCheck = new List<string> { outputFolder };
@@ -323,11 +369,10 @@ namespace FlipPix.UI.ViewModels.Video
                 var currentFiles = new List<string>();
                 foreach (var folder in foldersToCheck)
                 {
-                    if (Directory.Exists(folder))
-                    {
-                        // Recursive: workflows like DaSiWa write into dated subfolders (video/2026-06-17/...)
-                        currentFiles.AddRange(Directory.GetFiles(folder, filePattern, SearchOption.AllDirectories));
-                    }
+                    // Recursive: workflows like DaSiWa write into dated subfolders (video/2026-06-17/...)
+                    try { currentFiles.AddRange(Directory.GetFiles(folder, filePattern, SearchOption.AllDirectories)); }
+                    catch (IOException) { }               // share hiccup — retried next tick
+                    catch (UnauthorizedAccessException) { }
                 }
 
                 var newFiles = currentFiles.Where(f => !existingFiles.Contains(f)).ToList();
@@ -351,8 +396,11 @@ namespace FlipPix.UI.ViewModels.Video
                         return newestFile;
                     }
                 }
-                else
+                else if (DateTime.Now - lastWaitLog >= WaitLogInterval)
                 {
+                    // Heartbeat only. At the 4s tick a long wait used to write ~900 lines an hour into
+                    // a log the UI re-renders on every append.
+                    lastWaitLog = DateTime.Now;
                     var elapsed = (int)(DateTime.Now - startTime).TotalSeconds;
                     var remaining = (int)(actualMaxWait - (DateTime.Now - startTime)).TotalSeconds;
                     AddLog($"Waiting for video... ({elapsed}s elapsed, {remaining}s remaining)");
@@ -390,7 +438,7 @@ namespace FlipPix.UI.ViewModels.Video
                 {
                     var baseUrl = GetComfyUIBaseUrl();
                     bool isRemote = IsComfyUIRemote(new Uri(baseUrl).Host);
-                    string outputFolder = isRemote ? settings.RemoteOutputFolderPath : settings.OutputFolderPath;
+                    string outputFolder = settings.ResolveOutputFolder(isRemote);
 
                     if (!string.IsNullOrEmpty(outputFolder))
                     {

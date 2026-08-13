@@ -35,6 +35,12 @@ namespace FlipPix.UI
             // Reflect the saved VRAM tier + any detected VRAM
             InitVramTierUi();
 
+            // Which output folder is live depends on the server URL, so keep that line honest while
+            // all three fields are being edited.
+            ServerUrlTextBox.TextChanged += (_, __) => UpdateActiveOutputFolderText();
+            OutputPathTextBox.TextChanged += (_, __) => UpdateActiveOutputFolderText();
+            RemoteOutputPathTextBox.TextChanged += (_, __) => UpdateActiveOutputFolderText();
+
             // Update status on load
             UpdateStatus();
         }
@@ -257,6 +263,81 @@ namespace FlipPix.UI
             }
         }
 
+        private void BrowseRemoteOutputPath_Click(object sender, RoutedEventArgs e)
+        {
+            var dialog = new System.Windows.Forms.FolderBrowserDialog
+            {
+                Description = "Select the remote ComfyUI output folder, as this PC sees it",
+                ShowNewFolderButton = false
+            };
+
+            if (!string.IsNullOrEmpty(RemoteOutputPathTextBox.Text))
+            {
+                dialog.SelectedPath = RemoteOutputPathTextBox.Text;
+            }
+
+            if (dialog.ShowDialog() == System.Windows.Forms.DialogResult.OK)
+            {
+                RemoteOutputPathTextBox.Text = dialog.SelectedPath;
+                UpdateStatus();
+            }
+        }
+
+        /// <summary>
+        /// True when the Server URL currently in the dialog points at another machine — which is what
+        /// decides whether the app reads outputs from the local or the remote folder.
+        /// </summary>
+        private bool ServerLooksRemote()
+        {
+            var host = Uri.TryCreate(ServerUrlTextBox.Text?.Trim(), UriKind.Absolute, out var uri)
+                ? uri.Host
+                : string.Empty;
+
+            return !(string.IsNullOrEmpty(host)
+                     || host.Equals("127.0.0.1", StringComparison.OrdinalIgnoreCase)
+                     || host.Equals("localhost", StringComparison.OrdinalIgnoreCase)
+                     || host.Equals("0.0.0.0", StringComparison.OrdinalIgnoreCase)
+                     || host.Equals("::1", StringComparison.OrdinalIgnoreCase));
+        }
+
+        /// <summary>
+        /// Spells out which of the two output folders this server will actually be read from, so a
+        /// correction typed into the wrong box is obvious before the dialog is saved.
+        /// </summary>
+        private void UpdateActiveOutputFolderText()
+        {
+            if (ActiveOutputFolderText is null || ServerUrlTextBox is null
+                || OutputPathTextBox is null || RemoteOutputPathTextBox is null)
+            {
+                return;
+            }
+
+            var isRemote = ServerLooksRemote();
+            var active = (isRemote ? RemoteOutputPathTextBox.Text : OutputPathTextBox.Text)?.Trim() ?? string.Empty;
+            var other = (isRemote ? OutputPathTextBox.Text : RemoteOutputPathTextBox.Text)?.Trim() ?? string.Empty;
+            var which = isRemote ? "remote" : "local";
+
+            if (string.IsNullOrEmpty(active))
+            {
+                ActiveOutputFolderText.Text = ComfyUISettings.IsReachableFolder(other)
+                    ? $"⚠ This server is {which}, but no {which} output folder is set — the app will fall back to: {other}"
+                    : $"⚠ This server is {which}, but no {which} output folder is set.";
+            }
+            else if (ComfyUISettings.IsReachableFolder(active))
+            {
+                ActiveOutputFolderText.Text = $"➜ Generated files will be read from the {which} folder: {active}";
+            }
+            else if (ComfyUISettings.IsReachableFolder(other))
+            {
+                ActiveOutputFolderText.Text =
+                    $"⚠ The {which} folder is not reachable ({active}) — the app will fall back to: {other}";
+            }
+            else
+            {
+                ActiveOutputFolderText.Text = $"❌ The {which} folder is not reachable: {active}";
+            }
+        }
+
         private void BrowseRemoteLoraPath_Click(object sender, RoutedEventArgs e)
         {
             var dialog = new System.Windows.Forms.FolderBrowserDialog
@@ -363,7 +444,16 @@ namespace FlipPix.UI
                     status += $"❌ Invalid server URL: {ServerUrlTextBox.Text}\n";
                 }
 
+                // Remote output path — the one that's actually used when the server is another machine
+                if (!string.IsNullOrEmpty(RemoteOutputPathTextBox.Text))
+                {
+                    status += ComfyUISettings.IsReachableFolder(RemoteOutputPathTextBox.Text)
+                        ? $"✅ Remote output folder reachable: {RemoteOutputPathTextBox.Text}\n"
+                        : $"❌ Remote output folder not reachable: {RemoteOutputPathTextBox.Text}\n";
+                }
+
                 StatusTextBlock.Text = status.Trim();
+                UpdateActiveOutputFolderText();
             }
             catch (Exception ex)
             {
@@ -839,6 +929,28 @@ namespace FlipPix.UI
                     }
                 }
 
+                // A remote server reads from the remote path, so saving one that isn't reachable means
+                // every tab will wait for files it can never see. Warn, but let it through — the share
+                // may simply be offline at the moment.
+                if (ServerLooksRemote())
+                {
+                    var remoteOut = RemoteOutputPathTextBox.Text?.Trim() ?? "";
+                    if (string.IsNullOrEmpty(remoteOut) || !ComfyUISettings.IsReachableFolder(remoteOut))
+                    {
+                        var message = string.IsNullOrEmpty(remoteOut)
+                            ? "The ComfyUI server is on another machine, but no remote output folder is set.\n\n"
+                              + $"The app will fall back to the local folder ({OutputPathTextBox.Text?.Trim()}) when it can reach it.\n\nSave anyway?"
+                            : $"The remote output folder is not reachable:\n\n{remoteOut}\n\n"
+                              + "This is where the app looks for generated files when ComfyUI is on another machine.\n\nSave anyway?";
+
+                        if (MessageBox.Show(message, "Remote Output Folder",
+                                MessageBoxButton.YesNo, MessageBoxImage.Warning) != MessageBoxResult.Yes)
+                        {
+                            return;
+                        }
+                    }
+                }
+
                 // Rebuild the LM Studio URL from the server/port fields (robust against host
                 // names UriBuilder rejects), store it under its friendly name, and make it the
                 // default target every image analysis is sent to.
@@ -864,6 +976,7 @@ namespace FlipPix.UI
                 newSettings.MaxRetries = int.TryParse(MaxRetriesTextBox.Text, out var retries) ? retries : 3;
                 newSettings.ComfyUIFolderPath = ComfyUIPathTextBox.Text?.Trim() ?? "";
                 newSettings.OutputFolderPath = OutputPathTextBox.Text?.Trim() ?? "";
+                newSettings.RemoteOutputFolderPath = RemoteOutputPathTextBox.Text?.Trim() ?? "";
                 newSettings.RemoteLoraFolderPath = RemoteLoraPathTextBox.Text?.Trim() ?? "";
                 newSettings.KreaLoraFolderPath = KreaLoraPathTextBox.Text?.Trim() ?? "";
                 newSettings.WslModelsFolderPath = WslModelsFolderTextBox.Text?.Trim() ?? "";

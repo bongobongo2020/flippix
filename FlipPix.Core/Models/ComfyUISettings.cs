@@ -1,4 +1,7 @@
+using System;
+using System.Collections.Concurrent;
 using System.Collections.Generic;
+using System.IO;
 using System.Linq;
 
 namespace FlipPix.Core.Models;
@@ -36,6 +39,55 @@ public class ComfyUISettings
 
     public List<SavedCameraPrompt> SavedCameraPrompts { get; set; } = new();
     public LMStudioSettings LMStudioSettings { get; set; } = new LMStudioSettings();
+
+    /// <summary>
+    /// Where ComfyUI's outputs land <i>as seen from this machine</i>, for a local or remote server.
+    ///
+    /// <para>There are two configured paths and only one of them is right for a given server, so every
+    /// caller used to write <c>isRemote ? RemoteOutputFolderPath : OutputFolderPath</c> by hand. That
+    /// picks a path even when it is stale or unreachable — a remote setup whose
+    /// <see cref="RemoteOutputFolderPath"/> points at a dead network drive would keep scanning it and
+    /// ignore the perfectly good <see cref="OutputFolderPath"/> the user had just corrected, because
+    /// the main Settings window only ever edited the latter.</para>
+    ///
+    /// <para>So: prefer the path that matches the server, but fall back to the other one when the
+    /// preferred path is unset or not reachable. When neither is reachable the preferred path is
+    /// returned unchanged, so logs and error messages name the folder the user actually configured.</para>
+    /// </summary>
+    public string ResolveOutputFolder(bool isRemote)
+    {
+        var preferred = (isRemote ? RemoteOutputFolderPath : OutputFolderPath) ?? string.Empty;
+        var fallback = (isRemote ? OutputFolderPath : RemoteOutputFolderPath) ?? string.Empty;
+
+        if (IsReachableFolder(preferred)) return preferred;
+        if (IsReachableFolder(fallback)) return fallback;
+
+        return string.IsNullOrWhiteSpace(preferred) ? fallback : preferred;
+    }
+
+    // Probing a disconnected network drive can block for seconds, and the callers below sit in
+    // polling loops, so remember the answer briefly. A folder that appears (or disappears) is
+    // picked up on the next expiry rather than instantly, which is fine for an output directory.
+    private static readonly ConcurrentDictionary<string, (DateTime Probed, bool Exists)> _folderProbes =
+        new(StringComparer.OrdinalIgnoreCase);
+    private static readonly TimeSpan FolderProbeTtl = TimeSpan.FromSeconds(30);
+
+    /// <summary>True when <paramref name="path"/> is set and currently resolves to a real directory.</summary>
+    public static bool IsReachableFolder(string? path)
+    {
+        if (string.IsNullOrWhiteSpace(path)) return false;
+
+        var now = DateTime.UtcNow;
+        if (_folderProbes.TryGetValue(path, out var cached) && now - cached.Probed < FolderProbeTtl)
+            return cached.Exists;
+
+        bool exists;
+        try { exists = Directory.Exists(path); }
+        catch { exists = false; }   // unreachable share, denied, malformed path
+
+        _folderProbes[path] = (now, exists);
+        return exists;
+    }
 
     /// <summary>
     /// Last-used browse folder per dialog context, keyed by an arbitrary caller key
