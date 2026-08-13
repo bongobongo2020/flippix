@@ -33,6 +33,10 @@ namespace FlipPix.UI.Linux.ViewModels
         private const int MaxBaseAxis = MaxPidAxis / PidScale;
         private const int BaseTargetPixels = 1024 * 1024;
 
+        // 57/62 caption the reference image, 63 joins them, 59 shows the result. Analyze runs
+        // this chain to fill the prompt box; Generate has no use for it once the box is filled.
+        private static readonly string[] QwenVlChainNodes = { "57", "62", "63", "59" };
+
         private readonly ComfyUIService _comfyUIService;
         private readonly SettingsService _settingsService;
         private readonly IFileDialogService _fileDialogService;
@@ -580,7 +584,23 @@ namespace FlipPix.UI.Linux.ViewModels
             UpdateNode(dict, "207", inputs => { inputs["width"] = pidWidth; inputs["height"] = pidHeight; });
             AddLog($"Base {baseWidth}x{baseHeight} → PiD canvas {pidWidth}x{pidHeight}");
 
-            if (customPrompt != null) UpdateNode(dict, "6", inputs => inputs["text"] = customPrompt);
+            if (customPrompt != null)
+            {
+                // 59 (ShowText) feeds both the Klein encoder (6) and the PiD encoder (201);
+                // a typed prompt has to replace it in both or PiD paints from the stale
+                // caption node 6 no longer reads.
+                UpdateNode(dict, "6", inputs => inputs["text"] = customPrompt);
+                UpdateNode(dict, "201", inputs => inputs["text"] = customPrompt);
+
+                // With both encoders holding literal text, the QwenVL chain is dead weight -
+                // except 59 is an OUTPUT_NODE, so ComfyUI would still run 57/62 to reach it.
+                // That matters beyond wasted time: a native crash inside the GGUF runtime
+                // takes the whole ComfyUI process down (no node error, the port just dies),
+                // which killed Generate as well as Analyze. Drop the branch.
+                foreach (var deadNode in QwenVlChainNodes)
+                    dict.Remove(deadNode);
+            }
+
             return JsonSerializer.SerializeToElement(dict);
         }
 
