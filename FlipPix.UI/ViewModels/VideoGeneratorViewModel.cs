@@ -104,6 +104,14 @@ namespace FlipPix.UI.ViewModels
         public MiniMaxCharacterViewModel MiniMaxCharacterVM { get; }
 
         /// <summary>
+        /// H3 Cast ViewModel - the same reference-to-video idea as MiniMaxCharacterVM, but each character
+        /// arrives as an ordinary photo and is turned into a three-panel Qwen-Image-Edit-2511 character
+        /// sheet (front, back, face close-up) first; the video then runs through the face-refiner graph,
+        /// whose second H3 pass re-generates the tracked face crops against those same sheets.
+        /// </summary>
+        public H3CastViewModel H3CastVM { get; }
+
+        /// <summary>
         /// H3 Chain ViewModel - MiniMax H3 run as an autoregressive chain: two reference images and a
         /// soundtrack become one continuous take of arbitrary length, rendered as N segments inside a
         /// single ComfyUI submission where each segment continues out of the last frame of the one
@@ -112,7 +120,7 @@ namespace FlipPix.UI.ViewModels
         public H3ChainViewModel H3ChainVM { get; }
 
         // Bound to the main TabControl so code can switch tabs programmatically.
-        // 0 = Story Video Generator tab.
+        // 0 = Scail 2 tab.
         private int _selectedTabIndex = 0;
         public int SelectedTabIndex
         {
@@ -245,6 +253,15 @@ namespace FlipPix.UI.ViewModels
                 _workflowCoordinator,
                 _fileDialogService);
 
+            H3CastVM = new H3CastViewModel(
+                comfyUIService,
+                lmStudioService,
+                logger,
+                settingsService,
+                serviceProvider,
+                _workflowCoordinator,
+                _fileDialogService);
+
             H3ChainVM = new H3ChainViewModel(
                 comfyUIService,
                 lmStudioService,
@@ -266,6 +283,7 @@ namespace FlipPix.UI.ViewModels
             MiniMaxFflfVM.PlayRequested += (s, e) => PlayRequested?.Invoke(this, e);
             MiniMaxH3T2VVM.PlayRequested += (s, e) => PlayRequested?.Invoke(this, e);
             MiniMaxCharacterVM.PlayRequested += (s, e) => PlayRequested?.Invoke(this, e);
+            H3CastVM.PlayRequested += (s, e) => PlayRequested?.Invoke(this, e);
             H3ChainVM.PlayRequested += (s, e) => PlayRequested?.Invoke(this, e);
 
             // Forward PropertyChanged events from all sub-VMs for backward compatibility
@@ -280,6 +298,7 @@ namespace FlipPix.UI.ViewModels
             MiniMaxFflfVM.PropertyChanged += ForwardPropertyChanged;
             MiniMaxH3T2VVM.PropertyChanged += ForwardPropertyChanged;
             MiniMaxCharacterVM.PropertyChanged += ForwardPropertyChanged;
+            H3CastVM.PropertyChanged += ForwardPropertyChanged;
             H3ChainVM.PropertyChanged += ForwardPropertyChanged;
 
             NavigateToImageGeneratorCommand = new RelayCommand(NavigateToImageGenerator);
@@ -547,7 +566,7 @@ namespace FlipPix.UI.ViewModels
             // Load the image as the MiniMax H3 first frame and bring that tab to the front,
             // so the user lands on it with the image already loaded.
             MiniMaxH3VM.ImagePath = imagePath;
-            SelectedTabIndex = 7; // MiniMax H3 tab
+            SelectedTabIndex = 2; // MiniMax H3 tab
         }
 
         #endregion
@@ -569,6 +588,7 @@ namespace FlipPix.UI.ViewModels
                 MiniMaxFflfVM.PropertyChanged -= ForwardPropertyChanged;
                 MiniMaxH3T2VVM.PropertyChanged -= ForwardPropertyChanged;
                 MiniMaxCharacterVM.PropertyChanged -= ForwardPropertyChanged;
+                H3CastVM.PropertyChanged -= ForwardPropertyChanged;
                 H3ChainVM.PropertyChanged -= ForwardPropertyChanged;
 
                 // Dispose all sub-ViewModels
@@ -582,6 +602,7 @@ namespace FlipPix.UI.ViewModels
                 (MiniMaxFflfVM as IDisposable)?.Dispose();
                 (MiniMaxH3T2VVM as IDisposable)?.Dispose();
                 (MiniMaxCharacterVM as IDisposable)?.Dispose();
+                (H3CastVM as IDisposable)?.Dispose();
                 (H3ChainVM as IDisposable)?.Dispose();
 
                 _disposed = true;

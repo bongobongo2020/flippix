@@ -1,0 +1,2922 @@
+using System;
+using System.Collections.Generic;
+using System.Collections.ObjectModel;
+using System.IO;
+using System.Linq;
+using System.Text;
+using System.Text.Json;
+using System.Text.Json.Nodes;
+using System.Text.RegularExpressions;
+using System.Threading;
+using System.Threading.Tasks;
+using System.Windows.Input;
+using System.Windows.Media.Imaging;
+using CommunityToolkit.Mvvm.Input;
+using FlipPix.ComfyUI.Models;
+using FlipPix.ComfyUI.Services;
+using FlipPix.Core.Interfaces;
+using FlipPix.UI.Models;
+using FlipPix.UI.Services;
+using Application = System.Windows.Application;
+using MessageBox = System.Windows.MessageBox;
+using MessageBoxButton = System.Windows.MessageBoxButton;
+using MessageBoxImage = System.Windows.MessageBoxImage;
+
+namespace FlipPix.UI.ViewModels.Video
+{
+    /// <summary>
+    /// "H3 Cast" tab — reference-to-video the way the Minimax-h3 reference-to-video thread does it, with the
+    /// two preparation steps the thread leaves to the user done in the app:
+    ///
+    /// <list type="number">
+    /// <item><b>Character sheets.</b> Each character arrives as one ordinary photo. Qwen-Image-Edit-2511
+    /// (<c>qwen_image_edit_2511_int8_convrot</c>, 8-step Lightning LoRA) turns it into a three-panel
+    /// reference sheet on a plain studio background — full-body front, full-body back, face close-up. That
+    /// composite is what H3 is actually handed: the front view fixes silhouette and outfit, the back view
+    /// explains hair and clothing through turns, and the close-up carries the facial identity. One image per
+    /// character, several views inside it.</item>
+    /// <item><b>The prompt.</b> Written from a "scene" image, from a story, or from both. The scene image is
+    /// never uploaded — only the llama-server sees it — and supplies setting, lighting, art style and the
+    /// wardrobe; the story (typed, pasted or loaded from a .txt) supplies what happens. Either one is enough
+    /// on its own: with no image the request goes to the llama-server as plain text and the setting is
+    /// written out of the prose instead. Both paths produce the same dense multi-shot H3 prompt the 🌀📝 tab
+    /// writes (<c>texttovideoH3.md</c>), in which the cast is named only as <c>&lt;Picture 1&gt;</c> /
+    /// <c>&lt;Picture 2&gt;</c> — the story's own character names are replaced by those tags.</item>
+    /// <item><b>The video.</b> <c>h3facerefiner.json</c> — the turbo ref2va graph the 🎭👥 tab uses, plus a
+    /// second H3 pass that tracks and crops every face, re-generates the crops at a low denoise against the
+    /// same conditioning, and stitches them back into the full frames. Faces are the first thing H3 loses at
+    /// distance, and the sheets are what the refiner has to work from, so the two halves of this tab are the
+    /// same idea applied twice.</item>
+    /// </list>
+    ///
+    /// <para><b>Length.</b> H3 tops out at ~15 seconds, so <see cref="StoryDurationSeconds"/> (5–120 s) is
+    /// delivered as a <i>chain</i>: Analyze asks the LLM for <see cref="PlannedClipCount"/> complete H3
+    /// prompts in one reply, separated by <c>=== CLIP n of N ===</c> headers, each one a consecutive beat of
+    /// the same story. The prompt box holds the whole chain and stays editable; "Add to Queue" splits it on
+    /// those headers and enqueues one job per clip — same sheets, same reference line, rendered in order.
+    /// Once every clip has landed, <see cref="CompleteStoryAsync"/> FFmpeg-concatenates them into one
+    /// continuous video, which becomes the tab's result.</para>
+    ///
+    /// <para><b>Queued, not blocking.</b> Sheet building is an explicit up-front step (its result is on screen
+    /// before any video GPU time is spent); "Add to Queue" then snapshots the sheets, the prompt and the
+    /// settings into an <see cref="H3CastQueueItem"/> and the queue drains in the background, one ComfyUI
+    /// submission at a time via the workflow coordinator.</para>
+    ///
+    /// <para><b>Custom nodes.</b> The refine pass needs the H3-FaceRefine node pack
+    /// (<c>H3FaceTrackCrop</c>, <c>H3InjectVideoLatent</c>, <c>H3PerFrameDenoise</c>, <c>H3FaceStitch</c>) and
+    /// <c>MiniMaxH3NativeAudioLock</c>. If the server does not have them the submit fails with a missing-node
+    /// error and the app's node resolver offers to install them; turning <see cref="FaceRefine"/> off prunes
+    /// that whole branch out and the tab runs as a plain sheet-driven ref2video.</para>
+    /// </summary>
+    public partial class H3CastViewModel : VideoProcessingBaseViewModel
+    {
+        private const string WorkflowFileName = "workflow/video/h3-minimax/h3facerefiner.json";
+        private const string SheetWorkflowFileName = "workflow/image/qwen-edit/Qwen_Edit_2511_INT8_Convrot_WF.json";
+        private const string OutputSubfolder = "h3_cast";
+        private const string SystemPromptFile = "texttovideoH3.md";
+        private const string SheetPromptFile = "h3-charsheet-2511.md";
+
+        /// <summary>Appended to <see cref="SystemPromptFile"/> when more than one clip is being written, so
+        /// the H3 format itself stays defined in exactly one place.</summary>
+        private const string StorySystemPromptFile = "texttovideoH3_story.md";
+
+        // ── Video node ids (locked from h3-minimax/h3facerefiner.json) ────────────────────────
+        private const string NodeCharacter1 = "44";     // LoadImage → resize 13 → ref_image_0
+        private const string NodeChar1Resize = "13";    // ImageResizeKJv2 — the template AddSecondCharacter clones
+        private const string NodeReference = "23";      // MiniMaxH3ReferenceToVideo (base pass)
+        private const string NodeRefineReference = "101"; // MiniMaxH3ReferenceToVideo (face-crop canvas)
+        private const string NodePrompt = "48";         // PrimitiveStringMultiline → both reference nodes
+        private const string NodeResolution = "45";     // ResolutionSelector → canvas + resize 13
+        private const string NodeFrames = "5";          // ComfyMathExpression seconds → frames (output slot 1)
+        private const string NodeDuration = "56";       // PrimitiveFloat seconds → node 5
+        private const string NodeSeed = "46";           // RandomNoise noise_seed (base pass)
+        private const string NodeScheduler = "57";      // BasicScheduler (steps — read, never written)
+        private const string NodeBaseFrames = "3";      // VAEDecode — the base pass's finished frames
+        private const string NodeRefineDenoise = "106"; // BasicScheduler of the refine pass (denoise + steps)
+        private const string NodeRefineSeed = "108";    // RandomNoise of the refine pass
+        private const string NodeFaceStitch = "111";    // H3FaceStitch — refined crops back into the frames
+        private const string NodeRtxUpscale = "64";     // RTXVideoSuperResolution (images ← stitch, or base)
+        private const string NodeVideoCombine = "65";   // VHS_VideoCombine — the graph's only output
+
+        // Ids for the second reference chain, injected only when character 2 has a sheet. Outside every id
+        // the export uses.
+        private const string NodeCharacter2 = "910";
+        private const string NodeChar2Resize = "911";
+
+        // ── Sheet node ids (locked from image/qwen-edit/Qwen_Edit_2511_INT8_Convrot_WF.json) ───
+        private const string SheetLoadImage = "78";     // LoadImage (the character photo)
+        private const string SheetPositive = "115:111"; // TextEncodeQwenImageEditPlus (the sheet instruction)
+        private const string SheetSampler = "115:3";    // KSampler (seed + latent rewire)
+        private const string SheetLatent = "115:112";   // EmptySD3LatentImage — the sheet canvas
+        private const string SheetSave = "60";          // SaveImage
+
+        /// <summary>
+        /// The canvas the sheet is generated on. Three full-height panels side by side need width, and 16:9
+        /// is deliberate: it is the aspect the video canvas usually is, so the sheet survives the reference
+        /// resize with the least reframing.
+        /// </summary>
+        private const int SheetWidth = 1536;
+        private const int SheetHeight = 864;
+
+        /// <summary>
+        /// How the sheets are fitted to the video canvas. The 🎭👥 tab crops (its references are ordinary
+        /// photos, where a centre crop is harmless), but cropping a three-panel sheet to a portrait canvas
+        /// would cut the outer panels off entirely — which is most of the identity information. Padding keeps
+        /// every panel, at the cost of some unused canvas.
+        /// </summary>
+        private const string SheetFitMode = "pad";
+
+        /// <summary>H3 renders at 24 fps and the duration maths below is built on it; written on every submit
+        /// so an export at another rate cannot desync what the tab reports from what lands on disk.</summary>
+        private const int OutputFrameRate = 24;
+
+        /// <summary>RTX Video Super Resolution factor — node 64's <c>scale</c>, mirrored here so the tab can
+        /// say what size the file will be before it renders.</summary>
+        private const double RtxScale = 2.0;
+
+        /// <summary>
+        /// Reference line pinning both characters to their sheets. It has three jobs the ordinary
+        /// character-reference line does not: name the sheet as a <i>sheet</i> (several views of one person,
+        /// not several people), forbid the sheet's studio background and A-pose from leaking into the video,
+        /// and hand the wardrobe to the prompt body — which is dressed from the scene image, the only image
+        /// the LLM ever sees.
+        /// </summary>
+        private const string RefInstructionTwo =
+            "For the target video, use <Picture 1> and <Picture 2> as character reference sheets — Character 1 is <Picture 1> and Character 2 is <Picture 2>. Each sheet shows one and the same person from several angles (full-body front, full-body back, face close-up) on a plain studio background: take ONLY that person's identity from it — face, facial features, hair, skin and build — and keep each of them identical and unchanged from the first frame to the last. Do NOT copy the sheet's plain background, its neutral standing pose or its panel layout into the video, and do NOT dress them from it: place them in the scene described below and dress each of them strictly in the outfit written there, unchanged throughout.";
+
+        private const string RefInstructionOne =
+            "For the target video, use <Picture 1> as a character reference sheet — Character 1 is <Picture 1>. The sheet shows one and the same person from several angles (full-body front, full-body back, face close-up) on a plain studio background: take ONLY that person's identity from it — face, facial features, hair, skin and build — and keep it identical and unchanged from the first frame to the last. Do NOT copy the sheet's plain background, its neutral standing pose or its panel layout into the video, and do NOT dress them from it: place them in the scene described below and dress them strictly in the outfit written there, unchanged throughout.";
+
+        /// <summary>Every reference line the tab writes starts with this, so an existing one can be found and
+        /// rewritten when the cast changes.</summary>
+        private const string RefLinePrefix = "For the target video,";
+
+        /// <summary>
+        /// Opens the code-written wardrobe block. Every clip of a story carries this block byte for byte, which
+        /// is the whole point: the clips are written as separate blocks by a model that cannot see its own
+        /// earlier output, so an outfit left to the prose is an outfit that changes every few clips. It is also
+        /// how an existing block is found and rewritten — see <see cref="StripWardrobeBlock"/>.
+        /// </summary>
+        private const string WardrobeLockPrefix = "WARDROBE LOCK";
+
+        /// <summary>
+        /// The sentence the wardrobe block opens with. It has to outrank the prompt body, because the body is
+        /// written per clip and will drift: whatever the LLM says three paragraphs down, this line is the same
+        /// in clip 1 and clip 8, so it is the only description in the prompt that can hold an outfit still.
+        /// </summary>
+        private const string WardrobeLockHeader =
+            WardrobeLockPrefix + " — this is the authoritative wardrobe for the whole video and it is identical " +
+            "in every clip. Dress the cast in exactly these clothes, unchanged from the first frame to the last, " +
+            "and ignore any other clothing wording anywhere below; nobody changes, adds, removes or restyles a " +
+            "garment unless this block says so:";
+
+        // ── Character state ────────────────────────────────────────────────────
+        private readonly CharacterSlot _character1;
+        private readonly CharacterSlot _character2;
+
+        // ── Scene / prompt state ───────────────────────────────────────────────
+        private string _sceneImagePath = string.Empty;
+        private BitmapImage? _sceneImagePreview;
+        private string _sceneImageInfo = string.Empty;
+        private string _prompt = string.Empty;
+        private int _promptClipCount;
+        private string _castWardrobe = string.Empty;
+        private string _storyText = string.Empty;
+        private string _storyFileName = string.Empty;
+        private double _storyDurationSeconds = 15;
+        private string _selectedAspectRatio = MiniMaxH3ViewModel.AutoAspect;
+        private double _megapixels = 1.0;
+        private double _lengthSeconds = 10;
+        private long _seed = -1;
+        private bool _isAnalyzing;
+        private bool _faceRefine = true;
+        private double _refineDenoise = 0.45;
+        // Off by default: it is the graph's largest allocation and the observed cause of ComfyUI dying
+        // mid-render on a long clip. Opt in for short ones; otherwise upscale the finished file afterwards.
+        private bool _rtxUpscale;
+        private bool _isBuildingSheets;
+        private string _sheetPhase = string.Empty;
+
+        private readonly IFileDialogService _fileDialogService;
+        private readonly LMStudioService _lmStudioService;
+        private CancellationTokenSource? _analyzeCts;
+        private CancellationTokenSource? _sheetCts;
+
+        /// <summary>path → ComfyUI input-folder filename; each file is uploaded once per session.</summary>
+        private readonly Dictionary<string, string> _uploadCache = new(StringComparer.OrdinalIgnoreCase);
+
+        // ── Queue ──────────────────────────────────────────────────────────────
+        private readonly ObservableCollection<H3CastQueueItem> _queue = new();
+        private CancellationTokenSource? _queueCts;
+        private bool _isProcessingQueue;
+        private string _queueStatus = string.Empty;
+
+        private static string QueueFilePath => Path.Combine(
+            Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData),
+            "FlipPix", "queue", "h3cast_queue.json");
+
+        public H3CastViewModel(
+            ComfyUIService comfyUIService,
+            LMStudioService lmStudioService,
+            IAppLogger logger,
+            FlipPix.Core.Services.SettingsService settingsService,
+            IServiceProvider? serviceProvider,
+            WorkflowQueueCoordinator workflowCoordinator,
+            IFileDialogService fileDialogService)
+            : base(comfyUIService, logger, settingsService, serviceProvider, workflowCoordinator)
+        {
+            _lmStudioService = lmStudioService ?? throw new ArgumentNullException(nameof(lmStudioService));
+            _fileDialogService = fileDialogService ?? throw new ArgumentNullException(nameof(fileDialogService));
+
+            _character1 = new CharacterSlot(1, LoadImagePreview, OnCharacterChanged);
+            _character2 = new CharacterSlot(2, LoadImagePreview, OnCharacterChanged);
+
+            SelectCharacter1Command = new RelayCommand(async () => await PickCharacterAsync(_character1));
+            SelectCharacter2Command = new RelayCommand(async () => await PickCharacterAsync(_character2));
+            ClearCharacter2Command = new RelayCommand(() => _character2.Clear());
+            SelectSceneImageCommand = new RelayCommand(async () => await SelectSceneImageAsync());
+            ClearSceneImageCommand = new RelayCommand(() => SceneImagePath = string.Empty);
+            LoadStoryCommand = new RelayCommand(async () => await LoadStoryFileAsync());
+            ClearStoryCommand = new RelayCommand(() => StoryText = string.Empty, () => HasStoryText);
+            DeriveWardrobeCommand = new RelayCommand(async () => await RederiveWardrobeAsync(), () => CanAnalyze);
+            ClearWardrobeCommand = new RelayCommand(() => CastWardrobe = string.Empty, () => HasCastWardrobe);
+            BuildSheetsCommand = new RelayCommand(async () => await BuildSheetsAsync(), () => CanBuildSheets);
+            AnalyzeCommand = new RelayCommand(async () => await AnalyzeAsync(), () => CanAnalyze);
+            GenerateCommand = new RelayCommand(AddToQueue, () => CanGenerate);
+            CancelCommand = new RelayCommand(CancelEverything, () => IsProcessingQueue || IsProcessing || IsBuildingSheets);
+            RemoveQueueItemCommand = new RelayCommand<H3CastQueueItem>(RemoveQueueItem);
+            ClearQueueCommand = new RelayCommand(ClearQueue, () => HasQueueItems);
+            StartQueueCommand = new RelayCommand(() => _ = ProcessQueueAsync(), () => HasPendingItems && !IsProcessingQueue);
+            StopQueueCommand = new RelayCommand(StopQueue, () => IsProcessingQueue);
+            ReprocessAllFailedCommand = new RelayCommand(ReprocessAllFailed, () => HasFailedItems);
+            PlayVideoCommand = new RelayCommand(PlayVideo, () => HasResult);
+            OpenResultFolderCommand = new RelayCommand(OpenResultFolder, () => HasResult);
+            RandomSeedCommand = new RelayCommand(() => Seed = System.Random.Shared.NextInt64(0, long.MaxValue));
+
+            _queue.CollectionChanged += (_, _) =>
+            {
+                OnPropertyChanged(nameof(HasQueueItems));
+                UpdateQueueStatus();
+            };
+
+            AddLog("H3 Cast initialized");
+            ScheduleQueueLoad();
+        }
+
+        #region Commands
+
+        public ICommand SelectCharacter1Command { get; }
+        public ICommand SelectCharacter2Command { get; }
+        public ICommand ClearCharacter2Command { get; }
+        public ICommand SelectSceneImageCommand { get; }
+        public RelayCommand ClearSceneImageCommand { get; }
+        /// <summary>Reads a .txt/.md story off disk into <see cref="StoryText"/>.</summary>
+        public RelayCommand LoadStoryCommand { get; }
+        public RelayCommand ClearStoryCommand { get; }
+        /// <summary>Re-asks the llama-server for the cast's outfits, replacing whatever is in the box.</summary>
+        public RelayCommand DeriveWardrobeCommand { get; }
+        public RelayCommand ClearWardrobeCommand { get; }
+        public RelayCommand BuildSheetsCommand { get; }
+        public RelayCommand AnalyzeCommand { get; }
+        /// <summary>Named for the button it drives; it enqueues rather than running inline.</summary>
+        public RelayCommand GenerateCommand { get; }
+        public RelayCommand CancelCommand { get; }
+        public RelayCommand<H3CastQueueItem> RemoveQueueItemCommand { get; }
+        public RelayCommand ClearQueueCommand { get; }
+        public RelayCommand StartQueueCommand { get; }
+        public RelayCommand StopQueueCommand { get; }
+        public RelayCommand ReprocessAllFailedCommand { get; }
+        public RelayCommand PlayVideoCommand { get; }
+        public RelayCommand OpenResultFolderCommand { get; }
+        public RelayCommand RandomSeedCommand { get; }
+
+        #endregion
+
+        #region Characters
+
+        /// <summary>Character 1 — its sheet is <c>ref_image_0</c> / <c>&lt;Picture 1&gt;</c>. Required.</summary>
+        public CharacterSlot Character1 => _character1;
+
+        /// <summary>Character 2 — optional. Without it the graph runs with a single reference sheet.</summary>
+        public CharacterSlot Character2 => _character2;
+
+        public bool HasCharacter1 => _character1.HasSource;
+        public bool HasCharacter2 => _character2.HasSource;
+
+        /// <summary>Both slots that have a photo loaded, in cast order.</summary>
+        private IEnumerable<CharacterSlot> LoadedCharacters =>
+            new[] { _character1, _character2 }.Where(c => c.HasSource);
+
+        /// <summary>True once every loaded character has a sheet to send — what Generate waits for.</summary>
+        public bool AllSheetsReady => HasCharacter1 && LoadedCharacters.All(c => c.HasSheet);
+
+        public string CastSummary
+        {
+            get
+            {
+                if (!HasCharacter1) return "Load a photo of character 1 to start.";
+                var missing = LoadedCharacters.Count(c => !c.HasSheet);
+                var cast = HasCharacter2 ? "Two characters" : "One character";
+                if (missing == 0)
+                    return $"{cast} — sheets ready; H3 sees the sheets, not the photos.";
+
+                var queued = IsProcessing || IsProcessingQueue
+                    ? " A render is in flight, so the build waits for the GPU and starts when that job finishes."
+                    : string.Empty;
+                return $"{cast} — {missing} sheet(s) still to build. Build Sheets runs Qwen-Image-Edit-2511 " +
+                       $"once per character.{queued}";
+            }
+        }
+
+        private void OnCharacterChanged()
+        {
+            OnPropertyChanged(nameof(HasCharacter1));
+            OnPropertyChanged(nameof(HasCharacter2));
+            OnPropertyChanged(nameof(AllSheetsReady));
+            OnPropertyChanged(nameof(CastSummary));
+            OnCanExecuteChanged();
+        }
+
+        private async Task PickCharacterAsync(CharacterSlot slot)
+        {
+            var path = await PickImageAsync($"Select Character {slot.Index}", $"h3cast.char{slot.Index}");
+            if (path == null) return;
+            slot.SourcePath = path;
+            AddLog($"Character {slot.Index}: {Path.GetFileName(path)}");
+        }
+
+        private async Task SelectSceneImageAsync()
+        {
+            var path = await PickImageAsync("Select Scene Image", "h3cast.scene");
+            if (path == null) return;
+            SceneImagePath = path;
+            AddLog($"Scene image: {Path.GetFileName(path)}");
+        }
+
+        private async Task<string?> PickImageAsync(string title, string persistKey)
+        {
+            var initialDir = _settingsService.Settings?.VideoGeneratorImageFolder;
+            if (string.IsNullOrEmpty(initialDir) || !Directory.Exists(initialDir))
+                initialDir = Environment.GetFolderPath(Environment.SpecialFolder.MyPictures);
+
+            return await _fileDialogService.OpenFileDialogAsync(
+                title,
+                "Image Files|*.jpg;*.jpeg;*.png;*.bmp;*.webp|All Files|*.*",
+                initialDir,
+                persistKey: persistKey);
+        }
+
+        private BitmapImage? LoadImagePreview(string path, out string info)
+        {
+            info = string.Empty;
+            if (string.IsNullOrEmpty(path) || !File.Exists(path)) return null;
+            try
+            {
+                var bitmap = new BitmapImage();
+                bitmap.BeginInit();
+                bitmap.CacheOption = BitmapCacheOption.OnLoad;
+                bitmap.UriSource = new Uri(path, UriKind.Absolute);
+                bitmap.EndInit();
+                bitmap.Freeze();
+                var fi = new FileInfo(path);
+                info = $"{bitmap.PixelWidth}×{bitmap.PixelHeight} • {fi.Length / 1024}KB";
+                return bitmap;
+            }
+            catch (Exception ex)
+            {
+                AddLog($"Error loading image preview: {ex.Message}");
+                info = "Error loading image";
+                return null;
+            }
+        }
+
+        #endregion
+
+        #region Character sheets (Qwen-Image-Edit-2511 ConvRot)
+
+        /// <summary>
+        /// Deliberately <i>not</i> gated on a render being in flight. The sheet builder needs the GPU, but so
+        /// does everything else in the app, and the workflow coordinator already serializes that: a build
+        /// started mid-render simply waits for the lease and runs when the render lets go.
+        ///
+        /// <para>Gating it on <c>IsProcessing</c> instead — which is what it did at first — produced a dead
+        /// end. Loading a new photo invalidates that character's sheet, and Add to Queue needs every loaded
+        /// character to have one; with the builder disabled for the duration of a 20-minute render there was
+        /// no way to prepare the next job while the current one ran, which is the whole point of the
+        /// queue.</para>
+        /// </summary>
+        public bool CanBuildSheets => HasCharacter1 && !IsBuildingSheets &&
+                                      LoadedCharacters.Any(c => !c.UseSourceAsSheet);
+
+        /// <summary>True while the sheet builder is waiting for the GPU or generating. Its own flag, kept
+        /// apart from <see cref="VideoProcessingBaseViewModel.IsProcessing"/> so the two can overlap without
+        /// fighting over the progress bar a render owns.</summary>
+        public bool IsBuildingSheets
+        {
+            get => _isBuildingSheets;
+            private set
+            {
+                if (_isBuildingSheets == value) return;
+                _isBuildingSheets = value;
+                OnPropertyChanged();
+                OnCanExecuteChanged();
+            }
+        }
+
+        /// <summary>What the sheet builder is doing right now, shown beside its button — it cannot use the
+        /// tab's status line, which belongs to whatever is rendering.</summary>
+        public string SheetPhase
+        {
+            get => _sheetPhase;
+            private set { if (_sheetPhase != value) { _sheetPhase = value; OnPropertyChanged(); } }
+        }
+
+        public string BuildSheetsButtonText
+        {
+            get
+            {
+                var n = LoadedCharacters.Count(c => !c.UseSourceAsSheet);
+                return n > 1 ? $"🪪 Build {n} Character Sheets" : "🪪 Build Character Sheet";
+            }
+        }
+
+        /// <summary>
+        /// Runs Qwen-Image-Edit-2511 once per loaded character, turning each photo into the three-panel
+        /// reference sheet H3 is handed. A character marked <see cref="CharacterSlot.UseSourceAsSheet"/>
+        /// is skipped — its image already <i>is</i> a sheet.
+        ///
+        /// <para>The export's KSampler samples the VAE-encoded source photo, which would pin the sheet to
+        /// that photo's framing and aspect; <see cref="UseSheetCanvas"/> repoints it at the graph's own
+        /// (otherwise disconnected) empty latent so the three panels get a wide canvas of their own. The
+        /// photo still reaches the model — <c>TextEncodeQwenImageEditPlus</c> carries it as the edit
+        /// reference, which is what keeps the face on model.</para>
+        /// </summary>
+        private async Task BuildSheetsAsync()
+        {
+            if (!CanBuildSheets) return;
+
+            IsBuildingSheets = true;
+            SheetPhase = "Preparing…";
+
+            _sheetCts?.Dispose();
+            _sheetCts = new CancellationTokenSource();
+            var token = _sheetCts.Token;
+
+            WorkflowQueueCoordinator.WorkflowLease? lease = null;
+            try
+            {
+                var todo = LoadedCharacters.Where(c => !c.UseSourceAsSheet).ToList();
+                AddLog($"=== H3 Cast: building {todo.Count} character sheet(s) with Qwen-Image-Edit-2511 ===");
+                // Only ever a wait, never a refusal: a render in flight holds the lease until it finishes.
+                SheetPhase = IsProcessing || IsProcessingQueue
+                    ? "Waiting for the current render to finish…"
+                    : "Waiting for the GPU…";
+                AddLog("Waiting for other workflows to finish...");
+                lease = await _workflowCoordinator.AcquireAsync("H3Cast", token);
+
+                SheetPhase = "Checking ComfyUI…";
+                var comfyOk = await _comfyUIService.DetectAndRestartIfCrashedAsync(s => AddLog($"[Auto-Restart] {s}"));
+                if (!comfyOk) throw new Exception("ComfyUI is not running.");
+                if (!_comfyUIService.IsConnected)
+                {
+                    SheetPhase = "Connecting to ComfyUI…";
+                    await _comfyUIService.ConnectAsync();
+                }
+
+                var instruction = (await LoadFileAsync(Path.Combine("prompts", "prompt2json", SheetPromptFile), token)).Trim();
+
+                for (var i = 0; i < todo.Count; i++)
+                {
+                    token.ThrowIfCancellationRequested();
+                    var slot = todo[i];
+                    var progress = todo.Count > 1 ? $" ({i + 1}/{todo.Count})" : string.Empty;
+
+                    SheetPhase = $"Uploading character {slot.Index}…{progress}";
+                    var uploaded = await EnsureUploadedAsync(slot.SourcePath);
+
+                    var ts = DateTime.Now.ToString("yyyyMMddHHmmss");
+                    var runToken = $"sheet_{slot.Index}_{ts}";
+
+                    var json = await LoadFileAsync(SheetWorkflowFileName, token);
+                    json = UseSheetCanvas(json);
+                    SetInput(ref json, SheetLoadImage, "image", uploaded);
+                    SetInput(ref json, SheetPositive, "prompt", instruction);
+                    SetInput(ref json, SheetSampler, "seed", System.Random.Shared.NextInt64(0, 1_000_000_000_000_000L));
+                    SetInput(ref json, SheetLatent, "width", SheetWidth);
+                    SetInput(ref json, SheetLatent, "height", SheetHeight);
+                    SetInput(ref json, SheetSave, "filename_prefix", $"{OutputSubfolder}/{runToken}");
+
+                    SheetPhase = $"Generating character {slot.Index}'s sheet…{progress}";
+                    AddLog($"Character {slot.Index}: generating a {SheetWidth}×{SheetHeight} sheet from {Path.GetFileName(slot.SourcePath)}...");
+                    var promptId = await SubmitSheetAsync(json, token);
+
+                    string? local = null;
+                    var byNode = await _comfyUIService.HttpClient.GetOutputsByNodeAsync(promptId, token);
+                    if (byNode.TryGetValue(SheetSave, out var outs) && outs.Count > 0)
+                        local = await ResolveImageToLocalAsync(outs[0]);
+                    local ??= FindTokenImageOnDisk(runToken);
+                    if (local == null || !File.Exists(local))
+                        throw new Exception($"Character {slot.Index}'s sheet was not produced.");
+
+                    // Uploaded now so the video graph's LoadImage can read it as a ComfyUI input later.
+                    await EnsureUploadedAsync(local);
+                    var applied = local;
+                    Application.Current.Dispatcher.Invoke(() => slot.SetSheet(applied));
+                    AddLog($"Character {slot.Index}: sheet ready — {Path.GetFileName(local)}");
+                }
+
+                SheetPhase = AllSheetsReady ? "Sheets ready." : "Sheets built.";
+            }
+            catch (OperationCanceledException)
+            {
+                AddLog("Sheet building cancelled");
+                SheetPhase = "Cancelled";
+            }
+            catch (Exception ex)
+            {
+                AddLog($"ERROR (character sheets): {ex.Message}");
+                SheetPhase = $"Error: {ex.Message}";
+                MessageBox.Show($"Building the character sheets failed:\n{ex.Message}",
+                    "H3 Cast", MessageBoxButton.OK, MessageBoxImage.Error);
+            }
+            finally
+            {
+                lease?.Dispose();
+                IsBuildingSheets = false;
+                _sheetCts?.Dispose();
+                _sheetCts = null;
+                OnCanExecuteChanged();
+            }
+        }
+
+        /// <summary>
+        /// Points the sheet workflow's sampler at its empty latent instead of the VAE-encoded source photo,
+        /// so the sheet is composed on a canvas of our choosing rather than inheriting the photo's framing.
+        /// Idempotent: a workflow already wired that way is returned unchanged.
+        /// </summary>
+        private static string UseSheetCanvas(string json)
+        {
+            var root = JsonNode.Parse(json)?.AsObject()
+                       ?? throw new Exception("Sheet workflow JSON could not be parsed.");
+
+            RequireClass(root, SheetSampler, "KSampler");
+            RequireClass(root, SheetLatent, "EmptySD3LatentImage");
+            RequireClass(root, SheetPositive, "TextEncodeQwenImageEditPlus");
+            RequireClass(root, SheetLoadImage, "LoadImage");
+            RequireClass(root, SheetSave, "SaveImage");
+
+            json = root.ToJsonString();
+            SetInput(ref json, SheetSampler, "latent_image", new JsonArray(SheetLatent, 0));
+            return json;
+        }
+
+        private async Task<string?> ResolveImageToLocalAsync(string imageFile)
+        {
+            try
+            {
+                var settings = _settingsService.Settings;
+                if (settings != null)
+                {
+                    var baseUrl = GetComfyUIBaseUrl();
+                    var isRemote = IsComfyUIRemote(new Uri(baseUrl).Host);
+                    var outputFolder = settings.ResolveOutputFolder(isRemote);
+                    if (!string.IsNullOrEmpty(outputFolder))
+                    {
+                        var srcPath = Path.Combine(outputFolder, imageFile.Replace('/', Path.DirectorySeparatorChar));
+                        if (File.Exists(srcPath))
+                        {
+                            await WaitForFileStableAsync(srcPath);
+                            return srcPath;
+                        }
+                    }
+                }
+
+                var parts = imageFile.Split('/');
+                var filename = parts.Last();
+                var subfolder = parts.Length > 1 ? string.Join("/", parts.Take(parts.Length - 1)) : string.Empty;
+                var bytes = await _comfyUIService.HttpClient.DownloadViewFileAsync(filename, subfolder, "output");
+                if (bytes is { Length: > 0 })
+                {
+                    var tmp = Path.Combine(Path.GetTempPath(), $"h3cast_{Guid.NewGuid():N}_{filename}");
+                    await File.WriteAllBytesAsync(tmp, bytes);
+                    return tmp;
+                }
+            }
+            catch (Exception ex)
+            {
+                AddLog($"Resolve sheet image failed: {ex.Message}");
+            }
+            return null;
+        }
+
+        private string? FindTokenImageOnDisk(string runToken)
+        {
+            try
+            {
+                var settings = _settingsService.Settings;
+                if (settings == null) return null;
+                var baseUrl = GetComfyUIBaseUrl();
+                var isRemote = IsComfyUIRemote(new Uri(baseUrl).Host);
+                var outputFolder = settings.ResolveOutputFolder(isRemote);
+                if (string.IsNullOrEmpty(outputFolder)) return null;
+
+                var candidates = new List<string>();
+                foreach (var folder in new[] { outputFolder, Path.Combine(outputFolder, OutputSubfolder) })
+                {
+                    if (Directory.Exists(folder))
+                        candidates.AddRange(Directory.GetFiles(folder, "*.png")
+                            .Where(f => Path.GetFileName(f).IndexOf(runToken, StringComparison.OrdinalIgnoreCase) >= 0));
+                }
+                return candidates.OrderByDescending(File.GetLastWriteTime).FirstOrDefault();
+            }
+            catch (Exception ex)
+            {
+                AddLog($"Disk scan failed: {ex.Message}");
+                return null;
+            }
+        }
+
+        /// <summary>Uploads a file to ComfyUI once, caching the returned input-folder name by path.</summary>
+        private async Task<string> EnsureUploadedAsync(string path)
+        {
+            if (_uploadCache.TryGetValue(path, out var cached) && !string.IsNullOrEmpty(cached))
+                return cached;
+            if (!File.Exists(path))
+                throw new FileNotFoundException($"Image is gone: {path}");
+
+            var name = await _comfyUIService.UploadImageAsync(path);
+            if (string.IsNullOrEmpty(name)) throw new Exception($"Failed to upload {Path.GetFileName(path)}.");
+            _uploadCache[path] = name;
+            AddLog($"Uploaded: {name}");
+            return name;
+        }
+
+        /// <summary>Reads a file shipped next to the exe (workflow JSON or prompt), relative to BaseDirectory.</summary>
+        private static async Task<string> LoadFileAsync(string relativePath, CancellationToken token)
+        {
+            var path = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, relativePath);
+            if (!File.Exists(path))
+                throw new FileNotFoundException($"File not found: {path}");
+            return await File.ReadAllTextAsync(path, token);
+        }
+
+        #endregion
+
+        #region Scene, prompt and settings
+
+        /// <summary>
+        /// Scene image — never uploaded to ComfyUI. It is the only image Analyze looks at, and the prompt it
+        /// produces is what the referenced cast ends up acting out.
+        /// </summary>
+        public string SceneImagePath
+        {
+            get => _sceneImagePath;
+            set
+            {
+                if (_sceneImagePath == value) return;
+                _sceneImagePath = value;
+                _sceneImagePreview = LoadImagePreview(value, out _sceneImageInfo);
+                OnPropertyChanged();
+                OnPropertyChanged(nameof(SceneImagePreview));
+                OnPropertyChanged(nameof(SceneImageInfo));
+                OnPropertyChanged(nameof(HasSceneImage));
+                OnPropertyChanged(nameof(ResolvedAspectRatio));
+                OnPropertyChanged(nameof(UpscaleSummary));
+                OnPropertyChanged(nameof(LoadSummary));
+                OnPropertyChanged(nameof(HasLoadWarning));
+                OnPropertyChanged(nameof(StorySourceSummary));
+                OnCanExecuteChanged();
+            }
+        }
+
+        public BitmapImage? SceneImagePreview => _sceneImagePreview;
+        public string SceneImageInfo => _sceneImageInfo;
+        public bool HasSceneImage => !string.IsNullOrEmpty(SceneImagePath) && File.Exists(SceneImagePath);
+
+        /// <summary>
+        /// The full H3 prompt: reference line + the model's own fields. Past one clip's worth of duration it
+        /// holds the <i>whole chain</i> — one such prompt per clip, separated by <c>=== CLIP n of N ===</c>
+        /// headers — and stays editable, because it is what "Add to Queue" splits.
+        /// </summary>
+        public string Prompt
+        {
+            get => _prompt;
+            set
+            {
+                if (_prompt == value) return;
+                _prompt = value;
+                // Cached: the box updates on every keystroke and a chain is tens of kilobytes.
+                _promptClipCount = SplitClips(_prompt).Count;
+                OnPropertyChanged();
+                OnPropertyChanged(nameof(PromptClipCount));
+                OnPropertyChanged(nameof(HasPromptSequence));
+                OnPropertyChanged(nameof(PromptClipSummary));
+                OnCanExecuteChanged();
+            }
+        }
+
+        /// <summary>
+        /// The cast's outfits, decided once and stamped into every clip verbatim.
+        ///
+        /// <para>This exists because the wardrobe is the one thing about the cast the reference sheets cannot
+        /// carry — a sheet is a studio photograph, so its clothing is explicitly disowned by the reference line
+        /// and the outfit has to come from the prompt text instead. In a chain that text is written as N
+        /// separate blocks by a model that never sees its own earlier output, so a wardrobe left to the prose
+        /// gets re-invented every few clips and the characters change clothes mid-story.</para>
+        ///
+        /// <para>Analyze fills this in once (from the scene image if there is one, otherwise from the story),
+        /// hands it to the chain writer as fixed text, and — the part that actually holds — writes it into
+        /// every clip's prompt as a code-built <see cref="WardrobeLockHeader"/> block that outranks anything
+        /// the model puts in the body. Editing this box and pressing Add to Queue re-stamps every clip.</para>
+        /// </summary>
+        public string CastWardrobe
+        {
+            get => _castWardrobe;
+            set
+            {
+                if (_castWardrobe == value) return;
+                _castWardrobe = value;
+                OnPropertyChanged();
+                OnPropertyChanged(nameof(HasCastWardrobe));
+                OnPropertyChanged(nameof(WardrobeSummary));
+                ClearWardrobeCommand.NotifyCanExecuteChanged();
+            }
+        }
+
+        public bool HasCastWardrobe => !string.IsNullOrWhiteSpace(CastWardrobe);
+
+        public string WardrobeSummary => HasCastWardrobe
+            ? "Locked. This exact text is written into every clip's prompt ahead of the description, so the " +
+              "cast cannot change clothes between clips. Edit it and re-queue to change the outfits."
+            : "Empty — Analyze will write the outfits here once, from the scene image if there is one and " +
+              "otherwise from the story. Type your own to override it.";
+
+        /// <summary>
+        /// Length of the <i>finished</i> video, 5–120 s in 5 s steps. H3 renders at most ~15 s in one pass, so
+        /// anything longer than <see cref="LengthSeconds"/> is written as a chain of
+        /// <see cref="PlannedClipCount"/> clips and queued one job per clip, rendered back to back with the
+        /// same sheets and joined when the last one lands.
+        /// </summary>
+        public double StoryDurationSeconds
+        {
+            get => _storyDurationSeconds;
+            set
+            {
+                var snapped = Math.Clamp(Math.Round(value / 5.0) * 5.0, 5, 120);
+                if (Math.Abs(_storyDurationSeconds - snapped) < 0.0001) return;
+                _storyDurationSeconds = snapped;
+                OnPropertyChanged();
+                OnPropertyChanged(nameof(PlannedClipCount));
+                OnPropertyChanged(nameof(IsStorySequence));
+                OnPropertyChanged(nameof(ClipPlanSummary));
+            }
+        }
+
+        /// <summary>How many clips Analyze will be asked for: the target duration divided by the per-clip
+        /// length, rounded up. 1 means a single ordinary H3 pass.</summary>
+        public int PlannedClipCount =>
+            Math.Max(1, (int)Math.Ceiling(StoryDurationSeconds / ClampLength(LengthSeconds) - 0.0001));
+
+        public bool IsStorySequence => PlannedClipCount > 1;
+
+        public string ClipPlanSummary
+        {
+            get
+            {
+                var clip = ClampLength(LengthSeconds);
+                var n = PlannedClipCount;
+                if (n <= 1) return $"One clip of {clip:0.#}s — a single H3 pass.";
+                return $"{n} clips × {clip:0.#}s → {n * clip:0.#}s of video. Analyze writes all {n} in one " +
+                       "reply, Add to Queue enqueues one job per clip, and they are joined into a single " +
+                       "file when the last one lands.";
+            }
+        }
+
+        /// <summary>How many clips the prompt box <i>actually</i> holds — what Add to Queue will enqueue.</summary>
+        public int PromptClipCount => _promptClipCount;
+
+        public bool HasPromptSequence => PromptClipCount > 1;
+
+        public string PromptClipSummary =>
+            PromptClipCount > 1
+                ? $"This prompt holds {PromptClipCount} clips — Add to Queue enqueues {PromptClipCount} jobs, in order."
+                : string.Empty;
+
+        /// <summary>
+        /// The story the video tells — typed, pasted, or loaded from a .txt. It is the second way into this
+        /// tab: with a scene image it is the brief that image is dressed with, and <b>without</b> one it is
+        /// the whole input, sent to the llama-server on its own so a story alone can become an H3 prompt with
+        /// the loaded cast written into it.
+        /// </summary>
+        public string StoryText
+        {
+            get => _storyText;
+            set
+            {
+                if (_storyText == value) return;
+                _storyText = value;
+                // Typing over a loaded file makes the file name a lie.
+                if (!string.IsNullOrEmpty(_storyFileName)) _storyFileName = string.Empty;
+                OnPropertyChanged();
+                OnPropertyChanged(nameof(HasStoryText));
+                OnPropertyChanged(nameof(StorySourceSummary));
+                ClearStoryCommand.NotifyCanExecuteChanged();
+                OnCanExecuteChanged();
+            }
+        }
+
+        public bool HasStoryText => !string.IsNullOrWhiteSpace(StoryText);
+
+        /// <summary>Says which of the two inputs Analyze will actually use, and what it will do with them.</summary>
+        public string StorySourceSummary
+        {
+            get
+            {
+                var words = HasStoryText
+                    ? StoryText.Split((char[]?)null, StringSplitOptions.RemoveEmptyEntries).Length
+                    : 0;
+                var loaded = string.IsNullOrEmpty(_storyFileName) ? string.Empty : $" from {_storyFileName}";
+
+                if (HasSceneImage && HasStoryText)
+                    return $"Analyze will use both: the scene image for the setting, lighting and wardrobe, " +
+                           $"and these {words:N0} words{loaded} for what happens.";
+                if (HasSceneImage)
+                    return "Analyze will read the scene image alone and invent a story that suits it.";
+                if (HasStoryText)
+                    return $"No scene image — Analyze will work from these {words:N0} words{loaded} alone, " +
+                           "writing the setting, lighting and wardrobe out of the story itself.";
+                return "Load a scene image, write a story, or both — Analyze needs at least one of them.";
+            }
+        }
+
+        /// <summary>
+        /// Reads a story off disk. Text only: the point is a story someone already wrote, in the file they
+        /// wrote it in.
+        /// </summary>
+        private async Task LoadStoryFileAsync()
+        {
+            var initialDir = _settingsService.Settings?.VideoGeneratorImageFolder;
+            if (string.IsNullOrEmpty(initialDir) || !Directory.Exists(initialDir))
+                initialDir = Environment.GetFolderPath(Environment.SpecialFolder.MyDocuments);
+
+            var path = await _fileDialogService.OpenFileDialogAsync(
+                "Select a story (.txt)",
+                "Text Files|*.txt;*.md;*.text|All Files|*.*",
+                initialDir,
+                persistKey: "h3cast.story");
+            if (path == null) return;
+
+            try
+            {
+                var text = (await File.ReadAllTextAsync(path)).Trim();
+                if (text.Length == 0)
+                {
+                    AddLog($"Story file is empty: {Path.GetFileName(path)}");
+                    return;
+                }
+
+                StoryText = text;
+                _storyFileName = Path.GetFileName(path);
+                OnPropertyChanged(nameof(StorySourceSummary));
+                AddLog($"Story loaded: {_storyFileName} ({text.Length:N0} chars)");
+            }
+            catch (Exception ex)
+            {
+                AddLog($"Could not read the story file: {ex.Message}");
+                MessageBox.Show($"Could not read that file:\n{ex.Message}",
+                    "H3 Cast", MessageBoxButton.OK, MessageBoxImage.Error);
+            }
+        }
+
+        public IReadOnlyList<string> AspectRatioOptions { get; } =
+            new[] { MiniMaxH3ViewModel.AutoAspect }
+                .Concat(MiniMaxH3ViewModel.AspectRatios.Select(a => a.Option)).ToList();
+
+        public string SelectedAspectRatio
+        {
+            get => _selectedAspectRatio;
+            set
+            {
+                if (_selectedAspectRatio == value) return;
+                _selectedAspectRatio = value;
+                OnPropertyChanged();
+                OnPropertyChanged(nameof(ResolvedAspectRatio));
+                OnPropertyChanged(nameof(UpscaleSummary));
+                OnPropertyChanged(nameof(LoadSummary));
+                OnPropertyChanged(nameof(HasLoadWarning));
+            }
+        }
+
+        /// <summary>The aspect actually sent to ComfyUI — the picked one, or the scene image's closest match.</summary>
+        public string ResolvedAspectRatio =>
+            SelectedAspectRatio == MiniMaxH3ViewModel.AutoAspect
+                ? ClosestAspectRatio(SceneImagePath)
+                : SelectedAspectRatio;
+
+        /// <summary>The same ResolutionSelector presets as the other H3 tabs — H3's native canvas is a 768px short edge.</summary>
+        public IReadOnlyList<MegapixelOption> MegapixelOptions { get; } = new[]
+        {
+            new MegapixelOption(0.4, "0.4 MP — fast draft (≈864×480)"),
+            new MegapixelOption(0.7, "0.7 MP — balanced (≈1120×640)"),
+            new MegapixelOption(1.0, "1.0 MP — full quality (≈1344×768)"),
+        };
+
+        public double Megapixels
+        {
+            get => _megapixels;
+            set
+            {
+                if (Math.Abs(_megapixels - value) <= 0.0001) return;
+                _megapixels = value;
+                OnPropertyChanged();
+                OnPropertyChanged(nameof(UpscaleSummary));
+                OnPropertyChanged(nameof(LoadSummary));
+                OnPropertyChanged(nameof(HasLoadWarning));
+            }
+        }
+
+        public double LengthSeconds
+        {
+            get => _lengthSeconds;
+            set
+            {
+                if (Math.Abs(_lengthSeconds - value) <= 0.0001) return;
+                _lengthSeconds = value;
+                OnPropertyChanged();
+                OnPropertyChanged(nameof(LengthSummary));
+                // Frame count is the multiplier on every whole-clip tensor in the graph.
+                OnPropertyChanged(nameof(LoadSummary));
+                OnPropertyChanged(nameof(HasLoadWarning));
+                // The per-clip length is the divisor behind the story split, so the plan moves with it.
+                OnPropertyChanged(nameof(PlannedClipCount));
+                OnPropertyChanged(nameof(IsStorySequence));
+                OnPropertyChanged(nameof(ClipPlanSummary));
+            }
+        }
+
+        public string LengthSummary
+        {
+            get
+            {
+                var len = ClampLength(LengthSeconds);
+                return $"{len:0.#}s → {FramesForSeconds(len)} frames @ 24 fps";
+            }
+        }
+
+        public long Seed
+        {
+            get => _seed;
+            set { if (_seed != value) { _seed = value; OnPropertyChanged(); } }
+        }
+
+        /// <summary>
+        /// Whether the second H3 pass runs. On, every frame's faces are tracked, cropped, re-generated at
+        /// <see cref="RefineDenoise"/> against the same conditioning and stitched back in. Off, that whole
+        /// branch is pruned and the base pass's frames go straight to the RTX upscale.
+        /// </summary>
+        public bool FaceRefine
+        {
+            get => _faceRefine;
+            set
+            {
+                if (_faceRefine == value) return;
+                _faceRefine = value;
+                OnPropertyChanged();
+                OnPropertyChanged(nameof(RefineSummary));
+            }
+        }
+
+        /// <summary>
+        /// Denoise of the refine pass — how far a cropped face is allowed to move away from what the base
+        /// pass rendered. Low keeps the original performance and only cleans it up; high re-draws the face
+        /// from the sheet and risks fighting the lip-sync the audio lock is protecting.
+        /// </summary>
+        public double RefineDenoise
+        {
+            get => _refineDenoise;
+            set
+            {
+                var snapped = Math.Clamp(Math.Round(value * 20) / 20.0, 0.15, 0.75);
+                if (Math.Abs(_refineDenoise - snapped) <= 0.0001) return;
+                _refineDenoise = snapped;
+                OnPropertyChanged();
+                OnPropertyChanged(nameof(RefineSummary));
+            }
+        }
+
+        public string RefineSummary => FaceRefine
+            ? $"Second H3 pass on the tracked face crops at denoise {RefineDenoise:0.00}, stitched back with the " +
+              "stage-1 audio locked so lip-sync survives. Needs the H3-FaceRefine + NativeAudioLock nodes."
+            : "Off — the base H3 frames go straight to the RTX upscale. Faces stay as H3 rendered them.";
+
+        /// <summary>
+        /// The RTX Video Super Resolution ×2 finish. <b>Off by default</b>: it is the graph's single largest
+        /// allocation — a whole doubled frame stack, materialized at once, right at the end of a run that has
+        /// already spent its minutes — so at 15 seconds it is what takes the server down rather than the
+        /// diffusion. Turning it on for a short clip is cheap; for a long one, render at the H3 canvas and
+        /// upscale the finished file in ✨ Enhance Video, where nothing else is holding memory.
+        /// See <see cref="LoadSummary"/>.
+        /// </summary>
+        public bool RtxUpscale
+        {
+            get => _rtxUpscale;
+            set
+            {
+                if (_rtxUpscale == value) return;
+                _rtxUpscale = value;
+                OnPropertyChanged();
+                OnPropertyChanged(nameof(UpscaleSummary));
+                OnPropertyChanged(nameof(LoadSummary));
+                OnPropertyChanged(nameof(HasLoadWarning));
+            }
+        }
+
+        /// <summary>What the saved file will be.</summary>
+        public string UpscaleSummary
+        {
+            get
+            {
+                var (cw, ch) = CanvasSize(ResolvedAspectRatio, Megapixels);
+                if (!RtxUpscale) return $"Output: the H3 canvas as rendered, ≈{cw}×{ch}. No upscale pass.";
+                var (w, h) = UpscaleSize(ResolvedAspectRatio, Megapixels);
+                return $"Output: RTX ×2 super-resolution → ≈{w}×{h}.";
+            }
+        }
+
+        /// <summary>
+        /// The frame stack the run will have to hold in one piece, and a warning when that is the size that
+        /// kills ComfyUI mid-render. Every image node here works on the whole clip at once, so the cost is
+        /// frames × pixels × 3 channels, and the RTX pass quadruples the pixel count — at 15 seconds and
+        /// 1.0 MP that is roughly 17 GB in fp32, allocated at the very end of a run that has already taken
+        /// twenty minutes. The failure looks nothing like an error in the graph: the server process simply
+        /// disappears and the job is neither queued nor in the history.
+        /// </summary>
+        public string LoadSummary
+        {
+            get
+            {
+                var frames = FramesForSeconds(ClampLength(LengthSeconds));
+                var (cw, ch) = CanvasSize(ResolvedAspectRatio, Megapixels);
+                var baseGb = FrameStackGb(frames, cw, ch);
+
+                if (!RtxUpscale)
+                    return $"{frames} frames × {cw}×{ch} ≈ {baseGb:0.#} GB of frames held at once.";
+
+                var (uw, uh) = UpscaleSize(ResolvedAspectRatio, Megapixels);
+                var upGb = FrameStackGb(frames, uw, uh);
+                var text = $"{frames} frames: ≈{baseGb:0.#} GB at the H3 canvas, ≈{upGb:0.#} GB after RTX ×2, " +
+                           "both live at the same time during the upscale.";
+                return upGb >= HeavyFrameStackGb
+                    ? text + " ⚠ That is the size that takes ComfyUI down mid-render — shorten the clip, " +
+                             "drop the quality to 0.7 MP, or turn RTX off and upscale afterwards in ✨ Enhance Video."
+                    : text;
+            }
+        }
+
+        /// <summary>True when <see cref="LoadSummary"/> is carrying a warning, so the UI can colour it.</summary>
+        public bool HasLoadWarning
+        {
+            get
+            {
+                if (!RtxUpscale) return false;
+                var (uw, uh) = UpscaleSize(ResolvedAspectRatio, Megapixels);
+                return FrameStackGb(FramesForSeconds(ClampLength(LengthSeconds)), uw, uh) >= HeavyFrameStackGb;
+            }
+        }
+
+        /// <summary>Where a whole-clip frame stack starts being the thing that fails, in gigabytes.</summary>
+        private const double HeavyFrameStackGb = 8.0;
+
+        /// <summary>An uncompressed fp32 RGB frame stack, in GB — what an image tensor of this clip costs.</summary>
+        private static double FrameStackGb(int frames, int width, int height) =>
+            (double)frames * width * height * 3 * 4 / (1024.0 * 1024.0 * 1024.0);
+
+        public bool IsAnalyzing
+        {
+            get => _isAnalyzing;
+            set
+            {
+                if (_isAnalyzing == value) return;
+                _isAnalyzing = value;
+                OnPropertyChanged();
+                OnCanExecuteChanged();
+            }
+        }
+
+        /// <summary>
+        /// Analyze needs <i>something</i> to work from — the scene image, the story text, or both. Neither is
+        /// individually required: an image alone gets a story invented for it, a story alone gets its setting
+        /// written out of the prose. Deliberately <i>not</i> gated on
+        /// <see cref="VideoProcessingBaseViewModel.IsProcessing"/>: it talks to the llama-server, so the next
+        /// scene can be written while the GPU is busy.
+        /// </summary>
+        public bool CanAnalyze => (HasSceneImage || HasStoryText) && !IsAnalyzing;
+
+        /// <summary>
+        /// Queueing needs a prompt and a sheet for every loaded character. A render in flight does not block
+        /// it — that is what the queue is for — but an in-flight analysis does, since it is about to
+        /// overwrite the prompt box that would be snapshotted.
+        /// </summary>
+        public bool CanGenerate => !string.IsNullOrWhiteSpace(Prompt) && AllSheetsReady && !IsAnalyzing;
+
+        /// <summary>Maps the scene image's own aspect to the nearest ratio the ResolutionSelector offers.</summary>
+        private string ClosestAspectRatio(string path)
+        {
+            int w = 0, h = 0;
+            if (SceneImagePreview is { } preview && string.Equals(path, SceneImagePath, StringComparison.OrdinalIgnoreCase))
+            {
+                w = preview.PixelWidth; h = preview.PixelHeight;
+            }
+            if ((w <= 0 || h <= 0) && !string.IsNullOrEmpty(path) && File.Exists(path))
+            {
+                try
+                {
+                    using var fs = File.OpenRead(path);
+                    var frame = BitmapFrame.Create(fs, BitmapCreateOptions.DelayCreation, BitmapCacheOption.None);
+                    w = frame.PixelWidth; h = frame.PixelHeight;
+                }
+                catch { /* fall through to the 16:9 default */ }
+            }
+            return MiniMaxH3ViewModel.ClosestAspectRatio(w, h);
+        }
+
+        /// <summary>
+        /// The canvas node 45 will pick, for display only — the graph takes it straight from
+        /// ResolutionSelector. Mirrors that node's maths: the aspect's area at this megapixel count, the
+        /// width snapped to a multiple of 32, and the height derived from the <i>snapped</i> width.
+        /// </summary>
+        private static (int Width, int Height) CanvasSize(string aspectOption, double megapixels)
+        {
+            var ratio = MiniMaxH3ViewModel.AspectRatios
+                .FirstOrDefault(a => a.Option == aspectOption).Ratio;
+            if (ratio <= 0) ratio = 16.0 / 9.0;
+
+            var area = Math.Max(0.1, megapixels) * 1_000_000.0;
+            var w = RoundTo32(Math.Sqrt(area * ratio));
+            return (w, RoundTo32(w / ratio));
+
+            static int RoundTo32(double v) => Math.Max(32, (int)Math.Round(v / 32.0) * 32);
+        }
+
+        /// <summary>The size that reaches the file: <see cref="CanvasSize"/> through the graph's RTX ×2 pass.</summary>
+        private static (int Width, int Height) UpscaleSize(string aspectOption, double megapixels)
+        {
+            var (w, h) = CanvasSize(aspectOption, megapixels);
+            return ((int)(w * RtxScale), (int)(h * RtxScale));
+        }
+
+        /// <summary>H3's supported clip length is 4–15 seconds at 24 fps.</summary>
+        private static double ClampLength(double seconds) =>
+            Math.Clamp(seconds <= 0 ? 10 : seconds, 4, 15);
+
+        /// <summary>Mirrors node 5's expression: 24 fps snapped onto the model's 17k+5 frame grid.</summary>
+        private static int FramesForSeconds(double seconds)
+        {
+            var frames = Math.Max(5, (int)Math.Round(seconds * 24));
+            return frames + (5 - frames % 17 + 17) % 17;
+        }
+
+        #endregion
+
+        #region Analysis (scene image → multi-shot H3 prompt)
+
+        private async Task AnalyzeAsync()
+        {
+            if (!CanAnalyze) return;
+
+            IsAnalyzing = true;
+            _analyzeCts?.Dispose();
+            _analyzeCts = new CancellationTokenSource();
+            var token = _analyzeCts.Token;
+
+            try
+            {
+                var model = await ResolveLlmModelAsync(token);
+                if (model == null) return;
+
+                var len = ClampLength(LengthSeconds);
+                var clipCount = PlannedClipCount;
+                var fromImage = HasSceneImage;
+                var source = fromImage
+                    ? HasStoryText ? "the scene image + the story text" : "the scene image"
+                    : "the story text";
+                AddLog(clipCount > 1
+                    ? $"Writing a {clipCount}-clip chain ({clipCount} × {len:0.#}s = {clipCount * len:0.#}s) " +
+                      $"from {source} — sending to {_lmStudioService.DescribeTarget(model)}"
+                    : $"Writing a {len:0.#}s multi-shot H3 prompt from {source} " +
+                      $"— sending to {_lmStudioService.DescribeTarget(model)}");
+
+                // A whole novel will not fit a local model's context; it truncates silently, which looks like
+                // the model ignoring the ending.
+                if (HasStoryText && StoryText.Length > 20000)
+                    AddLog($"WARNING: the story is {StoryText.Length:N0} characters — a local model will very " +
+                           "likely truncate it. Cut it down to the beats you want on screen.");
+
+                // Decided before the chain is written, so all N clips are dressed from one answer rather than
+                // N independent ones — and kept if it is already filled in, because the box is editable and a
+                // hand-written wardrobe is a deliberate one.
+                if (!HasCastWardrobe)
+                {
+                    AddLog("Wardrobe: deciding the cast's outfits once, so every clip can be dressed identically...");
+                    var derived = await DeriveWardrobeAsync(model, token);
+                    if (!string.IsNullOrWhiteSpace(derived))
+                    {
+                        CastWardrobe = derived;
+                        AddLog($"Wardrobe locked:\n{derived}");
+                    }
+                    else
+                    {
+                        AddLog("WARNING: the wardrobe could not be written — the clips will each describe the " +
+                               "outfits themselves, which is where between-clip costume changes come from. " +
+                               "Fill the wardrobe box in by hand, or press 🎽 Derive again.");
+                    }
+                }
+                else
+                {
+                    AddLog("Wardrobe: using the outfits already in the wardrobe box.");
+                }
+
+                var systemPrompt = await ReadSystemPromptAsync(SystemPromptFile, token);
+                if (clipCount > 1)
+                {
+                    systemPrompt += "\n\n" + await ReadSystemPromptAsync(StorySystemPromptFile, token);
+                    if (!fromImage)
+                        // That guide sources the wardrobe from a scene image this run does not have.
+                        systemPrompt += "\n\nNOTE FOR THIS RUN: there is no scene image. Wherever the rules " +
+                                        "above say to read the setting or the wardrobe off the scene image, " +
+                                        "read them off the STORY instead — decide each of them once, and " +
+                                        "then repeat that wording verbatim in every clip.";
+                }
+
+                // A chain already in the box is far too long to feed back in as a "draft".
+                var draft = PromptClipCount > 1
+                    ? "(the prompt box holds a previous sequence — ignore it and write a fresh one)"
+                    : string.IsNullOrWhiteSpace(Prompt)
+                        ? "(none — invent a sequence that suits the material above)"
+                        : StripReferenceLine(Prompt).Trim();
+
+                var lengthBlock = clipCount > 1
+                    ? $"Story sequence: write {clipCount} clips that together tell ONE continuous story " +
+                      $"running about {clipCount * len:0.##} seconds in total. Each clip is {len:0.##} " +
+                      "seconds long and is rendered separately, so each one must be a complete, " +
+                      "self-contained H3 prompt. Separate them with a line spelled exactly " +
+                      $"\"=== CLIP n of {clipCount} ===\", numbered 1 to {clipCount} in order. The same " +
+                      "characters appear throughout — the same reference sheets are attached to every clip.\n"
+                    : $"Target duration: {len:0.##} seconds.\n";
+
+                // The cast reaches the generator as reference SHEETS, so identity is named rather than
+                // described — anything the LLM invents about a face it has never seen overrides the sheet.
+                // Wardrobe is the deliberate exception: the sheets show studio clothing that has nothing to
+                // do with this video, so the outfit has to come from somewhere else and be written out. With
+                // a scene image that somewhere is the image; with a story alone it is the prose, and failing
+                // that whatever the setting calls for — stated once and then repeated verbatim.
+                //
+                // Once the wardrobe has been decided it is quoted here instead, as settled fact. That is the
+                // difference between asking a model to be consistent — which it cannot be across N blocks it
+                // writes independently — and handing it the answer.
+                var wardrobeRule = HasCastWardrobe
+                    ? "CLOTHING IS ALREADY DECIDED AND IS NOT YOURS TO CHOOSE. The cast wears exactly this, in " +
+                      "every shot of every clip:\n" + CastWardrobe.Trim() + "\n" +
+                      "Attach that outfit to the character's tag the first time they appear in each clip — " +
+                      "\"<Picture 1>, wearing …\" — copying the wording above rather than rephrasing it, and " +
+                      "keep it identical everywhere else it is mentioned. Their reference sheets are studio " +
+                      "photographs and whatever those show them wearing is irrelevant. Never put them in " +
+                      "anything else and never invent a costume change; the only clothing that may change is a " +
+                      "change the user's story explicitly asks for."
+                    : fromImage
+                    ? "CLOTHING IS THE ONE EXCEPTION, and it is a hard requirement: the cast must be dressed exactly as the people in the SCENE image are dressed, NOT as their reference sheets show them — a sheet is a studio photograph and its clothing is irrelevant to this video. Read the wardrobe off the scene image and write it out explicitly the first time each character appears — garments, colours, materials, footwear, headwear and worn accessories — attached to their tag, e.g. \"<Picture 1>, wearing a <full outfit description from the scene image>,\". Restate that same outfit in exactly the same words every later time it is mentioned. If the scene image shows no people, dress them in what the setting plainly calls for and keep that wording identical throughout."
+                    : "CLOTHING IS THE ONE EXCEPTION, and it is a hard requirement: the cast must NOT be dressed as their reference sheets show them — a sheet is a studio photograph and its clothing is irrelevant to this video. Take the wardrobe from the STORY where the story describes it, and where it does not, dress them in what the period, place and situation plainly call for. Either way write the outfit out explicitly the first time each character appears — garments, colours, materials, footwear, headwear and worn accessories — attached to their tag, e.g. \"<Picture 1>, wearing a <full outfit description>,\", and restate that same outfit in exactly the same words every later time it is mentioned.";
+
+                var cast = HasCharacter2
+                    ? "Two character reference sheets will additionally be given to the video model and are addressed as <Picture 1> (Character 1) and <Picture 2> (Character 2). Each sheet is one person shown from several angles on a plain studio background. You are NOT shown those sheets — the video model is. Write both characters into the action and refer to them ONLY by those tags — wherever the story names its people, cast <Picture 1> and <Picture 2> in those roles and use the tags in place of the names. Do not write any word for their hair, face, skin, build or age; the tag already carries all of it. " + wardrobeRule
+                    : "One character reference sheet will additionally be given to the video model and is addressed as <Picture 1> (Character 1). The sheet is one person shown from several angles on a plain studio background. You are NOT shown that sheet — the video model is. Write them into the action and refer to them ONLY by that tag — wherever the story names its protagonist, cast <Picture 1> in that role and use the tag in place of the name. Do not write any word for their hair, face, skin, build or age; the tag already carries all of it. " + wardrobeRule;
+
+                const string faceRule =
+                    "Faces matter: keep the cast's faces visible and readable — favour medium and close shots " +
+                    "over wide ones where the story allows, since a face that is a handful of pixels wide " +
+                    "cannot hold an identity.\n";
+
+                string userMessage;
+                if (fromImage)
+                {
+                    var story = HasStoryText
+                        ? StoryText.Trim()
+                        : "(none — invent a story that suits the scene and carry it from beginning to end)";
+
+                    userMessage =
+                        "Image role: REFERENCE ONLY — this image is the SCENE (setting, lighting, art style, mood " +
+                        "and the wardrobe the cast wears). The video does not start on it and the generator will " +
+                        "never see it, so describe the environment — and the clothing — explicitly.\n" +
+                        $"{cast}\n" +
+                        lengthBlock +
+                        faceRule +
+                        $"Story the video must tell:\n{story}\n" +
+                        $"Draft idea from the user:\n{draft}";
+                }
+                else
+                {
+                    // No image at all: the story carries the setting as well as the action, so the model is
+                    // told to establish it rather than assume a picture it was never given.
+                    var wholeStory = clipCount > 1
+                        ? $"Together the {clipCount} clips must tell the whole story below, beginning to end — " +
+                          "split it into that many beats before writing anything, one beat per clip.\n"
+                        : $"The whole story has to be told inside {len:0.##} seconds, so pick the beats that " +
+                          "carry it and compress the rest; do not stop halfway through.\n";
+
+                    userMessage =
+                        "There is NO reference image of the scene. The story below is the only source: read the " +
+                        "setting, period, time of day, weather, lighting and mood out of it and write them into " +
+                        "the prompt explicitly, inventing whatever the story leaves unsaid and keeping it " +
+                        "consistent from the first shot to the last. The generator sees only your text.\n" +
+                        $"{cast}\n" +
+                        lengthBlock +
+                        wholeStory +
+                        faceRule +
+                        $"The story:\n{StoryText.Trim()}\n" +
+                        $"Draft idea from the user:\n{draft}";
+                }
+
+                // A chain needs headroom for N prompts, not one. A single H3 prompt runs ~700 tokens, so 6000
+                // is already generous; each extra clip only needs a fraction of that, and the total is capped
+                // so the request cannot exceed a modest local context window.
+                var maxTokens = Math.Min(32000, 6000 + 2500 * (Math.Max(1, clipCount) - 1));
+
+                var result = fromImage
+                    ? await _lmStudioService.AnalyzeImageWithSystemPromptAsync(
+                        model,
+                        SceneImagePath,
+                        userMessage,
+                        systemPrompt,
+                        maxTokens: maxTokens,
+                        cancellationToken: token)
+                    : await _lmStudioService.SendTextChatAsync(
+                        model,
+                        systemPrompt,
+                        userMessage,
+                        maxTokens: maxTokens,
+                        cancellationToken: token);
+
+                var cleaned = ApplyReferenceLineToChain(CleanOutput(result), HasCharacter2, CastWardrobe);
+                if (!string.IsNullOrWhiteSpace(cleaned))
+                {
+                    Prompt = cleaned;
+                    var written = PromptClipCount;
+                    AddLog(written > 1
+                        ? $"Chain written ({written} clips, {cleaned.Length} chars, {CountShots(cleaned)} shots total)"
+                        : $"Prompt written ({cleaned.Length} chars, {CountShots(cleaned)} shots)");
+
+                    if (written != clipCount)
+                        AddLog($"WARNING: asked for {clipCount} clip(s) but the model returned {written}. " +
+                               "Add to Queue enqueues what is in the prompt box — re-run Analyze, or edit the " +
+                               "headers by hand.");
+
+                    // Checked on the bodies alone: the reference line is code-written and identical in every
+                    // clip, so including it would only ever mask a real disagreement.
+                    var drift = DescribeWardrobeDrift(SplitClips(cleaned).Select(StripReferenceLine).ToList());
+                    if (drift != null)
+                        AddLog(HasCastWardrobe
+                            ? $"Note: the clip bodies describe the cast's appearance and {drift}. Every clip " +
+                              "carries the same wardrobe block ahead of its description and that block outranks " +
+                              "them, so the outfits should still hold — but if a clip comes out wrong, " +
+                              "harmonise those words too."
+                            : $"WARNING: the clips describe the cast's appearance and {drift}, and there is no " +
+                              "wardrobe locked to override them — they will change outfits between clips. Fill " +
+                              "the wardrobe box in (🎽 Derive) and press Add to Queue again.");
+                }
+                else
+                {
+                    AddLog("WARNING: Analysis returned empty result");
+                }
+            }
+            catch (OperationCanceledException) { }
+            catch (Exception ex)
+            {
+                AddLog($"ERROR during analysis: {ex.Message}");
+                MessageBox.Show($"Analysis failed:\n{ex.Message}", "Error", MessageBoxButton.OK, MessageBoxImage.Error);
+            }
+            finally
+            {
+                IsAnalyzing = false;
+                _analyzeCts?.Dispose();
+                _analyzeCts = null;
+            }
+        }
+
+        private static async Task<string> ReadSystemPromptAsync(string fileName, CancellationToken token)
+        {
+            var path = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "prompts", "prompt2json", fileName);
+            if (!File.Exists(path))
+                throw new FileNotFoundException($"System prompt not found: {path}");
+            return await File.ReadAllTextAsync(path, token);
+        }
+
+        /// <summary>
+        /// Strips the wrappers small vision models like to add (code fences, bold markers, a leading
+        /// "prompt:" label, surrounding quotes) without touching the H3 field structure.
+        /// </summary>
+        private static string CleanOutput(string text)
+        {
+            if (string.IsNullOrWhiteSpace(text)) return string.Empty;
+            text = text.Replace("**", "").Trim();
+
+            if (text.StartsWith("```"))
+            {
+                var firstBreak = text.IndexOf('\n');
+                if (firstBreak > 0) text = text[(firstBreak + 1)..];
+                var lastFence = text.LastIndexOf("```", StringComparison.Ordinal);
+                if (lastFence >= 0) text = text[..lastFence];
+                text = text.Trim();
+            }
+
+            if (text.StartsWith("prompt:", StringComparison.OrdinalIgnoreCase))
+                text = text[7..].TrimStart();
+            if (text.Length > 1 && text[0] == '"' && text[^1] == '"')
+                text = text[1..^1].Trim();
+
+            return text.Trim();
+        }
+
+        /// <summary>
+        /// Removes the code-written preamble — the reference line and the wardrobe block — so both can be
+        /// rewritten for the current cast and the current wardrobe. Idempotent, which is what lets Analyze
+        /// stamp a chain and Add to Queue re-stamp the same chain without either accumulating.
+        /// </summary>
+        private static string StripReferenceLine(string prompt)
+        {
+            var t = (prompt ?? string.Empty).Trim();
+            if (!t.StartsWith(RefLinePrefix, StringComparison.OrdinalIgnoreCase))
+                return StripWardrobeBlock(t).Trim();
+
+            var idx = t.IndexOf("integrated_multimodal_description:", StringComparison.OrdinalIgnoreCase);
+            if (idx > 0) return t[idx..].Trim();
+
+            // No H3 field to anchor on (a hand-written prompt, or a model that dropped the labels): fall back
+            // to dropping the reference line's own paragraph, then whatever wardrobe block follows it.
+            var nl = t.IndexOf('\n');
+            return nl > 0 ? StripWardrobeBlock(t[(nl + 1)..].Trim()).Trim() : string.Empty;
+        }
+
+        /// <summary>
+        /// Puts the two code-written lines back on the front of a clip: the sheet reference line, rewritten so
+        /// it always matches how many sheets are actually wired in (a prompt that mentions &lt;Picture 2&gt;
+        /// with no second sheet has nothing to resolve), and the wardrobe block.
+        ///
+        /// <para>Both are passed in rather than read off the tab, because a queued item's preamble must
+        /// describe the cast and the wardrobe it was queued with, not whatever is on screen when it runs.</para>
+        ///
+        /// <para>The wardrobe belongs <i>here</i>, in code, rather than in the body the LLM writes: this is the
+        /// only text in a chain that is identical in every clip by construction. The reference line hands the
+        /// wardrobe to "the outfit written there" precisely so that this block can be what "there" means.</para>
+        /// </summary>
+        private static string ApplyReferenceLine(string prompt, bool twoCharacters, string? wardrobe)
+        {
+            var body = StripReferenceLine(prompt);
+            if (body.Length == 0) return string.Empty;
+
+            var sb = new StringBuilder(twoCharacters ? RefInstructionTwo : RefInstructionOne);
+            var wardrobeLock = BuildWardrobeLock(wardrobe);
+            if (wardrobeLock.Length > 0) sb.Append("\n\n").Append(wardrobeLock);
+            return sb.Append("\n\n").Append(body).ToString();
+        }
+
+        #endregion
+
+        #region Wardrobe (decided once, stamped into every clip)
+
+        /// <summary>
+        /// Resolves the llama-server target, or null after telling the user why it could not. Shared by
+        /// Analyze and the wardrobe pass so the two cannot end up talking to different servers.
+        /// </summary>
+        private async Task<string?> ResolveLlmModelAsync(CancellationToken token)
+        {
+            var baseUrl = _settingsService.Settings?.LMStudioSettings?.BaseUrl ?? "http://alien:8080";
+            await _lmStudioService.SetBaseUrlAsync(baseUrl);
+
+            var models = await _lmStudioService.GetAvailableModelsAsync(token);
+            var model = _settingsService.Settings?.LMStudioSettings?.SelectedModel ?? string.Empty;
+            if (string.IsNullOrEmpty(model) && models.Count > 0)
+                model = models[0].Id ?? models[0].Name ?? string.Empty;
+            if (!string.IsNullOrEmpty(model)) return model;
+
+            MessageBox.Show("No LM Studio / llama-server model available. Ensure the server is running and a model is loaded.",
+                "LM Studio Unavailable", MessageBoxButton.OK, MessageBoxImage.Warning);
+            return null;
+        }
+
+        /// <summary>
+        /// The 🎽 button: re-derives the wardrobe on its own, replacing whatever is in the box. Useful when the
+        /// outfits are the only thing wrong with an otherwise good chain — the wardrobe is re-stamped into
+        /// every clip at Add to Queue, so a chain already in the prompt box does not have to be rewritten.
+        /// </summary>
+        private async Task RederiveWardrobeAsync()
+        {
+            if (!CanAnalyze) return;
+
+            IsAnalyzing = true;
+            _analyzeCts?.Dispose();
+            _analyzeCts = new CancellationTokenSource();
+            var token = _analyzeCts.Token;
+
+            try
+            {
+                var model = await ResolveLlmModelAsync(token);
+                if (model == null) return;
+
+                AddLog($"Writing the cast's wardrobe — sending to {_lmStudioService.DescribeTarget(model)}");
+                var derived = await DeriveWardrobeAsync(model, token);
+                if (string.IsNullOrWhiteSpace(derived))
+                {
+                    AddLog("WARNING: the wardrobe came back empty — the box is unchanged.");
+                    return;
+                }
+
+                CastWardrobe = derived;
+                AddLog($"Wardrobe locked:\n{derived}");
+                if (PromptClipCount > 0)
+                    AddLog("Add to Queue re-stamps this wardrobe into every clip already in the prompt box — " +
+                           "no need to re-run Analyze.");
+            }
+            catch (OperationCanceledException) { }
+            catch (Exception ex)
+            {
+                AddLog($"ERROR writing the wardrobe: {ex.Message}");
+                MessageBox.Show($"Writing the wardrobe failed:\n{ex.Message}",
+                    "H3 Cast", MessageBoxButton.OK, MessageBoxImage.Error);
+            }
+            finally
+            {
+                IsAnalyzing = false;
+                _analyzeCts?.Dispose();
+                _analyzeCts = null;
+            }
+        }
+
+        /// <summary>
+        /// Asks the llama-server for one outfit per loaded character, as its own small request rather than as
+        /// part of the chain. Kept separate on purpose: it is a short, narrow question a local model answers
+        /// well, whereas the same decision buried inside a request for eight full H3 prompts is the first
+        /// thing that gets re-improvised per clip.
+        ///
+        /// <para>Returns the normalized block (<c>Character 1 wears …</c>, one line each), or an empty string
+        /// if nothing usable came back — the caller then falls back to the old describe-it-per-clip rule.</para>
+        /// </summary>
+        private async Task<string> DeriveWardrobeAsync(string model, CancellationToken token)
+        {
+            var count = HasCharacter2 ? 2 : 1;
+
+            const string systemPrompt =
+                "You are a costume supervisor writing the wardrobe bible for a short film. You reply with " +
+                "nothing but the wardrobe lines you were asked for — no preamble, no headings, no markdown, " +
+                "no notes, no explanation.";
+
+            var shape = string.Join("\n", Enumerable.Range(1, count).Select(i => $"CHARACTER {i}: <outfit>"));
+            var rules =
+                $"Decide the outfit for {(count == 2 ? "both characters" : "the character")} in this video. " +
+                "Reply with exactly these lines and nothing else:\n" + shape + "\n\n" +
+                "Each <outfit> is ONE sentence of at most 45 words naming every visible garment and worn item — " +
+                "top, bottom or dress, outer layer, footwear, headwear, gloves, eyewear, jewellery, bag, belt — " +
+                "each with its colour and its material. Write only clothing and worn accessories: no face, hair, " +
+                "skin, build, age, name, pose, expression, background, weather or action. The outfit must be " +
+                "practical for everything the character does in the story and must stay wearable from beginning " +
+                "to end, because they will wear it in every shot of the finished video.";
+
+            string userMessage;
+            if (HasSceneImage)
+            {
+                var story = HasStoryText
+                    ? $"The story they act out:\n{StoryText.Trim()}\n"
+                    : string.Empty;
+                userMessage =
+                    "Image role: REFERENCE ONLY — this is the SCENE the video is set in, and it is where the " +
+                    "wardrobe comes from. Read the clothing off the people in it. If it shows no people, dress " +
+                    "the cast in what the setting, period and situation plainly call for.\n" +
+                    story + rules;
+            }
+            else
+            {
+                userMessage =
+                    "There is no reference image. The story below is the only source: take the wardrobe from it " +
+                    "where it describes clothing, and where it does not, dress the cast in what the period, " +
+                    "place and situation plainly call for.\n" +
+                    $"The story:\n{StoryText.Trim()}\n" +
+                    rules;
+            }
+
+            var result = HasSceneImage
+                ? await _lmStudioService.AnalyzeImageWithSystemPromptAsync(
+                    model, SceneImagePath, userMessage, systemPrompt, maxTokens: 600, cancellationToken: token)
+                : await _lmStudioService.SendTextChatAsync(
+                    model, systemPrompt, userMessage, maxTokens: 600, cancellationToken: token);
+
+            return NormalizeWardrobe(CleanOutput(result), count);
+        }
+
+        /// <summary>Matches the reply's <c>CHARACTER 1: …</c> lines, however the model decorated them.</summary>
+        private static readonly Regex WardrobeLineRegex = new(
+            @"^[ \t]*[-*>#]*[ \t]*(?:CHARACTER|CHAR|PICTURE|PERSON)[ \t]*#?[ \t]*(\d+)[ \t]*[:\-–—)]+[ \t]*(.+)$",
+            RegexOptions.Multiline | RegexOptions.IgnoreCase | RegexOptions.Compiled);
+
+        /// <summary>
+        /// Turns the reply into the block that goes into the prompts: one line per character, each naming the
+        /// tag the video model actually resolves. A reply with no recognisable lines but some prose is kept as
+        /// it stands — the block is free text by the time it reaches the prompt, and a human editing the box
+        /// is under no obligation to use this shape either.
+        /// </summary>
+        private static string NormalizeWardrobe(string reply, int count)
+        {
+            if (string.IsNullOrWhiteSpace(reply)) return string.Empty;
+
+            var lines = new List<string>();
+            foreach (Match m in WardrobeLineRegex.Matches(reply))
+            {
+                if (!int.TryParse(m.Groups[1].Value, out var index) || index < 1 || index > count) continue;
+                var outfit = m.Groups[2].Value.Trim().TrimEnd('.', ' ');
+                if (outfit.Length == 0) continue;
+                // A model that answers "CHARACTER 1: wearing a red coat" would otherwise read "wears wearing".
+                foreach (var lead in new[] { "wearing ", "wears ", "is wearing ", "dressed in " })
+                    if (outfit.StartsWith(lead, StringComparison.OrdinalIgnoreCase))
+                    {
+                        outfit = outfit[lead.Length..].TrimStart();
+                        break;
+                    }
+                lines.Add($"Character {index} (<Picture {index}>) wears: {outfit}.");
+            }
+
+            if (lines.Count > 0)
+                return string.Join("\n", lines.Distinct(StringComparer.OrdinalIgnoreCase));
+
+            // Nothing parseable: better a paragraph repeated identically in every clip than a wardrobe
+            // re-invented in each one, which is exactly what this whole step exists to stop.
+            return reply.Trim();
+        }
+
+        /// <summary>
+        /// The wardrobe as it appears inside a prompt — the header plus the block, or nothing at all when
+        /// there is no wardrobe to lock.
+        /// </summary>
+        private static string BuildWardrobeLock(string? wardrobe)
+        {
+            // Blank lines are squeezed out because a blank line is what ends the block: a hand-typed wardrobe
+            // with a paragraph break would otherwise leave its tail behind when the block is replaced.
+            var body = Regex.Replace((wardrobe ?? string.Empty).Replace("\r\n", "\n").Replace('\r', '\n').Trim(),
+                                     @"\n[ \t]*\n+", "\n");
+            return body.Length == 0 ? string.Empty : $"{WardrobeLockHeader}\n{body}";
+        }
+
+        /// <summary>
+        /// Removes a leading wardrobe block so a new one can replace it — the block runs from its header to
+        /// the first blank line, which is exactly how <see cref="BuildWardrobeLock"/> writes it. Without this,
+        /// re-queueing a chain that Analyze already stamped would stack a second block on top of the first.
+        /// </summary>
+        private static string StripWardrobeBlock(string text)
+        {
+            var t = (text ?? string.Empty).Replace("\r\n", "\n").Replace('\r', '\n').TrimStart();
+            if (!t.StartsWith(WardrobeLockPrefix, StringComparison.OrdinalIgnoreCase)) return t;
+
+            var end = t.IndexOf("\n\n", StringComparison.Ordinal);
+            return end < 0 ? string.Empty : t[(end + 2)..].TrimStart();
+        }
+
+        #endregion
+
+        #region Clip chain (story mode)
+
+        /// <summary>The header written between clips. The LLM is told to emit exactly this shape.</summary>
+        private const string ClipHeaderFormat = "=== CLIP {0} of {1} ===";
+
+        /// <summary>
+        /// Matches a clip header on a line of its own. Deliberately loose about the decoration around it
+        /// (<c>===</c>, <c>##</c>, <c>[CLIP 3]</c>, <c>Clip 3:</c> — small models produce all of them) but
+        /// capped at 60 characters so a line of prompt body that happens to start with the word can never be
+        /// mistaken for a header.
+        /// </summary>
+        private static readonly Regex ClipHeaderRegex = new(
+            @"^[ \t]*[=#*\-–—\[]{0,6}[ \t]*CLIP[ \t]+(\d+)\b[^\r\n]{0,60}$",
+            RegexOptions.Multiline | RegexOptions.IgnoreCase | RegexOptions.Compiled);
+
+        /// <summary>
+        /// Splits a prompt chain into its individual clip prompts, headers removed. Text with no headers is
+        /// one clip, so every caller can treat the single-clip case as a chain of length 1.
+        /// </summary>
+        private static List<string> SplitClips(string? text)
+        {
+            // Normalized first: `$` in a .NET multiline match sits *before* the \n, so a CRLF header line
+            // would never match — and the prompt box hands back CRLF the moment it is edited by hand.
+            var t = (text ?? string.Empty).Replace("\r\n", "\n").Replace('\r', '\n').Trim();
+            if (t.Length == 0) return new List<string>();
+
+            var headers = ClipHeaderRegex.Matches(t);
+            if (headers.Count == 0) return new List<string> { t };
+
+            var clips = new List<string>();
+            // Anything ahead of the first header is a preamble the model added; it belongs to clip 1.
+            var preamble = t[..headers[0].Index].Trim();
+
+            for (var i = 0; i < headers.Count; i++)
+            {
+                var start = headers[i].Index + headers[i].Length;
+                var end = i + 1 < headers.Count ? headers[i + 1].Index : t.Length;
+                var body = t[start..end].Trim();
+
+                if (i == 0 && preamble.Length > 0)
+                    body = body.Length > 0 ? $"{preamble}\n\n{body}" : preamble;
+
+                if (body.Length > 0) clips.Add(body);
+            }
+
+            return clips.Count > 0 ? clips : new List<string> { t };
+        }
+
+        /// <summary>Reassembles clip prompts into one chain. A single clip is returned bare — headers only
+        /// appear once there is actually a sequence.</summary>
+        private static string JoinClips(IReadOnlyList<string> clips)
+        {
+            if (clips.Count == 0) return string.Empty;
+            if (clips.Count == 1) return clips[0].Trim();
+
+            var sb = new StringBuilder();
+            for (var i = 0; i < clips.Count; i++)
+            {
+                if (i > 0) sb.Append("\n\n");
+                sb.AppendFormat(System.Globalization.CultureInfo.InvariantCulture,
+                    ClipHeaderFormat, i + 1, clips.Count);
+                sb.Append("\n\n").Append(clips[i].Trim());
+            }
+            return sb.ToString();
+        }
+
+        /// <summary>Chain-aware <see cref="ApplyReferenceLine(string, bool, string)"/> — every clip needs its
+        /// own sheet reference line and its own copy of the wardrobe, because every clip is submitted to H3 as
+        /// a separate prompt with the same sheets attached and no memory of the clip before it.</summary>
+        private static string ApplyReferenceLineToChain(string prompt, bool twoCharacters, string? wardrobe)
+        {
+            var clips = SplitClips(prompt);
+            if (clips.Count == 0) return string.Empty;
+            return JoinClips(clips.Select(c => ApplyReferenceLine(c, twoCharacters, wardrobe))
+                                  .Where(c => c.Length > 0).ToList());
+        }
+
+        /// <summary>
+        /// Wearable and hairstyle words, used only by <see cref="DescribeWardrobeDrift"/> to spot a chain
+        /// whose clips dress the cast differently. Deliberately nouns, not colours — lighting colours
+        /// legitimately change from beat to beat.
+        /// </summary>
+        private static readonly string[] AppearanceTerms =
+        {
+            "dress", "gown", "skirt", "blouse", "shirt", "t-shirt", "tee", "jacket", "coat", "trenchcoat",
+            "hoodie", "sweater", "cardigan", "jumper", "vest", "waistcoat", "blazer", "suit", "uniform",
+            "robe", "cloak", "cape", "armor", "armour", "kimono", "leggings", "jeans", "trousers", "pants",
+            "shorts", "boots", "heels", "sneakers", "shoes", "sandals", "gloves", "scarf", "hat", "cap",
+            "helmet", "mask", "goggles", "glasses", "necklace", "earrings", "bracelet", "belt", "apron",
+            "ponytail", "braid", "braids", "bun", "bangs", "fringe", "dreadlocks", "blonde", "brunette",
+            "redhead", "bearded", "freckles",
+        };
+
+        /// <summary>
+        /// Flags wardrobe drift across a chain: an appearance word that appears in some clips but not all.
+        /// Returns null when there is nothing to report.
+        ///
+        /// <para>Each clip is written as its own block and rendered separately, so a wardrobe re-phrased in
+        /// clip 4 is a wardrobe <i>changed</i> in clip 4 — and that only becomes visible after minutes of GPU
+        /// time per clip. Only <b>inconsistent</b> terms are reported, which is what keeps the check quiet.</para>
+        /// </summary>
+        private static string? DescribeWardrobeDrift(IReadOnlyList<string> clips)
+        {
+            if (clips.Count < 2) return null;
+
+            var perClip = clips
+                .Select(c => new HashSet<string>(
+                    AppearanceTerms.Where(t => Regex.IsMatch(c, $@"\b{Regex.Escape(t)}\b", RegexOptions.IgnoreCase)),
+                    StringComparer.OrdinalIgnoreCase))
+                .ToList();
+
+            var inconsistent = perClip
+                .SelectMany(s => s)
+                .Distinct(StringComparer.OrdinalIgnoreCase)
+                .Where(t => perClip.Count(s => s.Contains(t)) != clips.Count)
+                .OrderBy(t => t, StringComparer.OrdinalIgnoreCase)
+                .ToList();
+
+            if (inconsistent.Count == 0) return null;
+
+            var shown = string.Join(", ", inconsistent.Take(8));
+            var more = inconsistent.Count > 8 ? $" (+{inconsistent.Count - 8} more)" : string.Empty;
+            return $"the clips do not agree on: {shown}{more}";
+        }
+
+        #endregion
+
+        #region Analysis helpers
+
+        /// <summary>Counts `[Shot n]` markers, purely for the log line.</summary>
+        private static int CountShots(string prompt)
+        {
+            var count = 0;
+            var idx = prompt.IndexOf("[Shot ", StringComparison.OrdinalIgnoreCase);
+            while (idx >= 0)
+            {
+                count++;
+                idx = prompt.IndexOf("[Shot ", idx + 6, StringComparison.OrdinalIgnoreCase);
+            }
+            return count;
+        }
+
+        #endregion
+
+        #region Queue
+
+        public ObservableCollection<H3CastQueueItem> Queue => _queue;
+
+        public bool HasQueueItems => _queue.Count > 0;
+        public bool HasPendingItems => _queue.Any(x => x.ItemStatus == QueueItemStatus.Pending);
+        public bool HasFailedItems => _queue.Any(x => x.ItemStatus == QueueItemStatus.Failed);
+
+        /// <summary>True while the drain loop is alive — one ComfyUI submission at a time.</summary>
+        public bool IsProcessingQueue
+        {
+            get => _isProcessingQueue;
+            private set
+            {
+                if (_isProcessingQueue == value) return;
+                _isProcessingQueue = value;
+                OnPropertyChanged();
+                OnCanExecuteChanged();
+            }
+        }
+
+        public string QueueStatus
+        {
+            get => _queueStatus;
+            private set { if (_queueStatus != value) { _queueStatus = value; OnPropertyChanged(); } }
+        }
+
+        /// <summary>
+        /// Freezes the form into queue items and starts the drain loop if it is not already running. The
+        /// sheets are already built by this point, so nothing here waits on the GPU and the tab stays usable
+        /// the moment the button is hit.
+        ///
+        /// <para>The prompt box — not the duration slider — decides how many items are queued: it is split on
+        /// its <c>=== CLIP n of N ===</c> headers and each clip becomes one job, so a chain that has been
+        /// hand-edited (a clip deleted, a header added) queues exactly what is on screen. The clips are added
+        /// in order and the drain loop always takes the first Pending item, so they render in story order,
+        /// against the same character sheets.</para>
+        /// </summary>
+        private void AddToQueue()
+        {
+            if (!CanGenerate) return;
+
+            var clips = SplitClips(Prompt);
+            if (clips.Count == 0) return;
+
+            // Shared by every clip of one story: groups the output files and labels the queue rows.
+            var storyId = clips.Count > 1
+                ? $"{DateTime.Now:yyyyMMdd_HHmmss}_{Guid.NewGuid():N}"[..20]
+                : string.Empty;
+
+            // One seed for the whole chain rather than a fresh one per clip. The prompts differ, so the clips
+            // still differ; what a shared seed removes is the per-clip re-roll of the noise every other frame
+            // in H3 is built on, which is one more thing that made the cast look subtly re-cast between beats.
+            // An explicit seed is honoured as before, and a lone clip keeps -1 so it rolls at submit time.
+            var storySeed = Seed >= 0 || clips.Count == 1
+                ? Seed
+                : System.Random.Shared.NextInt64(0, long.MaxValue);
+
+            for (var i = 0; i < clips.Count; i++)
+            {
+                var item = new H3CastQueueItem
+                {
+                    Character1SheetPath = _character1.SheetPath,
+                    Character2SheetPath = HasCharacter2 ? _character2.SheetPath : string.Empty,
+                    Character1SourcePath = _character1.SourcePath,
+                    Character2SourcePath = HasCharacter2 ? _character2.SourcePath : string.Empty,
+                    SceneImagePath = HasSceneImage ? SceneImagePath : string.Empty,
+                    // Baked in now: the reference line has to name this item's cast and the wardrobe block has
+                    // to be the one on screen when it was queued, not whichever characters and outfits happen
+                    // to be loaded when the item eventually runs. Re-stamped rather than trusted, so editing
+                    // the wardrobe box and re-queueing an unchanged chain is enough to redress every clip.
+                    Prompt = ApplyReferenceLine(clips[i], HasCharacter2, CastWardrobe),
+                    AspectRatio = ResolvedAspectRatio,
+                    Megapixels = Megapixels,
+                    LengthSeconds = ClampLength(LengthSeconds),
+                    Seed = storySeed,
+                    FaceRefine = FaceRefine,
+                    RefineDenoise = RefineDenoise,
+                    RtxUpscale = RtxUpscale,
+                    StoryId = storyId,
+                    ClipIndex = i + 1,
+                    ClipCount = clips.Count,
+                    ItemStatus = QueueItemStatus.Pending,
+                };
+
+                _queue.Add(item);
+                AddLog($"Queued: {item.DisplayText}");
+            }
+
+            SaveQueueToFile();
+            if (clips.Count > 1)
+            {
+                AddLog($"Story queued: {clips.Count} clips × {ClampLength(LengthSeconds):0.#}s " +
+                       $"→ {clips.Count * ClampLength(LengthSeconds):0.#}s of video, rendered one at a time " +
+                       $"and joined when the last one lands. All {clips.Count} share seed {storySeed}.");
+                AddLog(HasCastWardrobe
+                    ? $"Wardrobe stamped into all {clips.Count} clips:\n{CastWardrobe.Trim()}"
+                    : "WARNING: no wardrobe is locked, so each clip dresses the cast from its own description " +
+                      "— that is what makes them change clothes between clips. Press 🎽 Derive and re-queue.");
+            }
+            UpdateQueueStatus();
+
+            if (!IsProcessingQueue) _ = ProcessQueueAsync();
+        }
+
+        private void RemoveQueueItem(H3CastQueueItem? item)
+        {
+            // A Processing item is mid-submission; removing it would orphan the run, not stop it.
+            if (item == null || item.ItemStatus == QueueItemStatus.Processing) return;
+            _queue.Remove(item);
+            SaveQueueToFile();
+            UpdateQueueStatus();
+        }
+
+        private void ClearQueue()
+        {
+            _queueCts?.Cancel();
+            _queue.Clear();
+            SaveQueueToFile();
+            UpdateQueueStatus();
+            AddLog("Queue cleared");
+        }
+
+        private void StopQueue() => _queueCts?.Cancel();
+
+        /// <summary>Stops whichever half of the tab is on the GPU — the sheet builder or the queue.</summary>
+        private void CancelEverything()
+        {
+            _sheetCts?.Cancel();
+            _queueCts?.Cancel();
+        }
+
+        private void ReprocessAllFailed()
+        {
+            var failed = _queue.Where(x => x.ItemStatus == QueueItemStatus.Failed).ToList();
+            if (failed.Count == 0) return;
+            foreach (var item in failed)
+            {
+                item.ItemStatus = QueueItemStatus.Pending;
+                item.ErrorMessage = null;
+            }
+            UpdateQueueStatus();
+            SaveQueueToFile();
+            if (!IsProcessingQueue) _ = ProcessQueueAsync();
+        }
+
+        private void UpdateQueueStatus()
+        {
+            var pending = _queue.Count(x => x.ItemStatus == QueueItemStatus.Pending);
+            var running = _queue.Count(x => x.ItemStatus == QueueItemStatus.Processing);
+            var done = _queue.Count(x => x.ItemStatus == QueueItemStatus.Completed);
+            var failed = _queue.Count(x => x.ItemStatus == QueueItemStatus.Failed);
+            QueueStatus = _queue.Count == 0
+                ? string.Empty
+                : $"{pending} pending • {running} running • {done} done • {failed} failed";
+
+            OnPropertyChanged(nameof(HasPendingItems));
+            OnPropertyChanged(nameof(HasFailedItems));
+            OnCanExecuteChanged();
+        }
+
+        /// <summary>
+        /// Drains pending items one at a time. The workflow-coordinator lease is taken <b>per item</b> rather
+        /// than around the loop, so a long queue does not lock every other tab out of ComfyUI for its whole
+        /// run — and items added mid-drain are picked up on the next pass.
+        /// </summary>
+        private async Task ProcessQueueAsync()
+        {
+            if (IsProcessingQueue) return;
+
+            IsProcessingQueue = true;
+            _queueCts?.Dispose();
+            _queueCts = new CancellationTokenSource();
+            var token = _queueCts.Token;
+
+            AddLog("Starting H3 Cast queue...");
+            try
+            {
+                H3CastQueueItem? item;
+                while (!token.IsCancellationRequested &&
+                       (item = _queue.FirstOrDefault(x => x.ItemStatus == QueueItemStatus.Pending)) != null)
+                {
+                    item.ItemStatus = QueueItemStatus.Processing;
+                    item.StartedAt = DateTime.Now;
+                    UpdateQueueStatus();
+                    SaveQueueToFile();
+
+                    try
+                    {
+                        await GenerateItemAsync(item, token);
+                        item.ItemStatus = QueueItemStatus.Completed;
+                        item.CompletedAt = DateTime.Now;
+                        AddLog($"Completed: {item.DisplayText}");
+                        // Never throws — a join problem must not push a rendered clip back to Pending.
+                        await CompleteStoryAsync(item, token);
+                    }
+                    catch (OperationCanceledException)
+                    {
+                        item.ItemStatus = QueueItemStatus.Pending;
+                        AddLog("Queue stopped — the current item is back to Pending.");
+                        break;
+                    }
+                    catch (Exception ex)
+                    {
+                        if (await TryHandleCrashAndRetryAsync(item, ex))
+                        {
+                            item.ItemStatus = QueueItemStatus.Pending;
+                            AddLog("Item reset to Pending — will retry after ComfyUI restart");
+                        }
+                        else
+                        {
+                            item.ItemStatus = QueueItemStatus.Failed;
+                            item.ErrorMessage = ex.Message;
+                            AddLog($"FAILED: {ex.Message}");
+                        }
+                    }
+
+                    UpdateQueueStatus();
+                    SaveQueueToFile();
+                }
+            }
+            finally
+            {
+                IsProcessingQueue = false;
+                ProcessingStatus = token.IsCancellationRequested ? "Queue stopped" : "Queue finished";
+                AddLog("Queue processing finished.");
+                OnCanExecuteChanged();
+            }
+        }
+
+        /// <summary>
+        /// Runs once the <i>last</i> clip of a chain lands: announces the finished story, then FFmpeg-joins
+        /// its clips, in <see cref="H3CastQueueItem.ClipIndex"/> order, into one continuous video.
+        ///
+        /// <para>Deliberately exception-free. It is called from the drain loop straight after an item has
+        /// been marked Completed, and that loop's catch would otherwise read a join failure as a render
+        /// failure and push an already-rendered clip back to Pending.</para>
+        /// </summary>
+        private async Task CompleteStoryAsync(H3CastQueueItem finished, CancellationToken token)
+        {
+            try
+            {
+                if (!finished.IsStoryClip || string.IsNullOrEmpty(finished.StoryId)) return;
+
+                var siblings = _queue.Where(x => x.StoryId == finished.StoryId)
+                                     .OrderBy(x => x.ClipIndex)
+                                     .ToList();
+
+                if (siblings.Any(x => x.ItemStatus != QueueItemStatus.Completed))
+                {
+                    // Nothing left running means the chain is stuck on a failure rather than still
+                    // rendering — say so, otherwise the missing joined file looks like a silent bug.
+                    var stalled = siblings.Count(x => x.ItemStatus == QueueItemStatus.Failed);
+                    if (stalled > 0 && !siblings.Any(x => x.ItemStatus is QueueItemStatus.Pending or QueueItemStatus.Processing))
+                        AddLog($"Story not joined: {stalled} of {siblings.Count} clips failed. " +
+                               "Retry them and the join runs when the last one lands.");
+                    return;
+                }
+
+                var total = siblings.Sum(x => ClampLength(x.LengthSeconds));
+                AddLog($"=== Story complete: {siblings.Count} clips, {total:0.#}s total ===");
+                foreach (var clip in siblings)
+                    AddLog($"  clip {clip.ClipIndex}/{clip.ClipCount}: {clip.OutputVideoPath}");
+
+                await JoinStoryAsync(finished.StoryId, siblings, token);
+            }
+            catch (Exception ex)
+            {
+                // Includes cancellation: the clips themselves are already on disk either way.
+                AddLog($"Story join skipped: {ex.Message}");
+            }
+        }
+
+        /// <summary>
+        /// Concatenates a finished chain's clips into one MP4 next to them, and makes it the tab's current
+        /// result so ▶ Play opens the whole story rather than its last beat. Best-effort — the individual
+        /// clips are untouched and remain usable if the join cannot run.
+        /// </summary>
+        private async Task JoinStoryAsync(string storyId, IReadOnlyList<H3CastQueueItem> clips,
+            CancellationToken token)
+        {
+            var paths = clips.Select(c => c.OutputVideoPath)
+                             .Where(p => !string.IsNullOrEmpty(p) && File.Exists(p))
+                             .Select(p => p!)
+                             .ToList();
+
+            if (paths.Count < clips.Count)
+                AddLog($"Join: {clips.Count - paths.Count} clip file(s) are missing from disk and are left out.");
+            if (paths.Count < 2)
+            {
+                AddLog("Join skipped: fewer than two clip files are available.");
+                return;
+            }
+
+            var ffmpeg = FindFFmpeg();
+            if (string.IsNullOrEmpty(ffmpeg))
+            {
+                AddLog("Join skipped: FFmpeg not found. The clips are separate files, in playback order.");
+                return;
+            }
+
+            // Alongside the clips, which already share this stem — the joined file sorts with them.
+            var outputDir = Path.GetDirectoryName(paths[0])
+                            ?? Path.Combine(_settingsService.Settings?.OutputFolderPath ?? Path.GetTempPath(), "H3Cast");
+            Directory.CreateDirectory(outputDir);
+
+            // Re-running a chain (after retrying a failed clip) re-joins the same story from the same clips,
+            // so overwriting this file is a refresh, not a loss.
+            var joinedPath = Path.Combine(outputDir, $"H3Cast_{storyId}_joined.mp4");
+            var total = clips.Sum(c => ClampLength(c.LengthSeconds));
+
+            ProcessingStatus = $"Joining {paths.Count} clips...";
+            AddLog($"Joining {paths.Count} clips with FFmpeg → {Path.GetFileName(joinedPath)}");
+            await ConcatClipsAsync(ffmpeg, paths, joinedPath, token);
+
+            if (!File.Exists(joinedPath) || new FileInfo(joinedPath).Length == 0)
+            {
+                AddLog("Join produced no file — the individual clips are unaffected.");
+                return;
+            }
+
+            await LocalCopyService.CopyVideoAsync(joinedPath);
+
+            var fi = new FileInfo(joinedPath);
+            Application.Current.Dispatcher.Invoke(() =>
+            {
+                ResultVideoPath = joinedPath;
+                ResultVideoInfo = $"H3 Cast • joined story • {paths.Count} clips • {total:0.#}s • " +
+                                  $"{fi.Length / 1024 / 1024.0:F1}MB";
+                HasResult = true;
+                OnCanExecuteChanged();
+            });
+            ProcessingStatus = "Clips joined!";
+            AddLog($"=== Joined video complete: {joinedPath} ===");
+        }
+
+        /// <summary>
+        /// FFmpeg concat-demuxer join. Every clip of a chain comes out of the same graph at the same
+        /// resolution and frame rate, but it is re-encoded rather than stream-copied for the same reason the
+        /// other H3 tabs do it: H3 writes an audio track per clip, and a copy-mode concat of separately
+        /// encoded H3 outputs is where the timestamp and codec-parameter edge cases live. veryfast/CRF 18 is
+        /// visually lossless and costs seconds on clips this short.
+        /// </summary>
+        private async Task ConcatClipsAsync(string ffmpeg, IReadOnlyList<string> clips, string outPath,
+            CancellationToken token)
+        {
+            var listPath = Path.Combine(Path.GetTempPath(), $"h3cast_concat_{Guid.NewGuid():N}.txt");
+            var sb = new StringBuilder();
+            foreach (var clip in clips)
+            {
+                // The concat demuxer reads a backslash as an escape and a single quote as the delimiter.
+                sb.AppendLine($"file '{clip.Replace("\\", "/").Replace("'", @"'\''")}'");
+            }
+            await File.WriteAllTextAsync(listPath, sb.ToString(), token);
+
+            try
+            {
+                var psi = new System.Diagnostics.ProcessStartInfo
+                {
+                    FileName = ffmpeg,
+                    UseShellExecute = false,
+                    RedirectStandardError = true,
+                    CreateNoWindow = true,
+                };
+                foreach (var a in new[]
+                {
+                    "-y", "-f", "concat", "-safe", "0", "-i", listPath,
+                    "-c:v", "libx264", "-preset", "veryfast", "-crf", "18",
+                    "-c:a", "aac", "-b:a", "192k", "-pix_fmt", "yuv420p", outPath
+                }) psi.ArgumentList.Add(a);
+
+                using var p = System.Diagnostics.Process.Start(psi)
+                              ?? throw new Exception("Failed to start FFmpeg.");
+                // stderr is drained before the wait: FFmpeg logs everything there and blocks once the pipe
+                // buffer fills, which would otherwise hang the join.
+                var stderr = await p.StandardError.ReadToEndAsync(token);
+                await p.WaitForExitAsync(token);
+                if (p.ExitCode != 0)
+                {
+                    var tail = stderr.Length <= 600 ? stderr : stderr[^600..];
+                    throw new Exception($"FFmpeg exited {p.ExitCode}: {tail}");
+                }
+            }
+            finally
+            {
+                try { File.Delete(listPath); } catch { /* temp file: best effort */ }
+            }
+        }
+
+        #endregion
+
+        #region Queue persistence
+
+        private void SaveQueueToFile()
+        {
+            try
+            {
+                var dir = Path.GetDirectoryName(QueueFilePath);
+                if (!string.IsNullOrEmpty(dir) && !Directory.Exists(dir)) Directory.CreateDirectory(dir);
+
+                // Completed items are session history, not pending work — keeping them out stops the queue
+                // file (and therefore startup) from growing without bound.
+                var pending = _queue.Where(q => q.ItemStatus != QueueItemStatus.Completed).ToList();
+                File.WriteAllText(QueueFilePath,
+                    JsonSerializer.Serialize(pending, new JsonSerializerOptions { WriteIndented = true }));
+            }
+            catch (Exception ex) { AddLog($"Error saving queue: {ex.Message}"); }
+        }
+
+        /// <summary>
+        /// Defers the persisted queue read to Background dispatcher priority, with the file I/O itself on a
+        /// worker thread — this view model is built during app startup and must not do disk work in its
+        /// constructor.
+        /// </summary>
+        private void ScheduleQueueLoad()
+        {
+            var dispatcher = Application.Current?.Dispatcher;
+            if (dispatcher == null)
+            {
+                _ = LoadQueueFromFileAsync();
+                return;
+            }
+
+            dispatcher.InvokeAsync(async () => await LoadQueueFromFileAsync(),
+                System.Windows.Threading.DispatcherPriority.Background);
+        }
+
+        private async Task LoadQueueFromFileAsync()
+        {
+            try
+            {
+                if (!File.Exists(QueueFilePath)) return;
+
+                var items = await Task.Run(() =>
+                    JsonSerializer.Deserialize<List<H3CastQueueItem>>(File.ReadAllText(QueueFilePath)));
+                if (items == null || items.Count == 0) return;
+
+                _queue.Clear();
+                foreach (var item in items)
+                {
+                    if (item.ItemStatus == QueueItemStatus.Completed) continue;
+                    // Anything left mid-flight by a crash or a close is unfinished work, not a running job.
+                    if (item.ItemStatus == QueueItemStatus.Processing) item.ItemStatus = QueueItemStatus.Pending;
+                    _queue.Add(item);
+                }
+
+                UpdateQueueStatus();
+                // Deliberately not auto-started: a leftover queue should not seize the GPU the moment the app
+                // opens. The ▶ Start button picks it back up.
+                if (HasPendingItems)
+                    AddLog($"Queue restored: {_queue.Count} items ({_queue.Count(x => x.ItemStatus == QueueItemStatus.Pending)} pending) — press ▶ Start to resume.");
+                else if (_queue.Count > 0)
+                    AddLog($"Queue restored: {_queue.Count} items");
+            }
+            catch (Exception ex) { AddLog($"Error loading queue: {ex.Message}"); }
+        }
+
+        #endregion
+
+        #region Generation
+
+        private async Task GenerateItemAsync(H3CastQueueItem item, CancellationToken token)
+        {
+            IsProcessing = true;
+            HasResult = false;
+            ResultVideoPath = string.Empty;
+            ResultVideoInfo = string.Empty;
+            ProcessingProgress = 0;
+            ProcessingStatus = "Preparing H3 Cast workflow...";
+
+            WorkflowQueueCoordinator.WorkflowLease? lease = null;
+            try
+            {
+                var clipLabel = item.IsStoryClip ? $", clip {item.ClipIndex}/{item.ClipCount}" : string.Empty;
+                AddLog($"=== H3 Cast ({(item.HasCharacter2 ? "2 sheets" : "1 sheet")}{clipLabel}, " +
+                       $"{(item.FaceRefine ? $"face refine {item.RefineDenoise:0.00}" : "no face refine")}) ===");
+                AddLog("Waiting for other workflows to finish...");
+                lease = await _workflowCoordinator.AcquireAsync("H3Cast", token);
+
+                ProcessingStatus = "Checking ComfyUI...";
+                var comfyOk = await _comfyUIService.DetectAndRestartIfCrashedAsync(s => AddLog($"[Auto-Restart] {s}"));
+                if (!comfyOk) throw new Exception("ComfyUI is not running.");
+                if (!_comfyUIService.IsConnected)
+                {
+                    ProcessingStatus = "Connecting to ComfyUI...";
+                    await _comfyUIService.ConnectAsync();
+                }
+
+                var json = await LoadFileAsync(WorkflowFileName, token);
+
+                ProcessingStatus = "Uploading character sheets...";
+                ProcessingProgress = 5;
+                var sheet1 = await EnsureUploadedAsync(item.Character1SheetPath);
+                AddLog($"Character 1 sheet uploaded: {sheet1}");
+                SetInput(ref json, NodeCharacter1, "image", sheet1);
+
+                if (item.HasCharacter2)
+                {
+                    var sheet2 = await EnsureUploadedAsync(item.Character2SheetPath);
+                    AddLog($"Character 2 sheet uploaded: {sheet2}");
+                    json = AddSecondCharacter(json, sheet2);
+                }
+                else
+                {
+                    AddLog("Single-character run: the graph ships with ref_image_0 only.");
+                }
+
+                var runSeed = item.Seed >= 0 ? item.Seed : System.Random.Shared.NextInt64(0, long.MaxValue);
+                var len = ClampLength(item.LengthSeconds);
+                var aspect = item.AspectRatio;
+                var (canvasW, canvasH) = CanvasSize(aspect, item.Megapixels);
+                var (upW, upH) = UpscaleSize(aspect, item.Megapixels);
+                var ts = DateTime.Now.ToString("yyyyMMdd_HHmmss");
+                // Story clips carry their index in the run token so a chain's outputs sort in story order and
+                // the disk-scan fallback can still tell two clips apart.
+                var clipTag = item.IsStoryClip ? $"_c{item.ClipIndex:00}" : string.Empty;
+                var runToken = $"h3cast_{ts}{clipTag}";
+
+                json = EnsureInputPrimitives(json);
+                // A sheet must not be centre-cropped to the video canvas: that would throw away the outer
+                // panels, which are most of what makes it a sheet.
+                json = FitReferencesWithoutCropping(json);
+
+                SetInput(ref json, NodePrompt, "value", item.Prompt);
+                SetInput(ref json, NodeResolution, "aspect_ratio", aspect);
+                SetInput(ref json, NodeResolution, "megapixels", item.Megapixels);
+                SetInput(ref json, NodeDuration, "value", len);
+                SetInput(ref json, NodeSeed, "noise_seed", runSeed);
+                SetInput(ref json, NodeVideoCombine, "frame_rate", OutputFrameRate);
+                SetInput(ref json, NodeVideoCombine, "filename_prefix", $"{OutputSubfolder}/{runToken}");
+
+                if (item.FaceRefine)
+                {
+                    SetInput(ref json, NodeRefineDenoise, "denoise", item.RefineDenoise);
+                    // Its own noise, derived from the run seed so a re-run of the same item is reproducible.
+                    SetInput(ref json, NodeRefineSeed, "noise_seed", (runSeed % (long.MaxValue - 1)) + 1);
+                    AddLog($"Face refine: crops re-generated at denoise {item.RefineDenoise:0.00}, " +
+                           "stage-1 audio locked, stitched back into the frames.");
+                }
+                else
+                {
+                    AddLog("Face refine off: the base H3 frames go straight to the video.");
+                }
+
+                json = WireOutputChain(json, item.FaceRefine, item.RtxUpscale);
+
+                var steps = ReadInt(json, NodeScheduler, "steps");
+                json = PruneToOutputs(json, new[] { NodeVideoCombine }, out var prunedCount);
+                if (prunedCount > 0)
+                    AddLog($"Graph pruned to the video output: {prunedCount} disconnected node(s) removed.");
+
+                var frameCount = FramesForSeconds(len);
+                var finish = item.RtxUpscale
+                    ? $"RTX ×{RtxScale:0.#} → ≈{upW}×{upH}"
+                    : "no upscale";
+
+                ProcessingProgress = 10;
+                ProcessingStatus = "Generating video...";
+                AddLog($"Generating (seed {runSeed}, {len:0.#}s / {frameCount} frames @ {OutputFrameRate}fps, " +
+                       $"{aspect} ≈{canvasW}×{canvasH}, {item.Megapixels:0.0} MP, {steps} steps, {finish})...");
+
+                // Said out loud before the wait rather than after the crash: every image node in this graph
+                // holds the whole clip, so this is the number that decides whether the server survives.
+                var peakGb = item.RtxUpscale
+                    ? FrameStackGb(frameCount, upW, upH)
+                    : FrameStackGb(frameCount, canvasW, canvasH);
+                AddLog($"Peak frame stack ≈{peakGb:0.#} GB ({frameCount} frames held at once).");
+                if (peakGb >= HeavyFrameStackGb)
+                    AddLog("WARNING: that is large enough to take ComfyUI down mid-render — if this job dies " +
+                           "with the prompt \"neither queued nor in the run history\", shorten the clip, drop " +
+                           "to 0.7 MP, or turn RTX off here and upscale afterwards in ✨ Enhance Video.");
+
+                var local = await SubmitAndRetrieveAsync(json, runToken, NodeVideoCombine, 10, 95, token);
+                if (local == null || !File.Exists(local))
+                    throw new Exception("No output video was generated.");
+
+                var outputDir = Path.Combine(
+                    _settingsService.Settings?.OutputFolderPath ?? Path.GetTempPath(), "H3Cast");
+                Directory.CreateDirectory(outputDir);
+                // One story's clips share a stem and differ only by index, so a finished chain sits together
+                // in the folder in playback order — and the join writes its result beside them.
+                var finalName = item.IsStoryClip
+                    ? $"H3Cast_{(string.IsNullOrEmpty(item.StoryId) ? ts : item.StoryId)}_clip{item.ClipIndex:00}.mp4"
+                    : $"H3Cast_{ts}.mp4";
+                var finalPath = Path.Combine(outputDir, finalName);
+                File.Copy(local, finalPath, true);
+                await LocalCopyService.CopyVideoAsync(finalPath);
+
+                var fi = new FileInfo(finalPath);
+                var refine = item.FaceRefine ? $"face refine {item.RefineDenoise:0.00}" : "no face refine";
+                var size = item.RtxUpscale ? $"RTX ×{RtxScale:0.#} ≈{upW}×{upH}" : $"≈{canvasW}×{canvasH}";
+                item.OutputVideoPath = finalPath;
+                Application.Current.Dispatcher.Invoke(() =>
+                {
+                    ResultVideoPath = finalPath;
+                    ResultVideoInfo = $"H3 Cast • {(item.IsStoryClip ? $"clip {item.ClipIndex}/{item.ClipCount} • " : string.Empty)}" +
+                                      $"{(item.HasCharacter2 ? "2 sheets" : "1 sheet")} • {refine} • " +
+                                      $"turbo {steps}-step • {size} • {aspect} • " +
+                                      $"{len:0.#}s • {fi.Length / 1024 / 1024.0:F1}MB";
+                    HasResult = true;
+                    OnCanExecuteChanged();
+                });
+                ProcessingProgress = 100;
+                ProcessingStatus = "Complete!";
+                AddLog($"=== Complete: {finalPath} ===");
+            }
+            catch (Exception ex) when (ex is not OperationCanceledException)
+            {
+                // The queue loop decides whether this is a retry or a failure; it just needs the reason.
+                AddLog($"ERROR: {ex.Message}");
+                ProcessingStatus = $"Error: {ex.Message}";
+                throw;
+            }
+            finally
+            {
+                lease?.Dispose();
+                IsProcessing = false;
+                OnCanExecuteChanged();
+            }
+        }
+
+        /// <summary>
+        /// Wrapper around <see cref="WorkflowNodeUpdater.UpdateNodeInput"/> that fails loudly on a node id or
+        /// input that is no longer in the graph. The updater silently no-ops instead, which on these
+        /// workflows would mean shipping the baked-in demo prompt and reference images to the GPU.
+        /// </summary>
+        private static void SetInput(ref string json, string nodeId, string input, object value)
+        {
+            if (WorkflowNodeUpdater.GetNodeInput(json, nodeId, input) == null)
+                throw new Exception($"Workflow node '{nodeId}' has no input '{input}' — the workflow file no longer matches this tab.");
+            WorkflowNodeUpdater.UpdateNodeInput(ref json, nodeId, input, value);
+        }
+
+        /// <summary>
+        /// Asserts the node classes the patches below assume, and makes sure both
+        /// <c>MiniMaxH3ReferenceToVideo</c> nodes read the prompt, canvas and frame count from the input
+        /// primitives rather than from widget values baked in by the export. Idempotent — the shipped file
+        /// is already wired this way, and this is what keeps it that way after a re-export.
+        ///
+        /// <para>The refine pass's reference node (101) deliberately keeps its own width/height: they come
+        /// from the face-crop canvas, not from the video canvas.</para>
+        /// </summary>
+        private static string EnsureInputPrimitives(string json)
+        {
+            var root = JsonNode.Parse(json)?.AsObject()
+                       ?? throw new Exception("Workflow JSON could not be parsed.");
+
+            RequireClass(root, NodeReference, "MiniMaxH3ReferenceToVideo");
+            RequireClass(root, NodePrompt, "PrimitiveStringMultiline");
+            RequireClass(root, NodeResolution, "ResolutionSelector");
+            RequireClass(root, NodeFrames, "ComfyMathExpression");
+            RequireClass(root, NodeDuration, "PrimitiveFloat");
+            RequireClass(root, NodeCharacter1, "LoadImage");
+            RequireClass(root, NodeChar1Resize, "ImageResizeKJv2");
+            RequireClass(root, NodeRtxUpscale, "RTXVideoSuperResolution");
+            RequireClass(root, NodeVideoCombine, "VHS_VideoCombine");
+
+            json = root.ToJsonString();
+            SetInput(ref json, NodeReference, "prompt", new JsonArray(NodePrompt, 0));
+            SetInput(ref json, NodeReference, "width", new JsonArray(NodeResolution, 0));
+            SetInput(ref json, NodeReference, "height", new JsonArray(NodeResolution, 1));
+            SetInput(ref json, NodeReference, "length", new JsonArray(NodeFrames, 1));
+
+            // The refine pass shares the prompt and the frame count; only its canvas differs.
+            if (JsonNode.Parse(json)?[NodeRefineReference] is JsonObject)
+            {
+                SetInput(ref json, NodeRefineReference, "prompt", new JsonArray(NodePrompt, 0));
+                SetInput(ref json, NodeRefineReference, "length", new JsonArray(NodeFrames, 1));
+            }
+            return json;
+        }
+
+        /// <summary>
+        /// Switches every reference resize to a letterbox fit. The graph is authored to crop, which is right
+        /// for an ordinary photo reference and wrong for a three-panel sheet: on a canvas whose aspect does
+        /// not match the sheet's, a centre crop removes the front and back views and leaves H3 with the
+        /// close-up alone.
+        /// </summary>
+        private static string FitReferencesWithoutCropping(string json)
+        {
+            var root = JsonNode.Parse(json)?.AsObject()
+                       ?? throw new Exception("Workflow JSON could not be parsed.");
+
+            foreach (var id in new[] { NodeChar1Resize, NodeChar2Resize })
+            {
+                if (root[id] is not JsonObject node) continue;
+                if (node["inputs"] is JsonObject inputs && inputs.ContainsKey("keep_proportion"))
+                    inputs["keep_proportion"] = SheetFitMode;
+            }
+
+            return root.ToJsonString();
+        }
+
+        /// <summary>
+        /// Adds the second character's reference chain. The workflow is authored for a single reference, so
+        /// rather than shipping a disabled branch that would fail validation on a placeholder filename, the
+        /// LoadImage → ImageResizeKJv2 pair is cloned from the first character's own resize node and wired
+        /// into <c>ref_images.ref_image_1</c> on <b>both</b> reference nodes — the refine pass conditions on
+        /// the same cast as the base pass, and a face it has no sheet for is a face it will redraw wrong.
+        /// </summary>
+        private static string AddSecondCharacter(string json, string uploadedName)
+        {
+            var root = JsonNode.Parse(json)?.AsObject()
+                       ?? throw new Exception("Workflow JSON could not be parsed.");
+
+            RequireClass(root, NodeReference, "MiniMaxH3ReferenceToVideo");
+            RequireClass(root, NodeCharacter1, "LoadImage");
+            RequireClass(root, NodeChar1Resize, "ImageResizeKJv2");
+
+            root[NodeCharacter2] = new JsonObject
+            {
+                ["inputs"] = new JsonObject { ["image"] = uploadedName },
+                ["class_type"] = "LoadImage",
+                ["_meta"] = new JsonObject { ["title"] = "Ref Sheet 2" }
+            };
+
+            var resize = root[NodeChar1Resize]!.DeepClone().AsObject();
+            resize["inputs"]!["image"] = new JsonArray(NodeCharacter2, 0);
+            resize["_meta"] = new JsonObject { ["title"] = "Resize Image v2 (Ref 2)" };
+            root[NodeChar2Resize] = resize;
+
+            foreach (var id in new[] { NodeReference, NodeRefineReference })
+            {
+                if (root[id] is not JsonObject node) continue;
+                if (node["inputs"] is not JsonObject inputs)
+                    throw new Exception($"Workflow node '{id}' has no inputs — the workflow file no longer matches this tab.");
+                inputs["ref_images.ref_image_1"] = new JsonArray(NodeChar2Resize, 0);
+            }
+
+            return root.ToJsonString();
+        }
+
+        /// <summary>
+        /// Wires the tail of the graph — which frames reach the file — for the two optional passes.
+        ///
+        /// <para>The frames come from the face-stitch node when the refine pass runs and from the base
+        /// decode when it does not; they then go through the RTX upscale, or straight to the video sink when
+        /// that is off. Whatever is left unreferenced becomes unreachable and <see cref="PruneToOutputs"/>
+        /// deletes it, which is the only safe way to drop a branch: several of these nodes would otherwise
+        /// still execute on their own.</para>
+        /// </summary>
+        private static string WireOutputChain(string json, bool faceRefine, bool rtxUpscale)
+        {
+            var root = JsonNode.Parse(json)?.AsObject()
+                       ?? throw new Exception("Workflow JSON could not be parsed.");
+
+            RequireClass(root, NodeBaseFrames, "VAEDecode");
+            RequireClass(root, NodeRtxUpscale, "RTXVideoSuperResolution");
+            RequireClass(root, NodeVideoCombine, "VHS_VideoCombine");
+            if (faceRefine) RequireClass(root, NodeFaceStitch, "H3FaceStitch");
+
+            json = root.ToJsonString();
+
+            var frames = faceRefine ? NodeFaceStitch : NodeBaseFrames;
+            SetInput(ref json, NodeRtxUpscale, "images", new JsonArray(frames, 0));
+            SetInput(ref json, NodeVideoCombine, "images",
+                new JsonArray(rtxUpscale ? NodeRtxUpscale : frames, 0));
+            return json;
+        }
+
+        /// <summary>Reads an integer widget out of the graph — used for the steps the workflow ships with,
+        /// which the tab reports but never overrides.</summary>
+        private static int ReadInt(string json, string nodeId, string input)
+        {
+            var node = JsonNode.Parse(json)?[nodeId]?["inputs"]?[input];
+            return node is JsonValue v && v.TryGetValue<int>(out var i) ? i : 0;
+        }
+
+        /// <summary>Fails loudly when a node the patches rewire is missing or is no longer the class they
+        /// assume — both would otherwise produce a graph that only fails on the server, or worse, silently
+        /// renders the wrong thing.</summary>
+        private static void RequireClass(JsonObject root, string nodeId, string expected)
+        {
+            if (root[nodeId] is not JsonObject node)
+                throw new Exception($"Workflow node '{nodeId}' is not in the graph — the workflow file no longer matches this tab.");
+            var actual = node["class_type"]?.GetValue<string>();
+            if (actual != expected)
+                throw new Exception($"Workflow node '{nodeId}' is a {actual ?? "(none)"}, expected {expected} — the workflow file no longer matches this tab.");
+        }
+
+        /// <summary>
+        /// Cuts the graph down to the output nodes we want plus everything they depend on, and deletes every
+        /// other node outright. Pruning by reachability is the only reliable way to drop a branch: anything
+        /// ending in an OUTPUT_NODE runs whether or not something downstream consumes it, so unhooking a
+        /// sink is not enough on its own.
+        /// </summary>
+        private static string PruneToOutputs(string json, IEnumerable<string> keepOutputs, out int removed)
+        {
+            var root = JsonNode.Parse(json)?.AsObject()
+                       ?? throw new Exception("Workflow JSON could not be parsed.");
+
+            var reachable = new HashSet<string>(StringComparer.Ordinal);
+            var stack = new Stack<string>(keepOutputs);
+            while (stack.Count > 0)
+            {
+                var id = stack.Pop();
+                if (!reachable.Add(id)) continue;
+                if (root[id]?["inputs"] is not JsonObject inputs) continue;
+
+                foreach (var input in inputs)
+                {
+                    // A link is ["<source node id>", <output index>]; widget values are anything else.
+                    if (input.Value is JsonArray link && link.Count == 2 && LinkSource(link[0]) is { } src)
+                        stack.Push(src);
+                }
+            }
+
+            removed = 0;
+            foreach (var id in root.Select(kv => kv.Key).ToList())
+            {
+                if (reachable.Contains(id)) continue;
+                root.Remove(id);
+                removed++;
+            }
+
+            return root.ToJsonString();
+
+            // Node ids are strings here (these graphs were exported with subgraphs flattened, so they look
+            // like "115:3"), but plain integer ids show up in other exports of the same nodes.
+            static string? LinkSource(JsonNode? node)
+            {
+                if (node is not JsonValue value) return null;
+                if (value.TryGetValue<string>(out var s)) return s;
+                if (value.TryGetValue<long>(out var i)) return i.ToString(System.Globalization.CultureInfo.InvariantCulture);
+                return null;
+            }
+        }
+
+        /// <summary>Submits the workflow, waits for completion, and resolves the video sink's output to a
+        /// local file — first via /history node outputs, then a disk scan for the run token.</summary>
+        private async Task<string?> SubmitAndRetrieveAsync(
+            string json, string runToken, string outputNode, double from, double to, CancellationToken token)
+        {
+            var existing = GetExistingVideoFiles("*.mp4", OutputSubfolder);
+            var promptId = await SubmitAsync(json, from, to, token);
+
+            ProcessingStatus = "Waiting for output...";
+            var byNode = await _comfyUIService.HttpClient.GetOutputsByNodeAsync(promptId, token);
+            if (byNode.TryGetValue(outputNode, out var outs) && outs.Count > 0)
+            {
+                var pick = outs.FirstOrDefault(f => f.EndsWith(".mp4", StringComparison.OrdinalIgnoreCase)) ?? outs[0];
+                var local = await ResolveOutputToLocalAsync(pick);
+                if (local != null) return local;
+            }
+
+            // Fallback: wait for a new mp4 carrying this run's token in the output subfolder.
+            var found = await WaitForNewVideoAsync(existing, "*.mp4",
+                TimeSpan.FromMinutes(60), TimeSpan.FromSeconds(4), OutputSubfolder);
+            if (found != null && Path.GetFileName(found).IndexOf(runToken, StringComparison.OrdinalIgnoreCase) >= 0)
+                return found;
+            return found ?? FindTokenVideoOnDisk(runToken);
+        }
+
+        /// <summary>
+        /// Submits a sheet job. Unlike <see cref="SubmitAsync"/> it reports through <see cref="SheetPhase"/>
+        /// and never touches the progress bar or the status line: a render may well be running underneath,
+        /// and those belong to it.
+        /// </summary>
+        private async Task<string> SubmitSheetAsync(string json, CancellationToken token)
+        {
+            var workflow = JsonSerializer.Deserialize<JsonElement>(json);
+            var phase = SheetPhase;
+            var progress = new Progress<ProgressMessage>(msg =>
+            {
+                if (msg.Data?.Value != null && msg.Data?.Max > 0)
+                    Application.Current.Dispatcher.Invoke(() =>
+                        SheetPhase = $"{phase} {msg.Data.Value}/{msg.Data.Max}");
+            });
+
+            var promptId = await _comfyUIService.ExecuteWorkflowAsync(workflow, progress, token);
+            AddLog($"Workflow submitted, ID: {promptId}");
+            return promptId;
+        }
+
+        private async Task<string> SubmitAsync(string json, double progressFrom, double progressTo, CancellationToken token)
+        {
+            var workflow = JsonSerializer.Deserialize<JsonElement>(json);
+            var span = progressTo - progressFrom;
+            var progress = new Progress<ProgressMessage>(msg =>
+            {
+                if (msg.Data?.Value != null && msg.Data?.Max != null && msg.Data.Max > 0)
+                {
+                    var pct = (double)msg.Data.Value / msg.Data.Max;
+                    Application.Current.Dispatcher.Invoke(() =>
+                    {
+                        ProcessingProgress = progressFrom + pct * span;
+                        ProcessingStatus = $"Generating: {msg.Data.Value}/{msg.Data.Max}";
+                    });
+                }
+            });
+
+            var promptId = await _comfyUIService.ExecuteWorkflowAsync(workflow, progress, token);
+            AddLog($"Workflow submitted, ID: {promptId}");
+            return promptId;
+        }
+
+        private async Task<string?> ResolveOutputToLocalAsync(string videoFile)
+        {
+            try
+            {
+                var settings = _settingsService.Settings;
+                if (settings != null)
+                {
+                    var baseUrl = GetComfyUIBaseUrl();
+                    var isRemote = IsComfyUIRemote(new Uri(baseUrl).Host);
+                    var outputFolder = settings.ResolveOutputFolder(isRemote);
+                    if (!string.IsNullOrEmpty(outputFolder))
+                    {
+                        var localPath = Path.Combine(outputFolder, videoFile.Replace('/', Path.DirectorySeparatorChar));
+                        if (File.Exists(localPath))
+                        {
+                            await WaitForFileStableAsync(localPath);
+                            return localPath;
+                        }
+                    }
+                }
+
+                var parts = videoFile.Split('/');
+                var filename = parts.Last();
+                var subfolder = parts.Length > 1 ? string.Join("/", parts.Take(parts.Length - 1)) : string.Empty;
+                var bytes = await _comfyUIService.HttpClient.DownloadOutputVideoAsync(filename, subfolder);
+                if (bytes is { Length: > 0 })
+                {
+                    var tempPath = Path.Combine(Path.GetTempPath(), $"h3cast_{Guid.NewGuid():N}_{filename}");
+                    await File.WriteAllBytesAsync(tempPath, bytes);
+                    return tempPath;
+                }
+            }
+            catch (Exception ex)
+            {
+                AddLog($"Resolve output failed: {ex.Message}");
+            }
+            return null;
+        }
+
+        private string? FindTokenVideoOnDisk(string runToken)
+        {
+            try
+            {
+                var settings = _settingsService.Settings;
+                if (settings == null) return null;
+                var baseUrl = GetComfyUIBaseUrl();
+                var isRemote = IsComfyUIRemote(new Uri(baseUrl).Host);
+                var outputFolder = settings.ResolveOutputFolder(isRemote);
+                if (string.IsNullOrEmpty(outputFolder)) return null;
+
+                var candidates = new List<string>();
+                foreach (var folder in new[] { outputFolder, Path.Combine(outputFolder, OutputSubfolder) })
+                {
+                    if (Directory.Exists(folder))
+                        candidates.AddRange(Directory.GetFiles(folder, "*.mp4", SearchOption.AllDirectories)
+                            .Where(f => Path.GetFileName(f).IndexOf(runToken, StringComparison.OrdinalIgnoreCase) >= 0));
+                }
+                return candidates.OrderByDescending(File.GetLastWriteTime).FirstOrDefault();
+            }
+            catch (Exception ex)
+            {
+                AddLog($"Disk scan failed: {ex.Message}");
+                return null;
+            }
+        }
+
+        #endregion
+
+        protected override void OnCanExecuteChanged()
+        {
+            base.OnCanExecuteChanged();
+            OnPropertyChanged(nameof(CanAnalyze));
+            OnPropertyChanged(nameof(CanGenerate));
+            OnPropertyChanged(nameof(CanBuildSheets));
+            OnPropertyChanged(nameof(BuildSheetsButtonText));
+            OnPropertyChanged(nameof(AllSheetsReady));
+            OnPropertyChanged(nameof(CastSummary));
+            BuildSheetsCommand.NotifyCanExecuteChanged();
+            AnalyzeCommand.NotifyCanExecuteChanged();
+            DeriveWardrobeCommand.NotifyCanExecuteChanged();
+            GenerateCommand.NotifyCanExecuteChanged();
+            CancelCommand.NotifyCanExecuteChanged();
+            RemoveQueueItemCommand.NotifyCanExecuteChanged();
+            ClearQueueCommand.NotifyCanExecuteChanged();
+            StartQueueCommand.NotifyCanExecuteChanged();
+            StopQueueCommand.NotifyCanExecuteChanged();
+            ReprocessAllFailedCommand.NotifyCanExecuteChanged();
+            PlayVideoCommand.NotifyCanExecuteChanged();
+            OpenResultFolderCommand.NotifyCanExecuteChanged();
+        }
+    }
+
+    /// <summary>
+    /// One member of the cast: the photo the user picked and the character sheet built from it. The two are
+    /// kept apart on purpose — the photo is what the sheet builder reads, the sheet is what MiniMax H3 is
+    /// handed, and loading a new photo invalidates the sheet that came from the old one.
+    /// </summary>
+    public class CharacterSlot : System.ComponentModel.INotifyPropertyChanged
+    {
+        public delegate BitmapImage? PreviewLoader(string path, out string info);
+
+        private readonly PreviewLoader _loadPreview;
+        private readonly Action _onChanged;
+
+        private string _sourcePath = string.Empty;
+        private BitmapImage? _sourcePreview;
+        private string _sourceInfo = string.Empty;
+        private string _sheetPath = string.Empty;
+        private BitmapImage? _sheetPreview;
+        private bool _useSourceAsSheet;
+
+        public CharacterSlot(int index, PreviewLoader loadPreview, Action onChanged)
+        {
+            Index = index;
+            _loadPreview = loadPreview;
+            _onChanged = onChanged;
+        }
+
+        /// <summary>1 or 2 — the number in <c>&lt;Picture n&gt;</c>.</summary>
+        public int Index { get; }
+
+        /// <summary>The photo the user picked. Never uploaded unless it doubles as the sheet.</summary>
+        public string SourcePath
+        {
+            get => _sourcePath;
+            set
+            {
+                if (_sourcePath == value) return;
+                _sourcePath = value;
+                _sourcePreview = _loadPreview(value, out _sourceInfo);
+                // A new photo invalidates whatever sheet the old one produced.
+                _sheetPath = string.Empty;
+                _sheetPreview = null;
+                Raise(nameof(SourcePath), nameof(SourcePreview), nameof(SourceInfo), nameof(HasSource),
+                      nameof(SheetPath), nameof(SheetPreview), nameof(HasSheet), nameof(SheetStatus));
+            }
+        }
+
+        public BitmapImage? SourcePreview => _sourcePreview;
+        public string SourceInfo => _sourceInfo;
+        public bool HasSource => !string.IsNullOrEmpty(_sourcePath) && File.Exists(_sourcePath);
+
+        /// <summary>The three-panel sheet H3 receives — built by Qwen, or the photo itself when
+        /// <see cref="UseSourceAsSheet"/> is on.</summary>
+        public string SheetPath => _sheetPath;
+        public BitmapImage? SheetPreview => _sheetPreview;
+        public bool HasSheet => !string.IsNullOrEmpty(_sheetPath) && File.Exists(_sheetPath);
+
+        /// <summary>
+        /// The loaded image already <i>is</i> a character sheet — skip the Qwen pass and send it as it is.
+        /// </summary>
+        public bool UseSourceAsSheet
+        {
+            get => _useSourceAsSheet;
+            set
+            {
+                if (_useSourceAsSheet == value) return;
+                _useSourceAsSheet = value;
+                if (value && HasSource) SetSheet(_sourcePath);
+                else if (!value && string.Equals(_sheetPath, _sourcePath, StringComparison.OrdinalIgnoreCase))
+                {
+                    _sheetPath = string.Empty;
+                    _sheetPreview = null;
+                }
+                Raise(nameof(UseSourceAsSheet), nameof(SheetPath), nameof(SheetPreview),
+                      nameof(HasSheet), nameof(SheetStatus));
+            }
+        }
+
+        public string SheetStatus =>
+            !HasSource ? "No image" :
+            !HasSheet ? "Sheet not built yet" :
+            UseSourceAsSheet ? "Using the loaded image as the sheet" : "Sheet ready";
+
+        public void SetSheet(string path)
+        {
+            _sheetPath = path;
+            _sheetPreview = _loadPreview(path, out _);
+            Raise(nameof(SheetPath), nameof(SheetPreview), nameof(HasSheet), nameof(SheetStatus));
+        }
+
+        public void Clear()
+        {
+            _useSourceAsSheet = false;
+            _sheetPath = string.Empty;
+            _sheetPreview = null;
+            SourcePath = string.Empty;
+            Raise(nameof(UseSourceAsSheet), nameof(SheetPath), nameof(SheetPreview),
+                  nameof(HasSheet), nameof(SheetStatus));
+        }
+
+        public event System.ComponentModel.PropertyChangedEventHandler? PropertyChanged;
+
+        private void Raise(params string[] names)
+        {
+            foreach (var name in names)
+                PropertyChanged?.Invoke(this, new System.ComponentModel.PropertyChangedEventArgs(name));
+            _onChanged();
+        }
+    }
+}

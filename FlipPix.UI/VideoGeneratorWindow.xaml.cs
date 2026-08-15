@@ -69,40 +69,16 @@ namespace FlipPix.UI
 
         private void OnPlayRequested(object? sender, System.EventArgs e)
         {
-            if (Vr180VideoPlayer != null && Vr180VideoPlayer.Source != null)
-            {
-                Vr180VideoPlayer.Position = System.TimeSpan.Zero;
-                Vr180VideoPlayer.Play();
-            }
-
-            if (VideoSoundVideoPlayer != null && VideoSoundVideoPlayer.Source != null)
-            {
-                VideoSoundVideoPlayer.Position = System.TimeSpan.Zero;
-                VideoSoundVideoPlayer.Play();
-            }
-
             if (Scail2VideoPlayer != null && Scail2VideoPlayer.Source != null)
             {
                 Scail2VideoPlayer.Position = System.TimeSpan.Zero;
                 Scail2VideoPlayer.Play();
             }
 
-            if (FaceIdCharSheetVideoPlayer != null && FaceIdCharSheetVideoPlayer.Source != null)
-            {
-                FaceIdCharSheetVideoPlayer.Position = System.TimeSpan.Zero;
-                FaceIdCharSheetVideoPlayer.Play();
-            }
-
             if (MiniMaxH3VideoPlayer != null && MiniMaxH3VideoPlayer.Source != null)
             {
                 MiniMaxH3VideoPlayer.Position = System.TimeSpan.Zero;
                 MiniMaxH3VideoPlayer.Play();
-            }
-
-            if (MiniMaxH3T2VVideoPlayer != null && MiniMaxH3T2VVideoPlayer.Source != null)
-            {
-                MiniMaxH3T2VVideoPlayer.Position = System.TimeSpan.Zero;
-                MiniMaxH3T2VVideoPlayer.Play();
             }
 
             if (MiniMaxCharacterVideoPlayer != null && MiniMaxCharacterVideoPlayer.Source != null)
@@ -144,33 +120,6 @@ namespace FlipPix.UI
 
         // WAN processes the clip in 81-frame chunks; the timeline marks each boundary.
         private const int ScailChunkFrames = 81;
-
-        private void FaceIdCharSheetRefPlayer_MediaOpened(object sender, RoutedEventArgs e)
-        {
-            FaceIdCharSheetRefPlayer.Play();
-            FaceIdCharSheetRefPlayer.Pause();
-        }
-
-        private void Vr180InputPlayer_MediaOpened(object sender, RoutedEventArgs e)
-        {
-            Vr180InputPlayer.Play();
-            Vr180InputPlayer.Pause();
-        }
-
-        private void VideoSoundInputPlayer_MediaOpened(object sender, RoutedEventArgs e)
-        {
-            VideoSoundInputPlayer.Play();
-            VideoSoundInputPlayer.Pause();
-            // These clips often fade in from black, so frame 0 renders as a black thumbnail.
-            // Scrub a little way in (ScrubbingEnabled) to show an actual frame.
-            VideoSoundInputPlayer.Position = System.TimeSpan.FromMilliseconds(250);
-
-            // Match the output aspect ratio to the uploaded clip automatically.
-            var w = VideoSoundInputPlayer.NaturalVideoWidth;
-            var h = VideoSoundInputPlayer.NaturalVideoHeight;
-            if (w > 0 && h > 0)
-                _viewModel.VideoSoundVM.SetOutputAspectFromVideo(w, h);
-        }
 
         private void MiniMaxFflfVM_PropertyChanged(object? sender, System.ComponentModel.PropertyChangedEventArgs e)
         {
@@ -496,17 +445,10 @@ namespace FlipPix.UI
         {
             _scrubTimerScail2?.Stop();
 
-            Vr180InputPlayer?.Stop();
-            Vr180VideoPlayer?.Stop();
-            VideoSoundInputPlayer?.Stop();
-            VideoSoundVideoPlayer?.Stop();
             ErosConvRotPlayer?.Stop();
             Scail2RefVideoPlayer?.Stop();
             Scail2VideoPlayer?.Stop();
-            FaceIdCharSheetRefPlayer?.Stop();
-            FaceIdCharSheetVideoPlayer?.Stop();
             MiniMaxH3VideoPlayer?.Stop();
-            MiniMaxH3T2VVideoPlayer?.Stop();
             MiniMaxCharacterVideoPlayer?.Stop();
             MiniMaxFflfPlayer?.Stop();
             H3ChainVideoPlayer?.Stop();

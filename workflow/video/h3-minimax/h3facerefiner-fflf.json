@@ -1,0 +1,649 @@
+{
+  "92": {
+    "inputs": {
+      "filename_prefix": "video/MiniMax_H3_FFLF_FaceRefine",
+      "format": "auto",
+      "codec": "auto",
+      "video-preview": "",
+      "video": [
+        "130",
+        0
+      ]
+    },
+    "class_type": "SaveVideo",
+    "_meta": {
+      "title": "Save Video"
+    }
+  },
+  "115": {
+    "inputs": {
+      "aspect_ratio": "9:16 (Portrait Widescreen)",
+      "megapixels": 1,
+      "multiple": 32
+    },
+    "class_type": "ResolutionSelector",
+    "_meta": {
+      "title": "Resolution Selector"
+    }
+  },
+  "119": {
+    "inputs": {
+      "vae_name": "minimax_h3_video_vae_fp16.safetensors"
+    },
+    "class_type": "VAELoader",
+    "_meta": {
+      "title": "Load VAE"
+    }
+  },
+  "120": {
+    "inputs": {
+      "vae_name": "minimax_h3_audio_vae_fp32.safetensors"
+    },
+    "class_type": "VAELoader",
+    "_meta": {
+      "title": "Load VAE"
+    }
+  },
+  "121": {
+    "inputs": {
+      "samples": [
+        "125",
+        0
+      ],
+      "vae": [
+        "120",
+        0
+      ]
+    },
+    "class_type": "VAEDecodeAudio",
+    "_meta": {
+      "title": "VAE Decode Audio"
+    }
+  },
+  "122": {
+    "inputs": {
+      "samples": [
+        "125",
+        0
+      ],
+      "vae": [
+        "119",
+        0
+      ]
+    },
+    "class_type": "VAEDecode",
+    "_meta": {
+      "title": "VAE Decode"
+    }
+  },
+  "124": {
+    "inputs": {
+      "scheduler": "simple",
+      "steps": 8,
+      "denoise": 1,
+      "model": [
+        "137",
+        0
+      ]
+    },
+    "class_type": "BasicScheduler",
+    "_meta": {
+      "title": "BasicScheduler"
+    }
+  },
+  "125": {
+    "inputs": {
+      "noise": [
+        "129",
+        0
+      ],
+      "guider": [
+        "126",
+        0
+      ],
+      "sampler": [
+        "135",
+        0
+      ],
+      "sigmas": [
+        "124",
+        0
+      ],
+      "latent_image": [
+        "131",
+        1
+      ]
+    },
+    "class_type": "SamplerCustomAdvanced",
+    "_meta": {
+      "title": "SamplerCustomAdvanced"
+    }
+  },
+  "126": {
+    "inputs": {
+      "model": [
+        "137",
+        0
+      ],
+      "conditioning": [
+        "131",
+        0
+      ]
+    },
+    "class_type": "BasicGuider",
+    "_meta": {
+      "title": "Basic Guider"
+    }
+  },
+  "127": {
+    "inputs": {
+      "unet_name": "h3-minimax/minimax_h3_fl2va_pruned_int8_convrot.safetensors",
+      "weight_dtype": "default"
+    },
+    "class_type": "UNETLoader",
+    "_meta": {
+      "title": "Load Diffusion Model"
+    }
+  },
+  "128": {
+    "inputs": {
+      "clip_name": "qwen3vl_32b_minimax_h3_nvfp4_awq.safetensors",
+      "type": "minimax",
+      "device": "default"
+    },
+    "class_type": "CLIPLoader",
+    "_meta": {
+      "title": "Load CLIP"
+    }
+  },
+  "129": {
+    "inputs": {
+      "noise_seed": [
+        "143",
+        0
+      ]
+    },
+    "class_type": "RandomNoise",
+    "_meta": {
+      "title": "RandomNoise"
+    }
+  },
+  "130": {
+    "inputs": {
+      "fps": 24,
+      "bit_depth": 8,
+      "images": [
+        "142",
+        0
+      ],
+      "audio": [
+        "121",
+        0
+      ]
+    },
+    "class_type": "CreateVideo",
+    "_meta": {
+      "title": "Create Video"
+    }
+  },
+  "131": {
+    "inputs": {
+      "prompt": "For the target video, use <Picture 1> as a reference frame — Character 1 is <Picture 1>; keep their face, hair, build and clothing exactly as shown in the reference frame, identical and unchanged from the first frame to the last.\n\nintegrated_multimodal_description: [Shot 1] Live-action, cinematic, high-production sports style. Low-angle medium-wide shot against a clean, neutral grey studio background. The camera pushes in slowly with medium amplitude as <Picture 1> executes a powerful front kick towards the lens, her red boxing glove snapping forward in the opposite direction. Her face is focused and intense, eyes locked on the target.\n\n[Shot 2] At 00:01.000, The camera cuts to an extreme close-up of the face. The camera shakes slightly on the impact beat. <Picture 1> blinks rapidly, sweat droplets flying off her brow and flying directly into the lens, creating a dynamic blur effect.\n\n[Shot 3] At 00:02.500, A low Dutch-angle tracking shot follows the leg as it retracts rapidly. The camera pulls out with medium amplitude, revealing the athletic build and motion of the torso twisting back into a guard position.\n\n[Shot 4] At 00:04.000, The camera switches to an extreme close-up of the red boxing glove. It snaps forward with high speed, hitting an invisible target with a sharp visual jolt, causing the leather to compress and rebound.\n\n[Shot 5] At 00:05.500, A side-profile medium shot. The camera pans right to follow <Picture 1> pivoting on her foot. She throws a hook punch, the red glove slicing through the air.\n\n[Shot 6] At 00:07.000, A low-angle shot looking up at the subject. She performs a rapid spinning back kick, her body blurring slightly due to the speed of rotation, hair whipping around.\n\n[Shot 7] At 00:08.500, The camera cuts to a static medium shot. <Picture 1> lands smoothly and immediately transitions into a fluid combination of jabs, her arms moving in a rhythmic blur against the grey background.\n\n[Shot 8] At 00:10.000, The camera pushes in with large amplitude towards the face. <Picture 1> holds her final pose, chest heaving slightly, staring intensely into the lens, mirroring the opening expression.\n\noverall_soundscape: A crisp, high-energy studio ambience. Rhythmic thuds of feet hitting the floor, sharp swishes of fabric with every pivot, and heavy breaths exhaled through the nose. The leather impacts of the gloves create a distinct, hollow thwack.\n\nnon_diegetic_music: A driving, rhythmic electronic beat with a heavy kick drum. The tempo accelerates slightly, featuring sharp snare hits that sync perfectly with the punches and kicks.",
+      "width": [
+        "115",
+        0
+      ],
+      "height": [
+        "115",
+        1
+      ],
+      "length": [
+        "132",
+        1
+      ],
+      "clip": [
+        "128",
+        0
+      ],
+      "vae": [
+        "119",
+        0
+      ],
+      "first_frame": [
+        "300",
+        0
+      ],
+      "last_frame": [
+        "301",
+        0
+      ]
+    },
+    "class_type": "MiniMaxH3ImageToVideo",
+    "_meta": {
+      "title": "MiniMax H3 Image to Video"
+    }
+  },
+  "132": {
+    "inputs": {
+      "expression": "max(5, round(a * 24)) + (5 - (max(5, round(a * 24)) % 17)) % 17",
+      "values.a": [
+        "133",
+        0
+      ]
+    },
+    "class_type": "ComfyMathExpression",
+    "_meta": {
+      "title": "Math Expression"
+    }
+  },
+  "133": {
+    "inputs": {
+      "value": 3
+    },
+    "class_type": "PrimitiveFloat",
+    "_meta": {
+      "title": "Float (duration)"
+    }
+  },
+  "134": {
+    "inputs": {
+      "lora_name": "minimax_h3_turbo_4step_ema_ckpt500_pruned_comfyui.safetensors",
+      "strength_model": 1,
+      "model": [
+        "127",
+        0
+      ]
+    },
+    "class_type": "LoraLoaderModelOnly",
+    "_meta": {
+      "title": "EMA ckpt500 Turbo LoRA"
+    }
+  },
+  "135": {
+    "inputs": {
+      "sampler_name": "res_multistep"
+    },
+    "class_type": "KSamplerSelect",
+    "_meta": {
+      "title": "Sampler"
+    }
+  },
+  "136": {
+    "inputs": {
+      "sage_attention": "auto",
+      "allow_compile": true,
+      "model": [
+        "134",
+        0
+      ]
+    },
+    "class_type": "PathchSageAttentionKJ",
+    "_meta": {
+      "title": "Patch Sage Attention KJ.2"
+    }
+  },
+  "137": {
+    "inputs": {
+      "shift_video": 12,
+      "shift_audio": 6,
+      "model": [
+        "136",
+        0
+      ]
+    },
+    "class_type": "MiniMaxH3SigmaShift",
+    "_meta": {
+      "title": "MiniMax H3 Sigma Shift"
+    }
+  },
+  "142": {
+    "inputs": {
+      "scale": 2,
+      "quality": "ULTRA",
+      "deblur": "MEDIUM",
+      "images": [
+        "221",
+        0
+      ]
+    },
+    "class_type": "RTXVideoSuperResolution",
+    "_meta": {
+      "title": "RTX Video Super Resolution"
+    }
+  },
+  "143": {
+    "inputs": {
+      "seed": -1
+    },
+    "class_type": "Seed (rgthree)",
+    "_meta": {
+      "title": "Seed (rgthree)"
+    }
+  },
+  "300": {
+    "inputs": {
+      "image": "example.png"
+    },
+    "class_type": "LoadImage",
+    "_meta": {
+      "title": "First Frame"
+    }
+  },
+  "301": {
+    "inputs": {
+      "image": "example.png"
+    },
+    "class_type": "LoadImage",
+    "_meta": {
+      "title": "Last Frame"
+    }
+  },
+  "200": {
+    "inputs": {
+      "unet_name": "h3-minimax/minimax_h3_ref2va_pruned_int8_convrot.safetensors",
+      "weight_dtype": "default"
+    },
+    "class_type": "UNETLoader",
+    "_meta": {
+      "title": "FR H3 ref2va model (refine pass)"
+    }
+  },
+  "201": {
+    "inputs": {
+      "lora_name": "minimax_h3_fl2v_lightx2v_turbo_4step_v0.1_comfy.safetensors",
+      "strength_model": 0.75,
+      "model": [
+        "200",
+        0
+      ]
+    },
+    "class_type": "LoraLoaderModelOnly",
+    "_meta": {
+      "title": "FR Turbo LoRA @ 0.75"
+    }
+  },
+  "202": {
+    "inputs": {
+      "sage_attention": "auto",
+      "allow_compile": false,
+      "model": [
+        "201",
+        0
+      ]
+    },
+    "class_type": "PathchSageAttentionKJ",
+    "_meta": {
+      "title": "FR Patch Sage Attention KJ"
+    }
+  },
+  "203": {
+    "inputs": {
+      "shift_video": 12,
+      "shift_audio": 3,
+      "model": [
+        "202",
+        0
+      ]
+    },
+    "class_type": "MiniMaxH3SigmaShift",
+    "_meta": {
+      "title": "FR MiniMax H3 Sigma Shift"
+    }
+  },
+  "210": {
+    "inputs": {
+      "images": [
+        "122",
+        0
+      ],
+      "detector": "bbox/face_yolov8m.pt",
+      "confidence": 0.35,
+      "crop_factor": 3.0,
+      "canvas_width": 512,
+      "canvas_height": 512,
+      "canvas_mode": "auto_capped_768",
+      "smooth_window": 21,
+      "size_smooth_window": 51,
+      "smooth_method": "gaussian",
+      "size_mode": "per_frame",
+      "identity_track": true,
+      "identity_threshold": 0.28,
+      "select": "largest",
+      "fallback_detector": "segm/person_yolov8m-seg.pt",
+      "fallback_head_frac": 0.5
+    },
+    "class_type": "H3FaceTrackCrop",
+    "_meta": {
+      "title": "FR 1. Track + crop (per-frame)"
+    }
+  },
+  "211": {
+    "inputs": {
+      "prompt": "For the target video, use <Picture 1> as a reference frame — Character 1 is <Picture 1>; keep their face, hair, build and clothing exactly as shown in the reference frame, identical and unchanged from the first frame to the last.\n\nintegrated_multimodal_description: [Shot 1] Live-action, cinematic, high-production sports style. Low-angle medium-wide shot against a clean, neutral grey studio background. The camera pushes in slowly with medium amplitude as <Picture 1> executes a powerful front kick towards the lens, her red boxing glove snapping forward in the opposite direction. Her face is focused and intense, eyes locked on the target.\n\n[Shot 2] At 00:01.000, The camera cuts to an extreme close-up of the face. The camera shakes slightly on the impact beat. <Picture 1> blinks rapidly, sweat droplets flying off her brow and flying directly into the lens, creating a dynamic blur effect.\n\n[Shot 3] At 00:02.500, A low Dutch-angle tracking shot follows the leg as it retracts rapidly. The camera pulls out with medium amplitude, revealing the athletic build and motion of the torso twisting back into a guard position.\n\n[Shot 4] At 00:04.000, The camera switches to an extreme close-up of the red boxing glove. It snaps forward with high speed, hitting an invisible target with a sharp visual jolt, causing the leather to compress and rebound.\n\n[Shot 5] At 00:05.500, A side-profile medium shot. The camera pans right to follow <Picture 1> pivoting on her foot. She throws a hook punch, the red glove slicing through the air.\n\n[Shot 6] At 00:07.000, A low-angle shot looking up at the subject. She performs a rapid spinning back kick, her body blurring slightly due to the speed of rotation, hair whipping around.\n\n[Shot 7] At 00:08.500, The camera cuts to a static medium shot. <Picture 1> lands smoothly and immediately transitions into a fluid combination of jabs, her arms moving in a rhythmic blur against the grey background.\n\n[Shot 8] At 00:10.000, The camera pushes in with large amplitude towards the face. <Picture 1> holds her final pose, chest heaving slightly, staring intensely into the lens, mirroring the opening expression.\n\noverall_soundscape: A crisp, high-energy studio ambience. Rhythmic thuds of feet hitting the floor, sharp swishes of fabric with every pivot, and heavy breaths exhaled through the nose. The leather impacts of the gloves create a distinct, hollow thwack.\n\nnon_diegetic_music: A driving, rhythmic electronic beat with a heavy kick drum. The tempo accelerates slightly, featuring sharp snare hits that sync perfectly with the punches and kicks.",
+      "width": [
+        "210",
+        4
+      ],
+      "height": [
+        "210",
+        5
+      ],
+      "length": [
+        "132",
+        1
+      ],
+      "ref_image_size": "match",
+      "clip": [
+        "128",
+        0
+      ],
+      "vae": [
+        "119",
+        0
+      ],
+      "audio_vae": [
+        "120",
+        0
+      ],
+      "ref_images.ref_image_0": [
+        "300",
+        0
+      ],
+      "ref_audios.ref_audio_0": [
+        "121",
+        0
+      ]
+    },
+    "class_type": "MiniMaxH3ReferenceToVideo",
+    "_meta": {
+      "title": "FR 2. Conditioning + empty AV latent (crop canvas)"
+    }
+  },
+  "212": {
+    "inputs": {
+      "av_latent": [
+        "211",
+        1
+      ],
+      "images": [
+        "210",
+        0
+      ],
+      "vae": [
+        "119",
+        0
+      ]
+    },
+    "class_type": "H3InjectVideoLatent",
+    "_meta": {
+      "title": "FR 3. Inject the real crops -> img2img"
+    }
+  },
+  "213": {
+    "inputs": {
+      "model": [
+        "203",
+        0
+      ],
+      "av_latent": [
+        "212",
+        0
+      ],
+      "audio_vae": [
+        "120",
+        0
+      ],
+      "audio": [
+        "121",
+        0
+      ]
+    },
+    "class_type": "MiniMaxH3NativeAudioLock",
+    "_meta": {
+      "title": "FR 4. Lock stage-1 audio -> lipsync"
+    }
+  },
+  "214": {
+    "inputs": {
+      "av_latent": [
+        "213",
+        1
+      ],
+      "transform": [
+        "210",
+        1
+      ],
+      "strength_small_face": 0.8,
+      "strength_large_face": 0.35,
+      "scale_mode": "absolute_px",
+      "face_px_small": 30.0,
+      "face_px_large": 120.0,
+      "gamma": 1.0,
+      "smooth_frames": 9
+    },
+    "class_type": "H3PerFrameDenoise",
+    "_meta": {
+      "title": "FR 5. Per-frame denoise (by face size)"
+    }
+  },
+  "215": {
+    "inputs": {
+      "model": [
+        "213",
+        0
+      ],
+      "conditioning": [
+        "211",
+        0
+      ]
+    },
+    "class_type": "BasicGuider",
+    "_meta": {
+      "title": "FR Basic Guider"
+    }
+  },
+  "216": {
+    "inputs": {
+      "scheduler": "simple",
+      "steps": 4,
+      "denoise": 0.45,
+      "model": [
+        "213",
+        0
+      ]
+    },
+    "class_type": "BasicScheduler",
+    "_meta": {
+      "title": "FR 6. DENOISE - the key dial"
+    }
+  },
+  "217": {
+    "inputs": {
+      "sampler_name": "er_sde"
+    },
+    "class_type": "KSamplerSelect",
+    "_meta": {
+      "title": "FR Sampler"
+    }
+  },
+  "218": {
+    "inputs": {
+      "noise_seed": 42
+    },
+    "class_type": "RandomNoise",
+    "_meta": {
+      "title": "FR RandomNoise (refine pass)"
+    }
+  },
+  "219": {
+    "inputs": {
+      "noise": [
+        "218",
+        0
+      ],
+      "guider": [
+        "215",
+        0
+      ],
+      "sampler": [
+        "217",
+        0
+      ],
+      "sigmas": [
+        "216",
+        0
+      ],
+      "latent_image": [
+        "214",
+        0
+      ]
+    },
+    "class_type": "SamplerCustomAdvanced",
+    "_meta": {
+      "title": "FR 7. Sample the crops"
+    }
+  },
+  "220": {
+    "inputs": {
+      "samples": [
+        "219",
+        0
+      ],
+      "vae": [
+        "119",
+        0
+      ]
+    },
+    "class_type": "VAEDecode",
+    "_meta": {
+      "title": "FR 8. Decode refined crops"
+    }
+  },
+  "221": {
+    "inputs": {
+      "base_images": [
+        "122",
+        0
+      ],
+      "refined_crops": [
+        "220",
+        0
+      ],
+      "transform": [
+        "210",
+        1
+      ],
+      "paste_region": "face_only",
+      "mask_dilation": 24,
+      "feather": 24,
+      "colour_match": 1.0,
+      "blend": 1.0,
+      "undetected_frames": "fade_out",
+      "feather_scales_with_crop": false
+    },
+    "class_type": "H3FaceStitch",
+    "_meta": {
+      "title": "FR 9. Stitch back into the full frames"
+    }
+  }
+}
