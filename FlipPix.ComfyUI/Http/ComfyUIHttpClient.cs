@@ -1684,6 +1684,41 @@ public class ComfyUIHttpClient : IDisposable
     }
 
     /// <summary>
+    /// True when the connected ComfyUI exposes every one of <paramref name="classTypes"/>.
+    ///
+    /// <para>For workflows that have an optional better path on a newer custom-node pack: ask first,
+    /// then emit the graph the server can actually run. This is deliberately <i>not</i> the missing-node
+    /// resolver's job — that one fires after a submission has already been built around nodes the server
+    /// does not have, and offers to install a whole pack. Here the pack is present and merely old, which
+    /// the resolver cannot detect and an install would not fix.</para>
+    ///
+    /// <para>Returns false when /object_info cannot be read, so an unreachable or slow server degrades to
+    /// the conservative branch rather than failing the submission.</para>
+    /// </summary>
+    public async Task<bool> HasNodeClassesAsync(
+        IReadOnlyCollection<string> classTypes, CancellationToken cancellationToken = default)
+    {
+        if (classTypes.Count == 0) return true;
+        try
+        {
+            var oiJson = await GetObjectInfoJsonAsync(cancellationToken);
+            if (oiJson == null) return false;
+
+            using var doc = JsonDocument.Parse(oiJson);
+            if (doc.RootElement.ValueKind != JsonValueKind.Object) return false;
+
+            foreach (var classType in classTypes)
+                if (!doc.RootElement.TryGetProperty(classType, out _)) return false;
+            return true;
+        }
+        catch (Exception ex) when (ex is not OperationCanceledException)
+        {
+            _logger.LogWarning($"HasNodeClassesAsync: could not read /object_info ({ex.Message})");
+            return false;
+        }
+    }
+
+    /// <summary>
     /// Drops the cached /object_info so the next validation re-reads ComfyUI's model lists. Called
     /// after the resolver installs a model so a freshly-copied file is seen without waiting for TTL.
     /// </summary>

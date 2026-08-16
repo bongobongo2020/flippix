@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using System.IO;
 using System.Text.Json.Serialization;
 using System.Windows.Media.Imaging;
@@ -16,11 +17,25 @@ namespace FlipPix.UI.Models
     /// </summary>
     public class H3CastQueueItem : BaseQueueItem
     {
-        /// <summary>Character 1's sheet — uploaded as <c>ref_image_0</c> / <c>&lt;Picture 1&gt;</c>. Required.</summary>
+        /// <summary>Character 1's sheet. Kept for the queue thumbnail and the row label; what is uploaded is
+        /// <see cref="Character1PanelPaths"/>. Required.</summary>
         public string Character1SheetPath { get; set; } = string.Empty;
 
-        /// <summary>Character 2's sheet — <c>ref_image_1</c> / <c>&lt;Picture 2&gt;</c>. Empty = single-reference run.</summary>
+        /// <summary>Character 2's sheet. Empty = single-character run.</summary>
         public string Character2SheetPath { get; set; } = string.Empty;
+
+        /// <summary>
+        /// Character 1's sheet cut into single-view panels, left to right — the images actually uploaded and
+        /// wired to <c>ref_images.ref_image_0…</c>, so <c>&lt;Picture 1&gt;</c> onwards resolve to them.
+        ///
+        /// <para>Frozen at queue time rather than recomputed at submit time because the prompt's picture
+        /// numbering was written from this count. A queue file written before panels existed deserializes to
+        /// an empty list, which the tab reads as "split the sheet now" — the old items still run.</para>
+        /// </summary>
+        public List<string> Character1PanelPaths { get; set; } = new();
+
+        /// <summary>Character 2's panels, continuing the numbering after character 1's.</summary>
+        public List<string> Character2PanelPaths { get; set; } = new();
 
         /// <summary>The photo character 1's sheet was built from. Never uploaded — kept for the queue thumbnail.</summary>
         public string Character1SourcePath { get; set; } = string.Empty;

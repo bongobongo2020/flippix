@@ -2283,9 +2283,25 @@
                                                               FontSize="10" Margin="0,6,0,0"
                                                               Foreground="{StaticResource TextSecondaryBrush}"
                                                               ToolTip="Skip the Qwen pass and send the loaded image to H3 as it is."/>
+                                                    <Grid Margin="0,6,0,0">
+                                                        <Grid.ColumnDefinitions>
+                                                            <ColumnDefinition Width="Auto"/>
+                                                            <ColumnDefinition Width="*"/>
+                                                        </Grid.ColumnDefinitions>
+                                                        <TextBlock Grid.Column="0" Text="Panels" FontSize="10" VerticalAlignment="Center"
+                                                                   Foreground="{StaticResource TextSecondaryBrush}" Margin="0,0,6,0"/>
+                                                        <ComboBox Grid.Column="1" ItemsSource="{Binding PanelSplitOptions}"
+                                                                  DisplayMemberPath="Label" SelectedValuePath="Value"
+                                                                  SelectedValue="{Binding SelectedPanelSplit, Mode=TwoWay}"
+                                                                  IsEnabled="{Binding HasSheet}" Height="24" FontSize="10"
+                                                                  ToolTip="H3 conditions on each reference image as ONE subject, so a three-panel sheet handed over whole is a three-panel grid it will happily render into the video — the same person standing next to themselves against a studio wall.&#x0a;&#x0a;The sheet is therefore cut back into its separate views before it is sent, one reference per view. Auto looks for the background gaps between the figures; a number splits evenly; Whole sheet is the old single-collage behaviour, kept for comparison."/>
+                                                    </Grid>
                                                     <TextBlock Text="{Binding SheetStatus}" FontSize="9" Margin="0,4,0,0"
                                                                Foreground="{StaticResource TextSecondaryBrush}" FontStyle="Italic"
                                                                TextTrimming="CharacterEllipsis"/>
+                                                    <TextBlock Text="{Binding PanelStatus}" FontSize="9" Margin="0,2,0,0"
+                                                               Foreground="{StaticResource TextMutedBrush}" FontStyle="Italic"
+                                                               TextWrapping="Wrap"/>
                                                 </StackPanel>
 
                                                 <!-- Character 2 -->
@@ -2365,9 +2381,25 @@
                                                               IsEnabled="{Binding HasSource}"
                                                               FontSize="10" Margin="0,6,0,0"
                                                               Foreground="{StaticResource TextSecondaryBrush}"/>
+                                                    <Grid Margin="0,6,0,0">
+                                                        <Grid.ColumnDefinitions>
+                                                            <ColumnDefinition Width="Auto"/>
+                                                            <ColumnDefinition Width="*"/>
+                                                        </Grid.ColumnDefinitions>
+                                                        <TextBlock Grid.Column="0" Text="Panels" FontSize="10" VerticalAlignment="Center"
+                                                                   Foreground="{StaticResource TextSecondaryBrush}" Margin="0,0,6,0"/>
+                                                        <ComboBox Grid.Column="1" ItemsSource="{Binding PanelSplitOptions}"
+                                                                  DisplayMemberPath="Label" SelectedValuePath="Value"
+                                                                  SelectedValue="{Binding SelectedPanelSplit, Mode=TwoWay}"
+                                                                  IsEnabled="{Binding HasSheet}" Height="24" FontSize="10"
+                                                                  ToolTip="How this character's sheet is cut into separate reference images before it is sent to H3. Auto finds the gaps between the figures."/>
+                                                    </Grid>
                                                     <TextBlock Text="{Binding SheetStatus}" FontSize="9" Margin="0,4,0,0"
                                                                Foreground="{StaticResource TextSecondaryBrush}" FontStyle="Italic"
                                                                TextTrimming="CharacterEllipsis"/>
+                                                    <TextBlock Text="{Binding PanelStatus}" FontSize="9" Margin="0,2,0,0"
+                                                               Foreground="{StaticResource TextMutedBrush}" FontStyle="Italic"
+                                                               TextWrapping="Wrap"/>
                                                 </StackPanel>
 
                                                 <Button Content="{Binding BuildSheetsButtonText}"
@@ -2387,6 +2419,12 @@
 
                                                 <TextBlock Text="{Binding CastSummary}"
                                                            FontSize="10" Foreground="{StaticResource TextMutedBrush}" FontStyle="Italic"
+                                                           TextWrapping="Wrap"/>
+
+                                                <!-- Which <Picture n> maps to whom once the sheets are split. -->
+                                                <TextBlock Text="{Binding PanelPlanSummary}"
+                                                           FontSize="10" Margin="0,6,0,0"
+                                                           Foreground="{DynamicResource TabAccentBrush}" FontStyle="Italic"
                                                            TextWrapping="Wrap"/>
                                             </StackPanel>
                                         </Border>
