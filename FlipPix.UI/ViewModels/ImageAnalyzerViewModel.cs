@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.Collections.ObjectModel;
 using System.Diagnostics;
@@ -38,6 +38,8 @@ namespace FlipPix.UI.ViewModels
             // Base/fallback workflow loaded by explicit path when no style is selected —
             // not a selectable style preset.
             "Zib-Zit",
+            // Its own entry in the Model Workflow dropdown (TextGeneratorWorkflow.ZimageBase).
+            "z-image-base",
         };
 
         public static bool IsNonStyleWorkflow(string fileNameWithoutExtension) =>
@@ -522,7 +524,9 @@ namespace FlipPix.UI.ViewModels
             }
         }
 
-        public bool ShowLoraOptions => SelectedWorkflow == TextGeneratorWorkflow.Zimage;
+        // Both Z-Image paths pick their LoRA from the same <loras>/zimage folder.
+        public bool ShowLoraOptions => SelectedWorkflow == TextGeneratorWorkflow.Zimage
+                                       || SelectedWorkflow == TextGeneratorWorkflow.ZimageBase;
 
         public bool ShowKreaLoraOptions => SelectedWorkflow == TextGeneratorWorkflow.Krea2;
 
@@ -2094,6 +2098,11 @@ namespace FlipPix.UI.ViewModels
                         _logger.LogInfo($"Using Krea2 workflow");
                         break;
 
+                    case TextGeneratorWorkflow.ZimageBase:
+                        workflowPath = WorkflowLocator.Resolve("workflow", "image", "zimage", "base", "z-image-base.json");
+                        _logger.LogInfo($"Using Zimage Base workflow");
+                        break;
+
                     case TextGeneratorWorkflow.Zimage:
                     default:
                         // Get the workflow for the item's style
@@ -2166,8 +2175,9 @@ namespace FlipPix.UI.ViewModels
                 _negativePrompt = item.NegativePrompt;
                 _selectedStyleIndex = item.SelectedStyleIndex;
 
-                // Only set LORA properties if using Zimage workflow
-                if (item.SelectedWorkflow == TextGeneratorWorkflow.Zimage)
+                // Only set LORA properties for the Z-Image workflows (they share the zimage LoRA folder)
+                if (item.SelectedWorkflow == TextGeneratorWorkflow.Zimage
+                    || item.SelectedWorkflow == TextGeneratorWorkflow.ZimageBase)
                 {
                     LoraEnabled = item.LoraEnabled;
                     SelectedLora = item.SelectedLora;
@@ -2289,6 +2299,7 @@ namespace FlipPix.UI.ViewModels
                         TextGeneratorWorkflow.Klien => "f2k-txt2img",
                         TextGeneratorWorkflow.Anima => "anima",
                         TextGeneratorWorkflow.Krea2 => "krea2",
+                        TextGeneratorWorkflow.ZimageBase => "z-image-base",
                         _ => "z-image"
                     };
                     var outputPath = Path.Combine(outputDir, $"{prefix}_{timestamp}.png");
@@ -2763,6 +2774,7 @@ namespace FlipPix.UI.ViewModels
                     TextGeneratorWorkflow.Klien => "10",
                     TextGeneratorWorkflow.Anima => "60:11",
                     TextGeneratorWorkflow.Krea2 => "6",
+                    TextGeneratorWorkflow.ZimageBase => "76:67",
                     _ => ""  // Empty for Zimage (will use generic search)
                 };
 
@@ -2933,6 +2945,25 @@ namespace FlipPix.UI.ViewModels
                             // only image output returned by prompt-history/remote retrieval.
                             workflow.Remove("5");
                         }
+                        else if (selectedWorkflow == TextGeneratorWorkflow.ZimageBase)
+                        {
+                            // z-image-base.json is run AS AUTHORED — see the matching note in
+                            // ImageGeneratorViewModel.UpdateZimageBaseWorkflow. Only the prompts,
+                            // the seed and the save prefix are injected; the latent (1024x1280),
+                            // the sampler settings and the LoRA node (76:96) are the workflow's own.
+                            //   76:67 = CLIPTextEncode (positive, handled above)
+                            //   76:71 = CLIPTextEncode (negative)                   [set here]
+                            //   9     = SaveImage → filename_prefix                 [set here]
+                            //   76:68 = EmptySD3LatentImage (1024x1280)             [as authored]
+                            //   76:96 = LoraLoaderModelOnly, zib skin texture v2.1  [as authored]
+                            UpdateNodeInputs(workflow, "76:71", nodeInputs => nodeInputs["text"] = NegativePrompt ?? "");
+
+                            // Saved at the output root so the prefix-based local retrieval matches.
+                            UpdateNodeInputs(workflow, "9", nodeInputs => nodeInputs["filename_prefix"] = "ZBase");
+
+                            _logger.LogInfo("✓ Zimage Base: running the workflow as authored — resolution, " +
+                                            "sampler settings and LoRA come from z-image-base.json");
+                        }
                     }
 
                     // Randomize seed for non-Zimage workflows
@@ -3031,6 +3062,13 @@ namespace FlipPix.UI.ViewModels
                                 }
                             }
                         }
+                    }
+                    else if (selectedWorkflow == TextGeneratorWorkflow.ZimageBase)
+                    {
+                        // z-image-base.json: node 76:69 = KSampler. Seed only — steps 30 / cfg 2.5 /
+                        // res_2m / beta57 / denoise 1 are the workflow's own and are left alone.
+                        UpdateNodeInputs(workflow, "76:69", nodeInputs => nodeInputs["seed"] = randomSeed);
+                        _logger.LogInfo($"✓ Updated Zimage Base sampler node 76:69 with seed: {randomSeed} (steps/cfg/denoise as authored)");
                     }
 
                     return workflow;
@@ -3550,6 +3588,25 @@ namespace FlipPix.UI.ViewModels
             return node.ToString();
         }
 
+        /// <summary>
+        /// Reads node <paramref name="nodeId"/>'s inputs into a mutable dictionary, hands it to
+        /// <paramref name="mutate"/>, and writes the node back. No-op if the node is absent.
+        /// </summary>
+        private static void UpdateNodeInputs(Dictionary<string, object> workflow, string nodeId, Action<Dictionary<string, object>> mutate)
+        {
+            if (!workflow.ContainsKey(nodeId)) return;
+
+            var node = JsonSerializer.Deserialize<Dictionary<string, object>>(JsonSerializer.Serialize(workflow[nodeId]));
+            if (node == null || !node.ContainsKey("inputs")) return;
+
+            var inputs = JsonSerializer.Deserialize<Dictionary<string, object>>(JsonSerializer.Serialize(node["inputs"]));
+            if (inputs == null) return;
+
+            mutate(inputs);
+            node["inputs"] = inputs;
+            workflow[nodeId] = node;
+        }
+
         private (int, int) GetDimensionsForAspectRatio(int aspectRatioIndex)
         {
             // Z-Image recommended dimensions based on aspect ratios
@@ -3736,6 +3793,7 @@ namespace FlipPix.UI.ViewModels
                     TextGeneratorWorkflow.Klien => "F2K_txt2img_",
                     TextGeneratorWorkflow.Anima => "Anima_",
                     TextGeneratorWorkflow.Krea2 => "Krea2_",
+                    TextGeneratorWorkflow.ZimageBase => "ZBase_",
                     _ => ""  // Empty for Zimage (will use ZI/z-image pattern)
                 };
 

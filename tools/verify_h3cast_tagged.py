@@ -12,7 +12,7 @@ under way, so this replays both and checks what ComfyUI would reject:
   * no link points at a node that was pruned, and no node is unreachable from the video sink;
   * combo inputs carry a legal value.
 
-Usage:  python tools/verify_h3cast_tagged.py [--url http://192.168.1.10:8188]
+Usage:  python tools/verify_h3cast_tagged.py [--url http://10.0.0.10:8188]
 
 Mirrors H3CastViewModel.ConvertToTaggedReferences / WireReferenceImages / WireOutputChain.
 Keep the node ids and input names below in step with those methods.
@@ -36,7 +36,15 @@ NODE_CHARACTER_1 = "44"
 NODE_PROMPT = "48"
 NODE_REFINE_PROMPT = "931"
 NODE_BASE_FRAMES = "3"
+NODE_FACE_TRACK = "100"
 NODE_FACE_STITCH = "111"
+
+# Character 2's pass — the 100-block cloned into the 200s at submit time.
+REFINE_PASS_2_OFFSET = 100
+NODE_REFINE_PROMPT_2 = "932"
+NODE_FACE_TRACK_2 = "200"
+NODE_REFINE_REFERENCE_2 = "201"
+NODE_FACE_STITCH_2 = "211"
 NODE_RTX = "64"
 NODE_VIDEO_COMBINE = "65"
 REF_IMAGE_PREFIX = "ref_images.ref_image_"
@@ -72,7 +80,15 @@ def all_aliases(panels1: int, panels2: int) -> list[str]:
     return aliases(1, max(1, panels1)) + (aliases(2, panels2) if panels2 > 0 else [])
 
 
-def wire_reference_images(graph: dict, uploaded: list[str]) -> dict:
+def attach_references(graph: dict, node_id: str, loaders: list[str]) -> None:
+    node = graph[node_id]
+    for key in [k for k in node["inputs"] if k.startswith(REF_IMAGE_PREFIX)]:
+        del node["inputs"][key]
+    for i, loader in enumerate(loaders):
+        node["inputs"][f"{REF_IMAGE_PREFIX}{i}"] = [loader, 0]
+
+
+def wire_reference_images(graph: dict, uploaded: list[str]) -> list[str]:
     loaders = []
     for i, name in enumerate(uploaded):
         node_id = NODE_CHARACTER_1 if i == 0 else str(REFERENCE_NODE_ID_BASE + i)
@@ -81,13 +97,51 @@ def wire_reference_images(graph: dict, uploaded: list[str]) -> dict:
         loaders.append(node_id)
 
     for node_id in (NODE_REFERENCE, NODE_REFINE_REFERENCE):
-        node = graph.get(node_id)
-        if node is None:
-            continue
-        for key in [k for k in node["inputs"] if k.startswith(REF_IMAGE_PREFIX)]:
-            del node["inputs"][key]
-        for i, loader in enumerate(loaders):
-            node["inputs"][f"{REF_IMAGE_PREFIX}{i}"] = [loader, 0]
+        if node_id in graph:
+            attach_references(graph, node_id, loaders)
+    return loaders
+
+
+def add_second_refine_pass(graph: dict) -> dict:
+    """Mirrors AddSecondRefinePass: nodes 100-111 cloned into the 200s, every link inside the clone
+    remapped to the clone, and the two that read the base decode moved onto the first pass's stitch
+    so the second edit lands on top of the first rather than discarding it."""
+    mapping = {node_id: str(int(node_id) + REFINE_PASS_2_OFFSET)
+               for node_id in graph if node_id.isdigit() and 100 <= int(node_id) <= 111}
+
+    for source, clone in mapping.items():
+        node = json.loads(json.dumps(graph[source]))
+        for key, value in node["inputs"].items():
+            if isinstance(value, list) and len(value) == 2 and isinstance(value[0], str):
+                target = mapping.get(value[0],
+                                     NODE_FACE_STITCH if value[0] == NODE_BASE_FRAMES else value[0])
+                node["inputs"][key] = [target, value[1]]
+        node["_meta"] = {"title": f"{node.get('_meta', {}).get('title', clone)} (character 2)"}
+        graph[clone] = node
+    return graph
+
+
+def wire_refine_passes(graph: dict, loaders: list[str], panels1: int, panels2: int,
+                       per_character: bool, refine_character2: bool) -> dict:
+    """Mirrors WireRefinePasses. Each character's pass sees only their own panels, numbered from
+    ref_image_0, reads its own prompt primitive, and tracks that character by their face close-up —
+    the last panel, which is the order the sheet is built and split in."""
+    loaders1, loaders2 = loaders[:panels1], loaders[panels1:panels1 + panels2]
+
+    graph[NODE_REFINE_PROMPT] = {"inputs": {"value": ""}, "class_type": "PrimitiveStringMultiline",
+                                 "_meta": {"title": "Refine prompt (character 1)"}}
+    graph[NODE_REFINE_REFERENCE]["inputs"]["prompt"] = [NODE_REFINE_PROMPT, 0]
+    if per_character:
+        attach_references(graph, NODE_REFINE_REFERENCE, loaders1)
+        graph[NODE_FACE_TRACK]["inputs"]["identity_reference"] = [loaders1[-1], 0]
+
+    if refine_character2 and loaders2:
+        graph = add_second_refine_pass(graph)
+        graph[NODE_REFINE_PROMPT_2] = {"inputs": {"value": ""}, "class_type": "PrimitiveStringMultiline",
+                                       "_meta": {"title": "Refine prompt (character 2)"}}
+        graph[NODE_REFINE_REFERENCE_2]["inputs"]["prompt"] = [NODE_REFINE_PROMPT_2, 0]
+        attach_references(graph, NODE_REFINE_REFERENCE_2, loaders2)
+        graph[NODE_FACE_TRACK_2]["inputs"]["identity_reference"] = [loaders2[-1], 0]
     return graph
 
 
@@ -120,16 +174,15 @@ def convert_to_tagged(graph: dict, alias_list: list[str]) -> dict:
     inputs["clip_count"] = 1
     inputs["reference_policy"] = "strict"
 
-    refine = graph.get(NODE_REFINE_REFERENCE)
-    if refine is not None:
-        graph[NODE_REFINE_PROMPT] = {"inputs": {"value": ""}, "class_type": "PrimitiveStringMultiline",
-                                     "_meta": {"title": "Refine prompt (numbered references)"}}
-        refine["inputs"]["prompt"] = [NODE_REFINE_PROMPT, 0]
+    # The refine passes keep numbered references and get their own prompt primitives — see
+    # wire_refine_passes, which runs on the numbered path too.
     return graph
 
 
-def wire_output_chain(graph: dict, face_refine: bool, rtx: bool) -> dict:
-    frames = NODE_FACE_STITCH if face_refine else NODE_BASE_FRAMES
+def wire_output_chain(graph: dict, face_refine: bool, refine_character2: bool, rtx: bool) -> dict:
+    frames = NODE_BASE_FRAMES
+    if face_refine:
+        frames = NODE_FACE_STITCH_2 if refine_character2 else NODE_FACE_STITCH
     graph[NODE_RTX]["inputs"]["images"] = [frames, 0]
     graph[NODE_VIDEO_COMBINE]["inputs"]["images"] = [NODE_RTX if rtx else frames, 0]
     return graph
@@ -147,6 +200,61 @@ def prune_to_outputs(graph: dict, sinks: list[str]) -> dict:
             if isinstance(value, list) and len(value) == 2 and isinstance(value[0], str):
                 stack.append(value[0])
     return {k: v for k, v in graph.items() if k in keep}
+
+
+def check_refine_structure(graph: dict, face_refine: bool, refine_character2: bool,
+                           panels1: int, panels2: int, per_character: bool, label: str) -> list[str]:
+    """The invariants of the face-refine passes, which no server-side check can catch: a pass wired
+    to the wrong panels or reading the wrong prompt is a valid graph that redraws the wrong face."""
+    problems = []
+
+    pass2_nodes = (NODE_FACE_TRACK_2, NODE_REFINE_REFERENCE_2, NODE_FACE_STITCH_2, NODE_REFINE_PROMPT_2)
+    for node_id in pass2_nodes:
+        if refine_character2 and node_id not in graph:
+            problems.append(f"[{label}] character 2's pass is on but node {node_id} is missing")
+        if not refine_character2 and node_id in graph:
+            problems.append(f"[{label}] character 2's pass is off but {node_id} is in the graph")
+
+    if not face_refine:
+        for node_id in (NODE_FACE_TRACK, NODE_REFINE_REFERENCE, NODE_FACE_STITCH):
+            if node_id in graph:
+                problems.append(f"[{label}] face refine is off but {node_id} survived the prune")
+        return problems
+
+    expected1 = panels1 if per_character else panels1 + panels2
+    wired = sum(1 for k in graph[NODE_REFINE_REFERENCE]["inputs"] if k.startswith(REF_IMAGE_PREFIX))
+    if wired != expected1:
+        problems.append(f"[{label}] refine pass 1 has {wired} ref_image slot(s), expected {expected1}")
+
+    prompt = graph[NODE_REFINE_REFERENCE]["inputs"].get("prompt")
+    if not (isinstance(prompt, list) and prompt[0] == NODE_REFINE_PROMPT):
+        problems.append(f"[{label}] the refine pass reads the clip's own prompt, not its cast-of-one primitive")
+
+    identity = graph[NODE_FACE_TRACK]["inputs"].get("identity_reference")
+    if per_character and not isinstance(identity, list):
+        problems.append(f"[{label}] the tracker has no identity_reference: it follows whoever is "
+                        "largest, which in a two-character clip is not reliably the same person")
+
+    if refine_character2:
+        wired2 = sum(1 for k in graph[NODE_REFINE_REFERENCE_2]["inputs"] if k.startswith(REF_IMAGE_PREFIX))
+        if wired2 != panels2:
+            problems.append(f"[{label}] refine pass 2 has {wired2} ref_image slot(s), expected {panels2}")
+        prompt2 = graph[NODE_REFINE_REFERENCE_2]["inputs"].get("prompt")
+        if not (isinstance(prompt2, list) and prompt2[0] == NODE_REFINE_PROMPT_2):
+            problems.append(f"[{label}] character 2's pass does not read its own prompt primitive")
+        # Composing rather than competing: pass 2 reads what pass 1 stitched, at both ends.
+        for node_id, key in ((NODE_FACE_TRACK_2, "images"), (NODE_FACE_STITCH_2, "base_images")):
+            link = graph[node_id]["inputs"].get(key)
+            if not (isinstance(link, list) and link[0] == NODE_FACE_STITCH):
+                problems.append(f"[{label}] {node_id}.{key} reads {link}, expected the first pass's "
+                                f"stitch ({NODE_FACE_STITCH}) — character 1's refined faces would be lost")
+
+    last_stitch = NODE_FACE_STITCH_2 if refine_character2 else NODE_FACE_STITCH
+    sink = graph[NODE_VIDEO_COMBINE]["inputs"]["images"][0]
+    if sink not in (last_stitch, NODE_RTX):
+        problems.append(f"[{label}] the video reads node {sink}, not the last stitched frames")
+
+    return problems
 
 
 def validate(graph: dict, object_info: dict, label: str) -> list[str]:
@@ -237,7 +345,7 @@ UPSTREAM_TAGGED_SPECS = {
 
 def main() -> int:
     parser = argparse.ArgumentParser()
-    parser.add_argument("--url", default="http://192.168.1.10:8188")
+    parser.add_argument("--url", default="http://10.0.0.10:8188")
     parser.add_argument("--assume-tagged", action="store_true",
                         help="check the tagged path against the transcribed upstream node "
                              "definitions when the server's pack is too old to declare them")
@@ -257,7 +365,10 @@ def main() -> int:
     source = json.loads(WORKFLOW.read_text(encoding="utf-8"))
     failures = 0
 
-    for panels1, panels2 in ((3, 3), (3, 0), (1, 1), (4, 2)):
+    # panels per character, and whether the item was queued with per-character refine passes
+    # (a legacy item keeps the single whole-cast pass).
+    for panels1, panels2, per_character in ((3, 3, True), (3, 0, True), (1, 1, True),
+                                            (4, 2, True), (3, 3, False)):
         alias_list = all_aliases(panels1, panels2)
         uploaded = [f"panel_{i}.png" for i in range(len(alias_list))]
 
@@ -265,17 +376,24 @@ def main() -> int:
             for rtx in (False, True):
                 for tagged in ((True, False) if has_tagged else (False,)):
                     label = (f"{panels1}+{panels2} refs, "
+                             f"{'per-character' if per_character else 'legacy'}, "
                              f"{'tagged' if tagged else 'numbered'}, "
                              f"{'refine' if face_refine else 'no refine'}, "
                              f"{'rtx' if rtx else 'no rtx'}")
                     graph = json.loads(json.dumps(source))
-                    graph = wire_reference_images(graph, uploaded)
+                    loaders = wire_reference_images(graph, uploaded)
                     if tagged:
                         graph = convert_to_tagged(graph, alias_list)
-                    graph = wire_output_chain(graph, face_refine, rtx)
+                    refine_character2 = face_refine and per_character and panels2 > 0
+                    if face_refine:
+                        graph = wire_refine_passes(graph, loaders, panels1, panels2,
+                                                   per_character, refine_character2)
+                    graph = wire_output_chain(graph, face_refine, refine_character2, rtx)
                     graph = prune_to_outputs(graph, [NODE_VIDEO_COMBINE])
+                    problems = check_refine_structure(graph, face_refine, refine_character2,
+                                                      panels1, panels2, per_character, label)
 
-                    problems = validate(graph, object_info, label)
+                    problems += validate(graph, object_info, label)
                     for problem in problems:
                         print(f"    ! {problem}")
                     failures += len(problems)

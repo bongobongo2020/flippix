@@ -63,6 +63,31 @@ namespace FlipPix.UI.Models
         public double RefineDenoise { get; set; } = 0.45;
 
         /// <summary>
+        /// One refine pass per character rather than one for the whole cast.
+        ///
+        /// <para><c>H3FaceTrackCrop</c> holds a single subject, so the old single pass refined whoever was
+        /// largest and left the other character's face exactly as the base pass rendered it — while being
+        /// shown both cast members' photographs, which gave it nothing to say about which face it had. Each
+        /// character now gets a pass tracked by their own face close-up and conditioned on their own panels.</para>
+        ///
+        /// <para><b>Default false</b>: an item queued before this existed carries a prompt written for the
+        /// whole cast, and running that prompt against one character's panels would number pictures the pass
+        /// never receives. Re-queue such an item to get the second pass.</para>
+        /// </summary>
+        public bool PerCharacterRefine { get; set; }
+
+        /// <summary>"man" / "woman" for character 1, frozen at queue time — the refine passes rebuild their
+        /// own reference line and it names the cast the same way the clip's own prompt did.</summary>
+        public string Sex1 { get; set; } = string.Empty;
+
+        /// <summary>"man" / "woman" for character 2.</summary>
+        public string Sex2 { get; set; } = string.Empty;
+
+        /// <summary>Whether the sheets were built wearing the locked wardrobe — flips the reference line
+        /// between disowning the references' clothing and pointing at it.</summary>
+        public bool SheetsShowWardrobe { get; set; }
+
+        /// <summary>
         /// When false — the default — the RTX ×2 super-resolution node is pruned and the frames are muxed at
         /// the H3 canvas. It is the single largest allocation in the graph (a whole ×2 frame stack, held at
         /// once, at the very end of a run), so it is opt-in rather than opt-out. The default also decides

@@ -119,6 +119,15 @@ namespace FlipPix.UI.ViewModels
         /// </summary>
         public H3ChainViewModel H3ChainVM { get; }
 
+        /// <summary>
+        /// H3 Cast Hybrid ViewModel - the H3 Cast pipeline on MiniMax H3's hybrid fl2va+ref2va checkpoint,
+        /// which completes supplied keyframes and generates from the character sheets in one pass: stills
+        /// pinned to timestamps become hard frame locks, the sheets ride along as identity references that
+        /// must never become frames, and the alignment between the two is stated in the prompt text rather
+        /// than wired into a first/last-frame node.
+        /// </summary>
+        public H3CastHybridViewModel H3CastHybridVM { get; }
+
         // Bound to the main TabControl so code can switch tabs programmatically.
         // 0 = Scail 2 tab.
         private int _selectedTabIndex = 0;
@@ -271,6 +280,15 @@ namespace FlipPix.UI.ViewModels
                 _workflowCoordinator,
                 _fileDialogService);
 
+            H3CastHybridVM = new H3CastHybridViewModel(
+                comfyUIService,
+                lmStudioService,
+                logger,
+                settingsService,
+                serviceProvider,
+                _workflowCoordinator,
+                _fileDialogService);
+
             // Forward PlayRequested events from sub-VMs
             MainVM.PlayRequested += (s, e) => PlayRequested?.Invoke(this, e);
             InfiniteTalkVM.PlayRequested += (s, e) => PlayRequested?.Invoke(this, e);
@@ -285,6 +303,7 @@ namespace FlipPix.UI.ViewModels
             MiniMaxCharacterVM.PlayRequested += (s, e) => PlayRequested?.Invoke(this, e);
             H3CastVM.PlayRequested += (s, e) => PlayRequested?.Invoke(this, e);
             H3ChainVM.PlayRequested += (s, e) => PlayRequested?.Invoke(this, e);
+            H3CastHybridVM.PlayRequested += (s, e) => PlayRequested?.Invoke(this, e);
 
             // Forward PropertyChanged events from all sub-VMs for backward compatibility
             MainVM.PropertyChanged += ForwardPropertyChanged;
@@ -300,6 +319,7 @@ namespace FlipPix.UI.ViewModels
             MiniMaxCharacterVM.PropertyChanged += ForwardPropertyChanged;
             H3CastVM.PropertyChanged += ForwardPropertyChanged;
             H3ChainVM.PropertyChanged += ForwardPropertyChanged;
+            H3CastHybridVM.PropertyChanged += ForwardPropertyChanged;
 
             NavigateToImageGeneratorCommand = new RelayCommand(NavigateToImageGenerator);
 
@@ -590,6 +610,7 @@ namespace FlipPix.UI.ViewModels
                 MiniMaxCharacterVM.PropertyChanged -= ForwardPropertyChanged;
                 H3CastVM.PropertyChanged -= ForwardPropertyChanged;
                 H3ChainVM.PropertyChanged -= ForwardPropertyChanged;
+                H3CastHybridVM.PropertyChanged -= ForwardPropertyChanged;
 
                 // Dispose all sub-ViewModels
                 (MainVM as IDisposable)?.Dispose();
@@ -604,6 +625,7 @@ namespace FlipPix.UI.ViewModels
                 (MiniMaxCharacterVM as IDisposable)?.Dispose();
                 (H3CastVM as IDisposable)?.Dispose();
                 (H3ChainVM as IDisposable)?.Dispose();
+                (H3CastHybridVM as IDisposable)?.Dispose();
 
                 _disposed = true;
             }

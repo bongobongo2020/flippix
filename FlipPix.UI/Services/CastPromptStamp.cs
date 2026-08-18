@@ -1,5 +1,6 @@
-using System;
+﻿using System;
 using System.Collections.Generic;
+using System.Globalization;
 using System.Linq;
 using System.Text;
 using System.Text.RegularExpressions;
@@ -37,6 +38,28 @@ namespace FlipPix.UI.Services
     {
         /// <summary>Every reference line starts with this, so an existing one can be found and rewritten.</summary>
         public const string ReferenceLinePrefix = "For the target video,";
+
+        /// <summary>
+        /// What the preamble needs to know about the cast beyond how many pictures each of them occupies: the
+        /// sex to name them by, and whether their reference sheets were built <i>wearing the locked
+        /// wardrobe</i>.
+        ///
+        /// <para>That second flag flips the reference line's clothing sentence between the only two honest
+        /// things it can say. A sheet built from an ordinary photo shows clothes that have nothing to do with
+        /// the video, so the line has to disown them; a sheet the tab dressed from the wardrobe shows exactly
+        /// the clothes the video wants, so the line has to point at them instead — telling H3 to ignore the
+        /// clothing in a picture that is right is how the outfit ends up re-invented per clip.</para>
+        /// </summary>
+        public sealed record CastInfo(string? Sex1 = null, string? Sex2 = null, bool SheetsShowWardrobe = false)
+        {
+            /// <summary>No sexes given and sheets of unknown clothing — how a prompt stamped by older code reads.</summary>
+            public static readonly CastInfo Unknown = new();
+
+            /// <summary>"man" / "woman" for one character, or null when it was never set.</summary>
+            public string? SexOf(int character) =>
+                string.IsNullOrWhiteSpace(character == 1 ? Sex1 : Sex2) ? null
+                                                                       : (character == 1 ? Sex1 : Sex2);
+        }
 
         /// <summary>
         /// Opens the code-written wardrobe block. Also how an existing block is found and replaced — see
@@ -202,22 +225,99 @@ namespace FlipPix.UI.Services
         /// thing anyone does, whereas a model forgetting to name someone in beat 6 of 12 certainly is.</para>
         /// </summary>
         public static string Apply(
-            string? prompt, int panels1, int panels2, string? wardrobe, bool selectiveCast = false)
+            string? prompt, int panels1, int panels2, string? wardrobe, bool selectiveCast = false,
+            CastInfo? cast = null)
         {
             var body = Strip(prompt);
             if (body.Length == 0) return string.Empty;
 
+            cast ??= CastInfo.Unknown;
+
             // Read off the canonical body, so it does not matter which form the prompt arrived in.
             if (selectiveCast && !body.Contains("<Picture 2>", StringComparison.Ordinal)) panels2 = 0;
 
-            var sb = new StringBuilder(BuildReferenceLine(panels1, panels2));
+            var sb = new StringBuilder(BuildReferenceLine(panels1, panels2, cast));
             // The wardrobe box is kept in the canonical form the user typed and the derive pass wrote, so its
             // "Character 2 (<Picture 2>)" lines are re-tagged here alongside the body — otherwise the block
             // would dress a reference that belongs to character 1.
             var wardrobeLock = Retag(
-                DropAbsentWardrobeLines(BuildWardrobeLock(wardrobe), panels2 > 0), panels1, panels2);
+                DropAbsentWardrobeLines(BuildWardrobeLock(wardrobe, cast.SheetsShowWardrobe), panels2 > 0),
+                panels1, panels2);
             if (wardrobeLock.Length > 0) sb.Append("\n\n").Append(wardrobeLock);
             return sb.Append("\n\n").Append(Retag(body, panels1, panels2)).ToString();
+        }
+
+        /// <summary>How the cast member this pass is not about is referred to once their pictures are gone.</summary>
+        private const string OtherPerson = "the other person";
+
+        /// <summary>
+        /// The clip as <b>one character's own face-refine pass</b> needs to read it: their panels numbered
+        /// from <c>&lt;Picture 1&gt;</c>, their wardrobe line alone, and the rest of the cast reduced to
+        /// "the other person".
+        ///
+        /// <para><c>H3FaceTrackCrop</c> follows a single subject, so a two-character clip is refined by two
+        /// passes, one per face. A pass shown both cast members' photographs has nothing to say about which
+        /// of the two faces it is looking at — and a body still naming character 2 as
+        /// <c>&lt;Picture 2&gt;</c> would be pointing at character 1's <i>back view</i> once only character
+        /// 1's panels are wired. Both problems are the same problem: the pass has a cast of one, so the
+        /// prompt is rewritten to have a cast of one.</para>
+        ///
+        /// <para>The other person is not deleted from the prose — they are in the scene, and sometimes in the
+        /// crop's background. They are simply left unidentified, which is the truth of what this pass
+        /// receives.</para>
+        /// </summary>
+        /// <param name="character">1 or 2 — whose face this pass regenerates.</param>
+        /// <param name="panels">How many of that character's panels the pass is conditioned on.</param>
+        public static string SoloRefinePrompt(
+            string? prompt, int character, int panels, string? wardrobe, CastInfo? cast = null)
+        {
+            var body = Strip(prompt);
+            if (body.Length == 0) return string.Empty;
+
+            cast ??= CastInfo.Unknown;
+            panels = Math.Max(1, panels);
+            var other = character == 1 ? 2 : 1;
+
+            body = body.Replace($"<Picture {other}>", OtherPerson, StringComparison.Ordinal);
+            if (character != 1)
+                body = body.Replace($"<Picture {character}>", "<Picture 1>", StringComparison.Ordinal);
+
+            // Everything below is written for "character 1" because that is what a cast of one is; the sex
+            // comes from whoever this actually is.
+            var solo = new CastInfo(cast.SexOf(character), null, cast.SheetsShowWardrobe);
+            var sb = new StringBuilder(BuildReferenceLine(panels, 0, solo));
+
+            var wardrobeLock = SoloWardrobeLines(
+                BuildWardrobeLock(wardrobe, cast.SheetsShowWardrobe), character, cast.SexOf(character));
+            if (wardrobeLock.Length > 0) sb.Append("\n\n").Append(wardrobeLock);
+            sb.Append("\n\n").Append(body);
+
+            // The refine pass stays on the core reference node, so its pictures are numbers, not aliases.
+            return Detag(sb.ToString(), panels, 0);
+        }
+
+        /// <summary>
+        /// Keeps the wardrobe block's header and the one character's own line, renumbered to the cast of one
+        /// this pass has: <c>Character 2 (&lt;Picture 2&gt;, a woman)</c> becomes
+        /// <c>Character 1 (&lt;Picture 1&gt;, a woman)</c>.
+        /// </summary>
+        private static string SoloWardrobeLines(string block, int character, string? sex)
+        {
+            if (block.Length == 0) return block;
+
+            var lines = block.Split('\n').ToList();
+            var kept = lines.Where(line =>
+            {
+                var m = Regex.Match(line, @"^\s*Character\s+(\d+)\b", RegexOptions.IgnoreCase);
+                return !m.Success || m.Groups[1].Value == character.ToString(CultureInfo.InvariantCulture);
+            }).ToList();
+            // A block with no per-character lines at all is one unparseable paragraph — keep it whole rather
+            // than reducing the authoritative wardrobe to its heading.
+            if (kept.Count <= 1) kept = lines;
+
+            var who = sex == null ? "Character 1 (<Picture 1>)" : $"Character 1 (<Picture 1>, a {sex})";
+            return string.Join("\n", kept.Select(line =>
+                Regex.Replace(line, @"^\s*Character\s+\d+\s*(\([^)]*\))?", who, RegexOptions.IgnoreCase)));
         }
 
         /// <summary>
@@ -238,7 +338,7 @@ namespace FlipPix.UI.Services
         /// is the mention that activates the cast, which is why a clip character 2 is not in does not name
         /// them.</para>
         /// </summary>
-        private static string BuildReferenceLine(int panels1, int panels2)
+        private static string BuildReferenceLine(int panels1, int panels2, CastInfo cast)
         {
             var total = Math.Max(1, panels1) + Math.Max(0, panels2);
 
@@ -247,9 +347,9 @@ namespace FlipPix.UI.Services
                 ? "the attached picture is a studio reference photograph of the cast, not a frame of the video. "
                 : $"the {total} attached pictures are separate studio reference photographs of the cast, not frames of the video. ");
 
-            sb.Append(DescribeCharacter(1, Math.Max(1, panels1)));
+            sb.Append(DescribeCharacter(1, Math.Max(1, panels1), cast.SexOf(1)));
             if (panels2 > 0)
-                sb.Append(' ').Append(DescribeCharacter(2, panels2));
+                sb.Append(' ').Append(DescribeCharacter(2, panels2, cast.SexOf(2)));
 
             var them = panels2 > 0 ? "each of them" : "them";
             var each = panels2 > 0 ? "each person's" : "that person's";
@@ -262,21 +362,34 @@ namespace FlipPix.UI.Services
                       "never line the cast up side by side against a plain backdrop, and do not copy the " +
                       "references' plain background, their neutral standing pose, or any panel, grid or " +
                       "split-screen layout into the video. ");
-            sb.Append($"Do NOT dress the cast from {they} either: place {them} in the scene described below and " +
-                      $"dress {them} strictly in the outfit written there, unchanged throughout.");
+
+            // The clothing sentence is the one part of this line that depends on how the sheets were made —
+            // see CastInfo.SheetsShowWardrobe.
+            sb.Append(cast.SheetsShowWardrobe
+                ? $"The references DO, however, show the exact clothing the cast wears in this video: copy " +
+                  $"every garment from {they} — the same items, colours, materials and details — and keep " +
+                  $"the outfits identical from the first frame to the last, matching the WARDROBE LOCK below. " +
+                  $"Only the plain studio background and the neutral pose are to be discarded; place {them} in " +
+                  "the scene described below, dressed exactly as the references show."
+                : $"Do NOT dress the cast from {they} either: place {them} in the scene described below and " +
+                  $"dress {them} strictly in the outfit written there, unchanged throughout.");
             return sb.ToString();
         }
 
         /// <summary>Names the pictures one character occupies, and insists they are one person.</summary>
-        private static string DescribeCharacter(int character, int panels)
+        private static string DescribeCharacter(int character, int panels, string? sex)
         {
             var list = DescribeAliases(character, panels);
+            // "Character 1, a man" — the sheets carry the face, but H3 reads the prompt first, and a cast whose
+            // sex is only implied is a cast the model is free to re-read differently in the next clip.
+            var who = sex == null ? $"Character {character}" : $"Character {character}, a {sex}";
+
             if (panels <= 1)
-                return $"{list} is Character {character} — a reference sheet showing one and " +
+                return $"{list} is {who} — a reference sheet showing one and " +
                        "the same person from several angles, not several different people.";
 
-            return $"{list} are {panels} separate photographs of one and the same person — Character " +
-                   $"{character} — shot from different angles (full-body front, full-body back, face close-up); " +
+            return $"{list} are {panels} separate photographs of one and the same person — {who} — " +
+                   "shot from different angles (full-body front, full-body back, face close-up); " +
                    $"they are one individual, not {panels} different people.";
         }
 
@@ -288,13 +401,23 @@ namespace FlipPix.UI.Services
         /// The wardrobe as it appears inside a prompt — the header plus the block, or nothing at all when
         /// there is no wardrobe to lock.
         /// </summary>
-        public static string BuildWardrobeLock(string? wardrobe)
+        public static string BuildWardrobeLock(string? wardrobe, bool sheetsShowWardrobe = false)
         {
             // Blank lines are squeezed out because a blank line is what ends the block: a hand-typed wardrobe
             // with a paragraph break would otherwise leave its tail behind when the block is replaced.
             var body = Regex.Replace((wardrobe ?? string.Empty).Replace("\r\n", "\n").Replace('\r', '\n').Trim(),
                                      @"\n[ \t]*\n+", "\n");
-            return body.Length == 0 ? string.Empty : $"{WardrobeLockHeader}\n{body}";
+            if (body.Length == 0) return string.Empty;
+
+            // Written into the header's own line, never as a second line: the block ends at the first blank line
+            // and StripWardrobeBlock finds it by its prefix, so its shape has to stay header-then-body. The
+            // extra sentence goes before the header's closing colon, which introduces the outfits themselves.
+            var header = sheetsShowWardrobe
+                ? WardrobeLockHeader.TrimEnd(':') +
+                  ". The attached reference photographs already show the cast in these clothes, so the words " +
+                  "below and the pictures agree — follow both:"
+                : WardrobeLockHeader;
+            return $"{header}\n{body}";
         }
 
         /// <summary>
@@ -312,6 +435,53 @@ namespace FlipPix.UI.Services
         }
 
         /// <summary>
+        /// Reads the outfits back out of a stamped prompt — the wardrobe block's body, without its header.
+        ///
+        /// <para>Taken from the prompt rather than carried alongside it so that a hand-edited prompt box is
+        /// what a re-stamp or a refine pass reads: the block in the prompt is the wardrobe that clip was
+        /// actually queued with, whoever last touched it.</para>
+        /// </summary>
+        public static string ExtractWardrobe(string? prompt)
+        {
+            var t = (prompt ?? string.Empty).Replace("\r\n", "\n").Replace('\r', '\n');
+            var start = t.IndexOf(WardrobeLockPrefix, StringComparison.OrdinalIgnoreCase);
+            if (start < 0) return string.Empty;
+
+            var end = t.IndexOf("\n\n", start, StringComparison.Ordinal);
+            var block = end < 0 ? t[start..] : t[start..end];
+            var newline = block.IndexOf('\n');
+            return newline < 0 ? string.Empty : block[(newline + 1)..].Trim();
+        }
+
+        /// <summary>Matches one character's line inside a wardrobe block, however it was written.</summary>
+        private static readonly Regex WardrobeCharacterLineRegex = new(
+            @"^[ \t]*[-*>]*[ \t]*(?:CHARACTER|CHAR|PERSON)[ \t]*#?[ \t]*(\d+)\b[^:\r\n]*:[ \t]*(.+)$",
+            RegexOptions.Multiline | RegexOptions.IgnoreCase | RegexOptions.Compiled);
+
+        /// <summary>
+        /// One character's outfit, pulled out of the wardrobe block — what the sheet builder dresses that
+        /// character in so the reference photographs and the prompt describe the same clothes.
+        ///
+        /// <para>A block with no recognisable per-character lines is one paragraph about the whole cast, and is
+        /// returned whole for either character: that is how the clip prompts read it too, and dressing both
+        /// from the same paragraph is the same answer they will get.</para>
+        /// </summary>
+        public static string OutfitFor(string? wardrobe, int character)
+        {
+            var block = (wardrobe ?? string.Empty).Replace("\r\n", "\n").Replace('\r', '\n').Trim();
+            if (block.Length == 0) return string.Empty;
+
+            var matches = WardrobeCharacterLineRegex.Matches(block);
+            if (matches.Count == 0) return block;
+
+            foreach (Match m in matches)
+                if (int.TryParse(m.Groups[1].Value, out var index) && index == character)
+                    return m.Groups[2].Value.Trim();
+
+            return string.Empty;
+        }
+
+        /// <summary>
         /// Removes character 2's line from a wardrobe block for a clip they are not in. Dressing someone who
         /// is not there is an invitation to put them there.
         /// </summary>
@@ -326,6 +496,91 @@ namespace FlipPix.UI.Services
             // A block that is one unparseable paragraph has no per-character lines to drop; keep it whole
             // rather than returning a header with nothing under it.
             return kept.Count > 1 ? string.Join("\n", kept) : block;
+        }
+
+        /// <summary>One member of the cast as the wardrobe text needs them: their position and the word the
+        /// prompts call them by. Keeps this file free of the view model's <c>CharacterSlot</c>, and therefore
+        /// of WPF, which is what lets the whole of it be exercised offline.</summary>
+        public readonly record struct CastRole(int Index, string Noun);
+
+        /// <summary>
+        /// Matches the reply's <c>CHARACTER 1: …</c> lines, however the model decorated them. The optional
+        /// parenthetical and the one or two words after it are there because the request now asks for
+        /// <c>CHARACTER 1 (man): …</c>, and a model echoing the shape it was given — which is the point of
+        /// giving it one — answers <c>CHARACTER 1 (a man) wears: …</c> as often as not.
+        /// </summary>
+        private static readonly Regex WardrobeLineRegex = new(
+            @"^[ \t]*[-*>#]*[ \t]*(?:CHARACTER|CHAR|PICTURE|PERSON)[ \t]*#?[ \t]*(\d+)[ \t]*(?:\([^)\r\n]*\))?(?:[ \t]+[A-Za-z]{1,8}){0,2}[ \t]*[:\-–—)]+[ \t]*(.+)$",
+            RegexOptions.Multiline | RegexOptions.IgnoreCase | RegexOptions.Compiled);
+
+        /// <summary>
+        /// Turns the reply into the block that goes into the prompts: one line per character, each naming the
+        /// tag the video model actually resolves. A reply with no recognisable lines but some prose is kept as
+        /// it stands — the block is free text by the time it reaches the prompt, and a human editing the box
+        /// is under no obligation to use this shape either.
+        /// </summary>
+        /// <param name="dress">Only these characters' lines are kept. A model asked to dress character 2 alone
+        /// will often re-state character 1 as well, and letting that through would silently re-roll an outfit a
+        /// character sheet has already been built in.</param>
+        public static string NormalizeWardrobe(
+            string reply, IReadOnlyList<CastRole> cast, IReadOnlyList<CastRole> dress)
+        {
+            if (string.IsNullOrWhiteSpace(reply)) return string.Empty;
+
+            var lines = new List<string>();
+            foreach (Match m in WardrobeLineRegex.Matches(reply))
+            {
+                if (!int.TryParse(m.Groups[1].Value, out var index) || index < 1 || index > cast.Count) continue;
+                if (dress.All(d => d.Index != index)) continue;
+                var outfit = m.Groups[2].Value.Trim().TrimEnd('.', ' ');
+                if (outfit.Length == 0) continue;
+                // A model that answers "CHARACTER 1: wearing a red coat" would otherwise read "wears wearing".
+                foreach (var lead in new[] { "wearing ", "wears ", "is wearing ", "dressed in " })
+                    if (outfit.StartsWith(lead, StringComparison.OrdinalIgnoreCase))
+                    {
+                        outfit = outfit[lead.Length..].TrimStart();
+                        break;
+                    }
+                lines.Add($"Character {index} (<Picture {index}>, a {cast[index - 1].Noun}) wears: {outfit}.");
+            }
+
+            if (lines.Count > 0)
+                return string.Join("\n", lines.Distinct(StringComparer.OrdinalIgnoreCase));
+
+            // Nothing parseable: better a paragraph repeated identically in every clip than a wardrobe
+            // re-invented in each one, which is exactly what this whole step exists to stop.
+            return reply.Trim();
+        }
+
+        /// <summary>Reads the character number off a line of a normalized wardrobe block.</summary>
+        private static readonly Regex WardrobeBlockLineRegex = new(
+            @"^[ \t]*Character[ \t]+(\d+)\b", RegexOptions.IgnoreCase | RegexOptions.Compiled);
+
+        /// <summary>
+        /// Folds a partial pass's lines into the block already in the box, per character — the point of a
+        /// top-up being that the outfit a sheet was already built in survives it. Falls back to appending when
+        /// either side is free prose rather than per-character lines.
+        /// </summary>
+        public static string MergeWardrobe(string existing, string added)
+        {
+            if (string.IsNullOrWhiteSpace(existing)) return added.Trim();
+            if (string.IsNullOrWhiteSpace(added)) return existing.Trim();
+
+            var byCharacter = new SortedDictionary<int, string>();
+            var loose = new List<string>();
+            foreach (var block in new[] { existing, added })
+                foreach (var line in block.Replace("\r\n", "\n").Replace('\r', '\n').Split('\n'))
+                {
+                    if (line.Trim().Length == 0) continue;
+                    var m = WardrobeBlockLineRegex.Match(line);
+                    if (m.Success && int.TryParse(m.Groups[1].Value, out var index))
+                        byCharacter[index] = line.Trim();   // the later block wins, which is the new pass
+                    else
+                        loose.Add(line.Trim());
+                }
+
+            if (byCharacter.Count == 0) return string.Join("\n", loose);
+            return string.Join("\n", byCharacter.Values);
         }
 
         #endregion

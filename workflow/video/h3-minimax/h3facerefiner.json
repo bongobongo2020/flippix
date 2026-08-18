@@ -351,6 +351,8 @@
   "64": {
     "inputs": {
       "scale": 2,
+      "resize_type": "scale by multiplier",
+      "resize_type.scale": 2,
       "quality": "ULTRA",
       "deblur": "MEDIUM",
       "images": [
@@ -396,13 +398,13 @@
         0
       ],
       "detector": "bbox/face_yolov8m.pt",
-      "confidence": 0.35,
-      "crop_factor": 3.0,
+      "confidence": 0.15,
+      "crop_factor": 2.5,
       "canvas_width": 512,
       "canvas_height": 512,
       "canvas_mode": "auto_capped_768",
-      "smooth_window": 21,
-      "size_smooth_window": 51,
+      "smooth_window": 15,
+      "size_smooth_window": 41,
       "smooth_method": "gaussian",
       "size_mode": "per_frame",
       "identity_track": true,
@@ -515,12 +517,12 @@
         "100",
         1
       ],
-      "strength_small_face": 0.8,
+      "strength_small_face": 1.0,
       "strength_large_face": 0.35,
       "scale_mode": "absolute_px",
-      "face_px_small": 30.0,
-      "face_px_large": 120.0,
-      "gamma": 1.0,
+      "face_px_small": 48.0,
+      "face_px_large": 200.0,
+      "gamma": 1.3,
       "smooth_frames": 9
     },
     "class_type": "H3PerFrameDenoise",

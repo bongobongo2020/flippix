@@ -81,7 +81,7 @@
       },
       "lora_1": {
         "on": true,
-        "lora": "Krea2\\Krea2-realism-V1.safetensors",
+        "lora": "krea2/Krea2-realism-V1.safetensors",
         "strength": 1
       },
       "lora_2": {
@@ -182,6 +182,8 @@
   "28": {
     "inputs": {
       "scale": 2,
+      "resize_type": "scale by multiplier",
+      "resize_type.scale": 2,
       "quality": "ULTRA",
       "images": [
         "3",

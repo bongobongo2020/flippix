@@ -2185,14 +2185,23 @@
                     </TabItem>
 
                     <!-- ═══════════════════════════════════════════════════════════════
-                         H3 CAST — reference-to-video through character SHEETS. Each
-                         character arrives as one ordinary photo; Qwen-Image-Edit-2511
-                         (int8 convrot) turns it into a three-panel sheet — full-body
-                         front, full-body back, face close-up — and that composite is
-                         what MiniMax H3 gets as <Picture n>. A scene image (never
-                         uploaded) becomes the prompt, and the video runs through the
-                         face-refiner graph: a second H3 pass over the tracked face
-                         crops, stitched back into the frames.
+                         H3 CAST — reference-to-video through character SHEETS.
+
+                         The panel reads top-down in the order the work actually
+                         happens. The STORY comes first, because the wardrobe is
+                         derived from it and then locked; the CAST comes second,
+                         because each character's sheet is generated wearing that
+                         wardrobe. Each character arrives as one ordinary photo;
+                         Qwen-Image-Edit-2511 (int8 convrot) turns it into a
+                         three-panel sheet — full-body front, full-body back, face
+                         close-up, dressed in the locked outfit — and that composite
+                         is what MiniMax H3 gets as <Picture n>. The pictures and
+                         every clip's prompt therefore describe the same clothes,
+                         which is what stops the cast being re-dressed per clip.
+
+                         The video then runs through the face-refiner graph: a second
+                         H3 pass over the tracked face crops, stitched back into the
+                         frames.
                          ═══════════════════════════════════════════════════════════════ -->
                     <TabItem Header="🪪👥 H3 Cast">
                         <!-- Named so the per-character cards, whose DataContext is a CharacterSlot, can
@@ -2211,231 +2220,13 @@
                                 <ScrollViewer VerticalScrollBarVisibility="Auto">
                                     <StackPanel Margin="12">
 
-                                        <!-- Cast: photo in, sheet out -->
-                                        <Border Style="{StaticResource SectionCardStyle}">
-                                            <StackPanel>
-                                                <ctrl:SectionHeader Title="CAST" Note="  · one photo per character" Margin="0,0,0,10"/>
-
-                                                <!-- Character 1 -->
-                                                <StackPanel DataContext="{Binding Character1}" Margin="0,0,0,10">
-                                                    <TextBlock Text="Character 1 · &lt;Picture 1&gt;" FontSize="10" FontWeight="SemiBold"
-                                                               Foreground="{StaticResource TextSecondaryBrush}" Margin="0,0,0,4"/>
-                                                    <Grid>
-                                                        <Grid.ColumnDefinitions>
-                                                            <ColumnDefinition Width="98"/>
-                                                            <ColumnDefinition Width="6"/>
-                                                            <ColumnDefinition Width="*"/>
-                                                        </Grid.ColumnDefinitions>
-
-                                                        <!-- Source photo -->
-                                                        <Border Grid.Column="0" BorderBrush="{StaticResource BorderBrush}" BorderThickness="1"
-                                                                CornerRadius="6" Background="{StaticResource SurfaceAltBrush}" Height="92">
-                                                            <Grid>
-                                                                <TextBlock Text="Photo"
-                                                                           HorizontalAlignment="Center" VerticalAlignment="Center"
-                                                                           Foreground="{StaticResource TextMutedBrush}" FontSize="10">
-                                                                    <TextBlock.Style>
-                                                                        <Style TargetType="TextBlock">
-                                                                            <Setter Property="Visibility" Value="Collapsed"/>
-                                                                            <Style.Triggers>
-                                                                                <DataTrigger Binding="{Binding SourcePreview}" Value="{x:Null}">
-                                                                                    <Setter Property="Visibility" Value="Visible"/>
-                                                                                </DataTrigger>
-                                                                            </Style.Triggers>
-                                                                        </Style>
-                                                                    </TextBlock.Style>
-                                                                </TextBlock>
-                                                                <Image Source="{Binding SourcePreview}" Stretch="Uniform"/>
-                                                            </Grid>
-                                                        </Border>
-
-                                                        <!-- Built sheet -->
-                                                        <Border Grid.Column="2" BorderBrush="{StaticResource BorderBrush}" BorderThickness="1"
-                                                                CornerRadius="6" Background="{StaticResource SurfaceAltBrush}" Height="92">
-                                                            <Grid>
-                                                                <TextBlock Text="Sheet → H3"
-                                                                           HorizontalAlignment="Center" VerticalAlignment="Center"
-                                                                           Foreground="{StaticResource TextMutedBrush}" FontSize="10">
-                                                                    <TextBlock.Style>
-                                                                        <Style TargetType="TextBlock">
-                                                                            <Setter Property="Visibility" Value="Collapsed"/>
-                                                                            <Style.Triggers>
-                                                                                <DataTrigger Binding="{Binding SheetPreview}" Value="{x:Null}">
-                                                                                    <Setter Property="Visibility" Value="Visible"/>
-                                                                                </DataTrigger>
-                                                                            </Style.Triggers>
-                                                                        </Style>
-                                                                    </TextBlock.Style>
-                                                                </TextBlock>
-                                                                <Image Source="{Binding SheetPreview}" Stretch="Uniform"/>
-                                                            </Grid>
-                                                        </Border>
-                                                    </Grid>
-
-                                                    <Button Content="Browse…"
-                                                            Command="{Binding DataContext.SelectCharacter1Command, ElementName=H3CastRoot}"
-                                                            Height="26" Padding="8,0" FontSize="11" Margin="0,6,0,0"
-                                                            Background="{StaticResource SurfaceAltBrush}" Foreground="{DynamicResource TabAccentBrush}"
-                                                            BorderBrush="{StaticResource BorderBrush}" BorderThickness="1"/>
-                                                    <CheckBox Content="This image is already a character sheet"
-                                                              IsChecked="{Binding UseSourceAsSheet}"
-                                                              IsEnabled="{Binding HasSource}"
-                                                              FontSize="10" Margin="0,6,0,0"
-                                                              Foreground="{StaticResource TextSecondaryBrush}"
-                                                              ToolTip="Skip the Qwen pass and send the loaded image to H3 as it is."/>
-                                                    <Grid Margin="0,6,0,0">
-                                                        <Grid.ColumnDefinitions>
-                                                            <ColumnDefinition Width="Auto"/>
-                                                            <ColumnDefinition Width="*"/>
-                                                        </Grid.ColumnDefinitions>
-                                                        <TextBlock Grid.Column="0" Text="Panels" FontSize="10" VerticalAlignment="Center"
-                                                                   Foreground="{StaticResource TextSecondaryBrush}" Margin="0,0,6,0"/>
-                                                        <ComboBox Grid.Column="1" ItemsSource="{Binding PanelSplitOptions}"
-                                                                  DisplayMemberPath="Label" SelectedValuePath="Value"
-                                                                  SelectedValue="{Binding SelectedPanelSplit, Mode=TwoWay}"
-                                                                  IsEnabled="{Binding HasSheet}" Height="24" FontSize="10"
-                                                                  ToolTip="H3 conditions on each reference image as ONE subject, so a three-panel sheet handed over whole is a three-panel grid it will happily render into the video — the same person standing next to themselves against a studio wall.&#x0a;&#x0a;The sheet is therefore cut back into its separate views before it is sent, one reference per view. Auto looks for the background gaps between the figures; a number splits evenly; Whole sheet is the old single-collage behaviour, kept for comparison."/>
-                                                    </Grid>
-                                                    <TextBlock Text="{Binding SheetStatus}" FontSize="9" Margin="0,4,0,0"
-                                                               Foreground="{StaticResource TextSecondaryBrush}" FontStyle="Italic"
-                                                               TextTrimming="CharacterEllipsis"/>
-                                                    <TextBlock Text="{Binding PanelStatus}" FontSize="9" Margin="0,2,0,0"
-                                                               Foreground="{StaticResource TextMutedBrush}" FontStyle="Italic"
-                                                               TextWrapping="Wrap"/>
-                                                </StackPanel>
-
-                                                <!-- Character 2 -->
-                                                <StackPanel DataContext="{Binding Character2}" Margin="0,0,0,8">
-                                                    <TextBlock Text="Character 2 · &lt;Picture 2&gt; · optional" FontSize="10" FontWeight="SemiBold"
-                                                               Foreground="{StaticResource TextSecondaryBrush}" Margin="0,0,0,4"/>
-                                                    <Grid>
-                                                        <Grid.ColumnDefinitions>
-                                                            <ColumnDefinition Width="98"/>
-                                                            <ColumnDefinition Width="6"/>
-                                                            <ColumnDefinition Width="*"/>
-                                                        </Grid.ColumnDefinitions>
-
-                                                        <Border Grid.Column="0" BorderBrush="{StaticResource BorderBrush}" BorderThickness="1"
-                                                                CornerRadius="6" Background="{StaticResource SurfaceAltBrush}" Height="92">
-                                                            <Grid>
-                                                                <TextBlock Text="Photo"
-                                                                           HorizontalAlignment="Center" VerticalAlignment="Center"
-                                                                           Foreground="{StaticResource TextMutedBrush}" FontSize="10">
-                                                                    <TextBlock.Style>
-                                                                        <Style TargetType="TextBlock">
-                                                                            <Setter Property="Visibility" Value="Collapsed"/>
-                                                                            <Style.Triggers>
-                                                                                <DataTrigger Binding="{Binding SourcePreview}" Value="{x:Null}">
-                                                                                    <Setter Property="Visibility" Value="Visible"/>
-                                                                                </DataTrigger>
-                                                                            </Style.Triggers>
-                                                                        </Style>
-                                                                    </TextBlock.Style>
-                                                                </TextBlock>
-                                                                <Image Source="{Binding SourcePreview}" Stretch="Uniform"/>
-                                                            </Grid>
-                                                        </Border>
-
-                                                        <Border Grid.Column="2" BorderBrush="{StaticResource BorderBrush}" BorderThickness="1"
-                                                                CornerRadius="6" Background="{StaticResource SurfaceAltBrush}" Height="92">
-                                                            <Grid>
-                                                                <TextBlock Text="Sheet → H3"
-                                                                           HorizontalAlignment="Center" VerticalAlignment="Center"
-                                                                           Foreground="{StaticResource TextMutedBrush}" FontSize="10">
-                                                                    <TextBlock.Style>
-                                                                        <Style TargetType="TextBlock">
-                                                                            <Setter Property="Visibility" Value="Collapsed"/>
-                                                                            <Style.Triggers>
-                                                                                <DataTrigger Binding="{Binding SheetPreview}" Value="{x:Null}">
-                                                                                    <Setter Property="Visibility" Value="Visible"/>
-                                                                                </DataTrigger>
-                                                                            </Style.Triggers>
-                                                                        </Style>
-                                                                    </TextBlock.Style>
-                                                                </TextBlock>
-                                                                <Image Source="{Binding SheetPreview}" Stretch="Uniform"/>
-                                                            </Grid>
-                                                        </Border>
-                                                    </Grid>
-
-                                                    <Grid Margin="0,6,0,0">
-                                                        <Grid.ColumnDefinitions>
-                                                            <ColumnDefinition Width="*"/>
-                                                            <ColumnDefinition Width="Auto"/>
-                                                        </Grid.ColumnDefinitions>
-                                                        <Button Grid.Column="0" Content="Browse…"
-                                                                Command="{Binding DataContext.SelectCharacter2Command, ElementName=H3CastRoot}"
-                                                                Height="26" Padding="8,0" FontSize="11" Margin="0,0,4,0"
-                                                                Background="{StaticResource SurfaceAltBrush}" Foreground="{DynamicResource TabAccentBrush}"
-                                                                BorderBrush="{StaticResource BorderBrush}" BorderThickness="1"/>
-                                                        <Button Grid.Column="1" Content="✕"
-                                                                Command="{Binding DataContext.ClearCharacter2Command, ElementName=H3CastRoot}"
-                                                                IsEnabled="{Binding HasSource}"
-                                                                Height="26" Width="26" FontSize="11"
-                                                                ToolTip="Clear the second character and run as a single-reference scene."
-                                                                Background="{StaticResource SurfaceAltBrush}" Foreground="{StaticResource TextSecondaryBrush}"
-                                                                BorderBrush="{StaticResource BorderBrush}" BorderThickness="1"/>
-                                                    </Grid>
-                                                    <CheckBox Content="This image is already a character sheet"
-                                                              IsChecked="{Binding UseSourceAsSheet}"
-                                                              IsEnabled="{Binding HasSource}"
-                                                              FontSize="10" Margin="0,6,0,0"
-                                                              Foreground="{StaticResource TextSecondaryBrush}"/>
-                                                    <Grid Margin="0,6,0,0">
-                                                        <Grid.ColumnDefinitions>
-                                                            <ColumnDefinition Width="Auto"/>
-                                                            <ColumnDefinition Width="*"/>
-                                                        </Grid.ColumnDefinitions>
-                                                        <TextBlock Grid.Column="0" Text="Panels" FontSize="10" VerticalAlignment="Center"
-                                                                   Foreground="{StaticResource TextSecondaryBrush}" Margin="0,0,6,0"/>
-                                                        <ComboBox Grid.Column="1" ItemsSource="{Binding PanelSplitOptions}"
-                                                                  DisplayMemberPath="Label" SelectedValuePath="Value"
-                                                                  SelectedValue="{Binding SelectedPanelSplit, Mode=TwoWay}"
-                                                                  IsEnabled="{Binding HasSheet}" Height="24" FontSize="10"
-                                                                  ToolTip="How this character's sheet is cut into separate reference images before it is sent to H3. Auto finds the gaps between the figures."/>
-                                                    </Grid>
-                                                    <TextBlock Text="{Binding SheetStatus}" FontSize="9" Margin="0,4,0,0"
-                                                               Foreground="{StaticResource TextSecondaryBrush}" FontStyle="Italic"
-                                                               TextTrimming="CharacterEllipsis"/>
-                                                    <TextBlock Text="{Binding PanelStatus}" FontSize="9" Margin="0,2,0,0"
-                                                               Foreground="{StaticResource TextMutedBrush}" FontStyle="Italic"
-                                                               TextWrapping="Wrap"/>
-                                                </StackPanel>
-
-                                                <Button Content="{Binding BuildSheetsButtonText}"
-                                                        Command="{Binding BuildSheetsCommand}"
-                                                        IsEnabled="{Binding CanBuildSheets}"
-                                                        Height="32" FontSize="11" Margin="0,0,0,6"
-                                                        Style="{StaticResource AccentButtonStyle}"
-                                                        ToolTip="Runs Qwen-Image-Edit-2511 (int8 convrot, 8-step Lightning) once per character and turns each photo into a three-panel reference sheet on a plain studio background: full-body front, full-body back, face close-up. That sheet — not the photo — is what MiniMax H3 receives, which is how one image can carry silhouette, hair from behind and facial identity at once.&#x0a;&#x0a;Safe to press while a video is rendering: it waits for the GPU and runs as soon as that job lets go, so the next pair of characters can be prepared without stopping the queue."/>
-
-                                                <!-- The builder's own status line: a render underneath owns
-                                                     the tab's status bar and progress bar. -->
-                                                <TextBlock Text="{Binding SheetPhase}"
-                                                           Visibility="{Binding IsBuildingSheets, Converter={StaticResource BooleanToVisibilityConverter}}"
-                                                           FontSize="10" FontWeight="SemiBold" Margin="0,0,0,6"
-                                                           Foreground="{DynamicResource TabAccentBrush}"
-                                                           TextWrapping="Wrap"/>
-
-                                                <TextBlock Text="{Binding CastSummary}"
-                                                           FontSize="10" Foreground="{StaticResource TextMutedBrush}" FontStyle="Italic"
-                                                           TextWrapping="Wrap"/>
-
-                                                <!-- Which <Picture n> maps to whom once the sheets are split. -->
-                                                <TextBlock Text="{Binding PanelPlanSummary}"
-                                                           FontSize="10" Margin="0,6,0,0"
-                                                           Foreground="{DynamicResource TabAccentBrush}" FontStyle="Italic"
-                                                           TextWrapping="Wrap"/>
-                                            </StackPanel>
-                                        </Border>
-
                                         <!-- Scene & story: two ways in, either one is enough.
                                              The image (never uploaded) carries setting, light and
                                              wardrobe; the story carries what happens. With no image
                                              the request goes to the llama-server as plain text. -->
                                         <Border Style="{StaticResource SectionCardStyle}">
                                             <StackPanel>
-                                                <ctrl:SectionHeader Title="SCENE &amp; STORY" Note="  · either one is enough" Margin="0,0,0,10"/>
+                                                <ctrl:SectionHeader Title="SCENE &amp; STORY" Note="  · either one is enough — and the wardrobe comes from it" Margin="0,0,0,10"/>
 
                                                 <Grid Margin="0,0,0,8">
                                                     <Grid.ColumnDefinitions>
@@ -2535,29 +2326,37 @@
                                                         <ColumnDefinition Width="*"/>
                                                         <ColumnDefinition Width="Auto"/>
                                                         <ColumnDefinition Width="Auto"/>
+                                                        <ColumnDefinition Width="Auto"/>
                                                     </Grid.ColumnDefinitions>
-                                                    <TextBlock Grid.Column="0" Text="Wardrobe — locked into every clip"
+                                                    <TextBlock Grid.Column="0" Text="Wardrobe — derived from the story"
                                                                FontSize="10" FontWeight="SemiBold" VerticalAlignment="Center"
                                                                Foreground="{StaticResource TextSecondaryBrush}"/>
-                                                    <Button Grid.Column="1" Content="🎽 Derive"
+                                                    <Button Grid.Column="1" Content="{Binding WardrobeLockButtonText}"
+                                                            Command="{Binding ToggleWardrobeLockCommand}"
+                                                            Height="24" Padding="8,0" FontSize="10" Margin="0,0,4,0"
+                                                            Background="{StaticResource SurfaceAltBrush}" Foreground="{StaticResource TextSecondaryBrush}"
+                                                            BorderBrush="{StaticResource BorderBrush}" BorderThickness="1"
+                                                            ToolTip="Locked, the wardrobe is the story's: it is rewritten whenever the story, the scene image or the cast changes, and cannot be typed over.&#x0a;&#x0a;Unlock to dress the cast yourself — your text then stands, and the story stops rewriting it until you lock it again."/>
+                                                    <Button Grid.Column="2" Content="🎽 Derive"
                                                             Command="{Binding DeriveWardrobeCommand}"
                                                             Height="24" Padding="8,0" FontSize="10" Margin="0,0,4,0"
                                                             Background="{StaticResource SurfaceAltBrush}" Foreground="{DynamicResource TabAccentBrush}"
                                                             BorderBrush="{StaticResource BorderBrush}" BorderThickness="1"
-                                                            ToolTip="Asks the llama-server for one outfit per character — off the scene image if there is one, otherwise out of the story — and writes them here. Analyze does this by itself when the box is empty; this button re-rolls the outfits without rewriting the whole story."/>
-                                                    <Button Grid.Column="2" Content="✕"
+                                                            ToolTip="Re-rolls the outfits now, without waiting for the story to change — off the scene image if there is one, otherwise out of the story.&#x0a;&#x0a;It always writes an outfit for BOTH characters, whether or not their photos have been picked yet: the wardrobe is a decision about the story, and a second character's line is simply left out of any clip they are not in. The sheets are built from whatever is in this box, so derive before you build them."/>
+                                                    <Button Grid.Column="3" Content="✕"
                                                             Command="{Binding ClearWardrobeCommand}"
                                                             Height="24" Width="24" FontSize="10"
-                                                            ToolTip="Empty the wardrobe box. The next Analyze writes a fresh one."
+                                                            ToolTip="Empty the wardrobe box and let the story write a fresh one."
                                                             Background="{StaticResource SurfaceAltBrush}" Foreground="{StaticResource TextSecondaryBrush}"
                                                             BorderBrush="{StaticResource BorderBrush}" BorderThickness="1"/>
                                                 </Grid>
                                                 <TextBox Text="{Binding CastWardrobe, UpdateSourceTrigger=PropertyChanged}"
+                                                         IsReadOnly="{Binding IsWardrobeLocked}"
                                                          TextWrapping="Wrap" AcceptsReturn="True" AcceptsTab="False"
                                                          Height="64" VerticalScrollBarVisibility="Auto" Margin="0,0,0,4"
                                                          BorderBrush="{StaticResource BorderBrush}" Background="{StaticResource SurfaceAltBrush}"
                                                          FontSize="11" Padding="6"
-                                                         ToolTip="One line per character, naming every garment. This exact text is written into the prompt of every clip ahead of its description and overrides anything the clip body says about clothing, which is what stops the cast changing outfits between clips. Type your own to dress them however you like — Add to Queue re-stamps whatever is in this box into every clip."/>
+                                                         ToolTip="One line per character, naming every garment. It is written from the story a couple of seconds after you stop typing, and it is what the character sheets are generated in AND what every clip's prompt quotes — the picture and the words then agree, which is what stops the cast changing outfits between clips.&#x0a;&#x0a;Read-only while locked; press 🔒 to take it over."/>
                                                 <TextBlock Text="{Binding WardrobeSummary}"
                                                            FontSize="10" Foreground="{StaticResource TextMutedBrush}" FontStyle="Italic"
                                                            TextWrapping="Wrap" Margin="0,0,0,10"/>
@@ -2596,9 +2395,9 @@
                                                             IsEnabled="{Binding CanAnalyze}"
                                                             Height="32" Padding="14,0" FontSize="11"
                                                             Style="{StaticResource AccentButtonStyle}"
-                                                            ToolTip="Sends whatever is loaded — the scene image, the story, or both — to the llama-server with texttovideoH3.md and writes a dense multi-shot H3 prompt in which the cast is named only as &lt;Picture 1&gt; / &lt;Picture 2&gt; and framed so faces stay readable. With an image the wardrobe is read off it; without one, out of the story."/>
+                                                            ToolTip="Sends whatever is loaded — the scene image, the story, or both — to the llama-server with texttovideoH3.md and writes a dense multi-shot H3 prompt in which the cast is named only as &lt;Picture 1&gt; / &lt;Picture 2&gt; and framed so faces stay readable. The locked wardrobe above is handed to it as settled fact, so no clip picks its own outfit."/>
                                                     <TextBlock FontStyle="Italic" FontSize="11" VerticalAlignment="Center" Margin="8,0,0,0"
-                                                               Text="Analyzing…" Foreground="{DynamicResource TabAccentBrush}">
+                                                               Text="{Binding AnalyzeBusyText}" Foreground="{DynamicResource TabAccentBrush}">
                                                         <TextBlock.Style>
                                                             <Style TargetType="TextBlock">
                                                                 <Setter Property="Visibility" Value="Collapsed"/>
@@ -2611,6 +2410,265 @@
                                                         </TextBlock.Style>
                                                     </TextBlock>
                                                 </StackPanel>
+                                            </StackPanel>
+                                        </Border>
+
+                                        <!-- Cast: photo in, sheet out -->
+                                        <Border Style="{StaticResource SectionCardStyle}">
+                                            <StackPanel>
+                                                <ctrl:SectionHeader Title="CAST" Note="  · one photo per character, dressed from the wardrobe above" Margin="0,0,0,10"/>
+
+                                                <!-- Character 1 -->
+                                                <StackPanel DataContext="{Binding Character1}" Margin="0,0,0,10">
+                                                    <!-- The sex is a real input, not a label: it goes into the
+                                                         wardrobe request, into the sheet builder's instruction
+                                                         and into the reference line H3 reads. -->
+                                                    <Grid Margin="0,0,0,4">
+                                                        <Grid.ColumnDefinitions>
+                                                            <ColumnDefinition Width="*"/>
+                                                            <ColumnDefinition Width="Auto"/>
+                                                        </Grid.ColumnDefinitions>
+                                                        <TextBlock Grid.Column="0" Text="{Binding Label}" FontSize="11" FontWeight="Bold"
+                                                                   VerticalAlignment="Center"
+                                                                   Foreground="{StaticResource TextPrimaryBrush}"/>
+                                                        <ComboBox Grid.Column="1" ItemsSource="{Binding SexOptions}"
+                                                                  SelectedItem="{Binding Sex, Mode=TwoWay}"
+                                                                  Width="86" Height="24" FontSize="10"
+                                                                  ToolTip="Male or female. The wardrobe pass dresses this character accordingly, the character sheet is generated as that person, and the prompt names them so H3 uses the right pronouns."/>
+                                                    </Grid>
+                                                    <TextBlock Text="&lt;Picture 1&gt; · the first reference H3 receives"
+                                                               FontSize="9" Foreground="{StaticResource TextMutedBrush}" Margin="0,0,0,4"/>
+                                                    <Grid>
+                                                        <Grid.ColumnDefinitions>
+                                                            <ColumnDefinition Width="98"/>
+                                                            <ColumnDefinition Width="6"/>
+                                                            <ColumnDefinition Width="*"/>
+                                                        </Grid.ColumnDefinitions>
+
+                                                        <!-- Source photo -->
+                                                        <Border Grid.Column="0" BorderBrush="{StaticResource BorderBrush}" BorderThickness="1"
+                                                                CornerRadius="6" Background="{StaticResource SurfaceAltBrush}" Height="92">
+                                                            <Grid>
+                                                                <TextBlock Text="Photo"
+                                                                           HorizontalAlignment="Center" VerticalAlignment="Center"
+                                                                           Foreground="{StaticResource TextMutedBrush}" FontSize="10">
+                                                                    <TextBlock.Style>
+                                                                        <Style TargetType="TextBlock">
+                                                                            <Setter Property="Visibility" Value="Collapsed"/>
+                                                                            <Style.Triggers>
+                                                                                <DataTrigger Binding="{Binding SourcePreview}" Value="{x:Null}">
+                                                                                    <Setter Property="Visibility" Value="Visible"/>
+                                                                                </DataTrigger>
+                                                                            </Style.Triggers>
+                                                                        </Style>
+                                                                    </TextBlock.Style>
+                                                                </TextBlock>
+                                                                <Image Source="{Binding SourcePreview}" Stretch="Uniform"/>
+                                                            </Grid>
+                                                        </Border>
+
+                                                        <!-- Built sheet -->
+                                                        <Border Grid.Column="2" BorderBrush="{StaticResource BorderBrush}" BorderThickness="1"
+                                                                CornerRadius="6" Background="{StaticResource SurfaceAltBrush}" Height="92">
+                                                            <Grid>
+                                                                <TextBlock Text="Sheet → H3"
+                                                                           HorizontalAlignment="Center" VerticalAlignment="Center"
+                                                                           Foreground="{StaticResource TextMutedBrush}" FontSize="10">
+                                                                    <TextBlock.Style>
+                                                                        <Style TargetType="TextBlock">
+                                                                            <Setter Property="Visibility" Value="Collapsed"/>
+                                                                            <Style.Triggers>
+                                                                                <DataTrigger Binding="{Binding SheetPreview}" Value="{x:Null}">
+                                                                                    <Setter Property="Visibility" Value="Visible"/>
+                                                                                </DataTrigger>
+                                                                            </Style.Triggers>
+                                                                        </Style>
+                                                                    </TextBlock.Style>
+                                                                </TextBlock>
+                                                                <Image Source="{Binding SheetPreview}" Stretch="Uniform"/>
+                                                            </Grid>
+                                                        </Border>
+                                                    </Grid>
+
+                                                    <Button Content="Browse…"
+                                                            Command="{Binding DataContext.SelectCharacter1Command, ElementName=H3CastRoot}"
+                                                            Height="26" Padding="8,0" FontSize="11" Margin="0,6,0,0"
+                                                            Background="{StaticResource SurfaceAltBrush}" Foreground="{DynamicResource TabAccentBrush}"
+                                                            BorderBrush="{StaticResource BorderBrush}" BorderThickness="1"/>
+                                                    <CheckBox Content="This image is already a character sheet"
+                                                              IsChecked="{Binding UseSourceAsSheet}"
+                                                              IsEnabled="{Binding HasSource}"
+                                                              FontSize="10" Margin="0,6,0,0"
+                                                              Foreground="{StaticResource TextSecondaryBrush}"
+                                                              ToolTip="Skip the Qwen pass and send the loaded image to H3 as it is."/>
+                                                    <Grid Margin="0,6,0,0">
+                                                        <Grid.ColumnDefinitions>
+                                                            <ColumnDefinition Width="Auto"/>
+                                                            <ColumnDefinition Width="*"/>
+                                                        </Grid.ColumnDefinitions>
+                                                        <TextBlock Grid.Column="0" Text="Panels" FontSize="10" VerticalAlignment="Center"
+                                                                   Foreground="{StaticResource TextSecondaryBrush}" Margin="0,0,6,0"/>
+                                                        <ComboBox Grid.Column="1" ItemsSource="{Binding PanelSplitOptions}"
+                                                                  DisplayMemberPath="Label" SelectedValuePath="Value"
+                                                                  SelectedValue="{Binding SelectedPanelSplit, Mode=TwoWay}"
+                                                                  IsEnabled="{Binding HasSheet}" Height="24" FontSize="10"
+                                                                  ToolTip="H3 conditions on each reference image as ONE subject, so a three-panel sheet handed over whole is a three-panel grid it will happily render into the video — the same person standing next to themselves against a studio wall.&#x0a;&#x0a;The sheet is therefore cut back into its separate views before it is sent, one reference per view. Auto looks for the background gaps between the figures; a number splits evenly; Whole sheet is the old single-collage behaviour, kept for comparison."/>
+                                                    </Grid>
+                                                    <TextBlock Text="{Binding SheetStatus}" FontSize="9" Margin="0,4,0,0"
+                                                               Foreground="{StaticResource TextSecondaryBrush}" FontStyle="Italic"
+                                                               TextTrimming="CharacterEllipsis"/>
+                                                    <TextBlock Text="{Binding PanelStatus}" FontSize="9" Margin="0,2,0,0"
+                                                               Foreground="{StaticResource TextMutedBrush}" FontStyle="Italic"
+                                                               TextWrapping="Wrap"/>
+                                                    <!-- The outfit this character's sheet is (or will be) built in. -->
+                                                    <TextBlock Text="{Binding ExpectedWardrobe, StringFormat=👗 {0}}"
+                                                               Visibility="{Binding ExpectedWardrobe, Converter={StaticResource StringToVisibilityConverter}}"
+                                                               FontSize="9" Margin="0,2,0,0"
+                                                               Foreground="{DynamicResource TabAccentBrush}" FontStyle="Italic"
+                                                               TextWrapping="Wrap"/>
+                                                </StackPanel>
+
+                                                <!-- Character 2 -->
+                                                <StackPanel DataContext="{Binding Character2}" Margin="0,0,0,8">
+                                                    <Grid Margin="0,0,0,4">
+                                                        <Grid.ColumnDefinitions>
+                                                            <ColumnDefinition Width="*"/>
+                                                            <ColumnDefinition Width="Auto"/>
+                                                        </Grid.ColumnDefinitions>
+                                                        <TextBlock Grid.Column="0" Text="{Binding Label}" FontSize="11" FontWeight="Bold"
+                                                                   VerticalAlignment="Center"
+                                                                   Foreground="{StaticResource TextPrimaryBrush}"/>
+                                                        <ComboBox Grid.Column="1" ItemsSource="{Binding SexOptions}"
+                                                                  SelectedItem="{Binding Sex, Mode=TwoWay}"
+                                                                  Width="86" Height="24" FontSize="10"
+                                                                  ToolTip="Male or female. The wardrobe pass dresses this character accordingly, the character sheet is generated as that person, and the prompt names them so H3 uses the right pronouns."/>
+                                                    </Grid>
+                                                    <TextBlock Text="&lt;Picture 2&gt; · optional — leave empty for a one-character video"
+                                                               FontSize="9" Foreground="{StaticResource TextMutedBrush}" Margin="0,0,0,4"/>
+                                                    <Grid>
+                                                        <Grid.ColumnDefinitions>
+                                                            <ColumnDefinition Width="98"/>
+                                                            <ColumnDefinition Width="6"/>
+                                                            <ColumnDefinition Width="*"/>
+                                                        </Grid.ColumnDefinitions>
+
+                                                        <Border Grid.Column="0" BorderBrush="{StaticResource BorderBrush}" BorderThickness="1"
+                                                                CornerRadius="6" Background="{StaticResource SurfaceAltBrush}" Height="92">
+                                                            <Grid>
+                                                                <TextBlock Text="Photo"
+                                                                           HorizontalAlignment="Center" VerticalAlignment="Center"
+                                                                           Foreground="{StaticResource TextMutedBrush}" FontSize="10">
+                                                                    <TextBlock.Style>
+                                                                        <Style TargetType="TextBlock">
+                                                                            <Setter Property="Visibility" Value="Collapsed"/>
+                                                                            <Style.Triggers>
+                                                                                <DataTrigger Binding="{Binding SourcePreview}" Value="{x:Null}">
+                                                                                    <Setter Property="Visibility" Value="Visible"/>
+                                                                                </DataTrigger>
+                                                                            </Style.Triggers>
+                                                                        </Style>
+                                                                    </TextBlock.Style>
+                                                                </TextBlock>
+                                                                <Image Source="{Binding SourcePreview}" Stretch="Uniform"/>
+                                                            </Grid>
+                                                        </Border>
+
+                                                        <Border Grid.Column="2" BorderBrush="{StaticResource BorderBrush}" BorderThickness="1"
+                                                                CornerRadius="6" Background="{StaticResource SurfaceAltBrush}" Height="92">
+                                                            <Grid>
+                                                                <TextBlock Text="Sheet → H3"
+                                                                           HorizontalAlignment="Center" VerticalAlignment="Center"
+                                                                           Foreground="{StaticResource TextMutedBrush}" FontSize="10">
+                                                                    <TextBlock.Style>
+                                                                        <Style TargetType="TextBlock">
+                                                                            <Setter Property="Visibility" Value="Collapsed"/>
+                                                                            <Style.Triggers>
+                                                                                <DataTrigger Binding="{Binding SheetPreview}" Value="{x:Null}">
+                                                                                    <Setter Property="Visibility" Value="Visible"/>
+                                                                                </DataTrigger>
+                                                                            </Style.Triggers>
+                                                                        </Style>
+                                                                    </TextBlock.Style>
+                                                                </TextBlock>
+                                                                <Image Source="{Binding SheetPreview}" Stretch="Uniform"/>
+                                                            </Grid>
+                                                        </Border>
+                                                    </Grid>
+
+                                                    <Grid Margin="0,6,0,0">
+                                                        <Grid.ColumnDefinitions>
+                                                            <ColumnDefinition Width="*"/>
+                                                            <ColumnDefinition Width="Auto"/>
+                                                        </Grid.ColumnDefinitions>
+                                                        <Button Grid.Column="0" Content="Browse…"
+                                                                Command="{Binding DataContext.SelectCharacter2Command, ElementName=H3CastRoot}"
+                                                                Height="26" Padding="8,0" FontSize="11" Margin="0,0,4,0"
+                                                                Background="{StaticResource SurfaceAltBrush}" Foreground="{DynamicResource TabAccentBrush}"
+                                                                BorderBrush="{StaticResource BorderBrush}" BorderThickness="1"/>
+                                                        <Button Grid.Column="1" Content="✕"
+                                                                Command="{Binding DataContext.ClearCharacter2Command, ElementName=H3CastRoot}"
+                                                                IsEnabled="{Binding HasSource}"
+                                                                Height="26" Width="26" FontSize="11"
+                                                                ToolTip="Clear the second character and run as a single-reference scene."
+                                                                Background="{StaticResource SurfaceAltBrush}" Foreground="{StaticResource TextSecondaryBrush}"
+                                                                BorderBrush="{StaticResource BorderBrush}" BorderThickness="1"/>
+                                                    </Grid>
+                                                    <CheckBox Content="This image is already a character sheet"
+                                                              IsChecked="{Binding UseSourceAsSheet}"
+                                                              IsEnabled="{Binding HasSource}"
+                                                              FontSize="10" Margin="0,6,0,0"
+                                                              Foreground="{StaticResource TextSecondaryBrush}"/>
+                                                    <Grid Margin="0,6,0,0">
+                                                        <Grid.ColumnDefinitions>
+                                                            <ColumnDefinition Width="Auto"/>
+                                                            <ColumnDefinition Width="*"/>
+                                                        </Grid.ColumnDefinitions>
+                                                        <TextBlock Grid.Column="0" Text="Panels" FontSize="10" VerticalAlignment="Center"
+                                                                   Foreground="{StaticResource TextSecondaryBrush}" Margin="0,0,6,0"/>
+                                                        <ComboBox Grid.Column="1" ItemsSource="{Binding PanelSplitOptions}"
+                                                                  DisplayMemberPath="Label" SelectedValuePath="Value"
+                                                                  SelectedValue="{Binding SelectedPanelSplit, Mode=TwoWay}"
+                                                                  IsEnabled="{Binding HasSheet}" Height="24" FontSize="10"
+                                                                  ToolTip="How this character's sheet is cut into separate reference images before it is sent to H3. Auto finds the gaps between the figures."/>
+                                                    </Grid>
+                                                    <TextBlock Text="{Binding SheetStatus}" FontSize="9" Margin="0,4,0,0"
+                                                               Foreground="{StaticResource TextSecondaryBrush}" FontStyle="Italic"
+                                                               TextTrimming="CharacterEllipsis"/>
+                                                    <TextBlock Text="{Binding PanelStatus}" FontSize="9" Margin="0,2,0,0"
+                                                               Foreground="{StaticResource TextMutedBrush}" FontStyle="Italic"
+                                                               TextWrapping="Wrap"/>
+                                                    <!-- The outfit this character's sheet is (or will be) built in. -->
+                                                    <TextBlock Text="{Binding ExpectedWardrobe, StringFormat=👗 {0}}"
+                                                               Visibility="{Binding ExpectedWardrobe, Converter={StaticResource StringToVisibilityConverter}}"
+                                                               FontSize="9" Margin="0,2,0,0"
+                                                               Foreground="{DynamicResource TabAccentBrush}" FontStyle="Italic"
+                                                               TextWrapping="Wrap"/>
+                                                </StackPanel>
+
+                                                <Button Content="{Binding BuildSheetsButtonText}"
+                                                        Command="{Binding BuildSheetsCommand}"
+                                                        IsEnabled="{Binding CanBuildSheets}"
+                                                        Height="32" FontSize="11" Margin="0,0,0,6"
+                                                        Style="{StaticResource AccentButtonStyle}"
+                                                        ToolTip="Runs Qwen-Image-Edit-2511 (int8 convrot, 8-step Lightning) once per character and turns each photo into a three-panel reference sheet on a plain studio background: full-body front, full-body back, face close-up. That sheet — not the photo — is what MiniMax H3 receives, which is how one image can carry silhouette, hair from behind and facial identity at once.&#x0a;&#x0a;The sheet is generated with the character wearing the locked wardrobe, so the reference photographs and every clip's prompt describe the same clothes. Change the wardrobe and the sheets must be rebuilt — the cast card says so when they no longer match.&#x0a;&#x0a;Safe to press while a video is rendering: it waits for the GPU and runs as soon as that job lets go, so the next pair of characters can be prepared without stopping the queue."/>
+
+                                                <!-- The builder's own status line: a render underneath owns
+                                                     the tab's status bar and progress bar. -->
+                                                <TextBlock Text="{Binding SheetPhase}"
+                                                           Visibility="{Binding IsBuildingSheets, Converter={StaticResource BooleanToVisibilityConverter}}"
+                                                           FontSize="10" FontWeight="SemiBold" Margin="0,0,0,6"
+                                                           Foreground="{DynamicResource TabAccentBrush}"
+                                                           TextWrapping="Wrap"/>
+
+                                                <TextBlock Text="{Binding CastSummary}"
+                                                           FontSize="10" Foreground="{StaticResource TextMutedBrush}" FontStyle="Italic"
+                                                           TextWrapping="Wrap"/>
+
+                                                <!-- Which <Picture n> maps to whom once the sheets are split. -->
+                                                <TextBlock Text="{Binding PanelPlanSummary}"
+                                                           FontSize="10" Margin="0,6,0,0"
+                                                           Foreground="{DynamicResource TabAccentBrush}" FontStyle="Italic"
+                                                           TextWrapping="Wrap"/>
                                             </StackPanel>
                                         </Border>
 
@@ -2631,7 +2689,7 @@
                                                            FontSize="10" FontWeight="SemiBold" Margin="0,6,0,0"
                                                            Foreground="{DynamicResource TabAccentBrush}" TextWrapping="Wrap"/>
 
-                                                <TextBlock Text="The sheet reference line is rewritten automatically to match how many characters are loaded. It tells H3 to take identity from the sheets but neither their studio background nor their clothing."
+                                                <TextBlock Text="The sheet reference line is rewritten automatically to match how many characters are loaded, which sex each of them is, and whether their sheets were built in the locked wardrobe — when they were, it tells H3 to copy the clothing out of the references rather than ignore it. The studio background is discarded either way."
                                                            FontSize="10" Foreground="{StaticResource TextMutedBrush}" FontStyle="Italic" Margin="0,6,0,0"
                                                            TextWrapping="Wrap"/>
                                             </StackPanel>
@@ -2985,6 +3043,1051 @@
                                                     </TextBlock.Style>
                                                 </TextBlock>
                                                 <MediaElement x:Name="H3CastVideoPlayer"
+                                                              Source="{Binding ResultVideoPath}"
+                                                              LoadedBehavior="Manual" UnloadedBehavior="Stop"
+                                                              Stretch="Uniform"
+                                                              Visibility="{Binding HasResult, Converter={StaticResource BooleanToVisibilityConverter}}"/>
+                                            </Grid>
+                                        </Border>
+
+                                        <StackPanel Orientation="Horizontal" Margin="0,0,0,6">
+                                            <Button Content="▶ Play" Style="{StaticResource PrimaryButtonStyle}"
+                                                    Command="{Binding PlayVideoCommand}"
+                                                    IsEnabled="{Binding HasResult}" Margin="0,0,8,0"/>
+                                            <Button Content="📁 Open Folder" Style="{StaticResource SecondaryButtonStyle}"
+                                                    Command="{Binding OpenResultFolderCommand}"
+                                                    IsEnabled="{Binding HasResult}"/>
+                                        </StackPanel>
+                                        <TextBlock Text="{Binding ResultVideoInfo}"
+                                                   FontStyle="Italic" Foreground="#666" FontSize="11"/>
+                                    </StackPanel>
+                                </Border>
+
+                                <!-- ─── Log ───────────────────────────────────────────────── -->
+                                <ctrl:ProcessingLogPanel Grid.Row="6" LogText="{Binding LogOutput}" MaxLogHeight="130"/>
+
+                            </Grid>
+                            </ScrollViewer>
+                        </Grid>
+                    </TabItem>
+
+                    <!-- ═══════════════════════════════════════════════════════════════
+                         H3 CAST HYBRID — the H3 Cast pipeline on MiniMax H3's hybrid
+                         fl2va+ref2va checkpoint, which completes supplied keyframes and
+                         generates from the character sheets in the SAME pass.
+
+                         Two kinds of picture go in, and the order matters:
+                           <Picture 1>…<Picture K>  keyframe stills, each locked to a
+                                                    timestamp — a hard cut that replaces
+                                                    pose, wardrobe and background at once
+                           <Picture K+1>…           the cast's sheet panels, identity
+                                                    references that must never be frames
+
+                         The alignment between the two lives inside the prompt text
+                         (six sections, `[keyframe completion + reference generation]`)
+                         rather than in a first/last-frame node — see
+                         prompts/h3-hybrid-prompting-guide.md. Four of those six sections
+                         are written in code from the reference list itself, so they
+                         cannot drift across a chain; the llama-server writes only the
+                         summary, the shots, the soundscape and the score.
+                         ═══════════════════════════════════════════════════════════════ -->
+                    <TabItem Header="🪪👥⚡ H3 Cast Hybrid">
+                        <!-- Named so the per-character cards, whose DataContext is a CharacterSlot, can
+                             still reach the tab's own commands. -->
+                        <Grid x:Name="H3CastHybridRoot" DataContext="{Binding H3CastHybridVM}" Style="{StaticResource TabPageStyle}">
+                            <Grid.Resources>
+                                <SolidColorBrush x:Key="TabAccentBrush" Color="{StaticResource AccentIndigoColor}"/>
+                            </Grid.Resources>
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="340"/>
+                                <ColumnDefinition Width="*"/>
+                            </Grid.ColumnDefinitions>
+
+                            <!-- ═══ LEFT PANEL ═══════════════════════════════════════════════ -->
+                            <Border Grid.Column="0" Style="{StaticResource TabSideRailStyle}">
+                                <ScrollViewer VerticalScrollBarVisibility="Auto">
+                                    <StackPanel Margin="12">
+
+                                        <!-- ─── Keyframes: the timeline locks ────────────────────
+                                             These ARE frames. Everything else attached to this tab
+                                             is a reference that must not become one. -->
+                                        <Border Style="{StaticResource SectionCardStyle}">
+                                            <StackPanel>
+                                                <ctrl:SectionHeader Title="KEYFRAMES" Note="  · stills the video must land on exactly" Margin="0,0,0,10"/>
+
+                                                <ItemsControl ItemsSource="{Binding Keyframes}" Margin="0,0,0,8">
+                                                    <ItemsControl.ItemTemplate>
+                                                        <DataTemplate>
+                                                            <Border BorderBrush="{StaticResource BorderBrush}" BorderThickness="1"
+                                                                    CornerRadius="4" Padding="6" Margin="0,0,0,4"
+                                                                    Background="{StaticResource SurfaceAltBrush}">
+                                                                <Grid>
+                                                                    <Grid.ColumnDefinitions>
+                                                                        <ColumnDefinition Width="Auto"/>
+                                                                        <ColumnDefinition Width="*"/>
+                                                                        <ColumnDefinition Width="Auto"/>
+                                                                        <ColumnDefinition Width="Auto"/>
+                                                                    </Grid.ColumnDefinitions>
+                                                                    <Image Grid.Column="0" Source="{Binding Preview}"
+                                                                           Height="46" Width="60" Stretch="Uniform" Margin="0,0,8,0"/>
+                                                                    <StackPanel Grid.Column="1" VerticalAlignment="Center">
+                                                                        <TextBlock Text="{Binding FileName}" FontSize="10" FontWeight="SemiBold"
+                                                                                   TextTrimming="CharacterEllipsis"
+                                                                                   Foreground="{StaticResource TextPrimaryBrush}"/>
+                                                                        <TextBlock Text="{Binding Info}" FontSize="9" FontStyle="Italic"
+                                                                                   Foreground="{StaticResource TextMutedBrush}"
+                                                                                   TextTrimming="CharacterEllipsis"/>
+                                                                    </StackPanel>
+                                                                    <!-- The lock timestamp. It is written into the prompt to
+                                                                         hundredths, so that is the precision it is edited at. -->
+                                                                    <TextBox Grid.Column="2" Width="52" Height="24" FontSize="11"
+                                                                             VerticalContentAlignment="Center" Margin="0,0,4,0"
+                                                                             FontFamily="Consolas"
+                                                                             Text="{Binding Seconds, StringFormat={}{0:0.00}, UpdateSourceTrigger=LostFocus}"
+                                                                             BorderBrush="{StaticResource BorderBrush}" Background="White"
+                                                                             ToolTip="The second this still is locked at. The first keyframe should be 0.00 — that is the exact opening frame. A lock at the very end is deliberately not supported: the clip runs on from the last keyframe with no end-frame lock."/>
+                                                                    <Button Grid.Column="3" Content="✕"
+                                                                            Command="{Binding DataContext.RemoveKeyframeCommand, RelativeSource={RelativeSource AncestorType=ItemsControl}}"
+                                                                            CommandParameter="{Binding}"
+                                                                            Width="24" Height="24" FontSize="10" Padding="0"
+                                                                            VerticalAlignment="Center"
+                                                                            Background="White" Foreground="{StaticResource TextSecondaryBrush}"
+                                                                            BorderBrush="{StaticResource BorderBrush}" BorderThickness="1"/>
+                                                                </Grid>
+                                                            </Border>
+                                                        </DataTemplate>
+                                                    </ItemsControl.ItemTemplate>
+                                                </ItemsControl>
+
+                                                <Grid Margin="0,0,0,6">
+                                                    <Grid.ColumnDefinitions>
+                                                        <ColumnDefinition Width="*"/>
+                                                        <ColumnDefinition Width="Auto"/>
+                                                        <ColumnDefinition Width="Auto"/>
+                                                    </Grid.ColumnDefinitions>
+                                                    <Button Grid.Column="0" Content="➕ Add keyframe"
+                                                            Command="{Binding AddKeyframeCommand}"
+                                                            IsEnabled="{Binding CanAddKeyframe}"
+                                                            Height="26" Padding="8,0" FontSize="11" Margin="0,0,4,0"
+                                                            Background="{StaticResource SurfaceAltBrush}" Foreground="{DynamicResource TabAccentBrush}"
+                                                            BorderBrush="{StaticResource BorderBrush}" BorderThickness="1"
+                                                            ToolTip="Adds a still the video must land on exactly. The first one becomes the opening frame at 0.00s; every later one is a hard cut that replaces pose, outfit and background together at its timestamp.&#x0a;&#x0a;Keyframes and the cast's sheet panels share the reference node's nine slots, so this greys out once they are all spoken for."/>
+                                                    <Button Grid.Column="1" Content="⇔ Spread"
+                                                            Command="{Binding SpreadKeyframesCommand}"
+                                                            Height="26" Padding="8,0" FontSize="11" Margin="0,0,4,0"
+                                                            Background="{StaticResource SurfaceAltBrush}" Foreground="{StaticResource TextSecondaryBrush}"
+                                                            BorderBrush="{StaticResource BorderBrush}" BorderThickness="1"
+                                                            ToolTip="Re-spaces every keyframe evenly, the first at 0.00s and the last about two-thirds of the way in, so the final beat has room to play out rather than the clip ending on a cut."/>
+                                                    <Button Grid.Column="2" Content="✕"
+                                                            Command="{Binding ClearKeyframesCommand}"
+                                                            Height="26" Width="26" FontSize="11"
+                                                            Background="{StaticResource SurfaceAltBrush}" Foreground="{StaticResource TextSecondaryBrush}"
+                                                            BorderBrush="{StaticResource BorderBrush}" BorderThickness="1"
+                                                            ToolTip="Remove every keyframe. The clip then becomes a plain reference-driven continuous take."/>
+                                                </Grid>
+
+                                                <TextBlock Text="{Binding KeyframeSummary}"
+                                                           FontSize="10" Foreground="{StaticResource TextMutedBrush}" FontStyle="Italic"
+                                                           TextWrapping="Wrap"/>
+                                            </StackPanel>
+                                        </Border>
+
+                                        <!-- Scene & story: two ways in, either one is enough.
+                                             The scene image is never uploaded — unlike a keyframe,
+                                             which is. It carries setting, light and wardrobe; the
+                                             story carries what happens. -->
+                                        <Border Style="{StaticResource SectionCardStyle}">
+                                            <StackPanel>
+                                                <ctrl:SectionHeader Title="SCENE &amp; STORY" Note="  · either one is enough — and the wardrobe comes from it" Margin="0,0,0,10"/>
+
+                                                <Grid Margin="0,0,0,8">
+                                                    <Grid.ColumnDefinitions>
+                                                        <ColumnDefinition Width="124"/>
+                                                        <ColumnDefinition Width="8"/>
+                                                        <ColumnDefinition Width="*"/>
+                                                    </Grid.ColumnDefinitions>
+
+                                                    <StackPanel Grid.Column="0">
+                                                        <TextBlock Text="Scene image" FontSize="10" FontWeight="SemiBold"
+                                                                   Foreground="{StaticResource TextSecondaryBrush}" Margin="0,0,0,4"/>
+                                                        <Border BorderBrush="{StaticResource BorderBrush}" BorderThickness="1" CornerRadius="6"
+                                                                Background="{StaticResource SurfaceAltBrush}" Height="126" Margin="0,0,0,6">
+                                                            <Grid>
+                                                                <TextBlock Text="Optional"
+                                                                           HorizontalAlignment="Center" VerticalAlignment="Center"
+                                                                           Foreground="{StaticResource TextMutedBrush}" FontSize="10">
+                                                                    <TextBlock.Style>
+                                                                        <Style TargetType="TextBlock">
+                                                                            <Setter Property="Visibility" Value="Collapsed"/>
+                                                                            <Style.Triggers>
+                                                                                <DataTrigger Binding="{Binding SceneImagePreview}" Value="{x:Null}">
+                                                                                    <Setter Property="Visibility" Value="Visible"/>
+                                                                                </DataTrigger>
+                                                                            </Style.Triggers>
+                                                                        </Style>
+                                                                    </TextBlock.Style>
+                                                                </TextBlock>
+                                                                <Image Source="{Binding SceneImagePreview}" Stretch="Uniform"/>
+                                                            </Grid>
+                                                        </Border>
+                                                        <Grid>
+                                                            <Grid.ColumnDefinitions>
+                                                                <ColumnDefinition Width="*"/>
+                                                                <ColumnDefinition Width="Auto"/>
+                                                            </Grid.ColumnDefinitions>
+                                                            <Button Grid.Column="0" Content="Browse…"
+                                                                    Command="{Binding SelectSceneImageCommand}"
+                                                                    Height="26" Padding="6,0" FontSize="11" Margin="0,0,4,0"
+                                                                    Background="{StaticResource SurfaceAltBrush}" Foreground="{DynamicResource TabAccentBrush}"
+                                                                    BorderBrush="{StaticResource BorderBrush}" BorderThickness="1"
+                                                                    ToolTip="The scene image is NEVER uploaded — only the llama-server sees it. It supplies setting, lighting, art style and the wardrobe. A picture you want on screen is a keyframe, not a scene image."/>
+                                                            <Button Grid.Column="1" Content="✕"
+                                                                    Command="{Binding ClearSceneImageCommand}"
+                                                                    IsEnabled="{Binding HasSceneImage}"
+                                                                    Height="26" Width="26" FontSize="11"
+                                                                    Background="{StaticResource SurfaceAltBrush}" Foreground="{StaticResource TextSecondaryBrush}"
+                                                                    BorderBrush="{StaticResource BorderBrush}" BorderThickness="1"/>
+                                                        </Grid>
+                                                        <TextBlock Text="{Binding SceneImageInfo}" FontSize="9" Margin="0,4,0,0"
+                                                                   Foreground="{StaticResource TextSecondaryBrush}" FontStyle="Italic"
+                                                                   TextTrimming="CharacterEllipsis"/>
+                                                    </StackPanel>
+
+                                                    <StackPanel Grid.Column="2">
+                                                        <TextBlock Text="Story" FontSize="10" FontWeight="SemiBold"
+                                                                   Foreground="{StaticResource TextSecondaryBrush}" Margin="0,0,0,4"/>
+                                                        <TextBox Text="{Binding StoryText, UpdateSourceTrigger=PropertyChanged}"
+                                                                 TextWrapping="Wrap" AcceptsReturn="True" AcceptsTab="False"
+                                                                 Height="126" VerticalScrollBarVisibility="Auto" Margin="0,0,0,6"
+                                                                 BorderBrush="{StaticResource BorderBrush}" Background="{StaticResource SurfaceAltBrush}"
+                                                                 FontSize="11" Padding="6"
+                                                                 ToolTip="What happens between the keyframe locks. With a scene image it is the brief that image is dressed with; on its own it is the whole input, and Analyze writes the setting, lighting and wardrobe out of the prose."/>
+                                                        <Grid>
+                                                            <Grid.ColumnDefinitions>
+                                                                <ColumnDefinition Width="*"/>
+                                                                <ColumnDefinition Width="Auto"/>
+                                                            </Grid.ColumnDefinitions>
+                                                            <Button Grid.Column="0" Content="📄 Load .txt"
+                                                                    Command="{Binding LoadStoryCommand}"
+                                                                    Height="26" Padding="6,0" FontSize="11" Margin="0,0,4,0"
+                                                                    Background="{StaticResource SurfaceAltBrush}" Foreground="{DynamicResource TabAccentBrush}"
+                                                                    BorderBrush="{StaticResource BorderBrush}" BorderThickness="1"/>
+                                                            <Button Grid.Column="1" Content="✕"
+                                                                    Command="{Binding ClearStoryCommand}"
+                                                                    Height="26" Width="26" FontSize="11"
+                                                                    Background="{StaticResource SurfaceAltBrush}" Foreground="{StaticResource TextSecondaryBrush}"
+                                                                    BorderBrush="{StaticResource BorderBrush}" BorderThickness="1"/>
+                                                        </Grid>
+                                                    </StackPanel>
+                                                </Grid>
+
+                                                <TextBlock Text="{Binding StorySourceSummary}"
+                                                           FontSize="10" Foreground="{StaticResource TextMutedBrush}" FontStyle="Italic"
+                                                           TextWrapping="Wrap" Margin="0,0,0,10"/>
+
+                                                <!-- Wardrobe. Decided once and written into every clip's
+                                                     prompt verbatim — a keyframe still wins at its own
+                                                     timestamp, and this covers everything between them. -->
+                                                <Grid Margin="0,0,0,4">
+                                                    <Grid.ColumnDefinitions>
+                                                        <ColumnDefinition Width="*"/>
+                                                        <ColumnDefinition Width="Auto"/>
+                                                        <ColumnDefinition Width="Auto"/>
+                                                        <ColumnDefinition Width="Auto"/>
+                                                    </Grid.ColumnDefinitions>
+                                                    <TextBlock Grid.Column="0" Text="Wardrobe — derived from the story"
+                                                               FontSize="10" FontWeight="SemiBold" VerticalAlignment="Center"
+                                                               Foreground="{StaticResource TextSecondaryBrush}"/>
+                                                    <Button Grid.Column="1" Content="{Binding WardrobeLockButtonText}"
+                                                            Command="{Binding ToggleWardrobeLockCommand}"
+                                                            Height="24" Padding="8,0" FontSize="10" Margin="0,0,4,0"
+                                                            Background="{StaticResource SurfaceAltBrush}" Foreground="{StaticResource TextSecondaryBrush}"
+                                                            BorderBrush="{StaticResource BorderBrush}" BorderThickness="1"
+                                                            ToolTip="Locked, the wardrobe is the story's: it is rewritten whenever the story, the scene image or the cast changes, and cannot be typed over.&#x0a;&#x0a;Unlock to dress the cast yourself — your text then stands. Press ✎ Re-stamp afterwards to write it into the prompt already in the box."/>
+                                                    <Button Grid.Column="2" Content="🎽 Derive"
+                                                            Command="{Binding DeriveWardrobeCommand}"
+                                                            Height="24" Padding="8,0" FontSize="10" Margin="0,0,4,0"
+                                                            Background="{StaticResource SurfaceAltBrush}" Foreground="{DynamicResource TabAccentBrush}"
+                                                            BorderBrush="{StaticResource BorderBrush}" BorderThickness="1"
+                                                            ToolTip="Re-rolls the outfits now — off the scene image if there is one, otherwise out of the story. The sheets are built from whatever is in this box, so derive before you build them."/>
+                                                    <Button Grid.Column="3" Content="✕"
+                                                            Command="{Binding ClearWardrobeCommand}"
+                                                            Height="24" Width="24" FontSize="10"
+                                                            Background="{StaticResource SurfaceAltBrush}" Foreground="{StaticResource TextSecondaryBrush}"
+                                                            BorderBrush="{StaticResource BorderBrush}" BorderThickness="1"/>
+                                                </Grid>
+                                                <TextBox Text="{Binding CastWardrobe, UpdateSourceTrigger=PropertyChanged}"
+                                                         IsReadOnly="{Binding IsWardrobeLocked}"
+                                                         TextWrapping="Wrap" AcceptsReturn="True" AcceptsTab="False"
+                                                         Height="64" VerticalScrollBarVisibility="Auto" Margin="0,0,0,4"
+                                                         BorderBrush="{StaticResource BorderBrush}" Background="{StaticResource SurfaceAltBrush}"
+                                                         FontSize="11" Padding="6"
+                                                         ToolTip="One line per character, naming every garment. It is what the character sheets are generated in AND what every clip's prompt quotes — picture and words then agree, which is what stops the cast changing outfits between clips.&#x0a;&#x0a;Read-only while locked; press 🔒 to take it over."/>
+                                                <TextBlock Text="{Binding WardrobeSummary}"
+                                                           FontSize="10" Foreground="{StaticResource TextMutedBrush}" FontStyle="Italic"
+                                                           TextWrapping="Wrap" Margin="0,0,0,10"/>
+
+                                                <!-- Total video length. The keyframes live inside ONE pass,
+                                                     so a chain puts them in clip 1 and lets the rest run as
+                                                     continuous takes. -->
+                                                <Grid Margin="0,0,0,6">
+                                                    <Grid.ColumnDefinitions>
+                                                        <ColumnDefinition Width="*"/>
+                                                        <ColumnDefinition Width="Auto"/>
+                                                    </Grid.ColumnDefinitions>
+                                                    <TextBlock Grid.Column="0" Text="Video length" FontSize="10" FontWeight="SemiBold"
+                                                               Foreground="{StaticResource TextSecondaryBrush}" VerticalAlignment="Center"/>
+                                                    <Border Grid.Column="1" Background="{StaticResource SurfaceAltBrush}"
+                                                            BorderBrush="{StaticResource BorderBrush}" BorderThickness="1"
+                                                            CornerRadius="4" Padding="10,2">
+                                                        <TextBlock Text="{Binding StoryDurationSeconds, StringFormat={}{0:0} s}"
+                                                                   FontFamily="Consolas" FontSize="13" FontWeight="Bold"
+                                                                   Foreground="{DynamicResource TabAccentBrush}"/>
+                                                    </Border>
+                                                </Grid>
+                                                <Slider Value="{Binding StoryDurationSeconds}"
+                                                        Minimum="5" Maximum="120"
+                                                        TickFrequency="5" IsSnapToTickEnabled="True"
+                                                        SmallChange="5" LargeChange="15"
+                                                        Foreground="{DynamicResource TabAccentBrush}" Margin="0,0,0,4"
+                                                        ToolTip="Length of the finished video. MiniMax H3 renders at most ~15s per pass, so anything longer is written as a chain of consecutive clips — and because a keyframe is a timestamp inside one pass, the locks belong to clip 1 only."/>
+                                                <TextBlock Text="{Binding ClipPlanSummary}"
+                                                           FontSize="10" Foreground="{StaticResource TextMutedBrush}" FontStyle="Italic"
+                                                           TextWrapping="Wrap" Margin="0,0,0,10"/>
+                                            </StackPanel>
+                                        </Border>
+
+                                        <!-- Cast: photo in, sheet out. Identity references only —
+                                             these are the pictures that must never become frames. -->
+                                        <Border Style="{StaticResource SectionCardStyle}">
+                                            <StackPanel>
+                                                <ctrl:SectionHeader Title="CAST" Note="  · one photo per character, dressed from the wardrobe above" Margin="0,0,0,10"/>
+
+                                                <!-- Character 1 -->
+                                                <StackPanel DataContext="{Binding Character1}" Margin="0,0,0,10">
+                                                    <Grid Margin="0,0,0,4">
+                                                        <Grid.ColumnDefinitions>
+                                                            <ColumnDefinition Width="*"/>
+                                                            <ColumnDefinition Width="Auto"/>
+                                                        </Grid.ColumnDefinitions>
+                                                        <TextBlock Grid.Column="0" Text="{Binding Label}" FontSize="11" FontWeight="Bold"
+                                                                   VerticalAlignment="Center"
+                                                                   Foreground="{StaticResource TextPrimaryBrush}"/>
+                                                        <ComboBox Grid.Column="1" ItemsSource="{Binding SexOptions}"
+                                                                  SelectedItem="{Binding Sex, Mode=TwoWay}"
+                                                                  Width="86" Height="24" FontSize="10"
+                                                                  ToolTip="Male or female. The wardrobe pass dresses this character accordingly, the sheet is generated as that person, and the prompt names them so H3 uses the right pronouns."/>
+                                                    </Grid>
+                                                    <TextBlock Text="&lt;Subject 1&gt; · named in the prompt; their pictures follow the keyframes"
+                                                               FontSize="9" Foreground="{StaticResource TextMutedBrush}" Margin="0,0,0,4"/>
+                                                    <Grid>
+                                                        <Grid.ColumnDefinitions>
+                                                            <ColumnDefinition Width="98"/>
+                                                            <ColumnDefinition Width="6"/>
+                                                            <ColumnDefinition Width="*"/>
+                                                        </Grid.ColumnDefinitions>
+
+                                                        <Border Grid.Column="0" BorderBrush="{StaticResource BorderBrush}" BorderThickness="1"
+                                                                CornerRadius="6" Background="{StaticResource SurfaceAltBrush}" Height="92">
+                                                            <Grid>
+                                                                <TextBlock Text="Photo"
+                                                                           HorizontalAlignment="Center" VerticalAlignment="Center"
+                                                                           Foreground="{StaticResource TextMutedBrush}" FontSize="10">
+                                                                    <TextBlock.Style>
+                                                                        <Style TargetType="TextBlock">
+                                                                            <Setter Property="Visibility" Value="Collapsed"/>
+                                                                            <Style.Triggers>
+                                                                                <DataTrigger Binding="{Binding SourcePreview}" Value="{x:Null}">
+                                                                                    <Setter Property="Visibility" Value="Visible"/>
+                                                                                </DataTrigger>
+                                                                            </Style.Triggers>
+                                                                        </Style>
+                                                                    </TextBlock.Style>
+                                                                </TextBlock>
+                                                                <Image Source="{Binding SourcePreview}" Stretch="Uniform"/>
+                                                            </Grid>
+                                                        </Border>
+
+                                                        <Border Grid.Column="2" BorderBrush="{StaticResource BorderBrush}" BorderThickness="1"
+                                                                CornerRadius="6" Background="{StaticResource SurfaceAltBrush}" Height="92">
+                                                            <Grid>
+                                                                <TextBlock Text="Sheet → H3"
+                                                                           HorizontalAlignment="Center" VerticalAlignment="Center"
+                                                                           Foreground="{StaticResource TextMutedBrush}" FontSize="10">
+                                                                    <TextBlock.Style>
+                                                                        <Style TargetType="TextBlock">
+                                                                            <Setter Property="Visibility" Value="Collapsed"/>
+                                                                            <Style.Triggers>
+                                                                                <DataTrigger Binding="{Binding SheetPreview}" Value="{x:Null}">
+                                                                                    <Setter Property="Visibility" Value="Visible"/>
+                                                                                </DataTrigger>
+                                                                            </Style.Triggers>
+                                                                        </Style>
+                                                                    </TextBlock.Style>
+                                                                </TextBlock>
+                                                                <Image Source="{Binding SheetPreview}" Stretch="Uniform"/>
+                                                            </Grid>
+                                                        </Border>
+                                                    </Grid>
+
+                                                    <Button Content="Browse…"
+                                                            Command="{Binding DataContext.SelectCharacter1Command, ElementName=H3CastHybridRoot}"
+                                                            Height="26" Padding="8,0" FontSize="11" Margin="0,6,0,0"
+                                                            Background="{StaticResource SurfaceAltBrush}" Foreground="{DynamicResource TabAccentBrush}"
+                                                            BorderBrush="{StaticResource BorderBrush}" BorderThickness="1"/>
+                                                    <CheckBox Content="This image is already a character sheet"
+                                                              IsChecked="{Binding UseSourceAsSheet}"
+                                                              IsEnabled="{Binding HasSource}"
+                                                              FontSize="10" Margin="0,6,0,0"
+                                                              Foreground="{StaticResource TextSecondaryBrush}"
+                                                              ToolTip="Skip the Qwen pass and send the loaded image to H3 as it is."/>
+                                                    <Grid Margin="0,6,0,0">
+                                                        <Grid.ColumnDefinitions>
+                                                            <ColumnDefinition Width="Auto"/>
+                                                            <ColumnDefinition Width="*"/>
+                                                        </Grid.ColumnDefinitions>
+                                                        <TextBlock Grid.Column="0" Text="Panels" FontSize="10" VerticalAlignment="Center"
+                                                                   Foreground="{StaticResource TextSecondaryBrush}" Margin="0,0,6,0"/>
+                                                        <ComboBox Grid.Column="1" ItemsSource="{Binding PanelSplitOptions}"
+                                                                  DisplayMemberPath="Label" SelectedValuePath="Value"
+                                                                  SelectedValue="{Binding SelectedPanelSplit, Mode=TwoWay}"
+                                                                  IsEnabled="{Binding HasSheet}" Height="24" FontSize="10"
+                                                                  ToolTip="H3 conditions on each reference image as ONE subject, so a three-panel sheet handed over whole is a three-panel grid it will happily render into the video. The sheet is therefore cut back into its separate views before it is sent, one reference per view.&#x0a;&#x0a;Each panel costs a reference slot, and the keyframes are spending them too — the picture plan below says how many are left."/>
+                                                    </Grid>
+                                                    <TextBlock Text="{Binding SheetStatus}" FontSize="9" Margin="0,4,0,0"
+                                                               Foreground="{StaticResource TextSecondaryBrush}" FontStyle="Italic"
+                                                               TextTrimming="CharacterEllipsis"/>
+                                                    <TextBlock Text="{Binding PanelStatus}" FontSize="9" Margin="0,2,0,0"
+                                                               Foreground="{StaticResource TextMutedBrush}" FontStyle="Italic"
+                                                               TextWrapping="Wrap"/>
+                                                    <TextBlock Text="{Binding ExpectedWardrobe, StringFormat=👗 {0}}"
+                                                               Visibility="{Binding ExpectedWardrobe, Converter={StaticResource StringToVisibilityConverter}}"
+                                                               FontSize="9" Margin="0,2,0,0"
+                                                               Foreground="{DynamicResource TabAccentBrush}" FontStyle="Italic"
+                                                               TextWrapping="Wrap"/>
+                                                </StackPanel>
+
+                                                <!-- Character 2 -->
+                                                <StackPanel DataContext="{Binding Character2}" Margin="0,0,0,8">
+                                                    <Grid Margin="0,0,0,4">
+                                                        <Grid.ColumnDefinitions>
+                                                            <ColumnDefinition Width="*"/>
+                                                            <ColumnDefinition Width="Auto"/>
+                                                        </Grid.ColumnDefinitions>
+                                                        <TextBlock Grid.Column="0" Text="{Binding Label}" FontSize="11" FontWeight="Bold"
+                                                                   VerticalAlignment="Center"
+                                                                   Foreground="{StaticResource TextPrimaryBrush}"/>
+                                                        <ComboBox Grid.Column="1" ItemsSource="{Binding SexOptions}"
+                                                                  SelectedItem="{Binding Sex, Mode=TwoWay}"
+                                                                  Width="86" Height="24" FontSize="10"/>
+                                                    </Grid>
+                                                    <TextBlock Text="&lt;Subject 2&gt; · optional — leave empty for a one-character video"
+                                                               FontSize="9" Foreground="{StaticResource TextMutedBrush}" Margin="0,0,0,4"/>
+                                                    <Grid>
+                                                        <Grid.ColumnDefinitions>
+                                                            <ColumnDefinition Width="98"/>
+                                                            <ColumnDefinition Width="6"/>
+                                                            <ColumnDefinition Width="*"/>
+                                                        </Grid.ColumnDefinitions>
+
+                                                        <Border Grid.Column="0" BorderBrush="{StaticResource BorderBrush}" BorderThickness="1"
+                                                                CornerRadius="6" Background="{StaticResource SurfaceAltBrush}" Height="92">
+                                                            <Grid>
+                                                                <TextBlock Text="Photo"
+                                                                           HorizontalAlignment="Center" VerticalAlignment="Center"
+                                                                           Foreground="{StaticResource TextMutedBrush}" FontSize="10">
+                                                                    <TextBlock.Style>
+                                                                        <Style TargetType="TextBlock">
+                                                                            <Setter Property="Visibility" Value="Collapsed"/>
+                                                                            <Style.Triggers>
+                                                                                <DataTrigger Binding="{Binding SourcePreview}" Value="{x:Null}">
+                                                                                    <Setter Property="Visibility" Value="Visible"/>
+                                                                                </DataTrigger>
+                                                                            </Style.Triggers>
+                                                                        </Style>
+                                                                    </TextBlock.Style>
+                                                                </TextBlock>
+                                                                <Image Source="{Binding SourcePreview}" Stretch="Uniform"/>
+                                                            </Grid>
+                                                        </Border>
+
+                                                        <Border Grid.Column="2" BorderBrush="{StaticResource BorderBrush}" BorderThickness="1"
+                                                                CornerRadius="6" Background="{StaticResource SurfaceAltBrush}" Height="92">
+                                                            <Grid>
+                                                                <TextBlock Text="Sheet → H3"
+                                                                           HorizontalAlignment="Center" VerticalAlignment="Center"
+                                                                           Foreground="{StaticResource TextMutedBrush}" FontSize="10">
+                                                                    <TextBlock.Style>
+                                                                        <Style TargetType="TextBlock">
+                                                                            <Setter Property="Visibility" Value="Collapsed"/>
+                                                                            <Style.Triggers>
+                                                                                <DataTrigger Binding="{Binding SheetPreview}" Value="{x:Null}">
+                                                                                    <Setter Property="Visibility" Value="Visible"/>
+                                                                                </DataTrigger>
+                                                                            </Style.Triggers>
+                                                                        </Style>
+                                                                    </TextBlock.Style>
+                                                                </TextBlock>
+                                                                <Image Source="{Binding SheetPreview}" Stretch="Uniform"/>
+                                                            </Grid>
+                                                        </Border>
+                                                    </Grid>
+
+                                                    <Grid Margin="0,6,0,0">
+                                                        <Grid.ColumnDefinitions>
+                                                            <ColumnDefinition Width="*"/>
+                                                            <ColumnDefinition Width="Auto"/>
+                                                        </Grid.ColumnDefinitions>
+                                                        <Button Grid.Column="0" Content="Browse…"
+                                                                Command="{Binding DataContext.SelectCharacter2Command, ElementName=H3CastHybridRoot}"
+                                                                Height="26" Padding="8,0" FontSize="11" Margin="0,0,4,0"
+                                                                Background="{StaticResource SurfaceAltBrush}" Foreground="{DynamicResource TabAccentBrush}"
+                                                                BorderBrush="{StaticResource BorderBrush}" BorderThickness="1"/>
+                                                        <Button Grid.Column="1" Content="✕"
+                                                                Command="{Binding DataContext.ClearCharacter2Command, ElementName=H3CastHybridRoot}"
+                                                                IsEnabled="{Binding HasSource}"
+                                                                Height="26" Width="26" FontSize="11"
+                                                                Background="{StaticResource SurfaceAltBrush}" Foreground="{StaticResource TextSecondaryBrush}"
+                                                                BorderBrush="{StaticResource BorderBrush}" BorderThickness="1"/>
+                                                    </Grid>
+                                                    <CheckBox Content="This image is already a character sheet"
+                                                              IsChecked="{Binding UseSourceAsSheet}"
+                                                              IsEnabled="{Binding HasSource}"
+                                                              FontSize="10" Margin="0,6,0,0"
+                                                              Foreground="{StaticResource TextSecondaryBrush}"/>
+                                                    <Grid Margin="0,6,0,0">
+                                                        <Grid.ColumnDefinitions>
+                                                            <ColumnDefinition Width="Auto"/>
+                                                            <ColumnDefinition Width="*"/>
+                                                        </Grid.ColumnDefinitions>
+                                                        <TextBlock Grid.Column="0" Text="Panels" FontSize="10" VerticalAlignment="Center"
+                                                                   Foreground="{StaticResource TextSecondaryBrush}" Margin="0,0,6,0"/>
+                                                        <ComboBox Grid.Column="1" ItemsSource="{Binding PanelSplitOptions}"
+                                                                  DisplayMemberPath="Label" SelectedValuePath="Value"
+                                                                  SelectedValue="{Binding SelectedPanelSplit, Mode=TwoWay}"
+                                                                  IsEnabled="{Binding HasSheet}" Height="24" FontSize="10"/>
+                                                    </Grid>
+                                                    <TextBlock Text="{Binding SheetStatus}" FontSize="9" Margin="0,4,0,0"
+                                                               Foreground="{StaticResource TextSecondaryBrush}" FontStyle="Italic"
+                                                               TextTrimming="CharacterEllipsis"/>
+                                                    <TextBlock Text="{Binding PanelStatus}" FontSize="9" Margin="0,2,0,0"
+                                                               Foreground="{StaticResource TextMutedBrush}" FontStyle="Italic"
+                                                               TextWrapping="Wrap"/>
+                                                    <TextBlock Text="{Binding ExpectedWardrobe, StringFormat=👗 {0}}"
+                                                               Visibility="{Binding ExpectedWardrobe, Converter={StaticResource StringToVisibilityConverter}}"
+                                                               FontSize="9" Margin="0,2,0,0"
+                                                               Foreground="{DynamicResource TabAccentBrush}" FontStyle="Italic"
+                                                               TextWrapping="Wrap"/>
+                                                </StackPanel>
+
+                                                <Button Content="{Binding BuildSheetsButtonText}"
+                                                        Command="{Binding BuildSheetsCommand}"
+                                                        IsEnabled="{Binding CanBuildSheets}"
+                                                        Height="32" FontSize="11" Margin="0,0,0,6"
+                                                        Style="{StaticResource AccentButtonStyle}"
+                                                        ToolTip="Runs Qwen-Image-Edit-2511 once per character and turns each photo into a three-panel reference sheet on a plain studio background: full-body front, full-body back, face close-up — wearing the locked wardrobe.&#x0a;&#x0a;Safe to press while a video is rendering: it waits for the GPU and runs as soon as that job lets go."/>
+
+                                                <TextBlock Text="{Binding SheetPhase}"
+                                                           Visibility="{Binding IsBuildingSheets, Converter={StaticResource BooleanToVisibilityConverter}}"
+                                                           FontSize="10" FontWeight="SemiBold" Margin="0,0,0,6"
+                                                           Foreground="{DynamicResource TabAccentBrush}"
+                                                           TextWrapping="Wrap"/>
+
+                                                <!-- Analyze runs on the llama-server: one turn, no progress of its own, and minutes
+                                                     of it for a chain. The bar and the clock below are the only sign it is alive. -->
+                                                <StackPanel Margin="0,0,0,6">
+                                                    <StackPanel Orientation="Horizontal">
+                                                        <Button Content="{Binding AnalyzeButtonText}"
+                                                                Command="{Binding AnalyzeCommand}"
+                                                                IsEnabled="{Binding CanAnalyze}"
+                                                                Height="32" Padding="14,0" FontSize="11" Margin="0,0,6,0"
+                                                                Style="{StaticResource AccentButtonStyle}"
+                                                                ToolTip="Asks the llama-server for the four sections it is good at — summary, the shot list, the soundscape and the score — telling it exactly which picture numbers are frame locks and at what timestamps. The other two sections (subject_definitions, retention_analysis), the alignment paragraph and the global negatives are written here in code from the reference list itself, so they cannot drift."/>
+                                                        <Button Content="✎ Re-stamp"
+                                                                Command="{Binding RestampCommand}"
+                                                                Height="32" Padding="10,0" FontSize="11"
+                                                                Background="{StaticResource SurfaceAltBrush}" Foreground="{DynamicResource TabAccentBrush}"
+                                                                BorderBrush="{StaticResource BorderBrush}" BorderThickness="1"
+                                                                ToolTip="Rebuilds the code-written half of the prompt already in the box against the keyframes, cast and wardrobe as they stand now — no llama-server round trip. Press it after adding a keyframe, changing a timestamp, editing the wardrobe or switching a character's sex."/>
+                                                    </StackPanel>
+
+                                                    <StackPanel Margin="0,6,0,0"
+                                                                Visibility="{Binding IsAnalyzing, Converter={StaticResource BooleanToVisibilityConverter}}">
+                                                        <ProgressBar IsIndeterminate="True" Height="6" Margin="0,0,0,3"
+                                                                     Background="{StaticResource SurfaceAltBrush}"
+                                                                     BorderBrush="{StaticResource BorderBrush}" BorderThickness="1"
+                                                                     Foreground="{DynamicResource TabAccentBrush}"/>
+                                                        <TextBlock Text="{Binding AnalyzeBusyText}"
+                                                                   FontSize="10" FontStyle="Italic" TextWrapping="Wrap"
+                                                                   Foreground="{DynamicResource TabAccentBrush}"/>
+                                                    </StackPanel>
+                                                </StackPanel>
+
+                                                <TextBlock Text="{Binding CastSummary}"
+                                                           FontSize="10" Foreground="{StaticResource TextMutedBrush}" FontStyle="Italic"
+                                                           TextWrapping="Wrap"/>
+
+                                                <!-- How much of each sheet H3 is given. Every reference is
+                                                     encoded at the full generation area, so a back view costs
+                                                     as much as the face and carries almost none of the likeness. -->
+                                                <Grid Margin="0,8,0,0">
+                                                    <Grid.ColumnDefinitions>
+                                                        <ColumnDefinition Width="Auto"/>
+                                                        <ColumnDefinition Width="*"/>
+                                                    </Grid.ColumnDefinitions>
+                                                    <TextBlock Grid.Column="0" Text="References" FontSize="10" VerticalAlignment="Center"
+                                                               Foreground="{StaticResource TextSecondaryBrush}" Margin="0,0,6,0"/>
+                                                    <ComboBox Grid.Column="1" ItemsSource="{Binding ReferenceBudgetOptions}"
+                                                              DisplayMemberPath="Label" SelectedValuePath="Value"
+                                                              SelectedValue="{Binding ReferenceBudget, Mode=TwoWay}"
+                                                              Height="24" FontSize="10"
+                                                              ToolTip="How many of each character's sheet panels are handed to H3.&#x0a;&#x0a;All references share one nine-slot input and each is encoded at the generation's full pixel area, so a full-body back view costs exactly as much as the face close-up while carrying almost none of the likeness. With two characters, three panels each is six studio photographs competing with the shot description for the same attention.&#x0a;&#x0a;Front + face is the default. Use every panel when the camera orbits behind the cast; use the face alone when the clip is close work and you want the strongest likeness per slot.&#x0a;&#x0a;Only a three-panel sheet built here can be trimmed — any other split is sent whole."/>
+                                                </Grid>
+                                                <TextBlock Text="{Binding ReferenceBudgetSummary}"
+                                                           FontSize="9" Margin="0,2,0,0"
+                                                           Foreground="{StaticResource TextMutedBrush}" FontStyle="Italic"
+                                                           TextWrapping="Wrap"/>
+
+                                                <!-- The whole picture plan: which numbers are locks and which
+                                                     are the cast. Getting that order wrong is the one mistake
+                                                     here that renders a studio photograph as a shot. -->
+                                                <TextBlock Text="{Binding PicturePlanSummary}"
+                                                           FontSize="10" Margin="0,6,0,0"
+                                                           Foreground="{DynamicResource TabAccentBrush}" FontStyle="Italic"
+                                                           TextWrapping="Wrap"/>
+                                            </StackPanel>
+                                        </Border>
+
+                                        <!-- Prompt -->
+                                        <Border Style="{StaticResource SectionCardStyle}">
+                                            <StackPanel>
+                                                <ctrl:SectionHeader Title="H3 HYBRID PROMPT" Note="  · six sections; four of them written here"/>
+                                                <TextBox Text="{Binding Prompt, UpdateSourceTrigger=PropertyChanged}"
+                                                         TextWrapping="Wrap" AcceptsReturn="True"
+                                                         Height="240" VerticalScrollBarVisibility="Auto"
+                                                         BorderBrush="{StaticResource BorderBrush}" Background="{StaticResource SurfaceAltBrush}"
+                                                         FontSize="11" Padding="8"/>
+
+                                                <TextBlock Text="{Binding PromptClipSummary}"
+                                                           Visibility="{Binding HasPromptSequence, Converter={StaticResource BooleanToVisibilityConverter}}"
+                                                           FontSize="10" FontWeight="SemiBold" Margin="0,6,0,0"
+                                                           Foreground="{DynamicResource TabAccentBrush}" TextWrapping="Wrap"/>
+
+                                                <!-- Turns red when the prompt's picture numbers no longer match
+                                                     the keyframe list. -->
+                                                <TextBlock Text="{Binding PromptHealthSummary}"
+                                                           FontSize="10" FontWeight="SemiBold" Margin="0,6,0,0"
+                                                           Foreground="{StaticResource DangerBrush}" TextWrapping="Wrap"/>
+
+                                                <TextBlock Text="subject_definitions, retention_analysis, the alignment paragraph and the global negatives are rebuilt from the reference list every time this prompt is stamped — edit them here and ✎ Re-stamp (or Add to Queue) will overwrite them. The summary paragraph, the shot list, the soundscape and the score are yours and survive."
+                                                           FontSize="10" Foreground="{StaticResource TextMutedBrush}" FontStyle="Italic" Margin="0,6,0,0"
+                                                           TextWrapping="Wrap"/>
+                                            </StackPanel>
+                                        </Border>
+
+                                        <!-- Settings -->
+                                        <Border Background="White" BorderBrush="{StaticResource BorderBrush}" BorderThickness="1"
+                                                CornerRadius="8" Padding="14">
+                                            <StackPanel>
+                                                <ctrl:SectionHeader Title="SETTINGS" Margin="0,0,0,10"/>
+
+                                                <TextBlock Text="Aspect ratio" FontSize="10" Foreground="{StaticResource TextSecondaryBrush}" Margin="0,0,0,4"/>
+                                                <ComboBox ItemsSource="{Binding AspectRatioOptions}"
+                                                          SelectedItem="{Binding SelectedAspectRatio}"
+                                                          Height="30" FontSize="11" Margin="0,0,0,4"
+                                                          ToolTip="Auto follows the opening keyframe's own aspect — it is literally frame 0, so rendering at a different shape is a crop of the picture you asked to lock. With no keyframe it follows the scene image."/>
+                                                <TextBlock Text="{Binding ResolvedAspectRatio, StringFormat=→ {0}}"
+                                                           FontSize="10" Foreground="{StaticResource TextMutedBrush}" FontStyle="Italic" Margin="0,0,0,10"/>
+
+                                                <TextBlock Text="Medium" FontSize="10" Foreground="{StaticResource TextSecondaryBrush}" Margin="0,0,0,4"/>
+                                                <ComboBox ItemsSource="{Binding MediumOptions}"
+                                                          SelectedItem="{Binding SelectedMedium}"
+                                                          Height="30" FontSize="11" Margin="0,0,0,10"
+                                                          ToolTip="How the prompt's global-rules paragraph opens. It is stated in code rather than left to the writer because a chain's clips are written independently, and a style word that drifts is a style that changes mid-story."/>
+
+                                                <TextBlock Text="Quality (canvas size)" FontSize="10" Foreground="{StaticResource TextSecondaryBrush}" Margin="0,0,0,4"/>
+                                                <ComboBox ItemsSource="{Binding MegapixelOptions}"
+                                                          DisplayMemberPath="Label"
+                                                          SelectedValuePath="Value"
+                                                          SelectedValue="{Binding Megapixels}"
+                                                          Height="30" FontSize="11" Margin="0,0,0,8"/>
+
+                                                <CheckBox Content="FILM ×2 frame interpolation" IsChecked="{Binding Interpolate}"
+                                                          FontSize="11" FontWeight="SemiBold" Margin="0,0,0,6"
+                                                          Foreground="{StaticResource TextPrimaryBrush}"
+                                                          ToolTip="Doubles the frame count with the FILM interpolation model and muxes at 48 fps instead of 24. The 8-step turbo stack renders at 24, and this costs a fraction of what the diffusion did, so it is the one finishing pass that is nearly free.&#x0a;&#x0a;It does double the frame stack, which matters when RTX is on as well — watch the line below. Unchecked, the whole branch is pruned out of the graph."/>
+
+                                                <CheckBox Content="Face refine pass" IsChecked="{Binding FaceRefine}"
+                                                          FontSize="11" FontWeight="SemiBold" Margin="0,0,0,6"
+                                                          Foreground="{StaticResource TextPrimaryBrush}"
+                                                          ToolTip="A second MiniMax H3 pass that tracks and crops every face, re-generates the crops and stitches them back into the frames — the same chain the 🪪👥 H3 Cast tab runs.&#x0a;&#x0a;It is conditioned on the character sheets only, with its own copy of the prompt: a keyframe still's whole job is to be a frame at a timestamp, and this pass has no timeline — it redraws a 768px crop of a face the base pass already placed.&#x0a;&#x0a;The tracker holds one subject per pass, so a two-character clip runs two: each tracked by that character's own face close-up, conditioned on that character's own panels, the second stitching over the first. It is also where a face that drifted in a wide or fast shot is put back on model — the crop is redrawn hardest exactly where the face was smallest.&#x0a;&#x0a;Needs the H3-FaceRefine and NativeAudioLock node packs on the server; unchecked, that whole branch is pruned out of the graph."/>
+                                                <Slider Value="{Binding RefineDenoise}"
+                                                        Minimum="0.15" Maximum="0.75"
+                                                        TickFrequency="0.05" IsSnapToTickEnabled="True"
+                                                        IsEnabled="{Binding FaceRefine}"
+                                                        Foreground="{DynamicResource TabAccentBrush}" Margin="0,0,0,2"
+                                                        ToolTip="Refine denoise. Low cleans the face up and keeps the performance H3 rendered; high re-draws it from the sheet and starts fighting the lip-sync."/>
+                                                <TextBlock Text="{Binding RefineSummary}"
+                                                           FontSize="10" Foreground="{StaticResource TextMutedBrush}" FontStyle="Italic"
+                                                           TextWrapping="Wrap" Margin="0,0,0,10"/>
+
+                                                <CheckBox Content="RTX ×2 super-resolution" IsChecked="{Binding RtxUpscale}"
+                                                          FontSize="11" FontWeight="SemiBold" Margin="0,0,0,4"
+                                                          Foreground="{StaticResource TextPrimaryBrush}"
+                                                          ToolTip="Doubles the resolution on the way to the file — no second diffusion model, so it costs seconds rather than a second render. It is also the graph's largest single allocation: the whole doubled clip is held in one piece at the very end of the run, which is what takes ComfyUI down on a long job. With interpolation on it runs over twice as many frames.&#x0a;&#x0a;Off by default. Upscale afterwards in ✨ Enhance Video, where nothing else is holding memory."/>
+                                                <TextBlock Text="{Binding UpscaleSummary}"
+                                                           FontSize="10" Foreground="{StaticResource TextMutedBrush}" FontStyle="Italic"
+                                                           TextWrapping="Wrap" Margin="0,0,0,4"/>
+                                                <TextBlock Text="{Binding LoadSummary}"
+                                                           FontSize="10" FontStyle="Italic"
+                                                           TextWrapping="Wrap" Margin="0,0,0,10">
+                                                    <TextBlock.Style>
+                                                        <Style TargetType="TextBlock">
+                                                            <Setter Property="Foreground" Value="{StaticResource TextMutedBrush}"/>
+                                                            <Style.Triggers>
+                                                                <DataTrigger Binding="{Binding HasLoadWarning}" Value="True">
+                                                                    <Setter Property="Foreground" Value="{StaticResource DangerBrush}"/>
+                                                                    <Setter Property="FontWeight" Value="SemiBold"/>
+                                                                </DataTrigger>
+                                                            </Style.Triggers>
+                                                        </Style>
+                                                    </TextBlock.Style>
+                                                </TextBlock>
+
+                                                <TextBlock Text="Clip length (seconds · 4–15)" FontSize="10" Foreground="{StaticResource TextSecondaryBrush}" Margin="0,0,0,4"/>
+                                                <Slider Value="{Binding LengthSeconds}"
+                                                        Minimum="4" Maximum="15"
+                                                        TickFrequency="1" IsSnapToTickEnabled="True"
+                                                        Foreground="{DynamicResource TabAccentBrush}" Margin="0,0,0,2"
+                                                        ToolTip="How long a single H3 pass is — the model's own limit, and the window every keyframe timestamp has to fit inside. Shrinking it pulls any lock that no longer fits back in; the rest keep the timing you gave them."/>
+                                                <TextBlock Text="{Binding LengthSummary}"
+                                                           FontSize="10" FontFamily="Consolas" Foreground="{StaticResource TextSecondaryBrush}"
+                                                           Margin="0,0,0,10"/>
+
+                                                <TextBlock Text="Seed (-1 = random)" FontSize="10" Foreground="{StaticResource TextSecondaryBrush}" Margin="0,0,0,4"/>
+                                                <Grid>
+                                                    <Grid.ColumnDefinitions>
+                                                        <ColumnDefinition Width="*"/>
+                                                        <ColumnDefinition Width="Auto"/>
+                                                    </Grid.ColumnDefinitions>
+                                                    <TextBox Grid.Column="0"
+                                                             Text="{Binding Seed, UpdateSourceTrigger=PropertyChanged}"
+                                                             Height="30" Padding="6,0" VerticalContentAlignment="Center"
+                                                             BorderBrush="{StaticResource BorderBrush}" Background="{StaticResource SurfaceAltBrush}"
+                                                             FontSize="12" FontFamily="Consolas" Margin="0,0,6,0"/>
+                                                    <Button Grid.Column="1" Content="🎲"
+                                                            Command="{Binding RandomSeedCommand}"
+                                                            Height="30" Width="36" FontSize="14"
+                                                            Background="{StaticResource SurfaceAltBrush}" Foreground="{DynamicResource TabAccentBrush}"
+                                                            BorderBrush="{StaticResource BorderBrush}" BorderThickness="1"/>
+                                                </Grid>
+                                            </StackPanel>
+                                        </Border>
+
+                                    </StackPanel>
+                                </ScrollViewer>
+                            </Border>
+
+                            <!-- ═══ RIGHT PANEL ══════════════════════════════════════════════ -->
+                            <ScrollViewer Grid.Column="1" VerticalScrollBarVisibility="Auto">
+                            <Grid>
+                                <Grid.RowDefinitions>
+                                    <RowDefinition Height="240"/>  <!-- Picture strip -->
+                                    <RowDefinition Height="3"/>    <!-- Progress bar -->
+                                    <RowDefinition Height="Auto"/> <!-- Status row -->
+                                    <RowDefinition Height="Auto"/> <!-- Action buttons -->
+                                    <RowDefinition Height="Auto"/> <!-- Queue -->
+                                    <RowDefinition Height="Auto"/> <!-- Result output -->
+                                    <RowDefinition Height="Auto"/> <!-- Log -->
+                                </Grid.RowDefinitions>
+
+                                <!-- ─── Picture strip: the locks, then the cast ─────────────── -->
+                                <Border Grid.Row="0" Background="{StaticResource PlayerSurfaceBrush}">
+                                    <Grid>
+                                        <StackPanel HorizontalAlignment="Center" VerticalAlignment="Center">
+                                            <StackPanel.Style>
+                                                <Style TargetType="StackPanel">
+                                                    <Setter Property="Visibility" Value="Visible"/>
+                                                    <Style.Triggers>
+                                                        <DataTrigger Binding="{Binding HasCharacter1}" Value="True">
+                                                            <Setter Property="Visibility" Value="Collapsed"/>
+                                                        </DataTrigger>
+                                                    </Style.Triggers>
+                                                </Style>
+                                            </StackPanel.Style>
+                                            <Border Width="64" Height="64" CornerRadius="14" Background="{StaticResource PlayerSurfaceRaisedBrush}"
+                                                    BorderBrush="{StaticResource TextSecondaryBrush}" BorderThickness="1"
+                                                    HorizontalAlignment="Center" Margin="0,0,0,10">
+                                                <TextBlock Text="⚡" FontSize="28" HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                                            </Border>
+                                            <TextBlock Text="MiniMax H3 · Hybrid keyframes + character sheets" FontSize="13" FontWeight="SemiBold"
+                                                       Foreground="{StaticResource PlayerTextBrush}" HorizontalAlignment="Center" Margin="0,0,0,4"/>
+                                            <TextBlock Text="Keyframe stills → photo per character → Build Sheets → story → Analyze → Generate"
+                                                       FontSize="11" Foreground="{StaticResource PlayerTextBrush}" HorizontalAlignment="Center"/>
+                                        </StackPanel>
+
+                                        <Grid Visibility="{Binding HasCharacter1, Converter={StaticResource BooleanToVisibilityConverter}}"
+                                              Margin="10">
+                                            <Grid.RowDefinitions>
+                                                <RowDefinition Height="Auto"/>
+                                                <RowDefinition Height="*"/>
+                                            </Grid.RowDefinitions>
+
+                                            <!-- The locks, in timestamp order — the strip reads left to
+                                                 right the way the video plays. -->
+                                            <ItemsControl Grid.Row="0" ItemsSource="{Binding Keyframes}"
+                                                          Visibility="{Binding HasKeyframes, Converter={StaticResource BooleanToVisibilityConverter}}"
+                                                          Margin="0,0,0,8">
+                                                <ItemsControl.ItemsPanel>
+                                                    <ItemsPanelTemplate>
+                                                        <StackPanel Orientation="Horizontal"/>
+                                                    </ItemsPanelTemplate>
+                                                </ItemsControl.ItemsPanel>
+                                                <ItemsControl.ItemTemplate>
+                                                    <DataTemplate>
+                                                        <StackPanel Margin="0,0,8,0">
+                                                            <Image Source="{Binding Preview}" Height="88" Stretch="Uniform"/>
+                                                            <TextBlock Text="{Binding Seconds, StringFormat=🔒 {0:0.00}s}"
+                                                                       HorizontalAlignment="Center" Margin="0,4,0,0"
+                                                                       FontSize="10" FontFamily="Consolas"
+                                                                       Foreground="{StaticResource PlayerTextBrush}"/>
+                                                        </StackPanel>
+                                                    </DataTemplate>
+                                                </ItemsControl.ItemTemplate>
+                                            </ItemsControl>
+
+                                            <Grid Grid.Row="1">
+                                                <Grid.RowDefinitions>
+                                                    <RowDefinition Height="*"/>
+                                                    <RowDefinition Height="Auto"/>
+                                                </Grid.RowDefinitions>
+                                                <Grid.ColumnDefinitions>
+                                                    <ColumnDefinition Width="*"/>
+                                                    <ColumnDefinition Width="*"/>
+                                                    <ColumnDefinition Width="*"/>
+                                                </Grid.ColumnDefinitions>
+
+                                                <Image Grid.Row="0" Grid.Column="0" Margin="0,0,6,0" Stretch="Uniform"
+                                                       Source="{Binding Character1.SheetPreview}"/>
+                                                <TextBlock Grid.Row="1" Grid.Column="0" Text="Sheet 1 · &lt;Subject 1&gt;"
+                                                           HorizontalAlignment="Center" Margin="0,6,0,0"
+                                                           FontSize="10" Foreground="{StaticResource PlayerTextBrush}"/>
+
+                                                <Image Grid.Row="0" Grid.Column="1" Margin="6,0" Stretch="Uniform"
+                                                       Source="{Binding Character2.SheetPreview}"
+                                                       Visibility="{Binding HasCharacter2, Converter={StaticResource BooleanToVisibilityConverter}}"/>
+                                                <TextBlock Grid.Row="1" Grid.Column="1" Text="Sheet 2 · &lt;Subject 2&gt;"
+                                                           HorizontalAlignment="Center" Margin="0,6,0,0"
+                                                           FontSize="10" Foreground="{StaticResource PlayerTextBrush}"
+                                                           Visibility="{Binding HasCharacter2, Converter={StaticResource BooleanToVisibilityConverter}}"/>
+
+                                                <Image Grid.Row="0" Grid.Column="2" Margin="6,0,0,0" Stretch="Uniform"
+                                                       Source="{Binding SceneImagePreview}"
+                                                       Visibility="{Binding HasSceneImage, Converter={StaticResource BooleanToVisibilityConverter}}"/>
+                                                <TextBlock Grid.Row="1" Grid.Column="2" Text="Scene · prompt only"
+                                                           HorizontalAlignment="Center" Margin="0,6,0,0"
+                                                           FontSize="10" Foreground="{StaticResource PlayerTextBrush}"
+                                                           Visibility="{Binding HasSceneImage, Converter={StaticResource BooleanToVisibilityConverter}}"/>
+                                            </Grid>
+                                        </Grid>
+                                    </Grid>
+                                </Border>
+
+                                <!-- ─── Progress bar ──────────────────────────────────────── -->
+                                <ProgressBar Grid.Row="1"
+                                             Value="{Binding ProcessingProgress, Mode=OneWay}"
+                                             Foreground="{DynamicResource TabAccentBrush}" BorderThickness="0"
+                                             Visibility="{Binding IsProcessing, Converter={StaticResource BooleanToVisibilityConverter}}"/>
+
+                                <!-- ─── Status row ────────────────────────────────────────── -->
+                                <Border Grid.Row="2" Style="{StaticResource ToolStripStyle}"
+                                        BorderThickness="0,1,0,0" Padding="12,5">
+                                    <Grid>
+                                        <StackPanel Orientation="Horizontal">
+                                            <Ellipse Width="5" Height="5" VerticalAlignment="Center" Margin="0,0,7,0">
+                                                <Ellipse.Style>
+                                                    <Style TargetType="Ellipse">
+                                                        <Setter Property="Fill" Value="{StaticResource TextPrimaryBrush}"/>
+                                                        <Style.Triggers>
+                                                            <DataTrigger Binding="{Binding IsProcessing}" Value="True">
+                                                                <Setter Property="Fill" Value="{DynamicResource TabAccentBrush}"/>
+                                                            </DataTrigger>
+                                                        </Style.Triggers>
+                                                    </Style>
+                                                </Ellipse.Style>
+                                            </Ellipse>
+                                            <TextBlock Text="{Binding ProcessingStatus}"
+                                                       FontSize="11" Foreground="{StaticResource TextSecondaryBrush}"
+                                                       VerticalAlignment="Center" TextTrimming="CharacterEllipsis"/>
+                                        </StackPanel>
+                                        <TextBlock HorizontalAlignment="Right" VerticalAlignment="Center"
+                                                   Text="{Binding ProgressPercentage, Mode=OneWay}"
+                                                   FontSize="11" FontWeight="Bold" Foreground="{DynamicResource TabAccentBrush}"
+                                                   FontFamily="Consolas"
+                                                   Visibility="{Binding IsProcessing, Converter={StaticResource BooleanToVisibilityConverter}}"/>
+                                    </Grid>
+                                </Border>
+
+                                <!-- ─── Action Buttons ────────────────────────────────────── -->
+                                <Border Grid.Row="3" Style="{StaticResource ToolStripStyle}"
+                                        BorderThickness="0,1,0,0" Padding="10,8">
+                                    <Grid>
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="*"/>
+                                            <ColumnDefinition Width="Auto"/>
+                                        </Grid.ColumnDefinitions>
+
+                                        <Button Grid.Column="0" Margin="0,0,8,0" Height="40"
+                                                Command="{Binding GenerateCommand}"
+                                                IsEnabled="{Binding CanGenerate}"
+                                                Style="{StaticResource AccentButtonStyle}"
+                                                FontSize="12" FontWeight="Bold" BorderThickness="0"
+                                                ToolTip="Re-stamps the prompt against the keyframes, cast and wardrobe as they stand, snapshots everything into the queue and starts rendering. The sheets are already built, so nothing here waits on the GPU.">
+                                            <StackPanel Orientation="Horizontal">
+                                                <TextBlock Text="⚡ " VerticalAlignment="Center"/>
+                                                <TextBlock Text="Add to Queue &amp; Generate" VerticalAlignment="Center"/>
+                                            </StackPanel>
+                                        </Button>
+
+                                        <Button Grid.Column="1" Height="40" Width="82"
+                                                Command="{Binding CancelCommand}"
+                                                Style="{StaticResource DangerButtonStyle}"
+                                                FontSize="11"
+                                                ToolTip="Stops whatever is on the GPU — the sheet builder or the queue. Pending items stay queued.">
+                                            <StackPanel Orientation="Horizontal">
+                                                <TextBlock Text="✕ " VerticalAlignment="Center"/>
+                                                <TextBlock Text="Cancel" VerticalAlignment="Center"/>
+                                            </StackPanel>
+                                        </Button>
+                                    </Grid>
+                                </Border>
+
+                                <!-- ─── Queue ─────────────────────────────────────────────── -->
+                                <Border Grid.Row="4" Background="{StaticResource SurfaceAltBrush}"
+                                        BorderBrush="{StaticResource BorderBrush}" BorderThickness="0,1,0,0" Padding="12,8"
+                                        Visibility="{Binding HasQueueItems, Converter={StaticResource BooleanToVisibilityConverter}}">
+                                    <StackPanel>
+                                        <Grid Margin="0,0,0,6">
+                                            <Grid.ColumnDefinitions>
+                                                <ColumnDefinition Width="Auto"/>
+                                                <ColumnDefinition Width="*"/>
+                                                <ColumnDefinition Width="Auto"/>
+                                                <ColumnDefinition Width="Auto"/>
+                                                <ColumnDefinition Width="Auto"/>
+                                                <ColumnDefinition Width="Auto"/>
+                                            </Grid.ColumnDefinitions>
+                                            <TextBlock Grid.Column="0" Text="⚡ Hybrid Queue"
+                                                       FontWeight="Bold" FontSize="12" Foreground="{DynamicResource TabAccentBrush}"
+                                                       VerticalAlignment="Center" Margin="0,0,10,0"/>
+                                            <TextBlock Grid.Column="1" Text="{Binding QueueStatus}"
+                                                       FontStyle="Italic" Foreground="{StaticResource TextSecondaryBrush}" FontSize="11"
+                                                       VerticalAlignment="Center" TextTrimming="CharacterEllipsis"/>
+                                            <Button Grid.Column="2" Content="▶ Start"
+                                                    Command="{Binding StartQueueCommand}"
+                                                    Height="26" Padding="8,0" FontSize="11" Margin="0,0,5,0"
+                                                    Style="{StaticResource AccentButtonStyle}"
+                                                    ToolTip="Resume draining pending items."/>
+                                            <Button Grid.Column="3" Content="🔄 Retry"
+                                                    Command="{Binding ReprocessAllFailedCommand}"
+                                                    Height="26" Padding="8,0" FontSize="11" Margin="0,0,5,0"
+                                                    Style="{StaticResource AccentButtonStyle}"
+                                                    ToolTip="Put every failed item back to Pending and run them again."/>
+                                            <Button Grid.Column="4" Content="⏹ Stop"
+                                                    Command="{Binding StopQueueCommand}"
+                                                    Height="26" Padding="8,0" FontSize="11" Margin="0,0,5,0"
+                                                    Style="{StaticResource AccentButtonStyle}"/>
+                                            <Button Grid.Column="5" Content="🗑️ Clear"
+                                                    Command="{Binding ClearQueueCommand}"
+                                                    Height="26" Padding="8,0" FontSize="11"
+                                                    Style="{StaticResource AccentButtonStyle}"/>
+                                        </Grid>
+
+                                        <ItemsControl ItemsSource="{Binding Queue}">
+                                            <ItemsControl.ItemTemplate>
+                                                <DataTemplate>
+                                                    <Border BorderBrush="{StaticResource BorderBrush}" BorderThickness="1" CornerRadius="4"
+                                                            Padding="8,5" Margin="0,0,0,3" Background="White">
+                                                        <Grid>
+                                                            <Grid.ColumnDefinitions>
+                                                                <ColumnDefinition Width="Auto"/>
+                                                                <ColumnDefinition Width="Auto"/>
+                                                                <ColumnDefinition Width="*"/>
+                                                                <ColumnDefinition Width="Auto"/>
+                                                            </Grid.ColumnDefinitions>
+                                                            <Border Grid.Column="0" CornerRadius="3" Padding="6,2" Margin="0,0,8,0"
+                                                                    VerticalAlignment="Center"
+                                                                    Background="{Binding StatusColor}">
+                                                                <TextBlock Text="{Binding StatusDisplay}" FontSize="10"
+                                                                           FontWeight="SemiBold" Foreground="White"/>
+                                                            </Border>
+                                                            <Image Grid.Column="1" Source="{Binding QueueThumbnail}"
+                                                                   Height="34" Stretch="Uniform" Margin="0,0,8,0"/>
+                                                            <StackPanel Grid.Column="2" VerticalAlignment="Center">
+                                                                <TextBlock Text="{Binding DisplayText}" FontWeight="SemiBold" FontSize="11"
+                                                                           TextTrimming="CharacterEllipsis"/>
+                                                                <!-- The beat in one line, not the whole
+                                                                     six-section prompt. TextTrimming alone
+                                                                     never shortened this row: the prompt's
+                                                                     own newlines survive, so each of its
+                                                                     thirty lines was ellipsized separately
+                                                                     and all thirty still rendered.
+                                                                     PromptPreview is already one line; the
+                                                                     full prompt is on the tooltip. -->
+                                                                <TextBlock Text="{Binding PromptPreview}" FontSize="10"
+                                                                           Foreground="{StaticResource TextSecondaryBrush}"
+                                                                           ToolTipService.ShowDuration="60000"
+                                                                           TextWrapping="NoWrap"
+                                                                           TextTrimming="CharacterEllipsis">
+                                                                    <TextBlock.ToolTip>
+                                                                        <ToolTip MaxWidth="700">
+                                                                            <TextBlock Text="{Binding Prompt}" TextWrapping="Wrap" FontSize="11"/>
+                                                                        </ToolTip>
+                                                                    </TextBlock.ToolTip>
+                                                                </TextBlock>
+                                                                <TextBlock Text="{Binding ErrorMessage}" FontSize="10"
+                                                                           Foreground="{StaticResource DangerBrush}"
+                                                                           TextWrapping="NoWrap"
+                                                                           TextTrimming="CharacterEllipsis"/>
+                                                            </StackPanel>
+                                                            <Button Grid.Column="3" Content="✕"
+                                                                    Style="{StaticResource SecondaryButtonStyle}"
+                                                                    Command="{Binding DataContext.RemoveQueueItemCommand, RelativeSource={RelativeSource AncestorType=ItemsControl}}"
+                                                                    CommandParameter="{Binding}"
+                                                                    VerticalAlignment="Center"
+                                                                    Width="26" Height="26" Padding="0" FontSize="10"/>
+                                                        </Grid>
+                                                    </Border>
+                                                </DataTemplate>
+                                            </ItemsControl.ItemTemplate>
+                                        </ItemsControl>
+                                    </StackPanel>
+                                </Border>
+
+                                <!-- ─── Result Output ──────────────────────────────────────── -->
+                                <Border Grid.Row="5" Background="White" BorderBrush="{StaticResource BorderBrush}"
+                                        BorderThickness="0,1,0,0" Padding="12,10">
+                                    <StackPanel>
+                                        <TextBlock Text="🎥 Result Video" FontWeight="Bold" FontSize="13"
+                                                   Foreground="{DynamicResource TabAccentBrush}" Margin="0,0,0,8"/>
+
+                                        <Border BorderBrush="{StaticResource BorderBrush}" BorderThickness="1" Background="{StaticResource PlayerSurfaceBrush}"
+                                                Height="200" CornerRadius="6" Margin="0,0,0,8">
+                                            <Grid>
+                                                <TextBlock Text="Video will appear here after generation"
+                                                           HorizontalAlignment="Center" VerticalAlignment="Center"
+                                                           Foreground="{StaticResource PlayerTextBrush}" FontStyle="Italic">
+                                                    <TextBlock.Style>
+                                                        <Style TargetType="TextBlock">
+                                                            <Setter Property="Visibility" Value="Collapsed"/>
+                                                            <Style.Triggers>
+                                                                <DataTrigger Binding="{Binding HasResult}" Value="False">
+                                                                    <Setter Property="Visibility" Value="Visible"/>
+                                                                </DataTrigger>
+                                                            </Style.Triggers>
+                                                        </Style>
+                                                    </TextBlock.Style>
+                                                </TextBlock>
+                                                <MediaElement x:Name="H3CastHybridVideoPlayer"
                                                               Source="{Binding ResultVideoPath}"
                                                               LoadedBehavior="Manual" UnloadedBehavior="Stop"
                                                               Stretch="Uniform"

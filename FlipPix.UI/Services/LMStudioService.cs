@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.Diagnostics;
 using System.Drawing;
@@ -338,7 +338,7 @@ namespace FlipPix.UI.Services
             }
         }
 
-        public async Task<string> AnalyzeImageWithSystemPromptAsync(string modelName, string imagePath, string userPrompt, string systemPrompt, int maxTokens = 36000, CancellationToken cancellationToken = default)
+        public async Task<string> AnalyzeImageWithSystemPromptAsync(string modelName, string imagePath, string userPrompt, string systemPrompt, int maxTokens = 36000, CancellationToken cancellationToken = default, LlmSampling? sampling = null)
         {
             await _semaphore.WaitAsync(cancellationToken);
             try
@@ -357,10 +357,10 @@ namespace FlipPix.UI.Services
                 _logger.LogInfo($"User prompt: {userPrompt}");
 
                 // Create the request with vision and system prompt
-                var requestBody = new
-                {
-                    model = modelName,
-                    messages = new object[]
+                var s = sampling ?? LlmSampling.Default;
+                var requestBody = BuildChatBody(
+                    modelName,
+                    new object[]
                     {
                         new
                         {
@@ -375,7 +375,7 @@ namespace FlipPix.UI.Services
                                 new
                                 {
                                     type = "text",
-                                    text = SuppressThinking(userPrompt, modelName)
+                                    text = s.AllowThinking ? userPrompt : SuppressThinking(userPrompt, modelName)
                                 },
                                 new
                                 {
@@ -388,18 +388,7 @@ namespace FlipPix.UI.Services
                             }
                         }
                     },
-                    max_tokens = maxTokens,
-                    temperature = 0.7,
-                    // Reasoning models (Qwen3 etc.) ignore the /no_think text hint and route
-                    // their whole answer into reasoning_content, leaving content empty — which
-                    // makes this method return "" and silently breaks the downstream enhance
-                    // step. Disable chain-of-thought at the chat-template level so the final
-                    // answer lands in content. Unknown fields are ignored by servers that
-                    // don't support them.
-                    chat_template_kwargs = new { enable_thinking = false },
-                    reasoning_budget = 0,
-                    stream = false
-                };
+                    maxTokens, s);
 
                 var json = JsonSerializer.Serialize(requestBody, new JsonSerializerOptions
                 {
@@ -557,41 +546,39 @@ namespace FlipPix.UI.Services
             }
         }
 
+        /// <param name="sampling">
+        /// Optional repetition controls. Omitted, the request is byte-for-byte what it has always been.
+        /// Supplied, it is the answer to a long structured reply degenerating into a copy loop — the
+        /// failure mode of asking one model for N near-identical blocks in a single turn. See
+        /// <see cref="LlmSampling"/>.
+        /// </param>
         public async Task<string> SendTextChatAsync(
             string modelName,
             string systemPrompt,
             string userMessage,
             int maxTokens = 2000,
-            CancellationToken cancellationToken = default)
+            CancellationToken cancellationToken = default,
+            LlmSampling? sampling = null)
         {
             await _semaphore.WaitAsync(cancellationToken);
             try
             {
-                var requestBody = new
-                {
-                    model = modelName,
-                    messages = new object[]
+                var s = sampling ?? LlmSampling.Default;
+                var requestBody = BuildChatBody(
+                    modelName,
+                    new object[]
                     {
                         new { role = "system", content = systemPrompt },
-                        new { role = "user",   content = SuppressThinking(userMessage, modelName)  }
+                        new { role = "user",   content = s.AllowThinking ? userMessage : SuppressThinking(userMessage, modelName) }
                     },
-                    max_tokens = maxTokens,
-                    temperature = 0.7,
-                    // Reasoning models (Qwen3 etc.) ignore the /no_think text hint and route
-                    // their whole answer into reasoning_content, leaving content empty. Disable
-                    // chain-of-thought at the chat-template level so the enhanced prompt lands
-                    // in content. Unknown fields are ignored by servers that don't support them.
-                    chat_template_kwargs = new { enable_thinking = false },
-                    reasoning_budget = 0,
-                    stream = false
-                };
+                    maxTokens, s);
 
                 var json = JsonSerializer.Serialize(requestBody, new JsonSerializerOptions
                 {
                     PropertyNamingPolicy = JsonNamingPolicy.CamelCase
                 });
 
-                _logger.LogInfo($"SendTextChatAsync: model={modelName}, userMessage length={userMessage.Length}");
+                _logger.LogInfo($"SendTextChatAsync: model={modelName}, userMessage length={userMessage.Length}{s.Describe()}");
 
                 var fullUrl = $"{_baseUrl.TrimEnd('/')}/v1/chat/completions";
                 using var content = new StringContent(json, Encoding.UTF8, "application/json");
@@ -814,6 +801,52 @@ namespace FlipPix.UI.Services
         /// its chain-of-thought preamble and outputs only the final answer.
         /// No-op for non-thinking models.
         /// </summary>
+        /// <summary>
+        /// The chat/completions body every call in this class used to build inline. Pulled out so the
+        /// repetition controls in <see cref="LlmSampling"/> have one place to land, and so the
+        /// thinking-suppression fields stay written exactly as they were for every caller that does not
+        /// ask for anything else.
+        ///
+        /// <para>A dictionary rather than an anonymous type because half these fields are conditional: a
+        /// server rejects <c>repeat_penalty: 0</c>, and a reasoning model given <c>reasoning_budget: 0</c>
+        /// cannot plan. <c>DictionaryKeyPolicy</c> is unset, so the snake_case keys reach the wire
+        /// verbatim.</para>
+        /// </summary>
+        private static Dictionary<string, object> BuildChatBody(
+            string modelName, object[] messages, int maxTokens, LlmSampling sampling)
+        {
+            var body = new Dictionary<string, object>
+            {
+                ["model"] = modelName,
+                ["messages"] = messages,
+                ["max_tokens"] = maxTokens,
+                ["temperature"] = sampling.Temperature,
+                ["stream"] = false,
+            };
+
+            // OpenAI-standard, honoured by llama-server and LM Studio alike. 0 is the API default, so
+            // sending 0 and leaving them out are the same request — they are omitted anyway so an
+            // untouched caller's payload stays byte-for-byte what it was.
+            if (sampling.PresencePenalty != 0) body["presence_penalty"] = sampling.PresencePenalty;
+            if (sampling.FrequencyPenalty != 0) body["frequency_penalty"] = sampling.FrequencyPenalty;
+            // llama.cpp's own knob, and the only one of the three that looks at a window of recent tokens
+            // rather than at whole-reply counts. Ignored by servers that do not implement it.
+            if (sampling.RepeatPenalty > 0) body["repeat_penalty"] = sampling.RepeatPenalty;
+
+            if (!sampling.AllowThinking)
+            {
+                // Reasoning models (Qwen3 etc.) ignore the /no_think text hint and route their whole
+                // answer into reasoning_content, leaving content empty — which makes the caller return ""
+                // and silently breaks the step downstream. Disable chain-of-thought at the chat-template
+                // level so the final answer lands in content. Unknown fields are ignored by servers that
+                // don't support them.
+                body["chat_template_kwargs"] = new { enable_thinking = false };
+                body["reasoning_budget"] = 0;
+            }
+
+            return body;
+        }
+
         private static string SuppressThinking(string prompt, string modelName)
         {
             if (!IsThinkingModel(modelName)) return prompt;

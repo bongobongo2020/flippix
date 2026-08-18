@@ -418,6 +418,7 @@
                                                         <ComboBoxItem Content="Klien (Flux2)"/>
                                                         <ComboBoxItem Content="Anima"/>
                                                         <ComboBoxItem Content="Krea2 (Turbo)"/>
+                                                        <ComboBoxItem Content="Zimage Base (no style)"/>
                                                     </ComboBox>
                                                 </StackPanel>
 
@@ -4764,11 +4765,11 @@
                                         </Grid.ColumnDefinitions>
                                         <TextBlock Grid.Column="0" Text="Resolution" FontSize="12" Foreground="{StaticResource TextPrimaryBrush}"
                                                    VerticalAlignment="Center" Margin="0,0,6,0"
-                                                   ToolTip="Base megapixels for the first pass. The workflow's second pass upscales 2× per edge, so the saved image is 4× these pixels."/>
+                                                   ToolTip="Output megapixels. The Instant graph renders in one pass, so this is the saved size; the summary on the right shows the exact pixels for the chosen format."/>
                                         <ComboBox Grid.Column="1" Width="70" FontSize="12"
                                                   ItemsSource="{Binding Ideogram.MegapixelChoices}"
                                                   SelectedItem="{Binding Ideogram.Megapixel}"
-                                                  ToolTip="Base megapixels for the first pass. The workflow's second pass upscales 2× per edge, so the saved image is 4× these pixels."/>
+                                                  ToolTip="Output megapixels. The Instant graph renders in one pass, so this is the saved size; the summary on the right shows the exact pixels for the chosen format."/>
                                         <TextBlock Grid.Column="2" Text="{Binding Ideogram.AspectSummary}" HorizontalAlignment="Right"
                                                    FontSize="11" FontFamily="Consolas" Foreground="{StaticResource TextSecondaryBrush}" VerticalAlignment="Center"/>
                                     </Grid>

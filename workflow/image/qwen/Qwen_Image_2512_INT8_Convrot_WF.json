@@ -139,7 +139,7 @@
   },
   "130": {
     "inputs": {
-      "lora_data": "{\"loras\":[{\"on\":true,\"name\":\"Qwen Image 2512/Qwen-Image-2512-Lightning-8steps-V1.0-bf16.safetensors\",\"model\":1,\"clip\":1},{\"on\":false,\"name\":\"qwen-image-edit-plus-nsfw-lora.safetensors\",\"model\":1,\"clip\":1}],\"enabledFolders\":null}",
+      "lora_data": "{\"loras\":[{\"on\":true,\"name\":\"qwen/Qwen-Image-2512-Lightning-8steps-V1.0-bf16.safetensors\",\"model\":1,\"clip\":1},{\"on\":false,\"name\":\"qwen-image-edit-plus-nsfw-lora.safetensors\",\"model\":1,\"clip\":1}],\"enabledFolders\":null}",
       "model": [
         "105",
         0
@@ -152,7 +152,7 @@
   },
   "131": {
     "inputs": {
-      "sage_attention": "auto",
+      "sage_attention": "disabled",
       "allow_compile": false,
       "model": [
         "130",

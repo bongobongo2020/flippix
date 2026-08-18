@@ -7,6 +7,7 @@ using Microsoft.Extensions.Logging;
 using FlipPix.Core.Interfaces;
 using FlipPix.Core.Models;
 using FlipPix.ComfyUI.Models;
+using FlipPix.ComfyUI.Services;
 
 namespace FlipPix.ComfyUI.Http;
 
@@ -361,6 +362,11 @@ public class ComfyUIHttpClient : IDisposable
             // host (backslashes) and vice-versa — without hand-editing the JSON.
             var hostSep = await GetHostPathSeparatorAsync(cancellationToken);
             workflow = NormalizeModelPathSeparators(workflow, hostSep);
+
+            // The Nvidia RTX pack renamed this node's widgets (scale/deblur -> resize_type). Write both
+            // sets so a workflow exported against either version runs here; a re-export from an older
+            // ComfyUI can otherwise silently break a tab. See RtxSuperResolutionCompat.
+            workflow = RtxSuperResolutionCompat.Normalize(workflow, m => _logger.LogInfo(m));
 
             // Pre-submit validation (nodes first): catch custom-node types the workflow references
             // but ComfyUI doesn't have loaded, and offer to install them instead of failing with

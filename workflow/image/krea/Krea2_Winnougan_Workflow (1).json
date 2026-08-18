@@ -126,6 +126,8 @@
   "16": {
     "inputs": {
       "scale": 2,
+      "resize_type": "scale by multiplier",
+      "resize_type.scale": 2,
       "quality": "ULTRA",
       "images": [
         "3",
