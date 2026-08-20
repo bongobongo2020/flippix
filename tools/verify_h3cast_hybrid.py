@@ -81,6 +81,10 @@ REF_IMAGE_PREFIX = "ref_images.ref_image_"
 REFERENCE_NODE_ID_BASE = 900
 MAX_REFERENCE_IMAGES = 9
 
+# The storyboard pass: the same graph rendered a handful of frames long, read as images.
+STILL_PICK_ID_BASE = 800
+STILL_SAVE_ID_BASE = 810
+
 # Widgets a workflow export carries that /object_info does not declare, because the node expands
 # them from another widget's value in the browser. ComfyUI ignores undeclared inputs at validation,
 # and these ship in the workflow file rather than being written by the tab.
@@ -224,6 +228,75 @@ def prune_to_outputs(graph: dict, sinks: list[str]) -> dict:
             if isinstance(value, list) and len(value) == 2 and isinstance(value[0], str):
                 stack.append(value[0])
     return {k: v for k, v in graph.items() if k in keep}
+
+
+def wire_still_outputs(graph: dict, frames: int, run_token: str) -> list[tuple[str, int]]:
+    """Mirrors WireStillOutputs: one ImageFromBatch + SaveImage pair per frame worth keeping, hung
+    off the decoded frames. Frame 0 is the one that becomes the clip's lock."""
+    indices = [0] + ([frames // 2, frames - 1] if frames >= 22 else [])
+    saves = []
+    for i, index in enumerate(indices):
+        pick, save = str(STILL_PICK_ID_BASE + i), str(STILL_SAVE_ID_BASE + i)
+        graph[pick] = {
+            "inputs": {"image": [NODE_BASE_FRAMES, 0], "batch_index": index, "length": 1},
+            "class_type": "ImageFromBatch",
+            "_meta": {"title": f"Storyboard frame {index}"},
+        }
+        graph[save] = {
+            "inputs": {"images": [pick, 0], "filename_prefix": f"h3_cast_hybrid/{run_token}_f{index:03d}"},
+            "class_type": "SaveImage",
+            "_meta": {"title": f"Storyboard save {index}"},
+        }
+        saves.append((save, index))
+    return saves
+
+
+def check_storyboard_structure(graph: dict, frames: int, references: int,
+                               saves: list[tuple[str, int]]) -> list[str]:
+    """The storyboard pass's own invariants: it is the clip's graph with the frame count written as
+    a literal and everything past the decode replaced by image sinks."""
+    problems = []
+
+    for node_id, node in graph.items():
+        for key, value in node["inputs"].items():
+            if isinstance(value, list) and len(value) == 2 and isinstance(value[0], str):
+                if value[0] not in graph:
+                    problems.append(f"{node_id} ({node['class_type']}).{key} -> missing node {value[0]}")
+
+    length = graph[NODE_REFERENCE]["inputs"].get("length")
+    if length != frames:
+        problems.append(f"reference length is {length!r}, not the literal {frames} the pass asks for")
+    if frames < 5 or (frames - 5) % 17:
+        problems.append(f"{frames} frames is off MiniMaxH3ReferenceToVideo's 17k+5 grid")
+
+    wired = sum(1 for k in graph[NODE_REFERENCE]["inputs"] if k.startswith(REF_IMAGE_PREFIX))
+    if wired != references:
+        problems.append(f"{wired} reference image(s) wired, expected {references}")
+
+    for node_id, index in saves:
+        if node_id not in graph:
+            problems.append(f"save node {node_id} was pruned away")
+
+    # Everything that makes a clip expensive has to be gone: this is meant to be a still.
+    for gone in (NODE_SAVE_VIDEO, NODE_CREATE_VIDEO, NODE_INTERPOLATE, NODE_RTX,
+                 NODE_FACE_TRACK, NODE_REFINE_REFERENCE, NODE_FACE_STITCH):
+        if gone in graph:
+            problems.append(f"node {gone} ({graph[gone]['class_type']}) survived the prune to stills")
+
+    # The seconds→frames primitives do survive: node 6's sampler preview reads them, so the pass sets
+    # the duration to match the literal rather than leaving a preview sized for a clip nobody rendered.
+    seconds = graph.get(NODE_DURATION, {}).get("inputs", {}).get("value")
+    if seconds is not None and frames_for_seconds(seconds) != frames:
+        problems.append(f"duration {seconds!r}s derives {frames_for_seconds(seconds)} frames, "
+                        f"not the {frames} the reference node is rendering")
+
+    return problems
+
+
+def frames_for_seconds(seconds: float) -> int:
+    """Mirrors node 13's expression: 24 fps snapped onto the model's 17k+5 frame grid."""
+    frames = max(5, round(seconds * 24))
+    return frames + (5 - frames % 17 + 17) % 17
 
 
 def check_structure(graph: dict, face_refine: bool, interpolate: bool, rtx: bool,
@@ -446,6 +519,32 @@ def main() -> int:
                     for problem in problems:
                         print(f"    ! {problem}")
                     failures += len(problems)
+
+    # ── The storyboard pass ────────────────────────────────────────────────────────────────
+    # Same graph, a handful of frames long, pruned to image sinks: the stills the tab shows before
+    # any clip is committed, and then locks in as those clips' opening frames.
+    print()
+    print("storyboard (H3 rendering its own keyframes):")
+    for panels in (1, 2, 4, 6):
+        for frames in (5, 22, 39, 124):
+            uploaded = [f"panel_{i}.png" for i in range(panels)]
+            graph = json.loads(json.dumps(source))
+            graph = ensure_input_primitives(graph)
+            wire_reference_images(graph, uploaded)
+            graph[NODE_DURATION]["inputs"]["value"] = frames / 24.0
+            graph[NODE_REFERENCE]["inputs"]["length"] = frames
+            saves = wire_still_outputs(graph, frames, "storyboard_c01")
+            graph = prune_to_outputs(graph, [node for node, _ in saves])
+
+            problems = check_storyboard_structure(graph, frames, panels, saves)
+            if not args.offline:
+                problems += validate_against_server(graph, object_info)
+
+            print(f"  {panels} cast panel(s), {frames} frame(s) → {len(saves)} still(s): "
+                  f"{len(graph)} nodes, {len(problems)} problem(s)")
+            for problem in problems:
+                print(f"    ! {problem}")
+            failures += len(problems)
 
     print()
     print("OK" if failures == 0 else f"{failures} problem(s)")

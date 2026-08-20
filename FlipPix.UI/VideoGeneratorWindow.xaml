@@ -3685,6 +3685,61 @@
                                             </StackPanel>
                                         </Border>
 
+
+                                        <!-- ─── Storyboard: H3 renders each clip's opening frame first ───
+                                             The keyframe list above is stills you brought. This is the same
+                                             thing asked of the model that has to land on them. -->
+                                        <Border Style="{StaticResource SectionCardStyle}">
+                                            <StackPanel>
+                                                <ctrl:SectionHeader Title="STORYBOARD" Note="  · the opening frame of every clip, rendered before the clips are" Margin="0,0,0,10"/>
+
+                                                <Grid Margin="0,0,0,8">
+                                                    <Grid.ColumnDefinitions>
+                                                        <ColumnDefinition Width="Auto"/>
+                                                        <ColumnDefinition Width="*"/>
+                                                    </Grid.ColumnDefinitions>
+                                                    <TextBlock Grid.Column="0" Text="Preview length" FontSize="10" VerticalAlignment="Center"
+                                                               Foreground="{StaticResource TextSecondaryBrush}" Margin="0,0,6,0"/>
+                                                    <ComboBox Grid.Column="1" ItemsSource="{Binding StoryboardFrameOptions}"
+                                                              DisplayMemberPath="Label" SelectedValuePath="Frames"
+                                                              SelectedValue="{Binding StoryboardFrames, Mode=TwoWay}"
+                                                              Height="24" FontSize="10"
+                                                              ToolTip="How many frames each preview render asks H3 for. Only the frame you pick is kept — the rest exist because H3 is a video model and a lone frame is not what it was trained to make.&#x0a;&#x0a;The node's own tooltip puts the trained range at 124–362 frames, so a short preview is out of distribution and can come back softer than the clip it stands for. It is also what makes this cheap: a shot costs roughly frames ÷ 124 of the clip it previews, with face refine, interpolation, RTX and the audio branch all pruned out.&#x0a;&#x0a;The canvas is NOT reduced — the still is about to be frame 0 of a render at exactly this size."/>
+                                                </Grid>
+
+                                                <StackPanel Orientation="Horizontal">
+                                                    <Button Content="{Binding PreviewKeyframesButtonText}"
+                                                            Command="{Binding PreviewKeyframesCommand}"
+                                                            IsEnabled="{Binding CanPreviewKeyframes}"
+                                                            Height="32" Padding="14,0" FontSize="11" Margin="0,0,6,0"
+                                                            Style="{StaticResource AccentButtonStyle}"
+                                                            ToolTip="Renders one still per clip in the prompt box, on this graph, this canvas and this cast, from that clip's own prompt with the picture locks dropped — then shows them before anything is queued.&#x0a;&#x0a;Tick a still and it becomes that clip's opening frame at 0.00s: &lt;Picture 1&gt;, fully preserved, with the cast pushed to &lt;Picture 2&gt; onwards. Untick it and the clip renders as a reference-driven take with no lock, exactly as before.&#x0a;&#x0a;Nothing is enqueued by this. It runs on the same GPU lease as everything else, so pressing it mid-render simply waits."/>
+                                                    <Button Content="🗑 Clear"
+                                                            Command="{Binding ClearStoryboardCommand}"
+                                                            Height="32" Padding="10,0" FontSize="11"
+                                                            Background="{StaticResource SurfaceAltBrush}" Foreground="{DynamicResource TabAccentBrush}"
+                                                            BorderBrush="{StaticResource BorderBrush}" BorderThickness="1"
+                                                            ToolTip="Throws every storyboard still away and re-stamps the prompt without them. The files stay on disk in the storyboard folder."/>
+                                                </StackPanel>
+
+                                                <StackPanel Margin="0,6,0,0"
+                                                            Visibility="{Binding IsStoryboarding, Converter={StaticResource BooleanToVisibilityConverter}}">
+                                                    <ProgressBar IsIndeterminate="True" Height="6" Margin="0,0,0,3"
+                                                                 Background="{StaticResource SurfaceAltBrush}"
+                                                                 BorderBrush="{StaticResource BorderBrush}" BorderThickness="1"
+                                                                 Foreground="{DynamicResource TabAccentBrush}"/>
+                                                </StackPanel>
+
+                                                <TextBlock Text="{Binding StoryboardPhase}"
+                                                           FontSize="10" FontWeight="SemiBold" Margin="0,4,0,0"
+                                                           Foreground="{DynamicResource TabAccentBrush}" TextWrapping="Wrap"/>
+
+                                                <TextBlock Text="{Binding StoryboardSummary}"
+                                                           FontSize="10" Margin="0,6,0,0" FontStyle="Italic"
+                                                           Foreground="{StaticResource TextMutedBrush}" TextWrapping="Wrap"/>
+                                            </StackPanel>
+                                        </Border>
+
                                         <!-- Settings -->
                                         <Border Background="White" BorderBrush="{StaticResource BorderBrush}" BorderThickness="1"
                                                 CornerRadius="8" Padding="14">
@@ -3822,15 +3877,16 @@
                                             </Border>
                                             <TextBlock Text="MiniMax H3 · Hybrid keyframes + character sheets" FontSize="13" FontWeight="SemiBold"
                                                        Foreground="{StaticResource PlayerTextBrush}" HorizontalAlignment="Center" Margin="0,0,0,4"/>
-                                            <TextBlock Text="Keyframe stills → photo per character → Build Sheets → story → Analyze → Generate"
+                                            <TextBlock Text="Photo per character → Build Sheets → story → Analyze → Preview Keyframes → Generate"
                                                        FontSize="11" Foreground="{StaticResource PlayerTextBrush}" HorizontalAlignment="Center"/>
                                         </StackPanel>
 
                                         <Grid Visibility="{Binding HasCharacter1, Converter={StaticResource BooleanToVisibilityConverter}}"
                                               Margin="10">
                                             <Grid.RowDefinitions>
-                                                <RowDefinition Height="Auto"/>
-                                                <RowDefinition Height="*"/>
+                                                <RowDefinition Height="Auto"/>  <!-- keyframe locks -->
+                                                <RowDefinition Height="Auto"/>  <!-- storyboard stills -->
+                                                <RowDefinition Height="*"/>     <!-- the cast's sheets -->
                                             </Grid.RowDefinitions>
 
                                             <!-- The locks, in timestamp order — the strip reads left to
@@ -3856,7 +3912,72 @@
                                                 </ItemsControl.ItemTemplate>
                                             </ItemsControl>
 
-                                            <Grid Grid.Row="1">
+                                            <!-- The storyboard: one still per clip, in clip order, each of
+                                                 them about to be that clip's frame 0. -->
+                                            <ScrollViewer Grid.Row="1" HorizontalScrollBarVisibility="Auto"
+                                                          VerticalScrollBarVisibility="Disabled"
+                                                          Visibility="{Binding HasStoryboard, Converter={StaticResource BooleanToVisibilityConverter}}"
+                                                          Margin="0,0,0,8">
+                                                <ItemsControl ItemsSource="{Binding Storyboard}">
+                                                    <ItemsControl.ItemsPanel>
+                                                        <ItemsPanelTemplate>
+                                                            <StackPanel Orientation="Horizontal"/>
+                                                        </ItemsPanelTemplate>
+                                                    </ItemsControl.ItemsPanel>
+                                                    <ItemsControl.ItemTemplate>
+                                                        <DataTemplate>
+                                                            <Border Margin="0,0,8,0" Padding="6" CornerRadius="4"
+                                                                    Background="{StaticResource PlayerSurfaceRaisedBrush}"
+                                                                    BorderThickness="1">
+                                                                <Border.Style>
+                                                                    <Style TargetType="Border">
+                                                                        <Setter Property="BorderBrush" Value="{DynamicResource TabAccentBrush}"/>
+                                                                        <Setter Property="Opacity" Value="1"/>
+                                                                        <Style.Triggers>
+                                                                            <DataTrigger Binding="{Binding Use}" Value="False">
+                                                                                <Setter Property="BorderBrush" Value="Transparent"/>
+                                                                                <Setter Property="Opacity" Value="0.45"/>
+                                                                            </DataTrigger>
+                                                                        </Style.Triggers>
+                                                                    </Style>
+                                                                </Border.Style>
+                                                                <StackPanel Width="150">
+                                                                    <Image Source="{Binding Preview}" Height="96" Stretch="Uniform"
+                                                                           ToolTip="{Binding Beat}"/>
+                                                                    <TextBlock Text="{Binding Caption}"
+                                                                               HorizontalAlignment="Center" Margin="0,4,0,0"
+                                                                               FontSize="10" FontFamily="Consolas"
+                                                                               Foreground="{StaticResource PlayerTextBrush}"/>
+                                                                    <TextBlock Text="{Binding Beat}" MaxHeight="28"
+                                                                               FontSize="9" TextWrapping="Wrap" TextTrimming="CharacterEllipsis"
+                                                                               Foreground="{StaticResource PlayerTextBrush}" Opacity="0.75"/>
+                                                                    <StackPanel Orientation="Horizontal" HorizontalAlignment="Center" Margin="0,4,0,0">
+                                                                        <Button Content="‹" Width="22" Height="20" FontSize="11" Padding="0"
+                                                                                Visibility="{Binding HasChoice, Converter={StaticResource BooleanToVisibilityConverter}}"
+                                                                                Command="{Binding DataContext.PrevCandidateCommand, RelativeSource={RelativeSource AncestorType=ItemsControl}}"
+                                                                                CommandParameter="{Binding}"
+                                                                                ToolTip="The frame before this one out of the same preview render — a later frame simply starts the clip further into the move."/>
+                                                                        <Button Content="🎲" Width="26" Height="20" FontSize="10" Padding="0" Margin="3,0"
+                                                                                Command="{Binding DataContext.RerollShotCommand, RelativeSource={RelativeSource AncestorType=ItemsControl}}"
+                                                                                CommandParameter="{Binding}"
+                                                                                ToolTip="Re-renders this clip's still on a fresh seed. Nothing else in the chain moves."/>
+                                                                        <Button Content="›" Width="22" Height="20" FontSize="11" Padding="0"
+                                                                                Visibility="{Binding HasChoice, Converter={StaticResource BooleanToVisibilityConverter}}"
+                                                                                Command="{Binding DataContext.NextCandidateCommand, RelativeSource={RelativeSource AncestorType=ItemsControl}}"
+                                                                                CommandParameter="{Binding}"
+                                                                                ToolTip="The next frame out of the same preview render."/>
+                                                                        <CheckBox IsChecked="{Binding Use, Mode=TwoWay}" VerticalAlignment="Center" Margin="6,0,0,0"
+                                                                                  Foreground="{StaticResource PlayerTextBrush}"
+                                                                                  ToolTip="Locked in as this clip's opening frame. Unticked, the clip renders as a reference-driven take with no frame lock."/>
+                                                                    </StackPanel>
+                                                                </StackPanel>
+                                                            </Border>
+                                                        </DataTemplate>
+                                                    </ItemsControl.ItemTemplate>
+                                                </ItemsControl>
+                                            </ScrollViewer>
+
+                                            <Grid Grid.Row="2">
                                                 <Grid.RowDefinitions>
                                                     <RowDefinition Height="*"/>
                                                     <RowDefinition Height="Auto"/>

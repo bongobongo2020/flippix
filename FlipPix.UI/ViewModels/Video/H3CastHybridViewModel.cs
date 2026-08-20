@@ -70,9 +70,16 @@ namespace FlipPix.UI.ViewModels.Video
     /// dial only means what the sigma schedule says it means.</para>
     ///
     /// <para><b>Length.</b> H3 tops out at ~15 seconds, so a longer <see cref="StoryDurationSeconds"/> is
-    /// delivered as a chain of clips written in one reply. <b>The keyframes belong to clip 1 only</b> — they
-    /// are locked to timestamps inside a single pass — and clips 2…N are continuous takes driven by the cast
-    /// references alone, joined into one file when the last lands.</para>
+    /// delivered as a chain of clips written in one reply. <b>A hand-placed keyframe timeline belongs to
+    /// clip 1 only</b> — it is locked to timestamps inside a single pass — and clips 2…N are continuous takes
+    /// driven by the cast references alone, joined into one file when the last lands.</para>
+    ///
+    /// <para><b>The storyboard.</b> Which leaves the chain's other clips with nothing to open on, so the tab
+    /// asks H3 for the stills itself: 🎬 Preview Keyframes renders each clip's opening frame first — the
+    /// clip's own prompt, this cast, this canvas, a few frames long — and puts them on screen to approve,
+    /// re-roll or drop <i>before</i> any full clip is committed. A ticked still becomes that clip's
+    /// <c>&lt;Picture 1&gt;</c> at 0.00s, so every clip of a chain can open on a frame that has been looked
+    /// at. See <see cref="Storyboard"/>.</para>
     /// </summary>
     public partial class H3CastHybridViewModel : VideoProcessingBaseViewModel
     {
@@ -127,6 +134,11 @@ namespace FlipPix.UI.ViewModels.Video
         /// clear of every id the workflow uses (which top out at 111).</summary>
         private const int ReferenceNodeIdBase = 900;
 
+        /// <summary>Ids for the storyboard pass's frame pickers and image sinks — clear of the graph's own
+        /// and of the reference loaders. See <see cref="WireStillOutputs"/>.</summary>
+        private const int StillPickIdBase = 800;
+        private const int StillSaveIdBase = 810;
+
         /// <summary><c>MiniMaxH3ReferenceToVideo</c>'s autogrow cap — nine <c>ref_image_N</c> slots, shared
         /// between the keyframes and the cast's panels.</summary>
         private const int MaxReferenceImages = 9;
@@ -160,6 +172,13 @@ namespace FlipPix.UI.ViewModels.Video
 
         // ── Keyframes ──────────────────────────────────────────────────────────
         private readonly ObservableCollection<KeyframeSlot> _keyframes = new();
+
+        // ── Storyboard: the keyframes H3 renders for itself ────────────────────
+        private readonly ObservableCollection<StoryboardShot> _storyboard = new();
+        private bool _isStoryboarding;
+        private string _storyboardPhase = string.Empty;
+        private int _storyboardFrames = 39;
+        private CancellationTokenSource? _storyboardCts;
 
         // ── Scene / prompt state ───────────────────────────────────────────────
         private string _sceneImagePath = string.Empty;
@@ -240,6 +259,11 @@ namespace FlipPix.UI.ViewModels.Video
             RemoveKeyframeCommand = new RelayCommand<KeyframeSlot>(RemoveKeyframe);
             ClearKeyframesCommand = new RelayCommand(ClearKeyframes, () => HasKeyframes);
             SpreadKeyframesCommand = new RelayCommand(SpreadKeyframes, () => HasKeyframes);
+            PreviewKeyframesCommand = new RelayCommand(async () => await BuildStoryboardAsync(), () => CanPreviewKeyframes);
+            RerollShotCommand = new RelayCommand<StoryboardShot>(async shot => await RerollShotAsync(shot));
+            NextCandidateCommand = new RelayCommand<StoryboardShot>(shot => shot?.Next());
+            PrevCandidateCommand = new RelayCommand<StoryboardShot>(shot => shot?.Previous());
+            ClearStoryboardCommand = new RelayCommand(ClearStoryboard, () => HasStoryboard);
             LoadStoryCommand = new RelayCommand(async () => await LoadStoryFileAsync());
             ClearStoryCommand = new RelayCommand(() => StoryText = string.Empty, () => HasStoryText);
             DeriveWardrobeCommand = new RelayCommand(async () => await RederiveWardrobeAsync(), () => CanAnalyze);
@@ -265,6 +289,7 @@ namespace FlipPix.UI.ViewModels.Video
                 UpdateQueueStatus();
             };
             _keyframes.CollectionChanged += (_, _) => OnKeyframesChanged();
+            _storyboard.CollectionChanged += (_, _) => OnStoryboardChanged();
 
             AddLog("H3 Cast Hybrid initialized");
             ScheduleQueueLoad();
@@ -283,6 +308,14 @@ namespace FlipPix.UI.ViewModels.Video
         public RelayCommand ClearKeyframesCommand { get; }
         /// <summary>Re-spaces every keyframe evenly from 0 to just short of the clip length.</summary>
         public RelayCommand SpreadKeyframesCommand { get; }
+        /// <summary>Renders one H3 still per clip in the prompt box — the opening frame of each, to look at
+        /// before any of them is committed to a full render.</summary>
+        public RelayCommand PreviewKeyframesCommand { get; }
+        /// <summary>Re-renders one storyboard still on a fresh seed.</summary>
+        public RelayCommand<StoryboardShot> RerollShotCommand { get; }
+        public RelayCommand<StoryboardShot> NextCandidateCommand { get; }
+        public RelayCommand<StoryboardShot> PrevCandidateCommand { get; }
+        public RelayCommand ClearStoryboardCommand { get; }
         public RelayCommand LoadStoryCommand { get; }
         public RelayCommand ClearStoryCommand { get; }
         public RelayCommand DeriveWardrobeCommand { get; }
@@ -414,6 +447,514 @@ namespace FlipPix.UI.ViewModels.Video
 
         #endregion
 
+        #region Storyboard — the keyframes H3 renders for itself
+
+        /// <summary>
+        /// One still per clip in the prompt box, rendered by H3 <i>before</i> the clips are: on screen to
+        /// look at, re-roll or drop, and then handed straight back to the same model as that clip's opening
+        /// frame lock.
+        ///
+        /// <para><b>Why the model is its own storyboard artist.</b> The keyframe list is what this tab is
+        /// for and it starts empty — a chain written from a story has no stills, so the hybrid checkpoint's
+        /// first-frame half is conditioned on nothing and the tab degrades to plain reference-to-video with
+        /// extra machinery (see <see cref="IdentityAdvisories"/>). Every other way of filling it hands H3 a
+        /// frame from a <i>different</i> model's idea of the cast, the wardrobe and the lens. A still H3
+        /// rendered itself, from these references, on this canvas, from this clip's own prompt, is one it can
+        /// land on exactly — which is what <c>fully_preserved</c> asks of it.</para>
+        ///
+        /// <para><b>How a still is made.</b> The clip's own prompt, assembled with <b>no</b> keyframes (so
+        /// the cast are numbered from <c>&lt;Picture 1&gt;</c>) and with the model's own picture locks
+        /// dropped, on the same graph, the same canvas and the same cast as the clip it stands for. The only
+        /// difference is <c>length</c>: <see cref="StoryboardFrames"/> frames instead of a full clip, of
+        /// which frame 0 is saved. That is the trick the H3 character-sheet workflows use, read backwards —
+        /// a video model asked for the fewest frames it will take, and used as an image generator.</para>
+        ///
+        /// <para><b>Cost.</b> Face refine, interpolation, RTX and the audio branch are all pruned, so a shot
+        /// costs roughly <c>frames / 124</c> of the clip it previews. The node's own tooltip puts the trained
+        /// range at 124–362 frames, though, so a short preview is out of distribution and can come back
+        /// softer than the clip it stands for — that is what the length dial trades.</para>
+        /// </summary>
+        public ObservableCollection<StoryboardShot> Storyboard => _storyboard;
+
+        public bool HasStoryboard => _storyboard.Count > 0;
+
+        /// <summary>
+        /// Re-checks every still against the clip it was rendered for, and marks the ones whose beat has
+        /// moved on. Analyze can be run again, the loop guard drops and renumbers clips, and the prompt box
+        /// is editable — all of which leave clip 4's still sitting in front of a clip 4 that is now a
+        /// different scene. A stale still is still usable (the picture is fine, it just is not this beat),
+        /// so it is flagged rather than deleted, and warned about again at Add to Queue.
+        ///
+        /// <para>Compared on <see cref="HybridCastPrompt.Fingerprint"/>, i.e. the model-written body alone:
+        /// re-stamping rewrites the code-written half of every clip on purpose, and comparing whole prompts
+        /// would call every still stale the moment one was locked in.</para>
+        /// </summary>
+        private void RefreshStoryboardStaleness()
+        {
+            if (_storyboard.Count == 0) return;
+            var clips = SplitClips(Prompt);
+            foreach (var shot in _storyboard)
+                shot.SetStale(shot.ClipIndex > clips.Count ||
+                              !string.Equals(shot.SourceFingerprint,
+                                             HybridCastPrompt.Fingerprint(clips[shot.ClipIndex - 1]),
+                                             StringComparison.Ordinal));
+        }
+
+        /// <summary>The stills that are actually going to be locked, by 1-based clip index.</summary>
+        private Dictionary<int, StoryboardShot> UsedStoryboard =>
+            _storyboard.Where(s => s.Use && s.Exists)
+                       .GroupBy(s => s.ClipIndex)
+                       .ToDictionary(g => g.Key, g => g.First());
+
+        public bool IsStoryboarding
+        {
+            get => _isStoryboarding;
+            private set
+            {
+                if (_isStoryboarding == value) return;
+                _isStoryboarding = value;
+                OnPropertyChanged();
+                OnCanExecuteChanged();
+            }
+        }
+
+        /// <summary>What the storyboard pass is doing, beside its own button — like
+        /// <see cref="SheetPhase"/> it cannot use the tab's status line, which belongs to whatever is
+        /// rendering underneath it.</summary>
+        public string StoryboardPhase
+        {
+            get => _storyboardPhase;
+            private set { if (_storyboardPhase != value) { _storyboardPhase = value; OnPropertyChanged(); } }
+        }
+
+        /// <summary><c>MiniMaxH3ReferenceToVideo.length</c> accepts 5 and steps in 17s; anything below 124 is
+        /// outside the range the model was trained on, which is a quality dial rather than an error.</summary>
+        public IReadOnlyList<StoryboardLengthOption> StoryboardFrameOptions { get; } = new[]
+        {
+            new StoryboardLengthOption(5, "5 frames · cheapest, roughest"),
+            new StoryboardLengthOption(22, "22 frames · fast"),
+            new StoryboardLengthOption(39, "39 frames · balanced"),
+            new StoryboardLengthOption(124, "124 frames · the trained minimum"),
+        };
+
+        /// <summary>How many frames each storyboard render asks for. Only one of them becomes the lock; the
+        /// rest exist because H3 is a video model and a single frame is not what it was trained to make.</summary>
+        public int StoryboardFrames
+        {
+            get => _storyboardFrames;
+            set
+            {
+                var snapped = ClampStoryboardFrames(value);
+                if (_storyboardFrames == snapped) return;
+                _storyboardFrames = snapped;
+                OnPropertyChanged();
+                OnPropertyChanged(nameof(StoryboardSummary));
+            }
+        }
+
+        public string PreviewKeyframesButtonText =>
+            PromptClipCount > 1 ? $"🎬 Preview {PromptClipCount} Keyframes" : "🎬 Preview Keyframe";
+
+        /// <summary>
+        /// Deliberately not gated on a render being in flight, for the same reason
+        /// <see cref="CanBuildSheets"/> is not: the workflow coordinator serializes the GPU, and the whole
+        /// point of a storyboard is to prepare the next job while the current one runs.
+        /// </summary>
+        public bool CanPreviewKeyframes =>
+            HasPrompt && AllSheetsReady && !IsStoryboarding && !IsAnalyzing &&
+            CastPanelCount > 0 && CastPanelCount <= MaxReferenceImages;
+
+        public string StoryboardSummary
+        {
+            get
+            {
+                if (!HasPrompt || !AllSheetsReady) return string.Empty;
+                var clips = Math.Max(1, PromptClipCount);
+                if (!HasStoryboard)
+                    return $"H3 renders one {_storyboardFrames}-frame pass per clip and keeps frame 0 — " +
+                           $"{clips} still(s) to look at before {clips * ClampLength(LengthSeconds):0.#}s of " +
+                           "video is committed. Nothing is queued by this.";
+
+                var used = UsedStoryboard.Count;
+                var slots = 1 + CastPanelCount;
+                var over = slots > MaxReferenceImages
+                    ? $" ⚠ A lock plus {CastPanelCount} cast picture(s) is {slots} references, more than the " +
+                      $"{MaxReferenceImages} slots H3 has — trim the reference budget."
+                    : string.Empty;
+                var stale = _storyboard.Count(s => s.IsStale && s.Use);
+                var staleNote = stale == 0
+                    ? string.Empty
+                    : $" ⚠ {stale} of them were rendered for a beat that has since been rewritten — re-roll " +
+                      "or untick those.";
+                return used == 0
+                    ? "No still is ticked, so the clips run as they would have: reference-driven takes with " +
+                      "no frame lock."
+                    : $"{used} of {_storyboard.Count} still(s) locked as the opening frame of their clip — " +
+                      $"each becomes <Picture 1> at 0.00s and pushes that clip's cast to " +
+                      $"<Picture 2>–<Picture {slots}>.{over}{staleNote}";
+            }
+        }
+
+        /// <summary>
+        /// Renders a still for every clip in the prompt box. One lease for the whole pass — a chain is N
+        /// small renders, and re-queuing for the GPU between each of them just lets another tab interleave.
+        /// </summary>
+        private async Task BuildStoryboardAsync()
+        {
+            if (!CanPreviewKeyframes) return;
+            var clips = SplitClips(Prompt);
+            if (clips.Count == 0) return;
+            await RunStoryboardAsync(Enumerable.Range(1, clips.Count).ToList(), reroll: false);
+        }
+
+        /// <summary>Re-renders one shot on a fresh seed — the cheap answer to a still that came back wrong,
+        /// and the reason a shot carries a seed of its own at all.</summary>
+        private async Task RerollShotAsync(StoryboardShot? shot)
+        {
+            if (shot == null || IsStoryboarding) return;
+            await RunStoryboardAsync(new[] { shot.ClipIndex }, reroll: true);
+        }
+
+        private async Task RunStoryboardAsync(IReadOnlyList<int> clipIndices, bool reroll)
+        {
+            var chain = SplitClips(Prompt);
+            var wanted = clipIndices.Where(i => i >= 1 && i <= chain.Count).ToList();
+            if (wanted.Count == 0) return;
+
+            IsStoryboarding = true;
+            StoryboardPhase = "Preparing…";
+
+            _storyboardCts?.Dispose();
+            _storyboardCts = new CancellationTokenSource();
+            var token = _storyboardCts.Token;
+
+            WorkflowQueueCoordinator.WorkflowLease? lease = null;
+            try
+            {
+                var frames = ClampStoryboardFrames(StoryboardFrames);
+                AddLog($"=== H3 Cast Hybrid: storyboarding {wanted.Count} clip(s) — a {frames}-frame H3 pass " +
+                       "each, frame 0 kept as that clip's opening lock ===");
+                if (frames < 124)
+                    AddLog($"Note: {frames} frames is below MiniMaxH3ReferenceToVideo's trained range " +
+                           "(124–362 per its own tooltip). It is the cheap end of the dial, and a still can " +
+                           "come back softer than the clip it stands for — raise the storyboard length if " +
+                           "one looks unlike the model's own work.");
+
+                StoryboardPhase = IsProcessing || IsProcessingQueue
+                    ? "Waiting for the current render to finish…"
+                    : "Waiting for the GPU…";
+                lease = await _workflowCoordinator.AcquireAsync("H3CastHybrid", token);
+
+                StoryboardPhase = "Checking ComfyUI…";
+                var comfyOk = await _comfyUIService.DetectAndRestartIfCrashedAsync(s => AddLog($"[Auto-Restart] {s}"));
+                if (!comfyOk) throw new Exception("ComfyUI is not running.");
+                if (!_comfyUIService.IsConnected)
+                {
+                    StoryboardPhase = "Connecting to ComfyUI…";
+                    await _comfyUIService.ConnectAsync();
+                }
+
+                for (var n = 0; n < wanted.Count; n++)
+                {
+                    token.ThrowIfCancellationRequested();
+                    var clipIndex = wanted[n];
+                    var clip = chain[clipIndex - 1];
+                    var progress = wanted.Count > 1 ? $" ({n + 1}/{wanted.Count})" : string.Empty;
+
+                    var existing = _storyboard.FirstOrDefault(s => s.ClipIndex == clipIndex);
+                    var seed = reroll || existing == null || existing.Seed <= 0
+                        ? System.Random.Shared.NextInt64(0, long.MaxValue)
+                        : existing.Seed;
+
+                    StoryboardPhase = $"Rendering clip {clipIndex}'s opening frame…{progress}";
+                    var beat = HybridCastPrompt.ActionSummary(clip, 110);
+                    AddLog($"Storyboard clip {clipIndex}: {beat}");
+
+                    var candidates = await RenderClipStillsAsync(clipIndex, chain.Count, clip, seed, frames, token);
+                    if (candidates.Count == 0)
+                    {
+                        AddLog($"WARNING: clip {clipIndex}'s still was not produced — that clip keeps whatever " +
+                               "lock it already had.");
+                        continue;
+                    }
+
+                    Application.Current.Dispatcher.Invoke(() =>
+                    {
+                        var target = _storyboard.FirstOrDefault(s => s.ClipIndex == clipIndex);
+                        if (target == null)
+                        {
+                            target = new StoryboardShot(clipIndex, LoadImagePreview, OnStoryboardChanged);
+                            _storyboard.Insert(_storyboard.Count(s => s.ClipIndex < clipIndex), target);
+                        }
+                        target.SetShot(beat, candidates, seed, HybridCastPrompt.Fingerprint(clip));
+                    });
+                    AddLog($"Storyboard clip {clipIndex}: {Path.GetFileName(candidates[0])} (seed {seed})");
+                }
+
+                // The picture numbering just changed under the prompt: <Picture 1> is now a frame lock and
+                // the cast moved up one. Nothing else re-stamps on its own, and a prompt left un-stamped is
+                // one that describes the still as a studio photograph.
+                if (HasPrompt) Prompt = AssembleChain(Prompt);
+                StoryboardPhase = $"{UsedStoryboard.Count} still(s) ready — untick any that are wrong.";
+                AddLog(StoryboardSummary);
+            }
+            catch (OperationCanceledException)
+            {
+                AddLog("Storyboard cancelled");
+                StoryboardPhase = "Cancelled";
+            }
+            catch (Exception ex)
+            {
+                AddLog($"ERROR (storyboard): {ex.Message}");
+                StoryboardPhase = $"Error: {ex.Message}";
+            }
+            finally
+            {
+                lease?.Dispose();
+                IsStoryboarding = false;
+                _storyboardCts?.Dispose();
+                _storyboardCts = null;
+                OnStoryboardChanged();
+            }
+        }
+
+        /// <summary>
+        /// One clip → the stills H3 makes of its opening. The prompt is the clip's own, re-assembled as pure
+        /// reference generation: this pass has no keyframes, so a <c>&lt;Picture n&gt;</c> left in it would
+        /// point at a cast photograph — the same reason the face-refine pass carries its own copy.
+        /// </summary>
+        private async Task<IReadOnlyList<string>> RenderClipStillsAsync(
+            int clipIndex, int clipCount, string clip, long seed, int frames, CancellationToken token)
+        {
+            var cast = CastMembers;
+            if (cast.Count == 0) throw new Exception("No cast is loaded.");
+
+            var stillPrompt = HybridCastPrompt.Assemble(
+                HybridCastPrompt.DropPictureLocks(HybridCastPrompt.Strip(clip)),
+                Array.Empty<HybridCastPrompt.Keyframe>(), cast, CastWardrobe,
+                ClampLength(LengthSeconds), SelectedMedium, SheetsShowWardrobe,
+                selectiveCast: clipCount > 1);
+            if (stillPrompt.Length == 0)
+                throw new Exception($"Clip {clipIndex} has no body to render a still from.");
+
+            // Mirrors the submit path: a clip that never names character 2 is not shown their photographs,
+            // and the prompt above was numbered for exactly that.
+            var includes2 = HybridCastPrompt.IncludesCharacter2(stillPrompt, HasCharacter2);
+            var panels = CurrentCastPanels(includes2);
+            if (panels.Count == 0)
+                throw new Exception("The cast has no reference panels to render from — build the sheets first.");
+
+            var uploaded = new List<string>();
+            foreach (var panel in panels) uploaded.Add(await EnsureUploadedAsync(panel));
+
+            var json = await LoadFileAsync(WorkflowFileName, token);
+            json = EnsureInputPrimitives(json);
+            json = WireReferenceImages(json, uploaded, out _);
+
+            var runToken = $"storyboard_{DateTime.Now:yyyyMMdd_HHmmss}_c{clipIndex:00}";
+            SetInput(ref json, NodePrompt, "value", stillPrompt);
+            SetInput(ref json, NodeResolution, "aspect_ratio", ResolvedAspectRatio);
+            SetInput(ref json, NodeResolution, "megapixels", Megapixels);
+            SetInput(ref json, NodeSeed, "noise_seed", seed);
+            // The whole saving, and the only thing that differs from the clip this previews: the frame count.
+            // Written as a literal on the reference node *and* as the duration the rest of the graph derives
+            // its frame count from — node 6's sampler preview reads node 13 too, and a preview sized for a
+            // clip that is not being rendered is the kind of mismatch that surfaces as a confusing log line.
+            // The canvas is deliberately *not* reduced: this still is about to be frame 0 of a render at
+            // exactly this size, and a lock at another size is a lock H3 has to resize before it can hold it.
+            SetInput(ref json, NodeDuration, "value", frames / (double)OutputFrameRate);
+            SetInput(ref json, NodeReference, "length", frames);
+
+            var saves = WireStillOutputs(ref json, frames, runToken);
+            json = PruneToOutputs(json, saves.Select(s => s.Key), out var pruned);
+            if (pruned > 0)
+                AddLog($"Storyboard graph pruned to the stills: {pruned} node(s) removed (the audio branch, " +
+                       "face refine, interpolation, RTX and the video mux).");
+
+            var promptId = await SubmitStoryboardAsync(json, token);
+            var byNode = await _comfyUIService.HttpClient.GetOutputsByNodeAsync(promptId, token);
+
+            var stills = new List<string>();
+            foreach (var save in saves)
+            {
+                if (!byNode.TryGetValue(save.Key, out var outs) || outs.Count == 0) continue;
+                var local = await ResolveImageToLocalAsync(outs[0]);
+                if (local == null || !File.Exists(local)) continue;
+                stills.Add(KeepStill(local, clipIndex, save.Value, seed));
+            }
+            return stills;
+        }
+
+        /// <summary>The cast's panels as they stand right now, in wiring order — the same selection
+        /// <see cref="AddToQueue"/> freezes onto a queue item, resolved live because the storyboard renders
+        /// from the form rather than from a queued job.</summary>
+        private IReadOnlyList<string> CurrentCastPanels(bool includeCharacter2)
+        {
+            var paths = new List<string>();
+            foreach (var slot in LoadedCharacters)
+            {
+                if (slot.Index == 2 && !includeCharacter2) continue;
+                var plan = ReferencePlanFor(slot);
+                var panels = ResolvePanels(slot.PanelPaths.ToList(), slot.SheetPath, slot.Index);
+                paths.AddRange(SelectPanels(panels, plan.Indices, plan.Views, slot.Index).Paths);
+            }
+            return paths;
+        }
+
+        /// <summary>
+        /// Hangs one <c>ImageFromBatch</c> + <c>SaveImage</c> pair off the decoded frames per still worth
+        /// keeping. Frame 0 is the one that becomes the lock; on a longer preview the midpoint and the last
+        /// frame are saved too, because by then the model has moved the camera and one of them is often the
+        /// composition actually wanted — choosing a later frame simply starts the clip further in.
+        /// </summary>
+        /// <returns>SaveImage node id → the batch index it holds, in candidate order.</returns>
+        private static IReadOnlyList<KeyValuePair<string, int>> WireStillOutputs(
+            ref string json, int frames, string runToken)
+        {
+            var root = JsonNode.Parse(json)?.AsObject()
+                       ?? throw new Exception("Workflow JSON could not be parsed.");
+            RequireClass(root, NodeBaseFrames, "VAEDecode");
+
+            var indices = new List<int> { 0 };
+            if (frames >= 22) { indices.Add(frames / 2); indices.Add(frames - 1); }
+
+            var map = new List<KeyValuePair<string, int>>();
+            for (var i = 0; i < indices.Count; i++)
+            {
+                var pick = (StillPickIdBase + i).ToString(System.Globalization.CultureInfo.InvariantCulture);
+                var save = (StillSaveIdBase + i).ToString(System.Globalization.CultureInfo.InvariantCulture);
+                root[pick] = new JsonObject
+                {
+                    ["inputs"] = new JsonObject
+                    {
+                        ["image"] = new JsonArray(NodeBaseFrames, 0),
+                        ["batch_index"] = indices[i],
+                        ["length"] = 1,
+                    },
+                    ["class_type"] = "ImageFromBatch",
+                    ["_meta"] = new JsonObject { ["title"] = $"Storyboard frame {indices[i]}" }
+                };
+                root[save] = new JsonObject
+                {
+                    ["inputs"] = new JsonObject
+                    {
+                        ["images"] = new JsonArray(pick, 0),
+                        ["filename_prefix"] = $"{OutputSubfolder}/{runToken}_f{indices[i]:000}",
+                    },
+                    ["class_type"] = "SaveImage",
+                    ["_meta"] = new JsonObject { ["title"] = $"Storyboard save {indices[i]}" }
+                };
+                map.Add(new KeyValuePair<string, int>(save, indices[i]));
+            }
+
+            json = root.ToJsonString();
+            return map;
+        }
+
+        /// <summary>Copies a still out of ComfyUI's output folder into the tab's own, under a name that says
+        /// which clip and which frame it is. A lock living in a temp file is a lock that goes missing between
+        /// queueing a chain and rendering clip 8 of it.</summary>
+        private string KeepStill(string local, int clipIndex, int frameIndex, long seed)
+        {
+            try
+            {
+                var dir = Path.Combine(
+                    _settingsService.Settings?.OutputFolderPath ?? Path.GetTempPath(),
+                    "H3CastHybrid", "storyboard");
+                Directory.CreateDirectory(dir);
+                var name = $"clip{clipIndex:00}_f{frameIndex:000}_{seed % 100000:00000}_" +
+                           $"{DateTime.Now:yyyyMMdd_HHmmss}{Path.GetExtension(local)}";
+                var kept = Path.Combine(dir, name);
+                File.Copy(local, kept, true);
+                return kept;
+            }
+            catch (Exception ex)
+            {
+                AddLog($"Storyboard still kept where ComfyUI wrote it ({ex.Message}).");
+                return local;
+            }
+        }
+
+        /// <summary>Submits a storyboard render. Like <see cref="SubmitSheetAsync"/> it reports through its
+        /// own phase line and never touches the progress bar or the status line — a queued clip may well be
+        /// rendering underneath it, and those belong to that.</summary>
+        private async Task<string> SubmitStoryboardAsync(string json, CancellationToken token)
+        {
+            var workflow = JsonSerializer.Deserialize<JsonElement>(json);
+            var phase = StoryboardPhase;
+            var progress = new Progress<ProgressMessage>(msg =>
+            {
+                if (msg.Data?.Value != null && msg.Data?.Max > 0)
+                    Application.Current.Dispatcher.Invoke(() =>
+                        StoryboardPhase = $"{phase} {msg.Data.Value}/{msg.Data.Max}");
+            });
+
+            var promptId = await _comfyUIService.ExecuteWorkflowAsync(workflow, progress, token);
+            AddLog($"Storyboard submitted, ID: {promptId}");
+            return promptId;
+        }
+
+        private void ClearStoryboard()
+        {
+            if (_storyboard.Count == 0) return;
+            _storyboard.Clear();   // the collection change re-stamps the prompt — see OnStoryboardChanged
+            AddLog("Storyboard cleared — the clips go back to reference-driven takes with no frame lock.");
+        }
+
+        private void OnStoryboardChanged()
+        {
+            // Unticking a still, or stepping to another frame of one, changes what <Picture 1> is — so the
+            // prompt is re-stamped there and then rather than waiting for Add to Queue to do it silently.
+            // Assemble ∘ Strip is idempotent, which is what makes this safe to fire on every click.
+            if (HasPrompt && !IsStoryboarding) Prompt = AssembleChain(Prompt);
+
+            OnPropertyChanged(nameof(HasStoryboard));
+            OnPropertyChanged(nameof(StoryboardSummary));
+            OnPropertyChanged(nameof(PicturePlanSummary));
+            OnPropertyChanged(nameof(PromptHealthSummary));
+            OnPropertyChanged(nameof(CanPreviewKeyframes));
+            OnPropertyChanged(nameof(PreviewKeyframesButtonText));
+            ClearStoryboardCommand.NotifyCanExecuteChanged();
+            PreviewKeyframesCommand.NotifyCanExecuteChanged();
+        }
+
+        /// <summary>The reference node takes 5 and steps in 17s — 5, 22, 39, 56, … — and the server rejects
+        /// anything off that grid rather than rounding it.</summary>
+        private static int ClampStoryboardFrames(int frames)
+        {
+            var clamped = Math.Clamp(frames, 5, 362);
+            return clamped - (clamped - 5) % 17;
+        }
+
+        /// <summary>
+        /// The frame locks one clip of the chain carries: the storyboard still H3 rendered for it, at 0.00s,
+        /// plus — for clip 1, the only clip a hand-placed timeline can belong to — whatever is in the keyframe
+        /// list. A manual still already at 0.00 wins: it is a lock the user chose deliberately, and two locks
+        /// on the same timestamp is a contradiction rather than a pair.
+        /// </summary>
+        private IReadOnlyList<(string Path, double Seconds)> KeyframesForClip(int clipIndex)
+        {
+            var keys = clipIndex == 1
+                ? OrderedKeyframes.Select(k => (k.Path, k.Seconds)).ToList()
+                : new List<(string Path, double Seconds)>();
+
+            if (!UsedStoryboard.TryGetValue(clipIndex, out var shot)) return keys;
+            if (keys.Any(k => k.Seconds <= 0.001)) return keys;
+
+            keys.Insert(0, (shot.Path, 0.0));
+            return keys;
+        }
+
+        /// <summary>The same list as <see cref="KeyframesForClip"/>, as <see cref="HybridCastPrompt"/> wants
+        /// it.</summary>
+        private IReadOnlyList<HybridCastPrompt.Keyframe> PromptKeyframesForClip(int clipIndex) =>
+            KeyframesForClip(clipIndex)
+                .Select((k, i) => new HybridCastPrompt.Keyframe(k.Seconds, $"Keyframe {i + 1}"))
+                .ToList();
+
+        #endregion
+
+
         #region Characters
 
         public CharacterSlot Character1 => _character1;
@@ -508,11 +1049,6 @@ namespace FlipPix.UI.ViewModels.Video
             public int Count => Indices.Count;
         }
 
-        /// <summary>The keyframes as <see cref="HybridCastPrompt"/> wants them.</summary>
-        private IReadOnlyList<HybridCastPrompt.Keyframe> PromptKeyframes =>
-            OrderedKeyframes.Select((k, i) => new HybridCastPrompt.Keyframe(k.Seconds, $"Keyframe {i + 1}"))
-                            .ToList();
-
         /// <summary>
         /// The whole picture plan in one line — which numbers are frame locks and which are the cast — because
         /// getting that order wrong is the one mistake in this tab that renders a studio photograph as a shot.
@@ -522,7 +1058,9 @@ namespace FlipPix.UI.ViewModels.Video
             get
             {
                 if (!HasCharacter1) return string.Empty;
-                var keys = OrderedKeyframes.Count;
+                // Clip 1's plan: the hand-placed timeline lives there, and a storyboard still — when one is
+                // ticked — sits ahead of it as that clip's opening lock.
+                var keys = KeyframesForClip(1).Count;
                 var total = keys + CastPanelCount;
                 var sb = new StringBuilder($"{total} reference image(s): ");
                 sb.Append(keys == 0
@@ -967,6 +1505,7 @@ namespace FlipPix.UI.ViewModels.Video
                 if (_prompt == value) return;
                 _prompt = value;
                 _promptClipCount = SplitClips(_prompt).Count;
+                RefreshStoryboardStaleness();
                 OnPropertyChanged();
                 OnPropertyChanged(nameof(HasPrompt));
                 OnPropertyChanged(nameof(PromptClipCount));
@@ -1006,12 +1545,21 @@ namespace FlipPix.UI.ViewModels.Video
                 if (missing.Count > 0)
                     return $"Missing section(s): {string.Join(", ", missing)}. Press ✎ Re-stamp, or Analyze again.";
 
-                var keys = OrderedKeyframes.Count;
-                var highest = SplitClips(Prompt).Select(HybridCastPrompt.HighestPictureReference).DefaultIfEmpty(0).Max();
-                if (highest > keys)
-                    return $"⚠ The prompt names <Picture {highest}> but only {keys} keyframe(s) are loaded — " +
-                           "that number is a cast photograph, not a frame. Press ✎ Re-stamp after fixing the " +
-                           "keyframe list, and re-check the shot list.";
+                // Only the model-written body is checked. The code-written sections name the cast's pictures
+                // by number on purpose — comparing those against the keyframe count reported a fault on every
+                // healthy prompt this tab has ever assembled.
+                var clips = SplitClips(Prompt);
+                for (var i = 0; i < clips.Count; i++)
+                {
+                    var keys = KeyframesForClip(i + 1).Count;
+                    var highest = HybridCastPrompt.HighestPictureReference(HybridCastPrompt.Strip(clips[i]));
+                    if (highest <= keys) continue;
+
+                    var where = clips.Count > 1 ? $"Clip {i + 1}'s shot list" : "The shot list";
+                    return $"⚠ {where} names <Picture {highest}> but that clip carries only {keys} " +
+                           "keyframe(s) — that number is a cast photograph, not a frame. Press 🎬 Preview " +
+                           "Keyframes or fix the keyframe list, then ✎ Re-stamp and re-check the shots.";
+                }
                 return string.Empty;
             }
         }
@@ -1552,7 +2100,7 @@ namespace FlipPix.UI.ViewModels.Video
 
         public bool CanGenerate =>
             HasPrompt && AllSheetsReady && !IsAnalyzing &&
-            OrderedKeyframes.Count + CastPanelCount <= MaxReferenceImages;
+            KeyframesForClip(1).Count + CastPanelCount <= MaxReferenceImages;
 
         private string ClosestAspectRatio(string path)
         {
@@ -2299,13 +2847,14 @@ namespace FlipPix.UI.ViewModels.Video
             var cast = CastMembers;
             if (cast.Count == 0) return chain.Trim();
 
-            var keys = PromptKeyframes;
             var len = ClampLength(LengthSeconds);
             var selective = clips.Count > 1;
 
+            // Per clip, not per chain: the hand-placed timeline still lives in clip 1 alone, but a storyboard
+            // still is rendered for each clip and is that clip's own opening frame — see KeyframesForClip.
             var assembled = clips.Select((clip, i) => HybridCastPrompt.Assemble(
                     clip,
-                    i == 0 ? keys : Array.Empty<HybridCastPrompt.Keyframe>(),
+                    PromptKeyframesForClip(i + 1),
                     cast, CastWardrobe, len, SelectedMedium, SheetsShowWardrobe, selective))
                 .Where(c => c.Length > 0)
                 .ToList();
@@ -2395,10 +2944,11 @@ namespace FlipPix.UI.ViewModels.Video
             // The tab's whole premise is a still the video has to land on. With none, the fl2va half of
             // the hybrid checkpoint is conditioned on nothing and this is plain reference-to-video with
             // extra machinery — including nothing anchoring composition, and so nothing anchoring a face.
-            if (OrderedKeyframes.Count == 0)
+            if (OrderedKeyframes.Count == 0 && UsedStoryboard.Count == 0)
                 yield return "Note: no keyframe stills, so the hybrid checkpoint's first-frame half has " +
-                             "nothing to lock onto and this runs as plain reference-to-video. Add a " +
-                             "keyframe to anchor the opening, or use the 🪪👥 H3 Cast tab.";
+                             "nothing to lock onto and this runs as plain reference-to-video. Press " +
+                             "🎬 Preview Keyframes to have H3 render one opening frame per clip, add a " +
+                             "keyframe by hand, or use the 🪪👥 H3 Cast tab.";
 
             // FILM is flow-based. A spin kick, a snapped head or a fast whip pan is exactly the motion it
             // cannot track, and what it does instead is smear the face across the invented frame — read
@@ -2650,11 +3200,18 @@ namespace FlipPix.UI.ViewModels.Video
 
             for (var i = 0; i < clips.Count; i++)
             {
+                // A hand-placed timeline lives inside one pass, so it belongs to clip 1 alone; a storyboard
+                // still is rendered per clip and is that clip's own opening frame. See KeyframesForClip.
+                var clipKeys = KeyframesForClip(i + 1);
+                if (clipKeys.Count + CastPanelCount > MaxReferenceImages)
+                    AddLog($"WARNING: clip {i + 1} carries {clipKeys.Count} lock(s) and {CastPanelCount} cast " +
+                           $"picture(s) — more than the {MaxReferenceImages} slots MiniMaxH3ReferenceToVideo " +
+                           "has, and it will fail at submit. Trim the reference budget or drop a keyframe.");
+
                 var item = new H3CastHybridQueueItem
                 {
-                    // The locks live in one pass, so only clip 1 carries them — see AssembleChain.
-                    KeyframePaths = i == 0 ? keys.Select(k => k.Path).ToList() : new List<string>(),
-                    KeyframeSeconds = i == 0 ? keys.Select(k => k.Seconds).ToList() : new List<double>(),
+                    KeyframePaths = clipKeys.Select(k => k.Path).ToList(),
+                    KeyframeSeconds = clipKeys.Select(k => k.Seconds).ToList(),
                     Character1SheetPath = _character1.SheetPath,
                     Character2SheetPath = HasCharacter2 ? _character2.SheetPath : string.Empty,
                     Character1SourcePath = _character1.SourcePath,
@@ -2695,13 +3252,23 @@ namespace FlipPix.UI.ViewModels.Video
             }
 
             AddLog(PicturePlanSummary);
+            var staleShots = _storyboard.Where(sb => sb.IsStale && sb.Use).Select(sb => sb.ClipIndex).ToList();
+            if (staleShots.Count > 0)
+                AddLog($"WARNING: the storyboard still(s) for clip(s) {string.Join(", ", staleShots)} were " +
+                       "rendered for a beat that has been rewritten since. They are being locked in as those " +
+                       "clips' opening frames anyway — re-roll them, or untick them, and re-queue.");
             foreach (var note in IdentityAdvisories()) AddLog(note);
 
             if (clips.Count > 1)
             {
+                var storyboarded = Enumerable.Range(1, clips.Count).Where(n => UsedStoryboard.ContainsKey(n)).ToList();
+                if (storyboarded.Count > 0)
+                    AddLog($"Clip(s) {string.Join(", ", storyboarded)} open on the storyboard still H3 rendered " +
+                           "for them, locked at 0.00s. The rest are continuous takes carried by the cast " +
+                           "references.");
                 if (keys.Count > 0)
-                    AddLog($"The {keys.Count} keyframe lock(s) are attached to clip 1 only — clips 2–{clips.Count} " +
-                           "are continuous takes carried by the cast references.");
+                    AddLog($"The {keys.Count} hand-placed keyframe lock(s) are attached to clip 1 only — a " +
+                           "timeline lives inside a single pass.");
 
                 var soloed = _queue.Where(q => q.StoryId == storyId &&
                                                !HybridCastPrompt.IncludesCharacter2(q.Prompt, HasCharacter2))
@@ -2760,6 +3327,7 @@ namespace FlipPix.UI.ViewModels.Video
         private void CancelEverything()
         {
             _sheetCts?.Cancel();
+            _storyboardCts?.Cancel();
             _queueCts?.Cancel();
             _wardrobeCts?.Cancel();
         }
@@ -3908,12 +4476,17 @@ namespace FlipPix.UI.ViewModels.Video
             OnPropertyChanged(nameof(CanAnalyze));
             OnPropertyChanged(nameof(CanGenerate));
             OnPropertyChanged(nameof(CanBuildSheets));
+            OnPropertyChanged(nameof(CanPreviewKeyframes));
+            OnPropertyChanged(nameof(PreviewKeyframesButtonText));
+            OnPropertyChanged(nameof(StoryboardSummary));
             OnPropertyChanged(nameof(CanAddKeyframe));
             OnPropertyChanged(nameof(BuildSheetsButtonText));
             OnPropertyChanged(nameof(AllSheetsReady));
             OnPropertyChanged(nameof(CastSummary));
             OnPropertyChanged(nameof(PromptHealthSummary));
             BuildSheetsCommand.NotifyCanExecuteChanged();
+            PreviewKeyframesCommand.NotifyCanExecuteChanged();
+            ClearStoryboardCommand.NotifyCanExecuteChanged();
             AnalyzeCommand.NotifyCanExecuteChanged();
             RestampCommand.NotifyCanExecuteChanged();
             DeriveWardrobeCommand.NotifyCanExecuteChanged();
@@ -3979,4 +4552,137 @@ namespace FlipPix.UI.ViewModels.Video
 
     /// <summary>One entry of the tab's "how much of each sheet does H3 get" dropdown.</summary>
     public record ReferenceBudgetOption(int Value, string Label);
+
+    /// <summary>One entry of the storyboard's preview-length dropdown.</summary>
+    public record StoryboardLengthOption(int Frames, string Label);
+
+    /// <summary>
+    /// One clip's storyboard: the still H3 rendered of its opening frame, the seed that produced it, and
+    /// whether it is going to be locked in when the clip renders.
+    ///
+    /// <para>A shot holds every frame the preview saved, not just the one on screen. They cost nothing extra
+    /// — the render happened either way — and stepping to a later frame is the difference between a clip that
+    /// opens on the model settling into the pose and one that opens mid-move.</para>
+    /// </summary>
+    public class StoryboardShot : System.ComponentModel.INotifyPropertyChanged
+    {
+        private readonly CharacterSlot.PreviewLoader _loadPreview;
+        private readonly Action _onChanged;
+        private IReadOnlyList<string> _candidates = Array.Empty<string>();
+        private int _candidate;
+        private bool _use = true;
+        private bool _stale;
+        private string _beat = string.Empty;
+        private BitmapImage? _preview;
+
+        public StoryboardShot(int clipIndex, CharacterSlot.PreviewLoader loadPreview, Action onChanged)
+        {
+            ClipIndex = clipIndex;
+            _loadPreview = loadPreview;
+            _onChanged = onChanged;
+        }
+
+        /// <summary>Which clip of the chain this is the opening frame of, 1-based.</summary>
+        public int ClipIndex { get; }
+
+        /// <summary>The beat in one line, read back off the clip's own summary — what the still is meant to
+        /// be showing, so a wrong one is recognisable as wrong.</summary>
+        public string Beat
+        {
+            get => _beat;
+            private set { if (_beat != value) { _beat = value; Raise(nameof(Beat)); } }
+        }
+
+        /// <summary>The seed the still was rendered on. Kept so a re-render of the same shot is deliberate:
+        /// ✎ re-stamps reuse it, 🎲 Re-roll replaces it.</summary>
+        public long Seed { get; private set; }
+
+        public IReadOnlyList<string> Candidates => _candidates;
+
+        /// <summary>The still that is actually the lock — whichever frame is on screen.</summary>
+        public string Path => _candidates.Count == 0
+            ? string.Empty
+            : _candidates[Math.Clamp(_candidate, 0, _candidates.Count - 1)];
+
+        public bool Exists => !string.IsNullOrEmpty(Path) && File.Exists(Path);
+
+        public BitmapImage? Preview
+        {
+            get => _preview;
+            private set { _preview = value; Raise(nameof(Preview)); }
+        }
+
+        /// <summary>Whether this still is locked into its clip. Unticked, the clip renders as it would have
+        /// without a storyboard — a reference-driven take with no frame lock.</summary>
+        public bool Use
+        {
+            get => _use;
+            set
+            {
+                if (_use == value) return;
+                _use = value;
+                Raise(nameof(Use));
+                _onChanged();
+            }
+        }
+
+        public bool HasChoice => _candidates.Count > 1;
+
+        public string Caption =>
+            (_candidates.Count <= 1
+                ? $"Clip {ClipIndex}"
+                : $"Clip {ClipIndex} · frame {_candidate + 1}/{_candidates.Count}") +
+            (IsStale ? " · ⚠ beat rewritten" : string.Empty);
+
+        /// <summary>The clip body this still was rendered from, fingerprinted — what says later whether the
+        /// beat it depicts is still the beat that clip is about.</summary>
+        public string SourceFingerprint { get; private set; } = string.Empty;
+
+        /// <summary>Set when the clip this belongs to has been rewritten since the still was made. The
+        /// picture is fine; it is simply of a scene that is no longer clip <see cref="ClipIndex"/>.</summary>
+        public bool IsStale
+        {
+            get => _stale;
+            private set { if (_stale != value) { _stale = value; Raise(nameof(IsStale)); Raise(nameof(Caption)); } }
+        }
+
+        public void SetStale(bool stale) => IsStale = stale;
+
+        public void SetShot(string beat, IReadOnlyList<string> candidates, long seed, string fingerprint)
+        {
+            _candidates = candidates.Where(p => !string.IsNullOrEmpty(p) && File.Exists(p)).ToList();
+            _candidate = 0;
+            Seed = seed;
+            Beat = beat;
+            SourceFingerprint = fingerprint;
+            IsStale = false;
+            Refresh();
+        }
+
+        public void Next() => Step(1);
+        public void Previous() => Step(-1);
+
+        private void Step(int by)
+        {
+            if (_candidates.Count < 2) return;
+            _candidate = (_candidate + by + _candidates.Count) % _candidates.Count;
+            Refresh();
+            // The lock itself just changed, so whatever is holding this shot has to re-stamp around it.
+            _onChanged();
+        }
+
+        private void Refresh()
+        {
+            Preview = Exists ? _loadPreview(Path, out _) : null;
+            Raise(nameof(Path));
+            Raise(nameof(Exists));
+            Raise(nameof(HasChoice));
+            Raise(nameof(Caption));
+        }
+
+        private void Raise(string name) =>
+            PropertyChanged?.Invoke(this, new System.ComponentModel.PropertyChangedEventArgs(name));
+
+        public event System.ComponentModel.PropertyChangedEventHandler? PropertyChanged;
+    }
 }
