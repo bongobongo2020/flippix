@@ -7,6 +7,7 @@ using System.IO;
 using System.Linq;
 using System.Runtime.CompilerServices;
 using System.Text.Json;
+using System.Text.RegularExpressions;
 using System.Threading;
 using System.Threading.Tasks;
 using System.Windows;
@@ -65,6 +66,8 @@ namespace FlipPix.UI.ViewModels
         private bool _loraEnabled = false;
         private ObservableCollection<string> _kreaLoras = new();
         private ObservableCollection<KreaLoraSelection> _selectedKreaLoras = new();
+        // Remembers the per-LoRA trigger words the rows prepend to the prompt.
+        private readonly KreaLoraTriggerTracker _kreaTriggers;
         private string _kreaLoraSubfolder = "krea2";
         private TextGeneratorWorkflow _selectedWorkflow = TextGeneratorWorkflow.Zimage;
         private JsonElement _lastWorkflow;
@@ -100,6 +103,7 @@ namespace FlipPix.UI.ViewModels
         {
             _comfyUIService = comfyUIService ?? throw new ArgumentNullException(nameof(comfyUIService));
             _settingsService = settingsService ?? throw new ArgumentNullException(nameof(settingsService));
+            _kreaTriggers = new KreaLoraTriggerTracker(_settingsService, AddLog);
             _serviceProvider = serviceProvider;
             _workflowCoordinator = serviceProvider?.GetRequiredService<WorkflowQueueCoordinator>() ?? throw new InvalidOperationException("WorkflowQueueCoordinator is required");
 
@@ -206,6 +210,7 @@ namespace FlipPix.UI.ViewModels
             CancelQueueCommand = new RelayCommand(CancelQueue, () => IsProcessingQueue);
 
             // Load available Loras
+            _kreaTriggers.Track(_selectedKreaLoras);
             LoadAvailableLoras();
             LoadKreaLoras();
 
@@ -494,7 +499,12 @@ namespace FlipPix.UI.ViewModels
         public ObservableCollection<KreaLoraSelection> SelectedKreaLoras
         {
             get => _selectedKreaLoras;
-            set { _selectedKreaLoras = value; OnPropertyChanged(); }
+            set
+            {
+                _selectedKreaLoras = value;
+                _kreaTriggers.Track(_selectedKreaLoras);
+                OnPropertyChanged();
+            }
         }
 
         public bool ShowKreaLoraOptions => SelectedWorkflow == TextGeneratorWorkflow.Krea2;
@@ -2495,7 +2505,7 @@ namespace FlipPix.UI.ViewModels
                     var inputs = JsonSerializer.Deserialize<Dictionary<string, object>>(JsonSerializer.Serialize(node["inputs"]));
                     if (inputs != null)
                     {
-                        inputs["text"] = ImagePrompt;
+                        inputs["text"] = ApplyKreaLoraTriggers(ImagePrompt, SelectedKreaLoras, AddLog);
                         node["inputs"] = inputs;
                         workflowDict["6"] = JsonSerializer.SerializeToElement(node);
                     }
@@ -2680,6 +2690,54 @@ namespace FlipPix.UI.ViewModels
             }
 
             log?.Invoke($"Krea2 LoRAs: {string.Join(", ", valid.Select(v => $"{v.LoraName}@{v.Strength:0.##}"))}");
+        }
+
+        /// <summary>
+        /// Prepends the selected Krea2 LoRAs' trigger words to the positive prompt, in row order,
+        /// e.g. "Famegrid, casual smartphone photo of a woman sitting at a coffee shop." A row whose
+        /// trigger field is empty contributes nothing, and a word the prompt already contains is not
+        /// repeated, so the user can still write it by hand. Applied at submit time only — the prompt
+        /// box keeps what was typed.
+        /// </summary>
+        internal static string ApplyKreaLoraTriggers(
+            string? prompt,
+            IEnumerable<KreaLoraSelection> selections,
+            Action<string>? log = null)
+        {
+            var body = (prompt ?? string.Empty).Trim();
+
+            var words = new List<string>();
+            foreach (var selection in selections ?? Enumerable.Empty<KreaLoraSelection>())
+            {
+                if (string.IsNullOrEmpty(selection.LoraName)
+                    || selection.LoraName == "No LoRAs available"
+                    || selection.LoraName == "Error loading LoRAs")
+                    continue;
+
+                var word = selection.TriggerWord?.Trim();
+                if (string.IsNullOrEmpty(word)) continue;
+                if (words.Any(w => string.Equals(w, word, StringComparison.OrdinalIgnoreCase))) continue;
+                if (PromptContainsTrigger(body, word)) continue;
+
+                words.Add(word);
+            }
+
+            if (words.Count == 0) return body;
+
+            var prefix = string.Join(", ", words);
+            log?.Invoke($"Krea2 trigger words prepended: {prefix}");
+
+            // Drop a leading comma so an already-comma-led prompt doesn't double up.
+            body = body.TrimStart(',', ' ');
+            return body.Length == 0 ? prefix : $"{prefix}, {body}";
+        }
+
+        /// <summary>Whole-word, case-insensitive check so "Realism" doesn't match "surrealism".</summary>
+        private static bool PromptContainsTrigger(string prompt, string word)
+        {
+            if (prompt.Length == 0) return false;
+            var pattern = $@"(?<!\w){Regex.Escape(word)}(?!\w)";
+            return Regex.IsMatch(prompt, pattern, RegexOptions.IgnoreCase);
         }
 
         private Dictionary<string, JsonElement> AddLoraToWorkflow(Dictionary<string, JsonElement> workflowDict, string loraName)

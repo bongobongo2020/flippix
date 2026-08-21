@@ -87,7 +87,7 @@ namespace FlipPix.UI.ViewModels.Video
         private string _firstImageInfo = string.Empty;
         private string _lastImageInfo = string.Empty;
         private string _prompt = string.Empty;
-        private string _selectedAspectRatio = MiniMaxH3ViewModel.AutoAspect;
+        private string _selectedAspectRatio = H3Canvas.AutoAspect;
         private double _previewMegapixels = 0.3;
         private int _previewSteps = 4;
         private double _finalMegapixels = 1.0;
@@ -229,8 +229,8 @@ namespace FlipPix.UI.ViewModels.Video
         }
 
         public IReadOnlyList<string> AspectRatioOptions { get; } =
-            new[] { MiniMaxH3ViewModel.AutoAspect }
-                .Concat(MiniMaxH3ViewModel.AspectRatios.Select(a => a.Option)).ToList();
+            new[] { H3Canvas.AutoAspect }
+                .Concat(H3Canvas.AspectRatios.Select(a => a.Option)).ToList();
 
         public string SelectedAspectRatio
         {
@@ -503,7 +503,7 @@ namespace FlipPix.UI.ViewModels.Video
         /// </summary>
         private string ResolveAspect(string firstImagePath)
         {
-            if (SelectedAspectRatio != MiniMaxH3ViewModel.AutoAspect) return SelectedAspectRatio;
+            if (SelectedAspectRatio != H3Canvas.AutoAspect) return SelectedAspectRatio;
 
             int w = 0, h = 0;
             if (!IsBatchMode && FirstImagePreview is { } preview
@@ -521,7 +521,7 @@ namespace FlipPix.UI.ViewModels.Video
                 }
                 catch { /* fall through to the 16:9 default */ }
             }
-            return MiniMaxH3ViewModel.ClosestAspectRatio(w, h);
+            return H3Canvas.ClosestAspectRatio(w, h);
         }
 
         #endregion

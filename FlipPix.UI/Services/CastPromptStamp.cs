@@ -498,10 +498,18 @@ namespace FlipPix.UI.Services
             return kept.Count > 1 ? string.Join("\n", kept) : block;
         }
 
-        /// <summary>One member of the cast as the wardrobe text needs them: their position and the word the
-        /// prompts call them by. Keeps this file free of the view model's <c>CharacterSlot</c>, and therefore
-        /// of WPF, which is what lets the whole of it be exercised offline.</summary>
-        public readonly record struct CastRole(int Index, string Noun);
+        /// <summary>One member of the cast as the wardrobe text needs them: their position, the word the
+        /// prompts call them by, and — when they are not a person — what they actually are. Keeps this file
+        /// free of the view model's <c>CharacterSlot</c>, and therefore of WPF, which is what lets the whole
+        /// of it be exercised offline.</summary>
+        /// <param name="Descriptor">"Nimbus, a fluffy little cloud". Empty for a person, whose
+        /// <paramref name="Noun"/> already says everything the wardrobe block needs.</param>
+        public readonly record struct CastRole(int Index, string Noun, string? Descriptor = null)
+        {
+            /// <summary>How the wardrobe block names them: "a man", or their own description.</summary>
+            public string Describe =>
+                string.IsNullOrWhiteSpace(Descriptor) ? $"a {Noun}" : Descriptor!.Trim();
+        }
 
         /// <summary>
         /// Matches the reply's <c>CHARACTER 1: …</c> lines, however the model decorated them. The optional
@@ -541,7 +549,10 @@ namespace FlipPix.UI.Services
                         outfit = outfit[lead.Length..].TrimStart();
                         break;
                     }
-                lines.Add($"Character {index} (<Picture {index}>, a {cast[index - 1].Noun}) wears: {outfit}.");
+                // Named by their own description rather than "a man" whenever there is one: this block is
+                // the authoritative wardrobe, repeated in every clip, and telling H3 that a cloud is a man
+                // in the one piece of text designed to be believed is how a cloud becomes a man.
+                lines.Add($"Character {index} (<Picture {index}>, {cast[index - 1].Describe}) wears: {outfit}.");
             }
 
             if (lines.Count > 0)

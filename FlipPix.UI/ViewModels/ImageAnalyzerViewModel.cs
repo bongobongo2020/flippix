@@ -96,6 +96,8 @@ namespace FlipPix.UI.ViewModels
         // Krea2 LoRA list (loaded from the <loras>/krea2 subfolder)
         private ObservableCollection<string> _kreaLoras = new();
         private ObservableCollection<KreaLoraSelection> _selectedKreaLoras = new();
+        // Remembers the per-LoRA trigger words prepended to the prompt (shared with the other tabs).
+        private readonly KreaLoraTriggerTracker _kreaTriggers;
         private string _kreaLoraSubfolder = "krea2";
 
         // Input mode
@@ -122,6 +124,8 @@ namespace FlipPix.UI.ViewModels
             _lmStudioService = lmStudioService ?? throw new ArgumentNullException(nameof(lmStudioService));
             _settingsService = settingsService ?? throw new ArgumentNullException(nameof(settingsService));
             _fileDialogService = fileDialogService ?? throw new ArgumentNullException(nameof(fileDialogService));
+            _kreaTriggers = new KreaLoraTriggerTracker(_settingsService, m => _logger.LogInfo(m));
+            _kreaTriggers.Track(_selectedKreaLoras);
 
             // Initialize commands
             BrowseImageCommand = new RelayCommand(BrowseImage, () => !IsAnalyzing);
@@ -606,7 +610,7 @@ namespace FlipPix.UI.ViewModels
         public ObservableCollection<KreaLoraSelection> SelectedKreaLoras
         {
             get => _selectedKreaLoras;
-            set { _selectedKreaLoras = value; OnPropertyChanged(); }
+            set { _selectedKreaLoras = value; _kreaTriggers.Track(_selectedKreaLoras); OnPropertyChanged(); }
         }
 
         public bool IsImageAnalysisMode
@@ -2781,6 +2785,11 @@ namespace FlipPix.UI.ViewModels
                 // Determine the input key for the prompt (text vs value)
                 string promptInputKey = "text";
 
+                // Krea2's LoRAs only fire when their trigger words are in the prompt.
+                var promptText = selectedWorkflow == TextGeneratorWorkflow.Krea2
+                    ? ImageGeneratorViewModel.ApplyKreaLoraTriggers(AnalysisText, SelectedKreaLoras, m => _logger.LogInfo(m))
+                    : AnalysisText ?? "";
+
                 if (!string.IsNullOrEmpty(promptNodeId) && workflow.ContainsKey(promptNodeId))
                 {
                     _logger.LogInfo($"Using specific node {promptNodeId} for {selectedWorkflow} workflow");
@@ -2791,7 +2800,7 @@ namespace FlipPix.UI.ViewModels
                         var inputs = JsonSerializer.Deserialize<Dictionary<string, object>>(JsonSerializer.Serialize(node["inputs"]));
                         if (inputs != null && inputs.ContainsKey(promptInputKey))
                         {
-                            inputs[promptInputKey] = AnalysisText ?? "";
+                            inputs[promptInputKey] = promptText;
                             node["inputs"] = inputs;
                             workflow[promptNodeId] = node;
                             _logger.LogInfo($"✓ Updated node {promptNodeId} ({promptInputKey}) with analysis text (length: {AnalysisText?.Length ?? 0})");

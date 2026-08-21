@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
@@ -21,10 +21,10 @@ using Application = System.Windows.Application;
 namespace FlipPix.UI.ViewModels.Video
 {
     /// <summary>
-    /// "MiniMax H3 T2V" tab. Long-form counterpart to <see cref="MiniMaxH3ViewModel"/>: upload one image,
-    /// press Analyze, and the llama-server turns it into a dense ~15-second multi-shot H3 prompt
-    /// (9–14 timestamped shots, continuous motion, beat-locked cuts) rather than the single continuous
-    /// beat the 🌀 tab writes. Then one video with synchronized audio is generated.
+    /// "MiniMax H3 T2V" tab. The long-form image-to-video variant: upload one image, press Analyze, and
+    /// the llama-server turns it into a dense ~15-second multi-shot H3 prompt (9–14 timestamped shots,
+    /// continuous motion, beat-locked cuts) rather than the single continuous beat
+    /// <see cref="MiniMaxI2VViewModel"/> writes. Then one video with synchronized audio is generated.
     ///
     /// The image's role at generation time is the user's choice:
     /// <list type="bullet">
@@ -62,7 +62,7 @@ namespace FlipPix.UI.ViewModels.Video
         private BitmapImage? _imagePreview;
         private string _imageInfo = string.Empty;
         private string _prompt = string.Empty;
-        private string _selectedAspectRatio = MiniMaxH3ViewModel.AutoAspect;
+        private string _selectedAspectRatio = H3Canvas.AutoAspect;
         private double _megapixels = 1.0;
         private double _lengthSeconds = 15;
         private long _seed = -1;
@@ -165,8 +165,8 @@ namespace FlipPix.UI.ViewModels.Video
             : "Reference only — the model never sees it; the prompt carries the whole look.";
 
         public IReadOnlyList<string> AspectRatioOptions { get; } =
-            new[] { MiniMaxH3ViewModel.AutoAspect }
-                .Concat(MiniMaxH3ViewModel.AspectRatios.Select(a => a.Option)).ToList();
+            new[] { H3Canvas.AutoAspect }
+                .Concat(H3Canvas.AspectRatios.Select(a => a.Option)).ToList();
 
         public string SelectedAspectRatio
         {
@@ -184,7 +184,7 @@ namespace FlipPix.UI.ViewModels.Video
 
         /// <summary>The aspect actually sent to ComfyUI — the picked one, or the image's closest match.</summary>
         public string ResolvedAspectRatio =>
-            SelectedAspectRatio == MiniMaxH3ViewModel.AutoAspect
+            SelectedAspectRatio == H3Canvas.AutoAspect
                 ? ClosestAspectRatio(ImagePath)
                 : SelectedAspectRatio;
 
@@ -328,7 +328,7 @@ namespace FlipPix.UI.ViewModels.Video
                 }
                 catch { /* fall through to the 16:9 default */ }
             }
-            return MiniMaxH3ViewModel.ClosestAspectRatio(w, h);
+            return H3Canvas.ClosestAspectRatio(w, h);
         }
 
         #endregion

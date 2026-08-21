@@ -79,10 +79,24 @@ namespace FlipPix.UI.Services
         /// <param name="Label">What to call the still in the log and the UI — never sent to H3.</param>
         public sealed record Keyframe(double Seconds, string Label);
 
-        /// <summary>The three views <c>h3-charsheet-2511.md</c> builds a sheet from, in panel order.</summary>
+        /// <summary>The three views <c>h3-charsheet-2511.md</c> builds a person's sheet from, in panel
+        /// order.</summary>
         public const string ViewFront = "full-body front";
         public const string ViewBack = "full-body back";
         public const string ViewFace = "face close-up";
+
+        /// <summary>The same three panels for a subject that is not a person. A cloud's sheet has a front,
+        /// a reverse and a close-up of whatever makes it recognisable — calling that third panel a "face
+        /// close-up" in the prompt is an instruction to find a face in it.</summary>
+        public const string ViewWholeFront = "whole subject from the front";
+        public const string ViewWholeBack = "whole subject from the reverse side";
+        public const string ViewDetail = "close-up of its most recognisable part";
+
+        /// <summary>And the same three for a group, where the close-up is of some of them rather than of a
+        /// face — a herd has no single face, and asking for one gets a single animal.</summary>
+        public const string ViewGroupFront = "the whole group from the front";
+        public const string ViewGroupBack = "the whole group from behind";
+        public const string ViewGroupDetail = "closer view of two or three of them";
 
         /// <summary>
         /// One member of the cast as the prompt needs them: which subject they are, the word to call them
@@ -93,18 +107,46 @@ namespace FlipPix.UI.Services
         /// <i>front and face</i>, not "view 1 and view 2" — and a face picture the prompt fails to call a
         /// face is a picture H3 has no reason to weigh when the camera is close.</para>
         /// </summary>
-        public sealed record CastMember(int Index, string Noun, IReadOnlyList<string> Views)
+        /// <param name="IsPerson">False for a cast member who is not a human being — a cloud, a mountain,
+        /// a herd. Every sentence this file would otherwise write about their face, hair, skin, build and
+        /// age is wrong for them, and "the same adult" is the wrongest of all: it is an instruction to put a
+        /// person on screen. Defaults true, so the two-hander tabs are untouched.</param>
+        /// <param name="Descriptor">What to call them when the tag is not enough — "a man", or, for a
+        /// non-person, what they actually are ("Nimbus, a fluffy little cloud"). Falls back to
+        /// <c>a {Noun}</c>.</param>
+        /// <param name="IsGroup">Several of them acting as one character — a herd, a village, a flock.
+        /// Orthogonal to <paramref name="IsPerson"/>: a village of travellers is both.</param>
+        public sealed record CastMember(int Index, string Noun, IReadOnlyList<string> Views,
+                                        bool IsPerson = true, string? Descriptor = null,
+                                        bool IsGroup = false)
         {
             /// <summary>How many reference slots this character occupies.</summary>
             public int Panels => Math.Max(1, Views.Count);
 
-            /// <summary>Whichever picture is the face close-up, 0-based — the one the likeness comes from
-            /// when the camera is close, and the identity reference the face-refine pass tracks by.</summary>
+            /// <summary>The words the prose uses for them: their own description, or "a man".</summary>
+            public string Describe =>
+                string.IsNullOrWhiteSpace(Descriptor) ? $"a {Noun}" : Descriptor!.Trim();
+
+            /// <summary>"it" / "they" — how the code-written prose refers back to a non-person.</summary>
+            public string It => IsGroup ? "they" : "it";
+
+            /// <summary>"its" / "their".</summary>
+            public string Its => IsGroup ? "their" : "its";
+
+            /// <summary>What kind of thing the retention lines call them.</summary>
+            public string Kindword => IsGroup ? "group" : IsPerson ? "person" : "character";
+
+            /// <summary>Whichever picture is the closest view, 0-based — the face close-up for a person (the
+            /// one the likeness comes from when the camera is close, and the identity reference the
+            /// face-refine pass tracks by), or the detail panel for anything else.</summary>
             public int FacePanel
             {
                 get
                 {
-                    var i = Views.ToList().FindIndex(v => string.Equals(v, ViewFace, StringComparison.OrdinalIgnoreCase));
+                    var i = Views.ToList().FindIndex(
+                        v => string.Equals(v, ViewFace, StringComparison.OrdinalIgnoreCase) ||
+                             string.Equals(v, ViewDetail, StringComparison.OrdinalIgnoreCase) ||
+                             string.Equals(v, ViewGroupDetail, StringComparison.OrdinalIgnoreCase));
                     return i >= 0 ? i : Math.Max(0, Views.Count - 1);
                 }
             }
@@ -112,13 +154,21 @@ namespace FlipPix.UI.Services
 
         /// <summary>
         /// What a sheet cut into <paramref name="panels"/> pieces shows, when nothing better is known — a
-        /// three-panel sheet is the one this tab builds, and everything else is described positionally
-        /// rather than guessed at.
+        /// three-panel sheet is the one the tabs build, and everything else is described positionally rather
+        /// than guessed at.
         /// </summary>
-        public static IReadOnlyList<string> DefaultViews(int panels) => panels switch
+        /// <param name="isPerson">False swaps the person vocabulary for the one a cloud's sheet actually
+        /// shows. It matters: these words go into the prompt verbatim, and a panel the prompt calls a face
+        /// close-up is a panel H3 will look for a face in.</param>
+        public static IReadOnlyList<string> DefaultViews(int panels, bool isPerson = true,
+                                                         bool isGroup = false) => panels switch
         {
             <= 1 => new[] { "full character sheet" },
-            3 => new[] { ViewFront, ViewBack, ViewFace },
+            3 => isGroup
+                ? new[] { ViewGroupFront, ViewGroupBack, ViewGroupDetail }
+                : isPerson
+                    ? new[] { ViewFront, ViewBack, ViewFace }
+                    : new[] { ViewWholeFront, ViewWholeBack, ViewDetail },
             _ => Enumerable.Range(1, panels).Select(i => $"view {i}").ToList(),
         };
 
@@ -129,6 +179,15 @@ namespace FlipPix.UI.Services
         /// <summary>Total pictures a run wires: the keyframes, then every cast panel.</summary>
         public static int PictureCount(int keyframes, IReadOnlyList<CastMember> cast) =>
             keyframes + cast.Sum(c => Math.Max(1, c.Panels));
+
+        /// <summary>
+        /// The 1-based number of the <b>environment</b> reference — the photograph of the location the video
+        /// is set in. It is wired <i>last</i>, after every cast panel, so that adding or dropping one is the
+        /// only renumbering it can cause: a clip that drops a character it never names would otherwise move
+        /// the location's number as well, and the location is named in three of the code-written sections.
+        /// </summary>
+        public static int EnvironmentPicture(int keyframes, IReadOnlyList<CastMember> cast) =>
+            PictureCount(keyframes, cast) + 1;
 
         /// <summary>
         /// The 1-based picture number of one cast panel — keyframes occupy the numbers before it. Cast order
@@ -159,9 +218,14 @@ namespace FlipPix.UI.Services
         private static string Subject(int n) => $"<Subject {n}>";
 
         /// <summary>"&lt;Picture 3&gt;, &lt;Picture 4&gt; and &lt;Picture 5&gt;" — or the single one.</summary>
-        private static string PictureList(IEnumerable<int> numbers)
+        private static string PictureList(IEnumerable<int> numbers) =>
+            JoinWords(numbers.Select(Picture));
+
+        /// <summary>"A", "A and B", "A, B and C" — the list form the prose sections read in. Written out
+        /// because a five-hander joined with " and " everywhere reads as one run-on name.</summary>
+        private static string JoinWords(IEnumerable<string> parts)
         {
-            var list = numbers.Select(Picture).ToList();
+            var list = parts.ToList();
             if (list.Count == 0) return string.Empty;
             if (list.Count == 1) return list[0];
             return string.Join(", ", list.Take(list.Count - 1)) + " and " + list[^1];
@@ -191,9 +255,13 @@ namespace FlipPix.UI.Services
         /// the pictures and the wardrobe block agree and the cast pictures carry clothing as well as identity.</param>
         /// <param name="selectiveCast">Drops a character the body never names. Pass it for a story chain,
         /// where clips genuinely take turns; a lone clip keeps whoever is loaded.</param>
-        /// <param name="focusSubject">1 or 2 to write the prompt for <b>one</b> member of the cast — the
-        /// face-refine pass, which regenerates one tracked face at a time and must not be shown the other
-        /// character's photographs while it does. 0 (the default) keeps the whole cast.</param>
+        /// <param name="focusSubject">A subject index to write the prompt for <b>one</b> member of the cast —
+        /// the face-refine pass, which regenerates one tracked face at a time and must not be shown the other
+        /// characters' photographs while it does. 0 (the default) keeps the whole cast.</param>
+        /// <param name="environment">True when a photograph of the <b>location</b> is attached as the last
+        /// picture. It is a reference like the cast's, not a frame: it carries the set, its materials, its
+        /// palette and its light, and anybody visible in it is scenery rather than casting. Forced off when
+        /// <paramref name="focusSubject"/> is set — a 768px face crop has no location in it to keep.</param>
         public static string Assemble(
             string? body,
             IReadOnlyList<Keyframe> keyframes,
@@ -203,16 +271,28 @@ namespace FlipPix.UI.Services
             string medium,
             bool sheetsShowWardrobe = false,
             bool selectiveCast = false,
-            int focusSubject = 0)
+            int focusSubject = 0,
+            bool environment = false)
         {
             var stripped = Strip(body);
             if (stripped.Length == 0) return string.Empty;
 
             var sections = SplitSections(stripped);
             if (focusSubject > 0)
+            {
                 cast = cast.Where(c => c.Index == focusSubject).ToList();
-            else if (selectiveCast && cast.Count > 1 && !MentionsSubject(stripped, 2))
-                cast = cast.Where(c => c.Index == 1).ToList();
+                // This pass renders a 768px crop of one face. There is no set inside it to hold.
+                environment = false;
+            }
+            else if (selectiveCast && cast.Count > 1)
+            {
+                // Everybody the body does not name is dropped. On an ensemble that is the point — nine
+                // reference slots shared by whoever a clip casts — and on a two-hander it is what it always
+                // did. The fallback matters: a body naming nobody at all is a model slip, and a clip with no
+                // cast is a clip with no references, which is a clip with nothing holding a face still.
+                var named = cast.Where(c => MentionsSubject(stripped, c.Index)).ToList();
+                cast = named.Count > 0 ? named : new List<CastMember> { cast[0] };
+            }
             if (cast.Count == 0) return string.Empty;
 
             var keys = keyframes.OrderBy(k => k.Seconds).ToList();
@@ -221,12 +301,14 @@ namespace FlipPix.UI.Services
             var wardrobeLock = CastPromptStamp.BuildWardrobeLock(wardrobe, sheetsShowWardrobe);
             if (wardrobeLock.Length > 0) sb.Append(DropAbsentCast(wardrobeLock, cast)).Append('\n');
 
-            Section(sb, SubjectDefinitions, BuildSubjectDefinitions(keys, cast, sheetsShowWardrobe, focusSubject));
-            Section(sb, Summary, BuildSummary(keys, cast, clipSeconds, medium, Get(sections, Summary)));
-            Section(sb, RetentionAnalysis, BuildRetentionAnalysis(keys, cast, clipSeconds, sheetsShowWardrobe));
+            Section(sb, SubjectDefinitions,
+                BuildSubjectDefinitions(keys, cast, sheetsShowWardrobe, focusSubject, environment));
+            Section(sb, Summary, BuildSummary(keys, cast, clipSeconds, medium, Get(sections, Summary), environment));
+            Section(sb, RetentionAnalysis,
+                BuildRetentionAnalysis(keys, cast, clipSeconds, sheetsShowWardrobe, environment));
             Section(sb, DetailedDescription,
-                BuildAlignment(keys, cast, clipSeconds) + "\n" +
-                BuildGlobalRules(keys, cast, medium) +
+                BuildAlignment(keys, cast, clipSeconds, environment) + "\n" +
+                BuildGlobalRules(keys, cast, medium, environment) +
                 Paragraph(Get(sections, DetailedDescription)));
             Section(sb, OverallSoundscape, Fallback(Get(sections, OverallSoundscape),
                 "Room tone matching the scene, quiet breath, light fabric rustle, and the incidental sounds " +
@@ -264,7 +346,7 @@ namespace FlipPix.UI.Services
         /// </summary>
         private static string BuildSubjectDefinitions(
             IReadOnlyList<Keyframe> keys, IReadOnlyList<CastMember> cast, bool sheetsShowWardrobe,
-            int focusSubject = 0)
+            int focusSubject = 0, bool environment = false)
         {
             var lines = new List<string>();
 
@@ -282,37 +364,103 @@ namespace FlipPix.UI.Services
                               $"shown, without reinterpretation. Not a continuation of {Picture(i)}.");
             }
 
-            var clothing = sheetsShowWardrobe
-                ? "identity and wardrobe appearance only — face, facial features, hair, skin, build and the " +
-                  "exact garments shown"
-                : "identity only — face, facial features, hair, skin and build; the studio clothing they show " +
-                  "is irrelevant to this video";
-
             foreach (var member in cast)
             {
                 var pictures = CastPictures(keys.Count, cast, member.Index);
                 var views = string.Join(", ", member.Views.Take(pictures.Count));
 
+                // What the pictures are for. A non-person has no face, hair, skin or build to keep, and
+                // saying otherwise is an instruction to grow them one.
+                var keep = member.IsPerson
+                    ? sheetsShowWardrobe
+                        ? "identity and wardrobe appearance only — face, facial features, hair, skin, build " +
+                          "and the exact garments shown"
+                        : "identity only — face, facial features, hair, skin and build; the studio clothing " +
+                          "they show is irrelevant to this video"
+                    : sheetsShowWardrobe
+                        ? "identity and appearance only — its shape, silhouette, proportions, colours, " +
+                          "materials, surface and markings, and the exact items shown on it"
+                        : "identity only — its shape, silhouette, proportions, colours, materials and " +
+                          "markings; the studio background it sits on is irrelevant to this video";
+
                 lines.Add($"{PictureList(pictures)} {(pictures.Count == 1 ? "is a" : "are")} studio reference " +
                           $"photograph{(pictures.Count == 1 ? "" : "s")} of {Subject(member.Index)} — " +
-                          $"{views}, in that order. Job: {clothing}. Not a person-as-scene. Not a pose. Not a " +
+                          $"{views}, in that order. Job: {keep}. Not a person-as-scene. Not a pose. Not a " +
                           $"background. Not a timeline keyframe. Never insert " +
                           $"{(pictures.Count == 1 ? "it" : "any of them")} as a video frame.");
 
+                var same = member.Kindword;
                 var shown = pictures.Count == 1
                     ? $"shown in {PictureList(pictures)}"
-                    : $"shown in {PictureList(pictures)} — those are one and the same person from several " +
-                      $"angles, not {pictures.Count} different people";
+                    : $"shown in {PictureList(pictures)} — those are one and the same {same} from several " +
+                      $"angles, not {pictures.Count} different " +
+                      $"{(member.IsGroup ? "groups" : member.IsPerson ? "people" : "characters")}";
                 var face = Picture(pictures[Math.Min(member.FacePanel, pictures.Count - 1)]);
-                lines.Add($"{Subject(member.Index)} is the same adult, a {member.Noun}, {shown}. Face and " +
-                          "identity stay consistent from the first frame to the last, and come only from " +
-                          $"their own pictures: the likeness in {face} is the one to match at every distance " +
-                          "and through every camera move, including wide shots and fast motion where the face " +
-                          "is small." +
-                          (keys.Count > 0
-                              ? " Where a keyframe shows them, that frame's pose, wardrobe and background win " +
-                                "at its timestamp — their face does not."
-                              : string.Empty));
+
+                if (member.IsGroup)
+                {
+                    // A crowd is neither "the same adult" nor a thing. What has to hold is that it is the
+                    // same several — the same number, the same look — and, when they are people, that their
+                    // faces are still faces rather than a smear of extras.
+                    lines.Add($"{Subject(member.Index)} is {member.Describe} — several individuals acting " +
+                              $"together as one character, {shown}. {char.ToUpperInvariant(member.It[0])}" +
+                              $"{member.It[1..]} keep the same number, the same look and the same " +
+                              $"{(member.IsPerson ? "clothing" : "form, colours and materials")} from the " +
+                              $"first frame to the last, taken only from {member.Its} own pictures. Do not " +
+                              "swap them for a different set, do not reduce them to a single individual, and " +
+                              "do not let them become a faceless crowd in the background." +
+                              (member.IsPerson
+                                  ? " They are people: give each of them a real, legible face rather than a " +
+                                    "blur, and never repeat one of them twice in a frame."
+                                  : " They are not people: do not give any of them a human face, human hair " +
+                                    "or human hands, and do not replace them with people in costumes.") +
+                              (keys.Count > 0
+                                  ? " Where a keyframe shows them, that frame wins at its timestamp."
+                                  : string.Empty));
+                }
+                else if (member.IsPerson)
+                {
+                    lines.Add($"{Subject(member.Index)} is the same adult, {member.Describe}, {shown}. Face " +
+                              "and identity stay consistent from the first frame to the last, and come only " +
+                              $"from their own pictures: the likeness in {face} is the one to match at every " +
+                              "distance and through every camera move, including wide shots and fast motion " +
+                              "where the face is small." +
+                              (keys.Count > 0
+                                  ? " Where a keyframe shows them, that frame's pose, wardrobe and background " +
+                                    "win at its timestamp — their face does not."
+                                  : string.Empty));
+                }
+                else
+                {
+                    // The three things a non-human character needs said and a person does not: it is a
+                    // character rather than set dressing, what stays constant is its form rather than a
+                    // face, and it does not turn into a person — which is the direction it drifts, because
+                    // a person is what the model has most of.
+                    lines.Add($"{Subject(member.Index)} is {member.Describe} — a character in this video, " +
+                              $"not a person, {shown}. It acts: it moves, reacts and carries the beat it is " +
+                              "in, and it is never reduced to scenery, a backdrop or a prop. Its shape, " +
+                              "proportions, colours, materials and markings stay identical from the first " +
+                              $"frame to the last and come only from its own pictures, {face} above all. Do " +
+                              "not turn it into a person, do not give it a human face, human hair or human " +
+                              "hands, and do not replace it with a person in a costume or a person-shaped " +
+                              "mascot." +
+                              (keys.Count > 0
+                                  ? " Where a keyframe shows it, that frame wins at its timestamp."
+                                  : string.Empty));
+                }
+            }
+
+            if (environment)
+            {
+                var set = Picture(EnvironmentPicture(keys.Count, cast));
+                lines.Add($"{set} is a photograph of the LOCATION this video is set in. Job: the set only — " +
+                          "its layout, architecture, surfaces, materials, props, colour palette and the " +
+                          "quality of its light. It is not a person and not a character sheet. Anybody " +
+                          "visible in it is scenery and is not part of the cast: do not carry them into the " +
+                          "video, and never take a face from it. Never insert it as a video frame.");
+                lines.Add($"The scene is that place. Every shot happens inside it, or in a part of it the " +
+                          $"camera has not shown yet, lit the way {set} is lit — the cast are put into that " +
+                          "space, not photographed against it.");
             }
 
             if (focusSubject > 0)
@@ -329,9 +477,9 @@ namespace FlipPix.UI.Services
         /// </summary>
         private static string BuildSummary(
             IReadOnlyList<Keyframe> keys, IReadOnlyList<CastMember> cast,
-            double clipSeconds, string medium, string modelSummary)
+            double clipSeconds, string medium, string modelSummary, bool environment = false)
         {
-            var who = string.Join(" and ", cast.Select(c => Subject(c.Index)));
+            var who = JoinWords(cast.Select(c => Subject(c.Index)));
             var sb = new StringBuilder(SummaryMarker).Append(' ');
             sb.Append($"Generate a {Seconds(clipSeconds)}-second {medium} clip of {who}. ");
 
@@ -359,6 +507,10 @@ namespace FlipPix.UI.Services
                           "identity reference" + (castPictures.Count == 1 ? "" : "s") +
                           " only and must never appear as cut-in stills.");
 
+            if (environment)
+                sb.Append($" {Picture(EnvironmentPicture(keys.Count, cast))} is the location the whole clip " +
+                          "is set in — a place reference, never a frame and never a person.");
+
             var model = modelSummary.Trim();
             // The marker paragraph is what Strip cuts back off, so the model's own summary has to stay a
             // paragraph of its own rather than being folded into it.
@@ -372,7 +524,7 @@ namespace FlipPix.UI.Services
         /// </summary>
         private static string BuildRetentionAnalysis(
             IReadOnlyList<Keyframe> keys, IReadOnlyList<CastMember> cast,
-            double clipSeconds, bool sheetsShowWardrobe)
+            double clipSeconds, bool sheetsShowWardrobe, bool environment = false)
         {
             var lines = new List<string>();
 
@@ -386,26 +538,45 @@ namespace FlipPix.UI.Services
                           $"fully_preserved - {role}; Shot {i + 1} set, pose and wardrobe only{extra}.");
             }
 
-            var what = sheetsShowWardrobe
-                ? "retain identity and the garment appearance shown"
-                : "retain facial identity, hair, skin and build only — not the studio clothing";
-
             foreach (var member in cast)
             {
+                var what = member.IsPerson
+                    ? sheetsShowWardrobe
+                        ? "retain identity and the garment appearance shown"
+                        : "retain facial identity, hair, skin and build only — not the studio clothing"
+                    : sheetsShowWardrobe
+                        ? "retain its identity, form and the appearance shown — shape, proportions, colours, " +
+                          "materials and markings"
+                        : "retain its shape, proportions, colours, materials and markings only — not the " +
+                          "studio background";
+
                 var pictures = CastPictures(keys.Count, cast, member.Index);
                 lines.Add($"{PictureList(pictures)} (never keyframes): partially_preserved - {what}; do not " +
                           "reproduce a studio photograph as a video frame; do not copy its plain background, " +
                           "its neutral standing pose, or any panel, grid or split-screen layout.");
             }
 
+            if (environment)
+                lines.Add($"{Picture(EnvironmentPicture(keys.Count, cast))} (never a keyframe): " +
+                          "partially_preserved - retain the location: its layout, architecture, surfaces, " +
+                          "materials, props, colour palette and light, in every shot. Do not reproduce it as " +
+                          "a still frame, do not read it as a character sheet, and do not carry any person " +
+                          "visible in it into the video.");
+
             foreach (var member in cast)
             {
                 var shots = keys.Count > 0
                     ? string.Join(", ", Enumerable.Range(1, keys.Count).Select(i => $"[Shot {i}]"))
                     : "[Shot 1]";
-                lines.Add($"{Subject(member.Index)} (appears in {shots}): fully_preserved - the same person " +
-                          "throughout, at every shot size; identity taken only from their own pictures, and " +
-                          "not weakened when the framing is wide, the face is small or the camera is moving" +
+                lines.Add($"{Subject(member.Index)} (appears in {shots}): fully_preserved - the same " +
+                          $"{member.Kindword} throughout, at every shot size; identity taken only from " +
+                          "their own pictures, and not weakened when the framing " +
+                          (member.IsGroup
+                              ? "is wide or the camera is moving; same number of them, never a generic crowd"
+                              : member.IsPerson
+                                  ? "is wide, the face is small or the camera is moving"
+                                  : "is wide, it is small in frame or the camera is moving; never redrawn " +
+                                    "as a person and never demoted to background scenery") +
                           (keys.Count > 0 ? "; each shot matches that shot's keyframe exactly." : "."));
             }
 
@@ -417,7 +588,8 @@ namespace FlipPix.UI.Services
         /// from plain R2V: the timestamps are named in prose rather than wired into a first/last-frame node.
         /// </summary>
         private static string BuildAlignment(
-            IReadOnlyList<Keyframe> keys, IReadOnlyList<CastMember> cast, double clipSeconds)
+            IReadOnlyList<Keyframe> keys, IReadOnlyList<CastMember> cast, double clipSeconds,
+            bool environment = false)
         {
             var sb = new StringBuilder(AlignmentLead).Append(' ');
 
@@ -443,6 +615,14 @@ namespace FlipPix.UI.Services
                           $"reference{(castPictures.Count == 1 ? "" : "s")} of the cast, used throughout. ");
             }
 
+            if (environment)
+            {
+                var n = EnvironmentPicture(keys.Count, cast);
+                sb.Append($"Picture {n} does not align with any timestamp as a frame either; it is the " +
+                          "location the clip is set in, present in every shot as the set rather than as an " +
+                          "image. ");
+            }
+
             sb.Append($"There is no last-frame lock at {Seconds(clipSeconds)} seconds.");
             return sb.ToString();
         }
@@ -450,21 +630,34 @@ namespace FlipPix.UI.Services
         /// <summary>The second paragraph of section 4 — the global negatives, restated per clip because a
         /// clip is rendered with no memory of the one before it.</summary>
         private static string BuildGlobalRules(
-            IReadOnlyList<Keyframe> keys, IReadOnlyList<CastMember> cast, string medium)
+            IReadOnlyList<Keyframe> keys, IReadOnlyList<CastMember> cast, string medium,
+            bool environment = false)
         {
             var sb = new StringBuilder($"{GlobalRulesLead}{medium}. No on-screen text. No extra people. ");
             sb.Append("Do not invent a new outfit. ");
             // The failure this sentence is aimed at: identity holds in close-ups and slips in the wide, fast
             // shots, where the face is a handful of pixels and the model has the least to hold on to.
-            sb.Append("Keep every face on model at every shot size — a face that is far away, small in frame " +
-                      "or moving fast is still the same person, and must not be re-cast, re-aged or " +
-                      "generalised into a stock face. ");
+            if (cast.Any(c => c.IsPerson))
+                sb.Append("Keep every face on model at every shot size — a face that is far away, small in " +
+                          "frame or moving fast is still the same person, and must not be re-cast, re-aged " +
+                          "or generalised into a stock face. ");
+            // The same failure for a cast member who has no face to lose: what drifts instead is their
+            // form, and it drifts towards a person, because a person is what the model has most of.
+            if (cast.Any(c => !c.IsPerson))
+                sb.Append("The non-human characters keep their own form at every shot size — same shape, " +
+                          "same proportions, same colours and materials, however small or fast they are in " +
+                          "frame. None of them turns into a person, wears a human face, or is replaced by " +
+                          "someone in a costume. ");
             if (keys.Count > 1) sb.Append("Do not blend rooms or wardrobes across cuts. ");
 
             var castPictures = cast.SelectMany(c => CastPictures(keys.Count, cast, c.Index)).ToList();
             if (castPictures.Count > 0)
-                sb.Append($"Do not cut to {PictureList(castPictures)}, and never show the same person more " +
-                          "than once in a frame or line the cast up side by side against a plain backdrop.");
+                sb.Append($"Do not cut to {PictureList(castPictures)}, and never show the same character " +
+                          "more than once in a frame or line the cast up side by side against a plain " +
+                          "backdrop.");
+            if (environment)
+                sb.Append($" Do not cut to {Picture(EnvironmentPicture(keys.Count, cast))} as a still, and " +
+                          "do not move the scene to another place partway through.");
             return sb.ToString().TrimEnd();
         }
 
@@ -675,6 +868,15 @@ namespace FlipPix.UI.Services
         /// </summary>
         public static bool IncludesCharacter2(string? prompt, bool hasCharacter2) =>
             hasCharacter2 && MentionsSubject(prompt ?? string.Empty, 2);
+
+        /// <summary>
+        /// Whether an assembled prompt casts a given subject. The N-character generalisation of
+        /// <see cref="IncludesCharacter2"/>: with five slots a clip typically names two or three of them, and
+        /// a character a clip never mentions is a character whose photographs it should not be shown — a face
+        /// H3 is told to keep is a face it will find somewhere to put.
+        /// </summary>
+        public static bool IncludesSubject(string? prompt, int subject) =>
+            MentionsSubject(prompt ?? string.Empty, subject);
 
         /// <summary>
         /// The highest <c>&lt;Picture n&gt;</c> the body names. Compared against the keyframe count so a body

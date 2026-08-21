@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Linq;
 using System.Windows;
 using System.Windows.Input;
@@ -75,10 +75,10 @@ namespace FlipPix.UI
                 Scail2VideoPlayer.Play();
             }
 
-            if (MiniMaxH3VideoPlayer != null && MiniMaxH3VideoPlayer.Source != null)
+            if (MiniMaxI2VVideoPlayer != null && MiniMaxI2VVideoPlayer.Source != null)
             {
-                MiniMaxH3VideoPlayer.Position = System.TimeSpan.Zero;
-                MiniMaxH3VideoPlayer.Play();
+                MiniMaxI2VVideoPlayer.Position = System.TimeSpan.Zero;
+                MiniMaxI2VVideoPlayer.Play();
             }
 
             if (MiniMaxCharacterVideoPlayer != null && MiniMaxCharacterVideoPlayer.Source != null)
@@ -448,7 +448,7 @@ namespace FlipPix.UI
             ErosConvRotPlayer?.Stop();
             Scail2RefVideoPlayer?.Stop();
             Scail2VideoPlayer?.Stop();
-            MiniMaxH3VideoPlayer?.Stop();
+            MiniMaxI2VVideoPlayer?.Stop();
             MiniMaxCharacterVideoPlayer?.Stop();
             MiniMaxFflfPlayer?.Stop();
             H3ChainVideoPlayer?.Stop();

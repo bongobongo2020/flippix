@@ -196,7 +196,7 @@ namespace FlipPix.UI.ViewModels.Video
         private string _storyText = string.Empty;
         private string _storyFileName = string.Empty;
         private double _storyDurationSeconds = 8;
-        private string _selectedAspectRatio = MiniMaxH3ViewModel.AutoAspect;
+        private string _selectedAspectRatio = H3Canvas.AutoAspect;
         private string _selectedMedium = "live-action and cinematic";
         private double _megapixels = 1.0;
         private double _lengthSeconds = 8;
@@ -1766,8 +1766,8 @@ namespace FlipPix.UI.ViewModels.Video
         }
 
         public IReadOnlyList<string> AspectRatioOptions { get; } =
-            new[] { MiniMaxH3ViewModel.AutoAspect }
-                .Concat(MiniMaxH3ViewModel.AspectRatios.Select(a => a.Option)).ToList();
+            new[] { H3Canvas.AutoAspect }
+                .Concat(H3Canvas.AspectRatios.Select(a => a.Option)).ToList();
 
         public string SelectedAspectRatio
         {
@@ -1788,7 +1788,7 @@ namespace FlipPix.UI.ViewModels.Video
         /// scene image's closest match. The keyframe wins because it is literally frame 0: rendering it at a
         /// different aspect is a crop of the picture the user asked to lock.</summary>
         public string ResolvedAspectRatio =>
-            SelectedAspectRatio == MiniMaxH3ViewModel.AutoAspect
+            SelectedAspectRatio == H3Canvas.AutoAspect
                 ? ClosestAspectRatio(OrderedKeyframes.FirstOrDefault()?.Path ?? SceneImagePath)
                 : SelectedAspectRatio;
 
@@ -2115,13 +2115,13 @@ namespace FlipPix.UI.ViewModels.Video
                 }
                 catch { /* fall through to the 16:9 default */ }
             }
-            return MiniMaxH3ViewModel.ClosestAspectRatio(w, h);
+            return H3Canvas.ClosestAspectRatio(w, h);
         }
 
         /// <summary>Mirrors the ResolutionSelector's maths, for display only.</summary>
         private static (int Width, int Height) CanvasSize(string aspectOption, double megapixels)
         {
-            var ratio = MiniMaxH3ViewModel.AspectRatios
+            var ratio = H3Canvas.AspectRatios
                 .FirstOrDefault(a => a.Option == aspectOption).Ratio;
             if (ratio <= 0) ratio = 16.0 / 9.0;
 

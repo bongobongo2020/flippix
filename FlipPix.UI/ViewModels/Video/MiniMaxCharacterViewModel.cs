@@ -150,7 +150,7 @@ namespace FlipPix.UI.ViewModels.Video
         private int _promptClipCount;
         private string _storyGuidance = string.Empty;
         private double _storyDurationSeconds = 10;
-        private string _selectedAspectRatio = MiniMaxH3ViewModel.AutoAspect;
+        private string _selectedAspectRatio = H3Canvas.AutoAspect;
         private double _megapixels = 1.0;
         private double _lengthSeconds = 10;
         private long _seed = -1;
@@ -461,8 +461,8 @@ namespace FlipPix.UI.ViewModels.Video
                 : string.Empty;
 
         public IReadOnlyList<string> AspectRatioOptions { get; } =
-            new[] { MiniMaxH3ViewModel.AutoAspect }
-                .Concat(MiniMaxH3ViewModel.AspectRatios.Select(a => a.Option)).ToList();
+            new[] { H3Canvas.AutoAspect }
+                .Concat(H3Canvas.AspectRatios.Select(a => a.Option)).ToList();
 
         public string SelectedAspectRatio
         {
@@ -479,7 +479,7 @@ namespace FlipPix.UI.ViewModels.Video
 
         /// <summary>The aspect actually sent to ComfyUI — the picked one, or the scene image's closest match.</summary>
         public string ResolvedAspectRatio =>
-            SelectedAspectRatio == MiniMaxH3ViewModel.AutoAspect
+            SelectedAspectRatio == H3Canvas.AutoAspect
                 ? ClosestAspectRatio(SceneImagePath)
                 : SelectedAspectRatio;
 
@@ -595,7 +595,7 @@ namespace FlipPix.UI.ViewModels.Video
                 }
                 catch { /* fall through to the 16:9 default */ }
             }
-            return MiniMaxH3ViewModel.ClosestAspectRatio(w, h);
+            return H3Canvas.ClosestAspectRatio(w, h);
         }
 
         /// <summary>
@@ -606,7 +606,7 @@ namespace FlipPix.UI.ViewModels.Video
         /// </summary>
         private static (int Width, int Height) CanvasSize(string aspectOption, double megapixels)
         {
-            var ratio = MiniMaxH3ViewModel.AspectRatios
+            var ratio = H3Canvas.AspectRatios
                 .FirstOrDefault(a => a.Option == aspectOption).Ratio;
             if (ratio <= 0) ratio = 16.0 / 9.0;
 

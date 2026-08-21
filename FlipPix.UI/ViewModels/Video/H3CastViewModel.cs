@@ -192,7 +192,7 @@ namespace FlipPix.UI.ViewModels.Video
         private string _storyText = string.Empty;
         private string _storyFileName = string.Empty;
         private double _storyDurationSeconds = 15;
-        private string _selectedAspectRatio = MiniMaxH3ViewModel.AutoAspect;
+        private string _selectedAspectRatio = H3Canvas.AutoAspect;
         private double _megapixels = 1.0;
         private double _lengthSeconds = 10;
         private long _seed = -1;
@@ -1056,8 +1056,8 @@ namespace FlipPix.UI.ViewModels.Video
         }
 
         public IReadOnlyList<string> AspectRatioOptions { get; } =
-            new[] { MiniMaxH3ViewModel.AutoAspect }
-                .Concat(MiniMaxH3ViewModel.AspectRatios.Select(a => a.Option)).ToList();
+            new[] { H3Canvas.AutoAspect }
+                .Concat(H3Canvas.AspectRatios.Select(a => a.Option)).ToList();
 
         public string SelectedAspectRatio
         {
@@ -1076,7 +1076,7 @@ namespace FlipPix.UI.ViewModels.Video
 
         /// <summary>The aspect actually sent to ComfyUI — the picked one, or the scene image's closest match.</summary>
         public string ResolvedAspectRatio =>
-            SelectedAspectRatio == MiniMaxH3ViewModel.AutoAspect
+            SelectedAspectRatio == H3Canvas.AutoAspect
                 ? ClosestAspectRatio(SceneImagePath)
                 : SelectedAspectRatio;
 
@@ -1310,7 +1310,7 @@ namespace FlipPix.UI.ViewModels.Video
                 }
                 catch { /* fall through to the 16:9 default */ }
             }
-            return MiniMaxH3ViewModel.ClosestAspectRatio(w, h);
+            return H3Canvas.ClosestAspectRatio(w, h);
         }
 
         /// <summary>
@@ -1320,7 +1320,7 @@ namespace FlipPix.UI.ViewModels.Video
         /// </summary>
         private static (int Width, int Height) CanvasSize(string aspectOption, double megapixels)
         {
-            var ratio = MiniMaxH3ViewModel.AspectRatios
+            var ratio = H3Canvas.AspectRatios
                 .FirstOrDefault(a => a.Option == aspectOption).Ratio;
             if (ratio <= 0) ratio = 16.0 / 9.0;
 
@@ -3550,7 +3550,8 @@ namespace FlipPix.UI.ViewModels.Video
         private bool _useSourceAsSheet;
         private int _panelSplit = CharacterSheetSplitter.Auto;
         private SheetPanels _panels = SheetPanels.Empty;
-        private string _sex;
+        private string _kind;
+        private string _role = string.Empty;
         private string _sheetWardrobe = string.Empty;
         private string _expectedWardrobe = string.Empty;
 
@@ -3560,40 +3561,195 @@ namespace FlipPix.UI.ViewModels.Video
             _loadPreview = loadPreview;
             _onChanged = onChanged;
             // A two-hander is a man and a woman more often than it is anything else, and it is one click to
-            // change — whereas an unset sex is a sex the wardrobe pass and the sheet builder have to guess.
-            _sex = index == 2 ? Female : Male;
+            // change — whereas an unset kind is one the wardrobe pass and the sheet builder have to guess.
+            // Alternating extends that to an ensemble without moving slot 1 or slot 2.
+            _kind = index % 2 == 0 ? Female : Male;
         }
 
+        // ── What this character is ────────────────────────────────────────────────────────────
+        // The first four are people and behave exactly as the old Male/Female pair did. The last
+        // three are not, and every prompt that would otherwise call them "the same adult, a man",
+        // dress them from a costume supervisor's garment list, or hand their face to a human face
+        // tracker branches on IsPerson / HasFace instead.
         public const string Male = "Male";
         public const string Female = "Female";
+        public const string Boy = "Boy";
+        public const string Girl = "Girl";
+        public const string Creature = "Creature";
+        public const string Thing = "Character (not a person)";
+        public const string Crowd = "Group of people";
+        public const string Group = "Group (not people)";
 
         /// <summary>1 or 2 — the character's position in the cast.</summary>
         public int Index { get; }
 
         /// <summary>
-        /// The character's sex, chosen in the cast card. It is not cosmetic: it goes into the wardrobe request
-        /// (a costume supervisor asked for "an outfit" with no-one to dress writes a different one), into the
-        /// sheet builder's instruction, and into the reference line H3 reads.
+        /// What this character <b>is</b>. It is not cosmetic: it goes into the wardrobe request (a costume
+        /// supervisor asked for "an outfit" with no-one to dress writes a different one), into the sheet
+        /// builder's instruction, into the reference line H3 reads — and it decides whether this character
+        /// gets a face-refine pass at all, since that pass tracks <i>human</i> faces.
+        ///
+        /// <para>The two-hander tabs only ever set this through <see cref="Sex"/>, so for them it stays the
+        /// Male/Female pair it has always been. A children's story is the case the rest exists for: a cloud,
+        /// a mountain and a herd of goats are characters with wardrobes and continuity, and not one of them
+        /// is "a man" or "a woman".</para>
+        /// </summary>
+        public string Kind
+        {
+            get => _kind;
+            set
+            {
+                var v = KindOptions.FirstOrDefault(
+                    k => string.Equals(k, value, StringComparison.OrdinalIgnoreCase)) ?? Male;
+                if (_kind == v) return;
+                _kind = v;
+                Raise(nameof(Kind), nameof(Sex), nameof(Noun), nameof(Descriptor), nameof(Description),
+                      nameof(IsPerson), nameof(IsGroup), nameof(HasFace), nameof(Pronoun),
+                      nameof(IsCast), nameof(Label));
+            }
+        }
+
+        public IReadOnlyList<string> KindOptions { get; } =
+            new[] { Male, Female, Boy, Girl, Creature, Thing, Crowd, Group };
+
+        /// <summary>
+        /// The Male/Female facade the 🪪👥 H3 Cast and 🪪👥⚡ H3 Cast Hybrid cards still bind to. Reading it
+        /// collapses the four person kinds onto the two those tabs know about; writing it sets
+        /// <see cref="Kind"/>. Neither of those tabs offers a non-person kind, so the collapse is only ever
+        /// visible on a slot the Ensemble tab set.
         /// </summary>
         public string Sex
         {
-            get => _sex;
-            set
-            {
-                var v = string.Equals(value, Female, StringComparison.OrdinalIgnoreCase) ? Female : Male;
-                if (_sex == v) return;
-                _sex = v;
-                Raise(nameof(Sex), nameof(Noun), nameof(Label));
-            }
+            get => _kind == Female || _kind == Girl ? Female : Male;
+            set => Kind = string.Equals(value, Female, StringComparison.OrdinalIgnoreCase) ? Female : Male;
         }
 
         public IReadOnlyList<string> SexOptions { get; } = new[] { Male, Female };
 
-        /// <summary>"man" / "woman" — the word the prompts use.</summary>
-        public string Noun => _sex == Female ? "woman" : "man";
+        /// <summary>
+        /// Whether this character is a human being — <b>including</b> a crowd of them. A village of
+        /// wandering travellers is people; a herd of goats is not, and a cloud is not.
+        ///
+        /// <para>Kept separate from <see cref="IsGroup"/> because they are two different facts and only one
+        /// of them was being asked. Folding a crowd in with the clouds told the prompt not to give the
+        /// travellers human faces, and had their character sheet built from the "THE SUBJECT IS NOT A
+        /// PERSON" brief.</para>
+        /// </summary>
+        public bool IsPerson => _kind is Male or Female or Boy or Girl or Crowd;
 
-        /// <summary>The card's own heading, so the sex is legible without opening the dropdown.</summary>
-        public string Label => $"Character {Index} · {_sex}";
+        /// <summary>Several of them acting as one character — a herd, a village, a flock.</summary>
+        public bool IsGroup => _kind is Crowd or Group;
+
+        /// <summary>
+        /// Whether this character can have a face-refine pass. Two separate reasons to say no.
+        /// <c>H3FaceTrackCrop</c> tracks and re-generates <i>human</i> faces, so pointing it at a mountain
+        /// either finds nothing or finds somebody else's face and redraws that — worse than not refining at
+        /// all. And it holds <i>one</i> subject through a clip, so a crowd is out too even though a crowd is
+        /// made of people: it would pick whoever is largest and redraw only them.
+        /// </summary>
+        public bool HasFace => IsPerson && !IsGroup;
+
+        /// <summary>"he" / "she", or empty when the story decides. A talking cloud may be "he", "she", "it"
+        /// or "they" and nothing here can know which — so for the non-person kinds the prompts are told to
+        /// take the pronoun from the story rather than being handed a wrong one.</summary>
+        public string Pronoun => _kind switch
+        {
+            Male or Boy => "he",
+            Female or Girl => "she",
+            Crowd => "they",
+            _ => string.Empty,
+        };
+
+        /// <summary>The bare word the prompts use — "man", "woman", "creature", "group".</summary>
+        public string Noun => _kind switch
+        {
+            Female => "woman",
+            Boy => "boy",
+            Girl => "girl",
+            Creature => "creature",
+            Thing => "character",
+            Crowd => "group of people",
+            Group => "group",
+            _ => "man",
+        };
+
+        /// <summary>
+        /// What to call this character when a tag is not enough — "a man", or, for a non-person, whatever
+        /// <see cref="Role"/> says they are ("Nimbus, a fluffy little cloud").
+        ///
+        /// <para>The Part field carries the whole description for a non-person character, because nothing
+        /// here can guess it: "a creature" tells the costume supervisor and the sheet builder nothing, and
+        /// the cast brief has to name what the thing actually is.</para>
+        /// </summary>
+        /// <summary>
+        /// What to call this character when a tag is not enough — "a man", or, for anything that is not one
+        /// named person, whatever <see cref="Role"/> says they are ("Nimbus, a fluffy little cloud", "a
+        /// village of wandering travellers").
+        ///
+        /// <para>The Part field carries the whole description for a non-person and for a group, because
+        /// nothing here can guess it: "a creature" and "a group of people" tell the costume designer and the
+        /// sheet builder nothing, and the cast brief has to name what they actually are.</para>
+        /// </summary>
+        public string Descriptor =>
+            IsPerson && !IsGroup ? $"a {Noun}"
+            : HasRole ? _role
+            : _kind == Crowd ? "a group of people"
+            : _kind == Group ? "a group of characters"
+            : $"a {Noun} that is not a person";
+
+        /// <summary>
+        /// Who this character is <i>in the story</i> — "the detective", "her younger brother", "the barman",
+        /// "Nimbus, a fluffy little cloud". Unused by the two-hander tabs, where "the man" and "the woman"
+        /// are unambiguous.
+        ///
+        /// <para>It exists for an ensemble. Asked to cast five anonymous subjects into a story, a language
+        /// model assigns them by order of appearance and then loses track — subject 4 becomes whoever the
+        /// current sentence needs. A role is the one thing that ties a slot to a character in the prose, and
+        /// it is also what makes the wardrobe pass dress a chauffeur differently from a guest.</para>
+        ///
+        /// <para><b>For a non-person kind it is not optional</b>, it is the description: nothing else in the
+        /// app knows that this slot is a cloud rather than a mountain. See <see cref="Descriptor"/>.</para>
+        /// </summary>
+        public string Role
+        {
+            get => _role;
+            set
+            {
+                var v = (value ?? string.Empty).Trim();
+                if (_role == v) return;
+                _role = v;
+                Raise(nameof(Role), nameof(HasRole), nameof(Descriptor), nameof(Description), nameof(Label));
+            }
+        }
+
+        public bool HasRole => _role.Length > 0;
+
+        /// <summary>
+        /// Whether the user has told the tab anything about this slot: a photo, a part, or a kind that is
+        /// not a person. It is <b>not</b> the same as having a photo.
+        ///
+        /// <para>The wardrobe pass runs off the story long before anybody browses for pictures — that is the
+        /// whole point of deriving it early, so the character sheets can be built already dressed. Keying it
+        /// on the photo meant a story typed into an empty tab had no cast at all, and the two-hander
+        /// fallback then invented a man and a woman: the outfits came back for two people who are not in the
+        /// film, in a story whose cast is a cloud and a mountain.</para>
+        /// </summary>
+        public bool IsCast => HasSource || HasRole || !IsPerson || IsGroup;
+
+        /// <summary>
+        /// The fullest one-line description of this character — "man, the detective" for a person,
+        /// "Nimbus, a fluffy little cloud" for anything else. What the prompts and the wardrobe pass use
+        /// when a <c>&lt;Subject n&gt;</c> tag is not enough on its own.
+        /// </summary>
+        public string Description => IsPerson && !IsGroup
+            ? HasRole ? $"{Noun}, {_role}" : Noun
+            : Descriptor;
+
+        /// <summary>The card's own heading, so the kind — and the part, when there is one — are legible
+        /// without opening the dropdown.</summary>
+        public string Label => HasRole
+            ? $"Character {Index} · {_kind} · {_role}"
+            : $"Character {Index} · {_kind}";
 
         /// <summary>
         /// The outfit the current sheet was <i>built</i> wearing, empty when the sheet predates the wardrobe or
@@ -3759,11 +3915,21 @@ namespace FlipPix.UI.ViewModels.Video
             _sheetPath = string.Empty;
             _sheetPreview = null;
             _sheetWardrobe = string.Empty;
+            // The part belongs to the character in the slot, not to the slot: clearing the photo is how an
+            // ensemble tab says "this character is not in the film", and leaving their part behind would
+            // put them back into the next wardrobe pass. The kind goes back to its default for the same
+            // reason — a slot that held a cloud must not silently dress the next photo as one.
+            _role = string.Empty;
+            _kind = Index % 2 == 0 ? Female : Male;
             _panels = SheetPanels.Empty;
             SourcePath = string.Empty;
             Raise(nameof(UseSourceAsSheet), nameof(SheetPath), nameof(SheetPreview),
                   nameof(HasSheet), nameof(SheetStatus), nameof(SheetWardrobe),
-                  nameof(SheetMatchesWardrobe), nameof(PanelCount), nameof(PanelStatus));
+                  nameof(SheetMatchesWardrobe), nameof(PanelCount), nameof(PanelStatus),
+                  nameof(Role), nameof(HasRole), nameof(Label), nameof(Descriptor),
+                  nameof(Description), nameof(Kind), nameof(Sex), nameof(Noun),
+                  nameof(IsPerson), nameof(IsGroup), nameof(HasFace), nameof(Pronoun),
+                  nameof(IsCast));
         }
 
         public event System.ComponentModel.PropertyChangedEventHandler? PropertyChanged;

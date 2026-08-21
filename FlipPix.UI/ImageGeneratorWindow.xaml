@@ -443,7 +443,9 @@
 
                                                 <!-- LoRA (Krea2 only) — multiple LoRAs, each with its own strength -->
                                                 <StackPanel Margin="0,0,0,12" Visibility="{Binding ShowKreaLoraOptions, Converter={StaticResource BooleanToVisibilityConverter}}">
-                                                    <TextBlock Text="Krea2 LoRAs" FontWeight="SemiBold" FontSize="11" Margin="0,0,0,6"/>
+                                                    <TextBlock Text="Krea2 LoRAs" FontWeight="SemiBold" FontSize="11" Margin="0,0,0,2"/>
+                                                    <TextBlock Text="Trigger word is prepended to the prompt — edit it if the LoRA wants something else, clear it to prepend nothing."
+                                                               FontSize="10" Opacity="0.6" TextWrapping="Wrap" Margin="0,0,0,6"/>
                                                     <ItemsControl ItemsSource="{Binding SelectedKreaLoras}">
                                                         <ItemsControl.ItemTemplate>
                                                             <DataTemplate>
@@ -452,17 +454,23 @@
                                                                         <ColumnDefinition Width="*"/>
                                                                         <ColumnDefinition Width="Auto"/>
                                                                         <ColumnDefinition Width="Auto"/>
+                                                                        <ColumnDefinition Width="Auto"/>
                                                                     </Grid.ColumnDefinitions>
                                                                     <ComboBox Grid.Column="0"
                                                                               ItemsSource="{Binding DataContext.KreaLoras, RelativeSource={RelativeSource AncestorType=ItemsControl}}"
                                                                               SelectedItem="{Binding LoraName, Mode=TwoWay}"
                                                                               FontSize="11" Height="32" Margin="0,0,6,0"/>
                                                                     <TextBox Grid.Column="1"
+                                                                             Text="{Binding TriggerWord, Mode=TwoWay}"
+                                                                             ToolTip="Trigger word prepended to the prompt for this LoRA (remembered for next time)"
+                                                                             FontSize="11" Width="110" Height="32" Margin="0,0,6,0"
+                                                                             VerticalContentAlignment="Center"/>
+                                                                    <TextBox Grid.Column="2"
                                                                              Text="{Binding Strength, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged, StringFormat=0.##}"
                                                                              ToolTip="LoRA strength"
                                                                              FontSize="11" Width="46" Height="32" Margin="0,0,6,0"
                                                                              VerticalContentAlignment="Center" TextAlignment="Center"/>
-                                                                    <Button Grid.Column="2" Content="✕"
+                                                                    <Button Grid.Column="3" Content="✕"
                                                                             Command="{Binding DataContext.RemoveKreaLoraCommand, RelativeSource={RelativeSource AncestorType=ItemsControl}}"
                                                                             CommandParameter="{Binding}"
                                                                             Style="{StaticResource SecondaryButtonStyle}"
@@ -1742,7 +1750,9 @@
                                 </Style>
                             </Border.Style>
                             <StackPanel>
-                                <TextBlock Text="🔧 Krea2 LoRAs" FontWeight="SemiBold" FontSize="13" Foreground="#6D28D9" Margin="0,0,0,8"/>
+                                <TextBlock Text="🔧 Krea2 LoRAs" FontWeight="SemiBold" FontSize="13" Foreground="#6D28D9" Margin="0,0,0,2"/>
+                                <TextBlock Text="Trigger word is prepended to every prompt in the story — edit it if the LoRA wants something else, clear it to prepend nothing."
+                                           FontSize="11" Opacity="0.6" TextWrapping="Wrap" Margin="0,0,0,8"/>
                                 <ItemsControl ItemsSource="{Binding StoryGeneratorQ.SelectedKreaLoras}">
                                     <ItemsControl.ItemTemplate>
                                         <DataTemplate>
@@ -1751,17 +1761,23 @@
                                                     <ColumnDefinition Width="*"/>
                                                     <ColumnDefinition Width="Auto"/>
                                                     <ColumnDefinition Width="Auto"/>
+                                                    <ColumnDefinition Width="Auto"/>
                                                 </Grid.ColumnDefinitions>
                                                 <ComboBox Grid.Column="0"
                                                           ItemsSource="{Binding DataContext.StoryGeneratorQ.KreaLoras, RelativeSource={RelativeSource AncestorType=ItemsControl}}"
                                                           SelectedItem="{Binding LoraName, Mode=TwoWay}"
                                                           FontSize="12" Height="32" Margin="0,0,6,0"/>
                                                 <TextBox Grid.Column="1"
+                                                         Text="{Binding TriggerWord, Mode=TwoWay}"
+                                                         ToolTip="Trigger word prepended to the prompt for this LoRA (remembered for next time)"
+                                                         FontSize="12" Width="110" Height="32" Margin="0,0,6,0"
+                                                         VerticalContentAlignment="Center"/>
+                                                <TextBox Grid.Column="2"
                                                          Text="{Binding Strength, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged, StringFormat=0.##}"
                                                          ToolTip="LoRA strength"
                                                          FontSize="12" Width="46" Height="32" Margin="0,0,6,0"
                                                          VerticalContentAlignment="Center" TextAlignment="Center"/>
-                                                <Button Grid.Column="2" Content="✕"
+                                                <Button Grid.Column="3" Content="✕"
                                                         Command="{Binding DataContext.StoryGeneratorQ.RemoveKreaLoraCommand, RelativeSource={RelativeSource AncestorType=ItemsControl}}"
                                                         CommandParameter="{Binding}"
                                                         Style="{StaticResource SecondaryButtonStyle}"
