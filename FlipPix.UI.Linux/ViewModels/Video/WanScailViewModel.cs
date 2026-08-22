@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.Collections.ObjectModel;
+using System.Diagnostics;
 using System.IO;
 using System.Linq;
 using System.Text.Json;
@@ -9,6 +10,9 @@ using System.Threading.Tasks;
 using System.Windows;
 using System.Windows.Input;
 using System.Windows.Media.Imaging;
+// MessageBox is fully qualified below: MsBox.Avalonia contributes a root
+// namespace of the same name, so a using-alias would be a CS0576 conflict.
+using Application = System.Windows.Application;
 using CommunityToolkit.Mvvm.Input;
 using FlipPix.ComfyUI.Services;
 using FlipPix.Core.Interfaces;
@@ -19,8 +23,16 @@ namespace FlipPix.UI.Linux.ViewModels.Video
 {
     public partial class WanScailViewModel : VideoProcessingBaseViewModel
     {
-        private const int FramesPerChunk = 121;
+        // Number of frames per externally-sliced chunk. Subclasses whose workflow loops
+        // over the whole video internally override this to force a single-shot run.
+        protected virtual int FramesPerChunk => 121;
         protected virtual string WorkflowFileName => Path.Combine("video", "wan", "SCAIL+Video+Multi-Character+Motion+Transfer+V1API.json");
+
+        // Client-side ceiling for a single ComfyUI prompt. The SCAIL II "simple" workflow runs
+        // the whole video in one prompt (segments loop inside SCAIL2SimpleVideo), so it can far
+        // exceed the default 30 min on longer clips. Real completion is detected via /history,
+        // so this is just a safety net — keep it generous.
+        protected virtual TimeSpan ExecutionTimeout => TimeSpan.FromHours(3);
         private const string OutputSubfolder = "wan_scail";
 
         private string QueueFilePath => Path.Combine(
@@ -40,6 +52,8 @@ namespace FlipPix.UI.Linux.ViewModels.Video
         private int _fps = 24;
         private int _maxEdge = 1280;
         private long _seed = -1;
+        // Seed-widget nodes ("easy globalSeed", rgthree seed) reject values above 2^50.
+        protected const long MaxSeed = 1125899906842624L;
         private int _totalFrames;
         private bool _isAnalyzing;
         private bool _isProcessingQueue;
@@ -60,10 +74,150 @@ namespace FlipPix.UI.Linux.ViewModels.Video
         // ── State ──────────────────────────────────────────────────────────────
         private readonly IFileDialogService _fileDialogService;
         private readonly LMStudioService _lmStudioService;
+        private readonly ChunkPromptCacheService _promptCache = new();
+        private readonly Dictionary<int, string> _chunkPrompts = new();
         private readonly ObservableCollection<WanScailQueueItem> _queue = new();
         private CancellationTokenSource? _queueCts;
+        private CancellationTokenSource? _analyzeCts;
+        private bool _isAnalyzingAll;
 
         public event EventHandler<TimeSpan>? SeekRequested;
+
+        // ── Generation wall-clock timer (for A/B comparing settings like the VRAM toggle) ──
+        private readonly Stopwatch _genStopwatch = new();
+        private System.Windows.Threading.DispatcherTimer? _genTimer;
+        private string _generationTimer = "—";
+        /// <summary>
+        /// Live "mm:ss" wall-clock elapsed while a generation runs, then a final
+        /// "✓ Done in mm:ss" / "✗ Stopped at mm:ss" once it finishes. Lets the VRAM toggle's
+        /// effect on speed be compared at a glance.
+        /// </summary>
+        public string GenerationTimer
+        {
+            get => _generationTimer;
+            private set { if (_generationTimer != value) { _generationTimer = value; OnPropertyChanged(); } }
+        }
+
+        private static string FormatElapsed(TimeSpan t) =>
+            t.TotalHours >= 1
+                ? $"{(int)t.TotalHours}:{t.Minutes:D2}:{t.Seconds:D2}"
+                : $"{t.Minutes:D2}:{t.Seconds:D2}";
+
+        private void StartGenerationTimer() => Application.Current?.Dispatcher.Invoke(() =>
+        {
+            _genStopwatch.Restart();
+            GenerationTimer = "⏱ 00:00";
+            if (_genTimer == null)
+            {
+                _genTimer = new System.Windows.Threading.DispatcherTimer { Interval = TimeSpan.FromSeconds(1) };
+                _genTimer.Tick += (_, _) => GenerationTimer = $"⏱ {FormatElapsed(_genStopwatch.Elapsed)}";
+            }
+            _genTimer.Start();
+        });
+
+        private void StopGenerationTimer(bool success) => Application.Current?.Dispatcher.Invoke(() =>
+        {
+            _genTimer?.Stop();
+            _genStopwatch.Stop();
+            GenerationTimer = $"{(success ? "✓ Done in" : "✗ Stopped at")} {FormatElapsed(_genStopwatch.Elapsed)}";
+        });
+
+        // ── Trim / scrub / ETA (let the user shorten the clip before processing) ──────────
+        // Seconds-per-frame estimate for the ETA. Seeded from an ~81-frame window taking
+        // ~4.5 min (≈3.3 s/frame), then recalibrated from the actual elapsed time after each
+        // run so the estimate converges to this machine + resolution.
+        private static double _secondsPerFrame = 270.0 / 81.0;
+
+        private double _videoDurationSeconds;
+        public double VideoDurationSeconds
+        {
+            get => _videoDurationSeconds;
+            private set { if (Math.Abs(_videoDurationSeconds - value) > 0.001) { _videoDurationSeconds = value; OnPropertyChanged(); RaiseTrimDerived(); } }
+        }
+
+        private double _trimInSeconds;
+        /// <summary>Start of the kept range, in seconds. Clamped to [0, TrimOut].</summary>
+        public double TrimInSeconds
+        {
+            get => _trimInSeconds;
+            set
+            {
+                var v = Math.Max(0, value);
+                if (_trimOutSeconds > 0) v = Math.Min(v, _trimOutSeconds);
+                if (Math.Abs(_trimInSeconds - v) > 0.001) { _trimInSeconds = v; OnPropertyChanged(); RaiseTrimDerived(); }
+            }
+        }
+
+        private double _trimOutSeconds;
+        /// <summary>End of the kept range, in seconds. 0/duration means "to the end".</summary>
+        public double TrimOutSeconds
+        {
+            get => _trimOutSeconds;
+            set
+            {
+                var v = value <= 0 ? VideoDurationSeconds : Math.Min(value, VideoDurationSeconds);
+                if (v < _trimInSeconds) v = _trimInSeconds;
+                if (Math.Abs(_trimOutSeconds - v) > 0.001) { _trimOutSeconds = v; OnPropertyChanged(); RaiseTrimDerived(); }
+            }
+        }
+
+        private double _playbackPositionSeconds;
+        /// <summary>Two-way bound to the scrub slider / media element position.</summary>
+        public double PlaybackPositionSeconds
+        {
+            get => _playbackPositionSeconds;
+            set { if (Math.Abs(_playbackPositionSeconds - value) > 0.001) { _playbackPositionSeconds = value; OnPropertyChanged(); } }
+        }
+
+        public double TrimmedDurationSeconds =>
+            Math.Max(0, (TrimOutSeconds > 0 ? TrimOutSeconds : VideoDurationSeconds) - TrimInSeconds);
+
+        /// <summary>Frame count of the kept range at the target FPS — what actually gets processed.</summary>
+        public int TrimmedFrames => Fps > 0 ? (int)Math.Round(TrimmedDurationSeconds * Fps) : 0;
+
+        public bool IsTrimmed =>
+            TrimInSeconds > 0.05 || (VideoDurationSeconds > 0 && TrimOutSeconds > 0 && TrimOutSeconds < VideoDurationSeconds - 0.05);
+
+        public string TrimInfo =>
+            VideoDurationSeconds <= 0
+                ? "Load a video to set in/out"
+                : $"In {TrimInSeconds:F1}s · Out {(TrimOutSeconds > 0 ? TrimOutSeconds : VideoDurationSeconds):F1}s  →  {TrimmedDurationSeconds:F1}s / {TrimmedFrames:N0} frames";
+
+        public string EstimatedTime
+        {
+            get
+            {
+                if (TrimmedFrames <= 0) return "—";
+                var t = TimeSpan.FromSeconds(TrimmedFrames * _secondsPerFrame);
+                return t.TotalHours >= 1 ? $"≈ {(int)t.TotalHours}h {t.Minutes:D2}m" : $"≈ {t.Minutes}m {t.Seconds:D2}s";
+            }
+        }
+
+        private void RaiseTrimDerived()
+        {
+            OnPropertyChanged(nameof(TrimmedDurationSeconds));
+            OnPropertyChanged(nameof(TrimmedFrames));
+            OnPropertyChanged(nameof(IsTrimmed));
+            OnPropertyChanged(nameof(TrimInfo));
+            OnPropertyChanged(nameof(EstimatedTime));
+        }
+
+        private void MarkIn() => TrimInSeconds = PlaybackPositionSeconds;
+        private void MarkOut() => TrimOutSeconds = PlaybackPositionSeconds;
+        private void ResetTrim() { _trimInSeconds = 0; _trimOutSeconds = VideoDurationSeconds; OnPropertyChanged(nameof(TrimInSeconds)); OnPropertyChanged(nameof(TrimOutSeconds)); RaiseTrimDerived(); }
+
+        // Skip / cap (in target-FPS frames) for VHS_LoadVideo, derived from the trim range.
+        protected int TrimSkipFrames => Fps > 0 ? (int)Math.Round(TrimInSeconds * Fps) : 0;
+        protected int TrimFrameCap => IsTrimmed ? TrimmedFrames : 0; // 0 = load all
+
+        private void RecalibrateEta(int framesProcessed)
+        {
+            if (framesProcessed > 0 && _genStopwatch.Elapsed.TotalSeconds > 10)
+            {
+                _secondsPerFrame = _genStopwatch.Elapsed.TotalSeconds / framesProcessed;
+                Application.Current?.Dispatcher.Invoke(() => OnPropertyChanged(nameof(EstimatedTime)));
+            }
+        }
 
         public WanScailViewModel(
             ComfyUIService comfyUIService,
@@ -92,7 +246,11 @@ namespace FlipPix.UI.Linux.ViewModels.Video
             OpenResultFolderCommand = new RelayCommand(OpenResultFolder, () => HasResult);
             SendToEditCameraCommand = new RelayCommand(SendToEditCamera, () => HasResult);
             AnalyzeImageCommand = new RelayCommand(async () => await AnalyzeImageAsync(), () => CanAnalyzeImage);
-            RandomSeedCommand = new RelayCommand(() => Seed = new Random().NextInt64(0, long.MaxValue));
+            AnalyzeAllChunksCommand = new RelayCommand(async () => await AnalyzeAllChunksAsync(), () => CanAnalyzeAllChunks);
+            RandomSeedCommand = new RelayCommand(() => Seed = new Random().NextInt64(0, MaxSeed));
+            MarkInCommand = new RelayCommand(MarkIn);
+            MarkOutCommand = new RelayCommand(MarkOut);
+            ResetTrimCommand = new RelayCommand(ResetTrim);
 
             _queue.CollectionChanged += (s, e) =>
             {
@@ -121,7 +279,11 @@ namespace FlipPix.UI.Linux.ViewModels.Video
         public RelayCommand OpenResultFolderCommand { get; }
         public RelayCommand SendToEditCameraCommand { get; }
         public RelayCommand AnalyzeImageCommand { get; }
+        public RelayCommand AnalyzeAllChunksCommand { get; }
         public RelayCommand RandomSeedCommand { get; }
+        public RelayCommand MarkInCommand { get; }
+        public RelayCommand MarkOutCommand { get; }
+        public RelayCommand ResetTrimCommand { get; }
 
         public bool HasFailedItems => _queue.Any(x => x.ItemStatus == QueueItemStatus.Failed);
 
@@ -170,6 +332,8 @@ namespace FlipPix.UI.Linux.ViewModels.Video
                     OnPropertyChanged();
                     OnPropertyChanged(nameof(HasInputVideo));
                     OnPropertyChanged(nameof(CanAddToQueue));
+                    OnPropertyChanged(nameof(CanAnalyzeImage));
+                    OnPropertyChanged(nameof(CanAnalyzeAllChunks));
                     LoadVideoInfoAsync();
                     OnCanExecuteChanged();
                 }
@@ -241,7 +405,8 @@ namespace FlipPix.UI.Linux.ViewModels.Video
         public bool HasInputVideo => !string.IsNullOrEmpty(InputVideoPath) && File.Exists(InputVideoPath);
 
         public bool CanAddToQueue => HasCharacterImage && HasInputVideo;
-        public bool CanAnalyzeImage => HasCharacterImage && !IsAnalyzing && !IsProcessing;
+        public bool CanAnalyzeImage => HasCharacterImage && HasInputVideo && _chunkItems.Any() && !IsAnalyzing && !IsAnalyzingAll && !IsProcessing;
+        public bool CanAnalyzeAllChunks => CanAnalyzeImage && !IsProcessingQueue;
 
         public bool IsAnalyzing
         {
@@ -253,10 +418,29 @@ namespace FlipPix.UI.Linux.ViewModels.Video
                     _isAnalyzing = value;
                     OnPropertyChanged();
                     OnPropertyChanged(nameof(CanAnalyzeImage));
+                    OnPropertyChanged(nameof(CanAnalyzeAllChunks));
                     OnCanExecuteChanged();
                 }
             }
         }
+
+        public bool IsAnalyzingAll
+        {
+            get => _isAnalyzingAll;
+            private set
+            {
+                if (_isAnalyzingAll != value)
+                {
+                    _isAnalyzingAll = value;
+                    OnPropertyChanged();
+                    OnPropertyChanged(nameof(CanAnalyzeImage));
+                    OnPropertyChanged(nameof(CanAnalyzeAllChunks));
+                    OnCanExecuteChanged();
+                }
+            }
+        }
+
+        public string AnalyzeAllChunksStatus { get; private set; } = string.Empty;
 
         #endregion
 
@@ -353,7 +537,8 @@ namespace FlipPix.UI.Linux.ViewModels.Video
             var filePath = await _fileDialogService.OpenFileDialogAsync(
                 "Select Character Image",
                 "Image Files|*.jpg;*.jpeg;*.png;*.bmp;*.webp|All Files|*.*",
-                initialDirectory);
+                initialDirectory,
+                persistKey: "wanscail.image");
 
             if (filePath != null)
             {
@@ -371,7 +556,8 @@ namespace FlipPix.UI.Linux.ViewModels.Video
             var filePath = await _fileDialogService.OpenFileDialogAsync(
                 "Select Reference Video",
                 "Video Files|*.mp4;*.avi;*.mov;*.mkv;*.webm|All Files|*.*",
-                initialDirectory);
+                initialDirectory,
+                persistKey: "wanscail.video");
 
             if (filePath != null)
             {
@@ -418,6 +604,13 @@ namespace FlipPix.UI.Linux.ViewModels.Video
             TotalFrames = frameCount > 0 ? frameCount : 0;
 
             var estimatedDuration = duration > 0 ? duration : (Fps > 0 && TotalFrames > 0 ? (double)TotalFrames / Fps : 0);
+            // Seed the trim range to the whole clip so ETA/scrub work immediately.
+            VideoDurationSeconds = estimatedDuration;
+            _trimInSeconds = 0;
+            _trimOutSeconds = estimatedDuration;
+            OnPropertyChanged(nameof(TrimInSeconds));
+            OnPropertyChanged(nameof(TrimOutSeconds));
+            RaiseTrimDerived();
             VideoDuration = estimatedDuration > 0 ? $"{estimatedDuration:F1}s" : "—";
             VideoFpsDisplay = Fps.ToString();
             VideoFrameCountDisplay = TotalFrames > 0 ? TotalFrames.ToString("N0") : "—";
@@ -434,11 +627,21 @@ namespace FlipPix.UI.Linux.ViewModels.Video
         private void BuildChunkTimeline()
         {
             _chunkItems.Clear();
+            _chunkPrompts.Clear();
             if (TotalChunks <= 0)
             {
                 ChunkSelectionInfo = "No frames detected — ffmpeg may not be installed";
+                OnPropertyChanged(nameof(CanAnalyzeAllChunks));
+                OnCanExecuteChanged();
                 return;
             }
+
+            // Load cached prompts for this video from SQLite
+            var cached = _promptCache.GetAllPrompts(InputVideoPath);
+            foreach (var (k, v) in cached)
+                _chunkPrompts[k] = v;
+            if (cached.Count > 0)
+                AddLog($"Loaded {cached.Count} cached chunk prompt(s) from database");
 
             for (int i = 0; i < TotalChunks; i++)
             {
@@ -450,12 +653,16 @@ namespace FlipPix.UI.Linux.ViewModels.Video
                     StartFrame = start,
                     EndFrame = end,
                     IsSelected = i == 0,
-                    Status = WanScailChunkStatus.Idle
+                    Status = WanScailChunkStatus.Idle,
+                    HasCachedPrompt = cached.ContainsKey(i),
                 });
             }
 
             _selectedChunkIndex = 0;
             UpdateChunkSelectionInfo();
+            OnPropertyChanged(nameof(CanAnalyzeImage));
+            OnPropertyChanged(nameof(CanAnalyzeAllChunks));
+            OnCanExecuteChanged();
         }
 
         private void OnChunkSelected(WanScailChunkItem? chunk)
@@ -463,12 +670,15 @@ namespace FlipPix.UI.Linux.ViewModels.Video
             if (chunk == null) return;
             var index = chunk.Index;
 
-            // Update selection: only clear non-processing/done/failed chunks
             foreach (var c in _chunkItems)
                 c.IsSelected = c.Index == index;
 
             _selectedChunkIndex = index;
             UpdateChunkSelectionInfo();
+
+            // Load this chunk's cached prompt if available
+            if (_chunkPrompts.TryGetValue(index, out var cachedPrompt) && !string.IsNullOrWhiteSpace(cachedPrompt))
+                Prompt = cachedPrompt;
 
             // Seek video to this chunk's start frame
             if (Fps > 0 && TotalFrames > 0)
@@ -510,55 +720,222 @@ namespace FlipPix.UI.Linux.ViewModels.Video
 
         #region Image Analysis
 
-        private async Task AnalyzeImageAsync()
+        protected async Task AnalyzeImageAsync()
         {
             if (!CanAnalyzeImage) return;
+
+            if (_chunkPrompts.Count > 0)
+            {
+                var answer = System.Windows.MessageBox.Show(
+                    $"{_chunkPrompts.Count} of {_chunkItems.Count} chunk(s) already have prompts.\n\nOverwrite all with fresh analysis?",
+                    "Overwrite Cached Prompts?",
+                    MessageBoxButton.YesNo,
+                    MessageBoxImage.Question);
+                if (answer != MessageBoxResult.Yes) return;
+            }
+
+            IsAnalyzing = true;
+            _analyzeCts?.Dispose();
+            _analyzeCts = new CancellationTokenSource();
+            var token = _analyzeCts.Token;
+
+            // Thinking models (Qwen3/QwQ/DeepSeek-R1) burn tokens on chain-of-thought before
+            // emitting the answer; some fine-tunes ignore /no_think entirely. A tiny budget gets
+            // fully consumed by reasoning and the answer never lands (content comes back empty),
+            // so give enough headroom for thinking + a short description.
+            const int analysisMaxTokens = 16000;
+
             try
             {
-                IsAnalyzing = true;
-                AddLog("=== Analyzing character image with LM Studio ===");
-
-                var models = await _lmStudioService.GetAvailableModelsAsync();
-                string selectedModel = _settingsService.Settings?.LMStudioSettings?.SelectedModel ?? string.Empty;
-
+                var models = await _lmStudioService.GetAvailableModelsAsync(token);
+                var selectedModel = _settingsService.Settings?.LMStudioSettings?.SelectedModel ?? string.Empty;
                 if (string.IsNullOrEmpty(selectedModel) && models.Count > 0)
-                {
-                    var m = models.First();
-                    selectedModel = !string.IsNullOrEmpty(m.Name) ? m.Name : m.Id;
-                }
+                    selectedModel = models.First().Name.Length > 0 ? models.First().Name : models.First().Id;
 
                 if (string.IsNullOrEmpty(selectedModel))
                 {
                     AddLog("ERROR: No LM Studio model available");
-                    System.Windows.MessageBox.Show(
-                        "No LM Studio model available. Please ensure LM Studio is running and a model is loaded.",
+                    System.Windows.MessageBox.Show("No LM Studio model available. Please ensure LM Studio is running and a model is loaded.",
                         "LM Studio Unavailable", MessageBoxButton.OK, MessageBoxImage.Warning);
                     return;
                 }
 
-                AddLog($"Sending image to LM Studio (model: {selectedModel})...");
-                var systemPrompt = "Describe the character in this image — their appearance, pose, and the scene. Focus on describing the motion and movement that would make a compelling video. Output ONLY the prompt text itself with no labels, headers, asterisks, or markdown formatting. Start directly with the description.";
+                AddLog($"=== WAN SCAIL analysis started — sending to {_lmStudioService.DescribeTarget(selectedModel)} ===");
 
-                var result = await _lmStudioService.AnalyzeImageWithSystemPromptAsync(
+                // Step 1: Extract character appearance from the reference image (once, reused for every chunk)
+                const string appearanceSystemPrompt =
+                    "Describe only what the person is wearing and their physical appearance in this image. " +
+                    "Include clothing (style and colors), hairstyle, and body type. " +
+                    "Do not describe what they are doing, their pose, their expression, or any action. " +
+                    "Write one or two sentences. Output only the description as plain text — no labels, no headers, no markdown.";
+
+                AddLog("Step 1: Extracting character appearance from reference image…");
+                var appearanceRaw = await _lmStudioService.AnalyzeImageWithSystemPromptAsync(
                     selectedModel,
                     CharacterImagePath,
-                    "Analyze this character image and generate a motion description prompt.",
-                    systemPrompt);
+                    "Describe this character's appearance.",
+                    appearanceSystemPrompt,
+                    maxTokens: analysisMaxTokens,
+                    cancellationToken: token);
 
-                Prompt = CleanLLMOutput(result);
-                AddLog("Image analysis complete. Prompt updated.");
+                var appearanceDescription = CleanLLMOutput(appearanceRaw);
+                if (string.IsNullOrWhiteSpace(appearanceDescription))
+                {
+                    AddLog("ERROR: Could not extract character appearance from reference image. " +
+                           "The model returned no answer — if it is a thinking model (e.g. Qwen3), " +
+                           "it likely ran out of tokens while reasoning. Try a non-thinking/vision model.");
+                    return;
+                }
+                var apPreview = appearanceDescription.Length > 120 ? appearanceDescription.Substring(0, 120) + "…" : appearanceDescription;
+                AddLog($"Appearance: {apPreview}");
+
+                // Step 2: For each chunk, extract motion from frames and combine with appearance
+                const string motionSystemPrompt =
+                    "Describe only the body movement and actions visible in these sequential video frames. " +
+                    "Focus on what the person is doing: their poses, gestures, and direction of motion from frame to frame. " +
+                    "Do not mention clothing, hair, skin color, or any aspect of appearance. " +
+                    "Write one or two sentences. Output only the movement description as plain text — no labels, no headers, no markdown.";
+
+                int totalChunks = _chunkItems.Count;
+                int done = 0;
+
+                for (int i = 0; i < totalChunks; i++)
+                {
+                    if (token.IsCancellationRequested) break;
+
+                    AnalyzeAllChunksStatus = $"Analyzing chunk {i + 1}/{totalChunks}…";
+                    OnPropertyChanged(nameof(AnalyzeAllChunksStatus));
+                    AddLog($"Step 2 — Chunk {i + 1}/{totalChunks}: extracting motion…");
+
+                    List<string> framePaths = new();
+                    try
+                    {
+                        framePaths = await ExtractChunkFramesAsync(InputVideoPath, i, token);
+                        AddLog($"Chunk {i + 1}: extracted {framePaths.Count} frame(s)");
+                        if (framePaths.Count == 0)
+                        {
+                            AddLog($"Chunk {i + 1}: no frames extracted, skipping");
+                            continue;
+                        }
+
+                        var motionRaw = await _lmStudioService.AnalyzeMultipleImagesWithSystemPromptAsync(
+                            selectedModel,
+                            framePaths,
+                            "Describe the movement in these video frames.",
+                            motionSystemPrompt,
+                            maxTokens: analysisMaxTokens,
+                            cancellationToken: token);
+
+                        var motionDescription = CleanLLMOutput(motionRaw);
+                        if (string.IsNullOrWhiteSpace(motionDescription))
+                        {
+                            AddLog($"Chunk {i + 1}: motion description was empty, skipping");
+                            continue;
+                        }
+
+                        // Combine: character appearance (constant) + motion (per chunk)
+                        var combinedPrompt = $"{appearanceDescription}, {motionDescription}";
+
+                        _chunkPrompts[i] = combinedPrompt;
+                        _promptCache.SavePrompt(InputVideoPath, i, combinedPrompt);
+                        done++;
+
+                        var chunkIdx = i; // capture for lambda
+                        Application.Current.Dispatcher.Invoke(() =>
+                        {
+                            var tile = _chunkItems.FirstOrDefault(c => c.Index == chunkIdx);
+                            if (tile != null) tile.HasCachedPrompt = true;
+                            if (chunkIdx == _selectedChunkIndex)
+                                Prompt = combinedPrompt;
+                        });
+
+                        var motPreview = motionDescription.Length > 100 ? motionDescription.Substring(0, 100) + "…" : motionDescription;
+                        AddLog($"Chunk {i + 1} motion: {motPreview}");
+                    }
+                    catch (OperationCanceledException) { break; }
+                    catch (Exception ex)
+                    {
+                        AddLog($"Chunk {i + 1} failed: {ex.Message}");
+                    }
+                    finally
+                    {
+                        foreach (var f in framePaths)
+                            try { File.Delete(f); } catch { }
+                    }
+                }
+
+                AnalyzeAllChunksStatus = token.IsCancellationRequested
+                    ? $"Cancelled — {done}/{totalChunks} chunks analyzed"
+                    : $"Done — {done}/{totalChunks} chunks analyzed";
+                OnPropertyChanged(nameof(AnalyzeAllChunksStatus));
+                AddLog($"=== WAN SCAIL analysis complete: {done}/{totalChunks} chunks ===");
             }
+            catch (OperationCanceledException) { }
             catch (Exception ex)
             {
-                AddLog($"ERROR during image analysis: {ex.Message}");
-                System.Windows.MessageBox.Show(
-                    $"Image analysis failed:\n{ex.Message}",
-                    "Error", MessageBoxButton.OK, MessageBoxImage.Error);
+                AddLog($"ERROR during analysis: {ex.Message}");
+                System.Windows.MessageBox.Show($"Analysis failed:\n{ex.Message}", "Error", MessageBoxButton.OK, MessageBoxImage.Error);
             }
             finally
             {
                 IsAnalyzing = false;
+                _analyzeCts?.Dispose();
+                _analyzeCts = null;
             }
+        }
+
+        #endregion
+
+        #region Analyze All Chunks
+
+        private async Task AnalyzeAllChunksAsync() => await AnalyzeImageAsync();
+
+        private async Task<List<string>> ExtractChunkFramesAsync(string videoPath, int chunkIndex, CancellationToken token)
+        {
+            var frames = new List<string>();
+            var ffmpegPath = FindFFmpeg();
+            if (ffmpegPath == null) return frames;
+
+            var fps = Fps > 0 ? (double)Fps : 24.0;
+            var startFrame = chunkIndex * FramesPerChunk;
+            var endFrame = Math.Min(startFrame + FramesPerChunk - 1, TotalFrames - 1);
+            int numFrames = Math.Min(4, endFrame - startFrame + 1);
+
+            for (int f = 0; f < numFrames; f++)
+            {
+                if (token.IsCancellationRequested) break;
+
+                var frameIdx = numFrames == 1
+                    ? startFrame
+                    : startFrame + (int)Math.Round((double)(endFrame - startFrame) * f / (numFrames - 1));
+                var timeSec = frameIdx / fps;
+                var tempFile = Path.Combine(Path.GetTempPath(), $"wanscail_frame_{Guid.NewGuid():N}.jpg");
+
+                await Task.Run(() =>
+                {
+                    var si = new ProcessStartInfo
+                    {
+                        FileName = ffmpegPath,
+                        // -loglevel quiet suppresses all stderr output; -nostats removes progress lines.
+                        // Not redirecting stderr avoids the pipe-buffer deadlock where ffmpeg blocks
+                        // waiting for the consumer to drain the pipe before our WaitForExit returns.
+                        Arguments = $"-loglevel quiet -nostats -ss {timeSec:F3} -i \"{videoPath}\" " +
+                                    $"-frames:v 1 -q:v 3 " +
+                                    $"-vf \"scale=512:512:force_original_aspect_ratio=decrease\" \"{tempFile}\" -y",
+                        UseShellExecute = false,
+                        RedirectStandardError = false,
+                        CreateNoWindow = true,
+                    };
+                    using var proc = Process.Start(si);
+                    if (proc != null && !proc.WaitForExit(30000))
+                        try { proc.Kill(); } catch { }
+                }, token);
+
+                if (File.Exists(tempFile))
+                    frames.Add(tempFile);
+            }
+
+            return frames;
         }
 
         #endregion
@@ -597,7 +974,7 @@ namespace FlipPix.UI.Linux.ViewModels.Video
 
         #region Queue Management
 
-        private void AddAllChunksToQueue()
+        protected void AddAllChunksToQueue()
         {
             if (!CanAddToQueue) return;
             EnqueueItem(singleChunkIndex: null);
@@ -627,6 +1004,9 @@ namespace FlipPix.UI.Linux.ViewModels.Video
                 ItemStatus = QueueItemStatus.Pending
             };
 
+            // Let subclasses stamp workflow-specific fields (e.g. SCAIL II subject / replacement mode)
+            OnEnqueue(item);
+
             _queue.Add(item);
             SaveQueueToFile();
             var desc = singleChunkIndex.HasValue ? $"chunk {singleChunkIndex.Value + 1}" : "all chunks";
@@ -636,6 +1016,12 @@ namespace FlipPix.UI.Linux.ViewModels.Video
             if (!IsProcessingQueue)
                 _ = ProcessQueueAsync();
         }
+
+        /// <summary>
+        /// Hook for subclasses to stamp workflow-specific fields onto a freshly built
+        /// queue item before it is enqueued. Base implementation does nothing.
+        /// </summary>
+        protected virtual void OnEnqueue(WanScailQueueItem item) { }
 
         private void RemoveQueueItem(WanScailQueueItem? item)
         {
@@ -730,7 +1116,7 @@ namespace FlipPix.UI.Linux.ViewModels.Video
                     SaveQueueToFile();
                     try
                     {
-                        await GenerateSingleVideoAsync(item);
+                        await GenerateSingleVideoAsync(item, token);
                         item.ItemStatus = QueueItemStatus.Completed;
                         AddLog($"Queue item completed: {item.DisplayText}");
                     }
@@ -815,8 +1201,10 @@ namespace FlipPix.UI.Linux.ViewModels.Video
 
         #region Video Generation
 
-        private async Task GenerateSingleVideoAsync(WanScailQueueItem item)
+        private async Task GenerateSingleVideoAsync(WanScailQueueItem item, CancellationToken cancellationToken = default)
         {
+            bool success = false;
+            StartGenerationTimer();
             try
             {
                 AddLog($"=== Starting WAN SCAIL generation: {item.DisplayText} ===");
@@ -923,11 +1311,14 @@ namespace FlipPix.UI.Linux.ViewModels.Video
                 var chunkFiles = new List<string>();
                 AddLog($"=== Processing {numChunks} chunk(s) of {FramesPerChunk} frames ===");
 
-                // Per-run seed: if -1, generate random once for the whole job
-                var runSeed = item.Seed >= 0 ? item.Seed : (long)(new Random().NextDouble() * long.MaxValue);
+                // Per-run seed: if -1, generate random once for the whole job. Kept under MaxSeed
+                // because seed-widget nodes (e.g. "easy globalSeed") reject values above 2^50.
+                var runSeed = item.Seed >= 0 ? item.Seed % MaxSeed : new Random().NextInt64(0, MaxSeed - numChunks);
 
                 for (int chunkIndex = startChunk; chunkIndex < endChunk; chunkIndex++)
                 {
+                    cancellationToken.ThrowIfCancellationRequested();
+
                     // Mark chunk as processing in UI
                     SetChunkStatus(chunkIndex, WanScailChunkStatus.Processing);
 
@@ -947,19 +1338,26 @@ namespace FlipPix.UI.Linux.ViewModels.Video
                             await _comfyUIService.ConnectAsync();
                         }
 
+                        // Use per-chunk cached prompt if available, fall back to queue-item prompt
+                        var chunkPrompt = _chunkPrompts.TryGetValue(chunkIndex, out var cp) && !string.IsNullOrWhiteSpace(cp)
+                            ? cp : item.Prompt;
+                        if (_chunkPrompts.ContainsKey(chunkIndex))
+                            AddLog($"Chunk {chunkIndex + 1}: using cached per-chunk prompt");
+
                         var updatedWorkflow = UpdateWorkflowParameters(
                             workflow,
                             uploadedImageName,
                             uploadedVideoName,
                             startFrame,
                             framesInChunk,
-                            item.Prompt,
+                            chunkPrompt,
                             item.NegativePrompt,
                             item.Fps,
                             item.MaxEdge,
                             runSeed + chunkIndex,
                             outputWidth,
-                            outputHeight);
+                            outputHeight,
+                            item);
 
                         var progress = new Progress<FlipPix.ComfyUI.Models.ProgressMessage>(progressMsg =>
                         {
@@ -975,7 +1373,8 @@ namespace FlipPix.UI.Linux.ViewModels.Video
                         });
 
                         var existingFiles = GetExistingVideoFiles("*.mp4", OutputSubfolder);
-                        var promptId = await _comfyUIService.ExecuteWorkflowAsync(updatedWorkflow, progress);
+                        var promptId = await _comfyUIService.ExecuteWorkflowAsync(
+                            updatedWorkflow, progress, cancellationToken, executionTimeout: ExecutionTimeout);
                         AddLog($"Chunk {chunkIndex + 1} submitted, prompt ID: {promptId}");
 
                         var outputVideo = await TryGetVideoFromHistoryAsync(promptId);
@@ -985,7 +1384,7 @@ namespace FlipPix.UI.Linux.ViewModels.Video
                             AddLog("History API returned no result, falling back to filesystem polling...");
                             outputVideo = await WaitForNewVideoAsync(
                                 existingFiles, "*.mp4",
-                                TimeSpan.FromMinutes(30),
+                                ExecutionTimeout,
                                 TimeSpan.FromSeconds(5),
                                 OutputSubfolder);
                         }
@@ -1004,6 +1403,12 @@ namespace FlipPix.UI.Linux.ViewModels.Video
                             AddLog($"ERROR: No output video for chunk {chunkIndex + 1} — aborting remaining chunks");
                             break;
                         }
+                    }
+                    catch (OperationCanceledException)
+                    {
+                        SetChunkStatus(chunkIndex, WanScailChunkStatus.Idle);
+                        AddLog($"Chunk {chunkIndex + 1} cancelled — stopping");
+                        throw;
                     }
                     catch (Exception ex)
                     {
@@ -1048,6 +1453,8 @@ namespace FlipPix.UI.Linux.ViewModels.Video
                     ResultVideoInfo = $"WAN SCAIL Video • {fi.Length / 1024 / 1024:F1}MB";
                     ProcessingProgress = 100;
                     ProcessingStatus = "WAN SCAIL Complete!";
+                    success = true;
+                    RecalibrateEta(TrimmedFrames > 0 ? TrimmedFrames : TotalFrames);
                     AddLog($"=== WAN SCAIL generation complete: {finalPath} ===");
                 }
                 else
@@ -1056,6 +1463,12 @@ namespace FlipPix.UI.Linux.ViewModels.Video
                     ProcessingStatus = "No output generated";
                     throw new Exception("No video chunks were generated.");
                 }
+            }
+            catch (OperationCanceledException)
+            {
+                AddLog("=== WAN SCAIL generation cancelled ===");
+                ProcessingStatus = "Cancelled";
+                throw;
             }
             catch (Exception ex)
             {
@@ -1066,12 +1479,15 @@ namespace FlipPix.UI.Linux.ViewModels.Video
             }
             finally
             {
+                StopGenerationTimer(success);
                 IsProcessing = false;
             }
         }
 
+        // Subclasses override this to fix a specific output resolution (e.g. GGUF always uses 832×480).
         protected virtual (int Width, int Height) ComputeOutputResolution(int videoW, int videoH, int maxEdge)
         {
+            // SCAIL 480p: short edge = 480, long edge scaled from video AR, both divisible by 32
             const int shortEdge = 480;
             const int alignment = 32;
             if (videoW <= videoH)
@@ -1092,7 +1508,8 @@ namespace FlipPix.UI.Linux.ViewModels.Video
             int maxEdge,
             long seed,
             int outputWidth = 0,
-            int outputHeight = 0)
+            int outputHeight = 0,
+            WanScailQueueItem? item = null)
         {
             var workflowJson = workflow.GetRawText();
             AddLog($"Updating workflow: start={startFrame}, frames={framesInChunk}, fps={fps}, maxEdge={maxEdge}");
@@ -1146,6 +1563,7 @@ namespace FlipPix.UI.Linux.ViewModels.Video
             OpenResultFolderCommand.NotifyCanExecuteChanged();
             SendToEditCameraCommand.NotifyCanExecuteChanged();
             AnalyzeImageCommand.NotifyCanExecuteChanged();
+            AnalyzeAllChunksCommand.NotifyCanExecuteChanged();
         }
     }
 }

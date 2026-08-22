@@ -3900,7 +3900,7 @@ namespace FlipPix.UI.Linux.ViewModels
             _logger.LogInfo("Queue resumed");
         }
 
-        private string QueueFilePath => Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData), "FlipPix", "queue", "image_analyzer_queue.json");
+        private string QueueFilePath => UserPaths.Queue("image_analyzer_queue.json");
 
         private void SaveQueueToFile()
         {

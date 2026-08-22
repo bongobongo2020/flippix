@@ -166,7 +166,7 @@ namespace FlipPix.UI.Linux.ViewModels
             System.Windows.Application.Current.Dispatcher.BeginInvoke(new Action(() =>
             {
                 NotifyActionCommands();
-            }), System.Windows.DispatcherPriority.Loaded);
+            }), System.Windows.Threading.DispatcherPriority.Loaded);
         }
 
         private void NotifyActionCommands()
@@ -2653,7 +2653,7 @@ namespace FlipPix.UI.Linux.ViewModels
             AddLog("Queue cancellation requested");
         }
 
-        private string QueueFilePath => Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData), "FlipPix", "queue", "image_generator_queue.json");
+        private string QueueFilePath => UserPaths.Queue("image_generator_queue.json");
 
         private void SaveQueueToFile()
         {

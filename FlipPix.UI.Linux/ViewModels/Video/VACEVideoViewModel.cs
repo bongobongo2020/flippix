@@ -27,9 +27,7 @@ namespace FlipPix.UI.Linux.ViewModels.Video
         private const int FramesPerChunk = 81;
         private const string OutputSubfolder = "wan_vace";
 
-        private string QueueFilePath => Path.Combine(
-            Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData),
-            "FlipPix", "queue", "vace_queue.json");
+        private string QueueFilePath => UserPaths.Queue("vace_queue.json");
 
         private string _prompt = string.Empty;
         private string _foregroundImagePath = string.Empty;

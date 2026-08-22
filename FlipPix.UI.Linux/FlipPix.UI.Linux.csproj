@@ -5,6 +5,25 @@
     <Nullable>enable</Nullable>
     <ImplicitUsings>enable</ImplicitUsings>
     <AvaloniaUseCompiledBindingsByDefault>false</AvaloniaUseCompiledBindingsByDefault>
+    <InvariantTimezone>false</InvariantTimezone>
+    <SatelliteResourceLanguages>en</SatelliteResourceLanguages>
+  </PropertyGroup>
+
+  <!--
+    Release tuning. The Arch package is framework-dependent against the system
+    dotnet-runtime, so ReadyToRun is applied per-RID at publish time rather than here.
+    Feature switches trim IL that a desktop ComfyUI client never reaches.
+  -->
+  <PropertyGroup Condition="'$(Configuration)' == 'Release'">
+    <TieredPGO>true</TieredPGO>
+    <ServerGarbageCollection>false</ServerGarbageCollection>
+    <ConcurrentGarbageCollection>true</ConcurrentGarbageCollection>
+    <EventSourceSupport>false</EventSourceSupport>
+    <MetadataUpdaterSupport>false</MetadataUpdaterSupport>
+    <BuiltInComInteropSupport>false</BuiltInComInteropSupport>
+    <EnableUnsafeBinaryFormatterSerialization>false</EnableUnsafeBinaryFormatterSerialization>
+    <AutoreleasePoolSupport>false</AutoreleasePoolSupport>
+    <DebugType>portable</DebugType>
   </PropertyGroup>
 
   <ItemGroup>
@@ -21,6 +40,7 @@
     <PackageReference Include="Microsoft.Extensions.DependencyInjection" Version="8.0.0" />
     <PackageReference Include="Microsoft.Extensions.Logging" Version="8.0.0" />
     <PackageReference Include="Microsoft.Extensions.Http" Version="8.0.0" />
+    <PackageReference Include="Microsoft.Data.Sqlite" Version="8.0.0" />
     <PackageReference Include="FFMpegCore" Version="5.0.2" />
     <PackageReference Include="YamlDotNet" Version="15.1.2" />
     <PackageReference Include="SixLabors.ImageSharp" Version="3.1.12" />

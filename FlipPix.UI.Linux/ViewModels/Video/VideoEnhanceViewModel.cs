@@ -18,13 +18,9 @@ namespace FlipPix.UI.Linux.ViewModels.Video
         private const string InterpolateOutputSubfolder = "AnimateDiff";
         private const string UpscaleOutputSubfolder = "upscale";
 
-        private string InterpolateQueueFilePath => Path.Combine(
-            Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData),
-            "FlipPix", "queue", "video_enhance_interpolate_queue.json");
+        private string InterpolateQueueFilePath => UserPaths.Queue("video_enhance_interpolate_queue.json");
 
-        private string UpscaleQueueFilePath => Path.Combine(
-            Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData),
-            "FlipPix", "queue", "video_enhance_upscale_queue.json");
+        private string UpscaleQueueFilePath => UserPaths.Queue("video_enhance_upscale_queue.json");
 
         // Interpolate state
         private string _interpolateVideoPath = string.Empty;
