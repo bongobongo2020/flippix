@@ -96,6 +96,7 @@ namespace FlipPix.UI.ViewModels
         private IdeogramViewModel _ideogram;
         private QwenEditViewModel _qwenEdit;
         private RestoreViewModel _restore;
+        private ImageUpscalerViewModel _imageUpscaler;
 
 
         public ImageGeneratorViewModel(FlipPix.ComfyUI.Services.ComfyUIService comfyUIService, IAppLogger logger, FlipPix.Core.Services.SettingsService settingsService, IServiceProvider? serviceProvider = null, IPromptService? promptService = null)
@@ -131,6 +132,7 @@ namespace FlipPix.UI.ViewModels
             _ideogram = new IdeogramViewModel(comfyUIService, logger, settingsService, fileDialogService, lmStudioService ?? throw new InvalidOperationException("LMStudioService is required"), _workflowCoordinator);
             _qwenEdit = new QwenEditViewModel(comfyUIService, logger, settingsService, fileDialogService, lmStudioService ?? throw new InvalidOperationException("LMStudioService is required"), _workflowCoordinator);
             _restore = new RestoreViewModel(comfyUIService, logger, settingsService, fileDialogService);
+            _imageUpscaler = new ImageUpscalerViewModel(comfyUIService, logger, settingsService, fileDialogService, imageRetriever);
 
             // Keep the shared Tab 1 settings panel pointed at the active mode's VM.
             _analyzer.PropertyChanged += (s, e) =>
@@ -313,6 +315,7 @@ namespace FlipPix.UI.ViewModels
         public IdeogramViewModel Ideogram => _ideogram;
         public QwenEditViewModel QwenEdit => _qwenEdit;
         public RestoreViewModel Restore => _restore;
+        public ImageUpscalerViewModel ImageUpscaler => _imageUpscaler;
 
         public string ProcessingStatus
         {
@@ -3394,8 +3397,10 @@ namespace FlipPix.UI.ViewModels
         }
 
         /// <summary>
-        /// Opens the Video Generator's MiniMax FFLF tab and loads the current Story Image Q
-        /// session's generated keyframes as a folder batch (overlapping FFLF pairs → continuous shot).
+        /// Opens the Video Generator's 🌀🎯 MiniMax FFLF tab and hands it this Story Image Q session's
+        /// generated keyframes as a folder: the first still becomes the opening frame and each one after
+        /// it becomes a keyframe a clip has to arrive at. A ten-keyframe run is more than one chain holds,
+        /// so the tab walks it as a series of takes, each opening on the keyframe the last one ended with.
         /// </summary>
         private void OpenKeyframesInMiniMaxFflf()
         {
@@ -3416,7 +3421,8 @@ namespace FlipPix.UI.ViewModels
                 if (pngCount < 2)
                 {
                     System.Windows.MessageBox.Show(
-                        $"Need at least 2 generated keyframes to form an FFLF pair (found {pngCount}).",
+                        $"Need at least 2 generated keyframes — an opening frame and something for the "
+                        + $"first clip to reach (found {pngCount}).",
                         "Not Enough Keyframes", System.Windows.MessageBoxButton.OK, System.Windows.MessageBoxImage.Warning);
                     return;
                 }
@@ -3436,8 +3442,8 @@ namespace FlipPix.UI.ViewModels
 
                 if (videoWindow.DataContext is VideoGeneratorViewModel vm)
                 {
-                    // MiniMax FFLF is the last tab in VideoGeneratorWindow's TabControl (index 8).
-                    vm.SelectedTabIndex = 8;
+                    // MiniMax FFLF is the fourth tab in VideoGeneratorWindow's TabControl.
+                    vm.SelectedTabIndex = 3;
                     vm.MiniMaxFflfVM.LoadFolder(folder);
                     AddLog($"Opened MiniMax FFLF with {pngCount} keyframes from: {folder}");
                     StatusBarMessage = $"Loaded {pngCount} keyframes into MiniMax FFLF";

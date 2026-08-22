@@ -1,4 +1,4 @@
-<Window x:Class="FlipPix.UI.ImageGeneratorWindow"
+﻿<Window x:Class="FlipPix.UI.ImageGeneratorWindow"
         Icon="flippix.ico"
         xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
@@ -2178,7 +2178,7 @@
                                            FontSize="12"
                                            FontWeight="SemiBold"
                                            Margin="0,0,0,10"
-                                           ToolTip="Open the Video Generator's FFLF Seed Hunter with this session's 10 keyframes loaded as overlapping pairs for a continuous video shot.">
+                                           ToolTip="Opens the Video Generator's MiniMax FFLF tab with this session's keyframes loaded as the chain: the first still is the opening frame and each one after it is a keyframe a clip has to arrive at.&#x0a;&#x0a;A chain holds five keyframes at most, so a ten-keyframe run is walked as a series of takes — each one opening on the keyframe the last ended with, so they join.">
                                         <Button.Style>
                                             <Style TargetType="Button">
                                                 <Setter Property="Background" Value="{StaticResource AccentVioletBrush}"/>
@@ -5762,6 +5762,449 @@
                                 <StackPanel>
                                     <TextBlock Text="Log" FontSize="12" FontWeight="SemiBold" Foreground="{StaticResource PlayerTextBrush}" Margin="0,0,0,6"/>
                                     <TextBox Text="{Binding Restore.LogOutput}"
+                                             IsReadOnly="True" TextWrapping="Wrap"
+                                             VerticalScrollBarVisibility="Auto"
+                                             Background="{StaticResource PlayerSurfaceBrush}" Foreground="{StaticResource PlayerTextBrush}"
+                                             BorderThickness="0" FontFamily="Consolas"
+                                             FontSize="11" Padding="4" Height="220"/>
+                                </StackPanel>
+                            </Border>
+
+                        </StackPanel>
+                    </ScrollViewer>
+
+                </Grid>
+            </TabItem>
+
+            <TabItem Header="🔍 Image Upscaler" Visibility="{Binding IsEditGroup, Converter={StaticResource BooleanToVisibilityConverter}}">
+                <Grid Margin="0">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="*" MinWidth="340"/>
+                        <ColumnDefinition Width="2"/>
+                        <ColumnDefinition Width="*" MinWidth="340"/>
+                    </Grid.ColumnDefinitions>
+
+                    <!-- LEFT: inputs -->
+                    <ScrollViewer Grid.Column="0" VerticalScrollBarVisibility="Auto">
+                        <StackPanel Margin="15,12,8,12">
+
+                            <!-- Pipeline badge -->
+                            <Border Background="{StaticResource SurfaceAltBrush}" BorderBrush="#C7D2FE" BorderThickness="1" CornerRadius="6"
+                                    Padding="12,8" Margin="0,0,0,12">
+                                <StackPanel>
+                                    <TextBlock Text="🔍 Tiled Upscaling — SeedVR2" FontSize="13" FontWeight="SemiBold"
+                                               Foreground="{StaticResource AccentIndigoBrush}"/>
+                                    <TextBlock FontSize="11" Foreground="{StaticResource TextSecondaryBrush}" Margin="0,4,0,0" TextWrapping="Wrap">
+                                        The picture is cut into overlapping tiles, each tile is upscaled by the SeedVR2
+                                        diffusion transformer, and the tiles are blended back together. Peak VRAM is set by
+                                        the tile size rather than the output size, so 4K and beyond stays reachable.
+                                        Upscale one image, or point at a folder and run the whole thing.
+                                    </TextBlock>
+                                </StackPanel>
+                            </Border>
+
+                            <!-- Mode -->
+                            <Border Style="{StaticResource SectionPanelStyle}" Margin="0,0,0,10" Padding="12">
+                                <StackPanel>
+                                    <TextBlock Text="Mode" Style="{StaticResource HeaderTextStyle}"/>
+                                    <StackPanel Orientation="Horizontal" Margin="0,4,0,0">
+                                        <RadioButton Content="🖼️ Single Image" GroupName="UpscalerMode"
+                                                     Style="{StaticResource ToggleRadioStyle}"
+                                                     IsChecked="{Binding ImageUpscaler.IsSingleMode}"
+                                                     Margin="0,0,8,0"/>
+                                        <RadioButton Content="📁 Batch Folder" GroupName="UpscalerMode"
+                                                     Style="{StaticResource ToggleRadioStyle}"
+                                                     IsChecked="{Binding ImageUpscaler.IsBatchMode}"/>
+                                    </StackPanel>
+                                </StackPanel>
+                            </Border>
+
+                            <!-- Single-image source -->
+                            <Border Style="{StaticResource SectionPanelStyle}" Margin="0,0,0,10" Padding="12"
+                                    Visibility="{Binding ImageUpscaler.IsSingleMode, Converter={StaticResource BooleanToVisibilityConverter}}">
+                                <StackPanel>
+                                    <TextBlock Text="Image to Upscale" Style="{StaticResource HeaderTextStyle}"/>
+                                    <TextBlock Text="{Binding ImageUpscaler.SourceImagePath, FallbackValue='No image selected'}"
+                                               FontSize="11" Foreground="{StaticResource TextSecondaryBrush}"
+                                               TextTrimming="CharacterEllipsis" Margin="0,0,0,6"/>
+                                    <Button Content="📂 Browse Image"
+                                            Command="{Binding ImageUpscaler.BrowseSourceImageCommand}"
+                                            Style="{StaticResource SecondaryButtonStyle}"
+                                            Background="{StaticResource BrandBrush}" Padding="12,8" FontSize="12" Margin="0,0,0,8"/>
+                                    <Border BorderBrush="{StaticResource BorderBrush}" BorderThickness="1" CornerRadius="4"
+                                            Background="{StaticResource PlayerSurfaceBrush}" Height="200" ClipToBounds="True">
+                                        <Grid>
+                                            <Image Source="{Binding ImageUpscaler.SourceImageSource}"
+                                                   Stretch="Uniform" RenderOptions.BitmapScalingMode="HighQuality"/>
+                                            <StackPanel HorizontalAlignment="Center" VerticalAlignment="Center"
+                                                        Visibility="{Binding ImageUpscaler.NoSourceImage, Converter={StaticResource BooleanToVisibilityConverter}}">
+                                                <TextBlock Text="🖼️" FontSize="36" HorizontalAlignment="Center"/>
+                                                <TextBlock Text="Image to upscale" FontSize="12" Foreground="{StaticResource PlayerTextBrush}"
+                                                           HorizontalAlignment="Center" Margin="0,6,0,0"/>
+                                            </StackPanel>
+                                        </Grid>
+                                    </Border>
+                                </StackPanel>
+                            </Border>
+
+                            <!-- Batch source -->
+                            <Border Style="{StaticResource SectionPanelStyle}" Margin="0,0,0,10" Padding="12"
+                                    Visibility="{Binding ImageUpscaler.IsBatchMode, Converter={StaticResource BooleanToVisibilityConverter}}">
+                                <StackPanel>
+                                    <TextBlock Text="Folder to Upscale" Style="{StaticResource HeaderTextStyle}"/>
+                                    <TextBlock Text="{Binding ImageUpscaler.BatchFolderPath, FallbackValue='No folder selected'}"
+                                               FontSize="11" Foreground="{StaticResource TextSecondaryBrush}"
+                                               TextTrimming="CharacterEllipsis" Margin="0,0,0,6"/>
+                                    <StackPanel Orientation="Horizontal" Margin="0,0,0,8">
+                                        <Button Content="📂 Browse Folder"
+                                                Command="{Binding ImageUpscaler.BrowseBatchFolderCommand}"
+                                                Style="{StaticResource SecondaryButtonStyle}"
+                                                Background="{StaticResource BrandBrush}" Padding="12,8" FontSize="12" Margin="0,0,8,0"/>
+                                        <Button Content="🔄 Rescan"
+                                                Command="{Binding ImageUpscaler.RescanBatchFolderCommand}"
+                                                Style="{StaticResource SecondaryButtonStyle}"
+                                                Background="{StaticResource NeutralBrush}" Padding="12,8" FontSize="12"/>
+                                    </StackPanel>
+
+                                    <CheckBox Content="Include subfolders (output mirrors the tree)"
+                                              IsChecked="{Binding ImageUpscaler.IncludeSubfolders}"
+                                              FontSize="12" Margin="0,0,0,4"/>
+                                    <CheckBox Content="Skip images that already have a result"
+                                              IsChecked="{Binding ImageUpscaler.SkipExisting}"
+                                              FontSize="12" Margin="0,0,0,8"/>
+
+                                    <TextBlock Text="{Binding ImageUpscaler.BatchSummary}"
+                                               FontSize="11" FontWeight="SemiBold"
+                                               Foreground="{StaticResource AccentIndigoBrush}" Margin="0,0,0,6"/>
+
+                                    <Border BorderBrush="{StaticResource BorderBrush}" BorderThickness="1" CornerRadius="4"
+                                            Background="{StaticResource SurfaceBrush}" Height="180">
+                                        <ScrollViewer VerticalScrollBarVisibility="Auto" Padding="6,4">
+                                            <ItemsControl ItemsSource="{Binding ImageUpscaler.BatchItems}">
+                                                <ItemsControl.ItemTemplate>
+                                                    <DataTemplate>
+                                                        <Grid Margin="0,2">
+                                                            <Grid.ColumnDefinitions>
+                                                                <ColumnDefinition Width="Auto"/>
+                                                                <ColumnDefinition Width="*"/>
+                                                                <ColumnDefinition Width="Auto"/>
+                                                            </Grid.ColumnDefinitions>
+                                                            <TextBlock Grid.Column="0" Text="{Binding StatusGlyph}" FontSize="11" Margin="0,0,6,0"/>
+                                                            <TextBlock Grid.Column="1" Text="{Binding FileName}" FontSize="11"
+                                                                       Foreground="{StaticResource TextPrimaryBrush}"
+                                                                       TextTrimming="CharacterEllipsis" ToolTip="{Binding SourcePath}"/>
+                                                            <TextBlock Grid.Column="2" Text="{Binding Detail}" FontSize="10"
+                                                                       Foreground="{StaticResource TextMutedBrush}"
+                                                                       MaxWidth="150" TextTrimming="CharacterEllipsis" Margin="8,0,0,0"/>
+                                                        </Grid>
+                                                    </DataTemplate>
+                                                </ItemsControl.ItemTemplate>
+                                            </ItemsControl>
+                                        </ScrollViewer>
+                                    </Border>
+                                </StackPanel>
+                            </Border>
+
+                            <!-- Output folder -->
+                            <Border Style="{StaticResource SectionPanelStyle}" Margin="0,0,0,10" Padding="12">
+                                <StackPanel>
+                                    <TextBlock Text="Output Folder" Style="{StaticResource HeaderTextStyle}"/>
+                                    <TextBlock Text="{Binding ImageUpscaler.EffectiveOutputFolder}"
+                                               FontSize="11" Foreground="{StaticResource TextSecondaryBrush}"
+                                               TextTrimming="CharacterEllipsis" Margin="0,0,0,6"/>
+                                    <Button Content="📁 Choose Output Folder"
+                                            Command="{Binding ImageUpscaler.BrowseOutputFolderCommand}"
+                                            Style="{StaticResource SecondaryButtonStyle}"
+                                            Background="{StaticResource NeutralBrush}" Padding="12,8" FontSize="12"
+                                            HorizontalAlignment="Left"/>
+                                </StackPanel>
+                            </Border>
+
+                            <!-- Model + target -->
+                            <Border Style="{StaticResource SectionPanelStyle}" Margin="0,0,0,10" Padding="12">
+                                <StackPanel>
+                                    <TextBlock Text="Model &amp; Target" Style="{StaticResource HeaderTextStyle}"/>
+
+                                    <TextBlock Text="SeedVR2 model" Style="{StaticResource FieldLabelStyle}" Margin="0,4,0,2"/>
+                                    <ComboBox ItemsSource="{Binding ImageUpscaler.DitModels}"
+                                              SelectedItem="{Binding ImageUpscaler.SelectedDitModel}"
+                                              FontSize="11" Padding="6,4" Margin="0,0,0,4"/>
+                                    <TextBlock Text="3B is fast; 7B is sharper but much heavier. Models download on first use."
+                                               Style="{StaticResource HintTextStyle}" Margin="0,0,0,8"/>
+
+                                    <Grid>
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="*"/>
+                                            <ColumnDefinition Width="Auto"/>
+                                        </Grid.ColumnDefinitions>
+                                        <TextBlock Grid.Column="0" Text="Target resolution" FontSize="12"
+                                                   Foreground="{StaticResource TextPrimaryBrush}" VerticalAlignment="Center"/>
+                                        <TextBlock Grid.Column="1" Text="{Binding ImageUpscaler.NewResolutionText}" FontSize="12"
+                                                   FontWeight="SemiBold" Foreground="{StaticResource AccentVioletBrush}"/>
+                                    </Grid>
+                                    <Slider Minimum="512" Maximum="8192" SmallChange="64" LargeChange="256"
+                                            Value="{Binding ImageUpscaler.NewResolution}"
+                                            IsMoveToPointEnabled="True" Margin="0,2,0,8"/>
+
+                                    <TextBlock Text="Which side that applies to" Style="{StaticResource FieldLabelStyle}" Margin="0,0,0,2"/>
+                                    <ComboBox ItemsSource="{Binding ImageUpscaler.ResolutionTargets}"
+                                              SelectedItem="{Binding ImageUpscaler.ResolutionTarget}"
+                                              FontSize="11" Padding="6,4" Margin="0,0,0,8"/>
+
+                                    <Grid>
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="Auto"/>
+                                            <ColumnDefinition Width="*"/>
+                                            <ColumnDefinition Width="Auto"/>
+                                        </Grid.ColumnDefinitions>
+                                        <TextBlock Grid.Column="0" Text="Seed" FontSize="12" VerticalAlignment="Center"
+                                                   Foreground="{StaticResource TextPrimaryBrush}" Margin="0,0,8,0"/>
+                                        <TextBox Grid.Column="1" Text="{Binding ImageUpscaler.Seed, UpdateSourceTrigger=PropertyChanged}"
+                                                 FontSize="12" Padding="6,4"
+                                                 ToolTip="The seed the last run used. Untick Randomize to reuse it."/>
+                                        <CheckBox Grid.Column="2" Content="Randomize"
+                                                  IsChecked="{Binding ImageUpscaler.RandomizeSeed}"
+                                                  FontSize="12" VerticalAlignment="Center" Margin="8,0,0,0"/>
+                                    </Grid>
+                                </StackPanel>
+                            </Border>
+
+                            <!-- Tiling -->
+                            <Expander Header="Tiling" IsExpanded="False" Margin="0,0,0,10" FontSize="12" FontWeight="SemiBold">
+                                <Border Style="{StaticResource SectionPanelStyle}" Padding="12" Margin="0,4,0,0">
+                                    <StackPanel>
+                                        <Grid>
+                                            <Grid.ColumnDefinitions>
+                                                <ColumnDefinition Width="*"/>
+                                                <ColumnDefinition Width="Auto"/>
+                                            </Grid.ColumnDefinitions>
+                                            <TextBlock Grid.Column="0" Text="Tile size" FontSize="12" FontWeight="Normal"
+                                                       Foreground="{StaticResource TextPrimaryBrush}" VerticalAlignment="Center"/>
+                                            <TextBlock Grid.Column="1" Text="{Binding ImageUpscaler.TileSizeText}" FontSize="12"
+                                                       FontWeight="SemiBold" Foreground="{StaticResource AccentVioletBrush}"/>
+                                        </Grid>
+                                        <Slider Minimum="128" Maximum="2048" SmallChange="64" LargeChange="128"
+                                                Value="{Binding ImageUpscaler.TileWidth}"
+                                                IsMoveToPointEnabled="True" Margin="0,2,0,2"/>
+                                        <Slider Minimum="128" Maximum="2048" SmallChange="64" LargeChange="128"
+                                                Value="{Binding ImageUpscaler.TileHeight}"
+                                                IsMoveToPointEnabled="True" Margin="0,0,0,8"/>
+
+                                        <Grid>
+                                            <Grid.ColumnDefinitions>
+                                                <ColumnDefinition Width="*"/>
+                                                <ColumnDefinition Width="Auto"/>
+                                            </Grid.ColumnDefinitions>
+                                            <TextBlock Grid.Column="0" Text="Tile overlap" FontSize="12" FontWeight="Normal"
+                                                       Foreground="{StaticResource TextPrimaryBrush}" VerticalAlignment="Center"/>
+                                            <TextBlock Grid.Column="1" Text="{Binding ImageUpscaler.TilePaddingText}" FontSize="12"
+                                                       FontWeight="SemiBold" Foreground="{StaticResource AccentVioletBrush}"/>
+                                        </Grid>
+                                        <Slider Minimum="0" Maximum="256" SmallChange="8" LargeChange="16"
+                                                Value="{Binding ImageUpscaler.TilePadding}"
+                                                IsMoveToPointEnabled="True" Margin="0,2,0,2"/>
+                                        <TextBlock Text="More overlap hides seams but costs time. 32–64 is the usual range."
+                                                   Style="{StaticResource HintTextStyle}" Margin="0,0,0,8"/>
+
+                                        <Grid>
+                                            <Grid.ColumnDefinitions>
+                                                <ColumnDefinition Width="*"/>
+                                                <ColumnDefinition Width="Auto"/>
+                                            </Grid.ColumnDefinitions>
+                                            <TextBlock Grid.Column="0" Text="Per-tile resolution cap" FontSize="12" FontWeight="Normal"
+                                                       Foreground="{StaticResource TextPrimaryBrush}" VerticalAlignment="Center"/>
+                                            <TextBlock Grid.Column="1" Text="{Binding ImageUpscaler.TileUpscaleResolutionText}" FontSize="12"
+                                                       FontWeight="SemiBold" Foreground="{StaticResource AccentVioletBrush}"/>
+                                        </Grid>
+                                        <Slider Minimum="256" Maximum="4096" SmallChange="64" LargeChange="256"
+                                                Value="{Binding ImageUpscaler.TileUpscaleResolution}"
+                                                IsMoveToPointEnabled="True" Margin="0,2,0,2"/>
+                                        <TextBlock Text="The real VRAM dial. Drop this first if a run hits out-of-memory."
+                                                   Style="{StaticResource HintTextStyle}" Margin="0,0,0,8"/>
+
+                                        <TextBlock Text="Tile order" Style="{StaticResource FieldLabelStyle}" Margin="0,0,0,2"/>
+                                        <ComboBox ItemsSource="{Binding ImageUpscaler.TilingStrategies}"
+                                                  SelectedItem="{Binding ImageUpscaler.TilingStrategy}"
+                                                  FontSize="11" Padding="6,4" Margin="0,0,0,8"/>
+
+                                        <Grid>
+                                            <Grid.ColumnDefinitions>
+                                                <ColumnDefinition Width="*"/>
+                                                <ColumnDefinition Width="Auto"/>
+                                            </Grid.ColumnDefinitions>
+                                            <TextBlock Grid.Column="0" Text="Tiles per call" FontSize="12" FontWeight="Normal"
+                                                       Foreground="{StaticResource TextPrimaryBrush}" VerticalAlignment="Center"/>
+                                            <TextBlock Grid.Column="1" Text="{Binding ImageUpscaler.TileBatchSizeText}" FontSize="12"
+                                                       FontWeight="SemiBold" Foreground="{StaticResource AccentVioletBrush}"/>
+                                        </Grid>
+                                        <Slider Minimum="1" Maximum="21" SmallChange="4" LargeChange="4" TickFrequency="4"
+                                                Value="{Binding ImageUpscaler.TileBatchSize}"
+                                                IsMoveToPointEnabled="True" Margin="0,2,0,2"/>
+                                        <TextBlock Text="Faster, but VRAM scales with it. Snapped to SeedVR2's 1/5/9/13/17/21."
+                                                   Style="{StaticResource HintTextStyle}"/>
+                                    </StackPanel>
+                                </Border>
+                            </Expander>
+
+                            <!-- Blending & colour -->
+                            <Expander Header="Blending &amp; Colour" IsExpanded="False" Margin="0,0,0,10" FontSize="12" FontWeight="SemiBold">
+                                <Border Style="{StaticResource SectionPanelStyle}" Padding="12" Margin="0,4,0,0">
+                                    <StackPanel>
+                                        <TextBlock Text="Blending method" Style="{StaticResource FieldLabelStyle}" Margin="0,0,0,2"/>
+                                        <ComboBox ItemsSource="{Binding ImageUpscaler.BlendingMethods}"
+                                                  SelectedItem="{Binding ImageUpscaler.BlendingMethod}"
+                                                  FontSize="11" Padding="6,4" Margin="0,0,0,8"/>
+
+                                        <Grid>
+                                            <Grid.ColumnDefinitions>
+                                                <ColumnDefinition Width="*"/>
+                                                <ColumnDefinition Width="Auto"/>
+                                            </Grid.ColumnDefinitions>
+                                            <TextBlock Grid.Column="0" Text="Seam blur" FontSize="12" FontWeight="Normal"
+                                                       Foreground="{StaticResource TextPrimaryBrush}" VerticalAlignment="Center"/>
+                                            <TextBlock Grid.Column="1" Text="{Binding ImageUpscaler.MaskBlurText}" FontSize="12"
+                                                       FontWeight="SemiBold" Foreground="{StaticResource AccentVioletBrush}"/>
+                                        </Grid>
+                                        <Slider Minimum="0" Maximum="16" SmallChange="1" LargeChange="2"
+                                                Value="{Binding ImageUpscaler.MaskBlur}"
+                                                IsMoveToPointEnabled="True" Margin="0,2,0,8"/>
+
+                                        <Grid>
+                                            <Grid.ColumnDefinitions>
+                                                <ColumnDefinition Width="*"/>
+                                                <ColumnDefinition Width="Auto"/>
+                                            </Grid.ColumnDefinitions>
+                                            <TextBlock Grid.Column="0" Text="Anti-aliasing" FontSize="12" FontWeight="Normal"
+                                                       Foreground="{StaticResource TextPrimaryBrush}" VerticalAlignment="Center"/>
+                                            <TextBlock Grid.Column="1" Text="{Binding ImageUpscaler.AntiAliasingStrengthText}" FontSize="12"
+                                                       FontWeight="SemiBold" Foreground="{StaticResource AccentVioletBrush}"/>
+                                        </Grid>
+                                        <Slider Minimum="0" Maximum="0.5" SmallChange="0.05" LargeChange="0.1"
+                                                Value="{Binding ImageUpscaler.AntiAliasingStrength}"
+                                                IsMoveToPointEnabled="True" Margin="0,2,0,8"/>
+
+                                        <TextBlock Text="Colour correction" Style="{StaticResource FieldLabelStyle}" Margin="0,0,0,2"/>
+                                        <ComboBox ItemsSource="{Binding ImageUpscaler.ColorCorrections}"
+                                                  SelectedItem="{Binding ImageUpscaler.ColorCorrection}"
+                                                  FontSize="11" Padding="6,4"/>
+                                        <TextBlock Text="Matches the upscale back to the original's colours. 'lab' is the safe default."
+                                                   Style="{StaticResource HintTextStyle}" Margin="0,4,0,0"/>
+                                    </StackPanel>
+                                </Border>
+                            </Expander>
+
+                            <!-- VRAM -->
+                            <Expander Header="VRAM" IsExpanded="False" Margin="0,0,0,10" FontSize="12" FontWeight="SemiBold">
+                                <Border Style="{StaticResource SectionPanelStyle}" Padding="12" Margin="0,4,0,0">
+                                    <StackPanel>
+                                        <Grid>
+                                            <Grid.ColumnDefinitions>
+                                                <ColumnDefinition Width="*"/>
+                                                <ColumnDefinition Width="Auto"/>
+                                            </Grid.ColumnDefinitions>
+                                            <TextBlock Grid.Column="0" Text="Block swap" FontSize="12" FontWeight="Normal"
+                                                       Foreground="{StaticResource TextPrimaryBrush}" VerticalAlignment="Center"/>
+                                            <TextBlock Grid.Column="1" Text="{Binding ImageUpscaler.BlocksToSwapText}" FontSize="12"
+                                                       FontWeight="SemiBold" Foreground="{StaticResource AccentVioletBrush}"/>
+                                        </Grid>
+                                        <Slider Minimum="0" Maximum="36" SmallChange="1" LargeChange="4"
+                                                Value="{Binding ImageUpscaler.BlocksToSwap}"
+                                                IsMoveToPointEnabled="True" Margin="0,2,0,2"/>
+                                        <TextBlock Text="Parks transformer blocks in system RAM. Slower, but it rescues a run that won't fit."
+                                                   Style="{StaticResource HintTextStyle}" Margin="0,0,0,8"/>
+
+                                        <CheckBox Content="Tiled VAE encode/decode"
+                                                  IsChecked="{Binding ImageUpscaler.TiledVae}"
+                                                  FontSize="12" FontWeight="Normal" Margin="0,0,0,4"/>
+                                        <CheckBox Content="Keep the model loaded between images"
+                                                  IsChecked="{Binding ImageUpscaler.KeepModelLoaded}"
+                                                  FontSize="12" FontWeight="Normal"/>
+                                        <TextBlock Text="Keeping it loaded saves a reload per image — worth a lot across a batch."
+                                                   Style="{StaticResource HintTextStyle}" Margin="0,4,0,0"/>
+                                    </StackPanel>
+                                </Border>
+                            </Expander>
+
+                            <!-- Run -->
+                            <Border Style="{StaticResource SectionPanelStyle}" Margin="0,0,0,10" Padding="12">
+                                <StackPanel>
+                                    <TextBlock Text="Upscale" Style="{StaticResource HeaderTextStyle}"/>
+                                    <Button Content="{Binding ImageUpscaler.GenerateButtonText}"
+                                            Command="{Binding ImageUpscaler.GenerateCommand}"
+                                            IsEnabled="{Binding ImageUpscaler.CanGenerate}"
+                                            Style="{StaticResource PrimaryButtonStyle}"
+                                            Background="{StaticResource AccentIndigoBrush}" Padding="16,10" FontSize="13"
+                                            HorizontalAlignment="Stretch"/>
+                                    <Button Content="✖ Cancel"
+                                            Command="{Binding ImageUpscaler.CancelCommand}"
+                                            IsEnabled="{Binding ImageUpscaler.IsBusy}"
+                                            Style="{StaticResource SecondaryButtonStyle}"
+                                            Background="{StaticResource DangerBrush}" Padding="12,8" FontSize="12"
+                                            HorizontalAlignment="Stretch" Margin="0,6,0,0"/>
+                                    <StackPanel Margin="0,8,0,0">
+                                        <TextBlock Text="{Binding ImageUpscaler.StatusMessage}"
+                                                   FontSize="12" Foreground="{StaticResource TextPrimaryBrush}" TextWrapping="Wrap"/>
+                                        <ProgressBar Value="{Binding ImageUpscaler.Progress}" Maximum="100" Height="6"
+                                                     Margin="0,4,0,0" Background="#E5E7EB" Foreground="{StaticResource AccentIndigoBrush}"/>
+                                    </StackPanel>
+                                </StackPanel>
+                            </Border>
+
+                        </StackPanel>
+                    </ScrollViewer>
+
+                    <!-- Splitter -->
+                    <GridSplitter Grid.Column="1" Width="2" HorizontalAlignment="Stretch" Background="#DEE2E6"/>
+
+                    <!-- RIGHT: result + log -->
+                    <ScrollViewer Grid.Column="2" VerticalScrollBarVisibility="Auto">
+                        <StackPanel Margin="8,12,15,12">
+
+                            <!-- Result image -->
+                            <Border Style="{StaticResource SectionPanelStyle}" Margin="0,0,0,10" Padding="8">
+                                <StackPanel>
+                                    <TextBlock Text="Result" Style="{StaticResource HeaderTextStyle}"/>
+                                    <Border BorderBrush="{StaticResource BorderBrush}" BorderThickness="1" CornerRadius="4"
+                                            Background="{StaticResource PlayerSurfaceBrush}" Height="460" ClipToBounds="True">
+                                        <Grid>
+                                            <Image Source="{Binding ImageUpscaler.ResultImageSource}"
+                                                   Stretch="Uniform" RenderOptions.BitmapScalingMode="HighQuality"/>
+                                            <StackPanel HorizontalAlignment="Center" VerticalAlignment="Center"
+                                                        Visibility="{Binding ImageUpscaler.NoResult, Converter={StaticResource BooleanToVisibilityConverter}}">
+                                                <TextBlock Text="🔍" FontSize="48" HorizontalAlignment="Center"/>
+                                                <TextBlock Text="The upscaled image will appear here" FontSize="14"
+                                                           Foreground="{StaticResource PlayerTextBrush}" HorizontalAlignment="Center" Margin="0,8,0,0"/>
+                                            </StackPanel>
+                                        </Grid>
+                                    </Border>
+                                </StackPanel>
+                            </Border>
+
+                            <!-- Actions -->
+                            <Border Style="{StaticResource SectionPanelStyle}" Margin="0,0,0,10">
+                                <StackPanel>
+                                    <TextBlock Text="Output" Style="{StaticResource HeaderTextStyle}"/>
+                                    <TextBlock Text="{Binding ImageUpscaler.ResultImagePath, FallbackValue='—'}"
+                                               FontSize="11" Foreground="{StaticResource TextSecondaryBrush}"
+                                               TextTrimming="CharacterEllipsis" Margin="0,0,0,10"/>
+                                    <StackPanel Orientation="Horizontal">
+                                        <Button Content="📁 Open Folder"
+                                                Command="{Binding ImageUpscaler.OpenResultFolderCommand}"
+                                                Style="{StaticResource SecondaryButtonStyle}"
+                                                Background="{StaticResource BrandBrush}" Padding="12,8" FontSize="12" Margin="0,0,8,0"/>
+                                        <Button Content="🖼️ Open Image"
+                                                Command="{Binding ImageUpscaler.OpenResultImageCommand}"
+                                                Style="{StaticResource SecondaryButtonStyle}"
+                                                Background="{StaticResource SuccessBrush}" Padding="12,8" FontSize="12"/>
+                                    </StackPanel>
+                                </StackPanel>
+                            </Border>
+
+                            <!-- Log -->
+                            <Border Background="{StaticResource PlayerSurfaceBrush}" BorderBrush="#374151" BorderThickness="1" CornerRadius="6" Padding="10">
+                                <StackPanel>
+                                    <TextBlock Text="Log" FontSize="12" FontWeight="SemiBold" Foreground="{StaticResource PlayerTextBrush}" Margin="0,0,0,6"/>
+                                    <TextBox Text="{Binding ImageUpscaler.LogOutput}"
                                              IsReadOnly="True" TextWrapping="Wrap"
                                              VerticalScrollBarVisibility="Auto"
                                              Background="{StaticResource PlayerSurfaceBrush}" Foreground="{StaticResource PlayerTextBrush}"

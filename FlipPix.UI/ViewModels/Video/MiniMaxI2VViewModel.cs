@@ -48,6 +48,12 @@ namespace FlipPix.UI.ViewModels.Video
         private const string OutputSubfolder = "minimax_i2v";
         private const string SystemPromptFile = "h3-r2va.md";
 
+        /// <summary>What a continuation pass costs against the base pass of the same length, measured.</summary>
+        private const double ContinuationFactor = 1.55;
+
+        /// <summary>The multiple ResolutionSelector rounds to in this graph. See the note where it is set.</summary>
+        private const int ResolutionMultiple = 64;
+
         /// <summary>Continuation slots the loop's indexed prompt/duration switches can address.</summary>
         public const int MaxContinuations = 3;
 
@@ -125,6 +131,17 @@ namespace FlipPix.UI.ViewModels.Video
         private bool _isProcessingQueue;
         private string _queueStatus = string.Empty;
 
+        private readonly GenerationProgressTracker _progressTracker;
+        private string _generationTimer = string.Empty;
+
+        /// <summary>
+        /// Seconds this box takes per Gpx of one pass, learned from the runs it has already done.
+        /// Seeded from a measured 3-pass run: 1.66 weighted Gpx took 14m51s. Only the first minute
+        /// of a run leans on it — from the first sampler step the estimate is re-derived from the run
+        /// itself — but it is what makes the very first ETA a number rather than a shrug.
+        /// </summary>
+        private static double _secondsPerGpx = 513;
+
         private static string QueueFilePath => Path.Combine(
             Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData),
             "FlipPix", "queue", "minimax_i2v_queue.json");
@@ -142,6 +159,11 @@ namespace FlipPix.UI.ViewModels.Video
             _lmStudioService = lmStudioService ?? throw new ArgumentNullException(nameof(lmStudioService));
             _fileDialogService = fileDialogService ?? throw new ArgumentNullException(nameof(fileDialogService));
             _overlap = OverlapOptions[1];
+
+            _progressTracker = new GenerationProgressTracker(
+                p => OnUiThread(() => ProcessingProgress = p),
+                s => OnUiThread(() => ProcessingStatus = s),
+                t => OnUiThread(() => GenerationTimer = t));
 
             for (var slot = 1; slot <= MaxReferences; slot++)
             {
@@ -331,11 +353,11 @@ namespace FlipPix.UI.ViewModels.Video
         {
             get
             {
-                var longest = Continuations.Count == 0
-                    ? LengthSeconds
-                    : Math.Max(LengthSeconds, Continuations.Max(c => c.Seconds));
-                var area = Megapixels * 1e6 * (UseDetailPass ? 2.25 : 1.0);
-                return area * FrameCount(longest) / 1e9;
+                var area = SampledArea(ResolvedAspectRatio, Megapixels, UseDetailPass);
+                var peak = FrameCount(LengthSeconds);
+                foreach (var continuation in Continuations)
+                    peak = Math.Max(peak, FrameCount(continuation.Seconds) + Overlap.Frames);
+                return area * peak / 1e9;
             }
         }
 
@@ -355,8 +377,9 @@ namespace FlipPix.UI.ViewModels.Video
         {
             get
             {
-                var area = Megapixels * 1e6 * (UseDetailPass ? 2.25 : 1.0);
-                var totalFrames = FrameCount(LengthSeconds) + Continuations.Sum(c => FrameCount(c.Seconds));
+                var area = SampledArea(ResolvedAspectRatio, Megapixels, UseDetailPass);
+                var totalFrames = FrameCount(LengthSeconds)
+                                  + Continuations.Sum(c => FrameCount(c.Seconds) + Overlap.Frames);
                 return area * totalFrames * 12 / 1e9;
             }
         }
@@ -375,21 +398,36 @@ namespace FlipPix.UI.ViewModels.Video
                 var ram = EstimatedFrameRamGb;
                 var head = $"~{gpx:0.00} Gpx/pass · ~{ram:0.0} GB frames";
 
-                if (ram > 14)
+                if (ram > FrameRamOverLimitGb)
                     return $"⚠ {head} — this size has OOM-killed the ComfyUI server. Shorten the take, " +
                            $"drop continuations, or turn off the detail pass.";
-                if (gpx > 0.55)
+                if (gpx > VramOverLimitGpx)
                     return $"⚠ {head} — this has run out of VRAM on 24 GB.";
-                if (ram > 10)
+                if (ram > FrameRamRiskyGb)
                     return $"{head} — host RAM is getting close; the whole server dies if it tips over.";
-                if (gpx > 0.45)
+                if (gpx > VramRiskyGpx)
                     return $"{head} — close to the VRAM limit on 24 GB.";
                 return head;
             }
         }
 
-        public bool IsMemoryRisky => EstimatedPeakGpx > 0.45 || EstimatedFrameRamGb > 10;
-        public bool IsMemoryOverLimit => EstimatedPeakGpx > 0.55 || EstimatedFrameRamGb > 14;
+        /// <summary>Where the form starts warning, and where it calls it over the line. Both are the
+        /// 24 GB card's measured limit (see <see cref="GpxPerVramGb"/>), less a margin.</summary>
+        private const double VramRiskyGpx = 0.40;
+        private const double VramOverLimitGpx = 0.435;
+
+        /// <summary>
+        /// Where the concatenated frame batch starts to threaten the host, in GB, on the same corrected
+        /// basis as <see cref="EstimatedFrameRamGb"/>. Measured on 21 Aug: a 3-pass 3:2 take (15.0 GB)
+        /// completed, while a 4-pass 1:1 take (19.4 GB) had the kernel OOM killer take the whole ComfyUI
+        /// process out mid-run, losing that job and everything queued behind it.
+        /// </summary>
+        private const double FrameRamRiskyGb = 13.0;
+        private const double FrameRamOverLimitGb = 17.5;
+
+        public bool IsMemoryRisky => EstimatedPeakGpx > VramRiskyGpx || EstimatedFrameRamGb > FrameRamRiskyGb;
+        public bool IsMemoryOverLimit => EstimatedPeakGpx > VramOverLimitGpx
+                                         || EstimatedFrameRamGb > FrameRamOverLimitGb;
 
         private void RaiseMemoryEstimate()
         {
@@ -449,9 +487,12 @@ namespace FlipPix.UI.ViewModels.Video
         /// </summary>
         public IReadOnlyList<MegapixelOption> MegapixelOptions { get; } = new[]
         {
-            new MegapixelOption(0.4, "0.4 MP — fast draft (≈864×480)"),
-            new MegapixelOption(0.7, "0.7 MP — balanced (≈1120×640)"),
-            new MegapixelOption(1.0, "1.0 MP — full quality (≈1344×768)"),
+            // Sizes are what ResolutionSelector really returns at 16:9 with this graph's multiple of 64
+            // — not the megapixel target rounded by eye. Other aspects land within a few percent of the
+            // same pixel count, except 1:1, which comes out ~5% smaller.
+            new MegapixelOption(0.4, "0.4 MP — fast draft (832×512)"),
+            new MegapixelOption(0.7, "0.7 MP — balanced (1152×640)"),
+            new MegapixelOption(1.0, "1.0 MP — full quality (1344×768)"),
         };
 
         public double Megapixels
@@ -926,6 +967,23 @@ namespace FlipPix.UI.ViewModels.Video
         }
 
         /// <summary>
+        /// "⏱ 04:12 · ~10:18 left" while a render runs, then "✓ 14:51" once it lands. Sits beside the
+        /// percentage, because on a job this long the percentage alone says nothing about when to come back.
+        /// </summary>
+        public string GenerationTimer
+        {
+            get => _generationTimer;
+            private set { if (_generationTimer != value) { _generationTimer = value; OnPropertyChanged(); } }
+        }
+
+        private static void OnUiThread(Action action)
+        {
+            var dispatcher = Application.Current?.Dispatcher;
+            if (dispatcher == null || dispatcher.CheckAccess()) action();
+            else dispatcher.Invoke(action);
+        }
+
+        /// <summary>
         /// Freezes the form into one queue item and starts the drain loop if it is not already running.
         ///
         /// <para>Every setting is copied, not referenced. That is the whole reason the queue exists: the
@@ -1118,7 +1176,7 @@ namespace FlipPix.UI.ViewModels.Video
             if (head == null)
             {
                 AddLog("Pre-flight: could not read /system_stats — falling back to the calibrated limits");
-                if (frameRamGb > 14)
+                if (frameRamGb > FrameRamOverLimitGb)
                     return $"~{frameRamGb:0.0} GB of frames — past the size that has OOM-killed the server.";
                 return null;
             }
@@ -1148,23 +1206,43 @@ namespace FlipPix.UI.ViewModels.Video
                            + "continuations, lower the quality, or turn off the detail pass.";
             }
 
-            // Calibrated on this box: 0.55 Gpx per pass exhausted a 23.5 GB card, so ~0.023 Gpx per GB.
-            var gpxCeiling = vramTotal * 0.023;
+            var gpxCeiling = vramTotal * GpxPerVramGb;
             if (gpx > gpxCeiling)
-                return $"Too large for the GPU: ~{gpx:0.00} Gpx per pass against a limit of about "
-                       + $"{gpxCeiling:0.00} Gpx on a {vramTotal:0.0} GB card. Lower the quality, shorten "
-                       + "the longest pass, or turn off the detail pass.";
+            {
+                var (w, h) = H3Canvas.Resolve(item.AspectRatio, item.Megapixels, ResolutionMultiple);
+                var fits = Math.Floor(item.Megapixels * (gpxCeiling / gpx) * 20) / 20;
+                var (fw, fh) = H3Canvas.Resolve(item.AspectRatio, fits, ResolutionMultiple);
+                return $"Too large for the GPU: {item.Megapixels:0.0} MP at {item.AspectRatio} resolves to "
+                       + $"{w}×{h}, and the biggest pass then needs ~{gpx:0.00} Gpx against a limit of about "
+                       + $"{gpxCeiling:0.00} Gpx on a {vramTotal:0.0} GB card. Drop the quality to "
+                       + $"{fits:0.00} MP ({fw}×{fh}), shorten the longest pass, or turn off the detail pass.";
+            }
+
+            if (gpx > gpxCeiling * 0.95)
+                AddLog($"Pre-flight: ~{gpx:0.00} Gpx is within 5% of this card's ~{gpxCeiling:0.00} Gpx "
+                       + "limit — it should run, but there is nothing spare.");
 
             return null;
         }
+
+        /// <summary>
+        /// Gpx one pass may reach per GB of VRAM. Measured on this box on 21 Aug, all four runs 3-pass,
+        /// 0.7 MP, detail on, on a 23.5 GB card — and it is the <i>continuation</i> pass's detail sampler
+        /// that decides it, since that is the largest tensor the graph ever holds:
+        /// 1:1 (832×832, 0.413 Gpx) completed, 3:2 (1024×704, 0.430 Gpx) completed,
+        /// 16:9 and 3:4 (both 1152×640, 0.440 Gpx) both died with a CUDA OOM on node 4146:4240.
+        /// 0.0185 puts the line at ~0.435 Gpx here: between the largest that worked and the smallest
+        /// that did not. It is a narrow band, so being near it is worth saying out loud.
+        /// </summary>
+        private const double GpxPerVramGb = 0.0185;
 
         /// <summary>Host-RAM estimate for an already-queued item — the arithmetic behind
         /// <see cref="EstimatedFrameRamGb"/>, which reads the live form instead.</summary>
         private static double EstimateFrameRamGb(MiniMaxI2VQueueItem item)
         {
-            var area = item.Megapixels * 1e6 * (item.UseDetailPass ? 2.25 : 1.0);
-            var totalFrames = FrameCount(item.LengthSeconds)
-                              + item.ContinuationSeconds.Sum(FrameCount);
+            var area = SampledArea(item.AspectRatio, item.Megapixels, item.UseDetailPass);
+            var totalFrames = 0;
+            for (var pass = 0; pass < item.PassCount; pass++) totalFrames += PassFrames(item, pass);
             return area * totalFrames * 12 / 1e9;
         }
 
@@ -1323,6 +1401,7 @@ namespace FlipPix.UI.ViewModels.Video
             ResultVideoInfo = string.Empty;
             ProcessingProgress = 0;
             ProcessingStatus = "Preparing MiniMax I2V workflow...";
+            GenerationTimer = string.Empty;
 
             WorkflowQueueCoordinator.WorkflowLease? lease = null;
             try
@@ -1374,7 +1453,6 @@ namespace FlipPix.UI.ViewModels.Video
                 AddLog($"Graph prepared: {item.PassCount} pass(es), {pruned} node(s) pruned");
 
                 ProcessingProgress = 8;
-                ProcessingStatus = "Generating video...";
                 AddLog($"Generating (seed {runSeed}, ~{item.TotalSeconds}s over {item.PassCount} pass(es), " +
                        $"{item.AspectRatio}, {item.Megapixels:0.0} MP" +
                        $"{(item.UseSla ? $", SLA {item.SlaSparsity:0.00}" : "")}" +
@@ -1382,9 +1460,21 @@ namespace FlipPix.UI.ViewModels.Video
                        $"{(item.UseDetailPass ? ", detail pass" : "")}" +
                        $"{(item.UseRtxUpscale ? ", RTX 2x" : "")}, ~{EstimateGpx(item):0.00} Gpx/pass)...");
 
-                var local = await SubmitAndRetrieveAsync(json, runToken, sink, 8, 95, outerToken);
+                // The bar and the clock are handed the shape of the run before it starts, so the very
+                // first tick can already say roughly how long this will take. From the first sampler
+                // step onwards the estimate is re-derived from the run's own pace.
+                var plan = BuildProgressPlan(item);
+                _progressTracker.Begin(plan.Stages, plan.LeadUnits, 8, 97, plan.EstimatedSeconds,
+                                       phase: string.Empty);
+                AddLog($"Estimated run time ~{TimeSpan.FromSeconds(plan.EstimatedSeconds):hh\\:mm\\:ss} " +
+                       $"({_secondsPerGpx:0} s/Gpx learned so far)");
+
+                var local = await SubmitAndRetrieveAsync(json, runToken, sink, plan.EstimatedSeconds, outerToken);
                 if (local == null || !File.Exists(local))
                     throw new Exception("No output video was generated.");
+
+                RecalibrateFromRun(item, _progressTracker.Elapsed);
+                _progressTracker.Finish(true);
 
                 var outputDir = Path.Combine(
                     _settingsService.Settings?.OutputFolderPath ?? Path.GetTempPath(), "MiniMaxI2V");
@@ -1411,20 +1501,135 @@ namespace FlipPix.UI.ViewModels.Video
             }
             finally
             {
+                // Cancelled or failed: stop the clock where it stopped, rather than leaving a ticking
+                // ETA against a run that is no longer happening.
+                if (_progressTracker.IsRunning) _progressTracker.Finish(false);
                 lease?.Dispose();
                 IsProcessing = false;
                 OnCanExecuteChanged();
             }
         }
 
+        /// <summary>
+        /// Describes the run to the progress tracker: every sampler bar ComfyUI will report, in order,
+        /// what each of their steps is worth, and the unreported work between them.
+        ///
+        /// <para>Everything below is measured in one base-pass sampler step, and every figure was read
+        /// off a real three-pass run rather than guessed: 8 base steps at 6.0s each, a 4-step detail
+        /// re-sample at 3.0× that, ~6.6 steps' worth of latent upscaling between the two, ~11.5 more of
+        /// VAE decode and stitching after them, and a continuation pass costing ~1.55× the base pass it
+        /// extends. They only have to be roughly right — they set the <em>shape</em> of the run, and the
+        /// pace is re-measured from the run itself as it goes.</para>
+        /// </summary>
+        private (List<ProgressStage> Stages, double LeadUnits, double EstimatedSeconds) BuildProgressPlan(
+            MiniMaxI2VQueueItem item)
+        {
+            const double detailStepUnits = 3.0;   // a 1.5×-linear step against a base step of the same pass
+            const double afterMainUnits = 6.6;    // latent upscale, between the two samplers of a pass
+            const double afterPassUnits = 11.5;   // VAE decode and stitching at the end of a pass
+            const double rtxUnits = 4.0;          // RTX 2×, on the saved pass only
+            const double leadUnits = 4.0;         // loading the model, encoding the references
+
+            var stages = new List<ProgressStage>();
+            for (var pass = 0; pass < item.PassCount; pass++)
+            {
+                var label = item.PassCount == 1 ? "Rendering" : $"Pass {pass + 1}/{item.PassCount}";
+                var weight = PassWeight(item, pass);
+                var last = pass == item.PassCount - 1;
+                var tail = afterPassUnits * weight + (last && item.UseRtxUpscale ? rtxUnits * weight : 0);
+
+                stages.Add(new ProgressStage(label, 8, weight,
+                                             item.UseDetailPass ? afterMainUnits * weight : tail));
+                if (item.UseDetailPass)
+                    stages.Add(new ProgressStage($"{label} detail", 4, detailStepUnits * weight, tail));
+            }
+
+            // The joined output's frame-by-frame encode. It reports one step per frame and runs at ~90
+            // frames a second, so hundreds of its steps are worth barely one base-pass step.
+            stages.Add(new ProgressStage("Writing the video", 0, 0.0018, 0.8));
+
+            return (stages, leadUnits, 40 + _secondsPerGpx * WeightedGpx(item));
+        }
+
+        /// <summary>
+        /// What one pass costs against the base pass. A continuation re-samples its own clip <i>and</i> the
+        /// overlap it has to blend into the pass before it, which measured out at ~1.55× the base pass of
+        /// the same size — on top of any difference in length between them.
+        /// </summary>
+        private static double PassWeight(MiniMaxI2VQueueItem item, int passIndex)
+        {
+            if (passIndex == 0) return 1.0;
+            var seconds = item.ContinuationSeconds.ElementAtOrDefault(passIndex - 1);
+            if (seconds <= 0) seconds = item.LengthSeconds;
+
+            // Length only: the 1.55 already carries the overlap window a continuation re-samples, so
+            // taking the ratio from PassFrames as well would charge for it twice.
+            var ratio = FrameCount(seconds) / (double)Math.Max(1, FrameCount(item.LengthSeconds));
+            return ContinuationFactor * ratio;
+        }
+
+        /// <summary>Total cost of the run in base-pass Gpx — what the seconds-per-Gpx figure multiplies.</summary>
+        private static double WeightedGpx(MiniMaxI2VQueueItem item)
+        {
+            var total = 0.0;
+            for (var pass = 0; pass < item.PassCount; pass++)
+                total += PassGpx(item, pass) * (pass == 0 ? 1.0 : ContinuationFactor);
+            return total;
+        }
+
+        /// <summary>Peak tensor size of one pass, in billions of pixel-positions — the cost driver the
+        /// run-time estimate is scaled by.</summary>
+        private static double PassGpx(MiniMaxI2VQueueItem item, int passIndex) =>
+            SampledArea(item.AspectRatio, item.Megapixels, item.UseDetailPass)
+            * PassFrames(item, passIndex) / 1e9;
+
+        /// <summary>
+        /// Frames one pass actually samples. A continuation re-generates the overlap window on top of its
+        /// own length — the loop's frame-count expression is literally <c>frames(seconds) + overlap</c> —
+        /// so a continuation is always bigger than the base pass, even at the same number of seconds.
+        /// </summary>
+        private static int PassFrames(MiniMaxI2VQueueItem item, int passIndex)
+        {
+            if (passIndex == 0) return FrameCount(item.LengthSeconds);
+            var seconds = item.ContinuationSeconds.ElementAtOrDefault(passIndex - 1);
+            if (seconds <= 0) seconds = item.LengthSeconds;
+            return FrameCount(seconds) + item.OverlapFrames;
+        }
+
+        /// <summary>
+        /// Pixels per sampled frame: the canvas ComfyUI will really produce, times 2.25 when the detail
+        /// pass is on because its 1.5× is linear. Both memory limits are built on this figure, and
+        /// deriving it from the megapixel target instead — as this tab used to — understates 16:9, 4:3,
+        /// 3:4, 9:16 and 21:9 by ~5%, which is the entire margin on a 24 GB card.
+        /// </summary>
+        private static double SampledArea(string aspectRatio, double megapixels, bool detailPass) =>
+            H3Canvas.CanvasPixels(aspectRatio, megapixels, ResolutionMultiple) * (detailPass ? 2.25 : 1.0);
+
+        /// <summary>
+        /// Folds a finished run's real duration back into the seconds-per-Gpx figure, so the next item in
+        /// the queue opens with an estimate from this machine rather than from the one this was written on.
+        /// Half-weighted, and ignored outside a sane range, so one stalled run cannot poison the number.
+        /// </summary>
+        private void RecalibrateFromRun(MiniMaxI2VQueueItem item, TimeSpan elapsed)
+        {
+            var gpx = WeightedGpx(item);
+            if (gpx <= 0 || elapsed.TotalSeconds < 60) return;
+
+            var measured = (elapsed.TotalSeconds - 40) / gpx;
+            if (measured is < 100 or > 3000) return;
+
+            _secondsPerGpx = 0.5 * _secondsPerGpx + 0.5 * measured;
+            AddLog($"Took {elapsed:hh\\:mm\\:ss} for {gpx:0.00} Gpx — {measured:0} s/Gpx " +
+                   $"(estimate for the next item: {_secondsPerGpx:0} s/Gpx)");
+        }
+
         /// <summary>Peak-pass estimate for an already-queued item — same arithmetic as
         /// <see cref="EstimatedPeakGpx"/>, which reads the live form instead.</summary>
         private static double EstimateGpx(MiniMaxI2VQueueItem item)
         {
-            var longest = item.ContinuationSeconds.Count == 0
-                ? item.LengthSeconds
-                : Math.Max(item.LengthSeconds, item.ContinuationSeconds.Max());
-            return item.Megapixels * 1e6 * (item.UseDetailPass ? 2.25 : 1.0) * FrameCount(longest) / 1e9;
+            var peak = 0.0;
+            for (var pass = 0; pass < item.PassCount; pass++) peak = Math.Max(peak, PassGpx(item, pass));
+            return peak;
         }
 
         #endregion
@@ -1504,7 +1709,7 @@ namespace FlipPix.UI.ViewModels.Video
             // already 32-aligned. A base that is a multiple of 64 makes 1.5x land exactly, so neither
             // path has a rounding decision to disagree about. At 32 the continuation loop's detail pass
             // died with a token-count mismatch on most aspect ratios.
-            SetInput(root, NodeResolution, "multiple", 64);
+            SetInput(root, NodeResolution, "multiple", ResolutionMultiple);
 
             // ── Attention ─────────────────────────────────────────────────────
             foreach (var id in NodeSla)
@@ -1628,12 +1833,12 @@ namespace FlipPix.UI.ViewModels.Video
         /// <summary>Submits the workflow, waits for completion, and resolves the chosen video sink's output
         /// to a local file — first via /history node outputs, then a disk scan for the run token.</summary>
         private async Task<string?> SubmitAndRetrieveAsync(
-            string json, string runToken, string outputNode, double from, double to, CancellationToken token)
+            string json, string runToken, string outputNode, double estimatedSeconds, CancellationToken token)
         {
             var existing = GetExistingVideoFiles("*.mp4", OutputSubfolder);
-            var promptId = await SubmitAsync(json, from, to, token);
+            var promptId = await SubmitAsync(json, estimatedSeconds, token);
 
-            ProcessingStatus = "Waiting for output...";
+            _progressTracker.SetPhase("Fetching the finished video...");
             var byNode = await _comfyUIService.HttpClient.GetOutputsByNodeAsync(promptId, token);
             if (byNode.TryGetValue(outputNode, out var outs) && outs.Count > 0)
             {
@@ -1650,24 +1855,24 @@ namespace FlipPix.UI.ViewModels.Video
             return found ?? FindTokenFileOnDisk(runToken);
         }
 
-        private async Task<string> SubmitAsync(string json, double progressFrom, double progressTo, CancellationToken token)
+        /// <summary>
+        /// Submits and waits. ComfyUI counts steps per node, so every sampler in the graph reports 1..8
+        /// or 1..4 of its own — the tracker is what turns that into one number for the whole run.
+        /// </summary>
+        private async Task<string> SubmitAsync(string json, double estimatedSeconds, CancellationToken token)
         {
             var workflow = JsonSerializer.Deserialize<JsonElement>(json);
-            var span = progressTo - progressFrom;
             var progress = new Progress<ProgressMessage>(msg =>
             {
-                if (msg.Data?.Value != null && msg.Data?.Max != null && msg.Data.Max > 0)
-                {
-                    var pct = (double)msg.Data.Value / msg.Data.Max;
-                    Application.Current.Dispatcher.Invoke(() =>
-                    {
-                        ProcessingProgress = progressFrom + pct * span;
-                        ProcessingStatus = $"Generating: {msg.Data.Value}/{msg.Data.Max}";
-                    });
-                }
+                var data = msg.Data;
+                if (data != null && data.Max > 0) _progressTracker.Report(data.Value, data.Max);
             });
 
-            var promptId = await _comfyUIService.ExecuteWorkflowAsync(workflow, progress, token);
+            // A four-pass job at this quality runs well past the 30-minute default, and being cut off at
+            // the ceiling looks exactly like a failure. Three times the estimate, floor 45 minutes.
+            var timeout = TimeSpan.FromSeconds(Math.Clamp(estimatedSeconds * 3, 45 * 60, 6 * 60 * 60));
+
+            var promptId = await _comfyUIService.ExecuteWorkflowAsync(workflow, progress, token, timeout);
             AddLog($"Workflow submitted, ID: {promptId}");
             return promptId;
         }

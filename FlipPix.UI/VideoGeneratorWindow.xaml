@@ -1183,11 +1183,18 @@
                                                        FontSize="11" Foreground="{StaticResource TextSecondaryBrush}"
                                                        VerticalAlignment="Center" TextTrimming="CharacterEllipsis"/>
                                         </StackPanel>
-                                        <TextBlock HorizontalAlignment="Right" VerticalAlignment="Center"
-                                                   Text="{Binding ProgressPercentage, Mode=OneWay}"
-                                                   FontSize="11" FontWeight="Bold" Foreground="{DynamicResource TabAccentBrush}"
-                                                   FontFamily="Consolas"
-                                                   Visibility="{Binding IsProcessing, Converter={StaticResource BooleanToVisibilityConverter}}"/>
+                                        <StackPanel HorizontalAlignment="Right" VerticalAlignment="Center"
+                                                    Orientation="Horizontal">
+                                            <!-- Elapsed and estimated remaining: on a render this long the
+                                                 percentage on its own says nothing about when to come back. -->
+                                            <TextBlock Text="{Binding GenerationTimer}" Margin="0,0,10,0"
+                                                       FontSize="11" Foreground="{StaticResource TextSecondaryBrush}"
+                                                       FontFamily="Consolas" VerticalAlignment="Center"/>
+                                            <TextBlock Text="{Binding ProgressPercentage, Mode=OneWay}"
+                                                       FontSize="11" FontWeight="Bold" Foreground="{DynamicResource TabAccentBrush}"
+                                                       FontFamily="Consolas" VerticalAlignment="Center"
+                                                       Visibility="{Binding IsProcessing, Converter={StaticResource BooleanToVisibilityConverter}}"/>
+                                        </StackPanel>
                                     </Grid>
                                 </Border>
 
@@ -1385,187 +1392,390 @@
                         </Grid>
                     </TabItem>
 
+
                     <!-- ════════════════════════════════════════════════════════════════ -->
-                    <!-- Tab: MiniMax FFLF (first+last frame → 3 cheap seeds → full res)    -->
+                    <!-- Tab: MiniMax FFLF (H3 FL2VA — a keyframe chain: an opening frame   -->
+                    <!--      and up to 4 stills the take has to pass through)              -->
                     <!-- ════════════════════════════════════════════════════════════════ -->
                     <TabItem Header="🌀🎯 MiniMax FFLF">
-                        <Grid DataContext="{Binding MiniMaxFflfVM}" Style="{StaticResource TabPageStyle}">
+                        <Grid x:Name="FflfRoot" DataContext="{Binding MiniMaxFflfVM}" Style="{StaticResource TabPageStyle}">
                             <Grid.Resources>
-                                <SolidColorBrush x:Key="TabAccentBrush" Color="{StaticResource AccentAmberColor}"/>
+                                <SolidColorBrush x:Key="TabAccentBrush" Color="{StaticResource AccentCyanColor}"/>
                             </Grid.Resources>
                             <Grid.ColumnDefinitions>
-                                <ColumnDefinition Width="340"/>
+                                <ColumnDefinition Width="360"/>
                                 <ColumnDefinition Width="*"/>
                             </Grid.ColumnDefinitions>
 
-                            <!-- ═══ LEFT PANEL · Inputs ════════════════════════════════════ -->
+                            <!-- ═══ LEFT PANEL ═══════════════════════════════════════════════ -->
                             <Border Grid.Column="0" Style="{StaticResource TabSideRailStyle}">
                                 <ScrollViewer VerticalScrollBarVisibility="Auto">
                                     <StackPanel Margin="12">
 
-                                        <!-- Intro -->
-                                        <Border Style="{StaticResource IntroBannerStyle}">
-                                            <StackPanel>
-                                                <TextBlock Text="🌀🎯 MiniMax FFLF Seed Hunter" Style="{StaticResource IntroTitleStyle}"/>
-                                                <TextBlock Style="{StaticResource IntroBodyStyle}"
-                                                           Text="Upload a first and last frame — or a whole folder chained into overlapping pairs — then Analyze to write the MiniMax H3 FL2VA prompt. Three cheap seed previews per pair (low MP, few steps); tick the keepers and Finish re-renders them at full resolution and the full step count, with synchronized audio."/>
-                                            </StackPanel>
-                                        </Border>
-
-                                        <!-- Folder batch -->
+                                        <!-- Opening frame -->
                                         <Border Style="{StaticResource SectionCardStyle}">
                                             <StackPanel>
-                                                <ctrl:SectionHeader Title="FOLDER BATCH"/>
-                                                <Button Content="📂 Load Folder of Images" Command="{Binding SelectFolderCommand}"
-                                                        Height="30" Style="{StaticResource AccentButtonStyle}"
-                                                        ToolTip="Pick a folder; images are ordered by creation time into overlapping first→last pairs, then analyzed and seed-hunted automatically."/>
-                                                <StackPanel Margin="0,8,0,0"
-                                                            Visibility="{Binding IsBatchMode, Converter={StaticResource BooleanToVisibilityConverter}}">
-                                                    <TextBlock Text="{Binding BatchInfo}" FontSize="11" FontWeight="Bold" Foreground="{DynamicResource TabAccentBrush}"/>
-                                                    <TextBlock Text="Selected pair prompt (edit before rerolling):" FontSize="9" Foreground="{StaticResource TextMutedBrush}" Margin="0,6,0,2"/>
-                                                    <TextBox Text="{Binding SelectedPair.Prompt, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
-                                                             TextWrapping="Wrap" AcceptsReturn="True" MinHeight="60" MaxHeight="140"
-                                                             VerticalScrollBarVisibility="Auto" Padding="6"
-                                                            
-                                                             FontSize="10" Foreground="{StaticResource TextPrimaryBrush}"
-                                                             ToolTip="This pair's full H3 prompt: the FL2VA alignment line plus integrated_multimodal_description / overall_soundscape / non_diegetic_music. Edit freely, then Reroll This Pair."/>
-                                                    <Button Content="✕ Exit Batch Mode" Command="{Binding ClearFolderCommand}"
-                                                            Height="26" Margin="0,8,0,0" Style="{StaticResource AccentButtonStyle}"/>
-                                                </StackPanel>
-                                            </StackPanel>
-                                        </Border>
+                                                <ctrl:SectionHeader Title="OPENING FRAME" Note="  · the frame at 0.00s" Margin="0,0,0,4"/>
+                                                <TextBlock TextWrapping="Wrap" Margin="0,0,0,8"
+                                                           FontSize="10" FontStyle="Italic" Foreground="{StaticResource TextMutedBrush}"
+                                                           Text="FL2VA takes the two pictures literally: this one IS the first frame, and each clip's keyframe IS its last. The prompt only has to describe the path between them."/>
 
-                                        <!-- First + Last frame images -->
-                                        <Border Style="{StaticResource SectionCardStyle}"
-                                                Visibility="{Binding IsSingleMode, Converter={StaticResource BooleanToVisibilityConverter}}">
-                                            <Grid>
-                                                <Grid.ColumnDefinitions>
-                                                    <ColumnDefinition Width="*"/>
-                                                    <ColumnDefinition Width="10"/>
-                                                    <ColumnDefinition Width="*"/>
-                                                </Grid.ColumnDefinitions>
-                                                <StackPanel Grid.Column="0">
-                                                    <ctrl:SectionHeader Title="FIRST FRAME"/>
-                                                    <Border Height="120" Style="{StaticResource PreviewFrameStyle}">
-                                                        <Grid>
-                                                            <TextBlock Text="none" Style="{StaticResource PlaceholderTextStyle}"
-                                                                       Visibility="{Binding HasFirstImage, Converter={StaticResource BoolToVisibilityConverter}, ConverterParameter=Invert}"/>
-                                                            <Image Source="{Binding FirstImagePreview}" Stretch="Uniform" Margin="4"/>
+                                                <Border CornerRadius="6" BorderThickness="1"
+                                                        BorderBrush="{StaticResource BorderBrush}"
+                                                        Background="{StaticResource SurfaceAltBrush}">
+                                                    <StackPanel DataContext="{Binding OpeningFrame}">
+                                                        <Grid Height="120">
+                                                            <TextBlock Text="no opening frame"
+                                                                       HorizontalAlignment="Center" VerticalAlignment="Center"
+                                                                       FontSize="10" Foreground="{StaticResource TextMutedBrush}">
+                                                                <TextBlock.Style>
+                                                                    <Style TargetType="TextBlock">
+                                                                        <Setter Property="Visibility" Value="Visible"/>
+                                                                        <Style.Triggers>
+                                                                            <DataTrigger Binding="{Binding HasImage}" Value="True">
+                                                                                <Setter Property="Visibility" Value="Collapsed"/>
+                                                                            </DataTrigger>
+                                                                        </Style.Triggers>
+                                                                    </Style>
+                                                                </TextBlock.Style>
+                                                            </TextBlock>
+                                                            <Image Source="{Binding Preview}" Stretch="Uniform" Margin="4"/>
+                                                            <Border VerticalAlignment="Top" HorizontalAlignment="Left"
+                                                                    Margin="5" CornerRadius="3" Padding="5,1"
+                                                                    Background="{StaticResource SurfaceBrush}"
+                                                                    BorderBrush="{StaticResource BorderStrongBrush}" BorderThickness="1">
+                                                                <TextBlock Text="{Binding Label}" FontSize="9" FontWeight="SemiBold"
+                                                                           Foreground="{DynamicResource TabAccentBrush}"/>
+                                                            </Border>
                                                         </Grid>
-                                                    </Border>
-                                                    <TextBlock Text="{Binding FirstImageInfo}" FontSize="9" Foreground="{StaticResource TextSecondaryBrush}" Margin="0,0,0,6"/>
-                                                    <Button Content="📁 First" Command="{Binding SelectFirstImageCommand}"
-                                                            Height="28" Style="{StaticResource AccentButtonStyle}"/>
-                                                </StackPanel>
-                                                <StackPanel Grid.Column="2">
-                                                    <ctrl:SectionHeader Title="LAST FRAME"/>
-                                                    <Border Height="120" Style="{StaticResource PreviewFrameStyle}">
-                                                        <Grid>
-                                                            <TextBlock Text="none" Style="{StaticResource PlaceholderTextStyle}"
-                                                                       Visibility="{Binding HasLastImage, Converter={StaticResource BoolToVisibilityConverter}, ConverterParameter=Invert}"/>
-                                                            <Image Source="{Binding LastImagePreview}" Stretch="Uniform" Margin="4"/>
-                                                        </Grid>
-                                                    </Border>
-                                                    <TextBlock Text="{Binding LastImageInfo}" FontSize="9" Foreground="{StaticResource TextSecondaryBrush}" Margin="0,0,0,6"/>
-                                                    <Button Content="📁 Last" Command="{Binding SelectLastImageCommand}"
-                                                            Height="28" Style="{StaticResource AccentButtonStyle}"/>
-                                                </StackPanel>
-                                            </Grid>
-                                        </Border>
-
-                                        <!-- Analyze + prompt -->
-                                        <Border Style="{StaticResource SectionCardStyle}"
-                                                Visibility="{Binding IsSingleMode, Converter={StaticResource BooleanToVisibilityConverter}}">
-                                            <StackPanel>
-                                                <ctrl:SectionHeader Title="H3 PROMPT (FL2VA)"/>
-                                                <Button Content="🔍 Analyze First + Last" Command="{Binding AnalyzeCommand}"
-                                                        Height="30" Margin="0,0,0,8"
-                                                        Style="{StaticResource AccentButtonStyle}" FontWeight="Bold"
-                                                        ToolTip="Send both frames to llama-server (h3minimax-fflf.md) to write the full MiniMax H3 FL2VA prompt. Whatever is already in the box is used as your draft idea."/>
-                                                <TextBox Text="{Binding Prompt, UpdateSourceTrigger=PropertyChanged}"
-                                                         TextWrapping="Wrap" AcceptsReturn="True" MinHeight="110" MaxHeight="220"
-                                                         VerticalScrollBarVisibility="Auto" Padding="6" BorderBrush="{StaticResource BorderBrush}"
-                                                         ToolTip="Alignment line + integrated_multimodal_description / overall_soundscape / non_diegetic_music. The alignment line's end timestamp is rewritten to match the duration on every submit."/>
-                                                <TextBlock Text="Type a rough idea first and Analyze will build the full H3 prompt around it."
-                                                           FontSize="10" Foreground="{StaticResource TextMutedBrush}" TextWrapping="Wrap" Margin="0,6,0,0"/>
-                                            </StackPanel>
-                                        </Border>
-
-                                        <!-- Generation settings -->
-                                        <Border Background="White" BorderBrush="{StaticResource BorderBrush}" BorderThickness="1"
-                                                CornerRadius="8" Padding="14">
-                                            <StackPanel>
-                                                <ctrl:SectionHeader Title="SETTINGS"/>
-
-                                                <Grid Margin="0,0,0,10">
-                                                    <Grid.ColumnDefinitions>
-                                                        <ColumnDefinition Width="*"/>
-                                                        <ColumnDefinition Width="10"/>
-                                                        <ColumnDefinition Width="*"/>
-                                                    </Grid.ColumnDefinitions>
-                                                    <StackPanel Grid.Column="0">
-                                                        <TextBlock Text="Seconds (4–15)" FontSize="10" Foreground="{StaticResource TextSecondaryBrush}" Margin="0,0,0,4"/>
-                                                        <TextBox Text="{Binding LengthSeconds, UpdateSourceTrigger=PropertyChanged}"
-                                                                 Height="28" Padding="6,0" VerticalContentAlignment="Center" BorderBrush="{StaticResource BorderBrush}"/>
-                                                    </StackPanel>
-                                                    <StackPanel Grid.Column="2">
-                                                        <TextBlock Text="Seed (-1 = random)" FontSize="10" Foreground="{StaticResource TextSecondaryBrush}" Margin="0,0,0,4"/>
-                                                        <Grid>
+                                                        <Grid Margin="5,0,5,5">
                                                             <Grid.ColumnDefinitions>
                                                                 <ColumnDefinition Width="*"/>
                                                                 <ColumnDefinition Width="Auto"/>
                                                             </Grid.ColumnDefinitions>
-                                                            <TextBox Grid.Column="0" Text="{Binding BaseSeed, UpdateSourceTrigger=PropertyChanged}"
-                                                                     Height="28" Padding="6,0" VerticalContentAlignment="Center" BorderBrush="{StaticResource BorderBrush}"/>
-                                                            <Button Grid.Column="1" Content="🎲" Command="{Binding RandomSeedCommand}"
-                                                                    Width="34" Height="28" Margin="4,0,0,0"
-                                                                    Style="{StaticResource AccentButtonStyle}"/>
+                                                            <Button Grid.Column="0" Content="Browse…" Height="26" FontSize="10" Padding="6,0"
+                                                                    Background="{StaticResource SurfaceBrush}" Foreground="{DynamicResource TabAccentBrush}"
+                                                                    BorderBrush="{StaticResource BorderBrush}" BorderThickness="1"
+                                                                    Command="{Binding DataContext.BrowseFrameCommand, ElementName=FflfRoot}"
+                                                                    CommandParameter="{Binding}"/>
+                                                            <Button Grid.Column="1" Content="✕" Width="26" Height="26" FontSize="9" Padding="0" Margin="4,0,0,0"
+                                                                    Style="{StaticResource SecondaryButtonStyle}"
+                                                                    Visibility="{Binding HasImage, Converter={StaticResource BooleanToVisibilityConverter}}"
+                                                                    Command="{Binding DataContext.ClearFrameCommand, ElementName=FflfRoot}"
+                                                                    CommandParameter="{Binding}"/>
                                                         </Grid>
                                                     </StackPanel>
+                                                </Border>
+
+                                                <TextBlock Text="{Binding ChainSummary}" Margin="0,6,0,0"
+                                                           FontSize="10" FontStyle="Italic" Foreground="{StaticResource TextSecondaryBrush}"/>
+
+                                                <!-- Folder of keyframes: what a Story Image Q keyframe run leaves behind. -->
+                                                <Button Content="📂 Load a folder of keyframes…"
+                                                        Command="{Binding LoadFolderCommand}"
+                                                        Height="28" FontSize="11" Margin="0,8,0,0" HorizontalAlignment="Stretch" Padding="10,0"
+                                                        Background="{StaticResource SurfaceAltBrush}" Foreground="{DynamicResource TabAccentBrush}"
+                                                        BorderBrush="{StaticResource BorderBrush}" BorderThickness="1"
+                                                        ToolTip="Lays a folder of stills straight onto the chain, ordered by creation time: the first image becomes the opening frame and every one after it becomes a keyframe a clip has to arrive at, so N images give N-1 clips.&#x0a;&#x0a;A chain holds five keyframes at most, so a longer folder — a ten-keyframe Story Image Q run, say — is walked as a series of takes. Each take starts on the keyframe the one before it ended on, which is what makes the takes join, and queueing a take moves the form on to the next one."/>
+
+                                                <Grid Margin="0,6,0,0"
+                                                      Visibility="{Binding HasFolder, Converter={StaticResource BooleanToVisibilityConverter}}">
+                                                    <Grid.ColumnDefinitions>
+                                                        <ColumnDefinition Width="Auto"/>
+                                                        <ColumnDefinition Width="*"/>
+                                                        <ColumnDefinition Width="Auto"/>
+                                                    </Grid.ColumnDefinitions>
+                                                    <Button Grid.Column="0" Content="◀" Width="24" Height="22" Padding="0" FontSize="9"
+                                                            Style="{StaticResource SecondaryButtonStyle}"
+                                                            Command="{Binding PreviousTakeCommand}"
+                                                            ToolTip="Back to the previous take."/>
+                                                    <TextBlock Grid.Column="1" Text="{Binding FolderStatus}" Margin="6,0"
+                                                               VerticalAlignment="Center" TextWrapping="Wrap"
+                                                               FontSize="10" FontFamily="Consolas"
+                                                               Foreground="{StaticResource TextSecondaryBrush}"/>
+                                                    <Button Grid.Column="2" Content="▶" Width="24" Height="22" Padding="0" FontSize="9"
+                                                            Style="{StaticResource SecondaryButtonStyle}"
+                                                            Command="{Binding NextTakeCommand}"
+                                                            ToolTip="On to the next take — it opens on the keyframe this one ends with, so the two join."/>
                                                 </Grid>
+
+                                                <Grid Margin="0,6,0,0"
+                                                      Visibility="{Binding HasFolder, Converter={StaticResource BooleanToVisibilityConverter}}">
+                                                    <Grid.ColumnDefinitions>
+                                                        <ColumnDefinition Width="Auto"/>
+                                                        <ColumnDefinition Width="Auto"/>
+                                                    </Grid.ColumnDefinitions>
+                                                    <TextBlock Grid.Column="0" Text="Clips per take" VerticalAlignment="Center"
+                                                               FontSize="10" Foreground="{StaticResource TextSecondaryBrush}"/>
+                                                    <ComboBox Grid.Column="1" ItemsSource="{Binding ClipsPerTakeOptions}"
+                                                              SelectedItem="{Binding ClipsPerTake}"
+                                                              Width="56" Height="26" FontSize="11" Margin="8,0,0,0"
+                                                              ToolTip="How much of the folder one submission covers. Four is the graph&apos;s limit and four does render — 40s at 0.4 MP took 15m27s — but every clip&apos;s frames stay in host RAM until the take is written out, and that same take killed ComfyUI on a server that already had 32 GB resident. Three is the default; raise it when the server is fresh.&#x0a;&#x0a;Fewer clips per take means more, shorter submissions. They still join: each take opens on the keyframe the last one ended with."/>
+                                                </Grid>
+
+                                                <Button Content="⚡ Analyze &amp; queue every take"
+                                                        Command="{Binding QueueFolderCommand}"
+                                                        Height="30" FontSize="11" Margin="0,8,0,0" HorizontalAlignment="Stretch" Padding="10,0"
+                                                        Style="{StaticResource AccentButtonStyle}"
+                                                        Visibility="{Binding HasFolder, Converter={StaticResource BooleanToVisibilityConverter}}"
+                                                        ToolTip="Walks the rest of the folder without stopping: for each take it writes the prompts that are still missing, adds the take to the render queue, and moves on to the next one. A ten-keyframe folder goes in as three or four queued jobs.&#x0a;&#x0a;Prompts you have already written or analyzed are kept — only empty ones are filled in."/>
+                                            </StackPanel>
+                                        </Border>
+
+                                        <!-- Idea + Analyze -->
+                                        <Border Style="{StaticResource SectionCardStyle}">
+                                            <StackPanel>
+                                                <ctrl:SectionHeader Title="IDEA" Note="  · optional draft for the whole take"/>
+                                                <TextBox Text="{Binding DraftIdea, UpdateSourceTrigger=PropertyChanged}"
+                                                         TextWrapping="Wrap" AcceptsReturn="True"
+                                                         Height="90" VerticalScrollBarVisibility="Auto"
+                                                         BorderBrush="{StaticResource BorderBrush}" Background="{StaticResource SurfaceAltBrush}"
+                                                         FontSize="11" Padding="8" Margin="0,0,0,8"
+                                                         ToolTip="What the take is about, in your own words. Analyze paces it across the chain — each clip gets the part of the idea that falls between its two keyframes.&#x0a;&#x0a;Leave it empty and each clip is written from nothing but the transformation its two pictures imply."/>
+
+                                                <StackPanel Orientation="Horizontal">
+                                                    <Button Content="🔍 Analyze → FL2VA"
+                                                            Command="{Binding AnalyzeCommand}"
+                                                            IsEnabled="{Binding CanAnalyze}"
+                                                            Height="32" Padding="14,0" FontSize="11"
+                                                            Style="{StaticResource AccentButtonStyle}"
+                                                            ToolTip="Walks the chain pair by pair — (opening frame, keyframe 2), (keyframe 2, keyframe 3), … — and writes one FL2VA prompt per clip: the alignment line, the integrated multimodal description of the path between the two pictures, the soundscape and the score.&#x0a;&#x0a;One call per clip, because the FL2VA system prompt is written for exactly two images, and a pair is what each pass really gets. Each call is given the previous clip's prompt as context so the chain reads as one take."/>
+                                                    <TextBlock FontStyle="Italic" FontSize="11" VerticalAlignment="Center" Margin="8,0,0,0"
+                                                               Text="Analyzing…" Foreground="{DynamicResource TabAccentBrush}">
+                                                        <TextBlock.Style>
+                                                            <Style TargetType="TextBlock">
+                                                                <Setter Property="Visibility" Value="Collapsed"/>
+                                                                <Style.Triggers>
+                                                                    <DataTrigger Binding="{Binding IsAnalyzing}" Value="True">
+                                                                        <Setter Property="Visibility" Value="Visible"/>
+                                                                    </DataTrigger>
+                                                                </Style.Triggers>
+                                                            </Style>
+                                                        </TextBlock.Style>
+                                                    </TextBlock>
+                                                </StackPanel>
+                                            </StackPanel>
+                                        </Border>
+
+                                        <!-- Clips -->
+                                        <Border Style="{StaticResource SectionCardStyle}">
+                                            <StackPanel>
+                                                <ctrl:SectionHeader Title="CLIPS" Note="  · up to 4" Margin="0,0,0,4"/>
+                                                <TextBlock TextWrapping="Wrap" Margin="0,0,0,8"
+                                                           FontSize="10" FontStyle="Italic" Foreground="{StaticResource TextMutedBrush}"
+                                                           Text="Clip 1 runs from the opening frame to its keyframe. Every clip after it is a further pass inside the same submission: it continues out of the tail of the clip before it and has to arrive at its own keyframe."/>
+
+                                                <ItemsControl ItemsSource="{Binding Clips}">
+                                                    <ItemsControl.ItemTemplate>
+                                                        <DataTemplate>
+                                                            <Border Margin="0,0,0,8" Padding="8" CornerRadius="6" BorderThickness="1"
+                                                                    BorderBrush="{StaticResource BorderBrush}"
+                                                                    Background="{StaticResource SurfaceAltBrush}">
+                                                                <StackPanel>
+                                                                    <Grid Margin="0,0,0,6">
+                                                                        <Grid.ColumnDefinitions>
+                                                                            <ColumnDefinition Width="Auto"/>
+                                                                            <ColumnDefinition Width="*"/>
+                                                                            <ColumnDefinition Width="Auto"/>
+                                                                        </Grid.ColumnDefinitions>
+                                                                        <TextBlock Grid.Column="0" Text="{Binding Title}" VerticalAlignment="Center"
+                                                                                   FontSize="10" FontWeight="SemiBold"
+                                                                                   Foreground="{DynamicResource TabAccentBrush}"/>
+                                                                        <TextBlock Grid.Column="1" Text="{Binding Subtitle}" VerticalAlignment="Center"
+                                                                                   Margin="8,0,0,0" FontSize="10" FontStyle="Italic"
+                                                                                   TextTrimming="CharacterEllipsis"
+                                                                                   Foreground="{StaticResource TextMutedBrush}"/>
+                                                                        <Button Grid.Column="2" Content="✕" Width="22" Height="22" Padding="0" FontSize="9"
+                                                                                ToolTip="Remove this clip and the keyframe it ends on."
+                                                                                Command="{Binding DataContext.RemoveClipCommand, RelativeSource={RelativeSource AncestorType=ItemsControl}}"
+                                                                                CommandParameter="{Binding}">
+                                                                            <Button.Style>
+                                                                                <Style TargetType="Button" BasedOn="{StaticResource SecondaryButtonStyle}">
+                                                                                    <Setter Property="Visibility" Value="Visible"/>
+                                                                                    <Style.Triggers>
+                                                                                        <!-- Clip 1 is the base pass: the take cannot exist without it. -->
+                                                                                        <DataTrigger Binding="{Binding Index}" Value="1">
+                                                                                            <Setter Property="Visibility" Value="Collapsed"/>
+                                                                                        </DataTrigger>
+                                                                                    </Style.Triggers>
+                                                                                </Style>
+                                                                            </Button.Style>
+                                                                        </Button>
+                                                                    </Grid>
+
+                                                                    <Grid Margin="0,0,0,6">
+                                                                        <Grid.ColumnDefinitions>
+                                                                            <ColumnDefinition Width="104"/>
+                                                                            <ColumnDefinition Width="*"/>
+                                                                        </Grid.ColumnDefinitions>
+
+                                                                        <!-- End keyframe -->
+                                                                        <StackPanel Grid.Column="0" DataContext="{Binding EndFrame}">
+                                                                            <Border CornerRadius="4" BorderThickness="1" Height="72"
+                                                                                    BorderBrush="{StaticResource BorderBrush}" Background="White">
+                                                                                <Grid>
+                                                                                    <TextBlock Text="no keyframe"
+                                                                                               HorizontalAlignment="Center" VerticalAlignment="Center"
+                                                                                               FontSize="9" Foreground="{StaticResource TextMutedBrush}">
+                                                                                        <TextBlock.Style>
+                                                                                            <Style TargetType="TextBlock">
+                                                                                                <Setter Property="Visibility" Value="Visible"/>
+                                                                                                <Style.Triggers>
+                                                                                                    <DataTrigger Binding="{Binding HasImage}" Value="True">
+                                                                                                        <Setter Property="Visibility" Value="Collapsed"/>
+                                                                                                    </DataTrigger>
+                                                                                                </Style.Triggers>
+                                                                                            </Style>
+                                                                                        </TextBlock.Style>
+                                                                                    </TextBlock>
+                                                                                    <Image Source="{Binding Preview}" Stretch="Uniform" Margin="2"/>
+                                                                                </Grid>
+                                                                            </Border>
+                                                                            <TextBlock Text="{Binding Label}" HorizontalAlignment="Center" Margin="0,3,0,3"
+                                                                                       FontSize="9" Foreground="{StaticResource TextSecondaryBrush}"/>
+                                                                            <!-- ElementName cannot cross a DataTemplate's namescope, so the
+                                                                                 command comes off the Clips ItemsControl, whose DataContext
+                                                                                 is the tab's ViewModel. -->
+                                                                            <Button Content="Browse…" Height="24" FontSize="10" Padding="4,0"
+                                                                                    Background="{StaticResource SurfaceBrush}" Foreground="{DynamicResource TabAccentBrush}"
+                                                                                    BorderBrush="{StaticResource BorderBrush}" BorderThickness="1"
+                                                                                    Command="{Binding DataContext.BrowseFrameCommand, RelativeSource={RelativeSource AncestorType=ItemsControl}}"
+                                                                                    CommandParameter="{Binding}"/>
+                                                                        </StackPanel>
+
+                                                                        <!-- Prompt + length -->
+                                                                        <StackPanel Grid.Column="1" Margin="8,0,0,0">
+                                                                            <Grid Margin="0,0,0,4">
+                                                                                <Grid.ColumnDefinitions>
+                                                                                    <ColumnDefinition Width="Auto"/>
+                                                                                    <ColumnDefinition Width="*"/>
+                                                                                    <ColumnDefinition Width="Auto"/>
+                                                                                </Grid.ColumnDefinitions>
+                                                                                <TextBlock Grid.Column="0" Text="Length" VerticalAlignment="Center"
+                                                                                           FontSize="10" Foreground="{StaticResource TextSecondaryBrush}"/>
+                                                                                <Slider Grid.Column="1" Margin="8,0,6,0"
+                                                                                        Minimum="5" Maximum="15" TickFrequency="1" IsSnapToTickEnabled="True"
+                                                                                        Value="{Binding Seconds}" VerticalAlignment="Center"
+                                                                                        ToolTip="Seconds this clip runs. H3's trained range is roughly 124–362 frames at 24 fps, which is where 5–15 seconds comes from — and the last frame has to be reachable in that time."/>
+                                                                                <TextBlock Grid.Column="2" Text="{Binding Seconds, StringFormat={}{0}s}"
+                                                                                           VerticalAlignment="Center" FontFamily="Consolas" FontSize="11"
+                                                                                           MinWidth="30" TextAlignment="Right"
+                                                                                           Foreground="{StaticResource TextSecondaryBrush}"/>
+                                                                            </Grid>
+                                                                            <TextBox Text="{Binding Prompt, UpdateSourceTrigger=PropertyChanged}"
+                                                                                     TextWrapping="Wrap" AcceptsReturn="True"
+                                                                                     Height="118" VerticalScrollBarVisibility="Auto"
+                                                                                     BorderBrush="{StaticResource BorderBrush}" Background="White"
+                                                                                     FontSize="11" Padding="6"/>
+                                                                        </StackPanel>
+                                                                    </Grid>
+                                                                </StackPanel>
+                                                            </Border>
+                                                        </DataTemplate>
+                                                    </ItemsControl.ItemTemplate>
+                                                </ItemsControl>
+
+                                                <Button Content="＋ Add clip"
+                                                        Command="{Binding AddClipCommand}"
+                                                        Height="28" FontSize="11" HorizontalAlignment="Left" Padding="12,0"
+                                                        Background="{StaticResource SurfaceAltBrush}" Foreground="{DynamicResource TabAccentBrush}"
+                                                        BorderBrush="{StaticResource BorderBrush}" BorderThickness="1"
+                                                        ToolTip="Adds a keyframe to the end of the chain and a clip that has to reach it."/>
+
+                                                <StackPanel Margin="0,10,0,0"
+                                                            Visibility="{Binding HasExtensions, Converter={StaticResource BooleanToVisibilityConverter}}">
+                                                    <TextBlock Text="Join overlap" FontSize="10" Foreground="{StaticResource TextSecondaryBrush}" Margin="0,0,0,4"/>
+                                                    <ComboBox ItemsSource="{Binding OverlapOptions}"
+                                                              DisplayMemberPath="Label"
+                                                              SelectedItem="{Binding Overlap}"
+                                                              Height="30" FontSize="11"
+                                                              ToolTip="Frames of the previous clip a continuing clip re-generates and blends over. The choices are H3's own valid clip lengths (17k + 5), because the overlap is handed to the model as a reference clip — more of it costs render time and buys a less visible join."/>
+                                                </StackPanel>
+                                            </StackPanel>
+                                        </Border>
+
+                                        <!-- Canvas -->
+                                        <Border Style="{StaticResource SectionCardStyle}">
+                                            <StackPanel>
+                                                <ctrl:SectionHeader Title="CANVAS" Margin="0,0,0,10"/>
 
                                                 <TextBlock Text="Aspect ratio" FontSize="10" Foreground="{StaticResource TextSecondaryBrush}" Margin="0,0,0,4"/>
                                                 <ComboBox ItemsSource="{Binding AspectRatioOptions}"
-                                                          SelectedItem="{Binding SelectedAspectRatio, Mode=TwoWay}"
-                                                          Height="28" VerticalContentAlignment="Center" Margin="0,0,0,10"
-                                                          ToolTip="Auto picks the option closest to the first frame's own aspect (per pair in batch mode)."/>
+                                                          SelectedItem="{Binding SelectedAspectRatio}"
+                                                          Height="30" FontSize="11" Margin="0,0,0,4"
+                                                          ToolTip="Auto takes the opening frame's proportions. Worth getting right here: the keyframes are the literal first and last frames, so a canvas that does not match them squeezes the pictures the clip has to land on."/>
+                                                <TextBlock Text="{Binding ResolvedAspectRatio, StringFormat=→ {0}}"
+                                                           FontSize="10" Foreground="{StaticResource TextMutedBrush}" FontStyle="Italic" Margin="0,0,0,10"/>
 
-                                                <Border Background="{StaticResource SurfaceAltBrush}" BorderBrush="{StaticResource BorderBrush}" BorderThickness="1"
-                                                        CornerRadius="6" Padding="10" Margin="0,0,0,8">
-                                                    <StackPanel>
-                                                        <TextBlock Text="SEED PREVIEWS — cheap and fast" FontSize="10" FontWeight="Bold"
-                                                                   Foreground="{DynamicResource TabAccentBrush}" Margin="0,0,0,6"/>
-                                                        <TextBlock Text="Resolution" FontSize="10" Foreground="{StaticResource TextSecondaryBrush}" Margin="0,0,0,4"/>
-                                                        <ComboBox ItemsSource="{Binding PreviewMegapixelOptions}"
-                                                                  SelectedValue="{Binding PreviewMegapixels, Mode=TwoWay}"
-                                                                  SelectedValuePath="Value" DisplayMemberPath="Label"
-                                                                  Height="28" VerticalContentAlignment="Center" Margin="0,0,0,8"/>
-                                                        <TextBlock Text="Steps" FontSize="10" Foreground="{StaticResource TextSecondaryBrush}" Margin="0,0,0,4"/>
-                                                        <TextBox Text="{Binding PreviewSteps, UpdateSourceTrigger=PropertyChanged}"
-                                                                 Height="28" Padding="6,0" VerticalContentAlignment="Center" BorderBrush="{StaticResource BorderBrush}"
-                                                                 ToolTip="Sampling steps for the 3 seed previews. The turbo LoRA needs only 4; previews also skip the RTX upscale pass."/>
-                                                    </StackPanel>
-                                                </Border>
+                                                <TextBlock Text="Quality (canvas size)" FontSize="10" Foreground="{StaticResource TextSecondaryBrush}" Margin="0,0,0,4"/>
+                                                <ComboBox ItemsSource="{Binding MegapixelOptions}"
+                                                          DisplayMemberPath="Label"
+                                                          SelectedValuePath="Value"
+                                                          SelectedValue="{Binding Megapixels}"
+                                                          Height="30" FontSize="11" Margin="0,0,0,10"
+                                                          ToolTip="The sampled canvas. With the detail pass on, the finished frames are 1.5× this again."/>
 
-                                                <Border Background="{StaticResource SurfaceAltBrush}" BorderBrush="{StaticResource BorderBrush}" BorderThickness="1"
-                                                        CornerRadius="6" Padding="10">
-                                                    <StackPanel>
-                                                        <TextBlock Text="FINISH — full quality" FontSize="10" FontWeight="Bold"
-                                                                   Foreground="{DynamicResource TabAccentBrush}" Margin="0,0,0,6"/>
-                                                        <TextBlock Text="Resolution" FontSize="10" Foreground="{StaticResource TextSecondaryBrush}" Margin="0,0,0,4"/>
-                                                        <ComboBox ItemsSource="{Binding FinalMegapixelOptions}"
-                                                                  SelectedValue="{Binding FinalMegapixels, Mode=TwoWay}"
-                                                                  SelectedValuePath="Value" DisplayMemberPath="Label"
-                                                                  Height="28" VerticalContentAlignment="Center" Margin="0,0,0,8"/>
-                                                        <TextBlock Text="Steps" FontSize="10" Foreground="{StaticResource TextSecondaryBrush}" Margin="0,0,0,4"/>
-                                                        <TextBox Text="{Binding FinalSteps, UpdateSourceTrigger=PropertyChanged}"
-                                                                 Height="28" Padding="6,0" VerticalContentAlignment="Center" BorderBrush="{StaticResource BorderBrush}"
-                                                                 ToolTip="Sampling steps for the finished videos. 8 is what the turbo workflow ships with; going much higher buys nothing on a 4-step LoRA."/>
-                                                        <TextBlock Text="Same prompt, duration, aspect and seed as the chosen preview — only the canvas, the step count and the ×2 RTX upscale go up, so the final closely tracks the preview without matching it pixel for pixel."
-                                                                   FontSize="10" Foreground="{StaticResource TextMutedBrush}" TextWrapping="Wrap" Margin="0,6,0,0"/>
-                                                    </StackPanel>
-                                                </Border>
+                                                <TextBlock Text="Seed (-1 = random)" FontSize="10" Foreground="{StaticResource TextSecondaryBrush}" Margin="0,0,0,4"/>
+                                                <Grid>
+                                                    <Grid.ColumnDefinitions>
+                                                        <ColumnDefinition Width="*"/>
+                                                        <ColumnDefinition Width="Auto"/>
+                                                    </Grid.ColumnDefinitions>
+                                                    <TextBox Grid.Column="0"
+                                                             Text="{Binding Seed, UpdateSourceTrigger=PropertyChanged}"
+                                                             Height="30" Padding="6,0" VerticalContentAlignment="Center"
+                                                             BorderBrush="{StaticResource BorderBrush}" Background="{StaticResource SurfaceAltBrush}"
+                                                             FontSize="12" FontFamily="Consolas" Margin="0,0,6,0"
+                                                             ToolTip="Clip 1 uses this seed; each continuing clip uses it plus its own index, so a whole chain reproduces from one number."/>
+                                                    <Button Grid.Column="1" Content="🎲"
+                                                            Command="{Binding RandomSeedCommand}"
+                                                            Height="30" Width="36" FontSize="14"
+                                                            Background="{StaticResource SurfaceAltBrush}" Foreground="{DynamicResource TabAccentBrush}"
+                                                            BorderBrush="{StaticResource BorderBrush}" BorderThickness="1"/>
+                                                </Grid>
+                                            </StackPanel>
+                                        </Border>
 
+                                        <!-- Finishing -->
+                                        <Border Style="{StaticResource SectionCardStyle}">
+                                            <StackPanel>
+                                                <ctrl:SectionHeader Title="FINISHING" Margin="0,0,0,8"/>
+
+                                                <CheckBox Content="Detail pass (1.5× latent upscale)" IsChecked="{Binding UseDetailPass}"
+                                                          FontSize="11" Margin="0,0,0,7"
+                                                          ToolTip="After the 8-step sampling, the latent is upscaled 1.5× by the Minimax H3 3D upscaler and re-sampled for 4 more steps at 0.4 denoise. It is where most of the texture comes from, and it costs roughly half the base pass again."/>
+                                                <CheckBox Content="Sol-Attn sparse attention" IsChecked="{Binding UseSparseAttention}"
+                                                          FontSize="11" Margin="0,0,0,7"
+                                                          ToolTip="H3 denoises every frame of the clip in one pass, so attention cost grows with the square of frames × canvas area — a 10s clip costs far more than twice a 5s one. Sol-Attn replaces the dense attention with a sparse approximation over the video tokens.&#x0a;&#x0a;It engages only between 20% and 90% of the steps, and only once a pass exceeds 4096 tokens — the opening steps set the layout and the closing ones set the fine detail, and neither is worth approximating.&#x0a;&#x0a;It is an approximation, so turn it off if you are chasing the last of the detail."/>
+                                                <CheckBox Content="Audio enhancement" IsChecked="{Binding UseAudioEnhancement}"
+                                                          FontSize="11" Margin="0,0,0,7"
+                                                          ToolTip="Runs the decoded soundtrack through the DSRE enhancer — harmonics, stereo width, noise reduction. On a chain it runs once on the joined audio, never per clip."/>
+                                                <CheckBox Content="RTX 2× super-resolution" IsChecked="{Binding UseRtxUpscale}"
+                                                          FontSize="11" Margin="0,0,0,8"
+                                                          ToolTip="Doubles the finished frames through NVIDIA RTX Video Super Resolution. It is a driver-side upscale, not a sampling pass, so it adds no detail the model did not already draw — and it needs an RTX card with VSR available.&#x0a;&#x0a;It runs only on the final frames: applied to clip 1 while the chain continues, it would feed the loop frames at the wrong size."/>
+
+                                                <TextBlock Text="{Binding TotalLengthSummary}"
+                                                           FontSize="11" FontWeight="SemiBold" FontFamily="Consolas"
+                                                           Foreground="{DynamicResource TabAccentBrush}"/>
+                                                <TextBlock Text="{Binding MemoryWarning}" Margin="0,4,0,0"
+                                                           FontSize="10" FontFamily="Consolas" TextWrapping="Wrap"
+                                                           ToolTip="Rough peak tensor size for a single clip: canvas area x frames, and x2.25 again when the detail pass is on because its 1.5x is linear. Clips run one after another, so the peak is the largest single clip, not the total.&#x0a;&#x0a;The second figure is the decoded frames the loop holds in system RAM at once, which grows with the whole chain's length — that is the limit that kills the server rather than the job.">
+                                                    <TextBlock.Style>
+                                                        <Style TargetType="TextBlock">
+                                                            <Setter Property="Foreground" Value="{StaticResource TextMutedBrush}"/>
+                                                            <Style.Triggers>
+                                                                <DataTrigger Binding="{Binding IsMemoryRisky}" Value="True">
+                                                                    <Setter Property="Foreground" Value="{StaticResource AccentAmberBrush}"/>
+                                                                    <Setter Property="FontWeight" Value="SemiBold"/>
+                                                                </DataTrigger>
+                                                                <DataTrigger Binding="{Binding IsMemoryOverLimit}" Value="True">
+                                                                    <Setter Property="Foreground" Value="{StaticResource DangerBrush}"/>
+                                                                    <Setter Property="FontWeight" Value="Bold"/>
+                                                                </DataTrigger>
+                                                            </Style.Triggers>
+                                                        </Style>
+                                                    </TextBlock.Style>
+                                                </TextBlock>
                                             </StackPanel>
                                         </Border>
 
@@ -1573,276 +1783,330 @@
                                 </ScrollViewer>
                             </Border>
 
-                            <!-- ═══ RIGHT PANEL ════════════════════════════════════════════ -->
-                            <Grid Grid.Column="1">
-                                <Grid.ColumnDefinitions>
-                                    <ColumnDefinition Width="Auto"/> <!-- Pairs list (batch) -->
-                                    <ColumnDefinition Width="*"/>
-                                </Grid.ColumnDefinitions>
+                            <!-- ═══ RIGHT PANEL ══════════════════════════════════════════════ -->
+                            <ScrollViewer Grid.Column="1" VerticalScrollBarVisibility="Auto">
+                            <Grid>
+                                <Grid.RowDefinitions>
+                                    <RowDefinition Height="240"/>  <!-- Keyframe strip -->
+                                    <RowDefinition Height="3"/>    <!-- Progress bar -->
+                                    <RowDefinition Height="Auto"/> <!-- Status row -->
+                                    <RowDefinition Height="Auto"/> <!-- Action buttons -->
+                                    <RowDefinition Height="Auto"/> <!-- Queue -->
+                                    <RowDefinition Height="Auto"/> <!-- Result output -->
+                                    <RowDefinition Height="Auto"/> <!-- Log -->
+                                </Grid.RowDefinitions>
 
-                                <!-- Pairs list — one per overlapping first→last pair (batch mode) -->
-                                <Border Grid.Column="0" Width="220" Background="{StaticResource SurfaceAltBrush}"
-                                        BorderBrush="{StaticResource BorderBrush}" BorderThickness="0,0,1,0"
-                                        Visibility="{Binding IsBatchMode, Converter={StaticResource BooleanToVisibilityConverter}}">
-                                    <DockPanel>
-                                        <TextBlock DockPanel.Dock="Top" Text="PAIRS — click to review &amp; pick"
-                                                   FontSize="10" FontWeight="Bold" Foreground="{StaticResource TextSecondaryBrush}" Margin="10,8,10,6"/>
-                                        <ListBox ItemsSource="{Binding Pairs}" SelectedItem="{Binding SelectedPair, Mode=TwoWay}"
-                                                 Background="Transparent" BorderThickness="0"
-                                                 ScrollViewer.HorizontalScrollBarVisibility="Disabled">
-                                            <ListBox.ItemContainerStyle>
-                                                <Style TargetType="ListBoxItem">
-                                                    <Setter Property="HorizontalContentAlignment" Value="Stretch"/>
-                                                    <Setter Property="Padding" Value="0"/>
-                                                    <Setter Property="Margin" Value="6,3"/>
-                                                    <Setter Property="Cursor" Value="Hand"/>
-                                                    <Setter Property="Template">
-                                                        <Setter.Value>
-                                                            <ControlTemplate TargetType="ListBoxItem">
-                                                                <Border x:Name="sel" CornerRadius="7" Padding="2"
-                                                                        BorderThickness="2" BorderBrush="Transparent">
-                                                                    <ContentPresenter/>
-                                                                </Border>
-                                                                <ControlTemplate.Triggers>
-                                                                    <Trigger Property="IsSelected" Value="True">
-                                                                        <Setter TargetName="sel" Property="BorderBrush" Value="{DynamicResource TabAccentBrush}"/>
-                                                                    </Trigger>
-                                                                </ControlTemplate.Triggers>
-                                                            </ControlTemplate>
-                                                        </Setter.Value>
-                                                    </Setter>
+                                <!-- ─── Keyframe strip ────────────────────────────────────── -->
+                                <Border Grid.Row="0" Background="{StaticResource PlayerSurfaceBrush}">
+                                    <Grid>
+                                        <StackPanel HorizontalAlignment="Center" VerticalAlignment="Center">
+                                            <StackPanel.Style>
+                                                <Style TargetType="StackPanel">
+                                                    <Setter Property="Visibility" Value="Visible"/>
+                                                    <Style.Triggers>
+                                                        <DataTrigger Binding="{Binding HasOpeningFrame}" Value="True">
+                                                            <Setter Property="Visibility" Value="Collapsed"/>
+                                                        </DataTrigger>
+                                                    </Style.Triggers>
                                                 </Style>
-                                            </ListBox.ItemContainerStyle>
-                                            <ListBox.ItemTemplate>
+                                            </StackPanel.Style>
+                                            <Border Width="64" Height="64" CornerRadius="14"
+                                                    Background="{StaticResource PlayerSurfaceRaisedBrush}"
+                                                    BorderBrush="{StaticResource TextSecondaryBrush}" BorderThickness="1"
+                                                    HorizontalAlignment="Center" Margin="0,0,0,10">
+                                                <TextBlock Text="🎯" FontSize="28" HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                                            </Border>
+                                            <TextBlock Text="MiniMax H3 · First and Last Frame" FontSize="13" FontWeight="SemiBold"
+                                                       Foreground="{StaticResource PlayerTextBrush}" HorizontalAlignment="Center" Margin="0,0,0,4"/>
+                                            <TextBlock Text="Set the opening frame and a keyframe per clip → Analyze → Generate (video + synced audio)"
+                                                       FontSize="11" Foreground="{StaticResource PlayerTextBrush}" HorizontalAlignment="Center"/>
+                                        </StackPanel>
+
+                                        <ItemsControl ItemsSource="{Binding ChainFrames}" Margin="12"
+                                                      VerticalAlignment="Center" HorizontalAlignment="Center"
+                                                      Visibility="{Binding HasOpeningFrame, Converter={StaticResource BooleanToVisibilityConverter}}">
+                                            <ItemsControl.ItemsPanel>
+                                                <ItemsPanelTemplate>
+                                                    <StackPanel Orientation="Horizontal"/>
+                                                </ItemsPanelTemplate>
+                                            </ItemsControl.ItemsPanel>
+                                            <ItemsControl.ItemTemplate>
                                                 <DataTemplate>
-                                                    <Border CornerRadius="6" Background="White" BorderBrush="{StaticResource BorderBrush}"
-                                                            BorderThickness="1" Padding="6">
+                                                    <StackPanel Margin="6,0">
+                                                        <Border CornerRadius="6" BorderThickness="1" Padding="2" Height="168"
+                                                                BorderBrush="{StaticResource BorderStrongBrush}"
+                                                                Background="{StaticResource PlayerSurfaceRaisedBrush}">
+                                                            <Grid>
+                                                                <TextBlock Text="not set" Width="96" TextAlignment="Center"
+                                                                           HorizontalAlignment="Center" VerticalAlignment="Center"
+                                                                           FontSize="10" Foreground="{StaticResource PlayerTextBrush}">
+                                                                    <TextBlock.Style>
+                                                                        <Style TargetType="TextBlock">
+                                                                            <Setter Property="Visibility" Value="Visible"/>
+                                                                            <Style.Triggers>
+                                                                                <DataTrigger Binding="{Binding HasImage}" Value="True">
+                                                                                    <Setter Property="Visibility" Value="Collapsed"/>
+                                                                                </DataTrigger>
+                                                                            </Style.Triggers>
+                                                                        </Style>
+                                                                    </TextBlock.Style>
+                                                                </TextBlock>
+                                                                <Image Source="{Binding Preview}" Stretch="Uniform"/>
+                                                            </Grid>
+                                                        </Border>
+                                                        <TextBlock Text="{Binding Label}" HorizontalAlignment="Center" Margin="0,5,0,0"
+                                                                   FontSize="10" FontWeight="SemiBold"
+                                                                   Foreground="{StaticResource PlayerTextBrush}"/>
+                                                    </StackPanel>
+                                                </DataTemplate>
+                                            </ItemsControl.ItemTemplate>
+                                        </ItemsControl>
+
+                                        <Border VerticalAlignment="Bottom" HorizontalAlignment="Right" Margin="10"
+                                                CornerRadius="8" Padding="12,6"
+                                                Background="{StaticResource SurfaceBrush}"
+                                                BorderBrush="{StaticResource BorderStrongBrush}" BorderThickness="1"
+                                                Visibility="{Binding HasOpeningFrame, Converter={StaticResource BooleanToVisibilityConverter}}">
+                                            <TextBlock FontSize="10" Foreground="{StaticResource TextSecondaryBrush}">
+                                                <Run Text="{Binding ResolvedAspectRatio, Mode=OneWay}" FontWeight="Bold" Foreground="{DynamicResource TabAccentBrush}" FontFamily="Consolas"/>
+                                                <Run Text="  ·  "/>
+                                                <Run Text="{Binding TotalLengthSummary, Mode=OneWay}" FontFamily="Consolas"/>
+                                            </TextBlock>
+                                        </Border>
+                                    </Grid>
+                                </Border>
+
+                                <!-- ─── Progress bar ──────────────────────────────────────── -->
+                                <ProgressBar Grid.Row="1"
+                                             Value="{Binding ProcessingProgress, Mode=OneWay}"
+                                             Foreground="{DynamicResource TabAccentBrush}" BorderThickness="0"
+                                             Visibility="{Binding IsProcessing, Converter={StaticResource BooleanToVisibilityConverter}}"/>
+
+                                <!-- ─── Status row ────────────────────────────────────────── -->
+                                <Border Grid.Row="2" Style="{StaticResource ToolStripStyle}"
+                                        BorderThickness="0,1,0,0" Padding="12,5">
+                                    <Grid>
+                                        <StackPanel Orientation="Horizontal">
+                                            <Ellipse Width="5" Height="5" VerticalAlignment="Center" Margin="0,0,7,0">
+                                                <Ellipse.Style>
+                                                    <Style TargetType="Ellipse">
+                                                        <Setter Property="Fill" Value="{StaticResource TextPrimaryBrush}"/>
+                                                        <Style.Triggers>
+                                                            <DataTrigger Binding="{Binding IsProcessing}" Value="True">
+                                                                <Setter Property="Fill" Value="{DynamicResource TabAccentBrush}"/>
+                                                            </DataTrigger>
+                                                        </Style.Triggers>
+                                                    </Style>
+                                                </Ellipse.Style>
+                                            </Ellipse>
+                                            <TextBlock Text="{Binding ProcessingStatus}"
+                                                       FontSize="11" Foreground="{StaticResource TextSecondaryBrush}"
+                                                       VerticalAlignment="Center" TextTrimming="CharacterEllipsis"/>
+                                        </StackPanel>
+                                        <StackPanel HorizontalAlignment="Right" VerticalAlignment="Center"
+                                                    Orientation="Horizontal">
+                                            <TextBlock Text="{Binding GenerationTimer}" Margin="0,0,10,0"
+                                                       FontSize="11" Foreground="{StaticResource TextSecondaryBrush}"
+                                                       FontFamily="Consolas" VerticalAlignment="Center"/>
+                                            <TextBlock Text="{Binding ProgressPercentage, Mode=OneWay}"
+                                                       FontSize="11" FontWeight="Bold" Foreground="{DynamicResource TabAccentBrush}"
+                                                       FontFamily="Consolas" VerticalAlignment="Center"
+                                                       Visibility="{Binding IsProcessing, Converter={StaticResource BooleanToVisibilityConverter}}"/>
+                                        </StackPanel>
+                                    </Grid>
+                                </Border>
+
+                                <!-- ─── Action Buttons ────────────────────────────────────── -->
+                                <Border Grid.Row="3" Style="{StaticResource ToolStripStyle}"
+                                        BorderThickness="0,1,0,0" Padding="10,8">
+                                    <Grid>
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="*"/>
+                                            <ColumnDefinition Width="Auto"/>
+                                        </Grid.ColumnDefinitions>
+                                        <Grid.RowDefinitions>
+                                            <RowDefinition Height="Auto"/>
+                                            <RowDefinition Height="Auto"/>
+                                        </Grid.RowDefinitions>
+
+                                        <Button Grid.Column="0" Grid.Row="0" Margin="0,0,8,0" Height="40"
+                                                Command="{Binding GenerateCommand}"
+                                                IsEnabled="{Binding CanGenerate}"
+                                                Style="{StaticResource AccentButtonStyle}"
+                                                FontSize="12" FontWeight="Bold" BorderThickness="0"
+                                                ToolTip="Snapshots the keyframes, the prompts and every setting into the queue, and starts draining if nothing is running. Each item is frozen at this moment — change the form afterwards and the queued job is unaffected.&#x0a;&#x0a;The tab stays free while jobs render: load the next chain and Analyze it, and add that too.&#x0a;&#x0a;Whichever half of the graph an item does not use — the continuation loop, or the single-clip sink — is deleted before submitting rather than switched off, because a ComfyUI output node runs whether or not anything downstream wants it.">
+                                            <StackPanel Orientation="Horizontal">
+                                                <TextBlock Text="⚡ " VerticalAlignment="Center"/>
+                                                <TextBlock Text="Add to Queue" VerticalAlignment="Center"/>
+                                            </StackPanel>
+                                        </Button>
+                                        <TextBlock Grid.Column="0" Grid.Row="1" Margin="2,4,8,0"
+                                                   Text="{Binding GenerateBlockedReason}"
+                                                   FontSize="10" FontStyle="Italic" TextWrapping="Wrap"
+                                                   Foreground="{StaticResource DangerBrush}"
+                                                   Visibility="{Binding GenerateBlockedReason, Converter={StaticResource StringToVisibilityConverter}}"/>
+
+                                        <Button Grid.Column="1" Grid.Row="0" Height="40" Width="82"
+                                                Command="{Binding CancelCommand}"
+                                                Style="{StaticResource DangerButtonStyle}"
+                                                FontSize="11">
+                                            <StackPanel Orientation="Horizontal">
+                                                <TextBlock Text="✕ " VerticalAlignment="Center"/>
+                                                <TextBlock Text="Cancel" VerticalAlignment="Center"/>
+                                            </StackPanel>
+                                        </Button>
+                                    </Grid>
+                                </Border>
+
+                                <!-- ─── Queue ──────────────────────────────────────────────── -->
+                                <Border Grid.Row="4" Background="{StaticResource SurfaceAltBrush}"
+                                        BorderBrush="{StaticResource BorderBrush}" BorderThickness="0,1,0,0"
+                                        Padding="12,8"
+                                        Visibility="{Binding HasQueueItems, Converter={StaticResource BooleanToVisibilityConverter}}">
+                                    <StackPanel>
+                                        <Grid Margin="0,0,0,6">
+                                            <Grid.ColumnDefinitions>
+                                                <ColumnDefinition Width="Auto"/>
+                                                <ColumnDefinition Width="*"/>
+                                                <ColumnDefinition Width="Auto"/>
+                                                <ColumnDefinition Width="Auto"/>
+                                                <ColumnDefinition Width="Auto"/>
+                                                <ColumnDefinition Width="Auto"/>
+                                            </Grid.ColumnDefinitions>
+                                            <TextBlock Grid.Column="0" Text="⚡ Render Queue"
+                                                       FontWeight="Bold" FontSize="12" Foreground="{DynamicResource TabAccentBrush}"
+                                                       VerticalAlignment="Center" Margin="0,0,10,0"/>
+                                            <TextBlock Grid.Column="1" Text="{Binding QueueStatus}"
+                                                       FontStyle="Italic" Foreground="{StaticResource TextSecondaryBrush}" FontSize="11"
+                                                       VerticalAlignment="Center" TextTrimming="CharacterEllipsis"/>
+                                            <Button Grid.Column="2" Content="▶ Start"
+                                                    Command="{Binding StartQueueCommand}"
+                                                    Height="26" Padding="8,0" FontSize="11" Margin="0,0,5,0"
+                                                    Style="{StaticResource AccentButtonStyle}"
+                                                    ToolTip="Resume draining pending items."/>
+                                            <Button Grid.Column="3" Content="🔄 Retry"
+                                                    Command="{Binding ReprocessAllFailedCommand}"
+                                                    Height="26" Padding="8,0" FontSize="11" Margin="0,0,5,0"
+                                                    Style="{StaticResource AccentButtonStyle}"
+                                                    ToolTip="Put every failed item back to Pending and run them again."/>
+                                            <Button Grid.Column="4" Content="⏹ Stop"
+                                                    Command="{Binding StopQueueCommand}"
+                                                    Height="26" Padding="8,0" FontSize="11" Margin="0,0,5,0"
+                                                    Style="{StaticResource AccentButtonStyle}"
+                                                    ToolTip="Stop after the current item; it goes back to Pending."/>
+                                            <Button Grid.Column="5" Content="🗑️ Clear"
+                                                    Command="{Binding ClearQueueCommand}"
+                                                    Height="26" Padding="8,0" FontSize="11"
+                                                    Style="{StaticResource AccentButtonStyle}"/>
+                                        </Grid>
+
+                                        <ItemsControl ItemsSource="{Binding Queue}">
+                                            <ItemsControl.ItemTemplate>
+                                                <DataTemplate>
+                                                    <Border BorderBrush="{StaticResource BorderBrush}" BorderThickness="1" CornerRadius="4"
+                                                            Padding="8,5" Margin="0,0,0,3" Background="White">
                                                         <Grid>
                                                             <Grid.ColumnDefinitions>
+                                                                <ColumnDefinition Width="Auto"/>
+                                                                <ColumnDefinition Width="Auto"/>
                                                                 <ColumnDefinition Width="*"/>
                                                                 <ColumnDefinition Width="Auto"/>
                                                             </Grid.ColumnDefinitions>
-                                                            <StackPanel Grid.Column="0">
-                                                                <Grid Height="46">
-                                                                    <Grid.ColumnDefinitions>
-                                                                        <ColumnDefinition Width="*"/>
-                                                                        <ColumnDefinition Width="14"/>
-                                                                        <ColumnDefinition Width="*"/>
-                                                                    </Grid.ColumnDefinitions>
-                                                                    <Image Grid.Column="0" Source="{Binding FirstThumb}" Stretch="UniformToFill"/>
-                                                                    <TextBlock Grid.Column="1" Text="→" VerticalAlignment="Center"
-                                                                               HorizontalAlignment="Center" Foreground="{DynamicResource TabAccentBrush}" FontWeight="Bold"/>
-                                                                    <Image Grid.Column="2" Source="{Binding LastThumb}" Stretch="UniformToFill"/>
-                                                                </Grid>
-                                                                <TextBlock Text="{Binding Label}" FontSize="10" Foreground="{StaticResource TextPrimaryBrush}"
-                                                                           TextTrimming="CharacterEllipsis" Margin="0,4,0,0"/>
-                                                                <Grid Margin="0,2,0,0">
-                                                                    <TextBlock HorizontalAlignment="Left" Text="{Binding StatusText}"
-                                                                               FontSize="9" Foreground="{DynamicResource TabAccentBrush}"/>
-                                                                    <TextBlock HorizontalAlignment="Right" FontSize="9" FontWeight="Bold"
-                                                                               Foreground="{StaticResource SuccessTextBrush}"
-                                                                               Text="{Binding SelectedCount, StringFormat=✓{0} queued}"
-                                                                               Visibility="{Binding HasSelection, Converter={StaticResource BooleanToVisibilityConverter}}"/>
-                                                                </Grid>
+                                                            <Border Grid.Column="0" CornerRadius="3" Padding="6,2" Margin="0,0,8,0"
+                                                                    VerticalAlignment="Center"
+                                                                    Background="{Binding StatusColor}">
+                                                                <TextBlock Text="{Binding StatusDisplay}" FontSize="10"
+                                                                           FontWeight="SemiBold" Foreground="White"/>
+                                                            </Border>
+                                                            <Image Grid.Column="1" Source="{Binding QueueThumbnail}"
+                                                                   Height="34" Stretch="Uniform" Margin="0,0,8,0"/>
+                                                            <StackPanel Grid.Column="2" VerticalAlignment="Center">
+                                                                <TextBlock Text="{Binding DisplayText}" FontWeight="SemiBold" FontSize="11"
+                                                                           TextTrimming="CharacterEllipsis"/>
+                                                                <!-- PromptPreview is already collapsed to one line: an FL2VA prompt
+                                                                     carries its own newlines, and TextTrimming would ellipsize each
+                                                                     of them separately while still rendering every line. The whole
+                                                                     chain's prompts are on the tooltip. -->
+                                                                <TextBlock Text="{Binding PromptPreview}" FontSize="10"
+                                                                           Foreground="{StaticResource TextSecondaryBrush}"
+                                                                           ToolTipService.ShowDuration="60000"
+                                                                           TextWrapping="NoWrap"
+                                                                           TextTrimming="CharacterEllipsis">
+                                                                    <TextBlock.ToolTip>
+                                                                        <ToolTip MaxWidth="700">
+                                                                            <TextBlock Text="{Binding Prompt}" TextWrapping="Wrap" FontSize="11"/>
+                                                                        </ToolTip>
+                                                                    </TextBlock.ToolTip>
+                                                                </TextBlock>
+                                                                <TextBlock Text="{Binding ErrorMessage}" FontSize="10"
+                                                                           Foreground="{StaticResource DangerBrush}"
+                                                                           TextWrapping="NoWrap"
+                                                                           TextTrimming="CharacterEllipsis"/>
                                                             </StackPanel>
-                                                            <!-- Reorder this pair up/down → changes the sequence in the final joined video. -->
-                                                            <StackPanel Grid.Column="1" VerticalAlignment="Center" Margin="6,0,0,0">
-                                                                <Button Content="▲" FontSize="10" Width="22" Height="22" Padding="0"
-                                                                        Foreground="{DynamicResource TabAccentBrush}" Background="{StaticResource SurfaceAltBrush}" BorderBrush="{StaticResource BorderBrush}"
-                                                                        BorderThickness="1" Cursor="Hand" ToolTip="Move pair up"
-                                                                        Command="{Binding DataContext.MovePairUpCommand, RelativeSource={RelativeSource AncestorType=ListBox}}"
-                                                                        CommandParameter="{Binding}"/>
-                                                                <Button Content="▼" FontSize="10" Width="22" Height="22" Padding="0" Margin="0,4,0,0"
-                                                                        Foreground="{DynamicResource TabAccentBrush}" Background="{StaticResource SurfaceAltBrush}" BorderBrush="{StaticResource BorderBrush}"
-                                                                        BorderThickness="1" Cursor="Hand" ToolTip="Move pair down"
-                                                                        Command="{Binding DataContext.MovePairDownCommand, RelativeSource={RelativeSource AncestorType=ListBox}}"
-                                                                        CommandParameter="{Binding}"/>
-                                                            </StackPanel>
+                                                            <Button Grid.Column="3" Content="✕"
+                                                                    Style="{StaticResource SecondaryButtonStyle}"
+                                                                    Command="{Binding DataContext.RemoveQueueItemCommand, RelativeSource={RelativeSource AncestorType=ItemsControl}}"
+                                                                    CommandParameter="{Binding}"
+                                                                    VerticalAlignment="Center"
+                                                                    Width="26" Height="26" Padding="0" FontSize="10"/>
                                                         </Grid>
                                                     </Border>
                                                 </DataTemplate>
-                                            </ListBox.ItemTemplate>
-                                        </ListBox>
-                                    </DockPanel>
+                                            </ItemsControl.ItemTemplate>
+                                        </ItemsControl>
+                                    </StackPanel>
                                 </Border>
 
-                                <Grid Grid.Column="1">
-                                    <Grid.RowDefinitions>
-                                        <RowDefinition Height="Auto"/> <!-- Sample tiles -->
-                                        <RowDefinition Height="*"/>    <!-- Player -->
-                                        <RowDefinition Height="Auto"/> <!-- Results strip -->
-                                        <RowDefinition Height="Auto"/> <!-- Progress -->
-                                        <RowDefinition Height="Auto"/> <!-- Action bar -->
-                                        <RowDefinition Height="Auto"/> <!-- Log -->
-                                    </Grid.RowDefinitions>
+                                <!-- ─── Result Output ──────────────────────────────────────── -->
+                                <Border Grid.Row="5" Background="White" BorderBrush="{StaticResource BorderBrush}"
+                                        BorderThickness="0,1,0,0" Padding="12,10">
+                                    <StackPanel>
+                                        <TextBlock Text="🎥 Result Video" FontWeight="Bold" FontSize="13"
+                                                   Foreground="{DynamicResource TabAccentBrush}" Margin="0,0,0,8"/>
 
-                                    <!-- Sample tiles -->
-                                    <Border Grid.Row="0" Background="{StaticResource SurfaceAltBrush}" BorderBrush="{StaticResource BorderBrush}" BorderThickness="0,0,0,1" Padding="12,8">
-                                        <StackPanel>
-                                            <TextBlock Text="SEED SAMPLES — click to preview, tick to queue for Finish"
-                                                       FontSize="10" FontWeight="Bold" Foreground="{StaticResource TextSecondaryBrush}" Margin="0,0,0,6"/>
-                                            <ListBox ItemsSource="{Binding Samples}"
-                                                     SelectedItem="{Binding SelectedSampleForPreview, Mode=TwoWay}"
-                                                     Background="Transparent" BorderThickness="0"
-                                                     ScrollViewer.HorizontalScrollBarVisibility="Disabled"
-                                                     ScrollViewer.VerticalScrollBarVisibility="Disabled">
-                                                <ListBox.ItemsPanel>
-                                                    <ItemsPanelTemplate>
-                                                        <UniformGrid Rows="1" Columns="3"/>
-                                                    </ItemsPanelTemplate>
-                                                </ListBox.ItemsPanel>
-                                                <ListBox.ItemContainerStyle>
-                                                    <Style TargetType="ListBoxItem">
-                                                        <Setter Property="HorizontalContentAlignment" Value="Stretch"/>
-                                                        <Setter Property="VerticalContentAlignment" Value="Stretch"/>
-                                                        <Setter Property="Padding" Value="0"/>
-                                                        <Setter Property="Margin" Value="3"/>
-                                                        <Setter Property="Cursor" Value="Hand"/>
-                                                        <Setter Property="Template">
-                                                            <Setter.Value>
-                                                                <ControlTemplate TargetType="ListBoxItem">
-                                                                    <Border x:Name="tile" CornerRadius="6" BorderThickness="2"
-                                                                            Background="{StaticResource SurfaceAltBrush}" BorderBrush="{StaticResource BorderBrush}">
-                                                                        <ContentPresenter/>
-                                                                    </Border>
-                                                                    <ControlTemplate.Triggers>
-                                                                        <Trigger Property="IsSelected" Value="True">
-                                                                            <Setter TargetName="tile" Property="BorderBrush" Value="{DynamicResource TabAccentBrush}"/>
-                                                                        </Trigger>
-                                                                    </ControlTemplate.Triggers>
-                                                                </ControlTemplate>
-                                                            </Setter.Value>
-                                                        </Setter>
-                                                    </Style>
-                                                </ListBox.ItemContainerStyle>
-                                                <ListBox.ItemTemplate>
-                                                    <DataTemplate>
-                                                        <Grid Height="96" Background="Transparent" ToolTip="Click to preview this sample">
-                                                            <Image Source="{Binding ThumbnailImage}" Stretch="Uniform"/>
-                                                            <TextBlock Text="{Binding Label}" Foreground="{StaticResource TextSecondaryBrush}" FontSize="11" FontWeight="Bold"
-                                                                       IsHitTestVisible="False"
-                                                                       HorizontalAlignment="Left" VerticalAlignment="Top" Margin="6,4"
-                                                                       Visibility="{Binding HasVideo, Converter={StaticResource BoolToVisibilityConverter}, ConverterParameter=Invert}"/>
-                                                            <!-- Transparent overlay drives the shared player directly; ListBox
-                                                                 SelectedItem alone doesn't reliably reload the clicked sample. -->
-                                                            <Button Background="Transparent" BorderThickness="0" Cursor="Hand"
-                                                                    ToolTip="Click to preview this sample"
-                                                                    Command="{Binding DataContext.PreviewSampleCommand,
-                                                                              RelativeSource={RelativeSource AncestorType=ListBox}}"
-                                                                    CommandParameter="{Binding}"
-                                                                    Visibility="{Binding HasVideo, Converter={StaticResource BooleanToVisibilityConverter}}">
-                                                                <Button.Template>
-                                                                    <ControlTemplate TargetType="Button">
-                                                                        <Border Background="Transparent"/>
-                                                                    </ControlTemplate>
-                                                                </Button.Template>
-                                                            </Button>
-                                                            <CheckBox Content="Queue" IsChecked="{Binding IsSelected, Mode=TwoWay}"
-                                                                      Foreground="White" FontSize="10" FontWeight="Bold"
-                                                                      HorizontalAlignment="Right" VerticalAlignment="Bottom" Margin="6,4"
-                                                                      Visibility="{Binding HasVideo, Converter={StaticResource BooleanToVisibilityConverter}}"/>
-                                                            <TextBlock Text="{Binding Status}" Foreground="{DynamicResource TabAccentBrush}" FontSize="9"
-                                                                       IsHitTestVisible="False"
-                                                                       HorizontalAlignment="Center" VerticalAlignment="Bottom" Margin="0,0,0,4"/>
-                                                        </Grid>
-                                                    </DataTemplate>
-                                                </ListBox.ItemTemplate>
-                                            </ListBox>
+                                        <Border BorderBrush="{StaticResource BorderBrush}" BorderThickness="1" Background="{StaticResource PlayerSurfaceBrush}"
+                                                Height="200" CornerRadius="6" Margin="0,0,0,8">
+                                            <Grid>
+                                                <TextBlock Text="Video will appear here after generation"
+                                                           HorizontalAlignment="Center" VerticalAlignment="Center"
+                                                           Foreground="{StaticResource PlayerTextBrush}" FontStyle="Italic">
+                                                    <TextBlock.Style>
+                                                        <Style TargetType="TextBlock">
+                                                            <Setter Property="Visibility" Value="Collapsed"/>
+                                                            <Style.Triggers>
+                                                                <DataTrigger Binding="{Binding HasResult}" Value="False">
+                                                                    <Setter Property="Visibility" Value="Visible"/>
+                                                                </DataTrigger>
+                                                            </Style.Triggers>
+                                                        </Style>
+                                                    </TextBlock.Style>
+                                                </TextBlock>
+                                                <MediaElement x:Name="MiniMaxFflfVideoPlayer"
+                                                              Source="{Binding ResultVideoPath}"
+                                                              LoadedBehavior="Manual" UnloadedBehavior="Stop"
+                                                              Stretch="Uniform"
+                                                              Visibility="{Binding HasResult, Converter={StaticResource BooleanToVisibilityConverter}}"/>
+                                            </Grid>
+                                        </Border>
+
+                                        <StackPanel Orientation="Horizontal" Margin="0,0,0,6">
+                                            <Button Content="▶ Play" Style="{StaticResource PrimaryButtonStyle}"
+                                                    Command="{Binding PlayVideoCommand}"
+                                                    IsEnabled="{Binding HasResult}" Margin="0,0,8,0"/>
+                                            <Button Content="📁 Open Folder" Style="{StaticResource SecondaryButtonStyle}"
+                                                    Command="{Binding OpenResultFolderCommand}"
+                                                    IsEnabled="{Binding HasResult}"/>
                                         </StackPanel>
-                                    </Border>
+                                        <TextBlock Text="{Binding ResultVideoInfo}"
+                                                   FontStyle="Italic" Foreground="#666" FontSize="11"/>
+                                    </StackPanel>
+                                </Border>
 
-                                    <!-- Shared player -->
-                                    <Border Grid.Row="1" Margin="12" CornerRadius="6"
-                                            Background="{StaticResource SurfaceAltBrush}" BorderBrush="{StaticResource BorderBrush}" BorderThickness="1">
-                                        <Grid>
-                                            <TextBlock Text="Generate 3 samples, then click one to preview it here. The finished full-resolution video plays here after Finish."
-                                                       HorizontalAlignment="Center" VerticalAlignment="Center" TextAlignment="Center"
-                                                       TextWrapping="Wrap" Margin="20,0" Foreground="{StaticResource TextMutedBrush}" FontStyle="Italic"
-                                                       Visibility="{Binding HasActivePreview, Converter={StaticResource BoolToVisibilityConverter}, ConverterParameter=Invert}"/>
-                                            <!-- Source is set from code-behind (ApplyMiniMaxFflfSource) as an ABSOLUTE Uri; a
-                                                 string {Binding} to MediaElement.Source silently fails on Z:\ output paths. The
-                                                 element stays visible so Source is never assigned while Collapsed. -->
-                                            <MediaElement x:Name="MiniMaxFflfPlayer"
-                                                          Stretch="Uniform" LoadedBehavior="Manual" UnloadedBehavior="Stop"
-                                                          MediaOpened="MiniMaxFflfPlayer_MediaOpened"
-                                                          MediaEnded="MiniMaxFflfPlayer_MediaEnded"
-                                                          MediaFailed="MiniMaxFflfPlayer_MediaFailed"/>
-                                        </Grid>
-                                    </Border>
+                                <!-- ─── Log ───────────────────────────────────────────────── -->
+                                <ctrl:ProcessingLogPanel Grid.Row="6" LogText="{Binding LogOutput}" MaxLogHeight="130"/>
 
-                                    <!-- Results strip -->
-                                    <Border Grid.Row="2" Background="{StaticResource SurfaceAltBrush}" BorderBrush="{StaticResource BorderBrush}" BorderThickness="0,1,0,0" Padding="12,6"
-                                            Visibility="{Binding HasResult, Converter={StaticResource BooleanToVisibilityConverter}}">
-                                        <StackPanel>
-                                            <TextBlock Text="FINISHED VIDEOS — click to replay" FontSize="10" FontWeight="Bold"
-                                                       Foreground="{StaticResource TextSecondaryBrush}" Margin="0,0,0,4"/>
-                                            <ItemsControl ItemsSource="{Binding Results}">
-                                                <ItemsControl.ItemsPanel>
-                                                    <ItemsPanelTemplate><StackPanel Orientation="Horizontal"/></ItemsPanelTemplate>
-                                                </ItemsControl.ItemsPanel>
-                                                <ItemsControl.ItemTemplate>
-                                                    <DataTemplate>
-                                                        <Button Command="{Binding DataContext.PlayResultCommand, RelativeSource={RelativeSource AncestorType=ItemsControl}}"
-                                                                CommandParameter="{Binding}" Margin="0,0,8,0" Padding="10,4"
-                                                                Style="{StaticResource AccentButtonStyle}" Cursor="Hand">
-                                                            <StackPanel>
-                                                                <TextBlock Text="{Binding Label}" FontWeight="Bold" FontSize="11"/>
-                                                                <TextBlock Text="{Binding Info}" FontSize="9" Foreground="#E6FFFFFF"/>
-                                                            </StackPanel>
-                                                        </Button>
-                                                    </DataTemplate>
-                                                </ItemsControl.ItemTemplate>
-                                            </ItemsControl>
-                                        </StackPanel>
-                                    </Border>
-
-                                    <!-- Progress -->
-                                    <Grid Grid.Row="3" Margin="12,6,12,6">
-                                        <ProgressBar Height="6" Minimum="0" Maximum="100" Value="{Binding ProcessingProgress}"
-                                                     Background="{StaticResource SurfaceAltBrush}" Foreground="{DynamicResource TabAccentBrush}" BorderThickness="0"/>
-                                    </Grid>
-
-                                    <!-- Action bar -->
-                                    <Border Grid.Row="4" Background="{StaticResource SurfaceAltBrush}" BorderBrush="{StaticResource BorderBrush}" BorderThickness="0,1,0,0" Padding="12,8">
-                                        <StackPanel Orientation="Horizontal">
-                                            <Button Content="▶ Run Batch — analyze + 3 seeds / pair" Command="{Binding RunBatchCommand}"
-                                                    Height="32" Padding="16,0" Margin="0,0,8,0" FontWeight="Bold"
-                                                    Style="{StaticResource AccentButtonStyle}"
-                                                    Visibility="{Binding IsBatchMode, Converter={StaticResource BooleanToVisibilityConverter}}"
-                                                    ToolTip="Walk every pair: write its H3 prompt then generate 3 seed previews. Failed pairs are skipped."/>
-                                            <Button Content="🎲 Reroll This Pair" Command="{Binding RerollPairCommand}"
-                                                    Height="32" Padding="14,0" Margin="0,0,8,0" FontWeight="Bold"
-                                                    Style="{StaticResource AccentButtonStyle}"
-                                                    Visibility="{Binding IsBatchMode, Converter={StaticResource BooleanToVisibilityConverter}}"
-                                                    ToolTip="Regenerate the selected pair's 3 seed previews with a fresh random seed, reusing its prompt. Other pairs are left untouched."/>
-                                            <Button Content="🎯 Generate 3 Samples" Command="{Binding HuntCommand}"
-                                                    Height="32" Padding="16,0" Margin="0,0,8,0" FontWeight="Bold"
-                                                    Style="{StaticResource AccentButtonStyle}"
-                                                    Visibility="{Binding IsSingleMode, Converter={StaticResource BooleanToVisibilityConverter}}"
-                                                    ToolTip="Generate 3 cheap seed previews from the first/last frame and prompt."/>
-                                            <Button Content="🎲 Reroll — new 3 seeds" Command="{Binding HuntCommand}"
-                                                    Height="32" Padding="14,0" Margin="0,0,8,0" FontWeight="Bold"
-                                                    Style="{StaticResource AccentButtonStyle}"
-                                                    ToolTip="Don't like these? Regenerate 3 fresh previews with a new random seed."
-                                                    Visibility="{Binding ShowSingleReroll, Converter={StaticResource BooleanToVisibilityConverter}}"/>
-                                            <Button Content="{Binding FinishButtonText}" Command="{Binding FinishCommand}"
-                                                    Height="32" Padding="14,0" Margin="0,0,8,0" FontWeight="Bold"
-                                                    Style="{StaticResource SuccessButtonStyle}"/>
-                                            <Button Content="✕ Cancel" Command="{Binding CancelCommand}"
-                                                    Height="32" Padding="12,0" Margin="0,0,8,0"
-                                                    Style="{StaticResource DangerButtonStyle}"/>
-                                            <Button Content="📁 Open Folder" Command="{Binding OpenResultFolderCommand}"
-                                                    IsEnabled="{Binding HasResult}" Height="32" Padding="12,0" Margin="0,0,8,0"
-                                                    Style="{StaticResource AccentButtonStyle}"/>
-                                            <TextBlock Text="{Binding ProcessingStatus}" VerticalAlignment="Center"
-                                                       FontStyle="Italic" Foreground="{DynamicResource TabAccentBrush}" FontSize="11" Margin="4,0,0,0"/>
-                                        </StackPanel>
-                                    </Border>
-
-                                    <!-- Log -->
-                                    <ctrl:ProcessingLogPanel Grid.Row="5" LogText="{Binding LogOutput}" MaxLogHeight="120"/>
-                                </Grid>
                             </Grid>
+                            </ScrollViewer>
                         </Grid>
                     </TabItem>
 

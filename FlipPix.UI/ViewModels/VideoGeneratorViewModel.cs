@@ -85,11 +85,11 @@ namespace FlipPix.UI.ViewModels
         public MiniMaxI2VViewModel MiniMaxI2VVM { get; }
 
         /// <summary>
-        /// MiniMax FFLF ViewModel - the seed-hunter flow on the MiniMax H3 first/last-frame workflow:
-        /// a first+last frame (or a folder of overlapping pairs) analyzed into an FL2VA prompt, 3 cheap
-        /// low-step seed previews per pair, then a full-resolution 20-step re-render of the picks.
+        /// MiniMax FFLF ViewModel - H3 in FL2VA mode, driven as a keyframe chain: an opening frame plus
+        /// up to four stills the take has to pass through, one clip between each pair, rendered as the
+        /// base pass plus continuation passes inside a single submission.
         /// </summary>
-        public MiniMaxFflfSeedHuntViewModel MiniMaxFflfVM { get; }
+        public MiniMaxFflfViewModel MiniMaxFflfVM { get; }
 
         /// <summary>
         /// MiniMax H3 T2V ViewModel - the long-form variant: one image is analyzed into a dense ~15-second
@@ -245,7 +245,7 @@ namespace FlipPix.UI.ViewModels
                 _workflowCoordinator,
                 _fileDialogService);
 
-            MiniMaxFflfVM = new MiniMaxFflfSeedHuntViewModel(
+            MiniMaxFflfVM = new MiniMaxFflfViewModel(
                 comfyUIService,
                 lmStudioService,
                 logger,

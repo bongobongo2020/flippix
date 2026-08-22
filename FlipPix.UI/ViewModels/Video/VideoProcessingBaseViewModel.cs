@@ -81,7 +81,10 @@ namespace FlipPix.UI.ViewModels.Video
             get => _processingProgress;
             set
             {
-                if (SetProperty(ref _processingProgress, value) && Math.Abs(_processingProgress - value) > 0.01)
+                // SetProperty assigns before it returns, so comparing the field against the incoming
+                // value here is always a zero difference. That second condition suppressed every
+                // ProgressPercentage notification, freezing the "%" readout on every video tab.
+                if (SetProperty(ref _processingProgress, value))
                 {
                     OnPropertyChanged(nameof(ProgressPercentage));
                 }
