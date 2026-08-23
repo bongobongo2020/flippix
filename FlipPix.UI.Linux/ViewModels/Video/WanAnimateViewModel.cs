@@ -30,9 +30,7 @@ namespace FlipPix.UI.Linux.ViewModels.Video
         private const string WorkflowFileName = "Wan Animate + Steady Dancer + OneToAll Animation + SCAIL.json";
         private const string OutputSubfolder = "wan_animate";
 
-        private string QueueFilePath => Path.Combine(
-            Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData),
-            "FlipPix", "queue", "wan_animate_queue.json");
+        private string QueueFilePath => UserPaths.Queue("wan_animate_queue.json");
 
         // Input fields
         private string _referenceImagePath = string.Empty;

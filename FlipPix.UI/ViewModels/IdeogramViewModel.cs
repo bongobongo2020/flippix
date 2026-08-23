@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.Collections.ObjectModel;
 using System.ComponentModel;
@@ -24,37 +24,36 @@ namespace FlipPix.UI.ViewModels
     /// Ideogram v4 tab: an uploaded reference image is analyzed by the LLM into a
     /// high-level scene prompt, an enriched style block and a set of bounding-box
     /// composition segments, which are then rendered to a single image.
-    /// Workflow: workflow/image/ideogram4.json (dual-model guider, first pass at the
-    /// chosen base resolution then a 2x latent upscale + refine second pass).
+    /// Workflow: workflow/image/ideogram/ideogram4-instant.json — the Ideogram 4
+    /// Instant NSFW graph: one 8-step StarSampler pass over the int8 UNet, so the
+    /// selected megapixels are the saved size (no upscale/refine second pass).
     ///
-    /// The whole scene is handed to Ideogram4PromptBuilderKJ (node 4864) through its
-    /// `import_json` input — node 4868 carries the full
+    /// The whole scene is handed to Ideogram4PromptBuilderKJ (node 185) through its
+    /// `import_json` input — node 186 carries the full
     /// {high_level_description, style_description, compositional_deconstruction}
     /// document, which with import_mode "always" is the authoritative description.
     /// The node's own widgets are written in sync as a fallback.
     /// </summary>
     public class IdeogramViewModel : INotifyPropertyChanged
     {
-        private const string WorkflowFile = "workflow/image/ideogram4.json";
+        private const string WorkflowFile = "workflow/image/ideogram/ideogram4-instant.json";
         private const string PromptFile = "prompts/prompt2json/ideagram.md";
         private const string SavePrefix = "gram";
 
-        // Node ids in ideogram4.json.
-        private const string PromptBuilderNode = "4864";  // Ideogram4PromptBuilderKJ
-        private const string ImportJsonNode = "4868";     // PrimitiveStringMultiline → 4864.import_json
-        private const string LatentNode = "4839";         // EmptyFlux2LatentImage
-        private const string BaseNoiseNode = "4801";      // RandomNoise (first pass)
-        private const string SaveImageNode = "4830";      // SaveImage
-        // KSamplerAdvanced nodes of the second (upscale/refine) pass.
-        private static readonly string[] RefinePassNodes = { "4821", "4912" };
+        // Node ids in ideogram4-instant.json.
+        private const string PromptBuilderNode = "185";   // Ideogram4PromptBuilderKJ
+        private const string ImportJsonNode = "186";      // PrimitiveStringMultiline → 185.import_json
+        private const string LatentNode = "247";          // EmptyFlux2LatentImage
+        private const string SamplerNode = "235";         // StarSampler (the single pass)
+        private const string SaveImageNode = "241";       // SaveImage
+        // FluxResolutionNode. The graph wires it into the latent and the prompt
+        // builder, but its size comes from a fixed enum of aspect strings; this tab
+        // pins literal width/height on both consumers instead and drops the node.
+        private const string ResolutionNode = "246";
 
-        // The workflow's second pass upscales the latent by this factor (node 4939),
-        // so the saved image is this much larger than the base resolution below.
-        private const double SecondPassScale = 2.0;
-
-        // Selectable BASE resolutions in megapixels. The final image is
-        // SecondPassScale larger on each edge, so 1.0 MP here ≈ 4 MP saved.
-        private static readonly string[] MegapixelOptions = { "0.5", "0.75", "1.0", "1.25", "1.5" };
+        // Selectable output resolutions in megapixels. This graph is single-pass, so
+        // these are the saved dimensions rather than a base that gets upscaled.
+        private static readonly string[] MegapixelOptions = { "1.0", "1.5", "2.0", "2.5", "3.0" };
 
         private readonly ComfyUIService _comfyUIService;
         private readonly SettingsService _settingsService;
@@ -83,14 +82,14 @@ namespace FlipPix.UI.ViewModels
         // Composition
         private string _highLevelPrompt = string.Empty;
         private string _selectedAspectRatio = "Square";
-        private string _megapixel = "1.0";
+        private string _megapixel = "2.0";
         // On by default: the analyzed segments are what let Ideogram place each
         // subject deliberately instead of re-interpreting one flat sentence.
         private bool _useRegions = true;
         private readonly ObservableCollection<IdeogramRegion> _regions = new();
 
         // Enriched style fields produced by the autoprompter analysis and fed
-        // straight into Ideogram4PromptBuilderKJ (node 105). They have no editor
+        // straight into Ideogram4PromptBuilderKJ (node 185). They have no editor
         // UI yet; they are populated on Analyze and reused at generate time.
         private string _background = string.Empty;
         private string _style = "photo";
@@ -290,13 +289,13 @@ namespace FlipPix.UI.ViewModels
 
         public ObservableCollection<string> MegapixelChoices { get; } = new(MegapixelOptions);
 
-        /// <summary>Base (first pass) resolution budget in megapixels; the saved image is <see cref="SecondPassScale"/>× larger per edge.</summary>
+        /// <summary>Output resolution budget in megapixels. The graph is single-pass, so this is the saved size.</summary>
         public string Megapixel
         {
             get => _megapixel;
             set
             {
-                _megapixel = string.IsNullOrWhiteSpace(value) ? "1.0" : value;
+                _megapixel = string.IsNullOrWhiteSpace(value) ? "2.0" : value;
                 OnPropertyChanged();
                 OnPropertyChanged(nameof(AspectSummary));
             }
@@ -307,16 +306,11 @@ namespace FlipPix.UI.ViewModels
             get
             {
                 var (w, h) = ApproxResolution(_selectedAspectRatio, _megapixel);
-                var (fw, fh) = FinalResolution(w, h);
-                return $"≈ {w}×{h} → {fw}×{fh}";
+                return $"≈ {w}×{h}";
             }
         }
 
-        /// <summary>Saved-image size after the workflow's 2× latent upscale second pass.</summary>
-        private static (int W, int H) FinalResolution(int baseW, int baseH)
-            => ((int)(baseW * SecondPassScale), (int)(baseH * SecondPassScale));
-
-        // Base latent size: the megapixel budget at the chosen ratio, rounded to /16.
+        // Latent size: the megapixel budget at the chosen ratio, rounded to /16.
         private static (int W, int H) ApproxResolution(string aspect, string megapixel)
         {
             var ratioStr = AspectToRatioString(aspect);
@@ -325,11 +319,11 @@ namespace FlipPix.UI.ViewModels
             double rh = parts.Length > 1 && double.TryParse(parts[1], out var b) ? b : 1;
             if (rh == 0) rh = 1;
             double ratio = rw / rh;
-            double mp = double.TryParse(megapixel, out var m) ? m : 1.0;
-            // Clamp to the offered range: this is the BASE size and the workflow's
-            // second pass squares it up (2× per edge = 4× the pixels), so a legacy
-            // queue item saved at "2.5" would otherwise ask for a 10 MP render.
-            mp = Math.Clamp(mp, 0.25, 1.5);
+            double mp = double.TryParse(megapixel, out var m) ? m : 2.0;
+            // Clamp to a sane render budget. Queue items saved against the old
+            // two-pass graph carry a BASE megapixel value (0.5–1.5); they now render
+            // at that size directly, which is smaller than before but never absurd.
+            mp = Math.Clamp(mp, 0.25, 4.0);
             double total = mp * 1_000_000;
             int w = (int)(Math.Round(Math.Sqrt(total * ratio) / 16) * 16);
             int h = (int)(Math.Round(Math.Sqrt(total / ratio) / 16) * 16);
@@ -357,7 +351,7 @@ namespace FlipPix.UI.ViewModels
 
         /// <summary>
         /// Free-text art-style description. This workflow's prompt builder is wired to
-        /// the "art_style" bucket (node 4864 style / style.art_style), which accepts a
+        /// the "art_style" bucket (node 185 style / style.art_style), which accepts a
         /// photographic description just as well as an illustrative one.
         /// </summary>
         public string ArtStyle
@@ -1158,9 +1152,9 @@ namespace FlipPix.UI.ViewModels
             public string Aspect { get; init; } = "Square";
             public string Megapixel { get; init; } = "1.0";
             public string HighLevelPrompt { get; init; } = string.Empty;
-            /// <summary>Elements array for node 4864's `elements_data` widget.</summary>
+            /// <summary>Elements array for node 185's `elements_data` widget.</summary>
             public string ElementsJson { get; init; } = "[]";
-            /// <summary>Full scene document for node 4868 → node 4864's `import_json`.</summary>
+            /// <summary>Full scene document for node 186 → node 185's `import_json`.</summary>
             public string ImportJson { get; init; } = string.Empty;
             public bool UseEnrichedStyle { get; init; } = true;
             public string Background { get; init; } = string.Empty;
@@ -1195,8 +1189,7 @@ namespace FlipPix.UI.ViewModels
             ApplyToWorkflow(dict, composition);
 
             var (w, h) = ApproxResolution(_selectedAspectRatio, _megapixel);
-            var (fw, fh) = FinalResolution(w, h);
-            AddLog($"Resolution {w}×{h} → {fw}×{fh} after the 2× second pass ({AspectRatioString})");
+            AddLog($"Resolution {w}×{h} ({AspectRatioString}, {_megapixel} MP)");
             AddLog($"Segments: {(UseRegions ? _regions.Count : 1)}");
 
             return JsonSerializer.SerializeToElement(dict);
@@ -1213,30 +1206,35 @@ namespace FlipPix.UI.ViewModels
         }
 
         /// <summary>
-        /// Applies one composition to a parsed ideogram4 graph: fresh seeds on both
-        /// passes (4801 / 4821 / 4912), base latent size (4839), the save prefix the
-        /// retrieval loop looks for (4830), the full scene document (4868) and the
-        /// prompt builder's own widgets (4864).
+        /// Applies one composition to a parsed ideogram4-instant graph: a fresh seed on
+        /// the single sampler pass (235), the latent size (247), the save prefix the
+        /// retrieval loop looks for (241), the full scene document (186) and the prompt
+        /// builder's own widgets (185).
+        ///
+        /// The graph as authored feeds the latent and the prompt builder from a
+        /// FluxResolutionNode (246) whose size comes from a fixed enum of aspect
+        /// strings. Both consumers are given literal width/height here instead, so the
+        /// tab's own aspect + megapixel selectors are what decide the size; node 246 is
+        /// then unreferenced and dropped so it can't be mistaken for the live source.
         /// </summary>
         private static void ApplyToWorkflow(Dictionary<string, JsonElement> dict, IdeogramComposition c)
         {
             var rng = new Random();
             var (w, h) = ApproxResolution(c.Aspect, c.Megapixel);
 
-            UpdateNode(dict, BaseNoiseNode, inputs => inputs["noise_seed"] = rng.NextInt64(0, 999_999_999_999_999L));
-            foreach (var nodeId in RefinePassNodes)
-                UpdateNode(dict, nodeId, inputs => inputs["noise_seed"] = rng.NextInt64(0, 999_999_999_999_999L));
+            UpdateNode(dict, SamplerNode, inputs => inputs["seed"] = rng.NextInt64(0, 999_999_999_999_999L));
 
             UpdateNode(dict, LatentNode, inputs =>
             {
                 inputs["width"] = w;
                 inputs["height"] = h;
             });
+            dict.Remove(ResolutionNode);
 
             // RetrieveOutputImageAsync matches saved files by this prefix.
             UpdateNode(dict, SaveImageNode, inputs => inputs["filename_prefix"] = SavePrefix);
 
-            // Node 4868 (PrimitiveStringMultiline) feeds node 4864's `import_json`.
+            // Node 186 (PrimitiveStringMultiline) feeds node 185's `import_json`.
             // With import_mode "always" this document, not the widgets, describes the
             // scene — it is the same shape the workflow ships with by hand.
             UpdateNode(dict, ImportJsonNode, inputs => inputs["value"] = c.ImportJson);
@@ -1318,7 +1316,7 @@ namespace FlipPix.UI.ViewModels
         private string BuildElementsJson() => Serialize(BuildElements());
 
         /// <summary>
-        /// The full scene document fed to node 4864's `import_json` — the same
+        /// The full scene document fed to node 185's `import_json` — the same
         /// {high_level_description, style_description, compositional_deconstruction}
         /// shape the workflow ships with, so the app-driven run is byte-for-byte the
         /// kind of input the graph was authored around.
@@ -1378,7 +1376,7 @@ namespace FlipPix.UI.ViewModels
 
         /// <summary>
         /// Writes the enriched autoprompter fields onto the Ideogram4PromptBuilderKJ
-        /// (node 4864) inputs map. The node exposes one dotted sub-field per style
+        /// (node 185) inputs map. The node exposes one dotted sub-field per style
         /// bucket; this workflow is wired to "art_style", so that is the bucket kept in
         /// sync (an out-of-list `style` value is silently dropped by ComfyUI's input
         /// gather and then fails the node with "missing required argument: 'style'").

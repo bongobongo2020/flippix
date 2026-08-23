@@ -1,0 +1,583 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:controls="clr-namespace:FlipPix.UI.Linux.Controls"
+             xmlns:ctrl="clr-namespace:FlipPix.UI.Linux.Controls"
+             x:Class="FlipPix.UI.Linux.Views.Video.H3ChainView">
+
+    <!-- Ported from VideoGeneratorWindow.xaml lines 5918-6551 ("🎵♾️ H3 Chain").
+         DataContext is the window's H3ChainVM. -->
+
+    <Grid Theme="{StaticResource TabPageStyle}">
+        <Grid.Resources>
+            <SolidColorBrush x:Key="TabAccentBrush" Color="{StaticResource AccentIndigoColor}"/>
+        </Grid.Resources>
+        <Grid.ColumnDefinitions>
+            <ColumnDefinition Width="360"/>
+            <ColumnDefinition Width="*"/>
+        </Grid.ColumnDefinitions>
+
+        <!-- ═══ LEFT PANEL ═══════════════════════════════════════════════ -->
+        <Border Grid.Column="0" Theme="{StaticResource TabSideRailStyle}">
+            <ScrollViewer VerticalScrollBarVisibility="Auto">
+                <StackPanel Margin="12">
+
+                    <!-- References -->
+                    <Border Theme="{StaticResource SectionCardStyle}">
+                        <StackPanel>
+                            <ctrl:SectionHeader Title="REFERENCES" Note="  · held for the whole take" Margin="0,0,0,10"/>
+
+                            <Grid Margin="0,0,0,6">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*"/>
+                                    <ColumnDefinition Width="8"/>
+                                    <ColumnDefinition Width="*"/>
+                                </Grid.ColumnDefinitions>
+
+                                <!-- Reference 1 — face -->
+                                <StackPanel Grid.Column="0">
+                                    <TextBlock Text="Face · &lt;Picture 1&gt;" FontSize="10"
+                                               Foreground="{StaticResource TextSecondaryBrush}" Margin="0,0,0,4"/>
+                                    <Border BorderBrush="{StaticResource BorderBrush}" BorderThickness="1" CornerRadius="6"
+                                            Background="{StaticResource SurfaceAltBrush}" Height="118" Margin="0,0,0,6">
+                                        <Grid>
+                                            <TextBlock Text="Required"
+                                                       HorizontalAlignment="Center" VerticalAlignment="Center"
+                                                       Foreground="{StaticResource TextMutedBrush}" FontSize="10" IsVisible="{Binding Reference1Preview, Converter={StaticResource IsNullConverter}}"/>
+                                            <Image Source="{Binding Reference1Preview, Converter={StaticResource PathToBitmapConverter}}" Stretch="Uniform"/>
+                                        </Grid>
+                                    </Border>
+                                    <Button Content="Browse…" Command="{Binding SelectReference1Command}"
+                                            Height="26" Padding="8,0" FontSize="11"
+                                            Background="{StaticResource SurfaceAltBrush}" Foreground="{DynamicResource TabAccentBrush}"
+                                            BorderBrush="{StaticResource BorderBrush}" BorderThickness="1"/>
+                                    <TextBlock Text="{Binding Reference1Info}" FontSize="9" Margin="0,4,0,0"
+                                               Foreground="{StaticResource TextSecondaryBrush}" FontStyle="Italic"
+                                               TextTrimming="CharacterEllipsis"/>
+                                </StackPanel>
+
+                                <!-- Reference 2 — body / wardrobe -->
+                                <StackPanel Grid.Column="2">
+                                    <TextBlock Text="Body · &lt;Picture 2&gt;" FontSize="10"
+                                               Foreground="{StaticResource TextSecondaryBrush}" Margin="0,0,0,4"/>
+                                    <Border BorderBrush="{StaticResource BorderBrush}" BorderThickness="1" CornerRadius="6"
+                                            Background="{StaticResource SurfaceAltBrush}" Height="118" Margin="0,0,0,6">
+                                        <Grid>
+                                            <TextBlock Text="Optional"
+                                                       HorizontalAlignment="Center" VerticalAlignment="Center"
+                                                       Foreground="{StaticResource TextMutedBrush}" FontSize="10" IsVisible="{Binding Reference2Preview, Converter={StaticResource IsNullConverter}}"/>
+                                            <Image Source="{Binding Reference2Preview, Converter={StaticResource PathToBitmapConverter}}" Stretch="Uniform"/>
+                                        </Grid>
+                                    </Border>
+                                    <Grid>
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="*"/>
+                                            <ColumnDefinition Width="Auto"/>
+                                        </Grid.ColumnDefinitions>
+                                        <Button Grid.Column="0" Content="Browse…" Command="{Binding SelectReference2Command}"
+                                                Height="26" Padding="8,0" FontSize="11" Margin="0,0,4,0"
+                                                Background="{StaticResource SurfaceAltBrush}" Foreground="{DynamicResource TabAccentBrush}"
+                                                BorderBrush="{StaticResource BorderBrush}" BorderThickness="1"/>
+                                        <Button Grid.Column="1" Content="✕" Command="{Binding ClearReference2Command}"
+                                                IsEnabled="{Binding HasReference2}"
+                                                Height="26" Width="26" FontSize="11"
+                                                ToolTip.Tip="Drop the second reference. The chain then runs on &lt;Picture 1&gt; alone and the loader is removed from the graph."
+                                                Background="{StaticResource SurfaceAltBrush}" Foreground="{StaticResource TextSecondaryBrush}"
+                                                BorderBrush="{StaticResource BorderBrush}" BorderThickness="1"/>
+                                    </Grid>
+                                    <TextBlock Text="{Binding Reference2Info}" FontSize="9" Margin="0,4,0,0"
+                                               Foreground="{StaticResource TextSecondaryBrush}" FontStyle="Italic"
+                                               TextTrimming="CharacterEllipsis"/>
+                                </StackPanel>
+                            </Grid>
+
+                            <TextBlock Text="{Binding ReferenceSummary}"
+                                       FontSize="10" Foreground="{StaticResource TextMutedBrush}" FontStyle="Italic"
+                                       TextWrapping="Wrap"/>
+                        </StackPanel>
+                    </Border>
+
+                    <!-- Soundtrack -->
+                    <Border Theme="{StaticResource SectionCardStyle}">
+                        <StackPanel>
+                            <ctrl:SectionHeader Title="SOUNDTRACK" Note="  · &lt;Audio 1&gt;, sliced per segment" Margin="0,0,0,10"/>
+
+                            <Grid Margin="0,0,0,6">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*"/>
+                                    <ColumnDefinition Width="Auto"/>
+                                </Grid.ColumnDefinitions>
+                                <TextBlock Grid.Column="0" Text="{Binding AudioInfo}"
+                                           FontSize="11" FontFamily="Consolas"
+                                           Foreground="{StaticResource TextSecondaryBrush}"
+                                           VerticalAlignment="Center" TextTrimming="CharacterEllipsis"/>
+                                <Button Grid.Column="1" Content="♪ Browse…"
+                                        Command="{Binding SelectAudioCommand}"
+                                        Height="28" Padding="10,0" FontSize="11"
+                                        Background="{StaticResource SurfaceAltBrush}" Foreground="{DynamicResource TabAccentBrush}"
+                                        BorderBrush="{StaticResource BorderBrush}" BorderThickness="1"/>
+                            </Grid>
+
+                            <CheckBox Content="Loop the track to cover the video"
+                                      IsChecked="{Binding LoopAudio}"
+                                      FontSize="11" Margin="0,0,0,6"
+                                      ToolTip.Tip="Loops (and trims) the soundtrack with FFmpeg so it covers the whole running time. Off, a track shorter than the video leaves the rest of the take running against silence."/>
+
+                            <TextBlock Text="{Binding AudioCoverageSummary}"
+                                       FontSize="10" Foreground="{StaticResource TextMutedBrush}" FontStyle="Italic"
+                                       TextWrapping="Wrap" Margin="0,0,0,8"/>
+
+                            <TextBlock Text="Audio conditioning" FontSize="10" Foreground="{StaticResource TextSecondaryBrush}" Margin="0,0,0,4"/>
+                            <ComboBox ItemsSource="{Binding AudioModeOptions}"
+                                      DisplayMemberBinding="{Binding Label}"
+                                      SelectedValueBinding="{Binding Value}"
+                                      SelectedValue="{Binding AudioMode}"
+                                      Height="30" FontSize="11"
+                                      ToolTip.Tip="How the chain feeds audio to H3. Song only slices the track per segment. Song + generated tail additionally carries H3's own generated audio across the seam, which smooths the join at the cost of a little drift."/>
+                        </StackPanel>
+                    </Border>
+
+                    <!-- Length planner -->
+                    <Border Theme="{StaticResource SectionCardStyle}">
+                        <StackPanel>
+                            <ctrl:SectionHeader Title="LENGTH" Note="  · how far the chain runs" Margin="0,0,0,10"/>
+
+                            <Grid Margin="0,0,0,8">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*"/>
+                                    <ColumnDefinition Width="10"/>
+                                    <ColumnDefinition Width="*"/>
+                                </Grid.ColumnDefinitions>
+
+                                <StackPanel Grid.Column="0">
+                                    <TextBlock Text="Total running time" FontSize="10"
+                                               Foreground="{StaticResource TextSecondaryBrush}" Margin="0,0,0,4"/>
+                                    <Border Background="{StaticResource SurfaceAltBrush}" BorderBrush="{StaticResource BorderBrush}"
+                                            BorderThickness="1" CornerRadius="4" Padding="0,5" Margin="0,0,0,6">
+                                        <TextBlock Text="{Binding TotalSecondsDisplay}"
+                                                   HorizontalAlignment="Center" FontFamily="Consolas"
+                                                   FontSize="15" FontWeight="Bold"
+                                                   Foreground="{DynamicResource TabAccentBrush}"/>
+                                    </Border>
+                                    <Slider Value="{Binding TotalSeconds}"
+                                            Minimum="15" Maximum="1800"
+                                            TickFrequency="5" IsSnapToTickEnabled="True"
+                                            SmallChange="5" LargeChange="30"
+                                            Foreground="{DynamicResource TabAccentBrush}"
+                                            ToolTip.Tip="How long the finished take runs, from 15 seconds to 30 minutes. There is no per-clip ceiling here: the chain keeps going for as many segments as this needs."/>
+                                    <Button Content="♪ Match the song"
+                                            Command="{Binding MatchSongLengthCommand}"
+                                            Height="26" Padding="8,0" FontSize="11" Margin="0,6,0,0"
+                                            Background="{StaticResource SurfaceAltBrush}" Foreground="{DynamicResource TabAccentBrush}"
+                                            BorderBrush="{StaticResource BorderBrush}" BorderThickness="1"
+                                            ToolTip.Tip="Sets the running time to the loaded track's own length, so the take ends when the song does."/>
+                                </StackPanel>
+
+                                <StackPanel Grid.Column="2">
+                                    <TextBlock Text="Segment length" FontSize="10"
+                                               Foreground="{StaticResource TextSecondaryBrush}" Margin="0,0,0,4"/>
+                                    <Border Background="{StaticResource SurfaceAltBrush}" BorderBrush="{StaticResource BorderBrush}"
+                                            BorderThickness="1" CornerRadius="4" Padding="0,5" Margin="0,0,0,6">
+                                        <TextBlock Text="{Binding SegmentSeconds, StringFormat={}{0:0} s}"
+                                                   HorizontalAlignment="Center" FontFamily="Consolas"
+                                                   FontSize="15" FontWeight="Bold"
+                                                   Foreground="{DynamicResource TabAccentBrush}"/>
+                                    </Border>
+                                    <Slider Value="{Binding SegmentSeconds}"
+                                            Minimum="4" Maximum="15"
+                                            TickFrequency="1" IsSnapToTickEnabled="True"
+                                            Foreground="{DynamicResource TabAccentBrush}"
+                                            ToolTip.Tip="How much video one H3 pass produces — the model's own limit. Shorter segments mean more of them, and one more seam to carry motion across each time."/>
+                                </StackPanel>
+                            </Grid>
+
+                            <TextBlock Text="{Binding PlanSummary}"
+                                       FontSize="10" Foreground="{StaticResource TextMutedBrush}" FontStyle="Italic"
+                                       TextWrapping="Wrap"/>
+                        </StackPanel>
+                    </Border>
+
+                    <!-- Story + lyrics -->
+                    <Border Theme="{StaticResource SectionCardStyle}">
+                        <StackPanel>
+                            <ctrl:SectionHeader Title="WHAT THE TAKE SHOWS" Margin="0,0,0,10"/>
+
+                            <TextBlock Text="Story (optional)" FontSize="10"
+                                       Foreground="{StaticResource TextSecondaryBrush}" Margin="0,0,0,4"/>
+                            <TextBox Text="{Binding StoryGuidance}"
+                                     TextWrapping="Wrap" AcceptsReturn="True"
+                                     Height="76" ScrollViewer.VerticalScrollBarVisibility="Auto" Margin="0,0,0,10"
+                                     BorderBrush="{StaticResource BorderBrush}" Background="{StaticResource SurfaceAltBrush}"
+                                     FontSize="11" Padding="6"
+                                     ToolTip.Tip="What happens across the whole take, beginning to end. Left empty, Analyze invents a performance that suits the references."/>
+
+                            <TextBlock Text="Lyrics (optional)" FontSize="10"
+                                       Foreground="{StaticResource TextSecondaryBrush}" Margin="0,0,0,4"/>
+                            <TextBox Text="{Binding Lyrics}"
+                                     TextWrapping="Wrap" AcceptsReturn="True"
+                                     Height="96" ScrollViewer.VerticalScrollBarVisibility="Auto" Margin="0,0,0,6"
+                                     BorderBrush="{StaticResource BorderBrush}" Background="{StaticResource SurfaceAltBrush}"
+                                     FontSize="11" Padding="6"
+                                     ToolTip.Tip="Paste the song's words here. The llama-server cannot hear the track, so this is the only way it can write real lyrics into the &lt;d&gt;[English] …&lt;/d&gt; tags and hand them out across the segments in order. Left empty, the segments describe the performance and quote nothing."/>
+
+                            <StackPanel Orientation="Horizontal">
+                                <Button Content="🔍 Analyze → Chain Plan"
+                                        Command="{Binding AnalyzeCommand}"
+                                        IsEnabled="{Binding CanAnalyze}"
+                                        Height="32" Padding="14,0" FontSize="11"
+                                        Theme="{StaticResource AccentButtonStyle}"
+                                        ToolTip.Tip="Sends both reference images, the story and the lyrics to the llama-server with h3chain.md, and writes one H3 plan per segment — subject_definitions, summary, retention_analysis, detailed_description, soundscape and score — split by &quot;=== SEGMENT n of N ===&quot; headers. Unlike the other MiniMax tabs the model IS shown the references here, because the plan format has to spell the wardrobe out in words."/>
+                                <TextBlock FontStyle="Italic" FontSize="11" VerticalAlignment="Center" Margin="8,0,0,0"
+                                           Text="Analyzing…" Foreground="{DynamicResource TabAccentBrush}" IsVisible="{Binding IsAnalyzing}"/>
+                            </StackPanel>
+                        </StackPanel>
+                    </Border>
+
+                    <!-- Chain plan text -->
+                    <Border Theme="{StaticResource SectionCardStyle}">
+                        <StackPanel>
+                            <ctrl:SectionHeader Title="CHAIN PLAN" Note="  · one plan per segment"/>
+                            <TextBox Text="{Binding Prompt}"
+                                     TextWrapping="Wrap" AcceptsReturn="True"
+                                     Height="260" ScrollViewer.VerticalScrollBarVisibility="Auto"
+                                     BorderBrush="{StaticResource BorderBrush}" Background="{StaticResource SurfaceAltBrush}"
+                                     FontSize="11" Padding="8"/>
+
+                            <TextBlock Text="{Binding PromptSegmentSummary}"
+                                       FontSize="10" FontWeight="SemiBold" Margin="0,6,0,0"
+                                       Foreground="{DynamicResource TabAccentBrush}" TextWrapping="Wrap"/>
+
+                            <TextBlock Text="This box is what gets submitted. Split on its &quot;=== SEGMENT n of N ===&quot; headers, one entry per segment goes into a single chain plan — so deleting a segment or adding a header here changes the video, not just the preview."
+                                       FontSize="10" Foreground="{StaticResource TextMutedBrush}" FontStyle="Italic"
+                                       TextWrapping="Wrap" Margin="0,6,0,0"/>
+                        </StackPanel>
+                    </Border>
+
+                    <!-- Settings -->
+                    <Border Background="White" BorderBrush="{StaticResource BorderBrush}" BorderThickness="1"
+                            CornerRadius="8" Padding="14">
+                        <StackPanel>
+                            <ctrl:SectionHeader Title="SETTINGS" Margin="0,0,0,10"/>
+
+                            <TextBlock Text="Aspect ratio" FontSize="10" Foreground="{StaticResource TextSecondaryBrush}" Margin="0,0,0,4"/>
+                            <ComboBox ItemsSource="{Binding AspectRatioOptions}"
+                                      SelectedItem="{Binding SelectedAspectRatio}"
+                                      Height="30" FontSize="11" Margin="0,0,0,4"/>
+                            <TextBlock Text="{Binding ResolvedAspectRatio, StringFormat=→ {0}}"
+                                       FontSize="10" Foreground="{StaticResource TextMutedBrush}" FontStyle="Italic" Margin="0,0,0,10"/>
+
+                            <TextBlock Text="Canvas size" FontSize="10" Foreground="{StaticResource TextSecondaryBrush}" Margin="0,0,0,4"/>
+                            <ComboBox ItemsSource="{Binding MegapixelOptions}"
+                                      DisplayMemberBinding="{Binding Label}"
+                                      SelectedValueBinding="{Binding Value}"
+                                      SelectedValue="{Binding Megapixels}"
+                                      Height="30" FontSize="11" Margin="0,0,0,4"
+                                      ToolTip.Tip="A chain multiplies its canvas cost by the segment count, so the default is the workflow's own 960×544 rather than the single-clip tabs' 1.0 MP."/>
+                            <TextBlock Text="{Binding CanvasSummary}"
+                                       FontSize="10" Foreground="{StaticResource TextMutedBrush}" FontStyle="Italic"
+                                       TextWrapping="Wrap" Margin="0,0,0,10"/>
+
+                            <TextBlock Text="Motion carried across each seam" FontSize="10" Foreground="{StaticResource TextSecondaryBrush}" Margin="0,0,0,4"/>
+                            <ComboBox ItemsSource="{Binding ContextLengthOptions}"
+                                      DisplayMemberBinding="{Binding Label}"
+                                      SelectedValueBinding="{Binding Value}"
+                                      SelectedValue="{Binding ContextLength}"
+                                      Height="30" FontSize="11" Margin="0,0,0,10"
+                                      ToolTip.Tip="How many frames of the previous segment are regenerated at the head of the next one so motion continues through the join. They are trimmed back off afterwards, so this costs render time rather than running time. 22 is the tested default."/>
+
+                            <TextBlock Text="Steps per segment" FontSize="10" Foreground="{StaticResource TextSecondaryBrush}" Margin="0,0,0,4"/>
+                            <Slider Value="{Binding Steps}"
+                                    Minimum="1" Maximum="40"
+                                    TickFrequency="1" IsSnapToTickEnabled="True"
+                                    Foreground="{DynamicResource TabAccentBrush}" Margin="0,0,0,2"
+                                    ToolTip.Tip="The workflow ships the 4-step lightx2v turbo LoRA, so 5 is the intended figure. Raising it costs render time on every segment of the chain."/>
+                            <TextBlock Text="{Binding Steps, StringFormat={}{0} steps · turbo LoRA is loaded}"
+                                       FontSize="10" FontFamily="Consolas" Foreground="{StaticResource TextSecondaryBrush}"
+                                       Margin="0,0,0,10"/>
+
+                            <TextBlock Text="Base seed (-1 = random)" FontSize="10" Foreground="{StaticResource TextSecondaryBrush}" Margin="0,0,0,4"/>
+                            <Grid>
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*"/>
+                                    <ColumnDefinition Width="Auto"/>
+                                </Grid.ColumnDefinitions>
+                                <TextBox Grid.Column="0"
+                                         Text="{Binding BaseSeed}"
+                                         Height="30" Padding="6,0" VerticalContentAlignment="Center"
+                                         BorderBrush="{StaticResource BorderBrush}" Background="{StaticResource SurfaceAltBrush}"
+                                         FontSize="12" FontFamily="Consolas" Margin="0,0,6,0"
+                                         ToolTip.Tip="Every segment's own seed is derived from this, so the same base always renders the same chain — which is also what lets a resumed chain pick up the sequence it was already rendering."/>
+                                <Button Grid.Column="1" Content="🎲"
+                                        Command="{Binding RandomSeedCommand}"
+                                        Height="30" Width="36" FontSize="14"
+                                        Background="{StaticResource SurfaceAltBrush}" Foreground="{DynamicResource TabAccentBrush}"
+                                        BorderBrush="{StaticResource BorderBrush}" BorderThickness="1"/>
+                            </Grid>
+                        </StackPanel>
+                    </Border>
+
+                </StackPanel>
+            </ScrollViewer>
+        </Border>
+
+        <!-- ═══ RIGHT PANEL ══════════════════════════════════════════════ -->
+        <ScrollViewer Grid.Column="1" VerticalScrollBarVisibility="Auto">
+        <Grid>
+            <Grid.RowDefinitions>
+                <RowDefinition Height="240"/>  <!-- Reference strip -->
+                <RowDefinition Height="3"/>    <!-- Progress bar -->
+                <RowDefinition Height="Auto"/> <!-- Status row -->
+                <RowDefinition Height="Auto"/> <!-- Action buttons -->
+                <RowDefinition Height="Auto"/> <!-- Queue -->
+                <RowDefinition Height="Auto"/> <!-- Result output -->
+                <RowDefinition Height="Auto"/> <!-- Log -->
+            </Grid.RowDefinitions>
+
+            <!-- ─── Reference strip ──────────────────────────────────────── -->
+            <Border Grid.Row="0" Background="{StaticResource PlayerSurfaceBrush}">
+                <Grid>
+                    <StackPanel HorizontalAlignment="Center" VerticalAlignment="Center" IsVisible="{Binding HasReference1, Converter={StaticResource InverseBoolConverter}}">
+                        <Border Width="64" Height="64" CornerRadius="14" Background="{StaticResource PlayerSurfaceRaisedBrush}"
+                                BorderBrush="{StaticResource TextSecondaryBrush}" BorderThickness="1"
+                                HorizontalAlignment="Center" Margin="0,0,0,10">
+                            <TextBlock Text="🎵" FontSize="28" HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                        </Border>
+                        <TextBlock Text="MiniMax H3 · Autoregressive Chain" FontSize="13" FontWeight="SemiBold"
+                                   Foreground="{StaticResource PlayerTextBrush}" HorizontalAlignment="Center" Margin="0,0,0,4"/>
+                        <TextBlock Text="Two references + a song → one continuous take, as long as you ask for"
+                                   FontSize="11" Foreground="{StaticResource PlayerTextBrush}" HorizontalAlignment="Center"/>
+                    </StackPanel>
+
+                    <Grid IsVisible="{Binding HasReference1}"
+                          Margin="10">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="*"/>
+                            <ColumnDefinition Width="*"/>
+                            <ColumnDefinition Width="*"/>
+                        </Grid.ColumnDefinitions>
+
+                        <StackPanel Grid.Column="0" Margin="0,0,6,0">
+                            <Image Source="{Binding Reference1Preview, Converter={StaticResource PathToBitmapConverter}}" Stretch="Uniform" Height="176"/>
+                            <TextBlock Text="Face · &lt;Picture 1&gt;" HorizontalAlignment="Center" Margin="0,6,0,0"
+                                       FontSize="10" Foreground="{StaticResource PlayerTextBrush}"/>
+                        </StackPanel>
+
+                        <StackPanel Grid.Column="1" Margin="6,0"
+                                    IsVisible="{Binding HasReference2}">
+                            <Image Source="{Binding Reference2Preview, Converter={StaticResource PathToBitmapConverter}}" Stretch="Uniform" Height="176"/>
+                            <TextBlock Text="Body · &lt;Picture 2&gt;" HorizontalAlignment="Center" Margin="0,6,0,0"
+                                       FontSize="10" Foreground="{StaticResource PlayerTextBrush}"/>
+                        </StackPanel>
+
+                        <StackPanel Grid.Column="2" Margin="6,0,0,0" VerticalAlignment="Center"
+                                    IsVisible="{Binding HasAudio}">
+                            <TextBlock Text="♪" FontSize="52" HorizontalAlignment="Center"
+                                       Foreground="{StaticResource PlayerTextBrush}"/>
+                            <TextBlock Text="{Binding AudioInfo}" HorizontalAlignment="Center" Margin="0,6,0,0"
+                                       FontSize="11" FontFamily="Consolas" Foreground="{StaticResource PlayerTextBrush}"/>
+                            <TextBlock Text="{Binding PlanSummary}" HorizontalAlignment="Center" Margin="6,6,6,0"
+                                       TextAlignment="Center" TextWrapping="Wrap"
+                                       FontSize="10" Foreground="{StaticResource PlayerTextBrush}"/>
+                        </StackPanel>
+                    </Grid>
+                </Grid>
+            </Border>
+
+            <!-- ─── Progress bar ──────────────────────────────────────── -->
+            <ProgressBar Grid.Row="1"
+                         Value="{Binding ProcessingProgress, Mode=OneWay}"
+                         Foreground="{DynamicResource TabAccentBrush}" BorderThickness="0"
+                         IsVisible="{Binding IsProcessing}"/>
+
+            <!-- ─── Status row ────────────────────────────────────────── -->
+            <Border Grid.Row="2" Theme="{StaticResource ToolStripStyle}"
+                    BorderThickness="0,1,0,0" Padding="12,5">
+                <Grid>
+                    <StackPanel Orientation="Horizontal">
+                        <Ellipse Width="5" Height="5" VerticalAlignment="Center" Margin="0,0,7,0" Classes.on="{Binding IsProcessing}">
+                            <Ellipse.Styles>
+                                <Style Selector="Ellipse">
+                                    <Setter Property="Fill" Value="{StaticResource TextPrimaryBrush}"/>
+                                </Style>
+                                <Style Selector="Ellipse.on">
+                                    <Setter Property="Fill" Value="{DynamicResource TabAccentBrush}"/>
+                                </Style>
+                            </Ellipse.Styles>
+                        </Ellipse>
+                        <TextBlock Text="{Binding ProcessingStatus}"
+                                   FontSize="11" Foreground="{StaticResource TextSecondaryBrush}"
+                                   VerticalAlignment="Center" TextTrimming="CharacterEllipsis"/>
+                    </StackPanel>
+                    <TextBlock HorizontalAlignment="Right" VerticalAlignment="Center"
+                               Text="{Binding ProgressPercentage, Mode=OneWay}"
+                               FontSize="11" FontWeight="Bold" Foreground="{DynamicResource TabAccentBrush}"
+                               FontFamily="Consolas"
+                               IsVisible="{Binding IsProcessing}"/>
+                </Grid>
+            </Border>
+
+            <!-- ─── Action Buttons ────────────────────────────────────── -->
+            <Border Grid.Row="3" Theme="{StaticResource ToolStripStyle}"
+                    BorderThickness="0,1,0,0" Padding="10,8">
+                <Grid>
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="*"/>
+                        <ColumnDefinition Width="Auto"/>
+                    </Grid.ColumnDefinitions>
+
+                    <Button Grid.Column="0" Margin="0,0,8,0" Height="40"
+                            Command="{Binding GenerateCommand}"
+                            IsEnabled="{Binding CanGenerate}"
+                            Theme="{StaticResource AccentButtonStyle}"
+                            FontSize="12" FontWeight="Bold" BorderThickness="0"
+                            ToolTip.Tip="Snapshots the references, the soundtrack and every segment plan into ONE queue item and starts it. The whole chain is a single ComfyUI submission — it renders every segment, carries motion across each seam, and assembles and muxes the finished take itself.">
+                        <StackPanel Orientation="Horizontal">
+                            <TextBlock Text="♾️ " VerticalAlignment="Center"/>
+                            <TextBlock Text="Queue Chain &amp; Generate" VerticalAlignment="Center"/>
+                        </StackPanel>
+                    </Button>
+
+                    <Button Grid.Column="1" Height="40" Width="82"
+                            Command="{Binding CancelCommand}"
+                            IsEnabled="{Binding IsProcessingQueue}"
+                            Theme="{StaticResource DangerButtonStyle}"
+                            FontSize="11"
+                            ToolTip.Tip="Stops the chain currently on the GPU. Segments already rendered stay checkpointed — ⏩ Resume picks the chain back up from the first one missing.">
+                        <StackPanel Orientation="Horizontal">
+                            <TextBlock Text="✕ " VerticalAlignment="Center"/>
+                            <TextBlock Text="Cancel" VerticalAlignment="Center"/>
+                        </StackPanel>
+                    </Button>
+                </Grid>
+            </Border>
+
+            <!-- ─── Queue ─────────────────────────────────────────────────
+                 One row is one whole video, not one clip of it. -->
+            <Border Grid.Row="4" Background="{StaticResource SurfaceAltBrush}"
+                    BorderBrush="{StaticResource BorderBrush}" BorderThickness="0,1,0,0" Padding="12,8"
+                    IsVisible="{Binding HasQueueItems}">
+                <StackPanel>
+                    <Grid Margin="0,0,0,6">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="Auto"/>
+                            <ColumnDefinition Width="*"/>
+                            <ColumnDefinition Width="Auto"/>
+                            <ColumnDefinition Width="Auto"/>
+                            <ColumnDefinition Width="Auto"/>
+                            <ColumnDefinition Width="Auto"/>
+                        </Grid.ColumnDefinitions>
+                        <TextBlock Grid.Column="0" Text="♾️ Chain Queue"
+                                   FontWeight="Bold" FontSize="12" Foreground="{DynamicResource TabAccentBrush}"
+                                   VerticalAlignment="Center" Margin="0,0,10,0"/>
+                        <TextBlock Grid.Column="1" Text="{Binding QueueStatus}"
+                                   FontStyle="Italic" Foreground="{StaticResource TextSecondaryBrush}" FontSize="11"
+                                   VerticalAlignment="Center" TextTrimming="CharacterEllipsis"/>
+                        <Button Grid.Column="2" Content="▶ Start"
+                                Command="{Binding StartQueueCommand}"
+                                Height="26" Padding="8,0" FontSize="11" Margin="0,0,5,0"
+                                Theme="{StaticResource AccentButtonStyle}"
+                                ToolTip.Tip="Resume draining pending chains."/>
+                        <Button Grid.Column="3" Content="🔄 Retry"
+                                Command="{Binding ReprocessAllFailedCommand}"
+                                Height="26" Padding="8,0" FontSize="11" Margin="0,0,5,0"
+                                Theme="{StaticResource AccentButtonStyle}"
+                                ToolTip.Tip="Put every failed chain back to Pending and run it again from the top. To keep the segments it already rendered, use ⏩ Resume on the row instead."/>
+                        <Button Grid.Column="4" Content="⏹ Stop"
+                                Command="{Binding StopQueueCommand}"
+                                Height="26" Padding="8,0" FontSize="11" Margin="0,0,5,0"
+                                Theme="{StaticResource AccentButtonStyle}"/>
+                        <Button Grid.Column="5" Content="🗑️ Clear"
+                                Command="{Binding ClearQueueCommand}"
+                                Height="26" Padding="8,0" FontSize="11"
+                                Theme="{StaticResource AccentButtonStyle}"/>
+                    </Grid>
+
+                    <ItemsControl ItemsSource="{Binding Queue}">
+                        <ItemsControl.ItemTemplate>
+                            <DataTemplate>
+                                <Border BorderBrush="{StaticResource BorderBrush}" BorderThickness="1" CornerRadius="4"
+                                        Padding="8,5" Margin="0,0,0,3" Background="White">
+                                    <Grid>
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="Auto"/>
+                                            <ColumnDefinition Width="Auto"/>
+                                            <ColumnDefinition Width="*"/>
+                                            <ColumnDefinition Width="Auto"/>
+                                            <ColumnDefinition Width="Auto"/>
+                                        </Grid.ColumnDefinitions>
+                                        <Border Grid.Column="0" CornerRadius="3" Padding="6,2" Margin="0,0,8,0"
+                                                VerticalAlignment="Center"
+                                                Background="{Binding StatusColor}">
+                                            <TextBlock Text="{Binding StatusDisplay}" FontSize="10"
+                                                       FontWeight="SemiBold" Foreground="White"/>
+                                        </Border>
+                                        <Image Grid.Column="1" Source="{Binding QueueThumbnail, Converter={StaticResource PathToBitmapConverter}}"
+                                               Height="34" Stretch="Uniform" Margin="0,0,8,0"/>
+                                        <StackPanel Grid.Column="2" VerticalAlignment="Center">
+                                            <TextBlock Text="{Binding DisplayText}" FontWeight="SemiBold" FontSize="11"
+                                                       TextTrimming="CharacterEllipsis"/>
+                                            <TextBlock Text="{Binding PromptPreview}" FontSize="10"
+                                                       Foreground="{StaticResource TextSecondaryBrush}"
+                                                       TextTrimming="CharacterEllipsis"/>
+                                            <TextBlock Text="{Binding ErrorMessage}" FontSize="10"
+                                                       Foreground="{StaticResource DangerBrush}"
+                                                       TextTrimming="CharacterEllipsis"/>
+                                        </StackPanel>
+                                        <Button Grid.Column="3" Content="⏩"
+                                                Theme="{StaticResource SecondaryButtonStyle}"
+                                                Command="{Binding $parent[ItemsControl].DataContext.ResumeQueueItemCommand}"
+                                                CommandParameter="{Binding}"
+                                                VerticalAlignment="Center" Margin="0,0,4,0"
+                                                Width="26" Height="26" Padding="0" FontSize="10"
+                                                ToolTip.Tip="Resume this chain. Counts the segments already checkpointed on disk and restarts it at the first one missing, instead of re-rendering the whole take."/>
+                                        <Button Grid.Column="4" Content="✕"
+                                                Theme="{StaticResource SecondaryButtonStyle}"
+                                                Command="{Binding $parent[ItemsControl].DataContext.RemoveQueueItemCommand}"
+                                                CommandParameter="{Binding}"
+                                                VerticalAlignment="Center"
+                                                Width="26" Height="26" Padding="0" FontSize="10"/>
+                                    </Grid>
+                                </Border>
+                            </DataTemplate>
+                        </ItemsControl.ItemTemplate>
+                    </ItemsControl>
+                </StackPanel>
+            </Border>
+
+            <!-- ─── Result Output ──────────────────────────────────────── -->
+            <Border Grid.Row="5" Background="White" BorderBrush="{StaticResource BorderBrush}"
+                    BorderThickness="0,1,0,0" Padding="12,10">
+                <StackPanel>
+                    <TextBlock Text="🎥 Assembled Take" FontWeight="Bold" FontSize="13"
+                               Foreground="{DynamicResource TabAccentBrush}" Margin="0,0,0,8"/>
+
+                    <Border BorderBrush="{StaticResource BorderBrush}" BorderThickness="1" Background="{StaticResource PlayerSurfaceBrush}"
+                            Height="200" CornerRadius="6" Margin="0,0,0,8">
+                        <Grid>
+                            <TextBlock Text="The joined take appears here once the last segment lands"
+                                       HorizontalAlignment="Center" VerticalAlignment="Center"
+                                       Foreground="{StaticResource PlayerTextBrush}" FontStyle="Italic" IsVisible="{Binding HasResult, Converter={StaticResource InverseBoolConverter}}"/>
+                            <controls:VideoPreview x:Name="H3ChainVideoPlayer" Source="{Binding ResultVideoPath}" IsVisible="{Binding HasResult}"/>
+                        </Grid>
+                    </Border>
+
+                    <StackPanel Orientation="Horizontal" Margin="0,0,0,6">
+                        <Button Content="▶ Play" Theme="{StaticResource PrimaryButtonStyle}"
+                                Command="{Binding PlayVideoCommand}"
+                                IsEnabled="{Binding HasResult}" Margin="0,0,8,0"/>
+                        <Button Content="📁 Open Folder" Theme="{StaticResource SecondaryButtonStyle}"
+                                Command="{Binding OpenResultFolderCommand}"
+                                IsEnabled="{Binding HasResult}"/>
+                    </StackPanel>
+                    <TextBlock Text="{Binding ResultVideoInfo}"
+                               FontStyle="Italic" Foreground="#666" FontSize="11"/>
+                </StackPanel>
+            </Border>
+
+            <!-- ─── Log ───────────────────────────────────────────────── -->
+            <ctrl:ProcessingLogPanel Grid.Row="6" LogText="{Binding LogOutput}" MaxLogHeight="130"/>
+
+        </Grid>
+        </ScrollViewer>
+    </Grid>
+
+</UserControl>

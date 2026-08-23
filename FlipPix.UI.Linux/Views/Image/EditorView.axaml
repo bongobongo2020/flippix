@@ -1,0 +1,500 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:controls="clr-namespace:FlipPix.UI.Linux.Controls"
+             x:Class="FlipPix.UI.Linux.Views.Image.EditorView">
+
+    <!-- Ported from ImageGeneratorWindow.xaml lines 3911-4418 ("✏️ Editor").
+      -->
+
+    <DockPanel>
+        <Border DockPanel.Dock="Top" Background="{StaticResource AppBackgroundBrush}" Padding="15,10,15,6">
+            <StackPanel Orientation="Horizontal">
+                <RadioButton Content="🖌 Paint mask" GroupName="EditorMode" Theme="{StaticResource GroupPillStyle}"
+                             IsChecked="{Binding IsPaintEditor, Mode=OneWay}"
+                             Command="{Binding SelectEditorModeCommand}" CommandParameter="0"/>
+                <RadioButton Content="🪄 Auto-detect" GroupName="EditorMode" Theme="{StaticResource GroupPillStyle}"
+                             IsChecked="{Binding IsAutoDetectEditor, Mode=OneWay}"
+                             Command="{Binding SelectEditorModeCommand}" CommandParameter="1"/>
+            </StackPanel>
+        </Border>
+        <Grid>
+        <Grid IsVisible="{Binding IsPaintEditor}">
+        <Grid.ColumnDefinitions>
+            <ColumnDefinition Width="*"/>
+            <ColumnDefinition Width="12"/>
+            <ColumnDefinition Width="*"/>
+        </Grid.ColumnDefinitions>
+
+        <!-- LEFT: Source image + mask painting -->
+        <ScrollViewer Grid.Column="0" VerticalScrollBarVisibility="Auto">
+            <StackPanel Margin="15,12,8,12">
+
+                <!-- Upload section -->
+                <Border Theme="{StaticResource SectionPanelStyle}" Margin="0,0,0,10">
+                    <StackPanel>
+                        <TextBlock Text="Source Image" Theme="{StaticResource HeaderTextStyle}"/>
+                        <Grid>
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="*"/>
+                                <ColumnDefinition Width="8"/>
+                                <ColumnDefinition Width="Auto"/>
+                            </Grid.ColumnDefinitions>
+                            <Border Grid.Column="0" BorderBrush="{StaticResource BorderBrush}" BorderThickness="1" CornerRadius="4"
+                                    Background="White" Padding="8,6">
+                                <TextBlock Text="{Binding InpaintEditor.SourceImagePath, FallbackValue='No image selected'}"
+                                           Foreground="{StaticResource TextSecondaryBrush}" FontSize="12" VerticalAlignment="Center"
+                                           TextTrimming="CharacterEllipsis"/>
+                            </Border>
+                            <Button Grid.Column="2" Content="📂 Browse"
+                                    Command="{Binding InpaintEditor.BrowseImageCommand}"
+                                    Theme="{StaticResource SecondaryButtonStyle}"
+                                    Background="{StaticResource BrandBrush}" Padding="14,8"/>
+                        </Grid>
+                    </StackPanel>
+                </Border>
+
+                <!-- Canvas: source image + mask painting overlay -->
+                <Border Theme="{StaticResource SectionPanelStyle}" Margin="0,0,0,10" Padding="8">
+                    <StackPanel>
+                        <TextBlock Text="Paint Mask" Theme="{StaticResource HeaderTextStyle}" Margin="0,0,0,6"/>
+                        <TextBlock Text="Paint over the area you want to edit. Red strokes = inpaint region."
+                                   FontSize="11" Foreground="{StaticResource TextSecondaryBrush}" Margin="0,0,0,8"/>
+
+                        <!-- Brush controls -->
+                        <StackPanel Orientation="Horizontal" Margin="0,0,0,8">
+                            <TextBlock Text="Brush:" FontSize="12" VerticalAlignment="Center" Margin="0,0,6,0"/>
+                            <Slider x:Name="BrushSizeSlider"
+                                    Minimum="5" Maximum="120"
+                                    Value="{Binding InpaintEditor.BrushSize, Mode=TwoWay}"
+                                    Width="140" VerticalAlignment="Center"/>
+                            <TextBlock Text="{Binding InpaintEditor.BrushSize, StringFormat='  {0}px'}"
+                                       FontSize="12" VerticalAlignment="Center" Foreground="{StaticResource TextSecondaryBrush}"/>
+                            <Button Content="🗑️ Clear Mask" Click="ClearMask_Click"
+                                    Theme="{StaticResource SecondaryButtonStyle}"
+                                    Background="{StaticResource DangerBrush}" Padding="10,6" Margin="12,0,0,0" FontSize="12"/>
+                        </StackPanel>
+
+                        <!-- Image + InkCanvas layered in a Grid -->
+                        <Border BorderBrush="{StaticResource BorderBrush}" BorderThickness="1" CornerRadius="4"
+                                Background="{StaticResource PlayerSurfaceBrush}" Height="420" ClipToBounds="True">
+                            <Grid>
+                                <!-- Source image -->
+                                <Image x:Name="EditorSourceImage"
+                                       Source="{Binding InpaintEditor.SourceImageSource, Converter={StaticResource PathToBitmapConverter}}"
+                                       Stretch="Uniform"
+                                       RenderOptions.BitmapInterpolationMode="HighQuality"/>
+
+                                <!-- Placeholder when no image loaded -->
+                                <StackPanel HorizontalAlignment="Center" VerticalAlignment="Center"
+                                            IsVisible="{Binding InpaintEditor.NoSourceImage}">
+                                    <TextBlock Text="📷" FontSize="48" HorizontalAlignment="Center"/>
+                                    <TextBlock Text="Browse an image to start" FontSize="14"
+                                               Foreground="{StaticResource PlayerTextBrush}" HorizontalAlignment="Center" Margin="0,8,0,0"/>
+                                </StackPanel>
+
+                                <!-- Mask painter (transparent bg, red strokes). Avalonia has no
+                                     InkCanvas, so this is FlipPix's own: same drag-to-paint, and it
+                                     rasterizes the strokes at the source image's resolution. -->
+                                <controls:MaskPaintCanvas x:Name="MaskInkCanvas"
+                                                          BrushSize="{Binding InpaintEditor.BrushSize}"
+                                                          IsEnabled="{Binding InpaintEditor.HasSourceImage}"/>
+                            </Grid>
+                        </Border>
+                    </StackPanel>
+                </Border>
+
+                <!-- Prompt section -->
+                <Border Theme="{StaticResource SectionPanelStyle}" Margin="0,0,0,10">
+                    <StackPanel>
+                        <TextBlock Text="Edit Prompt" Theme="{StaticResource HeaderTextStyle}"/>
+                        <TextBox Text="{Binding InpaintEditor.Prompt}"
+                                 MinHeight="70" MaxHeight="120"
+                                 TextWrapping="Wrap" AcceptsReturn="True"
+                                 ScrollViewer.VerticalScrollBarVisibility="Auto"
+                                 FontSize="13" Padding="8"
+                                 BorderBrush="{StaticResource BorderBrush}" BorderThickness="1"/>
+                    </StackPanel>
+                </Border>
+
+                <!-- Generate button + progress -->
+                <Border Theme="{StaticResource SectionPanelStyle}">
+                    <StackPanel>
+                        <Button Content="⚡ Generate Inpaint"
+                                Click="RunInpaint_Click"
+                                Theme="{StaticResource PrimaryButtonStyle}"
+                                IsEnabled="{Binding InpaintEditor.CanGenerate}"
+                                Padding="20,12" FontSize="14" HorizontalAlignment="Stretch"/>
+
+                        <!-- Progress -->
+                        <StackPanel Margin="0,12,0,0"
+                                    IsVisible="{Binding InpaintEditor.IsProcessing}">
+                            <Grid Margin="0,0,0,4">
+                                <TextBlock Text="{Binding InpaintEditor.StatusMessage}" FontSize="12" Foreground="{StaticResource TextSecondaryBrush}"/>
+                                <TextBlock Text="{Binding InpaintEditor.ProgressText}" FontSize="12"
+                                           Foreground="{StaticResource AccentIndigoBrush}" FontWeight="SemiBold" HorizontalAlignment="Right"/>
+                            </Grid>
+                            <ProgressBar Value="{Binding InpaintEditor.Progress}" Maximum="100" Height="8"
+                                         Foreground="{StaticResource AccentIndigoBrush}" Background="#E5E7EB"/>
+                        </StackPanel>
+
+                        <!-- Status message -->
+                        <TextBlock Text="{Binding InpaintEditor.StatusMessage}"
+                                   FontSize="12" Foreground="{StaticResource TextSecondaryBrush}" Margin="0,8,0,0"
+                                   TextWrapping="Wrap"/>
+                    </StackPanel>
+                </Border>
+            </StackPanel>
+        </ScrollViewer>
+
+        <!-- Splitter -->
+        <GridSplitter Grid.Column="1" Width="2" HorizontalAlignment="Stretch" Background="#DEE2E6"/>
+
+        <!-- RIGHT: Result -->
+        <ScrollViewer Grid.Column="2" VerticalScrollBarVisibility="Auto">
+            <StackPanel Margin="8,12,15,12">
+
+                <!-- Result image -->
+                <Border Theme="{StaticResource SectionPanelStyle}" Margin="0,0,0,10" Padding="8">
+                    <StackPanel>
+                        <TextBlock Text="Result" Theme="{StaticResource HeaderTextStyle}"/>
+
+                        <!-- Result image display -->
+                        <Border BorderBrush="{StaticResource BorderBrush}" BorderThickness="1" CornerRadius="4"
+                                Background="{StaticResource PlayerSurfaceBrush}" Height="420" ClipToBounds="True">
+                            <Grid>
+                                <Image Source="{Binding InpaintEditor.ResultImageSource, Converter={StaticResource PathToBitmapConverter}}"
+                                       Stretch="Uniform"
+                                       RenderOptions.BitmapInterpolationMode="HighQuality"/>
+                                <StackPanel HorizontalAlignment="Center" VerticalAlignment="Center"
+                                            IsVisible="{Binding InpaintEditor.NoResult}">
+                                    <TextBlock Text="🖼️" FontSize="48" HorizontalAlignment="Center"/>
+                                    <TextBlock Text="Result will appear here" FontSize="14"
+                                               Foreground="{StaticResource PlayerTextBrush}" HorizontalAlignment="Center" Margin="0,8,0,0"/>
+                                </StackPanel>
+                            </Grid>
+                        </Border>
+                    </StackPanel>
+                </Border>
+
+                <!-- Result actions -->
+                <Border Theme="{StaticResource SectionPanelStyle}" Margin="0,0,0,10">
+                    <StackPanel>
+                        <TextBlock Text="Output" Theme="{StaticResource HeaderTextStyle}"/>
+                        <TextBlock Text="{Binding InpaintEditor.ResultImagePath, FallbackValue='—'}"
+                                   FontSize="11" Foreground="{StaticResource TextSecondaryBrush}" TextTrimming="CharacterEllipsis"
+                                   Margin="0,0,0,10"/>
+                        <StackPanel Orientation="Horizontal">
+                            <Button Content="📁 Open Folder"
+                                    Command="{Binding InpaintEditor.OpenResultFolderCommand}"
+                                    Theme="{StaticResource SecondaryButtonStyle}"
+                                    Background="{StaticResource BrandBrush}" Padding="12,8" FontSize="12" Margin="0,0,8,0"/>
+                            <Button Content="🖼️ Open Image"
+                                    Command="{Binding InpaintEditor.OpenResultImageCommand}"
+                                    Theme="{StaticResource SecondaryButtonStyle}"
+                                    Background="{StaticResource SuccessBrush}" Padding="12,8" FontSize="12"/>
+                        </StackPanel>
+                    </StackPanel>
+                </Border>
+
+                <!-- Log -->
+                <Border Background="{StaticResource PlayerSurfaceBrush}" BorderBrush="#374151" BorderThickness="1" CornerRadius="6" Padding="10">
+                    <StackPanel>
+                        <TextBlock Text="Log" FontSize="12" FontWeight="SemiBold" Foreground="{StaticResource PlayerTextBrush}" Margin="0,0,0,6"/>
+                        <TextBox Text="{Binding InpaintEditor.LogOutput}"
+                                 IsReadOnly="True"
+                                 TextWrapping="Wrap"
+                                 ScrollViewer.VerticalScrollBarVisibility="Auto"
+                                 Background="{StaticResource PlayerSurfaceBrush}"
+                                 Foreground="{StaticResource PlayerTextBrush}"
+                                 BorderThickness="0"
+                                 FontFamily="Consolas"
+                                 FontSize="11"
+                                 Padding="4"
+                                 Height="200"/>
+                    </StackPanel>
+                </Border>
+            </StackPanel>
+        </ScrollViewer>
+    </Grid>
+        <Grid IsVisible="{Binding IsAutoDetectEditor}">
+        <Grid.ColumnDefinitions>
+            <ColumnDefinition Width="*"/>
+            <ColumnDefinition Width="12"/>
+            <ColumnDefinition Width="*"/>
+        </Grid.ColumnDefinitions>
+
+        <!-- LEFT: Controls -->
+        <ScrollViewer Grid.Column="0" VerticalScrollBarVisibility="Auto">
+            <StackPanel Margin="15,12,8,12">
+
+                <!-- Source Image -->
+                <Border Theme="{StaticResource SectionPanelStyle}" Margin="0,0,0,10">
+                    <StackPanel>
+                        <TextBlock Text="Source Image" Theme="{StaticResource HeaderTextStyle}"/>
+                        <Grid>
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="*"/>
+                                <ColumnDefinition Width="8"/>
+                                <ColumnDefinition Width="Auto"/>
+                            </Grid.ColumnDefinitions>
+                            <Border Grid.Column="0" BorderBrush="{StaticResource BorderBrush}" BorderThickness="1" CornerRadius="4"
+                                    Background="White" Padding="8,6">
+                                <TextBlock Text="{Binding KleinInpaintEditor.SourceImagePath, FallbackValue='No image selected'}"
+                                           Foreground="{StaticResource TextSecondaryBrush}" FontSize="12" VerticalAlignment="Center"
+                                           TextTrimming="CharacterEllipsis"/>
+                            </Border>
+                            <Button Grid.Column="2" Content="📂 Browse"
+                                    Command="{Binding KleinInpaintEditor.BrowseImageCommand}"
+                                    Theme="{StaticResource SecondaryButtonStyle}"
+                                    Background="{StaticResource BrandBrush}" Padding="14,8"/>
+                        </Grid>
+
+                        <!-- Source preview thumbnail -->
+                        <Border BorderBrush="{StaticResource BorderBrush}" BorderThickness="1" CornerRadius="4"
+                                Background="{StaticResource PlayerSurfaceBrush}" Height="240" Margin="0,10,0,0" ClipToBounds="True">
+                            <Grid>
+                                <Image Source="{Binding KleinInpaintEditor.SourceImageSource, Converter={StaticResource PathToBitmapConverter}}"
+                                       Stretch="Uniform" RenderOptions.BitmapInterpolationMode="HighQuality"/>
+                                <StackPanel HorizontalAlignment="Center" VerticalAlignment="Center"
+                                            IsVisible="{Binding KleinInpaintEditor.NoSourceImage}">
+                                    <TextBlock Text="📷" FontSize="40" HorizontalAlignment="Center"/>
+                                    <TextBlock Text="Upload an image to begin" FontSize="13"
+                                               Foreground="{StaticResource PlayerTextBrush}" HorizontalAlignment="Center" Margin="0,8,0,0"/>
+                                </StackPanel>
+                            </Grid>
+                        </Border>
+                    </StackPanel>
+                </Border>
+
+                <!-- Detect & Replace -->
+                <Border Theme="{StaticResource SectionPanelStyle}" Margin="0,0,0,10">
+                    <StackPanel>
+                        <TextBlock Text="Detect &amp; Replace" Theme="{StaticResource HeaderTextStyle}"/>
+
+                        <!-- Detection Target -->
+                        <TextBlock Text="What to detect" FontSize="12" FontWeight="SemiBold"
+                                   Foreground="{StaticResource TextPrimaryBrush}" Margin="0,4,0,4"/>
+                        <TextBlock Text="Florence2 + SAM2 will auto-segment this subject"
+                                   FontSize="11" Foreground="{StaticResource TextMutedBrush}" Margin="0,0,0,6"/>
+                        <!-- WPF painted the placeholder with a VisualBrush behind an empty box;
+                             Avalonia's TextBox has a Watermark for exactly this. -->
+                        <TextBox Text="{Binding KleinInpaintEditor.DetectionTarget}"
+                                 Watermark="e.g. face, person, cup, sky"
+                                 Height="36" FontSize="13" Padding="8,6"
+                                 BorderBrush="{StaticResource BorderBrush}" BorderThickness="1"
+                                 VerticalContentAlignment="Center"/>
+
+                        <!-- Prompt -->
+                        <TextBlock Text="Replace with" FontSize="12" FontWeight="SemiBold"
+                                   Foreground="{StaticResource TextPrimaryBrush}" Margin="0,12,0,4"/>
+                        <TextBlock Text="Describe what should appear in the detected area"
+                                   FontSize="11" Foreground="{StaticResource TextMutedBrush}" Margin="0,0,0,6"/>
+                        <TextBox Text="{Binding KleinInpaintEditor.Prompt}"
+                                 MinHeight="80" MaxHeight="140"
+                                 TextWrapping="Wrap" AcceptsReturn="True"
+                                 ScrollViewer.VerticalScrollBarVisibility="Auto"
+                                 FontSize="13" Padding="8"
+                                 BorderBrush="{StaticResource BorderBrush}" BorderThickness="1"/>
+                    </StackPanel>
+                </Border>
+
+                <!-- Generation Settings -->
+                <Border Theme="{StaticResource SectionPanelStyle}" Margin="0,0,0,10">
+                    <StackPanel>
+                        <TextBlock Text="Generation Settings" Theme="{StaticResource HeaderTextStyle}"/>
+
+                        <!-- Steps -->
+                        <Grid Margin="0,6,0,8">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="90"/>
+                                <ColumnDefinition Width="*"/>
+                                <ColumnDefinition Width="36"/>
+                            </Grid.ColumnDefinitions>
+                            <TextBlock Grid.Column="0" Text="Steps" FontSize="12" VerticalAlignment="Center" Foreground="{StaticResource TextPrimaryBrush}"/>
+                            <Slider Grid.Column="1" Minimum="1" Maximum="30"
+                                    Value="{Binding KleinInpaintEditor.Steps, Mode=TwoWay}"
+                                    VerticalAlignment="Center" TickFrequency="1" IsSnapToTickEnabled="True"/>
+                            <TextBlock Grid.Column="2" Text="{Binding KleinInpaintEditor.Steps}"
+                                       FontSize="12" FontWeight="SemiBold" VerticalAlignment="Center"
+                                       Foreground="{StaticResource AccentVioletBrush}" HorizontalAlignment="Right"/>
+                        </Grid>
+
+                        <!-- CFG -->
+                        <Grid Margin="0,0,0,8">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="90"/>
+                                <ColumnDefinition Width="*"/>
+                                <ColumnDefinition Width="36"/>
+                            </Grid.ColumnDefinitions>
+                            <TextBlock Grid.Column="0" Text="CFG" FontSize="12" VerticalAlignment="Center" Foreground="{StaticResource TextPrimaryBrush}"/>
+                            <Slider Grid.Column="1" Minimum="1" Maximum="10"
+                                    Value="{Binding KleinInpaintEditor.Cfg, Mode=TwoWay}"
+                                    VerticalAlignment="Center" TickFrequency="0.5" IsSnapToTickEnabled="False"/>
+                            <TextBlock Grid.Column="2" Text="{Binding KleinInpaintEditor.CfgText}"
+                                       FontSize="12" FontWeight="SemiBold" VerticalAlignment="Center"
+                                       Foreground="{StaticResource AccentVioletBrush}" HorizontalAlignment="Right"/>
+                        </Grid>
+
+                        <!-- Denoise -->
+                        <Grid Margin="0,0,0,8">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="90"/>
+                                <ColumnDefinition Width="*"/>
+                                <ColumnDefinition Width="36"/>
+                            </Grid.ColumnDefinitions>
+                            <TextBlock Grid.Column="0" Text="Denoise" FontSize="12" VerticalAlignment="Center" Foreground="{StaticResource TextPrimaryBrush}"/>
+                            <Slider Grid.Column="1" Minimum="0" Maximum="1"
+                                    Value="{Binding KleinInpaintEditor.Denoise, Mode=TwoWay}"
+                                    VerticalAlignment="Center"/>
+                            <TextBlock Grid.Column="2" Text="{Binding KleinInpaintEditor.DenoiseText}"
+                                       FontSize="12" FontWeight="SemiBold" VerticalAlignment="Center"
+                                       Foreground="{StaticResource AccentVioletBrush}" HorizontalAlignment="Right"/>
+                        </Grid>
+
+                        <!-- LoRA Strength -->
+                        <Grid Margin="0,0,0,0">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="90"/>
+                                <ColumnDefinition Width="*"/>
+                                <ColumnDefinition Width="36"/>
+                            </Grid.ColumnDefinitions>
+                            <TextBlock Grid.Column="0" Text="LoRA" FontSize="12" VerticalAlignment="Center" Foreground="{StaticResource TextPrimaryBrush}"/>
+                            <Slider Grid.Column="1" Minimum="0" Maximum="4"
+                                    Value="{Binding KleinInpaintEditor.LoraStrength, Mode=TwoWay}"
+                                    VerticalAlignment="Center"/>
+                            <TextBlock Grid.Column="2" Text="{Binding KleinInpaintEditor.LoraStrengthText}"
+                                       FontSize="12" FontWeight="SemiBold" VerticalAlignment="Center"
+                                       Foreground="{StaticResource AccentVioletBrush}" HorizontalAlignment="Right"/>
+                        </Grid>
+
+                        <!-- Models (collapsible) -->
+                        <Expander Header="Models" Margin="0,10,0,0" FontSize="12"
+                                  Foreground="{StaticResource TextSecondaryBrush}" IsExpanded="False">
+                            <StackPanel Margin="0,8,0,0">
+                                <TextBlock Text="UNET" FontSize="11" Foreground="{StaticResource TextSecondaryBrush}" Margin="0,0,0,2"/>
+                                <TextBox Text="{Binding KleinInpaintEditor.UnetName}"
+                                         Height="30" FontSize="11" Padding="6,4"
+                                         BorderBrush="{StaticResource BorderBrush}" BorderThickness="1" Margin="0,0,0,8"
+                                         FontFamily="Consolas"/>
+                                <TextBlock Text="LoRA" FontSize="11" Foreground="{StaticResource TextSecondaryBrush}" Margin="0,0,0,2"/>
+                                <TextBox Text="{Binding KleinInpaintEditor.LoraName}"
+                                         Height="30" FontSize="11" Padding="6,4"
+                                         BorderBrush="{StaticResource BorderBrush}" BorderThickness="1"
+                                         FontFamily="Consolas"/>
+                            </StackPanel>
+                        </Expander>
+                    </StackPanel>
+                </Border>
+
+                <!-- Generate -->
+                <Border Theme="{StaticResource SectionPanelStyle}">
+                    <StackPanel>
+                        <Button Content="⚡ Generate"
+                                Command="{Binding KleinInpaintEditor.GenerateCommand}"
+                                Theme="{StaticResource PrimaryButtonStyle}"
+                                Background="{StaticResource BrandBrush}"
+                                IsEnabled="{Binding KleinInpaintEditor.CanGenerate}"
+                                Padding="20,12" FontSize="14" HorizontalAlignment="Stretch"/>
+
+                        <StackPanel Margin="0,12,0,0"
+                                    IsVisible="{Binding KleinInpaintEditor.IsProcessing}">
+                            <Grid Margin="0,0,0,4">
+                                <TextBlock Text="{Binding KleinInpaintEditor.StatusMessage}"
+                                           FontSize="12" Foreground="{StaticResource TextSecondaryBrush}"/>
+                                <TextBlock Text="{Binding KleinInpaintEditor.ProgressText}"
+                                           FontSize="12" Foreground="{StaticResource AccentVioletBrush}" FontWeight="SemiBold"
+                                           HorizontalAlignment="Right"/>
+                            </Grid>
+                            <ProgressBar Value="{Binding KleinInpaintEditor.Progress}" Maximum="100" Height="8"
+                                         Foreground="{StaticResource AccentVioletBrush}" Background="#E5E7EB"/>
+                        </StackPanel>
+
+                        <TextBlock Text="{Binding KleinInpaintEditor.StatusMessage}"
+                                   FontSize="12" Foreground="{StaticResource TextSecondaryBrush}" Margin="0,8,0,0"
+                                   TextWrapping="Wrap"/>
+                    </StackPanel>
+                </Border>
+
+            </StackPanel>
+        </ScrollViewer>
+
+        <!-- Splitter -->
+        <GridSplitter Grid.Column="1" Width="2" HorizontalAlignment="Stretch" Background="#DEE2E6"/>
+
+        <!-- RIGHT: Result + Log -->
+        <ScrollViewer Grid.Column="2" VerticalScrollBarVisibility="Auto">
+            <StackPanel Margin="8,12,15,12">
+
+                <!-- Pipeline info badge -->
+                <Border Background="#F3F0FF" BorderBrush="{StaticResource BorderBrush}" BorderThickness="1" CornerRadius="6"
+                        Padding="12,8" Margin="0,0,0,10">
+                    <StackPanel>
+                        <TextBlock Text="Klein Flux 2 — Auto Inpaint" FontSize="12" FontWeight="SemiBold"
+                                   Foreground="{StaticResource AccentVioletBrush}"/>
+                        <TextBlock FontSize="11" Foreground="#6D28D9" Margin="0,4,0,0" TextWrapping="Wrap">
+                            Florence2 detects the subject → SAM2 creates a precise mask → Klein model replaces it seamlessly
+                        </TextBlock>
+                    </StackPanel>
+                </Border>
+
+                <!-- Result image -->
+                <Border Theme="{StaticResource SectionPanelStyle}" Margin="0,0,0,10" Padding="8">
+                    <StackPanel>
+                        <TextBlock Text="Result" Theme="{StaticResource HeaderTextStyle}"/>
+                        <Border BorderBrush="{StaticResource BorderBrush}" BorderThickness="1" CornerRadius="4"
+                                Background="{StaticResource PlayerSurfaceBrush}" Height="420" ClipToBounds="True">
+                            <Grid>
+                                <Image Source="{Binding KleinInpaintEditor.ResultImageSource, Converter={StaticResource PathToBitmapConverter}}"
+                                       Stretch="Uniform" RenderOptions.BitmapInterpolationMode="HighQuality"/>
+                                <StackPanel HorizontalAlignment="Center" VerticalAlignment="Center"
+                                            IsVisible="{Binding KleinInpaintEditor.NoResult}">
+                                    <TextBlock Text="🖼️" FontSize="48" HorizontalAlignment="Center"/>
+                                    <TextBlock Text="Result will appear here" FontSize="14"
+                                               Foreground="{StaticResource PlayerTextBrush}" HorizontalAlignment="Center" Margin="0,8,0,0"/>
+                                </StackPanel>
+                            </Grid>
+                        </Border>
+                    </StackPanel>
+                </Border>
+
+                <!-- Actions -->
+                <Border Theme="{StaticResource SectionPanelStyle}" Margin="0,0,0,10">
+                    <StackPanel>
+                        <TextBlock Text="Output" Theme="{StaticResource HeaderTextStyle}"/>
+                        <TextBlock Text="{Binding KleinInpaintEditor.ResultImagePath, FallbackValue='—'}"
+                                   FontSize="11" Foreground="{StaticResource TextSecondaryBrush}" TextTrimming="CharacterEllipsis"
+                                   Margin="0,0,0,10"/>
+                        <StackPanel Orientation="Horizontal">
+                            <Button Content="📁 Open Folder"
+                                    Command="{Binding KleinInpaintEditor.OpenResultFolderCommand}"
+                                    Theme="{StaticResource SecondaryButtonStyle}"
+                                    Background="{StaticResource BrandBrush}" Padding="12,8" FontSize="12" Margin="0,0,8,0"/>
+                            <Button Content="🖼️ Open Image"
+                                    Command="{Binding KleinInpaintEditor.OpenResultImageCommand}"
+                                    Theme="{StaticResource SecondaryButtonStyle}"
+                                    Background="{StaticResource SuccessBrush}" Padding="12,8" FontSize="12"/>
+                        </StackPanel>
+                    </StackPanel>
+                </Border>
+
+                <!-- Log -->
+                <Border Background="{StaticResource PlayerSurfaceBrush}" BorderBrush="#374151" BorderThickness="1" CornerRadius="6" Padding="10">
+                    <StackPanel>
+                        <TextBlock Text="Log" FontSize="12" FontWeight="SemiBold" Foreground="{StaticResource PlayerTextBrush}" Margin="0,0,0,6"/>
+                        <TextBox Text="{Binding KleinInpaintEditor.LogOutput}"
+                                 IsReadOnly="True" TextWrapping="Wrap"
+                                 ScrollViewer.VerticalScrollBarVisibility="Auto"
+                                 Background="{StaticResource PlayerSurfaceBrush}" Foreground="{StaticResource PlayerTextBrush}"
+                                 BorderThickness="0" FontFamily="Consolas"
+                                 FontSize="11" Padding="4" Height="200"/>
+                    </StackPanel>
+                </Border>
+
+            </StackPanel>
+        </ScrollViewer>
+
+    </Grid>
+        </Grid>
+    </DockPanel>
+
+</UserControl>

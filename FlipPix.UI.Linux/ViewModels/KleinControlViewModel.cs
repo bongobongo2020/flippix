@@ -748,13 +748,13 @@ namespace FlipPix.UI.Linux.ViewModels
         private void OpenResultFolder()
         {
             if (!string.IsNullOrEmpty(ResultImagePath) && File.Exists(ResultImagePath))
-                Process.Start("explorer.exe", $"/select,\"{ResultImagePath}\"");
+                DesktopIntegration.RevealInFileManager(ResultImagePath);
         }
 
         private void OpenResultImage()
         {
             if (!string.IsNullOrEmpty(ResultImagePath) && File.Exists(ResultImagePath))
-                Process.Start(new ProcessStartInfo(ResultImagePath) { UseShellExecute = true });
+                DesktopIntegration.OpenFile(ResultImagePath);
         }
 
         private static string StripThinkingTokens(string text)

@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Linq;
 using System.Windows;
 using System.Windows.Input;
@@ -49,7 +49,6 @@ namespace FlipPix.UI
             // MediaElement.Source silently fails to load the Z:\ output paths (black frame, no
             // MediaOpened/MediaFailed). Set an absolute Uri explicitly instead.
             _viewModel.ErosConvRotVM.PropertyChanged += ErosConvRotVM_PropertyChanged;
-            _viewModel.MiniMaxFflfVM.PropertyChanged += MiniMaxFflfVM_PropertyChanged;
         }
 
         private void OnLoaded(object sender, RoutedEventArgs e)
@@ -58,7 +57,6 @@ namespace FlipPix.UI
             // Pick up a video that was already loaded before this window's handlers wired up.
             ApplyScail2RefSource();
             ApplyErosConvRotSource();
-            ApplyMiniMaxFflfSource();
         }
 
         private void Header_MouseLeftButtonDown(object sender, MouseButtonEventArgs e)
@@ -75,10 +73,10 @@ namespace FlipPix.UI
                 Scail2VideoPlayer.Play();
             }
 
-            if (MiniMaxH3VideoPlayer != null && MiniMaxH3VideoPlayer.Source != null)
+            if (MiniMaxI2VVideoPlayer != null && MiniMaxI2VVideoPlayer.Source != null)
             {
-                MiniMaxH3VideoPlayer.Position = System.TimeSpan.Zero;
-                MiniMaxH3VideoPlayer.Play();
+                MiniMaxI2VVideoPlayer.Position = System.TimeSpan.Zero;
+                MiniMaxI2VVideoPlayer.Play();
             }
 
             if (MiniMaxCharacterVideoPlayer != null && MiniMaxCharacterVideoPlayer.Source != null)
@@ -120,57 +118,6 @@ namespace FlipPix.UI
 
         // WAN processes the clip in 81-frame chunks; the timeline marks each boundary.
         private const int ScailChunkFrames = 81;
-
-        private void MiniMaxFflfVM_PropertyChanged(object? sender, System.ComponentModel.PropertyChangedEventArgs e)
-        {
-            if (e.PropertyName != nameof(ViewModels.Video.MiniMaxFflfSeedHuntViewModel.ActivePreviewUri)) return;
-            if (Dispatcher.CheckAccess()) ApplyMiniMaxFflfSource();
-            else Dispatcher.Invoke(ApplyMiniMaxFflfSource);
-        }
-
-        private void ApplyMiniMaxFflfSource()
-        {
-            var p = MiniMaxFflfPlayer;
-            if (p == null) return;
-            var path = _viewModel.MiniMaxFflfVM.ActivePreviewUri;
-            if (string.IsNullOrEmpty(path))
-            {
-                p.Stop();
-                p.Source = null;
-                return;
-            }
-
-            // Always build an ABSOLUTE Uri — see ApplyErosConvRotSource for why a Binding won't do.
-            Uri target;
-            try { target = new Uri(System.IO.Path.GetFullPath(path), UriKind.Absolute); }
-            catch { target = new Uri(path, UriKind.RelativeOrAbsolute); }
-
-            if (string.Equals(p.Source?.OriginalString, target.OriginalString, StringComparison.OrdinalIgnoreCase))
-            {
-                p.Position = System.TimeSpan.Zero;
-                p.Play();
-                return;
-            }
-            p.Stop();
-            p.Source = target; // MediaOpened handler starts playback.
-        }
-
-        private void MiniMaxFflfPlayer_MediaOpened(object sender, RoutedEventArgs e)
-        {
-            _viewModel.MiniMaxFflfVM.ReportPreviewOpened(MiniMaxFflfPlayer.Source?.OriginalString ?? "");
-            MiniMaxFflfPlayer.Play();
-        }
-
-        private void MiniMaxFflfPlayer_MediaEnded(object sender, RoutedEventArgs e)
-        {
-            MiniMaxFflfPlayer.Position = System.TimeSpan.FromMilliseconds(1);
-            MiniMaxFflfPlayer.Play();
-        }
-
-        private void MiniMaxFflfPlayer_MediaFailed(object sender, ExceptionRoutedEventArgs e)
-        {
-            _viewModel.MiniMaxFflfVM.ReportPreviewFailed(e.ErrorException?.Message ?? "unknown media error");
-        }
 
         private void ErosConvRotVM_PropertyChanged(object? sender, System.ComponentModel.PropertyChangedEventArgs e)
         {
@@ -448,9 +395,9 @@ namespace FlipPix.UI
             ErosConvRotPlayer?.Stop();
             Scail2RefVideoPlayer?.Stop();
             Scail2VideoPlayer?.Stop();
-            MiniMaxH3VideoPlayer?.Stop();
+            MiniMaxI2VVideoPlayer?.Stop();
+            MiniMaxFflfVideoPlayer?.Stop();
             MiniMaxCharacterVideoPlayer?.Stop();
-            MiniMaxFflfPlayer?.Stop();
             H3ChainVideoPlayer?.Stop();
         }
 

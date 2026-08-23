@@ -197,6 +197,8 @@ namespace FlipPix.UI.ViewModels
         // --- Krea2 LoRA fields (loaded from the <loras>/krea2 subfolder) ---
         private ObservableCollection<string> _kreaLoras = new();
         private ObservableCollection<KreaLoraSelection> _selectedKreaLoras = new();
+        // Remembers the per-LoRA trigger words prepended to the prompt (shared with the other tabs).
+        private KreaLoraTriggerTracker? _kreaTriggers;
         private string _kreaLoraSubfolder = "krea2";
 
         public ObservableCollection<string> KreaLoras
@@ -211,7 +213,7 @@ namespace FlipPix.UI.ViewModels
         public ObservableCollection<KreaLoraSelection> SelectedKreaLoras
         {
             get => _selectedKreaLoras;
-            set { if (_selectedKreaLoras != value) { _selectedKreaLoras = value; OnPropertyChanged(); } }
+            set { if (_selectedKreaLoras != value) { _selectedKreaLoras = value; _kreaTriggers?.Track(_selectedKreaLoras); OnPropertyChanged(); } }
         }
 
         public ICommand RefreshKreaLorasCommand { get; private set; } = null!;
@@ -357,6 +359,8 @@ namespace FlipPix.UI.ViewModels
                 async () => await AnalyzeImageWithQwenVLAsync(),
                 () => !string.IsNullOrEmpty(InputImagePath) && File.Exists(InputImagePath) && !IsAnalyzingImage);
             RefreshZLorasCommand = new CommunityToolkit.Mvvm.Input.RelayCommand(RefreshZLoras);
+            _kreaTriggers = new KreaLoraTriggerTracker(_settingsService, AddLog);
+            _kreaTriggers.Track(_selectedKreaLoras);
             RefreshKreaLorasCommand = new CommunityToolkit.Mvvm.Input.RelayCommand(RefreshKreaLoras);
             AddKreaLoraCommand = new CommunityToolkit.Mvvm.Input.RelayCommand(AddKreaLora);
             RemoveKreaLoraCommand = new CommunityToolkit.Mvvm.Input.RelayCommand<KreaLoraSelection>(RemoveKreaLora, (item) => item != null);
@@ -870,8 +874,10 @@ namespace FlipPix.UI.ViewModels
 
             var workflowJson = await File.ReadAllTextAsync(workflowPath, cancellationToken);
 
-            // Node 6 - CLIPTextEncode (positive prompt)
-            WorkflowNodeUpdater.UpdateNodeInput(ref workflowJson, "6", "text", item.Prompt);
+            // Node 6 - CLIPTextEncode (positive prompt), with the LoRAs' trigger words in front of it
+            // (a Krea2 LoRA only fires when its trigger word is in the prompt).
+            var prompt = ImageGeneratorViewModel.ApplyKreaLoraTriggers(item.Prompt, SelectedKreaLoras, AddLog);
+            WorkflowNodeUpdater.UpdateNodeInput(ref workflowJson, "6", "text", prompt);
             // Node 27 - ClownsharKSampler_Beta (seed only; turbo steps/cfg fixed in workflow)
             WorkflowNodeUpdater.UpdateNodeInput(ref workflowJson, "27", "seed", Random.Shared.NextInt64(0, long.MaxValue));
             // Node 10 - EmptyLatentImage: pin a fixed portrait size, overriding the workflow's

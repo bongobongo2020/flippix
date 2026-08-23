@@ -82,3 +82,5 @@ logs/
 taskscompleted.md
 tasksdone.md
 switcher
+# Python bytecode from the tools/ scripts
+__pycache__/

@@ -1,0 +1,283 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:controls="clr-namespace:FlipPix.UI.Linux.Controls"
+             xmlns:ctrl="clr-namespace:FlipPix.UI.Linux.Controls"
+             x:Class="FlipPix.UI.Linux.Views.Video.ErosConvRotView">
+
+    <!-- Ported from VideoGeneratorWindow.xaml lines 495-774 ("🎭 10Eros ConvRot").
+         DataContext is the window's ErosConvRotVM. -->
+
+    <Grid Theme="{StaticResource TabPageStyle}">
+        <Grid.Resources>
+            <SolidColorBrush x:Key="TabAccentBrush" Color="{StaticResource AccentRoseColor}"/>
+        </Grid.Resources>
+        <Grid.ColumnDefinitions>
+            <ColumnDefinition Width="340"/>
+            <ColumnDefinition Width="*"/>
+        </Grid.ColumnDefinitions>
+
+        <!-- ═══ LEFT PANEL · Inputs ════════════════════════════════════ -->
+        <Border Grid.Column="0" Theme="{StaticResource TabSideRailStyle}">
+            <ScrollViewer VerticalScrollBarVisibility="Auto">
+                <StackPanel Margin="12">
+
+                    <!-- Intro -->
+                    <Border Theme="{StaticResource IntroBannerStyle}">
+                        <StackPanel>
+                            <TextBlock Text="🎭 10Eros ConvRot" Theme="{StaticResource IntroTitleStyle}"/>
+                            <TextBlock Theme="{StaticResource IntroBodyStyle}"
+                                       Text="Upload one photo → build a 4-panel character sheet with Krea 2 → type an action (Analyze to fold in the character's look) → generate 4 seed previews → Upscale the chosen seed(s) at full resolution. The character sheet is the reference the LTX FaceID model is trained on."/>
+                        </StackPanel>
+                    </Border>
+
+                    <!-- Workflow selector -->
+                    <Border Theme="{StaticResource SectionCardStyle}">
+                        <StackPanel>
+                            <ctrl:SectionHeader Title="WORKFLOW"/>
+                            <ComboBox ItemsSource="{Binding WorkflowOptions}" SelectedItem="{Binding SelectedWorkflow, Mode=TwoWay}"
+                                      Height="30"/>
+                        </StackPanel>
+                    </Border>
+
+                    <!-- Source photo -->
+                    <Border Theme="{StaticResource SectionCardStyle}">
+                        <StackPanel>
+                            <ctrl:SectionHeader Title="SOURCE PHOTO"/>
+                            <Border Height="150" Theme="{StaticResource PreviewFrameStyle}">
+                                <Grid>
+                                    <TextBlock Text="none" Theme="{StaticResource PlaceholderTextStyle}"
+                                               IsVisible="{Binding HasImage, Converter={StaticResource InverseBoolConverter}}"/>
+                                    <Image Source="{Binding ImagePreview, Converter={StaticResource PathToBitmapConverter}}" Stretch="Uniform" Margin="4"/>
+                                </Grid>
+                            </Border>
+                            <TextBlock Text="{Binding ImageInfo}" FontSize="9" Foreground="{StaticResource TextSecondaryBrush}" Margin="0,0,0,6"/>
+                            <Button Content="📁 Choose Source Photo" Command="{Binding SelectImageCommand}"
+                                    Height="28" Theme="{StaticResource AccentButtonStyle}"/>
+                            <CheckBox Content="This photo is already a character sheet (skip Krea 2)"
+                                      IsChecked="{Binding UseSourceAsSheet, Mode=TwoWay}"
+                                      Foreground="{StaticResource TextSecondaryBrush}" FontSize="10" Margin="0,8,0,0"/>
+                        </StackPanel>
+                    </Border>
+
+                    <!-- Character sheet (Krea 2) -->
+                    <Border Theme="{StaticResource SectionCardStyle}"
+                            IsVisible="{Binding UseSourceAsSheet, Converter={StaticResource InverseBoolConverter}}">
+                        <StackPanel>
+                            <ctrl:SectionHeader Title="CHARACTER SHEET"/>
+                            <Border Height="120" Theme="{StaticResource PreviewFrameStyle}">
+                                <Grid>
+                                    <TextBlock Text="not built yet" Theme="{StaticResource PlaceholderTextStyle}"
+                                               IsVisible="{Binding HasSheet, Converter={StaticResource InverseBoolConverter}}"/>
+                                    <Image Source="{Binding SheetPreview, Converter={StaticResource PathToBitmapConverter}}" Stretch="Uniform" Margin="4"/>
+                                </Grid>
+                            </Border>
+                            <Button Content="🎨 Build Character Sheet (Krea 2)" Command="{Binding BuildSheetCommand}"
+                                    Height="30" Theme="{StaticResource AccentButtonStyle}"
+                                    ToolTip.Tip="Turn the source photo into a 4-panel character reference sheet (close-up face + full-body front/side/back at 1536×1024) using the Krea 2 edit workflow — the reference the LTX FaceID checkpoint expects."/>
+                        </StackPanel>
+                    </Border>
+
+                    <!-- Prompt -->
+                    <Border Theme="{StaticResource SectionCardStyle}">
+                        <StackPanel>
+                            <ctrl:SectionHeader Title="ACTION PROMPT"/>
+                            <TextBox Text="{Binding Prompt, Mode=TwoWay}"
+                                     TextWrapping="Wrap" AcceptsReturn="True" MinHeight="90" MaxHeight="200"
+                                     ScrollViewer.VerticalScrollBarVisibility="Auto" Padding="6"
+                                     FontSize="11" Foreground="{StaticResource TextPrimaryBrush}"
+                                     ToolTip.Tip="Describe the scene/action. The character's identity comes from the face reference (FaceID), so you only need the action."/>
+                            <Button Content="✨ Analyze — fold appearance into prompt" Command="{Binding AnalyzeCommand}"
+                                    Height="28" Margin="0,8,0,0" Theme="{StaticResource AccentButtonStyle}"
+                                    ToolTip.Tip="Send the face image + your draft prompt to the LLM to merge the character's visible appearance into the caption."/>
+                        </StackPanel>
+                    </Border>
+
+                    <!-- Settings -->
+                    <Border Theme="{StaticResource SectionCardStyle}">
+                        <StackPanel>
+                            <ctrl:SectionHeader Title="SETTINGS"/>
+                            <TextBlock Text="Duration (seconds)" FontSize="10" Foreground="{StaticResource TextSecondaryBrush}" Margin="0,0,0,2"/>
+                            <TextBox Text="{Binding LengthSeconds, Mode=TwoWay}"
+                                     Height="26" Padding="6,3"                                                         FontSize="11" Foreground="{StaticResource TextPrimaryBrush}" Margin="0,0,0,8"/>
+                            <TextBlock Text="Base seed (blank = random each run)" FontSize="10" Foreground="{StaticResource TextSecondaryBrush}" Margin="0,0,0,2"/>
+                            <Grid>
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*"/>
+                                    <ColumnDefinition Width="Auto"/>
+                                </Grid.ColumnDefinitions>
+                                <TextBox Grid.Column="0" Text="{Binding BaseSeed, Mode=TwoWay}"
+                                         Height="26" Padding="6,3"                                                             FontSize="11" Foreground="{StaticResource TextPrimaryBrush}"/>
+                                <Button Grid.Column="1" Content="🎲" Command="{Binding RandomSeedCommand}"
+                                        Width="30" Height="26" Margin="6,0,0,0" Theme="{StaticResource AccentButtonStyle}"
+                                        BorderThickness="0" ToolTip.Tip="New random base seed"/>
+                            </Grid>
+                            <TextBlock Text="Samples use base, base+1, base+2, base+3." FontSize="9"
+                                       Foreground="{StaticResource TextMutedBrush}" Margin="0,4,0,0"/>
+                        </StackPanel>
+                    </Border>
+
+                </StackPanel>
+            </ScrollViewer>
+        </Border>
+
+        <!-- ═══ RIGHT PANEL · Samples + player ═════════════════════════ -->
+        <Grid Grid.Column="1">
+            <Grid.RowDefinitions>
+                <RowDefinition Height="Auto"/> <!-- Sample tiles -->
+                <RowDefinition Height="*"/>    <!-- Player -->
+                <RowDefinition Height="Auto"/> <!-- Results strip -->
+                <RowDefinition Height="Auto"/> <!-- Progress -->
+                <RowDefinition Height="Auto"/> <!-- Action bar -->
+                <RowDefinition Height="Auto"/> <!-- Log -->
+            </Grid.RowDefinitions>
+
+            <!-- Sample tiles -->
+            <Border Grid.Row="0" Background="{StaticResource SurfaceAltBrush}" BorderBrush="{StaticResource BorderBrush}" BorderThickness="0,0,0,1" Padding="12,8">
+                <StackPanel>
+                    <TextBlock Text="SEED SAMPLES — click to preview, tick to queue for Upscale"
+                               FontSize="10" FontWeight="Bold" Foreground="{StaticResource TextSecondaryBrush}" Margin="0,0,0,6"/>
+                    <ListBox ItemsSource="{Binding Samples}"
+                             SelectedItem="{Binding SelectedSampleForPreview, Mode=TwoWay}"
+                             Background="Transparent" BorderThickness="0"
+                             ScrollViewer.HorizontalScrollBarVisibility="Disabled"
+                             ScrollViewer.VerticalScrollBarVisibility="Disabled">
+                        <ListBox.ItemsPanel>
+                            <ItemsPanelTemplate>
+                                <UniformGrid Rows="1" Columns="4"/>
+                            </ItemsPanelTemplate>
+                        </ListBox.ItemsPanel>
+                        <!-- WPF's ItemContainerStyle, as an Avalonia ControlTheme: the tile
+                             border, and the accent ring the selected sample gets. -->
+                        <ListBox.Styles>
+                            <Style Selector="ListBoxItem">
+                                <Setter Property="HorizontalContentAlignment" Value="Stretch"/>
+                                <Setter Property="VerticalContentAlignment" Value="Stretch"/>
+                                <Setter Property="Padding" Value="0"/>
+                                <Setter Property="Margin" Value="3"/>
+                                <Setter Property="Cursor" Value="Hand"/>
+                                <Setter Property="Template">
+                                    <ControlTemplate TargetType="ListBoxItem">
+                                        <Border Name="tile" CornerRadius="6" BorderThickness="2"
+                                                Background="{StaticResource SurfaceAltBrush}" BorderBrush="{StaticResource BorderBrush}">
+                                            <ContentPresenter Content="{TemplateBinding Content}"
+                                                              ContentTemplate="{TemplateBinding ContentTemplate}"/>
+                                        </Border>
+                                    </ControlTemplate>
+                                </Setter>
+                            </Style>
+                            <Style Selector="ListBoxItem:selected /template/ Border#tile">
+                                <Setter Property="BorderBrush" Value="{DynamicResource TabAccentBrush}"/>
+                            </Style>
+                        </ListBox.Styles>
+                        <ListBox.ItemTemplate>
+                            <DataTemplate>
+                                <Grid Height="96" Background="Transparent" ToolTip.Tip="Click to preview this sample">
+                                    <Image Source="{Binding ThumbnailImage, Converter={StaticResource PathToBitmapConverter}}" Stretch="Uniform"/>
+                                    <TextBlock Text="{Binding Label}" Foreground="{StaticResource TextSecondaryBrush}" FontSize="11" FontWeight="Bold"
+                                               IsHitTestVisible="False"
+                                               HorizontalAlignment="Left" VerticalAlignment="Top" Margin="6,4"
+                                               IsVisible="{Binding HasVideo, Converter={StaticResource InverseBoolConverter}}"/>
+                                    <Button Background="Transparent" BorderThickness="0" Cursor="Hand"
+                                            ToolTip.Tip="Click to preview this sample"
+                                            Command="{Binding $parent[ListBox].DataContext.PreviewSampleCommand}"
+                                            CommandParameter="{Binding}"
+                                            IsVisible="{Binding HasVideo}">
+                                        <Button.Template>
+                                            <ControlTemplate TargetType="Button">
+                                                <Border Background="Transparent"/>
+                                            </ControlTemplate>
+                                        </Button.Template>
+                                    </Button>
+                                    <CheckBox Content="Queue" IsChecked="{Binding IsSelected, Mode=TwoWay}"
+                                              Foreground="White" FontSize="10" FontWeight="Bold"
+                                              HorizontalAlignment="Right" VerticalAlignment="Bottom" Margin="6,4"
+                                              IsVisible="{Binding HasVideo}"/>
+                                    <TextBlock Text="{Binding Status}" Foreground="{StaticResource TextSecondaryBrush}" FontSize="9"
+                                               IsHitTestVisible="False"
+                                               HorizontalAlignment="Center" VerticalAlignment="Bottom" Margin="0,0,0,4"/>
+                                </Grid>
+                            </DataTemplate>
+                        </ListBox.ItemTemplate>
+                    </ListBox>
+                </StackPanel>
+            </Border>
+
+            <!-- Shared player -->
+            <Border Grid.Row="1" Margin="12" CornerRadius="6"
+                    Background="{StaticResource SurfaceAltBrush}" BorderBrush="{StaticResource BorderBrush}" BorderThickness="1">
+                <Grid>
+                    <TextBlock Text="Generate 4 samples, then click one to preview it here. The final upscaled video plays here after Upscale."
+                               HorizontalAlignment="Center" VerticalAlignment="Center" TextAlignment="Center"
+                               TextWrapping="Wrap" Margin="20,0" Foreground="{StaticResource TextMutedBrush}" FontStyle="Italic"
+                               IsVisible="{Binding HasActivePreview, Converter={StaticResource InverseBoolConverter}}"/>
+                    <!-- Source is set from code-behind (ApplyErosConvRotSource) as an ABSOLUTE Uri;
+                         a string {Binding} to MediaElement.Source silently fails on Z:\ output paths. -->
+                    <controls:VideoPreview x:Name="ErosConvRotPlayer" Source="{Binding ActivePreviewUri}"/>
+                </Grid>
+            </Border>
+
+            <!-- Results strip -->
+            <Border Grid.Row="2" Background="{StaticResource SurfaceAltBrush}" BorderBrush="{StaticResource BorderBrush}" BorderThickness="0,1,0,0" Padding="12,6"
+                    IsVisible="{Binding HasResult}">
+                <StackPanel>
+                    <TextBlock Text="FINISHED VIDEOS — click to replay" FontSize="10" FontWeight="Bold"
+                               Foreground="{StaticResource TextSecondaryBrush}" Margin="0,0,0,4"/>
+                    <ItemsControl ItemsSource="{Binding Results}">
+                        <ItemsControl.ItemsPanel>
+                            <ItemsPanelTemplate><StackPanel Orientation="Horizontal"/></ItemsPanelTemplate>
+                        </ItemsControl.ItemsPanel>
+                        <ItemsControl.ItemTemplate>
+                            <DataTemplate>
+                                <Button Command="{Binding $parent[ItemsControl].DataContext.PlayResultCommand}"
+                                        CommandParameter="{Binding}" Margin="0,0,8,0" Padding="10,4"
+                                        Theme="{StaticResource AccentButtonStyle}" Cursor="Hand">
+                                    <StackPanel>
+                                        <TextBlock Text="{Binding Label}" FontWeight="Bold" FontSize="11"/>
+                                        <TextBlock Text="{Binding Info}" FontSize="9" Foreground="#E6FFFFFF"/>
+                                    </StackPanel>
+                                </Button>
+                            </DataTemplate>
+                        </ItemsControl.ItemTemplate>
+                    </ItemsControl>
+                </StackPanel>
+            </Border>
+
+            <!-- Progress -->
+            <Grid Grid.Row="3" Margin="12,6,12,6">
+                <ProgressBar Height="6" Minimum="0" Maximum="100" Value="{Binding ProcessingProgress}"
+                             Background="{StaticResource SurfaceAltBrush}" Foreground="{DynamicResource TabAccentBrush}" BorderThickness="0"/>
+            </Grid>
+
+            <!-- Action bar -->
+            <Border Grid.Row="4" Background="{StaticResource SurfaceAltBrush}" BorderBrush="{StaticResource BorderBrush}" BorderThickness="0,1,0,0" Padding="12,8">
+                <StackPanel Orientation="Horizontal">
+                    <Button Content="🎯 Generate 4 Samples" Command="{Binding HuntCommand}"
+                            Height="32" Padding="16,0" Margin="0,0,8,0" FontWeight="Bold"
+                            Theme="{StaticResource AccentButtonStyle}"
+                            IsVisible="{Binding ShowReroll, Converter={StaticResource InverseBoolConverter}}"
+                            ToolTip.Tip="Generate 4 seed previews from the face reference and prompt."/>
+                    <Button Content="🎲 Reroll — new 4 seeds" Command="{Binding HuntCommand}"
+                            Height="32" Padding="14,0" Margin="0,0,8,0" FontWeight="Bold"
+                            Theme="{StaticResource AccentButtonStyle}"
+                            IsVisible="{Binding ShowReroll}"
+                            ToolTip.Tip="Don't like these? Regenerate 4 fresh previews with a new random seed."/>
+                    <Button Content="{Binding FinishButtonText}" Command="{Binding FinishCommand}"
+                            Height="32" Padding="14,0" Margin="0,0,8,0" FontWeight="Bold"
+                            Theme="{StaticResource SuccessButtonStyle}"/>
+                    <Button Content="✕ Cancel" Command="{Binding CancelCommand}"
+                            Height="32" Padding="12,0" Margin="0,0,8,0"
+                            Theme="{StaticResource DangerButtonStyle}"/>
+                    <Button Content="📁 Open Folder" Command="{Binding OpenResultFolderCommand}"
+                            IsEnabled="{Binding HasResult}" Height="32" Padding="12,0" Margin="0,0,8,0"
+                            Theme="{StaticResource AccentButtonStyle}"/>
+                    <TextBlock Text="{Binding ProcessingStatus}" VerticalAlignment="Center"
+                               FontStyle="Italic" Foreground="{DynamicResource TabAccentBrush}" FontSize="11" Margin="4,0,0,0"/>
+                </StackPanel>
+            </Border>
+
+            <!-- Log -->
+            <ctrl:ProcessingLogPanel Grid.Row="5" LogText="{Binding LogOutput}" MaxLogHeight="120"/>
+        </Grid>
+    </Grid>
+
+</UserControl>

@@ -59,6 +59,13 @@ public static class NodeCatalog
         // --- samplers / advanced ---
         ["ClownsharKSampler_Beta"] = "https://github.com/ClownsharkBatwing/RES4LYF",
 
+        // --- upscaling ---
+        // The tiling wrapper only; its DiT/VAE loaders come from the base SeedVR2 pack below.
+        ["SeedVR2TilingUpscaler"] = "https://github.com/moonwhaler/comfyui-seedvr2-tilingupscaler",
+        ["SeedVR2LoadDiTModel"] = "https://github.com/numz/ComfyUI-SeedVR2_VideoUpscaler",
+        ["SeedVR2LoadVAEModel"] = "https://github.com/numz/ComfyUI-SeedVR2_VideoUpscaler",
+        ["SeedVR2VideoUpscaler"] = "https://github.com/numz/ComfyUI-SeedVR2_VideoUpscaler",
+
         // --- metadata / saving ---
         ["Image Saver"] = "https://github.com/alexopus/ComfyUI-Image-Saver",
     };

@@ -1,6 +1,7 @@
 <Window xmlns="https://github.com/avaloniaui"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         xmlns:vm="clr-namespace:FlipPix.UI.Linux.ViewModels;assembly=FlipPix.UI.Linux"
+        xmlns:views="clr-namespace:FlipPix.UI.Linux.Views.Image"
         x:Class="FlipPix.UI.Linux.Windows.ImageGeneratorWindow"
         Title="FlipPix - Image Generator"
         Width="1050" Height="950"
@@ -969,6 +970,34 @@
             </TabItem>
 
             <!-- Log Tab -->
+            <!-- ═══ Tabs ported from the WPF window. It sorts them into Create / Edit /
+                 Advanced groups through IsCreateGroup and friends; this ViewModel has no such
+                 flags, so they are all simply shown. ═══ -->
+
+            <TabItem Header="📷 Amateur">
+                <views:AmateurView/>
+            </TabItem>
+
+            <TabItem Header="🎥 Camera Angle">
+                <views:CameraAngleView/>
+            </TabItem>
+
+            <TabItem Header="🔤 Ideogram">
+                <views:IdeogramView/>
+            </TabItem>
+
+            <TabItem Header="🧑‍🤝‍🧑 Qwen Edit">
+                <views:QwenEditView/>
+            </TabItem>
+
+            <TabItem Header="♻️ Restore">
+                <views:RestoreView/>
+            </TabItem>
+
+            <TabItem Header="🔍 Image Upscaler">
+                <views:ImageUpscalerView/>
+            </TabItem>
+
             <TabItem Header="📝 Log">
                 <ScrollViewer>
                     <TextBox Text="{Binding LogOutput}" IsReadOnly="True" AcceptsReturn="True"

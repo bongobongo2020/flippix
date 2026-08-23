@@ -1,0 +1,311 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:controls="clr-namespace:FlipPix.UI.Linux.Controls"
+             x:Class="FlipPix.UI.Linux.Views.Image.QwenEditView">
+
+    <!-- Ported from ImageGeneratorWindow.xaml lines 5291-5594 ("🧑‍🤝‍🧑 Qwen Edit").
+      -->
+
+    <Grid Margin="0">
+        <Grid.ColumnDefinitions>
+            <ColumnDefinition Width="*" MinWidth="340"/>
+            <ColumnDefinition Width="2"/>
+            <ColumnDefinition Width="*" MinWidth="340"/>
+        </Grid.ColumnDefinitions>
+
+        <!-- LEFT: inputs -->
+        <ScrollViewer Grid.Column="0" VerticalScrollBarVisibility="Auto">
+            <StackPanel Margin="15,12,8,12">
+
+                <!-- Pipeline badge -->
+                <Border Background="{StaticResource SurfaceAltBrush}" BorderBrush="#FBCFE8" BorderThickness="1" CornerRadius="6"
+                        Padding="12,8" Margin="0,0,0,12">
+                    <StackPanel>
+                        <TextBlock Text="🧑‍🤝‍🧑 Qwen Image Edit — Character Swap" FontSize="13" FontWeight="SemiBold"
+                                   Foreground="#BE185D"/>
+                        <TextBlock FontSize="11" Foreground="{StaticResource AccentRoseBrush}" Margin="0,4,0,0" TextWrapping="Wrap">
+                            Upload Character 1, Character 2 and a Base scene (always one man + one woman).
+                            Character 1 replaces the man, Character 2 replaces the woman. Click Analyze to
+                            let the VLM write the edit prompt, then edit it and click Generate.
+                        </TextBlock>
+                    </StackPanel>
+                </Border>
+
+                <!-- Character 1 -->
+                <Border Theme="{StaticResource SectionPanelStyle}" Margin="0,0,0,10" Padding="12">
+                    <StackPanel>
+                        <TextBlock Text="Character 1 → replaces the MAN" Theme="{StaticResource HeaderTextStyle}"/>
+                        <TextBlock Text="{Binding QwenEdit.Char1ImagePath, FallbackValue='No image selected'}"
+                                   FontSize="11" Foreground="{StaticResource TextSecondaryBrush}" TextTrimming="CharacterEllipsis" Margin="0,0,0,6"/>
+                        <Button Content="📂 Browse Character 1"
+                                Command="{Binding QwenEdit.BrowseChar1Command}"
+                                Theme="{StaticResource SecondaryButtonStyle}"
+                                Background="{StaticResource BrandBrush}" Padding="12,8" FontSize="12" Margin="0,0,0,8"/>
+                        <Border BorderBrush="{StaticResource BorderBrush}" BorderThickness="1" CornerRadius="4"
+                                Background="{StaticResource PlayerSurfaceBrush}" Height="170" ClipToBounds="True">
+                            <Grid>
+                                <Image Source="{Binding QwenEdit.Char1ImageSource, Converter={StaticResource PathToBitmapConverter}}"
+                                       Stretch="Uniform" RenderOptions.BitmapInterpolationMode="HighQuality"/>
+                                <StackPanel HorizontalAlignment="Center" VerticalAlignment="Center"
+                                            IsVisible="{Binding QwenEdit.NoChar1Image}">
+                                    <TextBlock Text="👨" FontSize="36" HorizontalAlignment="Center"/>
+                                    <TextBlock Text="Character 1 (man)" FontSize="12" Foreground="{StaticResource PlayerTextBrush}"
+                                               HorizontalAlignment="Center" Margin="0,6,0,0"/>
+                                </StackPanel>
+                            </Grid>
+                        </Border>
+                    </StackPanel>
+                </Border>
+
+                <!-- Character 2 -->
+                <Border Theme="{StaticResource SectionPanelStyle}" Margin="0,0,0,10" Padding="12">
+                    <StackPanel>
+                        <TextBlock Text="Character 2 → replaces the WOMAN" Theme="{StaticResource HeaderTextStyle}"/>
+                        <TextBlock Text="{Binding QwenEdit.Char2ImagePath, FallbackValue='No image selected'}"
+                                   FontSize="11" Foreground="{StaticResource TextSecondaryBrush}" TextTrimming="CharacterEllipsis" Margin="0,0,0,6"/>
+                        <Button Content="📂 Browse Character 2"
+                                Command="{Binding QwenEdit.BrowseChar2Command}"
+                                Theme="{StaticResource SecondaryButtonStyle}"
+                                Background="{StaticResource BrandBrush}" Padding="12,8" FontSize="12" Margin="0,0,0,8"/>
+                        <Border BorderBrush="{StaticResource BorderBrush}" BorderThickness="1" CornerRadius="4"
+                                Background="{StaticResource PlayerSurfaceBrush}" Height="170" ClipToBounds="True">
+                            <Grid>
+                                <Image Source="{Binding QwenEdit.Char2ImageSource, Converter={StaticResource PathToBitmapConverter}}"
+                                       Stretch="Uniform" RenderOptions.BitmapInterpolationMode="HighQuality"/>
+                                <StackPanel HorizontalAlignment="Center" VerticalAlignment="Center"
+                                            IsVisible="{Binding QwenEdit.NoChar2Image}">
+                                    <TextBlock Text="👩" FontSize="36" HorizontalAlignment="Center"/>
+                                    <TextBlock Text="Character 2 (woman)" FontSize="12" Foreground="{StaticResource PlayerTextBrush}"
+                                               HorizontalAlignment="Center" Margin="0,6,0,0"/>
+                                </StackPanel>
+                            </Grid>
+                        </Border>
+                    </StackPanel>
+                </Border>
+
+                <!-- Base scene -->
+                <Border Theme="{StaticResource SectionPanelStyle}" Margin="0,0,0,10" Padding="12">
+                    <StackPanel>
+                        <TextBlock Text="Base Scene (man + woman to replace)" Theme="{StaticResource HeaderTextStyle}"/>
+                        <TextBlock Text="{Binding QwenEdit.BaseImagePath, FallbackValue='No image selected'}"
+                                   FontSize="11" Foreground="{StaticResource TextSecondaryBrush}" TextTrimming="CharacterEllipsis" Margin="0,0,0,6"/>
+                        <Grid Margin="0,0,0,8">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="*"/>
+                                <ColumnDefinition Width="*"/>
+                            </Grid.ColumnDefinitions>
+                            <Button Grid.Column="0" Content="📂 Browse Image"
+                                    Command="{Binding QwenEdit.BrowseBaseCommand}"
+                                    Theme="{StaticResource SecondaryButtonStyle}"
+                                    Background="{StaticResource BrandBrush}" Padding="12,8" FontSize="12" Margin="0,0,4,0"/>
+                            <Button Grid.Column="1" Content="📹 Upload Video"
+                                    Command="{Binding QwenEdit.BrowseBaseVideoCommand}"
+                                    Theme="{StaticResource SecondaryButtonStyle}"
+                                    Background="{StaticResource BrandBrush}" Padding="12,8" FontSize="12" Margin="4,0,0,0"/>
+                        </Grid>
+
+                        <!-- Image preview (shown when no video is loaded) -->
+                        <Border BorderBrush="{StaticResource BorderBrush}" BorderThickness="1" CornerRadius="4"
+                                Background="{StaticResource PlayerSurfaceBrush}" Height="200" ClipToBounds="True"
+                                IsVisible="{Binding QwenEdit.NoBaseVideo}">
+                            <Grid>
+                                <Image Source="{Binding QwenEdit.BaseImageSource, Converter={StaticResource PathToBitmapConverter}}"
+                                       Stretch="Uniform" RenderOptions.BitmapInterpolationMode="HighQuality"/>
+                                <StackPanel HorizontalAlignment="Center" VerticalAlignment="Center"
+                                            IsVisible="{Binding QwenEdit.NoBaseImage}">
+                                    <TextBlock Text="🖼️" FontSize="36" HorizontalAlignment="Center"/>
+                                    <TextBlock Text="Base scene with a man and a woman" FontSize="12" Foreground="{StaticResource PlayerTextBrush}"
+                                               HorizontalAlignment="Center" Margin="0,6,0,0"/>
+                                </StackPanel>
+                            </Grid>
+                        </Border>
+
+                        <!-- Video scrub + snap (shown when a video is loaded) -->
+                        <StackPanel IsVisible="{Binding QwenEdit.HasBaseVideo}">
+                            <Border BorderBrush="{StaticResource BorderBrush}" BorderThickness="1" CornerRadius="4"
+                                    Background="{StaticResource PlayerSurfaceBrush}" Height="200" ClipToBounds="True">
+                                <controls:VideoPreview x:Name="QwenBaseVideoPlayer" Source="{Binding QwenEdit.BaseVideoFileUri}"
+                                                       PosterAtSeconds="{Binding #QwenBaseScrubSlider.Value}"/>
+                            </Border>
+                            <!-- WPF scrubs a live MediaElement. Avalonia has no in-process video,
+                                 so the slider drives the poster frame instead: the still under the
+                                 playhead is exactly what Snap &amp; Send captures. -->
+                            <Slider x:Name="QwenBaseScrubSlider" Margin="0,6,0,0"
+                                    Minimum="0" Maximum="{Binding #QwenBaseVideoPlayer.DurationSeconds}"
+                                    SmallChange="0.04" LargeChange="0.5"
+                                    IsSnapToTickEnabled="False"
+                                    ToolTip.Tip="Pick the frame of the base scene to edit"/>
+                            <Grid Margin="0,6,0,0">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="Auto"/>
+                                    <ColumnDefinition Width="Auto"/>
+                                    <ColumnDefinition Width="*"/>
+                                    <ColumnDefinition Width="Auto"/>
+                                </Grid.ColumnDefinitions>
+                                <Button Grid.Column="0" Content="▶ Player" Click="QwenBasePlay_Click"
+                                        Theme="{StaticResource SecondaryButtonStyle}"
+                                        Padding="10,4" FontSize="12" Margin="0,0,4,0"
+                                        ToolTip.Tip="Open the clip in your desktop's video player"/>
+                                <TextBlock Grid.Column="1" Text="{Binding #QwenBaseScrubSlider.Value, StringFormat={}{0:F2}s}"
+                                           FontSize="11" FontFamily="Consolas" VerticalAlignment="Center"
+                                           Foreground="{StaticResource TextMutedBrush}" Margin="4,0,0,0"/>
+                                <Button Grid.Column="3" Content="📸 Snap &amp; Send"
+                                        Click="QwenBaseSnapAndSend_Click"
+                                        Theme="{StaticResource PrimaryButtonStyle}"
+                                        Background="{StaticResource BrandBrush}" Padding="14,6" FontSize="12"/>
+                            </Grid>
+                            <TextBlock Text="Scrub to a frame, then Snap &amp; Send to set it as the base scene."
+                                       FontSize="11" Foreground="{StaticResource TextMutedBrush}" Margin="0,6,0,0" TextWrapping="Wrap"/>
+                        </StackPanel>
+                    </StackPanel>
+                </Border>
+
+                <!-- Step 1: Analyze -->
+                <Border Theme="{StaticResource SectionPanelStyle}" Margin="0,0,0,10" Padding="12">
+                    <StackPanel>
+                        <TextBlock Text="Step 1 — Analyze (VLM writes the edit prompt)" Theme="{StaticResource HeaderTextStyle}"/>
+                        <Grid Margin="0,0,0,8">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="*"/>
+                                <ColumnDefinition Width="Auto"/>
+                            </Grid.ColumnDefinitions>
+                            <ComboBox Grid.Column="0" ItemsSource="{Binding QwenEdit.AvailableModels}"
+                                      SelectedItem="{Binding QwenEdit.SelectedLlmModel}"
+                                      FontSize="11" Padding="6,4" VerticalContentAlignment="Center"/>
+                            <Button Grid.Column="1" Content="🔄"
+                                    Command="{Binding QwenEdit.LoadModelsCommand}"
+                                    Theme="{StaticResource SecondaryButtonStyle}"
+                                    Padding="8,4" FontSize="12" Margin="6,0,0,0"/>
+                        </Grid>
+                        <Button Content="🔍 Analyze 3 Images → Edit Prompt"
+                                Command="{Binding QwenEdit.AnalyzeCommand}"
+                                IsEnabled="{Binding QwenEdit.CanAnalyze}"
+                                Theme="{StaticResource PrimaryButtonStyle}"
+                                Background="{StaticResource SuccessBrush}" Padding="16,10" FontSize="13"
+                                HorizontalAlignment="Stretch"/>
+                        <StackPanel Orientation="Horizontal" Margin="0,8,0,0"
+                                    IsVisible="{Binding QwenEdit.IsAnalyzing}">
+                            <TextBlock Text="⏳ " FontSize="13"/>
+                            <TextBlock Text="{Binding QwenEdit.StatusMessage}" FontSize="12" Foreground="{StaticResource TextPrimaryBrush}"/>
+                        </StackPanel>
+                    </StackPanel>
+                </Border>
+
+                <!-- Step 2: Edit prompt -->
+                <Border Theme="{StaticResource SectionPanelStyle}" Margin="0,0,0,10" Padding="12">
+                    <StackPanel>
+                        <TextBlock Text="Step 2 — Edit Prompt" Theme="{StaticResource HeaderTextStyle}"/>
+                        <TextBox Text="{Binding QwenEdit.Prompt}"
+                                 TextWrapping="Wrap" AcceptsReturn="True"
+                                 MinLines="5" MaxLines="12"
+                                 ScrollViewer.VerticalScrollBarVisibility="Auto"
+                                 FontSize="12" Padding="8"/>
+                    </StackPanel>
+                </Border>
+
+                <!-- Step 3: Generate -->
+                <Border Theme="{StaticResource SectionPanelStyle}" Margin="0,0,0,10" Padding="12">
+                    <StackPanel>
+                        <TextBlock Text="Step 3 — Generate" Theme="{StaticResource HeaderTextStyle}"/>
+
+                        <!-- Workflow selector: Qwen Edit (default) or Klein (Flux.2) -->
+                        <TextBlock Text="Workflow" FontSize="11" FontWeight="SemiBold" Foreground="{StaticResource TextSecondaryBrush}" Margin="0,0,0,4"/>
+                        <ComboBox ItemsSource="{Binding QwenEdit.WorkflowOptions}"
+                                  SelectedItem="{Binding QwenEdit.SelectedWorkflow}"
+                                  FontSize="12" Padding="6,4" VerticalContentAlignment="Center"
+                                  Margin="0,0,0,8"/>
+
+                        <TextBlock Text="{Binding QwenEdit.GenerateDescription}"
+                                   FontSize="11" Foreground="{StaticResource TextSecondaryBrush}" Margin="0,0,0,8" TextWrapping="Wrap"/>
+                        <Button Content="🚀 Generate"
+                                Command="{Binding QwenEdit.GenerateCommand}"
+                                IsEnabled="{Binding QwenEdit.CanGenerate}"
+                                Theme="{StaticResource PrimaryButtonStyle}"
+                                Background="{StaticResource DangerBrush}" Padding="16,10" FontSize="13"
+                                HorizontalAlignment="Stretch"/>
+                        <StackPanel Margin="0,8,0,0">
+                            <TextBlock Text="{Binding QwenEdit.StatusMessage}"
+                                       FontSize="12" Foreground="{StaticResource TextPrimaryBrush}" TextWrapping="Wrap"/>
+                            <ProgressBar Value="{Binding QwenEdit.Progress}" Maximum="100" Height="6"
+                                         Margin="0,4,0,0" Background="#E5E7EB" Foreground="{StaticResource DangerBrush}"/>
+                        </StackPanel>
+                    </StackPanel>
+                </Border>
+
+            </StackPanel>
+        </ScrollViewer>
+
+        <!-- Splitter -->
+        <GridSplitter Grid.Column="1" Width="2" HorizontalAlignment="Stretch" Background="#DEE2E6"/>
+
+        <!-- RIGHT: result + log -->
+        <ScrollViewer Grid.Column="2" VerticalScrollBarVisibility="Auto">
+            <StackPanel Margin="8,12,15,12">
+
+                <!-- Result image -->
+                <Border Theme="{StaticResource SectionPanelStyle}" Margin="0,0,0,10" Padding="8">
+                    <StackPanel>
+                        <TextBlock Text="Result" Theme="{StaticResource HeaderTextStyle}"/>
+                        <Border BorderBrush="{StaticResource BorderBrush}" BorderThickness="1" CornerRadius="4"
+                                Background="{StaticResource PlayerSurfaceBrush}" Height="460" ClipToBounds="True">
+                            <Grid>
+                                <Image Source="{Binding QwenEdit.ResultImageSource, Converter={StaticResource PathToBitmapConverter}}"
+                                       Stretch="Uniform" RenderOptions.BitmapInterpolationMode="HighQuality"/>
+                                <StackPanel HorizontalAlignment="Center" VerticalAlignment="Center"
+                                            IsVisible="{Binding QwenEdit.NoResult}">
+                                    <TextBlock Text="🖼️" FontSize="48" HorizontalAlignment="Center"/>
+                                    <TextBlock Text="Result will appear here" FontSize="14"
+                                               Foreground="{StaticResource PlayerTextBrush}" HorizontalAlignment="Center" Margin="0,8,0,0"/>
+                                </StackPanel>
+                            </Grid>
+                        </Border>
+                    </StackPanel>
+                </Border>
+
+                <!-- Actions -->
+                <Border Theme="{StaticResource SectionPanelStyle}" Margin="0,0,0,10">
+                    <StackPanel>
+                        <TextBlock Text="Output" Theme="{StaticResource HeaderTextStyle}"/>
+                        <TextBlock Text="{Binding QwenEdit.ResultImagePath, FallbackValue='—'}"
+                                   FontSize="11" Foreground="{StaticResource TextSecondaryBrush}" TextTrimming="CharacterEllipsis"
+                                   Margin="0,0,0,10"/>
+                        <StackPanel Orientation="Horizontal">
+                            <Button Content="📁 Open Folder"
+                                    Command="{Binding QwenEdit.OpenResultFolderCommand}"
+                                    Theme="{StaticResource SecondaryButtonStyle}"
+                                    Background="{StaticResource BrandBrush}" Padding="12,8" FontSize="12" Margin="0,0,8,0"/>
+                            <Button Content="🖼️ Open Image"
+                                    Command="{Binding QwenEdit.OpenResultImageCommand}"
+                                    Theme="{StaticResource SecondaryButtonStyle}"
+                                    Background="{StaticResource SuccessBrush}" Padding="12,8" FontSize="12"/>
+                        </StackPanel>
+                        <Button Content="✨ Enhance (Klein img2img)"
+                                Command="{Binding QwenEdit.EnhanceCommand}"
+                                IsEnabled="{Binding QwenEdit.CanEnhance}"
+                                Theme="{StaticResource PrimaryButtonStyle}"
+                                Background="{StaticResource BrandBrush}" Padding="14,9" FontSize="12"
+                                HorizontalAlignment="Stretch" Margin="0,10,0,0"/>
+                        <TextBlock FontSize="11" Foreground="{StaticResource TextSecondaryBrush}" Margin="0,4,0,0" TextWrapping="Wrap"
+                                   Text="Refines the current result with a Flux.2 Klein img2img pass."/>
+                    </StackPanel>
+                </Border>
+
+                <!-- Log -->
+                <Border Background="{StaticResource PlayerSurfaceBrush}" BorderBrush="#374151" BorderThickness="1" CornerRadius="6" Padding="10">
+                    <StackPanel>
+                        <TextBlock Text="Log" FontSize="12" FontWeight="SemiBold" Foreground="{StaticResource PlayerTextBrush}" Margin="0,0,0,6"/>
+                        <TextBox Text="{Binding QwenEdit.LogOutput}"
+                                 IsReadOnly="True" TextWrapping="Wrap"
+                                 ScrollViewer.VerticalScrollBarVisibility="Auto"
+                                 Background="{StaticResource PlayerSurfaceBrush}" Foreground="{StaticResource PlayerTextBrush}"
+                                 BorderThickness="0" FontFamily="Consolas"
+                                 FontSize="11" Padding="4" Height="220"/>
+                    </StackPanel>
+                </Border>
+
+            </StackPanel>
+        </ScrollViewer>
+
+    </Grid>
+
+</UserControl>

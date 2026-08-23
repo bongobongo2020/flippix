@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using System.IO;
 using System.Text.Json.Serialization;
 using System.Windows.Media.Imaging;
@@ -16,11 +17,25 @@ namespace FlipPix.UI.Models
     /// </summary>
     public class H3CastQueueItem : BaseQueueItem
     {
-        /// <summary>Character 1's sheet — uploaded as <c>ref_image_0</c> / <c>&lt;Picture 1&gt;</c>. Required.</summary>
+        /// <summary>Character 1's sheet. Kept for the queue thumbnail and the row label; what is uploaded is
+        /// <see cref="Character1PanelPaths"/>. Required.</summary>
         public string Character1SheetPath { get; set; } = string.Empty;
 
-        /// <summary>Character 2's sheet — <c>ref_image_1</c> / <c>&lt;Picture 2&gt;</c>. Empty = single-reference run.</summary>
+        /// <summary>Character 2's sheet. Empty = single-character run.</summary>
         public string Character2SheetPath { get; set; } = string.Empty;
+
+        /// <summary>
+        /// Character 1's sheet cut into single-view panels, left to right — the images actually uploaded and
+        /// wired to <c>ref_images.ref_image_0…</c>, so <c>&lt;Picture 1&gt;</c> onwards resolve to them.
+        ///
+        /// <para>Frozen at queue time rather than recomputed at submit time because the prompt's picture
+        /// numbering was written from this count. A queue file written before panels existed deserializes to
+        /// an empty list, which the tab reads as "split the sheet now" — the old items still run.</para>
+        /// </summary>
+        public List<string> Character1PanelPaths { get; set; } = new();
+
+        /// <summary>Character 2's panels, continuing the numbering after character 1's.</summary>
+        public List<string> Character2PanelPaths { get; set; } = new();
 
         /// <summary>The photo character 1's sheet was built from. Never uploaded — kept for the queue thumbnail.</summary>
         public string Character1SourcePath { get; set; } = string.Empty;
@@ -46,6 +61,31 @@ namespace FlipPix.UI.Models
 
         /// <summary>Denoise of the face-refine pass — node 106. How far the cropped faces are allowed to move.</summary>
         public double RefineDenoise { get; set; } = 0.45;
+
+        /// <summary>
+        /// One refine pass per character rather than one for the whole cast.
+        ///
+        /// <para><c>H3FaceTrackCrop</c> holds a single subject, so the old single pass refined whoever was
+        /// largest and left the other character's face exactly as the base pass rendered it — while being
+        /// shown both cast members' photographs, which gave it nothing to say about which face it had. Each
+        /// character now gets a pass tracked by their own face close-up and conditioned on their own panels.</para>
+        ///
+        /// <para><b>Default false</b>: an item queued before this existed carries a prompt written for the
+        /// whole cast, and running that prompt against one character's panels would number pictures the pass
+        /// never receives. Re-queue such an item to get the second pass.</para>
+        /// </summary>
+        public bool PerCharacterRefine { get; set; }
+
+        /// <summary>"man" / "woman" for character 1, frozen at queue time — the refine passes rebuild their
+        /// own reference line and it names the cast the same way the clip's own prompt did.</summary>
+        public string Sex1 { get; set; } = string.Empty;
+
+        /// <summary>"man" / "woman" for character 2.</summary>
+        public string Sex2 { get; set; } = string.Empty;
+
+        /// <summary>Whether the sheets were built wearing the locked wardrobe — flips the reference line
+        /// between disowning the references' clothing and pointing at it.</summary>
+        public bool SheetsShowWardrobe { get; set; }
 
         /// <summary>
         /// When false — the default — the RTX ×2 super-resolution node is pruned and the frames are muxed at

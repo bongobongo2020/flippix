@@ -1,9 +1,0 @@
-[Desktop Entry]
-Name=FlipPix
-Comment=AI Image and Video Generation Frontend for ComfyUI
-Exec=/opt/flippix/FlipPix.UI.Linux
-Icon=/opt/flippix/flippix.png
-Terminal=false
-Type=Application
-Categories=Graphics;Utility;
-StartupWMClass=FlipPix.UI.Linux

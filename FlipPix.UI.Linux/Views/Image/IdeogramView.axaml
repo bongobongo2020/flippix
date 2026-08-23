@@ -1,0 +1,556 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:controls="clr-namespace:FlipPix.UI.Linux.Controls"
+             x:Class="FlipPix.UI.Linux.Views.Image.IdeogramView">
+
+    <!-- Ported from ImageGeneratorWindow.xaml lines 4713-5288 ("🔤 Ideogram").
+      -->
+
+    <Grid Margin="0">
+        <Grid.ColumnDefinitions>
+            <ColumnDefinition Width="*" MinWidth="340"/>
+            <ColumnDefinition Width="2"/>
+            <ColumnDefinition Width="*" MinWidth="340"/>
+        </Grid.ColumnDefinitions>
+
+        <!-- LEFT COLUMN: Inputs -->
+        <ScrollViewer Grid.Column="0" VerticalScrollBarVisibility="Auto" Padding="12,12,12,12">
+            <StackPanel>
+
+                <!-- Aspect ratio + resolution -->
+                <Border Theme="{StaticResource SectionPanelStyle}" Margin="0,0,0,10" Padding="12">
+                    <StackPanel>
+                        <TextBlock Text="Step 1 — Format" Theme="{StaticResource HeaderTextStyle}"/>
+                        <UniformGrid Rows="1" Columns="3" Margin="0,0,0,8">
+                            <Button Content="◼ Square" Command="{Binding Ideogram.SetAspectCommand}" CommandParameter="Square"
+                                    FontSize="12" Padding="6,8" Margin="0,0,4,0" Cursor="Hand" BorderThickness="0" Classes.on="{Binding Ideogram.IsSquare}">
+                                <Button.Styles>
+                                    <Style Selector="Button">
+                                        <Setter Property="Background" Value="#E5E7EB"/>
+                                        <Setter Property="Foreground" Value="#374151"/>
+                                    </Style>
+                                    <Style Selector="Button.on">
+                                        <Setter Property="Background" Value="{StaticResource AccentRoseBrush}"/>
+                                        <Setter Property="Foreground" Value="White"/>
+                                    </Style>
+                                </Button.Styles>
+                            </Button>
+                            <Button Content="▭ Wide" Command="{Binding Ideogram.SetAspectCommand}" CommandParameter="Widescreen"
+                                    FontSize="12" Padding="6,8" Margin="2,0,2,0" Cursor="Hand" BorderThickness="0" Classes.on="{Binding Ideogram.IsWidescreen}">
+                                <Button.Styles>
+                                    <Style Selector="Button">
+                                        <Setter Property="Background" Value="#E5E7EB"/>
+                                        <Setter Property="Foreground" Value="#374151"/>
+                                    </Style>
+                                    <Style Selector="Button.on">
+                                        <Setter Property="Background" Value="{StaticResource AccentRoseBrush}"/>
+                                        <Setter Property="Foreground" Value="White"/>
+                                    </Style>
+                                </Button.Styles>
+                            </Button>
+                            <Button Content="▯ Portrait" Command="{Binding Ideogram.SetAspectCommand}" CommandParameter="Portrait"
+                                    FontSize="12" Padding="6,8" Margin="4,0,0,0" Cursor="Hand" BorderThickness="0" Classes.on="{Binding Ideogram.IsPortrait}">
+                                <Button.Styles>
+                                    <Style Selector="Button">
+                                        <Setter Property="Background" Value="#E5E7EB"/>
+                                        <Setter Property="Foreground" Value="#374151"/>
+                                    </Style>
+                                    <Style Selector="Button.on">
+                                        <Setter Property="Background" Value="{StaticResource AccentRoseBrush}"/>
+                                        <Setter Property="Foreground" Value="White"/>
+                                    </Style>
+                                </Button.Styles>
+                            </Button>
+                        </UniformGrid>
+                        <Grid>
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="Auto"/>
+                                <ColumnDefinition Width="Auto"/>
+                                <ColumnDefinition Width="*"/>
+                            </Grid.ColumnDefinitions>
+                            <TextBlock Grid.Column="0" Text="Resolution" FontSize="12" Foreground="{StaticResource TextPrimaryBrush}"
+                                       VerticalAlignment="Center" Margin="0,0,6,0"
+                                       ToolTip.Tip="Output megapixels. The Instant graph renders in one pass, so this is the saved size; the summary on the right shows the exact pixels for the chosen format."/>
+                            <ComboBox Grid.Column="1" Width="70" FontSize="12"
+                                      ItemsSource="{Binding Ideogram.MegapixelChoices}"
+                                      SelectedItem="{Binding Ideogram.Megapixel}"
+                                      ToolTip.Tip="Output megapixels. The Instant graph renders in one pass, so this is the saved size; the summary on the right shows the exact pixels for the chosen format."/>
+                            <TextBlock Grid.Column="2" Text="{Binding Ideogram.AspectSummary}" HorizontalAlignment="Right"
+                                       FontSize="11" FontFamily="Consolas" Foreground="{StaticResource TextSecondaryBrush}" VerticalAlignment="Center"/>
+                        </Grid>
+                    </StackPanel>
+                </Border>
+
+                <!-- High-level prompt -->
+                <Border Theme="{StaticResource SectionPanelStyle}" Margin="0,0,0,10" Padding="12">
+                    <StackPanel>
+                        <TextBlock Text="Step 2 — High-Level Prompt" Theme="{StaticResource HeaderTextStyle}"/>
+
+                        <!-- Browse image → LLM → fills prompt + region 1 -->
+                        <Grid Margin="0,0,0,6">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="Auto"/>
+                                <ColumnDefinition Width="*"/>
+                                <ColumnDefinition Width="Auto"/>
+                            </Grid.ColumnDefinitions>
+                            <!-- Thumbnail -->
+                            <Border Grid.Column="0" Width="48" Height="48" CornerRadius="4" Margin="0,0,8,0"
+                                    BorderBrush="{StaticResource BorderBrush}" BorderThickness="1" Background="{StaticResource PlayerSurfaceBrush}" ClipToBounds="True">
+                                <Grid>
+                                    <Image Source="{Binding Ideogram.InputImageSource, Converter={StaticResource PathToBitmapConverter}}" Stretch="UniformToFill"
+                                           RenderOptions.BitmapInterpolationMode="HighQuality"/>
+                                    <TextBlock Text="🖼️" FontSize="20" HorizontalAlignment="Center" VerticalAlignment="Center"
+                                               IsVisible="{Binding Ideogram.NoInputImage}"/>
+                                </Grid>
+                            </Border>
+                            <ComboBox Grid.Column="1" ItemsSource="{Binding Ideogram.AvailableModels}"
+                                      SelectedItem="{Binding Ideogram.SelectedLlmModel}"
+                                      VerticalAlignment="Center" FontSize="11" Padding="6,4"
+                                      ToolTip.Tip="LLM (llama-server) model used to analyze the image"/>
+                            <Button Grid.Column="2" Content="🔄"
+                                    Command="{Binding Ideogram.LoadModelsCommand}"
+                                    FontSize="12" Padding="8,4" Margin="6,0,0,0" ToolTip.Tip="Refresh models"
+                                    Theme="{StaticResource SecondaryButtonStyle}" Background="{StaticResource BrandBrush}"/>
+                        </Grid>
+                        <Button Content="📂 Upload Image → Auto Prompt + Segments"
+                                Command="{Binding Ideogram.BrowseAndAnalyzeCommand}"
+                                Theme="{StaticResource PrimaryButtonStyle}"
+                                Background="{StaticResource SuccessBrush}" Padding="12,8" FontSize="12"
+                                HorizontalAlignment="Stretch" Margin="0,0,0,4"
+                                ToolTip.Tip="Upload an image: it is analyzed automatically into an enhanced prompt, a style block and the composition segments, then queued for generation"/>
+                        <StackPanel Orientation="Horizontal" Margin="0,0,0,6" VerticalAlignment="Center"
+                                    IsVisible="{Binding Ideogram.IsAnalyzing}">
+                            <TextBlock Text="⏳ " FontSize="12" VerticalAlignment="Center"/>
+                            <TextBlock Text="{Binding Ideogram.StatusMessage}" FontSize="11" Foreground="{StaticResource TextPrimaryBrush}" VerticalAlignment="Center"/>
+                            <Button Content="✖ Cancel"
+                                    Command="{Binding Ideogram.CancelAnalyzeCommand}"
+                                    Theme="{StaticResource SecondaryButtonStyle}" Background="{StaticResource DangerBrush}"
+                                    FontSize="11" Padding="8,3" Margin="10,0,0,0"
+                                    ToolTip.Tip="Stop sending the image to the LLM"/>
+                        </StackPanel>
+
+                        <TextBlock FontSize="11" Foreground="{StaticResource TextSecondaryBrush}" Margin="0,0,0,4" TextWrapping="Wrap">
+                            Written automatically the moment an image is uploaded. Used as the global prompt and as the fallback for segments with no description.
+                        </TextBlock>
+                        <TextBox Text="{Binding Ideogram.HighLevelPrompt}"
+                                 TextWrapping="Wrap" AcceptsReturn="True"
+                                 MinLines="4" MaxLines="10"
+                                 ScrollViewer.VerticalScrollBarVisibility="Auto"
+                                 FontSize="12" Padding="8"/>
+                    </StackPanel>
+                </Border>
+
+                <!-- Enriched style (from the autoprompter analysis) -->
+                <Border Theme="{StaticResource SectionPanelStyle}" Margin="0,0,0,10" Padding="12"
+                        IsVisible="{Binding Ideogram.HasStyleDetails}">
+                    <StackPanel>
+                        <Grid Margin="0,0,0,4">
+                            <TextBlock Text="Enriched Style (auto)" Theme="{StaticResource HeaderTextStyle}" VerticalAlignment="Center"/>
+                            <CheckBox Content="Enabled" IsChecked="{Binding Ideogram.UseEnrichedStyle}"
+                                      HorizontalAlignment="Right" VerticalAlignment="Center"
+                                      FontSize="11" Foreground="{StaticResource AccentCyanBrush}"/>
+                        </Grid>
+                        <TextBlock FontSize="11" Foreground="{StaticResource TextSecondaryBrush}" Margin="0,0,0,4" TextWrapping="Wrap">
+                            Medium, aesthetics, lighting, camera and background detected by the LLM. When enabled these are fed into Ideogram4PromptBuilderKJ alongside the per-region boxes; when off, only the high-level prompt and regions drive the image.
+                        </TextBlock>
+                        <TextBlock Text="{Binding Ideogram.StyleSummary}" FontSize="11" Foreground="{StaticResource TextPrimaryBrush}" TextWrapping="Wrap"
+                                   IsEnabled="{Binding Ideogram.UseEnrichedStyle}"/>
+                    </StackPanel>
+                </Border>
+
+                <!-- Region canvas editor -->
+                <Border Theme="{StaticResource SectionPanelStyle}" Margin="0,0,0,10" Padding="12">
+                    <StackPanel>
+                        <Grid>
+                            <TextBlock Text="Step 3 — Composition Segments" Theme="{StaticResource HeaderTextStyle}"/>
+                            <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" Margin="0,0,0,8">
+                                <Button Content="➕ Segment" Command="{Binding Ideogram.AddRegionCommand}"
+                                        Theme="{StaticResource SecondaryButtonStyle}" Background="{StaticResource BrandBrush}"
+                                        Padding="8,4" FontSize="11" Margin="0,0,6,0"/>
+                                <Button Content="🗑 Clear" Command="{Binding Ideogram.ClearRegionsCommand}"
+                                        Theme="{StaticResource SecondaryButtonStyle}" Background="#6B7280"
+                                        Padding="8,4" FontSize="11"/>
+                            </StackPanel>
+                        </Grid>
+                        <TextBlock FontSize="11" Foreground="{StaticResource TextSecondaryBrush}" Margin="0,0,0,8" TextWrapping="Wrap">
+                            Filled in automatically by the analysis. Drag boxes to move them; drag the corner to resize. Each box gets its own description below.
+                        </TextBlock>
+
+                        <CheckBox Content="Use composition segments (recommended)" IsChecked="{Binding Ideogram.UseRegions}"
+                                  FontSize="12" FontWeight="SemiBold" Foreground="{StaticResource AccentVioletBrush}" Margin="0,0,0,4"/>
+                        <TextBlock FontSize="10" Foreground="{StaticResource TextMutedBrush}" Margin="0,0,0,8" TextWrapping="Wrap">
+                            On: each box is sent to Ideogram as its own placed element, which is what reproduces the reference layout. Off: one full-frame element carrying just the high-level prompt.
+                        </TextBlock>
+
+                        <!-- Canvas -->
+                        <Border BorderBrush="{StaticResource BorderBrush}" BorderThickness="1" CornerRadius="4"
+                                Background="{StaticResource PlayerSurfaceBrush}" Padding="10" HorizontalAlignment="Center">
+                            <ItemsControl ItemsSource="{Binding Ideogram.Regions}"
+                                          Width="{Binding Ideogram.CanvasWidth}"
+                                          Height="{Binding Ideogram.CanvasHeight}"
+                                          Background="#0F0F1E"
+                                          ClipToBounds="True">
+                                <ItemsControl.ItemsPanel>
+                                    <ItemsPanelTemplate>
+                                        <Canvas/>
+                                    </ItemsPanelTemplate>
+                                </ItemsControl.ItemsPanel>
+                                <ItemsControl.Styles>
+                                    <Style Selector="ContentPresenter">
+                                        <Setter Property="Canvas.Left" Value="{Binding X}"/>
+                                        <Setter Property="Canvas.Top" Value="{Binding Y}"/>
+                                    </Style>
+                                </ItemsControl.Styles>
+                                <ItemsControl.ItemTemplate>
+                                    <DataTemplate>
+                                        <Grid Width="{Binding Width}" Height="{Binding Height}">
+                                            <!-- Body / move -->
+                                            <!-- The WPF template highlighted the box through a DataTrigger on
+                                                 IsSelected; Avalonia drives the same thing off a class binding. -->
+                                            <Thumb DragDelta="RegionMove_DragDelta" DragStarted="Region_DragStarted" Cursor="SizeAll"
+                                                   Classes.selected="{Binding IsSelected}">
+                                                <Thumb.Styles>
+                                                    <Style Selector="Thumb.selected /template/ Border#box">
+                                                        <Setter Property="BorderBrush" Value="{StaticResource AccentAmberBrush}"/>
+                                                        <Setter Property="Background" Value="#44F59E0B"/>
+                                                    </Style>
+                                                </Thumb.Styles>
+                                                <Thumb.Template>
+                                                    <ControlTemplate TargetType="Thumb">
+                                                        <Border Name="box" Background="#330EA5E9" BorderBrush="{StaticResource AccentCyanBrush}"
+                                                                BorderThickness="2" CornerRadius="2">
+                                                            <Border Background="{StaticResource BrandBrush}" CornerRadius="2" Padding="4,1"
+                                                                    HorizontalAlignment="Left" VerticalAlignment="Top" Margin="2">
+                                                                <TextBlock Text="{Binding Label}" Foreground="White"
+                                                                           FontSize="11" FontWeight="Bold"/>
+                                                            </Border>
+                                                        </Border>
+                                                    </ControlTemplate>
+                                                </Thumb.Template>
+                                            </Thumb>
+                                            <!-- Resize handle -->
+                                            <Thumb DragDelta="RegionResize_DragDelta" DragStarted="Region_DragStarted"
+                                                   Width="16" Height="16" HorizontalAlignment="Right" VerticalAlignment="Bottom"
+                                                   Cursor="TopLeftCorner">
+                                                <Thumb.Template>
+                                                    <ControlTemplate TargetType="Thumb">
+                                                        <Border Background="{StaticResource BrandBrush}" BorderBrush="White" BorderThickness="1" CornerRadius="2"/>
+                                                    </ControlTemplate>
+                                                </Thumb.Template>
+                                            </Thumb>
+                                        </Grid>
+                                    </DataTemplate>
+                                </ItemsControl.ItemTemplate>
+                            </ItemsControl>
+                        </Border>
+
+                        <!-- Region descriptions -->
+                        <ItemsControl ItemsSource="{Binding Ideogram.Regions}" Margin="0,10,0,0">
+                            <ItemsControl.ItemTemplate>
+                                <DataTemplate>
+                                    <Grid Margin="0,0,0,6">
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="Auto"/>
+                                            <ColumnDefinition Width="*"/>
+                                            <ColumnDefinition Width="Auto"/>
+                                        </Grid.ColumnDefinitions>
+                                        <Border Grid.Column="0" Background="{StaticResource BrandBrush}" CornerRadius="10" Width="20" Height="20"
+                                                VerticalAlignment="Top" Margin="0,2,6,0">
+                                            <TextBlock Text="{Binding Label}" Foreground="White" FontSize="11" FontWeight="Bold"
+                                                       HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                                        </Border>
+                                        <StackPanel Grid.Column="1">
+                                            <TextBox Text="{Binding Description}"
+                                                     TextWrapping="Wrap" AcceptsReturn="True" MinLines="1" MaxLines="4"
+                                                     FontSize="11" Padding="6"
+                                                     ScrollViewer.VerticalScrollBarVisibility="Auto"
+                                                     Tag="Describe this segment (optional)"/>
+                                            <!-- Typography segments also carry the literal string Ideogram must render. -->
+                                            <Grid Margin="0,4,0,0"
+                                                  IsVisible="{Binding IsTextElement}">
+                                                <Grid.ColumnDefinitions>
+                                                    <ColumnDefinition Width="Auto"/>
+                                                    <ColumnDefinition Width="*"/>
+                                                </Grid.ColumnDefinitions>
+                                                <TextBlock Grid.Column="0" Text="🅣" FontSize="12" Foreground="{StaticResource AccentVioletBrush}"
+                                                           VerticalAlignment="Center" Margin="0,0,6,0"
+                                                           ToolTip.Tip="Text segment — the exact lettering to render"/>
+                                                <TextBox Grid.Column="1" Text="{Binding Text}"
+                                                         FontSize="11" Padding="6" FontWeight="SemiBold"/>
+                                            </Grid>
+                                        </StackPanel>
+                                        <Button Grid.Column="2" Content="✕" FontSize="12" Foreground="{StaticResource DangerBrush}" FontWeight="Bold"
+                                                Background="Transparent" BorderThickness="0" Cursor="Hand" Padding="6,0"
+                                                VerticalAlignment="Top" Margin="2,0,0,0" ToolTip.Tip="Remove segment"
+                                                Command="{Binding $parent[ScrollViewer].DataContext.Ideogram.RemoveRegionCommand}"
+                                                CommandParameter="{Binding}"/>
+                                    </Grid>
+                                </DataTemplate>
+                            </ItemsControl.ItemTemplate>
+                        </ItemsControl>
+                    </StackPanel>
+                </Border>
+
+                <!-- Generate -->
+                <Border Theme="{StaticResource SectionPanelStyle}" Margin="0,0,0,10" Padding="12">
+                    <StackPanel>
+                        <TextBlock Text="Step 4 — Generate" Theme="{StaticResource HeaderTextStyle}"/>
+                        <TextBlock FontSize="11" Foreground="{StaticResource TextSecondaryBrush}" Margin="0,0,0,8" TextWrapping="Wrap">
+                            Renders one image at the chosen aspect ratio, then refines it through the workflow's 2× second pass.
+                        </TextBlock>
+                        <Button Content="🚀 Generate"
+                                Command="{Binding Ideogram.GenerateCommand}"
+                                IsEnabled="{Binding Ideogram.CanGenerate}"
+                                Theme="{StaticResource PrimaryButtonStyle}"
+                                Background="{StaticResource DangerBrush}" Padding="16,10" FontSize="13"
+                                HorizontalAlignment="Stretch"/>
+                        <StackPanel Margin="0,8,0,0">
+                            <TextBlock Text="{Binding Ideogram.StatusMessage}"
+                                       FontSize="12" Foreground="{StaticResource TextPrimaryBrush}" TextWrapping="Wrap"/>
+                            <ProgressBar Value="{Binding Ideogram.Progress}" Maximum="100" Height="6"
+                                         Margin="0,4,0,0" Background="#E5E7EB" Foreground="{StaticResource DangerBrush}"/>
+                        </StackPanel>
+                    </StackPanel>
+                </Border>
+
+                <!-- Queue Section -->
+                <Border Theme="{StaticResource SectionPanelStyle}" Margin="0,0,0,10" Padding="12">
+                    <StackPanel>
+                        <TextBlock Text="Queue" Theme="{StaticResource HeaderTextStyle}"/>
+
+                        <!-- Queue buttons -->
+                        <Grid Margin="0,0,0,8">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="*"/>
+                                <ColumnDefinition Width="Auto"/>
+                                <ColumnDefinition Width="Auto"/>
+                            </Grid.ColumnDefinitions>
+                            <Button Content="➕ Add to Queue"
+                                    Command="{Binding Ideogram.AddToQueueCommand}"
+                                    Theme="{StaticResource PrimaryButtonStyle}"
+                                    Background="{StaticResource BrandBrush}" Padding="10,8" FontSize="12"
+                                    HorizontalAlignment="Stretch"/>
+                            <Button Grid.Column="1" Content="▶ Start"
+                                    Command="{Binding Ideogram.ProcessQueueCommand}"
+                                    Theme="{StaticResource SecondaryButtonStyle}"
+                                    Background="{StaticResource SuccessBrush}" Padding="12,8" FontSize="12" Margin="6,0,0,0"/>
+                            <Button Grid.Column="2" Content="⏹ Stop"
+                                    Command="{Binding Ideogram.CancelQueueCommand}"
+                                    Theme="{StaticResource SecondaryButtonStyle}"
+                                    Background="{StaticResource DangerBrush}" Padding="10,8" FontSize="12" Margin="6,0,0,0"/>
+                        </Grid>
+
+                        <!-- Queue status -->
+                        <StackPanel Orientation="Horizontal" Margin="0,0,0,6">
+                            <Border Background="{StaticResource BrandBrush}" CornerRadius="10" Padding="6,2">
+                                <TextBlock Text="{Binding Ideogram.QueueCount}" FontSize="11" FontWeight="Bold" Foreground="White"/>
+                            </Border>
+                            <TextBlock Text="waiting..."
+                                       FontSize="11" Foreground="{StaticResource AccentIndigoBrush}" FontStyle="Italic" Margin="8,0,0,0"
+                                       IsVisible="{Binding Ideogram.IsWaitingForLease}"/>
+                            <TextBlock Text="processing..."
+                                       FontSize="11" Foreground="{StaticResource SuccessTextBrush}" FontStyle="Italic" Margin="8,0,0,0"
+                                       IsVisible="{Binding Ideogram.IsProcessingQueue}"/>
+                        </StackPanel>
+
+                        <!-- Queue items list -->
+                        <ScrollViewer VerticalScrollBarVisibility="Auto" MaxHeight="200">
+                            <ItemsControl ItemsSource="{Binding Ideogram.Queue}">
+                                <ItemsControl.ItemTemplate>
+                                    <DataTemplate>
+                                        <Border BorderBrush="#F3F4F6" BorderThickness="0,0,0,1" Padding="0,6">
+                                            <Grid>
+                                                <Grid.ColumnDefinitions>
+                                                    <ColumnDefinition Width="*"/>
+                                                    <ColumnDefinition Width="Auto"/>
+                                                    <ColumnDefinition Width="Auto"/>
+                                                </Grid.ColumnDefinitions>
+
+                                                <!-- Item info -->
+                                                <StackPanel Grid.Column="0" VerticalAlignment="Center">
+                                                    <TextBlock Text="{Binding DisplayPrompt}" FontSize="11" FontWeight="Medium"
+                                                               TextTrimming="CharacterEllipsis"/>
+                                                    <StackPanel Orientation="Horizontal" Margin="0,2,0,0">
+                                                        <TextBlock Text="{Binding RatioDisplay}" FontSize="10" Foreground="{StaticResource TextSecondaryBrush}"/>
+                                                    </StackPanel>
+                                                </StackPanel>
+
+                                                <!-- Status -->
+                                                <TextBlock Grid.Column="1" Text="{Binding StatusDisplay}"
+                                                           FontSize="10" FontWeight="Bold"
+                                                           Foreground="{Binding StatusColor}" VerticalAlignment="Center" Margin="8,0"/>
+                                                <ProgressBar Grid.Column="1" Value="{Binding Progress}" Width="40" Height="8" Margin="8,0" IsVisible="{Binding Status, Converter={StaticResource EqualsConverter}, ConverterParameter=Processing}"/>
+
+                                                <!-- Actions -->
+                                                <StackPanel Grid.Column="2" Orientation="Horizontal" VerticalAlignment="Center">
+                                                    <Button Content="🖼️" Command="{Binding OpenImageCommand}" FontSize="12"
+                                                            Background="Transparent" BorderThickness="0" Cursor="Hand" Padding="2"
+                                                            ToolTip.Tip="Open image" IsVisible="{Binding Status, Converter={StaticResource EqualsConverter}, ConverterParameter=Completed}"/>
+                                                    <Button Content="✕" FontSize="11" Foreground="{StaticResource DangerBrush}" FontWeight="Bold"
+                                                            Background="Transparent" BorderThickness="0" Cursor="Hand" Padding="4,0"
+                                                            ToolTip.Tip="Remove">
+                                                    </Button>
+                                                </StackPanel>
+                                            </Grid>
+                                        </Border>
+                                    </DataTemplate>
+                                </ItemsControl.ItemTemplate>
+                            </ItemsControl>
+                        </ScrollViewer>
+
+                        <Button Content="Clear All" Command="{Binding Ideogram.ClearQueueCommand}"
+                                HorizontalAlignment="Right" Background="#6B7280" Foreground="White"
+                                BorderThickness="0" Padding="8,3" FontSize="10" Cursor="Hand" Margin="0,4,0,0">
+                            <Button.Template>
+                                <ControlTemplate TargetType="Button">
+                                    <Border Background="{TemplateBinding Background}" CornerRadius="4" Padding="{TemplateBinding Padding}">
+                                        <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center" Content="{TemplateBinding Content}" ContentTemplate="{TemplateBinding ContentTemplate}"/>
+                                    </Border>
+                                </ControlTemplate>
+                            </Button.Template>
+                        </Button>
+                    </StackPanel>
+                </Border>
+
+                <!-- Generated Images gallery -->
+                <Border Theme="{StaticResource SectionPanelStyle}" Margin="0,0,0,10" Padding="12"
+                        IsVisible="{Binding Ideogram.HasGeneratedImages}">
+                    <StackPanel>
+                        <Grid Margin="0,0,0,8">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="*"/>
+                                <ColumnDefinition Width="Auto"/>
+                            </Grid.ColumnDefinitions>
+                            <TextBlock Text="Generated Images" Theme="{StaticResource HeaderTextStyle}"
+                                       VerticalAlignment="Center" Margin="0"/>
+                            <Button Grid.Column="1" Content="Clear All"
+                                    Command="{Binding Ideogram.ClearGeneratedImagesCommand}"
+                                    Background="#6B7280" Foreground="White" BorderThickness="0"
+                                    Padding="8,3" FontSize="10" Cursor="Hand"
+                                    ToolTip.Tip="Remove thumbnails from view (does not delete files)">
+                                <Button.Template>
+                                    <ControlTemplate TargetType="Button">
+                                        <Border Background="{TemplateBinding Background}" CornerRadius="4" Padding="{TemplateBinding Padding}">
+                                            <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center" Content="{TemplateBinding Content}" ContentTemplate="{TemplateBinding ContentTemplate}"/>
+                                        </Border>
+                                    </ControlTemplate>
+                                </Button.Template>
+                            </Button>
+                        </Grid>
+
+                        <ScrollViewer VerticalScrollBarVisibility="Auto" MaxHeight="320">
+                            <ItemsControl ItemsSource="{Binding Ideogram.GeneratedImages}">
+                                <ItemsControl.ItemsPanel>
+                                    <ItemsPanelTemplate>
+                                        <WrapPanel/>
+                                    </ItemsPanelTemplate>
+                                </ItemsControl.ItemsPanel>
+                                <ItemsControl.ItemTemplate>
+                                    <DataTemplate>
+                                        <Grid Width="96" Height="96" Margin="4">
+                                            <!-- Click image center → open in registered Windows image viewer -->
+                                            <Button Command="{Binding $parent[ItemsControl].DataContext.Ideogram.OpenGeneratedImageCommand}"
+                                                    CommandParameter="{Binding}"
+                                                    Cursor="Hand" Padding="0" BorderThickness="1"
+                                                    ToolTip.Tip="{Binding FileName}">
+                                                <Button.Template>
+                                                    <ControlTemplate TargetType="Button">
+                                                        <Border BorderBrush="{StaticResource BorderBrush}" BorderThickness="1" CornerRadius="4"
+                                                                Background="{StaticResource SurfaceAltBrush}">
+                                                            <Image Source="{Binding Thumbnail, Converter={StaticResource PathToBitmapConverter}}" Stretch="UniformToFill"/>
+                                                        </Border>
+                                                    </ControlTemplate>
+                                                </Button.Template>
+                                            </Button>
+                                            <!-- "x" top-right → delete file from disk -->
+                                            <Button Command="{Binding $parent[ItemsControl].DataContext.Ideogram.DeleteGeneratedImageCommand}"
+                                                    CommandParameter="{Binding}"
+                                                    Content="✕" FontSize="11" FontWeight="Bold" Foreground="White"
+                                                    HorizontalAlignment="Right" VerticalAlignment="Top" Margin="0,2,2,0"
+                                                    Width="18" Height="18" Cursor="Hand"
+                                                    ToolTip.Tip="Delete image file from disk">
+                                                <Button.Template>
+                                                    <ControlTemplate TargetType="Button">
+                                                        <Border Background="{StaticResource DangerBrush}" CornerRadius="9" Opacity="0.9">
+                                                            <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center" Content="{TemplateBinding Content}" ContentTemplate="{TemplateBinding ContentTemplate}"/>
+                                                        </Border>
+                                                    </ControlTemplate>
+                                                </Button.Template>
+                                            </Button>
+                                        </Grid>
+                                    </DataTemplate>
+                                </ItemsControl.ItemTemplate>
+                            </ItemsControl>
+                        </ScrollViewer>
+                    </StackPanel>
+                </Border>
+
+            </StackPanel>
+        </ScrollViewer>
+
+        <!-- Column separator -->
+        <Border Grid.Column="1" Background="#E5E7EB" Margin="0,10,0,10"/>
+
+        <!-- RIGHT COLUMN: Result -->
+        <ScrollViewer Grid.Column="2" VerticalScrollBarVisibility="Auto" Padding="12,12,12,12">
+            <StackPanel>
+
+                <!-- Result image -->
+                <Border Theme="{StaticResource SectionPanelStyle}" Margin="0,0,0,10">
+                    <StackPanel>
+                        <TextBlock Text="Result" Theme="{StaticResource HeaderTextStyle}"/>
+                        <Border BorderBrush="{StaticResource BorderBrush}" BorderThickness="1" CornerRadius="4"
+                                Background="{StaticResource PlayerSurfaceBrush}" Height="420" ClipToBounds="True">
+                            <Grid>
+                                <Image Source="{Binding Ideogram.ResultImageSource, Converter={StaticResource PathToBitmapConverter}}"
+                                       Stretch="Uniform" RenderOptions.BitmapInterpolationMode="HighQuality"/>
+                                <StackPanel HorizontalAlignment="Center" VerticalAlignment="Center"
+                                            IsVisible="{Binding Ideogram.NoResult}">
+                                    <TextBlock Text="🖼️" FontSize="48" HorizontalAlignment="Center"/>
+                                    <TextBlock Text="Result will appear here" FontSize="14"
+                                               Foreground="{StaticResource PlayerTextBrush}" HorizontalAlignment="Center" Margin="0,8,0,0"/>
+                                </StackPanel>
+                            </Grid>
+                        </Border>
+                    </StackPanel>
+                </Border>
+
+                <!-- Actions -->
+                <Border Theme="{StaticResource SectionPanelStyle}" Margin="0,0,0,10">
+                    <StackPanel>
+                        <TextBlock Text="Output" Theme="{StaticResource HeaderTextStyle}"/>
+                        <TextBlock Text="{Binding Ideogram.ResultImagePath, FallbackValue='—'}"
+                                   FontSize="11" Foreground="{StaticResource TextSecondaryBrush}" TextTrimming="CharacterEllipsis"
+                                   Margin="0,0,0,10"/>
+                        <StackPanel Orientation="Horizontal">
+                            <Button Content="📁 Open Folder"
+                                    Command="{Binding Ideogram.OpenResultFolderCommand}"
+                                    Theme="{StaticResource SecondaryButtonStyle}"
+                                    Background="{StaticResource BrandBrush}" Padding="12,8" FontSize="12" Margin="0,0,8,0"/>
+                            <Button Content="🖼️ Open Image"
+                                    Command="{Binding Ideogram.OpenResultImageCommand}"
+                                    Theme="{StaticResource SecondaryButtonStyle}"
+                                    Background="{StaticResource SuccessBrush}" Padding="12,8" FontSize="12"/>
+                        </StackPanel>
+                    </StackPanel>
+                </Border>
+
+                <!-- Log -->
+                <Border Background="{StaticResource PlayerSurfaceBrush}" BorderBrush="#374151" BorderThickness="1" CornerRadius="6" Padding="10">
+                    <StackPanel>
+                        <TextBlock Text="Log" FontSize="12" FontWeight="SemiBold" Foreground="{StaticResource PlayerTextBrush}" Margin="0,0,0,6"/>
+                        <TextBox Text="{Binding Ideogram.LogOutput}"
+                                 IsReadOnly="True" TextWrapping="Wrap"
+                                 ScrollViewer.VerticalScrollBarVisibility="Auto"
+                                 Background="{StaticResource PlayerSurfaceBrush}" Foreground="{StaticResource PlayerTextBrush}"
+                                 BorderThickness="0" FontFamily="Consolas"
+                                 FontSize="11" Padding="4" Height="200"/>
+                    </StackPanel>
+                </Border>
+
+            </StackPanel>
+        </ScrollViewer>
+
+    </Grid>
+
+</UserControl>

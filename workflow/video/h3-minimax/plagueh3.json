@@ -1,0 +1,570 @@
+{
+  "5404": {
+    "inputs": {
+      "image": "00003_3485917534.png-fullview.jpg"
+    },
+    "class_type": "LoadImage",
+    "_meta": {
+      "title": "First Frame"
+    }
+  },
+  "5405": {
+    "inputs": {
+      "scale_mode": "Longer Side",
+      "long_side_target": 640,
+      "short_side_target": 768,
+      "width": 640,
+      "height": 960,
+      "multiplier": 1,
+      "megapixels": 4,
+      "upscale_method": "lanczos",
+      "crop": "center",
+      "divisible_by": 32,
+      "maintain_aspect": false,
+      "image": [
+        "5404",
+        0
+      ]
+    },
+    "class_type": "UnifiedResizeImageMask",
+    "_meta": {
+      "title": "Target Dimension"
+    }
+  },
+  "5445": {
+    "inputs": {
+      "noise_seed": 640
+    },
+    "class_type": "RandomNoise",
+    "_meta": {
+      "title": "RandomNoise"
+    }
+  },
+  "5480": {
+    "inputs": {
+      "filename_prefix": "video/ComfyUI",
+      "format": "auto",
+      "codec": "h264",
+      "codec.encoding": "re-encode",
+      "codec.encoding.crf": 10,
+      "video": [
+        "5479:5475",
+        0
+      ]
+    },
+    "class_type": "SaveVideo",
+    "_meta": {
+      "title": "Save Video"
+    }
+  },
+  "5495": {
+    "inputs": {
+      "scale_mode": "Shorter Side",
+      "long_side_target": 640,
+      "short_side_target": 2048,
+      "width": 512,
+      "height": 640,
+      "multiplier": 1,
+      "megapixels": 4,
+      "upscale_method": "lanczos",
+      "crop": "center",
+      "divisible_by": 32,
+      "maintain_aspect": true,
+      "image": [
+        "5404",
+        0
+      ]
+    },
+    "class_type": "UnifiedResizeImageMask",
+    "_meta": {
+      "title": "Max Ref size (Ignore it)"
+    }
+  },
+  "5511": {
+    "inputs": {
+      "stack_data": "[{\"on\":true,\"lora\":\"H3/minimax_h3_fl2v_turbo_8step_v1.0_comfyui_bf16.safetensors\",\"str\":1,\"v\":1,\"a\":1}]",
+      "lora_ui": "",
+      "model": [
+        "5310:5510",
+        0
+      ]
+    },
+    "class_type": "LTX_lora_loader",
+    "_meta": {
+      "title": "LoRA Loader Stack ( LTX Compatible )"
+    }
+  },
+  "5512": {
+    "inputs": {
+      "max_resolution": 512,
+      "jpeg_quality": 80,
+      "suppress_default_preview": true,
+      "preview_frames": [
+        "5479:5477",
+        1
+      ],
+      "preview_fps": 8,
+      "tiny_vae": "taeh3.safetensors",
+      "model": [
+        "5511",
+        0
+      ]
+    },
+    "class_type": "ModelPreviewOverrideKJ",
+    "_meta": {
+      "title": "Model Preview Override"
+    }
+  },
+  "5310:5222": {
+    "inputs": {
+      "vae_name": "minimax_h3_video_vae_int8_convrot.safetensors"
+    },
+    "class_type": "VAELoader",
+    "_meta": {
+      "title": "Load VAE"
+    }
+  },
+  "5310:5008": {
+    "inputs": {
+      "unet_name": "h3-minimax/minimax_h3_hybrid_fl2va_ref2va_b25-49-int8.safetensors",
+      "weight_dtype": "default"
+    },
+    "class_type": "UNETLoader",
+    "_meta": {
+      "title": "Load Diffusion Model"
+    }
+  },
+  "5310:5458": {
+    "inputs": {
+      "clip_name": "qwen3vl_32b_minimax_h3-w4a8_convrot.safetensors",
+      "type": "minimax",
+      "device": "default"
+    },
+    "class_type": "CLIPLoader",
+    "_meta": {
+      "title": "Load CLIP"
+    }
+  },
+  "5310:5221": {
+    "inputs": {
+      "vae_name": "minimax_h3_audio_vae_fp32.safetensors"
+    },
+    "class_type": "VAELoader",
+    "_meta": {
+      "title": "Load VAE"
+    }
+  },
+  "5310:5510": {
+    "inputs": {
+      "chunks": 4,
+      "seq_threshold": 4096,
+      "model": [
+        "5310:5236",
+        0
+      ]
+    },
+    "class_type": "MiniMaxChunkFeedForward",
+    "_meta": {
+      "title": "MiniMax H3 Chunk FeedForward"
+    }
+  },
+  "5310:5236": {
+    "inputs": {
+      "enable_fp16_accumulation": true,
+      "model": [
+        "5310:5585",
+        0
+      ]
+    },
+    "class_type": "ModelPatchTorchSettings",
+    "_meta": {
+      "title": "Model Patch Torch Settings"
+    }
+  },
+  "5310:5585": {
+    "inputs": {
+      "attention": "comfy kitchen attention",
+      "model": [
+        "5310:5008",
+        0
+      ]
+    },
+    "class_type": "ModelAttentionBackend",
+    "_meta": {
+      "title": "ModelAttentionBackend"
+    }
+  },
+  "5556:5570": {
+    "inputs": {
+      "input_1": [
+        "5495",
+        0
+      ]
+    },
+    "class_type": "PlagueKindBundleIn",
+    "_meta": {
+      "title": "Bundle In (PlagueKind)"
+    }
+  },
+  "5479:5481": {
+    "inputs": {
+      "resize_type": "scale by multiplier",
+      "resize_type.scale": 2,
+      "quality": "ULTRA",
+      "images": [
+        "5479:5485",
+        0
+      ]
+    },
+    "class_type": "RTXVideoSuperResolution",
+    "_meta": {
+      "title": "RTX Video Super Resolution"
+    }
+  },
+  "5479:5492": {
+    "inputs": {
+      "value": 24
+    },
+    "class_type": "PrimitiveFloat",
+    "_meta": {
+      "title": "FPS"
+    }
+  },
+  "5479:5493": {
+    "inputs": {
+      "expression": "a * 2",
+      "values.a": [
+        "5479:5492",
+        0
+      ]
+    },
+    "class_type": "ComfyMathExpression",
+    "_meta": {
+      "title": "Math Expression"
+    }
+  },
+  "5479:5485": {
+    "inputs": {
+      "multiplier": 2,
+      "interp_model": [
+        "5479:5484",
+        0
+      ],
+      "images": [
+        "5479:5473",
+        0
+      ]
+    },
+    "class_type": "FrameInterpolate",
+    "_meta": {
+      "title": "Run Frame Interpolation Model"
+    }
+  },
+  "5479:5484": {
+    "inputs": {
+      "model_name": "film_net_fp16.safetensors"
+    },
+    "class_type": "FrameInterpolationModelLoader",
+    "_meta": {
+      "title": "Load Frame Interpolation Model"
+    }
+  },
+  "5479:5475": {
+    "inputs": {
+      "fps": [
+        "5479:5493",
+        0
+      ],
+      "bit_depth": 8,
+      "images": [
+        "5479:5481",
+        0
+      ],
+      "audio": [
+        "5479:5474",
+        0
+      ]
+    },
+    "class_type": "CreateVideo",
+    "_meta": {
+      "title": "Create Video"
+    }
+  },
+  "5479:5473": {
+    "inputs": {
+      "samples": [
+        "5479:5472",
+        0
+      ],
+      "vae": [
+        "5310:5222",
+        0
+      ]
+    },
+    "class_type": "VAEDecode",
+    "_meta": {
+      "title": "VAE Decode"
+    }
+  },
+  "5479:5474": {
+    "inputs": {
+      "samples": [
+        "5479:5472",
+        0
+      ],
+      "vae": [
+        "5310:5221",
+        0
+      ]
+    },
+    "class_type": "VAEDecodeAudio",
+    "_meta": {
+      "title": "VAE Decode Audio"
+    }
+  },
+  "5479:5528": {
+    "inputs": {
+      "prompt": "[0-2s] The character points and the camera.\n\n[3-5s) The character headbangs.\n\noverall_soundscape: Music. \n\nnon_degentic_music: Deathmetal music",
+      "width": [
+        "5405",
+        2
+      ],
+      "height": [
+        "5405",
+        3
+      ],
+      "length": [
+        "5479:5477",
+        1
+      ],
+      "ref_image_size": "match",
+      "clip": [
+        "5310:5458",
+        0
+      ],
+      "vae": [
+        "5310:5222",
+        0
+      ],
+      "audio_vae": [
+        "5310:5221",
+        0
+      ],
+      "ref_images.ref_image_0": [
+        "5479:5568",
+        0
+      ],
+      "ref_images.ref_image_1": [
+        "5479:5568",
+        1
+      ],
+      "ref_images.ref_image_2": [
+        "5479:5568",
+        2
+      ],
+      "ref_images.ref_image_3": [
+        "5479:5568",
+        3
+      ],
+      "ref_images.ref_image_4": [
+        "5479:5568",
+        4
+      ],
+      "ref_images.ref_image_5": [
+        "5479:5568",
+        5
+      ],
+      "ref_images.ref_image_6": [
+        "5479:5568",
+        6
+      ],
+      "ref_images.ref_image_7": [
+        "5479:5568",
+        7
+      ],
+      "ref_images.ref_image_8": [
+        "5479:5568",
+        8
+      ],
+      "ref_videos.ref_video_0": [
+        "5479:5568",
+        9
+      ],
+      "ref_videos.ref_video_1": [
+        "5479:5568",
+        11
+      ],
+      "ref_videos.ref_video_2": [
+        "5479:5568",
+        13
+      ],
+      "ref_video_audios.ref_video_audio_0": [
+        "5479:5568",
+        10
+      ],
+      "ref_video_audios.ref_video_audio_1": [
+        "5479:5568",
+        12
+      ],
+      "ref_video_audios.ref_video_audio_2": [
+        "5479:5568",
+        14
+      ],
+      "ref_audios.ref_audio_0": [
+        "5479:5568",
+        15
+      ],
+      "ref_audios.ref_audio_1": [
+        "5479:5568",
+        16
+      ],
+      "ref_audios.ref_audio_2": [
+        "5479:5568",
+        17
+      ]
+    },
+    "class_type": "MiniMaxH3ReferenceToVideo",
+    "_meta": {
+      "title": "MiniMax H3 Reference to Video"
+    }
+  },
+  "5479:5568": {
+    "inputs": {
+      "bundle": [
+        "5556:5570",
+        0
+      ]
+    },
+    "class_type": "PlagueKindBundleOut",
+    "_meta": {
+      "title": "Bundle Out (PlagueKind)"
+    }
+  },
+  "5479:5477": {
+    "inputs": {
+      "expression": "max(5, round(a * 24)) + (5 - (max(5, round(a * 24)) % 17)) % 17",
+      "values.a": [
+        "5479:5476",
+        0
+      ]
+    },
+    "class_type": "ComfyMathExpression",
+    "_meta": {
+      "title": "Math Expression"
+    }
+  },
+  "5479:5476": {
+    "inputs": {
+      "value": 5
+    },
+    "class_type": "PrimitiveFloat",
+    "_meta": {
+      "title": "Float (duration)"
+    }
+  },
+  "5479:5478": {
+    "inputs": {
+      "prompt": "[0-2s] The character points and the camera.\n\n[3-5s) The character headbangs.\n\noverall_soundscape: Music. \n\nnon_degentic_music: Deathmetal music",
+      "width": [
+        "5405",
+        2
+      ],
+      "height": [
+        "5405",
+        3
+      ],
+      "length": [
+        "5479:5477",
+        1
+      ],
+      "clip": [
+        "5310:5458",
+        0
+      ],
+      "vae": [
+        "5310:5222",
+        0
+      ],
+      "first_frame": [
+        "5479:5568",
+        0
+      ],
+      "last_frame": [
+        "5479:5568",
+        1
+      ]
+    },
+    "class_type": "MiniMaxH3ImageToVideo",
+    "_meta": {
+      "title": "MiniMax H3 Image to Video"
+    }
+  },
+  "5479:5471": {
+    "inputs": {
+      "scheduler": "linear_quadratic",
+      "steps": 8,
+      "denoise": 1,
+      "model": [
+        "5512",
+        0
+      ]
+    },
+    "class_type": "BasicScheduler",
+    "_meta": {
+      "title": "BasicScheduler"
+    }
+  },
+  "5479:5472": {
+    "inputs": {
+      "noise": [
+        "5445",
+        0
+      ],
+      "guider": [
+        "5479:5469",
+        0
+      ],
+      "sampler": [
+        "5479:5470",
+        0
+      ],
+      "sigmas": [
+        "5479:5471",
+        0
+      ],
+      "latent_image": [
+        "5479:5478",
+        1
+      ]
+    },
+    "class_type": "SamplerCustomAdvanced",
+    "_meta": {
+      "title": "SamplerCustomAdvanced"
+    }
+  },
+  "5479:5470": {
+    "inputs": {
+      "sampler_name": "euler"
+    },
+    "class_type": "KSamplerSelect",
+    "_meta": {
+      "title": "KSamplerSelect"
+    }
+  },
+  "5479:5469": {
+    "inputs": {
+      "model": [
+        "5512",
+        0
+      ],
+      "conditioning": [
+        "5479:5478",
+        0
+      ]
+    },
+    "class_type": "BasicGuider",
+    "_meta": {
+      "title": "Basic Guider"
+    }
+  }
+}

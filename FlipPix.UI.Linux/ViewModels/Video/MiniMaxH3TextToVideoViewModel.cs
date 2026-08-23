@@ -3,73 +3,71 @@ using System.Collections.Generic;
 using System.IO;
 using System.Linq;
 using System.Text.Json;
+using System.Text.Json.Nodes;
 using System.Threading;
 using System.Threading.Tasks;
-using System.Windows;
 using System.Windows.Input;
 using System.Windows.Media.Imaging;
 using CommunityToolkit.Mvvm.Input;
 using FlipPix.ComfyUI.Models;
 using FlipPix.ComfyUI.Services;
 using FlipPix.Core.Interfaces;
-using FlipPix.UI.Models;
-using FlipPix.UI.Services;
-using MessageBox = System.Windows.MessageBox;
+using FlipPix.UI.Linux.Services;
+// MessageBox is fully qualified below: MsBox.Avalonia contributes a root
+// namespace of the same name, so a using-alias would be a CS0576 conflict.
+using MessageBoxButton = System.Windows.MessageBoxButton;
+using MessageBoxImage = System.Windows.MessageBoxImage;
 using Application = System.Windows.Application;
 
-namespace FlipPix.UI.ViewModels.Video
+namespace FlipPix.UI.Linux.ViewModels.Video
 {
     /// <summary>
-    /// "MiniMax H3" tab. A single-shot image-to-video runner: upload an image (it becomes the literal
-    /// first frame at 0.00s), press Analyze to have the llama-server turn the image + a draft idea into
-    /// a full H3 prompt, then generate one video with synchronized audio.
+    /// "MiniMax H3 T2V" tab. The long-form image-to-video variant: upload one image, press Analyze, and
+    /// the llama-server turns it into a dense ~15-second multi-shot H3 prompt (9–14 timestamped shots,
+    /// continuous motion, beat-locked cuts) rather than the single continuous beat
+    /// <see cref="MiniMaxI2VViewModel"/> writes. Then one video with synchronized audio is generated.
     ///
-    /// Drives <c>video_minimax_h3_i2v.json</c> — the reference-to-video template rebuilt around
-    /// <c>MiniMaxH3ImageToVideo</c> (first_frame instead of ref_images, fl2va checkpoint instead of
-    /// ref2va) — by editing node inputs. No queue, like <see cref="FaceIdCharSheetViewModel"/>.
+    /// The image's role at generation time is the user's choice:
+    /// <list type="bullet">
+    /// <item><b>Use image as first frame</b> (default) — identical conditioning to the 🌀 tab: the image
+    /// uploads and wires into <c>MiniMaxH3ImageToVideo.first_frame</c>, and the prompt keeps the
+    /// <c>&lt;Picture 1&gt;</c> anchor line.</item>
+    /// <item><b>Off</b> — true text-to-video. <see cref="PruneFirstFrame"/> strips the LoadImage node and the
+    /// <c>first_frame</c> link before submit (the input is optional on the node), and the anchor line is
+    /// removed from the prompt since there is no picture for it to refer to. The image is then only ever
+    /// seen by the llama-server.</item>
+    /// </list>
     /// </summary>
-    public partial class MiniMaxH3ViewModel : VideoProcessingBaseViewModel
+    public partial class MiniMaxH3TextToVideoViewModel : VideoProcessingBaseViewModel
     {
-        private const string WorkflowFileName = "workflow/video/h3-minimax/video_minimax_h3_i2v.json";
-        private const string OutputSubfolder = "minimax_h3";
-        private const string SystemPromptFile = "h3minimax.md";
+        private const string WorkflowFileName = "workflow/video/h3-minimax/video_minimax_h3_t2v.json";
+        private const string OutputSubfolder = "minimax_h3_t2v";
+        private const string SystemPromptFile = "texttovideoH3.md";
 
-        // ── Workflow node ids (locked from video_minimax_h3_i2v.json) ──────────────────────────
-        private const string NodeImage = "137";      // LoadImage (first frame)
-        private const string NodePrompt = "138";     // PrimitiveStringMultiline → MiniMaxH3ImageToVideo.prompt
+        // ── Workflow node ids (locked from video_minimax_h3_t2v.json) ──────────────────────────
+        private const string NodeImage = "137";      // LoadImage — pruned when the first-frame toggle is off
+        private const string NodeVideo = "136";      // MiniMaxH3ImageToVideo (first_frame is optional)
+        private const string NodePrompt = "138";     // PrimitiveStringMultiline → prompt
         private const string NodeResolution = "115"; // ResolutionSelector (aspect_ratio, megapixels)
         private const string NodeSeed = "129";       // RandomNoise noise_seed
         private const string NodeDuration = "132";   // PrimitiveFloat (seconds → frames via node 131)
         private const string NodeOutput = "92";      // SaveVideo
 
-        /// <summary>The fixed first line every I2VA prompt must carry (from the H3 prompt-writing guide).</summary>
+        /// <summary>The fixed anchor line that pins the uploaded image to 0.00s. Only valid when the
+        /// image is actually wired in as the first frame.</summary>
         private const string I2vaInstruction =
             "For the target video, at 0.00 seconds into the target video, <Picture 1> (from [Shot 1]) is fully referenced.";
-
-        /// <summary>Aspect ratios accepted by the workflow's ResolutionSelector node, widest to tallest.
-        /// Shared with <see cref="MiniMaxFflfSeedHuntViewModel"/>, which drives the same node.</summary>
-        internal const string AutoAspect = "Auto (match image)";
-        internal static readonly (string Option, double Ratio)[] AspectRatios =
-        {
-            ("21:9 (Ultrawide)", 21.0 / 9.0),
-            ("16:9 (Widescreen)", 16.0 / 9.0),
-            ("3:2 (Photo)", 3.0 / 2.0),
-            ("4:3 (Standard)", 4.0 / 3.0),
-            ("1:1 (Square)", 1.0),
-            ("3:4 (Portrait Standard)", 3.0 / 4.0),
-            ("2:3 (Portrait Photo)", 2.0 / 3.0),
-            ("9:16 (Portrait Widescreen)", 9.0 / 16.0),
-        };
 
         // ── Input state ────────────────────────────────────────────────────────
         private string _imagePath = string.Empty;
         private BitmapImage? _imagePreview;
         private string _imageInfo = string.Empty;
         private string _prompt = string.Empty;
-        private string _selectedAspectRatio = AutoAspect;
+        private string _selectedAspectRatio = H3Canvas.AutoAspect;
         private double _megapixels = 1.0;
-        private double _lengthSeconds = 5;
+        private double _lengthSeconds = 15;
         private long _seed = -1;
+        private bool _useImageAsFirstFrame = true;
         private bool _isAnalyzing;
 
         private readonly IFileDialogService _fileDialogService;
@@ -77,7 +75,7 @@ namespace FlipPix.UI.ViewModels.Video
         private CancellationTokenSource? _analyzeCts;
         private CancellationTokenSource? _runCts;
 
-        public MiniMaxH3ViewModel(
+        public MiniMaxH3TextToVideoViewModel(
             ComfyUIService comfyUIService,
             LMStudioService lmStudioService,
             IAppLogger logger,
@@ -98,7 +96,7 @@ namespace FlipPix.UI.ViewModels.Video
             OpenResultFolderCommand = new RelayCommand(OpenResultFolder, () => HasResult);
             RandomSeedCommand = new RelayCommand(() => Seed = System.Random.Shared.NextInt64(0, long.MaxValue));
 
-            AddLog("MiniMax H3 initialized");
+            AddLog("MiniMax H3 T2V initialized");
         }
 
         #region Commands
@@ -137,15 +135,39 @@ namespace FlipPix.UI.ViewModels.Video
         public BitmapImage? ImagePreview => _imagePreview;
         public string ImageInfo => _imageInfo;
 
-        /// <summary>The full H3 prompt: I2VA instruction line + the three core fields.</summary>
+        /// <summary>The full H3 prompt: optional anchor line + the three core fields.</summary>
         public string Prompt
         {
             get => _prompt;
             set { if (_prompt != value) { _prompt = value; OnPropertyChanged(); OnCanExecuteChanged(); } }
         }
 
+        /// <summary>
+        /// When true the image is uploaded and conditioned as frame 0. When false the graph runs as pure
+        /// text-to-video and the image only ever reaches the llama-server.
+        /// </summary>
+        public bool UseImageAsFirstFrame
+        {
+            get => _useImageAsFirstFrame;
+            set
+            {
+                if (_useImageAsFirstFrame != value)
+                {
+                    _useImageAsFirstFrame = value;
+                    OnPropertyChanged();
+                    OnPropertyChanged(nameof(ImageRoleDescription));
+                    OnCanExecuteChanged(); // an image stops being required once it is no longer conditioned
+                }
+            }
+        }
+
+        public string ImageRoleDescription => UseImageAsFirstFrame
+            ? "First frame at 0.00s — the video starts on this exact image."
+            : "Reference only — the model never sees it; the prompt carries the whole look.";
+
         public IReadOnlyList<string> AspectRatioOptions { get; } =
-            new[] { AutoAspect }.Concat(AspectRatios.Select(a => a.Option)).ToList();
+            new[] { H3Canvas.AutoAspect }
+                .Concat(H3Canvas.AspectRatios.Select(a => a.Option)).ToList();
 
         public string SelectedAspectRatio
         {
@@ -163,12 +185,11 @@ namespace FlipPix.UI.ViewModels.Video
 
         /// <summary>The aspect actually sent to ComfyUI — the picked one, or the image's closest match.</summary>
         public string ResolvedAspectRatio =>
-            SelectedAspectRatio == AutoAspect ? ClosestAspectRatio(ImagePath) : SelectedAspectRatio;
+            SelectedAspectRatio == H3Canvas.AutoAspect
+                ? ClosestAspectRatio(ImagePath)
+                : SelectedAspectRatio;
 
-        /// <summary>
-        /// Quality presets for the ResolutionSelector. H3's native canvas is a 768px short edge, so
-        /// 1.0 MP (≈1344×768 at 16:9) is full quality; the lower steps trade detail for speed.
-        /// </summary>
+        /// <summary>Same ResolutionSelector presets as the 🌀 tab — H3's native canvas is a 768px short edge.</summary>
         public IReadOnlyList<MegapixelOption> MegapixelOptions { get; } = new[]
         {
             new MegapixelOption(0.4, "0.4 MP — fast draft (≈864×480)"),
@@ -182,11 +203,32 @@ namespace FlipPix.UI.ViewModels.Video
             set { if (Math.Abs(_megapixels - value) > 0.0001) { _megapixels = value; OnPropertyChanged(); } }
         }
 
-        /// <summary>Video length in seconds (H3 supports 4–15; clamped when applied to the workflow).</summary>
+        /// <summary>
+        /// Video length in seconds. Defaults to the full 15 s this tab is built around (362 frames at
+        /// 24 fps, the top of H3's trained range); drop it for cheap test runs before a full render.
+        /// </summary>
         public double LengthSeconds
         {
             get => _lengthSeconds;
-            set { if (Math.Abs(_lengthSeconds - value) > 0.0001) { _lengthSeconds = value; OnPropertyChanged(); } }
+            set
+            {
+                if (Math.Abs(_lengthSeconds - value) > 0.0001)
+                {
+                    _lengthSeconds = value;
+                    OnPropertyChanged();
+                    OnPropertyChanged(nameof(LengthSummary));
+                }
+            }
+        }
+
+        /// <summary>Shows the frame count the workflow's math node will actually snap the duration to.</summary>
+        public string LengthSummary
+        {
+            get
+            {
+                var len = ClampLength(LengthSeconds);
+                return $"{len:0.#}s → {FramesForSeconds(len)} frames @ 24 fps";
+            }
         }
 
         public long Seed
@@ -212,8 +254,15 @@ namespace FlipPix.UI.ViewModels.Video
 
         public bool HasImage => !string.IsNullOrEmpty(ImagePath) && File.Exists(ImagePath);
 
+        /// <summary>Analyze always needs the image — it is the only thing the LLM has to work from.</summary>
         public bool CanAnalyze => HasImage && !IsAnalyzing && !IsProcessing;
-        public bool CanGenerate => HasImage && !string.IsNullOrWhiteSpace(Prompt) && !IsProcessing && !IsAnalyzing;
+
+        /// <summary>
+        /// Generation needs a prompt, and an image only when it is being conditioned as the first frame —
+        /// with the toggle off the prompt alone is enough.
+        /// </summary>
+        public bool CanGenerate => !string.IsNullOrWhiteSpace(Prompt) && !IsProcessing && !IsAnalyzing
+                                   && (!UseImageAsFirstFrame || HasImage);
 
         #endregion
 
@@ -226,15 +275,15 @@ namespace FlipPix.UI.ViewModels.Video
                 initialDir = Environment.GetFolderPath(Environment.SpecialFolder.MyPictures);
 
             var path = await _fileDialogService.OpenFileDialogAsync(
-                "Select First Frame Image",
+                "Select Source Image",
                 "Image Files|*.jpg;*.jpeg;*.png;*.bmp;*.webp|All Files|*.*",
                 initialDir,
-                persistKey: "minimaxh3.image");
+                persistKey: "minimaxh3t2v.image");
 
             if (path != null)
             {
                 ImagePath = path;
-                AddLog($"First frame: {Path.GetFileName(path)}");
+                AddLog($"Source image: {Path.GetFileName(path)}");
             }
         }
 
@@ -280,23 +329,12 @@ namespace FlipPix.UI.ViewModels.Video
                 }
                 catch { /* fall through to the 16:9 default */ }
             }
-            return ClosestAspectRatio(w, h);
-        }
-
-        /// <summary>Nearest ResolutionSelector aspect option for a pixel size (16:9 if unknown).</summary>
-        internal static string ClosestAspectRatio(int w, int h)
-        {
-            if (w <= 0 || h <= 0) return "16:9 (Widescreen)";
-
-            var ratio = (double)w / h;
-            return AspectRatios
-                .OrderBy(a => Math.Abs(Math.Log(a.Ratio) - Math.Log(ratio)))
-                .First().Option;
+            return H3Canvas.ClosestAspectRatio(w, h);
         }
 
         #endregion
 
-        #region Analysis (image → H3 prompt)
+        #region Analysis (image → 15-second multi-shot H3 prompt)
 
         private async Task AnalyzeAsync()
         {
@@ -318,12 +356,12 @@ namespace FlipPix.UI.ViewModels.Video
                     model = models[0].Id ?? models[0].Name ?? string.Empty;
                 if (string.IsNullOrEmpty(model))
                 {
-                    MessageBox.Show("No LM Studio / llama-server model available. Ensure the server is running and a model is loaded.",
+                    System.Windows.MessageBox.Show("No LM Studio / llama-server model available. Ensure the server is running and a model is loaded.",
                         "LM Studio Unavailable", MessageBoxButton.OK, MessageBoxImage.Warning);
                     return;
                 }
 
-                AddLog($"Writing MiniMax H3 prompt — sending the image to {_lmStudioService.DescribeTarget(model)}");
+                AddLog($"Writing a {ClampLength(LengthSeconds):0.#}s multi-shot H3 prompt — sending to {_lmStudioService.DescribeTarget(model)}");
 
                 var promptFilePath = Path.Combine(AppDomain.CurrentDomain.BaseDirectory,
                     "prompts", "prompt2json", SystemPromptFile);
@@ -332,10 +370,15 @@ namespace FlipPix.UI.ViewModels.Video
                 var systemPrompt = await File.ReadAllTextAsync(promptFilePath, token);
 
                 // The current prompt box doubles as the user's draft idea for the rewrite.
-                var draft = string.IsNullOrWhiteSpace(Prompt) ? "(none — invent a natural continuation of the image)" : Prompt.Trim();
+                var draft = string.IsNullOrWhiteSpace(Prompt)
+                    ? "(none — invent a dynamic sequence that suits the image)"
+                    : Prompt.Trim();
                 var len = ClampLength(LengthSeconds);
+                var role = UseImageAsFirstFrame
+                    ? "Image role: FIRST FRAME — this image is literally frame 0 of the video at 0.00 seconds."
+                    : "Image role: REFERENCE ONLY — the video does not start on this image and the generator will never see it, so describe everything explicitly.";
                 var userMessage =
-                    $"This image is the first frame of the video at 0.00 seconds.\n" +
+                    $"{role}\n" +
                     $"Target duration: {len:0.##} seconds.\n" +
                     $"Draft idea from the user:\n{draft}";
 
@@ -344,14 +387,14 @@ namespace FlipPix.UI.ViewModels.Video
                     ImagePath,
                     userMessage,
                     systemPrompt,
-                    maxTokens: 2000,
+                    maxTokens: 6000,
                     cancellationToken: token);
 
-                var cleaned = EnsureI2vaInstruction(CleanOutput(result));
+                var cleaned = ApplyAnchorLine(CleanOutput(result));
                 if (!string.IsNullOrWhiteSpace(cleaned))
                 {
                     Prompt = cleaned;
-                    AddLog($"Prompt written ({cleaned.Length} chars)");
+                    AddLog($"Prompt written ({cleaned.Length} chars, {CountShots(cleaned)} shots)");
                 }
                 else
                 {
@@ -362,7 +405,7 @@ namespace FlipPix.UI.ViewModels.Video
             catch (Exception ex)
             {
                 AddLog($"ERROR during analysis: {ex.Message}");
-                MessageBox.Show($"Analysis failed:\n{ex.Message}", "Error", MessageBoxButton.OK, MessageBoxImage.Error);
+                System.Windows.MessageBox.Show($"Analysis failed:\n{ex.Message}", "Error", MessageBoxButton.OK, MessageBoxImage.Error);
             }
             finally
             {
@@ -400,20 +443,47 @@ namespace FlipPix.UI.ViewModels.Video
         }
 
         /// <summary>
-        /// Guarantees the I2VA alignment sentence is the first line — the model treats it as the
-        /// instruction that pins the uploaded image to 0.00s, and H3 expects it verbatim.
+        /// Makes the anchor line match the image's actual role: present and verbatim when the image is
+        /// conditioned as frame 0, removed when it is not (there is no &lt;Picture 1&gt; for H3 to resolve).
         /// </summary>
-        private static string EnsureI2vaInstruction(string prompt)
+        private string ApplyAnchorLine(string prompt)
         {
             var t = (prompt ?? string.Empty).Trim();
             if (t.Length == 0) return t;
-            if (t.StartsWith("For the target video,", StringComparison.OrdinalIgnoreCase)) return t;
-            return $"{I2vaInstruction}\n\n{t}";
+
+            var hasAnchor = t.StartsWith("For the target video,", StringComparison.OrdinalIgnoreCase);
+
+            if (UseImageAsFirstFrame)
+                return hasAnchor ? t : $"{I2vaInstruction}\n\n{t}";
+
+            if (!hasAnchor) return t;
+            var idx = t.IndexOf("integrated_multimodal_description:", StringComparison.OrdinalIgnoreCase);
+            return idx > 0 ? t[idx..].Trim() : t;
+        }
+
+        /// <summary>Counts `[Shot n]` markers, purely for the log line.</summary>
+        private static int CountShots(string prompt)
+        {
+            var count = 0;
+            var idx = prompt.IndexOf("[Shot ", StringComparison.OrdinalIgnoreCase);
+            while (idx >= 0)
+            {
+                count++;
+                idx = prompt.IndexOf("[Shot ", idx + 6, StringComparison.OrdinalIgnoreCase);
+            }
+            return count;
         }
 
         /// <summary>H3's supported clip length is 4–15 seconds at 24 fps.</summary>
         private static double ClampLength(double seconds) =>
-            Math.Clamp(seconds <= 0 ? 5 : seconds, 4, 15);
+            Math.Clamp(seconds <= 0 ? 15 : seconds, 4, 15);
+
+        /// <summary>Mirrors node 131's expression: 24 fps snapped up onto the model's 17k+5 frame grid.</summary>
+        private static int FramesForSeconds(double seconds)
+        {
+            var frames = Math.Max(5, (int)Math.Round(seconds * 24));
+            return frames + (5 - frames % 17 + 17) % 17;
+        }
 
         #endregion
 
@@ -437,9 +507,9 @@ namespace FlipPix.UI.ViewModels.Video
             WorkflowQueueCoordinator.WorkflowLease? lease = null;
             try
             {
-                AddLog("=== MiniMax H3 Image to Video ===");
+                AddLog($"=== MiniMax H3 {(UseImageAsFirstFrame ? "Image" : "Text")} to Video ===");
                 AddLog("Waiting for other workflows to finish...");
-                lease = await _workflowCoordinator.AcquireAsync("MiniMaxH3", token);
+                lease = await _workflowCoordinator.AcquireAsync("MiniMaxH3T2V", token);
 
                 ProcessingStatus = "Checking ComfyUI...";
                 var comfyOk = await _comfyUIService.DetectAndRestartIfCrashedAsync(s => AddLog($"[Auto-Restart] {s}"));
@@ -455,21 +525,29 @@ namespace FlipPix.UI.ViewModels.Video
                     throw new FileNotFoundException($"Workflow file not found: {workflowPath}");
                 var json = await File.ReadAllTextAsync(workflowPath, token);
 
-                ProcessingStatus = "Uploading first frame...";
-                ProcessingProgress = 5;
-                AddLog("Uploading first frame...");
-                var imageName = await _comfyUIService.UploadImageAsync(ImagePath);
-                if (string.IsNullOrEmpty(imageName)) throw new Exception("Failed to upload the first-frame image.");
-                AddLog($"Image uploaded: {imageName}");
+                if (UseImageAsFirstFrame)
+                {
+                    ProcessingStatus = "Uploading first frame...";
+                    ProcessingProgress = 5;
+                    AddLog("Uploading first frame...");
+                    var imageName = await _comfyUIService.UploadImageAsync(ImagePath);
+                    if (string.IsNullOrEmpty(imageName)) throw new Exception("Failed to upload the first-frame image.");
+                    AddLog($"Image uploaded: {imageName}");
+                    WorkflowNodeUpdater.UpdateNodeInput(ref json, NodeImage, "image", imageName);
+                }
+                else
+                {
+                    json = PruneFirstFrame(json);
+                    AddLog("Text-to-video: first frame pruned, the prompt alone drives the shot.");
+                }
 
                 var runSeed = Seed >= 0 ? Seed : System.Random.Shared.NextInt64(0, long.MaxValue);
                 var len = ClampLength(LengthSeconds);
                 var aspect = ResolvedAspectRatio;
                 var ts = DateTime.Now.ToString("yyyyMMdd_HHmmss");
-                var runToken = $"mmh3_{ts}";
+                var runToken = $"mmh3t2v_{ts}";
 
-                WorkflowNodeUpdater.UpdateNodeInput(ref json, NodeImage, "image", imageName);
-                WorkflowNodeUpdater.UpdateNodeInput(ref json, NodePrompt, "value", EnsureI2vaInstruction(Prompt.Trim()));
+                WorkflowNodeUpdater.UpdateNodeInput(ref json, NodePrompt, "value", ApplyAnchorLine(Prompt.Trim()));
                 WorkflowNodeUpdater.UpdateNodeInput(ref json, NodeResolution, "aspect_ratio", aspect);
                 WorkflowNodeUpdater.UpdateNodeInput(ref json, NodeResolution, "megapixels", Megapixels);
                 WorkflowNodeUpdater.UpdateNodeInput(ref json, NodeDuration, "value", len);
@@ -478,24 +556,25 @@ namespace FlipPix.UI.ViewModels.Video
 
                 ProcessingProgress = 10;
                 ProcessingStatus = "Generating video...";
-                AddLog($"Generating (seed {runSeed}, {len:0.#}s, {aspect}, {Megapixels:0.0} MP)...");
+                AddLog($"Generating (seed {runSeed}, {len:0.#}s / {FramesForSeconds(len)} frames, {aspect}, {Megapixels:0.0} MP)...");
 
                 var local = await SubmitAndRetrieveAsync(json, runToken, 10, 95, token);
                 if (local == null || !File.Exists(local))
                     throw new Exception("No output video was generated.");
 
                 var outputDir = Path.Combine(
-                    _settingsService.Settings?.OutputFolderPath ?? Path.GetTempPath(), "MiniMaxH3");
+                    _settingsService.Settings?.OutputFolderPath ?? Path.GetTempPath(), "MiniMaxH3T2V");
                 Directory.CreateDirectory(outputDir);
-                var finalPath = Path.Combine(outputDir, $"MiniMaxH3_{ts}.mp4");
+                var finalPath = Path.Combine(outputDir, $"MiniMaxH3T2V_{ts}.mp4");
                 File.Copy(local, finalPath, true);
                 await LocalCopyService.CopyVideoAsync(finalPath);
 
                 var fi = new FileInfo(finalPath);
+                var mode = UseImageAsFirstFrame ? "first frame" : "text only";
                 Application.Current.Dispatcher.Invoke(() =>
                 {
                     ResultVideoPath = finalPath;
-                    ResultVideoInfo = $"MiniMax H3 • {aspect} • {len:0.#}s • {fi.Length / 1024 / 1024.0:F1}MB";
+                    ResultVideoInfo = $"MiniMax H3 • {mode} • {aspect} • {len:0.#}s • {fi.Length / 1024 / 1024.0:F1}MB";
                     HasResult = true;
                     OnCanExecuteChanged();
                 });
@@ -512,7 +591,7 @@ namespace FlipPix.UI.ViewModels.Video
             {
                 AddLog($"ERROR: {ex.Message}");
                 ProcessingStatus = $"Error: {ex.Message}";
-                MessageBox.Show($"Generation failed:\n{ex.Message}", "MiniMax H3 Error",
+                System.Windows.MessageBox.Show($"Generation failed:\n{ex.Message}", "MiniMax H3 T2V Error",
                     MessageBoxButton.OK, MessageBoxImage.Error);
             }
             finally
@@ -523,6 +602,24 @@ namespace FlipPix.UI.ViewModels.Video
                 _runCts = null;
                 OnCanExecuteChanged();
             }
+        }
+
+        /// <summary>
+        /// Turns the graph into a pure text-to-video one: drops the <c>first_frame</c> link from
+        /// MiniMaxH3ImageToVideo (the input is optional, so the node falls back to an empty latent) and
+        /// removes the now-orphaned LoadImage node, which would otherwise fail validation on its
+        /// placeholder filename.
+        /// </summary>
+        private static string PruneFirstFrame(string json)
+        {
+            var root = JsonNode.Parse(json)?.AsObject()
+                       ?? throw new Exception("Workflow JSON could not be parsed.");
+
+            if (root[NodeVideo]?["inputs"] is JsonObject videoInputs)
+                videoInputs.Remove("first_frame");
+            root.Remove(NodeImage);
+
+            return root.ToJsonString();
         }
 
         /// <summary>Submits the workflow, waits for completion, and resolves the SaveVideo (node 92)
@@ -598,7 +695,7 @@ namespace FlipPix.UI.ViewModels.Video
                 var bytes = await _comfyUIService.HttpClient.DownloadOutputVideoAsync(filename, subfolder);
                 if (bytes is { Length: > 0 })
                 {
-                    var tempPath = Path.Combine(Path.GetTempPath(), $"mmh3_{Guid.NewGuid():N}_{filename}");
+                    var tempPath = Path.Combine(Path.GetTempPath(), $"mmh3t2v_{Guid.NewGuid():N}_{filename}");
                     await File.WriteAllBytesAsync(tempPath, bytes);
                     return tempPath;
                 }
@@ -651,7 +748,4 @@ namespace FlipPix.UI.ViewModels.Video
             OpenResultFolderCommand.NotifyCanExecuteChanged();
         }
     }
-
-    /// <summary>A ResolutionSelector megapixel preset shown in the MiniMax H3 quality dropdown.</summary>
-    public record MegapixelOption(double Value, string Label);
 }

@@ -9,11 +9,9 @@ namespace FlipPix.UI.Linux.Services;
 /// </summary>
 public static class LocalCopyService
 {
-    private static readonly string ImageDestination = Path.Combine(
-        Environment.GetFolderPath(Environment.SpecialFolder.MyPictures), "flippix-images");
+    private static string ImageDestination => UserPaths.PicturesDir;
 
-    private static readonly string VideoDestination = Path.Combine(
-        Environment.GetFolderPath(Environment.SpecialFolder.MyVideos), "flippix-vids");
+    private static string VideoDestination => UserPaths.VideosDir;
 
     /// <summary>
     /// Copies a generated image file to the local pictures folder.

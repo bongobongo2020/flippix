@@ -622,47 +622,23 @@ namespace FlipPix.UI.Linux.ViewModels.Video
         #region FFmpeg Helpers
 
         /// <summary>
-        /// Finds FFmpeg executable on the system.
+        /// Finds the FFmpeg executable on the system (PATH first, then well-known locations).
         /// </summary>
         protected string? FindFFmpeg()
         {
-            // Check common locations
-            var possiblePaths = new[]
-            {
-                @"C:\ffmpeg\bin\ffmpeg.exe",
-                @"C:\Program Files\ffmpeg\bin\ffmpeg.exe",
-                @"C:\Program Files (x86)\ffmpeg\bin\ffmpeg.exe",
-                Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "ffmpeg.exe"),
-                Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "ffmpeg", "ffmpeg.exe"),
-                Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "ffmpeg", "bin", "ffmpeg.exe"),
-            };
+            var path = MediaTools.FFmpegPath;
+            AddLog(path is null ? "FFmpeg not found" : $"Found FFmpeg at: {path}");
+            return path;
+        }
 
-            foreach (var path in possiblePaths)
-            {
-                if (File.Exists(path))
-                {
-                    AddLog($"Found FFmpeg at: {path}");
-                    return path;
-                }
-            }
-
-            // Try PATH environment variable
-            var pathEnv = Environment.GetEnvironmentVariable("PATH");
-            if (!string.IsNullOrEmpty(pathEnv))
-            {
-                foreach (var dir in pathEnv.Split(';'))
-                {
-                    var ffmpegPath = Path.Combine(dir, "ffmpeg.exe");
-                    if (File.Exists(ffmpegPath))
-                    {
-                        AddLog($"Found FFmpeg in PATH: {ffmpegPath}");
-                        return ffmpegPath;
-                    }
-                }
-            }
-
-            AddLog("FFmpeg not found");
-            return null;
+        /// <summary>
+        /// Finds the FFprobe executable, normally the sibling of the resolved FFmpeg.
+        /// </summary>
+        protected string? FindFFprobe()
+        {
+            var path = MediaTools.FFprobePath;
+            if (path is null) AddLog("FFprobe not found");
+            return path;
         }
 
         /// <summary>
@@ -722,8 +698,8 @@ namespace FlipPix.UI.Linux.ViewModels.Video
                 var ffmpegPath = FindFFmpeg();
                 if (ffmpegPath == null) return (0, 0);
 
-                var ffprobePath = ffmpegPath.Replace("ffmpeg.exe", "ffprobe.exe");
-                if (File.Exists(ffprobePath))
+                var ffprobePath = FindFFprobe();
+                if (!string.IsNullOrEmpty(ffprobePath))
                 {
                     var startInfo = new ProcessStartInfo
                     {
@@ -789,9 +765,9 @@ namespace FlipPix.UI.Linux.ViewModels.Video
                 if (ffmpegPath == null) return null;
 
                 // Get source dimensions via ffprobe
-                var ffprobePath = ffmpegPath.Replace("ffmpeg.exe", "ffprobe.exe");
+                var ffprobePath = FindFFprobe();
                 int imgW = 0, imgH = 0;
-                if (File.Exists(ffprobePath))
+                if (!string.IsNullOrEmpty(ffprobePath))
                 {
                     var pi = new ProcessStartInfo
                     {
@@ -876,8 +852,8 @@ namespace FlipPix.UI.Linux.ViewModels.Video
                 if (ffmpegPath == null) return 0;
 
                 // Use ffprobe if available
-                var ffprobePath = ffmpegPath.Replace("ffmpeg.exe", "ffprobe.exe");
-                if (File.Exists(ffprobePath))
+                var ffprobePath = FindFFprobe();
+                if (!string.IsNullOrEmpty(ffprobePath))
                 {
                     var startInfo = new ProcessStartInfo
                     {

@@ -8,8 +8,7 @@ namespace FlipPix.UI.Linux.Services;
 
 public class WindowPositionService
 {
-    private static readonly string ConfigDir = Path.Combine(
-        Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData), "flippix");
+    private static readonly string ConfigDir = UserPaths.ConfigDir;
     private static readonly string ConfigFile = Path.Combine(ConfigDir, "window-positions.json");
     private Dictionary<string, WindowPosition> _positions = new();
 

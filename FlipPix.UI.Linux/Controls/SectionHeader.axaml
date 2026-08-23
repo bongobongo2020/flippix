@@ -1,0 +1,35 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             x:Class="FlipPix.UI.Linux.Controls.SectionHeader"
+             x:Name="Root"
+             Margin="0,0,0,8">
+    <!--
+        Compact section heading for a tab's side rail:
+
+            <ctrl:SectionHeader Title="SOURCE PHOTO"/>
+
+        The dot takes the tab's accent automatically (DynamicResource walks up to whichever
+        TabAccentBrush the enclosing tab defined), so a section header never needs a colour
+        of its own. Ported from FlipPix.UI/Controls/SectionHeader.xaml.
+    -->
+    <StackPanel Orientation="Horizontal">
+        <Ellipse Width="6" Height="6"
+                 Fill="{DynamicResource TabAccentBrush}"
+                 Margin="0,0,6,0"
+                 VerticalAlignment="Center"/>
+        <TextBlock Text="{Binding #Root.Title}"
+                   FontSize="10"
+                   FontWeight="Bold"
+                   Foreground="{StaticResource TextSecondaryBrush}"
+                   VerticalAlignment="Center"/>
+        <!-- Optional qualifier ("· required", "· optional"). Hidden when unset so the
+             separator never shows up on its own. -->
+        <TextBlock Text="{Binding #Root.Note}"
+                   FontSize="10"
+                   Foreground="{StaticResource TextMutedBrush}"
+                   VerticalAlignment="Center"
+                   Margin="5,0,0,0"
+                   TextTrimming="CharacterEllipsis"
+                   IsVisible="{Binding #Root.Note, Converter={StaticResource StringToVisibilityConverter}}"/>
+    </StackPanel>
+</UserControl>

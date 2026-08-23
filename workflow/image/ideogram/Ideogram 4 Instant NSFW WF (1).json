@@ -1,0 +1,248 @@
+{
+  "167": {
+    "inputs": {
+      "text": [
+        "185",
+        0
+      ],
+      "clip": [
+        "243",
+        0
+      ]
+    },
+    "class_type": "CLIPTextEncode",
+    "_meta": {
+      "title": "CLIP Text Encode (Positive Prompt)"
+    }
+  },
+  "185": {
+    "inputs": {
+      "width": [
+        "246",
+        0
+      ],
+      "height": [
+        "246",
+        1
+      ],
+      "high_level_description": "The subject is a young woman, appearing to be in her twenties, with a medium complexion and an oval face shape that is slightly narrower at the chin. Her forehead is high and smooth, sloping gently backward. Her eyebrows are dark, thick, and highly arched with a defined peak, extending to the outer corners of her eyes. Her eyes are large, dark brown, and almond-shaped with a slight upward tilt at the outer corners; they are wide open with visible upper and lower eyelashes and distinct double eyelids. The nose is straight with a rounded tip and moderate width, leading to nostrils that are slightly flared. Her mouth is slightly open in a closed-lip smile, revealing the upper teeth; her lips are full, particularly the lower lip, with a defined cupid's bow and a deep philtrum. Her jawline is soft but defined, tapering to a rounded chin. Her skin is clear with a smooth texture. She has long, dark, wavy hair that is parted on the side and falls loosely around her shoulders and back, partially covering her left shoulder. Her head is tilted slightly to her right, resting on her right hand, which is positioned against her cheek. She is wearing a dark, long-sleeved top and a red scarf draped around her neck and over her left shoulder. Her right arm is visible, adorned with multiple thin, dark bangles with gold accents stacked on her wrist. She wears a small gold stud earring in her visible left ear. Her gaze is directed straight at the camera. The composition is a close-up portrait, with the subject positioned slightly off-center to the right, filling most of the frame.",
+      "background": "Soft studio lighting, photography\n",
+      "style": "photo",
+      "style.photo": "realism",
+      "aesthetics": "soft skin, large breasts",
+      "lighting": "studio lighting, soft highlights",
+      "medium": "photography",
+      "style_palette_data": "[\"#ffffff\"]",
+      "elements_data": "",
+      "bg_brightness": 25,
+      "import_mode": "when empty",
+      "output_format": "compact",
+      "coord_mode": "normalized",
+      "bbox_order": "yx"
+    },
+    "class_type": "Ideogram4PromptBuilderKJ",
+    "_meta": {
+      "title": "Ideogram 4 Prompt Builder KJ"
+    }
+  },
+  "198": {
+    "inputs": {
+      "shift": 5.25,
+      "model": [
+        "209",
+        0
+      ]
+    },
+    "class_type": "ModelSamplingAuraFlow",
+    "_meta": {
+      "title": "ModelSamplingAuraFlow"
+    }
+  },
+  "199": {
+    "inputs": {
+      "source": [
+        "185",
+        0
+      ]
+    },
+    "class_type": "PreviewAny",
+    "_meta": {
+      "title": "Preview as Text"
+    }
+  },
+  "209": {
+    "inputs": {
+      "lora_data": "{\"loras\":[{\"on\":true,\"name\":\"Krea2/RLY-thot_shot-KREA2-jada-v1-trigger-rlyjada.safetensors\",\"model\":1,\"clip\":1}],\"enabledFolders\":null}",
+      "model": [
+        "260",
+        0
+      ]
+    },
+    "class_type": "FantasticLoraLoader",
+    "_meta": {
+      "title": "Fantastic Lora Loader 📁"
+    }
+  },
+  "219": {
+    "inputs": {
+      "unet_name": "Fal_Ideo_4_NSFW-int8_convrot.safetensors",
+      "weight_dtype": "default"
+    },
+    "class_type": "UNETLoader",
+    "_meta": {
+      "title": "Load Diffusion Model"
+    }
+  },
+  "220": {
+    "inputs": {
+      "images": [
+        "235",
+        4
+      ]
+    },
+    "class_type": "PreviewImage",
+    "_meta": {
+      "title": "Preview Image"
+    }
+  },
+  "230": {
+    "inputs": {
+      "conditioning": [
+        "167",
+        0
+      ]
+    },
+    "class_type": "ConditioningZeroOut",
+    "_meta": {
+      "title": "Conditioning Zero Out"
+    }
+  },
+  "235": {
+    "inputs": {
+      "seed": 900745498414940,
+      "steps": 8,
+      "cfg": 1,
+      "sampler_name": "euler",
+      "scheduler": "simple",
+      "denoise": 1,
+      "decode_image": true,
+      "tiled_vae_decoding": 1.15,
+      "max_shift": 0.5,
+      "base_shift": 0.5,
+      "model": [
+        "198",
+        0
+      ],
+      "positive": [
+        "167",
+        0
+      ],
+      "latent": [
+        "247",
+        0
+      ],
+      "vae": [
+        "244",
+        0
+      ],
+      "negative": [
+        "230",
+        0
+      ]
+    },
+    "class_type": "StarSampler",
+    "_meta": {
+      "title": "⭐ StarSampler (Unified)"
+    }
+  },
+  "241": {
+    "inputs": {
+      "output_path": "Fal_ID4",
+      "filename_prefix": "Fal_ID4",
+      "filename_delimiter": "_",
+      "filename_number_padding": 4,
+      "filename_number_start": "true",
+      "extension": "webp",
+      "dpi": 300,
+      "quality": 100,
+      "optimize_image": "true",
+      "lossless_webp": "false",
+      "overwrite_mode": "false",
+      "show_history": "false",
+      "show_history_by_prefix": "true",
+      "embed_workflow": "true",
+      "show_previews": "true",
+      "images": [
+        "235",
+        4
+      ]
+    },
+    "class_type": "Image Save",
+    "_meta": {
+      "title": "Image Save"
+    }
+  },
+  "243": {
+    "inputs": {
+      "clip_name": "qwen3vl_8b_fp8_scaled.safetensors",
+      "type": "ideogram4",
+      "device": "default"
+    },
+    "class_type": "CLIPLoader",
+    "_meta": {
+      "title": "Qwen3-VL text encoder"
+    }
+  },
+  "244": {
+    "inputs": {
+      "vae_name": "flux2-vae.safetensors"
+    },
+    "class_type": "VAELoader",
+    "_meta": {
+      "title": "VAE"
+    }
+  },
+  "246": {
+    "inputs": {
+      "megapixel": "2.5",
+      "aspect_ratio": "21:9 (Epic Ultrawide)",
+      "divisible_by": "16",
+      "custom_ratio": false,
+      "custom_aspect_ratio": "1:1"
+    },
+    "class_type": "FluxResolutionNode",
+    "_meta": {
+      "title": "Flux Resolution Calc"
+    }
+  },
+  "247": {
+    "inputs": {
+      "width": [
+        "246",
+        0
+      ],
+      "height": [
+        "246",
+        1
+      ],
+      "batch_size": 1
+    },
+    "class_type": "EmptyFlux2LatentImage",
+    "_meta": {
+      "title": "Empty Flux 2 Latent"
+    }
+  },
+  "260": {
+    "inputs": {
+      "attention": "comfy kitchen attention",
+      "model": [
+        "219",
+        0
+      ]
+    },
+    "class_type": "ModelAttentionBackend",
+    "_meta": {
+      "title": "ModelAttentionBackend"
+    }
+  }
+}

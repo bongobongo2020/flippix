@@ -7,6 +7,7 @@ using Microsoft.Extensions.Logging;
 using FlipPix.Core.Interfaces;
 using FlipPix.Core.Models;
 using FlipPix.ComfyUI.Models;
+using FlipPix.ComfyUI.Services;
 
 namespace FlipPix.ComfyUI.Http;
 
@@ -361,6 +362,11 @@ public class ComfyUIHttpClient : IDisposable
             // host (backslashes) and vice-versa — without hand-editing the JSON.
             var hostSep = await GetHostPathSeparatorAsync(cancellationToken);
             workflow = NormalizeModelPathSeparators(workflow, hostSep);
+
+            // The Nvidia RTX pack renamed this node's widgets (scale/deblur -> resize_type). Write both
+            // sets so a workflow exported against either version runs here; a re-export from an older
+            // ComfyUI can otherwise silently break a tab. See RtxSuperResolutionCompat.
+            workflow = RtxSuperResolutionCompat.Normalize(workflow, m => _logger.LogInfo(m));
 
             // Pre-submit validation (nodes first): catch custom-node types the workflow references
             // but ComfyUI doesn't have loaded, and offer to install them instead of failing with
@@ -1681,6 +1687,41 @@ public class ComfyUIHttpClient : IDisposable
             return hasBound;
         }
         return false;
+    }
+
+    /// <summary>
+    /// True when the connected ComfyUI exposes every one of <paramref name="classTypes"/>.
+    ///
+    /// <para>For workflows that have an optional better path on a newer custom-node pack: ask first,
+    /// then emit the graph the server can actually run. This is deliberately <i>not</i> the missing-node
+    /// resolver's job — that one fires after a submission has already been built around nodes the server
+    /// does not have, and offers to install a whole pack. Here the pack is present and merely old, which
+    /// the resolver cannot detect and an install would not fix.</para>
+    ///
+    /// <para>Returns false when /object_info cannot be read, so an unreachable or slow server degrades to
+    /// the conservative branch rather than failing the submission.</para>
+    /// </summary>
+    public async Task<bool> HasNodeClassesAsync(
+        IReadOnlyCollection<string> classTypes, CancellationToken cancellationToken = default)
+    {
+        if (classTypes.Count == 0) return true;
+        try
+        {
+            var oiJson = await GetObjectInfoJsonAsync(cancellationToken);
+            if (oiJson == null) return false;
+
+            using var doc = JsonDocument.Parse(oiJson);
+            if (doc.RootElement.ValueKind != JsonValueKind.Object) return false;
+
+            foreach (var classType in classTypes)
+                if (!doc.RootElement.TryGetProperty(classType, out _)) return false;
+            return true;
+        }
+        catch (Exception ex) when (ex is not OperationCanceledException)
+        {
+            _logger.LogWarning($"HasNodeClassesAsync: could not read /object_info ({ex.Message})");
+            return false;
+        }
     }
 
     /// <summary>

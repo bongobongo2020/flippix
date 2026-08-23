@@ -1,0 +1,680 @@
+{
+  "1": {
+    "inputs": {
+      "unet_name": "h3-minimax/minimax_h3_hybrid_fl2va_ref2va_b25-49-int8.safetensors",
+      "weight_dtype": "default"
+    },
+    "class_type": "UNETLoader",
+    "_meta": {
+      "title": "Load Diffusion Model (hybrid fl2va + ref2va)"
+    }
+  },
+  "2": {
+    "inputs": {
+      "attention": "comfy kitchen attention",
+      "model": [
+        "1",
+        0
+      ]
+    },
+    "class_type": "ModelAttentionBackend",
+    "_meta": {
+      "title": "ModelAttentionBackend"
+    }
+  },
+  "3": {
+    "inputs": {
+      "enable_fp16_accumulation": true,
+      "model": [
+        "2",
+        0
+      ]
+    },
+    "class_type": "ModelPatchTorchSettings",
+    "_meta": {
+      "title": "Model Patch Torch Settings"
+    }
+  },
+  "4": {
+    "inputs": {
+      "chunks": 4,
+      "seq_threshold": 4096,
+      "model": [
+        "3",
+        0
+      ]
+    },
+    "class_type": "MiniMaxChunkFeedForward",
+    "_meta": {
+      "title": "MiniMax H3 Chunk FeedForward"
+    }
+  },
+  "5": {
+    "inputs": {
+      "stack_data": "[{\"on\":true,\"lora\":\"H3/minimax_h3_fl2v_turbo_8step_v1.0_comfyui_bf16.safetensors\",\"str\":1,\"v\":1,\"a\":1}]",
+      "lora_ui": "",
+      "model": [
+        "4",
+        0
+      ]
+    },
+    "class_type": "LTX_lora_loader",
+    "_meta": {
+      "title": "LoRA Loader Stack (8-step turbo)"
+    }
+  },
+  "6": {
+    "inputs": {
+      "max_resolution": 512,
+      "jpeg_quality": 80,
+      "suppress_default_preview": true,
+      "preview_frames": [
+        "13",
+        1
+      ],
+      "preview_fps": 8,
+      "tiny_vae": "taeh3.safetensors",
+      "model": [
+        "5",
+        0
+      ]
+    },
+    "class_type": "ModelPreviewOverrideKJ",
+    "_meta": {
+      "title": "Model Preview Override"
+    }
+  },
+  "7": {
+    "inputs": {
+      "clip_name": "qwen3vl_32b_minimax_h3-w4a8_convrot.safetensors",
+      "type": "minimax",
+      "device": "default"
+    },
+    "class_type": "CLIPLoader",
+    "_meta": {
+      "title": "Load CLIP"
+    }
+  },
+  "8": {
+    "inputs": {
+      "vae_name": "minimax_h3_video_vae_int8_convrot.safetensors"
+    },
+    "class_type": "VAELoader",
+    "_meta": {
+      "title": "Load VAE (video)"
+    }
+  },
+  "9": {
+    "inputs": {
+      "vae_name": "minimax_h3_audio_vae_fp32.safetensors"
+    },
+    "class_type": "VAELoader",
+    "_meta": {
+      "title": "Load VAE (audio)"
+    }
+  },
+  "10": {
+    "inputs": {
+      "value": "subject_definitions:\n<Picture 1> is the opening keyframe for [Shot 1] at 0.00 seconds. Job: exact first frame only — pose, wardrobe, and background as shown, without reinterpretation.\n\nsummary:\n[keyframe completion + reference generation] Generate a live-action clip. At 0.00 seconds the frame is exactly <Picture 1>. One continuous take, no hard cuts, no end-frame lock.\n\nretention_analysis:\n<Picture 1> (appears in [Shot 1] at 0.00s): fully_preserved - opening frame lock.\n\ndetailed_description:\nHow the reference pictures align with the target video — Picture 1 aligns with the 0.00-second mark of the target video as the exact first frame.\n[Shot 1] One single continuous take. At 0.00 seconds the frame is exactly <Picture 1> without reinterpretation.\n\noverall_soundscape:\nAmbience matching the opening still, quiet breath.\n\nnon_diegetic_music:\nN/A"
+    },
+    "class_type": "PrimitiveStringMultiline",
+    "_meta": {
+      "title": "H3 hybrid prompt (six sections)"
+    }
+  },
+  "11": {
+    "inputs": {
+      "aspect_ratio": "16:9 (Widescreen)",
+      "megapixels": 1,
+      "multiple": 32
+    },
+    "class_type": "ResolutionSelector",
+    "_meta": {
+      "title": "Target Dimension"
+    }
+  },
+  "12": {
+    "inputs": {
+      "value": 8
+    },
+    "class_type": "PrimitiveFloat",
+    "_meta": {
+      "title": "Float (duration, seconds)"
+    }
+  },
+  "13": {
+    "inputs": {
+      "expression": "max(5, round(a * 24)) + (5 - (max(5, round(a * 24)) % 17)) % 17",
+      "values.a": [
+        "12",
+        0
+      ]
+    },
+    "class_type": "ComfyMathExpression",
+    "_meta": {
+      "title": "Seconds → frames (17k + 5)"
+    }
+  },
+  "14": {
+    "inputs": {
+      "noise_seed": 571243776272375
+    },
+    "class_type": "RandomNoise",
+    "_meta": {
+      "title": "RandomNoise"
+    }
+  },
+  "15": {
+    "inputs": {
+      "value": "subject_definitions:\n<Picture 1> is a full-body front studio reference photograph of <Subject 1>. Job: identity only.\n\nsummary:\n[reference generation] One continuous take, no frame locks — every attached picture is a studio identity reference.\n\nretention_analysis:\n<Picture 1> (never a keyframe): partially_preserved - retain facial identity, hair, skin and build only.\n\ndetailed_description:\nThe target video is live-action and cinematic.\n\noverall_soundscape:\nRoom tone.\n\nnon_diegetic_music:\nN/A"
+    },
+    "class_type": "PrimitiveStringMultiline",
+    "_meta": {
+      "title": "FR 0. Refine prompt (cast references only)"
+    }
+  },
+  "20": {
+    "inputs": {
+      "prompt": [
+        "10",
+        0
+      ],
+      "width": [
+        "11",
+        0
+      ],
+      "height": [
+        "11",
+        1
+      ],
+      "length": [
+        "13",
+        1
+      ],
+      "ref_image_size": "match",
+      "clip": [
+        "7",
+        0
+      ],
+      "vae": [
+        "8",
+        0
+      ],
+      "audio_vae": [
+        "9",
+        0
+      ],
+      "ref_images.ref_image_0": [
+        "40",
+        0
+      ]
+    },
+    "class_type": "MiniMaxH3ReferenceToVideo",
+    "_meta": {
+      "title": "MiniMax H3 Reference to Video"
+    }
+  },
+  "21": {
+    "inputs": {
+      "sampler_name": "euler"
+    },
+    "class_type": "KSamplerSelect",
+    "_meta": {
+      "title": "KSamplerSelect"
+    }
+  },
+  "22": {
+    "inputs": {
+      "scheduler": "linear_quadratic",
+      "steps": 8,
+      "denoise": 1,
+      "model": [
+        "6",
+        0
+      ]
+    },
+    "class_type": "BasicScheduler",
+    "_meta": {
+      "title": "BasicScheduler"
+    }
+  },
+  "23": {
+    "inputs": {
+      "model": [
+        "6",
+        0
+      ],
+      "conditioning": [
+        "20",
+        0
+      ]
+    },
+    "class_type": "BasicGuider",
+    "_meta": {
+      "title": "Basic Guider"
+    }
+  },
+  "24": {
+    "inputs": {
+      "noise": [
+        "14",
+        0
+      ],
+      "guider": [
+        "23",
+        0
+      ],
+      "sampler": [
+        "21",
+        0
+      ],
+      "sigmas": [
+        "22",
+        0
+      ],
+      "latent_image": [
+        "20",
+        1
+      ]
+    },
+    "class_type": "SamplerCustomAdvanced",
+    "_meta": {
+      "title": "SamplerCustomAdvanced"
+    }
+  },
+  "30": {
+    "inputs": {
+      "samples": [
+        "24",
+        0
+      ],
+      "vae": [
+        "8",
+        0
+      ]
+    },
+    "class_type": "VAEDecode",
+    "_meta": {
+      "title": "VAE Decode"
+    }
+  },
+  "31": {
+    "inputs": {
+      "samples": [
+        "24",
+        0
+      ],
+      "vae": [
+        "9",
+        0
+      ]
+    },
+    "class_type": "VAEDecodeAudio",
+    "_meta": {
+      "title": "VAE Decode Audio"
+    }
+  },
+  "32": {
+    "inputs": {
+      "model_name": "film_net_fp16.safetensors"
+    },
+    "class_type": "FrameInterpolationModelLoader",
+    "_meta": {
+      "title": "Load Frame Interpolation Model"
+    }
+  },
+  "33": {
+    "inputs": {
+      "multiplier": 2,
+      "interp_model": [
+        "32",
+        0
+      ],
+      "images": [
+        "111",
+        0
+      ]
+    },
+    "class_type": "FrameInterpolate",
+    "_meta": {
+      "title": "Run Frame Interpolation Model"
+    }
+  },
+  "34": {
+    "inputs": {
+      "scale": 2,
+      "resize_type": "scale by multiplier",
+      "resize_type.scale": 2,
+      "quality": "ULTRA",
+      "deblur": "MEDIUM",
+      "images": [
+        "33",
+        0
+      ]
+    },
+    "class_type": "RTXVideoSuperResolution",
+    "_meta": {
+      "title": "RTX Video Super Resolution"
+    }
+  },
+  "35": {
+    "inputs": {
+      "value": 24
+    },
+    "class_type": "PrimitiveFloat",
+    "_meta": {
+      "title": "FPS (render)"
+    }
+  },
+  "36": {
+    "inputs": {
+      "expression": "a * 2",
+      "values.a": [
+        "35",
+        0
+      ]
+    },
+    "class_type": "ComfyMathExpression",
+    "_meta": {
+      "title": "FPS × interpolation multiplier"
+    }
+  },
+  "37": {
+    "inputs": {
+      "fps": [
+        "36",
+        0
+      ],
+      "bit_depth": 8,
+      "images": [
+        "34",
+        0
+      ],
+      "audio": [
+        "31",
+        0
+      ]
+    },
+    "class_type": "CreateVideo",
+    "_meta": {
+      "title": "Create Video"
+    }
+  },
+  "38": {
+    "inputs": {
+      "filename_prefix": "h3_cast_hybrid/h3casthybrid",
+      "format": "auto",
+      "codec": "h264",
+      "codec.encoding": "re-encode",
+      "codec.encoding.crf": 10,
+      "video-preview": "",
+      "video": [
+        "37",
+        0
+      ]
+    },
+    "class_type": "SaveVideo",
+    "_meta": {
+      "title": "Save Video"
+    }
+  },
+  "40": {
+    "inputs": {
+      "image": "example.png"
+    },
+    "class_type": "LoadImage",
+    "_meta": {
+      "title": "Ref Image 1"
+    }
+  },
+  "100": {
+    "inputs": {
+      "images": [
+        "30",
+        0
+      ],
+      "detector": "bbox/face_yolov8m.pt",
+      "confidence": 0.15,
+      "crop_factor": 2.5,
+      "canvas_width": 512,
+      "canvas_height": 512,
+      "canvas_mode": "auto_capped_768",
+      "smooth_window": 15,
+      "size_smooth_window": 41,
+      "smooth_method": "gaussian",
+      "size_mode": "per_frame",
+      "identity_track": true,
+      "identity_threshold": 0.28,
+      "select": "largest",
+      "fallback_detector": "segm/person_yolov8m-seg.pt",
+      "fallback_head_frac": 0.5
+    },
+    "class_type": "H3FaceTrackCrop",
+    "_meta": {
+      "title": "FR 1. Track + crop (per-frame)"
+    }
+  },
+  "101": {
+    "inputs": {
+      "prompt": [
+        "15",
+        0
+      ],
+      "width": [
+        "100",
+        4
+      ],
+      "height": [
+        "100",
+        5
+      ],
+      "length": [
+        "13",
+        1
+      ],
+      "ref_image_size": "match",
+      "clip": [
+        "7",
+        0
+      ],
+      "vae": [
+        "8",
+        0
+      ],
+      "audio_vae": [
+        "9",
+        0
+      ],
+      "ref_images.ref_image_0": [
+        "40",
+        0
+      ],
+      "ref_audios.ref_audio_0": [
+        "31",
+        0
+      ]
+    },
+    "class_type": "MiniMaxH3ReferenceToVideo",
+    "_meta": {
+      "title": "FR 2. Conditioning + empty AV latent (crop canvas)"
+    }
+  },
+  "102": {
+    "inputs": {
+      "av_latent": [
+        "101",
+        1
+      ],
+      "images": [
+        "100",
+        0
+      ],
+      "vae": [
+        "8",
+        0
+      ]
+    },
+    "class_type": "H3InjectVideoLatent",
+    "_meta": {
+      "title": "FR 3. Inject the real crops → img2img"
+    }
+  },
+  "103": {
+    "inputs": {
+      "model": [
+        "6",
+        0
+      ],
+      "av_latent": [
+        "102",
+        0
+      ],
+      "audio_vae": [
+        "9",
+        0
+      ],
+      "audio": [
+        "31",
+        0
+      ]
+    },
+    "class_type": "MiniMaxH3NativeAudioLock",
+    "_meta": {
+      "title": "FR 4. Lock stage-1 audio → lipsync"
+    }
+  },
+  "104": {
+    "inputs": {
+      "av_latent": [
+        "103",
+        1
+      ],
+      "transform": [
+        "100",
+        1
+      ],
+      "strength_small_face": 1.0,
+      "strength_large_face": 0.35,
+      "scale_mode": "absolute_px",
+      "face_px_small": 48.0,
+      "face_px_large": 200.0,
+      "gamma": 1.3,
+      "smooth_frames": 9
+    },
+    "class_type": "H3PerFrameDenoise",
+    "_meta": {
+      "title": "FR 5. Per-frame denoise (by face size)"
+    }
+  },
+  "105": {
+    "inputs": {
+      "model": [
+        "103",
+        0
+      ],
+      "conditioning": [
+        "101",
+        0
+      ]
+    },
+    "class_type": "BasicGuider",
+    "_meta": {
+      "title": "FR Basic Guider"
+    }
+  },
+  "106": {
+    "inputs": {
+      "scheduler": "linear_quadratic",
+      "steps": 8,
+      "denoise": 0.45,
+      "model": [
+        "103",
+        0
+      ]
+    },
+    "class_type": "BasicScheduler",
+    "_meta": {
+      "title": "FR 6. DENOISE — the key dial"
+    }
+  },
+  "108": {
+    "inputs": {
+      "noise_seed": 42
+    },
+    "class_type": "RandomNoise",
+    "_meta": {
+      "title": "FR RandomNoise (refine pass)"
+    }
+  },
+  "109": {
+    "inputs": {
+      "noise": [
+        "108",
+        0
+      ],
+      "guider": [
+        "105",
+        0
+      ],
+      "sampler": [
+        "21",
+        0
+      ],
+      "sigmas": [
+        "106",
+        0
+      ],
+      "latent_image": [
+        "104",
+        0
+      ]
+    },
+    "class_type": "SamplerCustomAdvanced",
+    "_meta": {
+      "title": "FR 7. Sample the crops"
+    }
+  },
+  "110": {
+    "inputs": {
+      "samples": [
+        "109",
+        0
+      ],
+      "vae": [
+        "8",
+        0
+      ]
+    },
+    "class_type": "VAEDecode",
+    "_meta": {
+      "title": "FR 8. Decode refined crops"
+    }
+  },
+  "111": {
+    "inputs": {
+      "base_images": [
+        "30",
+        0
+      ],
+      "refined_crops": [
+        "110",
+        0
+      ],
+      "transform": [
+        "100",
+        1
+      ],
+      "paste_region": "face_only",
+      "mask_dilation": 24,
+      "feather": 24,
+      "colour_match": 1.0,
+      "blend": 1.0,
+      "undetected_frames": "fade_out",
+      "feather_scales_with_crop": false
+    },
+    "class_type": "H3FaceStitch",
+    "_meta": {
+      "title": "FR 9. Stitch back into the full frames"
+    }
+  }
+}

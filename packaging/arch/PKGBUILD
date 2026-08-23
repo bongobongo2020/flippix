@@ -1,0 +1,95 @@
+# Maintainer: bongobongo2020 <zaheerster@gmail.com>
+pkgname=flippix
+pkgver=0.1.0
+pkgrel=1
+pkgdesc="Desktop front end for ComfyUI image and video generation workflows"
+arch=('x86_64')
+url="https://github.com/bongobongo2020/flippix"
+license=('custom:unlicensed')
+depends=(
+  'dotnet-runtime-8.0'   # framework-dependent build; supplies the CoreCLR host
+  'fontconfig'           # Skia text shaping needs a working font config
+  'freetype2'
+  'libx11'               # Avalonia renders through its X11 backend (XWayland on Wayland)
+  'libice'
+  'libsm'
+  'libxrandr'
+  'libxi'
+  'libxcursor'
+  'libxext'
+  'hicolor-icon-theme'
+)
+optdepends=(
+  'ffmpeg: video trimming, joining, probing and frame extraction'
+  'xdg-utils: open generated files and folders from the UI'
+  'xdg-user-dirs: place output under ~/Pictures and ~/Videos instead of ~/'
+  'dbus: reveal a generated file selected in your file manager'
+)
+makedepends=('dotnet-sdk-8.0' 'git')
+provides=('flippix')
+conflicts=('flippix-bin')
+options=('!strip' '!debug')   # managed assemblies; binutils strip would corrupt the apphost
+
+# Build straight from the working tree. To package a specific commit instead, replace
+# this with: source=("git+$url.git#tag=v$pkgver")
+_repo="${_repo:-$(git -C "$startdir" rev-parse --show-toplevel 2>/dev/null || echo "$startdir/../..")}"
+source=()
+sha256sums=()
+
+_project="FlipPix.UI.Linux/FlipPix.UI.Linux.csproj"
+
+prepare() {
+  if [[ ! -f "$_repo/$_project" ]]; then
+    echo "PKGBUILD: cannot find $_project under $_repo" >&2
+    echo "Set _repo=/path/to/flippix and re-run makepkg." >&2
+    return 1
+  fi
+}
+
+build() {
+  cd "$_repo"
+
+  export DOTNET_CLI_TELEMETRY_OPTOUT=1
+  export DOTNET_NOLOGO=1
+  # Keep NuGet and the build server inside the build dir so makepkg stays reproducible.
+  export NUGET_PACKAGES="$srcdir/nuget"
+  export DOTNET_CLI_HOME="$srcdir/dotnet-home"
+
+  dotnet publish "$_project" \
+    --configuration Release \
+    --runtime linux-x64 \
+    --self-contained false \
+    -p:PublishReadyToRun=true \
+    -p:DebugType=none \
+    -p:DebugSymbols=false \
+    --output "$srcdir/publish"
+
+  dotnet build-server shutdown >/dev/null 2>&1 || true
+}
+
+package() {
+  install -dm755 "$pkgdir/usr/lib/$pkgname"
+  cp -a "$srcdir/publish/." "$pkgdir/usr/lib/$pkgname/"
+
+  # The apphost is unused (we launch via `dotnet <dll>`) and loses its +x bit when the
+  # tree is built from a Windows checkout, so drop it rather than ship it broken.
+  rm -f "$pkgdir/usr/lib/$pkgname/FlipPix.UI.Linux"
+
+  # Cross-platform Avalonia backends that never load on Linux.
+  rm -f "$pkgdir/usr/lib/$pkgname/Avalonia.Win32.dll"
+  rm -f "$pkgdir/usr/lib/$pkgname/Avalonia.Native.dll"
+  rm -f "$pkgdir/usr/lib/$pkgname/Avalonia.DesignerSupport.dll"
+
+  # Workflow JSON and prompt templates are read-only app data.
+  find "$pkgdir/usr/lib/$pkgname" -type f -exec chmod 644 {} +
+  find "$pkgdir/usr/lib/$pkgname" -type d -exec chmod 755 {} +
+  chmod 755 "$pkgdir/usr/lib/$pkgname"/*.so
+
+  install -Dm755 "$_repo/packaging/arch/flippix.sh"      "$pkgdir/usr/bin/$pkgname"
+  install -Dm644 "$_repo/packaging/arch/flippix.desktop" "$pkgdir/usr/share/applications/$pkgname.desktop"
+
+  # The source icon is not square, so pixmaps rather than a sized hicolor directory.
+  install -Dm644 "$_repo/flippix.png" "$pkgdir/usr/share/pixmaps/$pkgname.png"
+
+  install -Dm644 "$_repo/README.md" "$pkgdir/usr/share/doc/$pkgname/README.md"
+}

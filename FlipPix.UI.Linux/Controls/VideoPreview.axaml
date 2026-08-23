@@ -1,0 +1,44 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             x:Class="FlipPix.UI.Linux.Controls.VideoPreview">
+    <Border Background="{StaticResource PlayerSurfaceBrush}"
+            BorderBrush="{StaticResource BorderBrush}"
+            BorderThickness="1"
+            CornerRadius="6"
+            ClipToBounds="True">
+        <Grid>
+            <!-- Poster frame, grabbed from the clip by ffmpeg when Source is set -->
+            <Image Name="PART_Poster" Stretch="Uniform" IsVisible="False"/>
+
+            <!-- Stand-in text while there is no clip, or none could be posterized -->
+            <TextBlock Name="PART_Placeholder"
+                       HorizontalAlignment="Center" VerticalAlignment="Center"
+                       Foreground="{StaticResource PlayerTextBrush}"
+                       FontSize="12" TextAlignment="Center" TextWrapping="Wrap"
+                       MaxWidth="320" Margin="16"/>
+
+            <!-- Play affordance: hands the clip to the desktop's own player -->
+            <Border Name="PART_Bar"
+                    VerticalAlignment="Bottom" HorizontalAlignment="Stretch"
+                    Background="{StaticResource ScrimBrush}"
+                    Padding="8,6" IsVisible="False">
+                <Grid ColumnDefinitions="*,Auto,Auto">
+                    <TextBlock Name="PART_FileName" Grid.Column="0"
+                               Foreground="{StaticResource PlayerTextBrush}"
+                               FontSize="10" VerticalAlignment="Center"
+                               TextTrimming="CharacterEllipsis" Margin="2,0,8,0"/>
+                    <Button Name="PART_Open" Grid.Column="1" Content="▶ Play"
+                            Height="24" Padding="10,0" FontSize="11" Margin="0,0,6,0"
+                            Background="#1F2937" Foreground="White"
+                            Theme="{StaticResource CompactActionButtonStyle}"
+                            ToolTip.Tip="Open the clip in your desktop's video player"/>
+                    <Button Name="PART_Reveal" Grid.Column="2" Content="📁"
+                            Height="24" Padding="10,0" FontSize="11"
+                            Background="#1F2937" Foreground="White"
+                            Theme="{StaticResource CompactActionButtonStyle}"
+                            ToolTip.Tip="Show the clip in your file manager"/>
+                </Grid>
+            </Border>
+        </Grid>
+    </Border>
+</UserControl>

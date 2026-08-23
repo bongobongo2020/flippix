@@ -50,6 +50,7 @@ public partial class App : Application
         settingsService.SetLogger(logger);
 
         logger.LogInfo("FlipPix Linux starting up");
+        ConfigureMediaTooling(logger);
 
         var splash = new SplashWindow();
         desktop.MainWindow = splash;
@@ -186,6 +187,25 @@ public partial class App : Application
                 desktop.Shutdown();
             });
         }
+    }
+
+    /// <summary>
+    /// Points FFMpegCore at the ffmpeg/ffprobe this machine actually has. Its default is to
+    /// look beside the executable, which never matches a distro package such as Arch's
+    /// /usr/bin/ffmpeg, so video analysis would fail with a confusing "not found".
+    /// </summary>
+    private static void ConfigureMediaTooling(IAppLogger logger)
+    {
+        var binaryFolder = MediaTools.BinaryFolder;
+        if (binaryFolder is null)
+        {
+            logger.LogWarning("ffmpeg was not found on PATH. Install it (pacman -S ffmpeg) "
+                            + "or set FLIPPIX_FFMPEG; video features stay disabled until then.");
+            return;
+        }
+
+        FFMpegCore.GlobalFFOptions.Configure(options => options.BinaryFolder = binaryFolder);
+        logger.LogInfo($"Using ffmpeg from {binaryFolder}");
     }
 
     private void ConfigureServices(IServiceCollection services)
