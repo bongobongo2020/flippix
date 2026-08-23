@@ -144,6 +144,12 @@ namespace FlipPix.UI.Linux.ViewModels
             NavigateToEnhanceVideoCommand = new RelayCommand(NavigateToEnhanceVideo);
             RefreshLorasCommand = new RelayCommand(RefreshLoras);
 
+            // Group pill selector (Create / Edit / Advanced), as the WPF window's nav bar has.
+            SelectNavGroupCommand = new RelayCommand<string>(g =>
+            {
+                if (int.TryParse(g, out var group)) SelectedNavGroup = group;
+            });
+
             // Queue commands
             AddToQueueCommand = new RelayCommand(AddToQueue, () => CanAddToQueue);
             RemoveFromQueueCommand = new RelayCommand<ImagePromptQueueItem>(RemoveFromQueue, (item) => item != null);
@@ -584,6 +590,54 @@ namespace FlipPix.UI.Linux.ViewModels
                 }
             }
         }
+
+        // ── Tab groups ────────────────────────────────────────────────────────────
+        // Top-level navigation groups: 0 = Create, 1 = Edit, 2 = Advanced. Only the
+        // tabs belonging to the active group are visible, so the user sees a few
+        // destinations at a time instead of all ten at once — same as the WPF window.
+        //
+        // Physical tab order (must match the window's TabControl):
+        //   0 🎨 Image Generator (Create)   5 🎛️ Control (Advanced)
+        //   1 📖 Story Image Q  (Create)    6 🔤 Ideogram (Create)
+        //   2 📷 Amateur        (Create)    7 🧑‍🤝‍🧑 Qwen Edit (Edit)
+        //   3 🎥 Camera Angle   (Advanced)  8 ♻️ Restore (Edit)
+        //   4 ✏️ Editor         (Edit)      9 🔍 Image Upscaler (Edit)
+        private const int CreateGroupFirstTab = 0;
+        private const int EditGroupFirstTab = 4;
+        private const int AdvancedGroupFirstTab = 3;
+
+        private int _selectedNavGroup = 0;
+
+        public int SelectedNavGroup
+        {
+            get => _selectedNavGroup;
+            set
+            {
+                if (_selectedNavGroup != value)
+                {
+                    _selectedNavGroup = value;
+                    OnPropertyChanged();
+                    OnPropertyChanged(nameof(IsCreateGroup));
+                    OnPropertyChanged(nameof(IsEditGroup));
+                    OnPropertyChanged(nameof(IsAdvancedGroup));
+                    // Land on the first tab of the chosen group so the content
+                    // area is never left on a now-hidden tab (which renders blank).
+                    SelectedTabIndex = value switch
+                    {
+                        1 => EditGroupFirstTab,
+                        2 => AdvancedGroupFirstTab,
+                        _ => CreateGroupFirstTab,
+                    };
+                }
+            }
+        }
+
+        public bool IsCreateGroup => _selectedNavGroup == 0;
+        public bool IsEditGroup => _selectedNavGroup == 1;
+        public bool IsAdvancedGroup => _selectedNavGroup == 2;
+
+        /// <summary>Pill selector for the Create / Edit / Advanced groups (parameter: "0"/"1"/"2").</summary>
+        public ICommand SelectNavGroupCommand { get; }
 
 
         // Methods

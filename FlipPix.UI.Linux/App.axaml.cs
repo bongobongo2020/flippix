@@ -6,6 +6,8 @@ using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Controls.ApplicationLifetimes;
 using Avalonia.Markup.Xaml;
+using Avalonia.LogicalTree;
+using System.Linq;
 using Avalonia.Threading;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
@@ -169,6 +171,32 @@ public partial class App : Application
                 desktop.MainWindow = mainWindow;
                 mainWindow.Show();
                 closePrev?.Close();
+
+                // Smoke-test hook (CI / headless verification): FLIPPIX_SMOKE=1 opens every
+                // main window, logs the tab census of each, and shuts down cleanly. A XAML or
+                // resource error in either window throws here and is logged as a failure
+                // instead of waiting for a user to click the nav button.
+                if (Environment.GetEnvironmentVariable("FLIPPIX_SMOKE") == "1")
+                {
+                    try
+                    {
+                        var videoVm = _serviceProvider.GetRequiredService<VideoGeneratorViewModel>();
+                        var wps = _serviceProvider.GetRequiredService<WindowPositionService>();
+                        var videoWindow = new VideoGeneratorWindow(videoVm, wps);
+                        videoWindow.Show();
+
+                        LogTabCensus(mainWindow, "ImageGeneratorWindow");
+                        LogTabCensus(videoWindow, "VideoGeneratorWindow");
+                    }
+                    catch (Exception ex)
+                    {
+                        Services?.GetRequiredService<IAppLogger>()?.LogError(ex, "SMOKE: failed to open windows");
+                    }
+                    finally
+                    {
+                        Task.Delay(3000).ContinueWith(_ => Dispatcher.UIThread.Post(() => desktop.Shutdown()));
+                    }
+                }
                 // Back to normal lifecycle: closing the last window exits the app.
                 desktop.ShutdownMode = ShutdownMode.OnLastWindowClose;
             });
@@ -206,6 +234,15 @@ public partial class App : Application
 
         FFMpegCore.GlobalFFOptions.Configure(options => options.BinaryFolder = binaryFolder);
         logger.LogInfo($"Using ffmpeg from {binaryFolder}");
+    }
+
+    /// <summary>Logs how many TabItems each window's top-level TabControl holds (smoke test evidence).</summary>
+    private static void LogTabCensus(Window window, string name)
+    {
+        var logger = Services?.GetRequiredService<IAppLogger>();
+        var tabs = window.GetLogicalDescendants().OfType<TabControl>().FirstOrDefault();
+        var headers = tabs?.Items.OfType<TabItem>().Select(t => t.Header?.ToString()).ToList();
+        logger?.LogInfo($"SMOKE: {name} tabs={headers?.Count ?? -1}: {string.Join(" | ", headers ?? new List<string?>())}");
     }
 
     private void ConfigureServices(IServiceCollection services)
