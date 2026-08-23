@@ -1,0 +1,76 @@
+<Window xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        x:Class="FlipPix.UI.Linux.Windows.MissingNodesWindow"
+        Title="Missing Custom Nodes" Height="560" Width="780"
+        WindowStartupLocation="CenterOwner"
+        MinHeight="440" MinWidth="640"
+        Background="{StaticResource AppBackgroundBrush}">
+
+    <Grid RowDefinitions="Auto,Auto,*,Auto,Auto,Auto" Margin="20">
+
+        <TextBlock Grid.Row="0" Text="Some custom nodes aren't installed"
+                   FontSize="20" FontWeight="Bold"
+                   Foreground="{StaticResource TextPrimaryBrush}"
+                   Margin="0,0,0,8"/>
+
+        <TextBlock Grid.Row="1" Name="IntroText" TextWrapping="Wrap" FontSize="13"
+                   Foreground="{StaticResource TextSecondaryBrush}"
+                   Margin="0,0,0,12"
+                   Text="This workflow uses the custom node(s) below, which the connected ComfyUI doesn't have. Install the providing pack(s) automatically, then ComfyUI is restarted so they load."/>
+
+        <!-- Ported from the WPF GridView list: Avalonia has no GridView, so the same three
+             columns become a header row + an ItemsControl of fixed-width columns. -->
+        <Border Grid.Row="2" Background="{StaticResource SurfaceBrush}"
+                BorderBrush="{StaticResource BorderBrush}" BorderThickness="1" Padding="2">
+            <Grid RowDefinitions="Auto,*">
+                <Grid Grid.Row="0" ColumnDefinitions="230,220,*" Background="{StaticResource SurfaceAltBrush}" Margin="0,0,0,1">
+                    <TextBlock Grid.Column="0" Text="Node" FontWeight="SemiBold" FontSize="12" Padding="8,6"
+                               Foreground="{StaticResource TextSecondaryBrush}"/>
+                    <TextBlock Grid.Column="1" Text="Pack" FontWeight="SemiBold" FontSize="12" Padding="8,6"
+                               Foreground="{StaticResource TextSecondaryBrush}"/>
+                    <TextBlock Grid.Column="2" Text="Status" FontWeight="SemiBold" FontSize="12" Padding="8,6"
+                               Foreground="{StaticResource TextSecondaryBrush}"/>
+                </Grid>
+                <ScrollViewer Grid.Row="1">
+                    <ItemsControl Name="NodesList">
+                        <ItemsControl.ItemTemplate>
+                            <DataTemplate>
+                                <Grid ColumnDefinitions="230,220,*">
+                                    <TextBlock Grid.Column="0" Text="{Binding ClassType}" FontSize="12"
+                                               Padding="8,5" TextTrimming="CharacterEllipsis"
+                                               Foreground="{StaticResource TextPrimaryBrush}"
+                                               ToolTip.Tip="{Binding ClassType}"/>
+                                    <TextBlock Grid.Column="1" Text="{Binding PackName}" FontSize="12"
+                                               Padding="8,5" TextTrimming="CharacterEllipsis"
+                                               Foreground="{StaticResource TextPrimaryBrush}"
+                                               ToolTip.Tip="{Binding PackName}"/>
+                                    <TextBlock Grid.Column="2" Text="{Binding Status}" FontSize="12"
+                                               Padding="8,5" TextTrimming="CharacterEllipsis"
+                                               Foreground="{StaticResource TextMutedBrush}"
+                                               ToolTip.Tip="{Binding Status}"/>
+                                </Grid>
+                            </DataTemplate>
+                        </ItemsControl.ItemTemplate>
+                    </ItemsControl>
+                </ScrollViewer>
+            </Grid>
+        </Border>
+
+        <ProgressBar Grid.Row="3" Name="Progress" Height="6" Margin="0,12,0,6"
+                     IsIndeterminate="True" IsVisible="False"
+                     Foreground="{StaticResource AccentIndigoBrush}"/>
+
+        <TextBlock Grid.Row="4" Name="StatusText" FontSize="12"
+                   Foreground="{StaticResource TextMutedBrush}" TextWrapping="Wrap"
+                   Margin="0,0,0,12"/>
+
+        <StackPanel Grid.Row="5" Orientation="Horizontal" HorizontalAlignment="Right" Spacing="10">
+            <Button Name="InstallButton" Content="Install &amp; restart" Click="InstallButton_Click"
+                    Padding="20,10" Theme="{StaticResource PrimaryButtonStyle}" Cursor="Hand"/>
+            <Button Name="RetryButton" Content="Retry" Click="RetryButton_Click"
+                    Padding="20,10" Theme="{StaticResource SuccessButtonStyle}" Cursor="Hand" IsEnabled="False"/>
+            <Button Name="CancelButton" Content="Cancel" Click="CancelButton_Click"
+                    Padding="20,10" Theme="{StaticResource SecondaryButtonStyle}" Cursor="Hand"/>
+        </StackPanel>
+    </Grid>
+</Window>

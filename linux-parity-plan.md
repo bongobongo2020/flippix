@@ -230,7 +230,23 @@ binding bugs to surface here rather than at build time.
 
 ---
 
-## 6. Phase 3 — Close the documented Linux gaps  · *~3–4 days*
+## 6. Phase 3 — Close the documented Linux gaps  · *~3–4 days* — **resolvers + settings ✅ (2026-08-23), playback/mask-pen deferred**
+
+> **Resolvers**: `ModelInstallerService` + `NodeInstallerService` ported (NodeInstaller also
+> learns Linux python layouts: `venv/bin/python`, `.venv`, `/usr/bin/python3`), plus Avalonia
+> `MissingModelResolver`/`MissingNodeResolver` (async `ShowDialog` through `Dispatcher.UIThread`,
+> any calling thread) and `MissingModelsWindow`/`MissingNodesWindow` (ItemsControl rows instead of
+> WPF GridView, StorageProvider folder picker, generated `x:Name` fields). Wired into
+`App.axaml.cs` exactly like the WPF app: resolvers attached to `ComfyUIHttpClient`, and
+`VramContext.Configure` at startup (was missing). Verified: smoke constructs all three dialogs;
+> harness `resolver` stage against the live server passes (git found, remote-server detection
+> correct, headless dialog suppression returns false without throwing).
+> **Settings**: full section parity — timeout/retries, ComfyUI path + browse, crash detection &
+> auto-restart (.sh script + delay + startup timeout), GPU VRAM tier selector with detected-VRAM
+> readout, output folder, remote output folder (with active-folder readout), remote LoRA folder,
+> Krea2 LoRA folder. Backup/Restore stays WPF-only (Windows installer bundle).
+> **Deferred**: in-app video playback (LibVLCSharp) and stylus-pressure mask painting — poster
+> frames and the existing `MaskPaintCanvas` remain.
 
 Priority order (from the branch's own "Linux gaps" list):
 

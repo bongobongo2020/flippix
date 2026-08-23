@@ -1,0 +1,77 @@
+<Window xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        x:Class="FlipPix.UI.Linux.Windows.MissingModelsWindow"
+        Title="Missing Models" Height="540" Width="760"
+        WindowStartupLocation="CenterOwner"
+        MinHeight="420" MinWidth="600"
+        Background="{StaticResource AppBackgroundBrush}">
+
+    <Grid RowDefinitions="Auto,Auto,*,Auto,Auto,Auto" Margin="20">
+
+        <TextBlock Grid.Row="0" Text="Some models aren't installed"
+                   FontSize="20" FontWeight="Bold"
+                   Foreground="{StaticResource TextPrimaryBrush}"
+                   Margin="0,0,0,8"/>
+
+        <TextBlock Grid.Row="1" TextWrapping="Wrap" FontSize="13"
+                   Foreground="{StaticResource TextSecondaryBrush}"
+                   Margin="0,0,0,12"
+                   Text="The connected ComfyUI is missing the model file(s) below. Download the known ones automatically, or point FlipPix at a folder that already contains them — that folder is remembered so you're only asked once."/>
+
+        <!-- Ported from the WPF GridView list: Avalonia has no GridView, so the same three
+             columns become a header row + an ItemsControl of fixed-width columns. -->
+        <Border Grid.Row="2" Background="{StaticResource SurfaceBrush}"
+                BorderBrush="{StaticResource BorderBrush}" BorderThickness="1" Padding="2">
+            <Grid RowDefinitions="Auto,*">
+                <Grid Grid.Row="0" ColumnDefinitions="300,140,*" Background="{StaticResource SurfaceAltBrush}" Margin="0,0,0,1">
+                    <TextBlock Grid.Column="0" Text="Model" FontWeight="SemiBold" FontSize="12" Padding="8,6"
+                               Foreground="{StaticResource TextSecondaryBrush}"/>
+                    <TextBlock Grid.Column="1" Text="Folder" FontWeight="SemiBold" FontSize="12" Padding="8,6"
+                               Foreground="{StaticResource TextSecondaryBrush}"/>
+                    <TextBlock Grid.Column="2" Text="Status" FontWeight="SemiBold" FontSize="12" Padding="8,6"
+                               Foreground="{StaticResource TextSecondaryBrush}"/>
+                </Grid>
+                <ScrollViewer Grid.Row="1">
+                    <ItemsControl Name="ModelsList">
+                        <ItemsControl.ItemTemplate>
+                            <DataTemplate>
+                                <Grid ColumnDefinitions="300,140,*">
+                                    <TextBlock Grid.Column="0" Text="{Binding FileName}" FontSize="12"
+                                               Padding="8,5" TextTrimming="CharacterEllipsis"
+                                               Foreground="{StaticResource TextPrimaryBrush}"
+                                               ToolTip.Tip="{Binding FileName}"/>
+                                    <TextBlock Grid.Column="1" Text="{Binding Category}" FontSize="12"
+                                               Padding="8,5" TextTrimming="CharacterEllipsis"
+                                               Foreground="{StaticResource TextPrimaryBrush}"/>
+                                    <TextBlock Grid.Column="2" Text="{Binding Status}" FontSize="12"
+                                               Padding="8,5" TextTrimming="CharacterEllipsis"
+                                               Foreground="{StaticResource TextMutedBrush}"
+                                               ToolTip.Tip="{Binding Status}"/>
+                                </Grid>
+                            </DataTemplate>
+                        </ItemsControl.ItemTemplate>
+                    </ItemsControl>
+                </ScrollViewer>
+            </Grid>
+        </Border>
+
+        <ProgressBar Grid.Row="3" Name="Progress" Height="6" Margin="0,12,0,6"
+                     Minimum="0" Maximum="100" IsVisible="False"
+                     Foreground="{StaticResource AccentIndigoBrush}"/>
+
+        <TextBlock Grid.Row="4" Name="StatusText" FontSize="12"
+                   Foreground="{StaticResource TextMutedBrush}" TextWrapping="Wrap"
+                   Margin="0,0,0,12"/>
+
+        <StackPanel Grid.Row="5" Orientation="Horizontal" HorizontalAlignment="Right" Spacing="10">
+            <Button Name="DownloadButton" Content="Download missing" Click="DownloadButton_Click"
+                    Padding="20,10" Theme="{StaticResource PrimaryButtonStyle}" Cursor="Hand"/>
+            <Button Name="LocateButton" Content="Locate folder..." Click="LocateButton_Click"
+                    Padding="20,10" Theme="{StaticResource PrimaryButtonStyle}" Cursor="Hand"/>
+            <Button Name="DoneButton" Content="Done" Click="DoneButton_Click"
+                    Padding="20,10" Theme="{StaticResource SuccessButtonStyle}" Cursor="Hand" IsEnabled="False"/>
+            <Button Name="CancelButton" Content="Cancel" Click="CancelButton_Click"
+                    Padding="20,10" Theme="{StaticResource SecondaryButtonStyle}" Cursor="Hand"/>
+        </StackPanel>
+    </Grid>
+</Window>

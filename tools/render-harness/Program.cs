@@ -51,8 +51,9 @@ switch (stage)
     case "cast":      await RunCast(sp, imgA, imgB); break;
     case "hybrid":    await RunHybrid(sp, imgA); break;
     case "ensemble":  await RunEnsemble(sp, imgA); break;
+    case "resolver":  await RunResolver(sp); break;
     default:
-        Console.WriteLine("stages: i2v | fflf | character | chain | cast | hybrid | ensemble");
+        Console.WriteLine("stages: i2v | fflf | character | chain | cast | hybrid | ensemble | resolver");
         return;
 }
 Console.WriteLine($"[harness] {stage} finished in {sw.Elapsed.TotalMinutes:0.0} min");
@@ -82,6 +83,10 @@ static void ConfigureServices(IServiceCollection services)
     services.AddSingleton<GenerationProgressTracker>();
     services.AddSingleton<ChunkPromptCacheService>();
     services.AddSingleton<ScenePromptLibrary>();
+    services.AddSingleton<FlipPix.UI.Linux.Services.ModelInstallerService>();
+    services.AddSingleton<FlipPix.Core.Interfaces.IMissingModelResolver, FlipPix.UI.Linux.Services.MissingModelResolver>();
+    services.AddSingleton<FlipPix.UI.Linux.Services.NodeInstallerService>();
+    services.AddSingleton<FlipPix.Core.Interfaces.IMissingNodeResolver, FlipPix.UI.Linux.Services.MissingNodeResolver>();
     services.AddHttpClient<LMStudioService>();
     services.AddHttpClient<OllamaService>();
     services.AddSingleton<IPromptService, PromptService>();
@@ -250,6 +255,27 @@ static async Task RunEnsemble(IServiceProvider sp, string character)
 }
 
 // ───────────────────────────────────────────────────────────────────────────────
+
+static async Task RunResolver(IServiceProvider sp)
+{
+    // Exercises the Phase 3 missing-node resolver against the live server: repo enrichment
+    // through ComfyUI-Manager's map, pack-presence detection, and the headless no-window
+    // path (the dialog itself cannot show without a UI - the resolver must log and
+    // return false rather than throw).
+    var installer = sp.GetRequiredService<FlipPix.UI.Linux.Services.NodeInstallerService>();
+    var resolver = sp.GetRequiredService<FlipPix.Core.Interfaces.IMissingNodeResolver>();
+
+    var info = new FlipPix.Core.Models.MissingNodeInfo { ClassType = "ImpactWildcardProcessor" };
+    var list = new List<FlipPix.Core.Models.MissingNodeInfo> { info };
+
+    await installer.ResolveReposAsync(list, CancellationToken.None);
+    Console.WriteLine($"[resolver] {info.ClassType}: repo={info.RepoUrl ?? "<none>"} pack={info.PackName ?? "<none>"} " +
+                      $"presentLocally={installer.IsPackPresent(info)} git={installer.GitAvailable()} canLocal={installer.CanInstallLocally()}");
+
+    var offered = await resolver.TryResolveAsync(list, CancellationToken.None);
+    Console.WriteLine($"[resolver] TryResolveAsync -> {offered} (expected False: no window to show the dialog on)");
+    Console.WriteLine(offered ? "[resolver] FAIL (dialog cannot show headless)" : "[resolver] PASS");
+}
 
 static async Task WaitIdle<T>(T vm, string label,
     Func<T, bool> busy,

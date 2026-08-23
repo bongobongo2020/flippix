@@ -2,30 +2,130 @@
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         x:Class="FlipPix.UI.Linux.Windows.SettingsWindow"
         Title="FlipPix Settings"
-        Width="700" Height="620"
-        WindowStartupLocation="CenterOwner">
+        Width="720" Height="780" MinWidth="620" MinHeight="600"
+        WindowStartupLocation="CenterOwner"
+        Background="{StaticResource AppBackgroundBrush}">
     <ScrollViewer Margin="20">
         <StackPanel Spacing="15">
-            <TextBlock Text="Settings" FontSize="22" FontWeight="Bold"/>
 
-            <Border Background="#F8F9FA" BorderBrush="#DEE2E6" BorderThickness="1" CornerRadius="8" Padding="15">
-                <StackPanel Spacing="10">
-                    <TextBlock Text="ComfyUI Server" FontWeight="Bold"/>
-                    <Grid ColumnDefinitions="150,*" RowDefinitions="Auto,Auto,Auto">
-                        <TextBlock Grid.Row="0" Grid.Column="0" Text="Base URL:" VerticalAlignment="Center"/>
-                        <TextBox Grid.Row="0" Grid.Column="1" x:Name="BaseUrlBox"/>
-                        <TextBlock Grid.Row="1" Grid.Column="0" Text="Output Folder:" VerticalAlignment="Center"/>
-                        <TextBox Grid.Row="1" Grid.Column="1" x:Name="OutputFolderBox"/>
-                        <TextBlock Grid.Row="2" Grid.Column="0" Text="ComfyUI Folder:" VerticalAlignment="Center"/>
-                        <TextBox Grid.Row="2" Grid.Column="1" x:Name="ComfyUIFolderBox"/>
+            <TextBlock Text="Settings" FontSize="22" FontWeight="Bold" Foreground="{StaticResource TextPrimaryBrush}"/>
+            <TextBlock Text="Configure your ComfyUI and application settings" FontSize="13"
+                       Foreground="{StaticResource TextSecondaryBrush}"/>
+
+            <!-- ═══ ComfyUI Configuration ═══ -->
+            <Border Background="{StaticResource SurfaceAltBrush}" BorderBrush="{StaticResource BorderBrush}"
+                    BorderThickness="1" CornerRadius="8" Padding="20">
+                <StackPanel>
+                    <TextBlock Text="ComfyUI Configuration" FontWeight="Bold" FontSize="16" Margin="0,0,0,15"
+                               Foreground="{StaticResource TextPrimaryBrush}"/>
+
+                    <Grid ColumnDefinitions="140,*" RowDefinitions="Auto,Auto,Auto" Margin="0,0,0,15">
+                        <TextBlock Grid.Row="0" Grid.Column="0" Text="Server URL:" VerticalAlignment="Center" Margin="0,0,10,10"/>
+                        <TextBox Grid.Row="0" Grid.Column="1" x:Name="BaseUrlBox" Margin="0,0,0,10"/>
+                        <TextBlock Grid.Row="1" Grid.Column="0" Text="Timeout (ms):" VerticalAlignment="Center" Margin="0,0,10,10"/>
+                        <TextBox Grid.Row="1" Grid.Column="1" x:Name="TimeoutBox" Margin="0,0,0,10"/>
+                        <TextBlock Grid.Row="2" Grid.Column="0" Text="Max Retries:" VerticalAlignment="Center" Margin="0,0,10,10"/>
+                        <TextBox Grid.Row="2" Grid.Column="1" x:Name="MaxRetriesBox" Margin="0,0,0,10"/>
+                    </Grid>
+
+                    <Separator Margin="0,0,0,15"/>
+
+                    <TextBlock Text="ComfyUI Installation Path" FontWeight="SemiBold" FontSize="14" Margin="0,0,0,10"
+                               Foreground="{StaticResource TextSecondaryBrush}"/>
+                    <Grid ColumnDefinitions="*,Auto" Margin="0,0,0,15">
+                        <TextBox Grid.Column="0" x:Name="ComfyUIFolderBox" Margin="0,0,10,0"/>
+                        <Button Grid.Column="1" Content="Browse..." Click="BrowseComfyUIPath_Click" Padding="15,5"/>
+                    </Grid>
+
+                    <!-- Crash Detection & Auto-Restart -->
+                    <Separator Margin="0,0,0,15"/>
+                    <TextBlock Text="Crash Detection &amp; Auto-Restart" FontWeight="SemiBold" FontSize="14" Margin="0,0,0,10"
+                               Foreground="{StaticResource TextSecondaryBrush}"/>
+                    <CheckBox x:Name="AutoRestartBox"
+                              Content="Auto-start ComfyUI on launch and restart on crash"
+                              Margin="0,0,0,10"/>
+
+                    <!-- VRAM workflow tier -->
+                    <TextBlock Text="GPU VRAM / workflow tier:" FontWeight="SemiBold" FontSize="13" Margin="0,5,0,5"
+                               Foreground="{StaticResource TextSecondaryBrush}"/>
+                    <TextBlock Text="On ~16 GB GPUs FlipPix loads memory-optimized workflows (workflow/16gb) so they fit instead of crashing."
+                               FontSize="11" Foreground="{StaticResource TextMutedBrush}" TextWrapping="Wrap" Margin="0,0,0,5"/>
+                    <ComboBox x:Name="VramTierBox" Margin="0,0,0,5" Width="360" HorizontalAlignment="Left"
+                              SelectedIndex="0">
+                        <ComboBoxItem Content="Auto-detect from connected ComfyUI (recommended)"/>
+                        <ComboBoxItem Content="Force 16 GB mode (memory-optimized workflows)"/>
+                        <ComboBoxItem Content="Force full mode (full-size workflows)"/>
+                    </ComboBox>
+                    <TextBlock x:Name="DetectedVramText" FontSize="11" Foreground="{StaticResource TextMutedBrush}" Margin="0,0,0,10"/>
+
+                    <TextBlock Text="ComfyUI Restart Script (.sh):" FontWeight="SemiBold" FontSize="13" Margin="0,0,0,5"
+                               Foreground="{StaticResource TextSecondaryBrush}"/>
+                    <TextBlock Text="Script to restart ComfyUI (e.g., /opt/comfyui/start.sh)" FontSize="11"
+                               Foreground="{StaticResource TextMutedBrush}" Margin="0,0,0,5"/>
+                    <Grid ColumnDefinitions="*,Auto" Margin="0,0,0,10">
+                        <TextBox Grid.Column="0" x:Name="RestartScriptBox" Margin="0,0,10,0"/>
+                        <Button Grid.Column="1" Content="Browse..." Click="BrowseRestartScript_Click" Padding="15,5"/>
+                    </Grid>
+
+                    <Grid ColumnDefinitions="*,*">
+                        <StackPanel Grid.Column="0" Margin="0,0,10,0">
+                            <TextBlock Text="Restart Delay (sec):" FontSize="12" Foreground="{StaticResource TextSecondaryBrush}" Margin="0,0,0,5"/>
+                            <TextBox x:Name="RestartDelayBox"/>
+                        </StackPanel>
+                        <StackPanel Grid.Column="1">
+                            <TextBlock Text="Startup Timeout (sec):" FontSize="12" Foreground="{StaticResource TextSecondaryBrush}" Margin="0,0,0,5"/>
+                            <TextBox x:Name="StartupTimeoutBox"/>
+                        </StackPanel>
+                    </Grid>
+
+                    <Separator Margin="0,15,0,15"/>
+
+                    <TextBlock Text="ComfyUI Output Folder" FontWeight="SemiBold" FontSize="14" Margin="0,0,0,10"
+                               Foreground="{StaticResource TextSecondaryBrush}"/>
+                    <TextBlock Text="This is where ComfyUI saves generated images" FontSize="12"
+                               Foreground="{StaticResource TextSecondaryBrush}" Margin="0,0,0,5"/>
+                    <Grid ColumnDefinitions="*,Auto" Margin="0,0,0,15">
+                        <TextBox Grid.Column="0" x:Name="OutputFolderBox" Margin="0,0,10,0"/>
+                        <Button Grid.Column="1" Content="Browse..." Click="BrowseOutputPath_Click" Padding="15,5"/>
+                    </Grid>
+
+                    <TextBlock Text="Remote ComfyUI Output Folder" FontWeight="SemiBold" FontSize="14" Margin="0,0,0,10"
+                               Foreground="{StaticResource TextSecondaryBrush}"/>
+                    <TextBlock TextWrapping="Wrap" FontSize="12" Foreground="{StaticResource TextSecondaryBrush}" Margin="0,0,0,5"
+                               Text="When the Server URL above is another machine, the app reads generated files from THIS path — the folder above is ignored. Point it at the remote output folder as this PC sees it (e.g., an NFS/SMB mount like /mnt/ai-models/output)."/>
+                    <Grid ColumnDefinitions="*,Auto" Margin="0,0,0,5">
+                        <TextBox Grid.Column="0" x:Name="RemoteOutputFolderBox" Margin="0,0,10,0"/>
+                        <Button Grid.Column="1" Content="Browse..." Click="BrowseRemoteOutputPath_Click" Padding="15,5"/>
+                    </Grid>
+                    <TextBlock x:Name="ActiveOutputFolderText" TextWrapping="Wrap" FontSize="12" FontStyle="Italic"
+                               Foreground="{StaticResource TextSecondaryBrush}" Margin="0,0,0,15"/>
+
+                    <TextBlock Text="Remote LoRA Folder (Optional)" FontWeight="SemiBold" FontSize="14" Margin="0,0,0,10"
+                               Foreground="{StaticResource TextSecondaryBrush}"/>
+                    <TextBlock Text="Path to the remote ComfyUI LoRA models folder as this PC sees it (e.g., /mnt/ai-models/models/loras)"
+                               FontSize="12" Foreground="{StaticResource TextSecondaryBrush}" Margin="0,0,0,5"/>
+                    <Grid ColumnDefinitions="*,Auto">
+                        <TextBox Grid.Column="0" x:Name="RemoteLoraFolderBox" Margin="0,0,10,0"/>
+                        <Button Grid.Column="1" Content="Browse..." Click="BrowseRemoteLoraPath_Click" Padding="15,5"/>
+                    </Grid>
+
+                    <TextBlock Text="Krea2 LoRA Folder (Optional)" FontWeight="SemiBold" FontSize="14" Margin="0,15,0,10"
+                               Foreground="{StaticResource TextSecondaryBrush}"/>
+                    <TextBlock Text="Folder holding the Krea2 LoRAs, used by the Krea2 image workflows (e.g., /mnt/ai-models/models/loras/krea2)"
+                               FontSize="12" Foreground="{StaticResource TextSecondaryBrush}" Margin="0,0,0,5"/>
+                    <Grid ColumnDefinitions="*,Auto">
+                        <TextBox Grid.Column="0" x:Name="KreaLoraFolderBox" Margin="0,0,10,0"/>
+                        <Button Grid.Column="1" Content="Browse..." Click="BrowseKreaLoraPath_Click" Padding="15,5"/>
                     </Grid>
                 </StackPanel>
             </Border>
 
-            <Border Background="#F8F9FA" BorderBrush="#DEE2E6" BorderThickness="1" CornerRadius="8" Padding="15">
+            <!-- ═══ LM Studio (Image Analysis) ═══ -->
+            <Border Background="{StaticResource SurfaceAltBrush}" BorderBrush="{StaticResource BorderBrush}"
+                    BorderThickness="1" CornerRadius="8" Padding="20">
                 <StackPanel Spacing="10">
-                    <TextBlock Text="LM Studio (Image Analysis)" FontWeight="Bold"/>
-                    <Grid ColumnDefinitions="150,*,100,80" RowDefinitions="Auto">
+                    <TextBlock Text="LM Studio (Image Analysis)" FontWeight="Bold" Foreground="{StaticResource TextPrimaryBrush}"/>
+                    <Grid ColumnDefinitions="140,*,60,80">
                         <TextBlock Grid.Column="0" Text="Server:" VerticalAlignment="Center"/>
                         <TextBox Grid.Column="1" x:Name="LMStudioServerBox" Margin="0,0,8,0"/>
                         <TextBlock Grid.Column="2" Text="Port:" VerticalAlignment="Center" Margin="0,0,4,0"/>

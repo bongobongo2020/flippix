@@ -51,6 +51,26 @@ public partial class App : Application
         var settingsService = _serviceProvider.GetRequiredService<SettingsService>();
         settingsService.SetLogger(logger);
 
+        // Let the ComfyUI client offer to install missing models (download / locate folder) or
+        // missing custom-node packs (clone + restart) instead of failing the workflow with a
+        // dead-end error — exactly as the WPF app does at startup.
+        try
+        {
+            var httpClient = _serviceProvider.GetRequiredService<ComfyUIHttpClient>();
+            httpClient.MissingModelResolver = _serviceProvider.GetRequiredService<IMissingModelResolver>();
+            httpClient.MissingNodeResolver = _serviceProvider.GetRequiredService<IMissingNodeResolver>();
+        }
+        catch (Exception ex)
+        {
+            logger.LogWarning($"Could not wire missing-model/node resolver: {ex.Message}");
+        }
+
+        // Resolve the VRAM tier up-front from saved settings so workflow routing is correct even
+        // before (or without) a successful ComfyUI connection. CheckServerConnectivityAsync refines
+        // DetectedVramGb from /system_stats when the server answers (same as the WPF app).
+        VramContext.Configure(settingsService.Settings.VramTier, settingsService.Settings.DetectedVramGb);
+        logger.LogInfo($"VRAM tier: {VramContext.EffectiveTier} (setting={settingsService.Settings.VramTier}, detected={settingsService.Settings.DetectedVramGb:0.#} GB)");
+
         logger.LogInfo("FlipPix Linux starting up");
         ConfigureMediaTooling(logger);
 
@@ -187,6 +207,24 @@ public partial class App : Application
 
                         LogTabCensus(mainWindow, "ImageGeneratorWindow");
                         LogTabCensus(videoWindow, "VideoGeneratorWindow");
+
+                        // The Phase 3 dialogs: constructed (not just shown) so a XAML or resource
+                        // error in either fails loudly here rather than at first missing model/node.
+                        var modelInstaller = _serviceProvider.GetRequiredService<Services.ModelInstallerService>();
+                        var nodeInstaller = _serviceProvider.GetRequiredService<Services.NodeInstallerService>();
+                        var smokeLogger = _serviceProvider.GetRequiredService<IAppLogger>();
+                        var missingModels = new List<Core.Models.MissingModelInfo>
+                        {
+                            new() { Name = "test/smoke_model.safetensors", Category = "loras" },
+                        };
+                        var missingNodes = new List<Core.Models.MissingNodeInfo>
+                        {
+                            new() { ClassType = "SmokeTestNode", PackName = "smoke-pack", RepoUrl = "" },
+                        };
+                        var mm = new Windows.MissingModelsWindow(missingModels, modelInstaller, smokeLogger);
+                        var mn = new Windows.MissingNodesWindow(missingNodes, nodeInstaller, smokeLogger);
+                        var st = new Windows.SettingsWindow(settingsService);
+                        smokeLogger.LogInfo("SMOKE: resolver dialogs + settings window constructed OK");
                     }
                     catch (Exception ex)
                     {
@@ -268,6 +306,10 @@ public partial class App : Application
         services.AddSingleton<WindowPositionService>();
         services.AddSingleton<LoraManager>();
         services.AddSingleton<ComfyUIImageRetriever>();
+        services.AddSingleton<ModelInstallerService>();
+        services.AddSingleton<IMissingModelResolver, MissingModelResolver>();
+        services.AddSingleton<NodeInstallerService>();
+        services.AddSingleton<IMissingNodeResolver, MissingNodeResolver>();
 
         services.AddSingleton<LMStudioService>(provider =>
         {
