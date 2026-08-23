@@ -178,7 +178,7 @@ legacy tab name in the XAML to prove removal).
 
 ---
 
-## 5. Phase 2 — MiniMax H3 workflow functional parity  · *~2 days (mostly QA)` — **4/7 rendered ✅ (2026-08-23), 3 blocked server-side**
+## 5. Phase 2 — MiniMax H3 workflow functional parity  · *~2 days (mostly QA)` — **✅ COMPLETE: 7/7 rendered (2026-08-23)**
 
 > Server: `10.0.0.10:8188` (ComfyUI 0.33.0, RTX 4090 23.5 GB → full-fat tier). All five H3 graph
 > validators (`tools/verify_h3*.py`) pass against the live server, plus the two image-side ones.
@@ -192,12 +192,18 @@ legacy tab name in the XAML to prove removal).
 >   node 38, `plagueh3.json` node 5480 → now `"auto"` (found by live render, not validators).
 > - False positive in `verify_h3cast_tagged.py` (RTXVideoSuperResolution is dynamic-combo).
 >
-> **Blocked server-side**: MiniMax Character, H3 Cast, H3 Chain all fail at
-> `MiniMaxH3MemoryEfficientSageAttentionPatch` — "sageattention is not new enough version or
-> could not determine CUDA architecture" on 10.0.0.10 (their Ref2VA-family graphs hardwire that
-> node; the four passing tabs' graphs don't use it). Fix on the server — upgrade sageattention in
-> ComfyUI's python env (`pip install -U sageattention`), then re-run harness stages
-> `character`, `cast`, `chain`. No SSH access to the box from here (publickey only).
+> **Server-side blocker resolved in the graphs instead** (idea: use the same attention recipe
+> the passing i2v/fflf graphs use — native comfy-kitchen + SolAttnPatch — instead of sage):
+> - `MiniMaxH3MemoryEfficientSageAttentionPatch` → `ModelAttentionBackend`
+>   (`"comfy kitchen attention"`) in all 5 Ref2VA-family graphs (nodes 52 / 1633).
+> - `PathchSageAttentionKJ` (KJNodes sage, `sageattn_qk_int8_pv_fp16_triton`) removed from the
+>   three in-use graphs (nodes 54 / 1632) — SolAttnPatch already in those chains does the
+>   equivalent int8 qk/pv quantization; that is exactly the recipe i2v/fflf run on this box.
+> No server changes needed. Final scorecard (RTX 4090, end-to-end through the app pipeline):
+> **i2v 140 s/5.6 MB · fflf 124 s/3.3 MB · character 217 s/53.7 MB · cast (sheet 36 s + render)
+> 12 MB · hybrid 242 s/12.9 MB · ensemble 327 s/14.7 MB · chain 122 s/6.1 MB — 7/7 PASS.**
+> Legacy graphs not referenced by any active VM (video_minimax_h3_*.json, h3facerefiner-fflf/
+> i2v/t2v/chain, fl2va-turbo-fflf, tnew) still carry KJ sage if anyone revives them.
 
 Workflows are shared JSON — the risk is not the graphs but everything around them. For **each**
 H3 tab (MiniMax I2V, MiniMax FFLF, MiniMax Character, H3 Cast, H3 Cast Hybrid, H3 Ensemble,

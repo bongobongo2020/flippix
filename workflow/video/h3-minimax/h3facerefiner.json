@@ -237,11 +237,12 @@
       "model": [
         "61",
         0
-      ]
+      ],
+      "attention": "comfy kitchen attention"
     },
-    "class_type": "MiniMaxH3MemoryEfficientSageAttentionPatch",
+    "class_type": "ModelAttentionBackend",
     "_meta": {
-      "title": "MiniMax H3 Mem Eff Sage Attention Patch"
+      "title": "Comfy Kitchen Attention Backend"
     }
   },
   "53": {
@@ -266,20 +267,6 @@
     "class_type": "SolAttnPatch",
     "_meta": {
       "title": "Patch Sol-Attn"
-    }
-  },
-  "54": {
-    "inputs": {
-      "sage_attention": "sageattn_qk_int8_pv_fp16_triton",
-      "allow_compile": false,
-      "model": [
-        "53",
-        0
-      ]
-    },
-    "class_type": "PathchSageAttentionKJ",
-    "_meta": {
-      "title": "Patch Sage Attention KJ"
     }
   },
   "56": {
@@ -311,7 +298,7 @@
       "shift_video": 12,
       "shift_audio": 3,
       "model": [
-        "54",
+        "53",
         0
       ]
     },
