@@ -254,6 +254,15 @@ styles — don't trust a green build.
 **FlipPix can't reach ComfyUI** — confirm it's serving on the URL in Settings, check the firewall,
 and make sure nothing else holds port 8188. For a remote box, ComfyUI must listen on `0.0.0.0`.
 
+**First run on Linux: pick "Remote Server", click Connect, and nothing happens** — the app exited
+before the main window appeared. Closing the setup dialog left it as the last open window, so
+Avalonia's default `ShutdownMode = OnLastWindowClose` began shutdown and won the race against the
+fire-and-forget task that creates the main window. Fixed by switching to explicit shutdown while
+the setup windows are up (restored to normal once the main window shows) and by making that task
+log and surface failures instead of discarding them. The server URL and output folder were saved
+before the exit, so an older install that still shows this only needs a relaunch - it will skip
+setup and go straight to the main window.
+
 **"Missing node" or "missing model" dialog** — accept the offer to install; it clones the node pack
 or downloads/locates the weight and remembers the location. If you decline, the job can't run.
 

@@ -90,6 +90,10 @@ public partial class App : Application
                 {
                     var setupWin = new SetupChoiceWindow();
                     desktop.MainWindow = setupWin;
+                    // Prevent the default OnLastWindowClose shutdown from killing the app
+                    // while we transition between setup windows and the main window
+                    // (those transitions are async and lose the race otherwise).
+                    desktop.ShutdownMode = ShutdownMode.OnExplicitShutdown;
                     setupWin.Show();
                     splash.Close();
 
@@ -152,17 +156,36 @@ public partial class App : Application
 
     private async Task ShowMainWindowAsync(IClassicDesktopStyleApplicationLifetime desktop, Window? closePrev)
     {
-        await Dispatcher.UIThread.InvokeAsync(() =>
+        try
         {
-            if (_serviceProvider == null) return;
-            var imageGeneratorViewModel = _serviceProvider.GetRequiredService<ImageGeneratorViewModel>();
-            var settingsService = _serviceProvider.GetRequiredService<SettingsService>();
-            var windowPositionService = _serviceProvider.GetRequiredService<WindowPositionService>();
-            var mainWindow = new Windows.ImageGeneratorWindow(imageGeneratorViewModel, settingsService, windowPositionService);
-            desktop.MainWindow = mainWindow;
-            mainWindow.Show();
-            closePrev?.Close();
-        });
+            await Dispatcher.UIThread.InvokeAsync(() =>
+            {
+                if (_serviceProvider == null) return;
+                var imageGeneratorViewModel = _serviceProvider.GetRequiredService<ImageGeneratorViewModel>();
+                var settingsService = _serviceProvider.GetRequiredService<SettingsService>();
+                var windowPositionService = _serviceProvider.GetRequiredService<WindowPositionService>();
+                var mainWindow = new Windows.ImageGeneratorWindow(imageGeneratorViewModel, settingsService, windowPositionService);
+                desktop.MainWindow = mainWindow;
+                mainWindow.Show();
+                closePrev?.Close();
+                // Back to normal lifecycle: closing the last window exits the app.
+                desktop.ShutdownMode = ShutdownMode.OnLastWindowClose;
+            });
+        }
+        catch (Exception ex)
+        {
+            // This method is often invoked fire-and-forget; never let the failure be silent.
+            _serviceProvider?.GetRequiredService<IAppLogger>()?.LogError(ex, "Failed to show main window");
+            await Dispatcher.UIThread.InvokeAsync(async () =>
+            {
+                var box = MessageBoxManager.GetMessageBoxStandard(
+                    "Startup Error",
+                    $"FlipPix failed to open the main window:\n{ex.Message}",
+                    ButtonEnum.Ok, Icon.Error);
+                await box.ShowAsync();
+                desktop.Shutdown();
+            });
+        }
     }
 
     private void ConfigureServices(IServiceCollection services)
