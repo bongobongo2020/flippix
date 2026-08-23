@@ -178,15 +178,26 @@ legacy tab name in the XAML to prove removal).
 
 ---
 
-## 5. Phase 2 — MiniMax H3 workflow functional parity  · *~2 days (mostly QA)` — **patch stage ✅ (2026-08-23), render stage pending GPU go-ahead**
+## 5. Phase 2 — MiniMax H3 workflow functional parity  · *~2 days (mostly QA)` — **4/7 rendered ✅ (2026-08-23), 3 blocked server-side**
 
 > Server: `10.0.0.10:8188` (ComfyUI 0.33.0, RTX 4090 23.5 GB → full-fat tier). All five H3 graph
 > validators (`tools/verify_h3*.py`) pass against the live server, plus the two image-side ones.
-> Two real bugs found & fixed: `LTX_lora_loader` missing required `mode` in `h3-cast-hybrid.json`
-> (node 5) and `plagueh3.json` (node 5511) — both now `"minimax"` — and a false positive in
-> `verify_h3cast_tagged.py` (RTXVideoSuperResolution is a dynamic-combo class). Transport checks:
-> image upload to `/upload/image` OK; LM Studio LLM at `10.0.0.138:8080` OK. Remaining: one live
-> render per H3 tab (needs GPU time).
+> Live renders via `tools/render-harness` (dev-only VM driver, committed): **i2v 140 s/5.6 MB ✅ ·
+> fflf 124 s/3.3 MB ✅ · hybrid 242 s/12.9 MB ✅ · ensemble 327 s/14.7 MB ✅**.
+>
+> Bugs found & fixed along the way:
+> - `LTX_lora_loader` missing required `mode` — `h3-cast-hybrid.json` node 5, `plagueh3.json`
+>   node 5511 → now `"minimax"` (every Hybrid/Ensemble submit would have been rejected).
+> - `SaveVideo` missing newly required `codec.encoding.color_space` — `h3-cast-hybrid.json`
+>   node 38, `plagueh3.json` node 5480 → now `"auto"` (found by live render, not validators).
+> - False positive in `verify_h3cast_tagged.py` (RTXVideoSuperResolution is dynamic-combo).
+>
+> **Blocked server-side**: MiniMax Character, H3 Cast, H3 Chain all fail at
+> `MiniMaxH3MemoryEfficientSageAttentionPatch` — "sageattention is not new enough version or
+> could not determine CUDA architecture" on 10.0.0.10 (their Ref2VA-family graphs hardwire that
+> node; the four passing tabs' graphs don't use it). Fix on the server — upgrade sageattention in
+> ComfyUI's python env (`pip install -U sageattention`), then re-run harness stages
+> `character`, `cast`, `chain`. No SSH access to the box from here (publickey only).
 
 Workflows are shared JSON — the risk is not the graphs but everything around them. For **each**
 H3 tab (MiniMax I2V, MiniMax FFLF, MiniMax Character, H3 Cast, H3 Cast Hybrid, H3 Ensemble,

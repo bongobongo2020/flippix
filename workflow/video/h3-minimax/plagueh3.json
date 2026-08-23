@@ -47,6 +47,7 @@
       "codec": "h264",
       "codec.encoding": "re-encode",
       "codec.encoding.crf": 10,
+      "codec.encoding.color_space": "auto",
       "video": [
         "5479:5475",
         0
