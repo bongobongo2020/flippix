@@ -225,16 +225,19 @@ reads from `GDK_SCALE` / `QT_SCALE_FACTOR`.
 
 #### Linux gaps
 
-The port is real but not at parity with the WPF app:
+The port tracks the Windows app tab-for-tab (same nine video tabs, same ten pill-grouped
+image tabs, same settings sections) and has caught up on the functional side — but a few
+things still differ:
 
 - **No video plays inside the app.** Avalonia has no MediaElement, so clip previews are ffmpeg
   poster frames; the play button hands the file to your desktop's player, and scrub sliders move
   the poster rather than a playhead.
 - **The mask painter is FlipPix's own** — no InkCanvas, so the Editor tab rasterizes stroke
   points at source resolution. No pressure or stylus tips.
-- **The image tabs are not grouped** into Create / Edit / Advanced pills; all of them show at once.
-- **The missing-model and missing-node resolvers are not ported** — they drive WPF dialogs, so
-  mid-submit model and node installation is unavailable. Install those by hand on the server.
+- **The ComfyUI Backup & Restore settings panel is Windows-only** — it drives the Windows
+  installer bundle.
+- Remote ComfyUI servers can't be *auto*-repaired by the missing-node installer (it clones into
+  the local `custom_nodes`); it guides you to ComfyUI-Manager instead, exactly like the WPF app.
 - The same four ViewModels that are built and never bound on Windows (`Vr180`, `VideoSound`,
   `FaceIdCharSheet`, `MiniMaxH3TextToVideo`) have no tab here either.
 

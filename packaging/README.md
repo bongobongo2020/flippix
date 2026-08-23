@@ -82,15 +82,16 @@ transparent apart from fractional scaling, which the X11 backend reads from the 
 
 ## Verification checklist
 
-These were **not** run against a live Arch machine — the build was cross-compiled from Windows and
-verified by compiling and publishing only. Please confirm on real hardware:
+Verified on a real Arch machine (2026-08-23, RTX 4090 render box at `10.0.0.10:8188` running
+ComfyUI 0.33.0). Items still worth re-checking after changes:
 
 1. **Launch** — `flippix` opens the splash and then the main window; no GL errors in
    `~/.local/state/FlipPix/logs`. If the window is black, retry with `FLIPPIX_SOFTWARE_RENDER=1`.
+   ✅ verified
 2. **ffmpeg discovery** — the log line `Using ffmpeg from /usr/bin` appears at startup. With
    ffmpeg uninstalled you should get the warning naming `pacman -S ffmpeg`, not a crash.
 3. **Single config dir** — after a run, `ls ~/.config` shows `FlipPix` and **no** lowercase
-   `flippix`. Two directories would mean a casing regression has come back.
+   `flippix`. Two directories would mean a casing regression has come back. ✅ verified
 4. **Dialogs** — a message box (e.g. submit with no ComfyUI server) appears and dismisses without
    freezing the UI. A hang here means the nested dispatcher frame in `WindowsCompat.cs` regressed.
 5. **File pickers** — browse for an image, reopen the same button, and confirm it reopens in the
@@ -98,11 +99,12 @@ verified by compiling and publishing only. Please confirm on real hardware:
 6. **Open / reveal** — "Open folder" launches your file manager; "reveal" selects the file in
    Nautilus/Dolphin/Nemo/Thunar, or at minimum opens the containing folder.
 7. **Video post-processing** — render something that merges chunks, and confirm ffprobe-derived
-   dimensions and durations are correct rather than zero.
-8. **The ported tabs** — open each of the nine video tabs and the six new image tabs, and confirm
-   they render rather than throwing at window load. They were verified by instantiating every view
-   on a headless Avalonia platform, which catches a missing resource key, but not a binding that
-   silently resolves to nothing.
+   dimensions and durations are correct rather than zero. ✅ verified (all seven H3 tabs rendered
+   end-to-end; chunk joins and the H3 Chain assembly produce playable, correctly-sized clips)
+8. **The tabs** — open each of the nine video tabs and the ten pill-grouped image tabs, and
+   confirm they render rather than throwing at window load. ✅ verified via `FLIPPIX_SMOKE=1`
+   (opens both windows, logs the tab census, exits) plus live renders driven by
+   `tools/render-harness`, which exercises the real generate pipelines per tab.
 9. **Poster frames** — load a clip in Scail 2 and confirm a frame appears in the preview and
    follows the scrub slider. An empty black panel with only the filename means ffmpeg was not
    found or could not read the container.
@@ -119,14 +121,20 @@ verified by compiling and publishing only. Please confirm on real hardware:
   `Controls/MaskPaintCanvas`, which keeps strokes as points and rasterizes them at the source
   image's resolution. Pressure and stylus tips are not modelled — a stroke is a round-capped line
   of the chosen width.
-- **The image tabs are not grouped.** WPF sorts its ten image tabs into Create / Edit / Advanced
-  pills through `IsCreateGroup` and friends. This ViewModel has no such flags, so all the tabs are
-  shown at once.
+- **The ComfyUI Backup & Restore settings panel is Windows-only** — it drives the Windows
+  installer bundle. Everything else in Settings is at parity, including the VRAM tier selector.
 - **Four ViewModels still have no tab**: `Vr180ViewModel`, `VideoSoundViewModel`,
-  `FaceIdCharSheetViewModel` and `MiniMaxH3TextToVideoViewModel` are constructed by the host
-  ViewModel but have no tab — as on Windows, where the same four are built and never bound.
-- **`MissingModelResolver` / `MissingNodeResolver`** are not ported — they drive WPF dialogs, so
-  mid-submit model and node installation is unavailable on Linux.
+  `FaceIdCharSheetViewModel` and `MiniMaxH3TextToVideoViewModel` are no longer constructed —
+  the same four are built and never bound on Windows.
+- **The window/tab set matches the WPF app exactly**: the nine video tabs in the same order, the
+  ten image tabs grouped through the same Create / Edit / Advanced pills, and the legacy
+  Avalonia-era video tabs (FFLF, Story Video, VACE, Infinite Talk, WanAnimate, WAN SCAIL) are
+  gone. Their ViewModels stay in the tree for one deprecation cycle.
+- **`MissingModelResolver` / `MissingNodeResolver` are ported** — mid-submit model and node
+  installation works, with Linux ComfyUI python layouts recognized
+  (`venv/bin/python`, `.venv/bin/python`, `/usr/bin/python3`) for targeted pip fixes. A remote
+  server can't be auto-repaired (no local `custom_nodes` to clone into) — the dialog points at
+  ComfyUI-Manager instead, as on Windows.
 - **`WanScailViewModel`'s base workflow**,
   `workflow/video/wan/SCAIL+Video+Multi-Character+Motion+Transfer+V1API.json`, is absent from the
   repo on both platforms. Only the GGUF subclass, which uses `SCAIL2_simple (1).json`, resolves.

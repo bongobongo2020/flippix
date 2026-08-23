@@ -268,7 +268,13 @@ Priority order (from the branch's own "Linux gaps" list):
 
 ---
 
-## 7. Phase 4 — Packaging, docs, CI  · *~0.5 day*
+## 7. Phase 4 — Packaging, docs, CI  · *~0.5 day* — **✅ COMPLETE (2026-08-23)**
+
+> README's Linux-gaps list and `packaging/README.md`'s known-gaps + verification checklist
+> rewritten to match reality (tabs at parity, resolvers ported, gaps now only playback / mask
+> stylus / backup-restore). CI added: `.github/workflows/linux-build.yml` builds + publishes
+> `FlipPix.UI.Linux` on ubuntu-latest and JSON-validates all 146 workflow graphs on every
+> push/PR touching the app, libraries, or workflows. Install remains `install-arch.sh`.
 
 1. Standardize on `packaging/build-linux.sh` + `install-arch.sh` for this machine; regenerate
    the desktop entry (`MimeType`, `StartupNotify` etc. from `packaging/arch/flippix.desktop`).
