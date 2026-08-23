@@ -13,7 +13,7 @@
 #   -h, --help         this text
 #
 # Run it from a checkout, or straight off the web:
-#   curl -fsSL https://raw.githubusercontent.com/bongobongo2020/flippix/main/install-arch.sh | bash
+#   curl -fsSL https://raw.githubusercontent.com/bongobongo2020/flippix/HEAD/install-arch.sh | bash
 #
 set -euo pipefail
 
@@ -38,7 +38,22 @@ warn() { printf '%swarning:%s %s\n' "$Y" "$Z" "$*" >&2; }
 die()  { printf '%serror:%s %s\n' "$R" "$Z" "$*" >&2; exit 1; }
 ok()   { printf '%s  ok%s %s\n' "$G" "$Z" "$*"; }
 
-usage() { sed -n '3,14p' "$0" | cut -c3-; exit 0; }
+# Piped from curl, "$0" is bash rather than this file, so fall back to a literal.
+usage() {
+    if [[ -r "$0" ]] && head -1 "$0" | grep -q bash; then
+        sed -n '3,14p' "$0" | cut -c3-
+    else
+        printf '%s\n' \
+            "FlipPix - one-command install for Arch Linux and derivatives." "" \
+            "  install-arch.sh                # build + install the pacman package (recommended)" \
+            "  install-arch.sh --local        # install into ~/.local, no root, no pacman package" \
+            "  install-arch.sh --uninstall    # remove whichever of the two is installed" "" \
+            "  --self-contained  bundle the .NET runtime (with --local)" \
+            "  -y, --yes         pass --noconfirm to pacman and makepkg" \
+            "  --skip-deps       assume the dependencies are already installed"
+    fi
+    exit 0
+}
 
 for arg in "$@"; do
     case "$arg" in

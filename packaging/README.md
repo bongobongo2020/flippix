@@ -4,6 +4,11 @@ FlipPix's Linux build is `FlipPix.UI.Linux`, an Avalonia port of the WPF app. It
 same ComfyUI server, reads the same `workflow/` and `prompts/` trees, and stores its settings in
 the same JSON shape.
 
+**Just want it installed?** `../install-arch.sh` does everything below in one command — pacman
+dependencies, `makepkg -si`, desktop entry — and `--uninstall` reverses it. Pass `--local` to
+install into `~/.local` without root or a pacman package. The rest of this file is the manual
+route and the things the one-liner can't tell you.
+
 ## Build
 
 ```bash
@@ -94,20 +99,55 @@ verified by compiling and publishing only. Please confirm on real hardware:
    Nautilus/Dolphin/Nemo/Thunar, or at minimum opens the containing folder.
 7. **Video post-processing** — render something that merges chunks, and confirm ffprobe-derived
    dimensions and durations are correct rather than zero.
+8. **The ported tabs** — open each of the nine video tabs and the six new image tabs, and confirm
+   they render rather than throwing at window load. They were verified by instantiating every view
+   on a headless Avalonia platform, which catches a missing resource key, but not a binding that
+   silently resolves to nothing.
+9. **Poster frames** — load a clip in Scail 2 and confirm a frame appears in the preview and
+   follows the scrub slider. An empty black panel with only the filename means ffmpeg was not
+   found or could not read the container.
 
 ## Known gaps
 
-- **The ported tabs have no UI yet.** All 25 ViewModels from the WPF build (the H3/MiniMax family,
-  Ideogram, QwenEdit, Scail2, VideoSound, VR180, ImageUpscaler, ErosConvRot, FaceIdCharSheet,
-  Restore, InpaintEditor, KleinInpaint) compile and are ready, but they are not yet constructed by
-  the host ViewModels or given XAML tabs. WPF's two windows are ~12,800 lines of XAML against
-  Avalonia's ~1,600.
-- **Ten stale bindings** in `VideoGeneratorWindow.axaml` reference `Story*` members that do not
-  exist on the ViewModel (`StoryAddToQueueCommand`, `StoryProcessQueueCommand`, `StoryLogOutput`,
-  and so on). These predate this work; Avalonia's runtime bindings fail silently, so that part of
-  the Story panel is inert.
+- **No video plays inside the app.** Avalonia has no MediaElement, so every tab that showed a
+  clip now uses `Controls/VideoPreview`: ffmpeg grabs a poster frame, the play button hands the
+  file to the desktop's own player, and a scrub slider moves the poster rather than a playhead.
+  Where WPF let you scrub a live preview (Scail 2's base scene, Qwen Edit's base video), the
+  slider drives the poster frame instead — the still under the playhead is the frame those tabs
+  actually work from, so the flow survives, but it does not animate.
+- **The mask painter is FlipPix's own.** Avalonia has no InkCanvas, so the Editor tab paints on
+  `Controls/MaskPaintCanvas`, which keeps strokes as points and rasterizes them at the source
+  image's resolution. Pressure and stylus tips are not modelled — a stroke is a round-capped line
+  of the chosen width.
+- **The image tabs are not grouped.** WPF sorts its ten image tabs into Create / Edit / Advanced
+  pills through `IsCreateGroup` and friends. This ViewModel has no such flags, so all the tabs are
+  shown at once.
+- **Four ViewModels still have no tab**: `Vr180ViewModel`, `VideoSoundViewModel`,
+  `FaceIdCharSheetViewModel` and `MiniMaxH3TextToVideoViewModel` are constructed by the host
+  ViewModel but have no tab — as on Windows, where the same four are built and never bound.
 - **`MissingModelResolver` / `MissingNodeResolver`** are not ported — they drive WPF dialogs, so
   mid-submit model and node installation is unavailable on Linux.
 - **`WanScailViewModel`'s base workflow**,
   `workflow/video/wan/SCAIL+Video+Multi-Character+Motion+Transfer+V1API.json`, is absent from the
   repo on both platforms. Only the GGUF subclass, which uses `SCAIL2_simple (1).json`, resolves.
+
+## Porting more tabs
+
+`tools/port_tab_to_avalonia.py` lifts one `<TabItem>` out of a WPF window and writes an Avalonia
+UserControl:
+
+```bash
+python tools/port_tab_to_avalonia.py \
+    --source FlipPix.UI/VideoGeneratorWindow.xaml --start 57 --end 490 \
+    --class Scail2View --datacontext Scail2VM \
+    --out FlipPix.UI.Linux/Views/Video/Scail2View.axaml
+```
+
+It handles the mechanical differences — keyed styles to ControlThemes, `Visibility` to
+`IsVisible`, triggers to `IsVisible` bindings or `Classes.x` plus an inline style, tooltips,
+`DisplayMemberPath`, `ItemContainerStyle` — and prints what it could not: MediaElements it
+swapped for `VideoPreview`, controls Avalonia does not have, and the code-behind handlers the new
+view needs. Always read the generated file afterwards; the report is a to-do list, not a receipt.
+
+The design tokens live in `FlipPix.UI.Linux/Themes/SharedStyles.axaml` under the same `x:Key`
+names as the WPF `SharedStyles.xaml`, which is what lets a tab transcribe across nearly verbatim.

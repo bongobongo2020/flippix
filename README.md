@@ -2,7 +2,7 @@
 
 <img src="flippix.png" alt="FlipPix" width="420">
 
-**A Windows desktop studio for AI image and video generation.**
+**A desktop studio for AI image and video generation.**
 
 FlipPix turns ~30 hand-tuned ComfyUI graphs into single-purpose tabs — each one with its own
 vision-LLM prompt writer, its own job queue, and no graph editing required.
@@ -12,10 +12,17 @@ vision-LLM prompt writer, its own job queue, and no graph editing required.
 [![latest release](https://img.shields.io/github/v/release/bongobongo2020/flippix?label=release&color=8b7bff)](https://github.com/bongobongo2020/flippix/releases/latest)
 [![downloads](https://img.shields.io/github/downloads/bongobongo2020/flippix/total?color=34d3bd)](https://github.com/bongobongo2020/flippix/releases)
 [![platform](https://img.shields.io/badge/platform-Windows%2010%2F11%20x64-93a3bd)](#requirements)
+[![arch linux](https://img.shields.io/badge/Arch%20Linux-x86__64%20(port)-1793d1)](#install-on-arch-linux)
 
-Grab `FlipPix-Setup.zip`, extract, and double-click `Install-FlipPix.bat` — self-contained, no .NET runtime needed.
+**Windows** — grab `FlipPix-Setup.zip`, extract, and double-click `Install-FlipPix.bat`; self-contained, no .NET runtime needed.
 
-[Quick start](QUICKSTART.md) · [ComfyUI setup](COMFYUI_SETUP.md) · [Setup scripts](scripts/README.md) · [Architecture](architecture.md) · [Release notes](https://github.com/bongobongo2020/flippix/releases/tag/v1.2.0)
+**Arch Linux** — one command:
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/bongobongo2020/flippix/HEAD/install-arch.sh | bash
+```
+
+[Quick start](QUICKSTART.md) · [Arch install](#install-on-arch-linux) · [ComfyUI setup](COMFYUI_SETUP.md) · [Setup scripts](scripts/README.md) · [Architecture](architecture.md) · [Release notes](https://github.com/bongobongo2020/flippix/releases/tag/v1.2.0)
 
 </div>
 
@@ -125,8 +132,8 @@ Along the way, three safety nets are always on:
 
 | | |
 |---|---|
-| OS | Windows 10/11 x64 |
-| Runtime | .NET 8 (bundled in the self-contained build) |
+| OS | Windows 10/11 x64, or Arch Linux x86_64 (Avalonia port — see [gaps](#install-on-arch-linux)) |
+| Runtime | .NET 8 — bundled in the Windows build; `dotnet-runtime-8.0` from pacman on Arch |
 | RAM | 16 GB minimum, 32 GB recommended for video |
 | GPU | NVIDIA, 12 GB VRAM minimum; 16 GB triggers the memory-optimised tier; 24 GB+ recommended for the video tabs |
 | Storage | ~60 GB for models and dependencies (much more if you install every stack) |
@@ -139,6 +146,8 @@ Along the way, three safety nets are always on:
 
 **New here? Start with [QUICKSTART.md](QUICKSTART.md).**
 
+### Windows
+
 1. Download **[`FlipPix-Setup.zip` from the latest release](https://github.com/bongobongo2020/flippix/releases/latest)** and extract it.
 2. Double-click **`Install-FlipPix.bat`** — a small wizard that installs the app and can also set
    up ComfyUI for you.
@@ -150,6 +159,93 @@ your settings, prompts and queues in `%APPDATA%\FlipPix` are kept.
 On first launch FlipPix asks whether your ComfyUI is **local** or **remote** and walks you
 through pointing at it. Everything else (server URL, output folder, LoRA folders, LLM server
 profiles, auto-restart) lives in **⚙️ Settings**.
+
+### Install on Arch Linux
+
+The Linux build is `FlipPix.UI.Linux`, an **Avalonia port** of the WPF app. It talks to the same
+ComfyUI server, reads the same `workflow/` and `prompts/` trees, and stores its settings in the
+same JSON shape — but a handful of things do not carry across; read [Linux gaps](#linux-gaps)
+before you rely on it.
+
+One command does everything — dependencies, build, package, desktop entry:
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/bongobongo2020/flippix/HEAD/install-arch.sh | bash
+```
+
+Or from a checkout:
+
+```bash
+git clone https://github.com/bongobongo2020/flippix.git
+cd flippix
+./install-arch.sh
+```
+
+It installs the runtime and X11/Skia libraries with `pacman`, builds the app with `makepkg`, and
+installs `flippix` as a normal pacman package — so `pacman -Rns flippix` removes it and the .NET
+runtime keeps getting security updates through pacman. Launch it with `flippix`, or from your
+application menu.
+
+| Flag | What it does |
+|---|---|
+| *(none)* | Build and install the `flippix` pacman package (recommended) |
+| `--local` | Install into `~/.local` instead — no root, no package, nothing touched system-wide |
+| `--self-contained` | With `--local`, bundle the .NET runtime so `dotnet-runtime-8.0` isn't needed |
+| `-y`, `--yes` | Pass `--noconfirm` to pacman and makepkg (unattended) |
+| `--skip-deps` | Assume the dependencies are already installed |
+| `--uninstall` | Remove whichever of the two installs is present |
+
+The first build compiles the Avalonia app and downloads NuGet packages, so give it a few minutes.
+The installed package is framework-dependent and about 57 MB.
+
+**Build without installing** — to test a build, or produce a tarball for a machine with no SDK:
+
+```bash
+./packaging/build-linux.sh              # framework-dependent → publish-linux/
+./packaging/build-linux.sh --tarball    # also writes flippix-linux-x64.tar.gz
+./launch-linux.sh                       # run it in place
+```
+
+#### Where files go on Linux
+
+FlipPix follows the XDG Base Directory spec:
+
+| Kind | Location |
+|---|---|
+| Settings, prompt history, scene library | `~/.config/FlipPix` |
+| Persisted queues | `~/.config/FlipPix/queue` |
+| Logs | `~/.local/state/FlipPix/logs` |
+| Generated stills · clips | `~/Pictures/flippix-images` · `~/Videos/flippix-vids` |
+| Installed app (package) | `/usr/lib/flippix`, launcher `/usr/bin/flippix` |
+
+`FLIPPIX_FFMPEG` / `FLIPPIX_FFPROBE` override ffmpeg discovery; `FLIPPIX_SOFTWARE_RENDER=1` skips
+GLX/EGL if the window comes up black. Avalonia 11.2 has no Wayland backend, so a Wayland session
+runs FlipPix through XWayland — transparent apart from fractional scaling, which the X11 backend
+reads from `GDK_SCALE` / `QT_SCALE_FACTOR`.
+
+#### Linux gaps
+
+The port is real but not at parity with the WPF app:
+
+- **No video plays inside the app.** Avalonia has no MediaElement, so clip previews are ffmpeg
+  poster frames; the play button hands the file to your desktop's player, and scrub sliders move
+  the poster rather than a playhead.
+- **The mask painter is FlipPix's own** — no InkCanvas, so the Editor tab rasterizes stroke
+  points at source resolution. No pressure or stylus tips.
+- **The image tabs are not grouped** into Create / Edit / Advanced pills; all of them show at once.
+- **The missing-model and missing-node resolvers are not ported** — they drive WPF dialogs, so
+  mid-submit model and node installation is unavailable. Install those by hand on the server.
+- The same four ViewModels that are built and never bound on Windows (`Vr180`, `VideoSound`,
+  `FaceIdCharSheet`, `MiniMaxH3TextToVideo`) have no tab here either.
+
+Full detail, plus a hardware verification checklist and notes on porting further tabs, is in
+**[packaging/README.md](packaging/README.md)**.
+
+#### Other distributions
+
+There is no package for anything but Arch, but nothing in the app is Arch-specific. On any x86_64
+distro with .NET 8 and the X11/fontconfig libraries, `./packaging/build-linux.sh --self-contained`
+produces a tree that runs from `./launch-linux.sh`.
 
 ### Getting a ComfyUI that works
 
@@ -210,30 +306,36 @@ flippix/
 │   ├── Services/                 #   LLM clients, LoRA manager, model/node installers, queues
 │   ├── Controls/ · Themes/       #   SectionHeader, log panel, shared design tokens
 │   └── Models/                   #   queue items, prompt data, LLM API types
-├── FlipPix.UI.Linux/             # Experimental Avalonia port
+├── FlipPix.UI.Linux/             # Avalonia port (Linux) — same ViewModels, Views/ per tab
+├── packaging/                    # Linux build + Arch packaging
+│   ├── build-linux.sh            #   dotnet publish → publish-linux/, optional tarball
+│   └── arch/                     #   PKGBUILD, launcher, .desktop entry
+├── install-arch.sh               # One-command Arch install (pacman package or ~/.local)
 ├── workflow/                     # ComfyUI graphs (API format), grouped by domain
 │   ├── image/{zimage,qwen,qwen-edit,klein,krea,anima,ideogram}/
 │   ├── video/{ltx,wan,h3-minimax,story}/
 │   └── 16gb/                     #   memory-optimised variants for smaller GPUs
 ├── prompts/prompt2json/          # One system prompt per tab (h3minimax.md, vr180.md, …)
 ├── scripts/                      # Installers, backup/restore, model + node manifests
-├── tools/                        # Workflow conversion + audit helpers
+├── tools/                        # Workflow conversion + audit helpers (incl. the tab porter)
 ├── docs/                         # README diagrams + demo poster (regenerate: python docs/make-diagrams.py)
 └── publish/                      # Built self-contained app
 ```
 
 ### Where things live at runtime
 
-| Path | Contents |
-|---|---|
-| `%APPDATA%\FlipPix\settings.json` | Server URLs, folders, LLM server profiles, VRAM tier |
-| `%APPDATA%\FlipPix\logs\` | Serilog file logs |
-| `%APPDATA%\FlipPix\prompts\` | Saved prompts and the scene library (`scenes\index.json` + thumbnails) |
-| ComfyUI output folder | Generated images and videos (set in Settings) |
+| Contents | Windows | Linux |
+|---|---|---|
+| Server URLs, folders, LLM server profiles, VRAM tier | `%APPDATA%\FlipPix\settings.json` | `~/.config/FlipPix/settings.json` |
+| Serilog file logs | `%APPDATA%\FlipPix\logs\` | `~/.local/state/FlipPix/logs/` |
+| Saved prompts and the scene library (`scenes/index.json` + thumbnails) | `%APPDATA%\FlipPix\prompts\` | `~/.config/FlipPix/prompts/` |
+| Generated images and videos | ComfyUI output folder (set in Settings) | ditto, default `~/Pictures/flippix-images` · `~/Videos/flippix-vids` |
 
 ---
 
 ## Building from source
+
+**Windows (WPF):**
 
 ```bash
 ./publish.bat        # self-contained win-x64 build into publish/
@@ -242,12 +344,26 @@ flippix/
 dotnet publish FlipPix.UI/FlipPix.UI.csproj -c Release -r win-x64 --self-contained true
 ```
 
-Stack: .NET 8 · WPF · MVVM (CommunityToolkit.Mvvm 8.2.2) · Microsoft.Extensions.DependencyInjection ·
-Serilog · FFMpegCore · System.Text.Json · YamlDotNet.
+**Linux (Avalonia):**
+
+```bash
+sudo pacman -S --needed dotnet-sdk-8.0 ffmpeg
+./packaging/build-linux.sh                    # framework-dependent → publish-linux/
+./packaging/build-linux.sh --self-contained   # bundles the runtime instead
+./launch-linux.sh                             # run it without installing
+```
+
+Stack: .NET 8 · WPF (Windows) / Avalonia 11.2 (Linux) · MVVM (CommunityToolkit.Mvvm 8.2.2) ·
+Microsoft.Extensions.DependencyInjection · Serilog · FFMpegCore · System.Text.Json · YamlDotNet.
 
 A note for contributors: XAML resource keys and `Style TargetType` mismatches compile cleanly and
 only blow up when the window loads, so run the app (or the verification scripts) after touching
-styles — don't trust a green build.
+styles — don't trust a green build. This holds on both toolkits; the Avalonia side is checked by
+instantiating every view on a headless platform, which catches a missing resource key but not a
+binding that silently resolves to nothing.
+
+Porting another WPF tab to Avalonia? `tools/port_tab_to_avalonia.py` does the mechanical part and
+prints what it could not translate — see [packaging/README.md](packaging/README.md#porting-more-tabs).
 
 ---
 
@@ -271,6 +387,23 @@ loading off the UI thread and caches FFmpeg probing; if a mapped drive is dead, 
 
 **Analyze does nothing** — check the LLM server profile in Settings; the status line under the
 button names the exact server and model it's talking to.
+
+### Linux only
+
+**The window is black, or GL errors in the log** — run `FLIPPIX_SOFTWARE_RENDER=1 flippix` to skip
+GLX/EGL. Logs are in `~/.local/state/FlipPix/logs`.
+
+**Video previews are blank panels** — ffmpeg isn't found or can't read the container. Install it
+(`sudo pacman -S ffmpeg`), or point at a specific binary with `FLIPPIX_FFMPEG=/path/to/ffmpeg`.
+
+**`flippix: no .NET runtime found`** — `sudo pacman -S dotnet-runtime-8.0`, or set `DOTNET_ROOT` if
+your runtime lives somewhere other than `/usr/share/dotnet`.
+
+**Output lands in `~/Pictures` literally rather than your localized folder name** — install
+`xdg-user-dirs`.
+
+**makepkg fails during the build** — usually a NuGet restore that couldn't reach the network. Rerun
+`./install-arch.sh`; it resumes rather than starting clean.
 
 ---
 
