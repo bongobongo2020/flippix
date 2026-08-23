@@ -55,7 +55,7 @@ TAGGED_PICTURE_CLASS = "MiniMaxH3TaggedPictureReference"
 
 # Nodes whose inputs are built in the browser and never declared in /object_info. Their widget
 # names cannot be checked against anything, so only their links are.
-DYNAMIC_INPUT_CLASSES = {"Power Lora Loader (rgthree)"}
+DYNAMIC_INPUT_CLASSES = {"Power Lora Loader (rgthree)", "RTXVideoSuperResolution"}
 
 # Widgets the export carries that /object_info does not declare, because the node expands them from
 # another widget's value in the browser. ComfyUI ignores undeclared inputs at validation, and these

@@ -178,7 +178,15 @@ legacy tab name in the XAML to prove removal).
 
 ---
 
-## 5. Phase 2 — MiniMax H3 workflow functional parity  · *~2 days (mostly QA)`
+## 5. Phase 2 — MiniMax H3 workflow functional parity  · *~2 days (mostly QA)` — **patch stage ✅ (2026-08-23), render stage pending GPU go-ahead**
+
+> Server: `10.0.0.10:8188` (ComfyUI 0.33.0, RTX 4090 23.5 GB → full-fat tier). All five H3 graph
+> validators (`tools/verify_h3*.py`) pass against the live server, plus the two image-side ones.
+> Two real bugs found & fixed: `LTX_lora_loader` missing required `mode` in `h3-cast-hybrid.json`
+> (node 5) and `plagueh3.json` (node 5511) — both now `"minimax"` — and a false positive in
+> `verify_h3cast_tagged.py` (RTXVideoSuperResolution is a dynamic-combo class). Transport checks:
+> image upload to `/upload/image` OK; LM Studio LLM at `10.0.0.138:8080` OK. Remaining: one live
+> render per H3 tab (needs GPU time).
 
 Workflows are shared JSON — the risk is not the graphs but everything around them. For **each**
 H3 tab (MiniMax I2V, MiniMax FFLF, MiniMax Character, H3 Cast, H3 Cast Hybrid, H3 Ensemble,
