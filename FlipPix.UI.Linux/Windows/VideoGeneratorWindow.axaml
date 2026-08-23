@@ -1,5 +1,6 @@
 <Window xmlns="https://github.com/avaloniaui"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:views="clr-namespace:FlipPix.UI.Linux.Views.Video"
         x:Class="FlipPix.UI.Linux.Windows.VideoGeneratorWindow"
         Title="FlipPix - Video Generator" Height="750" Width="1100"
         WindowStartupLocation="CenterScreen"
@@ -30,10 +31,51 @@
             </StackPanel>
         </Border>
 
-        <!-- Main Content -->
-        <ScrollViewer Grid.Row="2">
-            <StackPanel Margin="20,15,20,15">
-                <TabControl>
+        <!-- Main Content. The TabControl fills the row rather than sitting inside a
+             ScrollViewer: each tab scrolls its own body, as the WPF window does, and an
+             outer scroller would give the ported tabs an unbounded height to lay out in. -->
+        <Grid Grid.Row="2" Margin="15,10,15,10">
+                <TabControl SelectedIndex="{Binding SelectedTabIndex, Mode=TwoWay}">
+
+                    <!-- ═══ Tabs ported from the WPF window ═══ -->
+
+                    <TabItem Header="🎭 Scail 2">
+                        <views:Scail2View DataContext="{Binding Scail2VM}"/>
+                    </TabItem>
+
+                    <TabItem Header="🎭 10Eros ConvRot">
+                        <views:ErosConvRotView DataContext="{Binding ErosConvRotVM}"/>
+                    </TabItem>
+
+                    <TabItem Header="🌀 MiniMax I2V">
+                        <views:MiniMaxI2VView DataContext="{Binding MiniMaxI2VVM}"/>
+                    </TabItem>
+
+                    <TabItem Header="🌀🎯 MiniMax FFLF">
+                        <views:MiniMaxFflfView DataContext="{Binding MiniMaxFflfVM}"/>
+                    </TabItem>
+
+                    <TabItem Header="🎭👥 MiniMax Character">
+                        <views:MiniMaxCharacterView DataContext="{Binding MiniMaxCharacterVM}"/>
+                    </TabItem>
+
+                    <TabItem Header="🪪👥 H3 Cast">
+                        <views:H3CastView DataContext="{Binding H3CastVM}"/>
+                    </TabItem>
+
+                    <TabItem Header="🪪👥⚡ H3 Cast Hybrid">
+                        <views:H3CastHybridView DataContext="{Binding H3CastHybridVM}"/>
+                    </TabItem>
+
+                    <TabItem Header="🎬🎭 H3 Ensemble">
+                        <views:H3EnsembleView DataContext="{Binding H3EnsembleVM}"/>
+                    </TabItem>
+
+                    <TabItem Header="🎵♾️ H3 Chain">
+                        <views:H3ChainView DataContext="{Binding H3ChainVM}"/>
+                    </TabItem>
+
+                    <!-- ═══ Tabs that predate the WPF window's current tab set ═══ -->
 
                     <!-- ── Tab 1: FFLF (First Frame / Last Frame) ── -->
                     <TabItem Header="FFLF">
@@ -334,56 +376,96 @@
                         </ScrollViewer>
                     </TabItem>
 
-                    <!-- ── Tab 2: Story Video Generator ── -->
+                    <!-- ── Tab 2: Story Video Generator ──
+                         Rebuilt against MainVM's story queue. The previous version bound
+                         StoryAddToQueueCommand, StoryQueue, StoryLogOutput and friends, none of
+                         which exist on any ViewModel: Avalonia bindings fail silently, so the
+                         whole panel was inert. The queue is loaded from a prompt JSON plus an
+                         images folder rather than typed in one prompt at a time. -->
                     <TabItem Header="Story Video">
                         <ScrollViewer>
-                            <StackPanel Margin="10" Spacing="15">
+                            <StackPanel Margin="10" Spacing="15" DataContext="{Binding MainVM}">
 
-                                <!-- Story Queue Controls -->
+                                <!-- Sources -->
                                 <Border Background="#F8F9FA" BorderBrush="#DEE2E6" BorderThickness="1" CornerRadius="8" Padding="15">
                                     <StackPanel Spacing="8">
                                         <TextBlock Text="Story Video Queue" FontSize="14" FontWeight="Bold" Foreground="#FF6B35"/>
 
-                                        <Grid ColumnDefinitions="*,Auto,Auto,Auto">
-                                            <TextBox Grid.Column="0" Text="{Binding StoryNewQueuePrompt, Mode=TwoWay}"
-                                                     Padding="10" FontSize="12" VerticalAlignment="Center" Margin="0,0,10,0"
-                                                     Watermark="Enter story prompt..."/>
-                                            <Button Grid.Column="1" Content="Add" Classes="secondary"
-                                                    Command="{Binding StoryAddToQueueCommand}"
-                                                    Height="35" Margin="0,0,5,0"/>
-                                            <Button Grid.Column="2" Content="Process" Classes="primary"
-                                                    Command="{Binding StoryProcessQueueCommand}"
-                                                    IsEnabled="{Binding StoryCanProcessQueue}"
-                                                    Height="35" Margin="0,0,5,0"/>
-                                            <Button Grid.Column="3" Content="Clear"
-                                                    Command="{Binding StoryClearQueueCommand}"
-                                                    Height="35" Background="#DC3545" Foreground="White" BorderThickness="0"/>
+                                        <Grid ColumnDefinitions="Auto,*,Auto">
+                                            <TextBlock Grid.Column="0" Text="Prompts JSON" FontSize="11" VerticalAlignment="Center"
+                                                       Width="100" Foreground="#495057"/>
+                                            <TextBox Grid.Column="1" Text="{Binding StoryPromptJsonPath}" IsReadOnly="True"
+                                                     FontSize="11" Padding="8,6" Margin="0,0,8,0"
+                                                     Watermark="Pick the story prompts JSON..."/>
+                                            <Button Grid.Column="2" Content="Browse" Classes="secondary"
+                                                    Command="{Binding SelectStoryPromptJsonCommand}" Height="32"/>
                                         </Grid>
+
+                                        <Grid ColumnDefinitions="Auto,*,Auto">
+                                            <TextBlock Grid.Column="0" Text="Images folder" FontSize="11" VerticalAlignment="Center"
+                                                       Width="100" Foreground="#495057"/>
+                                            <TextBox Grid.Column="1" Text="{Binding StoryImagesFolderPath}" IsReadOnly="True"
+                                                     FontSize="11" Padding="8,6" Margin="0,0,8,0"
+                                                     Watermark="Pick the folder of first frames..."/>
+                                            <Button Grid.Column="2" Content="Browse" Classes="secondary"
+                                                    Command="{Binding SelectStoryImagesFolderCommand}" Height="32"/>
+                                        </Grid>
+
+                                        <Grid ColumnDefinitions="Auto,*">
+                                            <TextBlock Grid.Column="0" Text="Workflow" FontSize="11" VerticalAlignment="Center"
+                                                       Width="100" Foreground="#495057"/>
+                                            <ComboBox Grid.Column="1" SelectedIndex="{Binding SelectedStoryWorkflowIndex, Mode=TwoWay}"
+                                                      HorizontalAlignment="Stretch" FontSize="11"
+                                                      ToolTip.Tip="{Binding StoryWorkflowDisplay}">
+                                                <ComboBoxItem Content="Vantage Sulphur 2"/>
+                                                <ComboBoxItem Content="LTX-2 distilled"/>
+                                                <ComboBoxItem Content="WAN 2.2 I2V"/>
+                                            </ComboBox>
+                                        </Grid>
+
+                                        <WrapPanel Orientation="Horizontal">
+                                            <Button Content="Load queue" Classes="secondary"
+                                                    Command="{Binding LoadStoryQueueCommand}" Height="35" Margin="0,0,5,5"/>
+                                            <Button Content="Process" Classes="primary"
+                                                    Command="{Binding ProcessStoryQueueCommand}" Height="35" Margin="0,0,5,5"/>
+                                            <Button Content="Pause" Command="{Binding PauseStoryQueueCommand}" Height="35" Margin="0,0,5,5"/>
+                                            <Button Content="Resume" Command="{Binding ResumeStoryQueueCommand}" Height="35" Margin="0,0,5,5"/>
+                                            <Button Content="Stop" Command="{Binding StopStoryQueueCommand}" Height="35" Margin="0,0,5,5"/>
+                                            <Button Content="Retry failed" Command="{Binding ReprocessAllStoryFailedCommand}" Height="35" Margin="0,0,5,5"/>
+                                            <Button Content="Clear" Command="{Binding ClearStoryQueueCommand}" Height="35" Margin="0,0,5,5"
+                                                    Background="#DC3545" Foreground="White" BorderThickness="0"/>
+                                        </WrapPanel>
+
+                                        <StackPanel Orientation="Horizontal" Spacing="8">
+                                            <TextBlock Text="{Binding StoryQueueStatus}" FontSize="11" VerticalAlignment="Center"
+                                                       Foreground="#495057"/>
+                                            <TextBlock Text="{Binding StoryQueueProgressText}" FontSize="11" FontWeight="Bold"
+                                                       VerticalAlignment="Center"/>
+                                        </StackPanel>
 
                                         <!-- Story Queue Items -->
                                         <Border BorderBrush="#DEE2E6" BorderThickness="1" Background="White" CornerRadius="5" MaxHeight="300">
                                             <ScrollViewer Padding="5">
-                                                <ItemsControl ItemsSource="{Binding StoryQueue}">
+                                                <ItemsControl ItemsSource="{Binding StoryVideoQueue}">
                                                     <ItemsControl.ItemTemplate>
                                                         <DataTemplate>
                                                             <Border BorderBrush="#E9ECEF" BorderThickness="1" CornerRadius="3"
                                                                     Padding="8" Margin="0,0,0,5">
                                                                 <Grid ColumnDefinitions="*,Auto,Auto,Auto">
                                                                     <StackPanel Grid.Column="0">
-                                                                        <TextBlock Text="{Binding DisplayText}" TextWrapping="Wrap" FontSize="11"/>
+                                                                        <TextBlock Text="{Binding Prompt}" TextWrapping="Wrap" FontSize="11"/>
                                                                         <TextBlock Text="{Binding StatusDisplay}" FontSize="10"
                                                                                    Foreground="{Binding StatusColor}" Margin="0,2,0,0"/>
                                                                     </StackPanel>
                                                                     <ProgressBar Grid.Column="1" Value="{Binding Progress}"
-                                                                                 Width="60" Height="8" Margin="5,0" VerticalAlignment="Center"
-                                                                                 IsVisible="{Binding IsProcessing}"/>
+                                                                                 Width="60" Height="8" Margin="5,0" VerticalAlignment="Center"/>
                                                                     <Button Grid.Column="2" Content="Regen" Width="45" FontSize="10"
                                                                             ToolTip.Tip="Regenerate this clip"
-                                                                            Command="{Binding DataContext.StoryReprocessItemCommand, RelativeSource={RelativeSource AncestorType=Window}}"
+                                                                            Command="{Binding $parent[ItemsControl].DataContext.RegenerateStoryItemCommand}"
                                                                             CommandParameter="{Binding}"
                                                                             Background="#FFA500" Foreground="White" BorderThickness="0" Margin="2,0"/>
                                                                     <Button Grid.Column="3" Content="X" Classes="nav" Width="28" FontSize="10"
-                                                                            Command="{Binding DataContext.StoryRemoveFromQueueCommand, RelativeSource={RelativeSource AncestorType=Window}}"
+                                                                            Command="{Binding $parent[ItemsControl].DataContext.DeleteStoryItemCommand}"
                                                                             CommandParameter="{Binding}"/>
                                                                 </Grid>
                                                             </Border>
@@ -396,10 +478,10 @@
                                         <!-- Join Clips -->
                                         <StackPanel Orientation="Horizontal" Spacing="8">
                                             <Button Content="Join Clips" Classes="primary"
-                                                    Command="{Binding StoryJoinClipsCommand}"
+                                                    Command="{Binding JoinClipsCommand}"
                                                     Height="35"/>
                                             <Button Content="Open Output" Classes="secondary"
-                                                    Command="{Binding StoryOpenResultFolderCommand}"
+                                                    Command="{Binding OpenResultFolderCommand}"
                                                     Height="35"/>
                                         </StackPanel>
                                     </StackPanel>
@@ -409,7 +491,7 @@
                                 <Expander Header="Story Log" IsExpanded="False">
                                     <Border Background="White" BorderBrush="#DEE2E6" BorderThickness="1" Margin="0,8,0,0">
                                         <ScrollViewer MaxHeight="150">
-                                            <TextBox Text="{Binding StoryLogOutput, Mode=OneWay}" TextWrapping="Wrap"
+                                            <TextBox Text="{Binding LogOutput, Mode=OneWay}" TextWrapping="Wrap"
                                                      IsReadOnly="True" FontFamily="Monospace" FontSize="10"
                                                      Background="Transparent" BorderThickness="0" Padding="10"/>
                                         </ScrollViewer>
@@ -591,8 +673,7 @@
                     </TabItem>
 
                 </TabControl>
-            </StackPanel>
-        </ScrollViewer>
+        </Grid>
 
         <!-- Status Bar -->
         <Border Grid.Row="3" Background="#F8F9FA" BorderBrush="#DEE2E6" BorderThickness="0,1,0,0" Height="28">

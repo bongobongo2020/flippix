@@ -1,0 +1,1033 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:controls="clr-namespace:FlipPix.UI.Linux.Controls"
+             xmlns:ctrl="clr-namespace:FlipPix.UI.Linux.Controls"
+             x:Class="FlipPix.UI.Linux.Views.Video.H3EnsembleView">
+
+    <!-- Ported from VideoGeneratorWindow.xaml lines 4817-5909 ("🎬🎭 H3 Ensemble").
+         DataContext is the window's H3EnsembleVM. -->
+
+    <!-- Named so the per-character cards, whose DataContext is a CharacterSlot, can
+         still reach the tab's own commands. -->
+    <Grid x:Name="H3EnsembleRoot" Theme="{StaticResource TabPageStyle}">
+        <Grid.Resources>
+            <SolidColorBrush x:Key="TabAccentBrush" Color="{StaticResource AccentEmeraldColor}"/>
+        </Grid.Resources>
+        <Grid.ColumnDefinitions>
+            <ColumnDefinition Width="360"/>
+            <ColumnDefinition Width="*"/>
+        </Grid.ColumnDefinitions>
+
+        <!-- ═══ LEFT PANEL ═══════════════════════════════════════════════ -->
+        <Border Grid.Column="0" Theme="{StaticResource TabSideRailStyle}">
+            <ScrollViewer VerticalScrollBarVisibility="Auto">
+                <StackPanel Margin="12">
+
+                    <!-- ─── Location & story ──────────────────────────────
+                         The location does two jobs: the llama-server reads
+                         the setting off it, and (ticked) it is also the last
+                         reference picture the generator receives. -->
+                    <Border Theme="{StaticResource SectionCardStyle}">
+                        <StackPanel>
+                            <ctrl:SectionHeader Title="LOCATION &amp; STORY" Note="  · either one is enough — and the wardrobe comes from it" Margin="0,0,0,10"/>
+
+                            <Grid Margin="0,0,0,8">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="134"/>
+                                    <ColumnDefinition Width="8"/>
+                                    <ColumnDefinition Width="*"/>
+                                </Grid.ColumnDefinitions>
+
+                                <StackPanel Grid.Column="0">
+                                    <TextBlock Text="Location image" FontSize="10" FontWeight="SemiBold"
+                                               Foreground="{StaticResource TextSecondaryBrush}" Margin="0,0,0,4"/>
+                                    <Border BorderBrush="{StaticResource BorderBrush}" BorderThickness="1" CornerRadius="6"
+                                            Background="{StaticResource SurfaceAltBrush}" Height="126" Margin="0,0,0,6">
+                                        <Grid>
+                                            <TextBlock Text="Optional"
+                                                       HorizontalAlignment="Center" VerticalAlignment="Center"
+                                                       Foreground="{StaticResource TextMutedBrush}" FontSize="10" IsVisible="{Binding EnvironmentPreview, Converter={StaticResource IsNullConverter}}"/>
+                                            <Image Source="{Binding EnvironmentPreview, Converter={StaticResource PathToBitmapConverter}}" Stretch="Uniform"/>
+                                        </Grid>
+                                    </Border>
+                                    <Grid>
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="*"/>
+                                            <ColumnDefinition Width="Auto"/>
+                                        </Grid.ColumnDefinitions>
+                                        <Button Grid.Column="0" Content="Browse…"
+                                                Command="{Binding SelectEnvironmentCommand}"
+                                                Height="26" Padding="6,0" FontSize="11" Margin="0,0,4,0"
+                                                Background="{StaticResource SurfaceAltBrush}" Foreground="{DynamicResource TabAccentBrush}"
+                                                BorderBrush="{StaticResource BorderBrush}" BorderThickness="1"
+                                                ToolTip.Tip="A photograph of the place the story happens — the set, not a shot. The llama-server reads the setting, lighting, art style and wardrobe off it, and with the box below ticked the generator is shown it too.&#x0a;&#x0a;Anybody visible in it is scenery. The prompt says so in three places, because a location photograph with people in it is otherwise an invitation to cast them."/>
+                                        <Button Grid.Column="1" Content="✕"
+                                                Command="{Binding ClearEnvironmentCommand}"
+                                                IsEnabled="{Binding HasEnvironment}"
+                                                Height="26" Width="26" FontSize="11"
+                                                Background="{StaticResource SurfaceAltBrush}" Foreground="{StaticResource TextSecondaryBrush}"
+                                                BorderBrush="{StaticResource BorderBrush}" BorderThickness="1"/>
+                                    </Grid>
+                                    <TextBlock Text="{Binding EnvironmentInfo}" FontSize="9" Margin="0,4,0,0"
+                                               Foreground="{StaticResource TextSecondaryBrush}" FontStyle="Italic"
+                                               TextTrimming="CharacterEllipsis"/>
+                                </StackPanel>
+
+                                <StackPanel Grid.Column="2">
+                                    <TextBlock Text="Story" FontSize="10" FontWeight="SemiBold"
+                                               Foreground="{StaticResource TextSecondaryBrush}" Margin="0,0,0,4"/>
+                                    <TextBox Text="{Binding StoryText}"
+                                             TextWrapping="Wrap" AcceptsReturn="True" AcceptsTab="False"
+                                             Height="126" ScrollViewer.VerticalScrollBarVisibility="Auto" Margin="0,0,0,6"
+                                             BorderBrush="{StaticResource BorderBrush}" Background="{StaticResource SurfaceAltBrush}"
+                                             FontSize="11" Padding="6"
+                                             ToolTip.Tip="What happens, and who it happens to. Name your characters however you like — the analysis casts the loaded subjects into those roles, using the Part field on each card to decide who is who."/>
+                                    <Grid>
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="*"/>
+                                            <ColumnDefinition Width="Auto"/>
+                                        </Grid.ColumnDefinitions>
+                                        <Button Grid.Column="0" Content="📄 Load .txt"
+                                                Command="{Binding LoadStoryCommand}"
+                                                Height="26" Padding="6,0" FontSize="11" Margin="0,0,4,0"
+                                                Background="{StaticResource SurfaceAltBrush}" Foreground="{DynamicResource TabAccentBrush}"
+                                                BorderBrush="{StaticResource BorderBrush}" BorderThickness="1"/>
+                                        <Button Grid.Column="1" Content="✕"
+                                                Command="{Binding ClearStoryCommand}"
+                                                Height="26" Width="26" FontSize="11"
+                                                Background="{StaticResource SurfaceAltBrush}" Foreground="{StaticResource TextSecondaryBrush}"
+                                                BorderBrush="{StaticResource BorderBrush}" BorderThickness="1"/>
+                                    </Grid>
+                                </StackPanel>
+                            </Grid>
+
+                            <CheckBox Content="Also send the location to the generator (costs 1 reference slot)"
+                                      IsChecked="{Binding WireEnvironment}"
+                                      IsEnabled="{Binding HasEnvironment}"
+                                      FontSize="10" Margin="0,0,0,4"
+                                      Foreground="{StaticResource TextSecondaryBrush}"
+                                      ToolTip.Tip="Ticked, the location photograph is uploaded and wired as the LAST reference picture, so H3 is shown the place rather than only told about it — the strongest way to keep a long chain in one room.&#x0a;&#x0a;Unticked, it stays what the 🪪👥⚡ Hybrid tab's scene image is: read by the language model, never uploaded. That buys back a slot for another character's panel."/>
+                            <TextBlock Text="{Binding EnvironmentSummary}"
+                                       FontSize="10" Foreground="{StaticResource TextMutedBrush}" FontStyle="Italic"
+                                       TextWrapping="Wrap" Margin="0,0,0,6"/>
+                            <TextBlock Text="{Binding StorySourceSummary}"
+                                       FontSize="10" Foreground="{StaticResource TextMutedBrush}" FontStyle="Italic"
+                                       TextWrapping="Wrap" Margin="0,0,0,10"/>
+
+                            <!-- Wardrobe. Decided once for the whole cast and written into
+                                 every clip's prompt verbatim — each clip keeps only the
+                                 lines for the characters it casts. -->
+                            <Grid Margin="0,0,0,4">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*"/>
+                                    <ColumnDefinition Width="Auto"/>
+                                    <ColumnDefinition Width="Auto"/>
+                                    <ColumnDefinition Width="Auto"/>
+                                </Grid.ColumnDefinitions>
+                                <TextBlock Grid.Column="0" Text="Wardrobe — one line per character"
+                                           FontSize="10" FontWeight="SemiBold" VerticalAlignment="Center"
+                                           Foreground="{StaticResource TextSecondaryBrush}"/>
+                                <Button Grid.Column="1" Content="{Binding WardrobeLockButtonText}"
+                                        Command="{Binding ToggleWardrobeLockCommand}"
+                                        Height="24" Padding="8,0" FontSize="10" Margin="0,0,4,0"
+                                        Background="{StaticResource SurfaceAltBrush}" Foreground="{StaticResource TextSecondaryBrush}"
+                                        BorderBrush="{StaticResource BorderBrush}" BorderThickness="1"
+                                        ToolTip.Tip="Locked, the wardrobe is the story's: it is rewritten whenever the story, the location or the cast changes, and cannot be typed over. Characters added later are topped up without re-rolling anybody already dressed.&#x0a;&#x0a;Unlock to dress the cast yourself — your text then stands. Press ✎ Re-stamp afterwards to write it into the prompt already in the box."/>
+                                <Button Grid.Column="2" Content="🎽 Derive"
+                                        Command="{Binding DeriveWardrobeCommand}"
+                                        Height="24" Padding="8,0" FontSize="10" Margin="0,0,4,0"
+                                        Background="{StaticResource SurfaceAltBrush}" Foreground="{DynamicResource TabAccentBrush}"
+                                        BorderBrush="{StaticResource BorderBrush}" BorderThickness="1"
+                                        ToolTip.Tip="Re-rolls the outfits now — off the location image if there is one, otherwise out of the story. With three or more characters it is told to give them silhouettes and colours that tell apart at a glance. The sheets are built from whatever is in this box, so derive before you build them."/>
+                                <Button Grid.Column="3" Content="✕"
+                                        Command="{Binding ClearWardrobeCommand}"
+                                        Height="24" Width="24" FontSize="10"
+                                        Background="{StaticResource SurfaceAltBrush}" Foreground="{StaticResource TextSecondaryBrush}"
+                                        BorderBrush="{StaticResource BorderBrush}" BorderThickness="1"/>
+                            </Grid>
+                            <TextBox Text="{Binding CastWardrobe}"
+                                     IsReadOnly="{Binding IsWardrobeLocked}"
+                                     TextWrapping="Wrap" AcceptsReturn="True" AcceptsTab="False"
+                                     Height="82" ScrollViewer.VerticalScrollBarVisibility="Auto" Margin="0,0,0,4"
+                                     BorderBrush="{StaticResource BorderBrush}" Background="{StaticResource SurfaceAltBrush}"
+                                     FontSize="11" Padding="6"
+                                     ToolTip.Tip="One line per character, naming every garment. It is what the character sheets are generated in AND what every clip's prompt quotes — picture and words then agree, which is what stops the cast changing outfits between clips.&#x0a;&#x0a;Read-only while locked; press 🔒 to take it over."/>
+                            <TextBlock Text="{Binding WardrobeSummary}"
+                                       FontSize="10" Foreground="{StaticResource TextMutedBrush}" FontStyle="Italic"
+                                       TextWrapping="Wrap" Margin="0,0,0,10"/>
+
+                            <!-- Total video length. Each clip is one H3 pass, and each
+                                 casts only the characters its own beat needs. -->
+                            <Grid Margin="0,0,0,6">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*"/>
+                                    <ColumnDefinition Width="Auto"/>
+                                </Grid.ColumnDefinitions>
+                                <TextBlock Grid.Column="0" Text="Video length" FontSize="10" FontWeight="SemiBold"
+                                           Foreground="{StaticResource TextSecondaryBrush}" VerticalAlignment="Center"/>
+                                <Border Grid.Column="1" Background="{StaticResource SurfaceAltBrush}"
+                                        BorderBrush="{StaticResource BorderBrush}" BorderThickness="1"
+                                        CornerRadius="4" Padding="10,2">
+                                    <TextBlock Text="{Binding StoryDurationSeconds, StringFormat={}{0:0} s}"
+                                               FontFamily="Consolas" FontSize="13" FontWeight="Bold"
+                                               Foreground="{DynamicResource TabAccentBrush}"/>
+                                </Border>
+                            </Grid>
+                            <Slider Value="{Binding StoryDurationSeconds}"
+                                    Minimum="5" Maximum="180"
+                                    TickFrequency="5" IsSnapToTickEnabled="True"
+                                    SmallChange="5" LargeChange="15"
+                                    Foreground="{DynamicResource TabAccentBrush}" Margin="0,0,0,4"
+                                    ToolTip.Tip="Length of the finished video. MiniMax H3 renders at most ~15s per pass, so anything longer is written as a chain of consecutive clips — each casting only the characters its own beat needs."/>
+                            <TextBlock Text="{Binding ClipPlanSummary}"
+                                       FontSize="10" Foreground="{StaticResource TextMutedBrush}" FontStyle="Italic"
+                                       TextWrapping="Wrap"/>
+                        </StackPanel>
+                    </Border>
+
+                    <!-- ─── Cast: five interchangeable slots ─────────────── -->
+                    <Border Theme="{StaticResource SectionCardStyle}">
+                        <StackPanel>
+                            <ctrl:SectionHeader Title="CAST" Note="  · up to 5 — fill any of them, leave the rest empty" Margin="0,0,0,10"/>
+
+                            <ItemsControl ItemsSource="{Binding Cast}" Margin="0,0,0,4">
+                                <ItemsControl.ItemTemplate>
+                                    <DataTemplate>
+                                        <Border BorderBrush="{StaticResource BorderBrush}" BorderThickness="1"
+                                                CornerRadius="6" Padding="8" Margin="0,0,0,8"
+                                                Background="{StaticResource SurfaceAltBrush}">
+                                            <StackPanel>
+                                                <Grid Margin="0,0,0,4">
+                                                    <Grid.ColumnDefinitions>
+                                                        <ColumnDefinition Width="*"/>
+                                                        <ColumnDefinition Width="Auto"/>
+                                                    </Grid.ColumnDefinitions>
+                                                    <TextBlock Grid.Column="0" FontSize="11" FontWeight="Bold"
+                                                               VerticalAlignment="Center"
+                                                               TextTrimming="CharacterEllipsis"
+                                                               Text="{Binding Label}"
+                                                               Foreground="{StaticResource TextPrimaryBrush}"/>
+                                                    <ComboBox Grid.Column="1" ItemsSource="{Binding KindOptions}"
+                                                              SelectedItem="{Binding Kind, Mode=TwoWay}"
+                                                              Width="152" Height="24" FontSize="10"
+                                                              ToolTip.Tip="What this character IS — and not everything in a story is a person.&#x0a;&#x0a;Male / Female / Boy / Girl are people: the wardrobe pass dresses them, the sheet is built as a front view, a back view and a face close-up, the prompt uses he or she, and the face-refine pass tracks and re-generates their face.&#x0a;&#x0a;Creature, Character (not a person) and Group are not. A cloud, a mountain, a herd of goats — for these the sheet is built as three views of the thing rather than of a person, the designer describes its form, colours and materials instead of an outfit, the prompt says in as many words that it must never be given a human face or turned into someone in a costume, its pronoun is taken from your story, and face refine is skipped: that pass tracks human faces, so aimed at a mountain it either finds nothing or finds somebody else and redraws them.&#x0a;&#x0a;For those three, fill in Part below — it is the only place anything knows this slot is a cloud and not a mountain."/>
+                                                </Grid>
+
+                                                <Grid Margin="0,0,0,6">
+                                                    <Grid.ColumnDefinitions>
+                                                        <ColumnDefinition Width="Auto"/>
+                                                        <ColumnDefinition Width="*"/>
+                                                    </Grid.ColumnDefinitions>
+                                                    <TextBlock Grid.Column="0" Text="Part" FontSize="10" VerticalAlignment="Center"
+                                                               Foreground="{StaticResource TextSecondaryBrush}" Margin="0,0,6,0"/>
+                                                    <TextBox Grid.Column="1"
+                                                             Text="{Binding Role, UpdateSourceTrigger=LostFocus}"
+                                                             Height="24" FontSize="10" Padding="5,0"
+                                                             VerticalContentAlignment="Center"
+                                                             BorderBrush="{StaticResource BorderBrush}" Background="White"
+                                                             ToolTip.Tip="Who or what this character is in the story — &quot;the detective&quot;, &quot;her younger brother&quot;, &quot;Nimbus, a fluffy little cloud&quot;.&#x0a;&#x0a;For a person it is optional, but with more than two of them it is the one thing that stops the model casting them by order of appearance and then losing track. It also reaches the costume supervisor, which is what makes a chauffeur dress differently from a guest.&#x0a;&#x0a;For a Creature, Character or Group it is NOT optional: it is the description. Nothing else in the app knows that this slot is a cloud rather than a mountain, and with it empty the prompt can only call it &quot;a character that is not a person&quot;.&#x0a;&#x0a;It is never written into the video as identity — the reference sheet carries that."/>
+                                                </Grid>
+
+                                                <Grid>
+                                                    <Grid.ColumnDefinitions>
+                                                        <ColumnDefinition Width="96"/>
+                                                        <ColumnDefinition Width="6"/>
+                                                        <ColumnDefinition Width="*"/>
+                                                    </Grid.ColumnDefinitions>
+
+                                                    <Border Grid.Column="0" BorderBrush="{StaticResource BorderBrush}" BorderThickness="1"
+                                                            CornerRadius="6" Background="White" Height="80">
+                                                        <Grid>
+                                                            <TextBlock Text="Photo"
+                                                                       HorizontalAlignment="Center" VerticalAlignment="Center"
+                                                                       Foreground="{StaticResource TextMutedBrush}" FontSize="10" IsVisible="{Binding SourcePreview, Converter={StaticResource IsNullConverter}}"/>
+                                                            <Image Source="{Binding SourcePreview, Converter={StaticResource PathToBitmapConverter}}" Stretch="Uniform"/>
+                                                        </Grid>
+                                                    </Border>
+
+                                                    <Border Grid.Column="2" BorderBrush="{StaticResource BorderBrush}" BorderThickness="1"
+                                                            CornerRadius="6" Background="White" Height="80">
+                                                        <Grid>
+                                                            <TextBlock Text="Sheet → H3"
+                                                                       HorizontalAlignment="Center" VerticalAlignment="Center"
+                                                                       Foreground="{StaticResource TextMutedBrush}" FontSize="10" IsVisible="{Binding SheetPreview, Converter={StaticResource IsNullConverter}}"/>
+                                                            <Image Source="{Binding SheetPreview, Converter={StaticResource PathToBitmapConverter}}" Stretch="Uniform"/>
+                                                        </Grid>
+                                                    </Border>
+                                                </Grid>
+
+                                                <Grid Margin="0,6,0,0">
+                                                    <Grid.ColumnDefinitions>
+                                                        <ColumnDefinition Width="*"/>
+                                                        <ColumnDefinition Width="Auto"/>
+                                                    </Grid.ColumnDefinitions>
+                                                    <Button Grid.Column="0" Content="Browse…"
+                                                            Command="{Binding DataContext.SelectCharacterCommand, ElementName=H3EnsembleRoot}"
+                                                            CommandParameter="{Binding}"
+                                                            Height="26" Padding="8,0" FontSize="11" Margin="0,0,4,0"
+                                                            Background="White" Foreground="{DynamicResource TabAccentBrush}"
+                                                            BorderBrush="{StaticResource BorderBrush}" BorderThickness="1"/>
+                                                    <Button Grid.Column="1" Content="✕"
+                                                            Command="{Binding DataContext.ClearCharacterCommand, ElementName=H3EnsembleRoot}"
+                                                            CommandParameter="{Binding}"
+                                                            IsEnabled="{Binding HasSource}"
+                                                            Height="26" Width="26" FontSize="11"
+                                                            Background="White" Foreground="{StaticResource TextSecondaryBrush}"
+                                                            BorderBrush="{StaticResource BorderBrush}" BorderThickness="1"
+                                                            ToolTip.Tip="Takes this character out of the film — photo, sheet and part."/>
+                                                </Grid>
+
+                                                <CheckBox Content="This image is already a character sheet"
+                                                          IsChecked="{Binding UseSourceAsSheet}"
+                                                          IsEnabled="{Binding HasSource}"
+                                                          FontSize="10" Margin="0,6,0,0"
+                                                          Foreground="{StaticResource TextSecondaryBrush}"
+                                                          ToolTip.Tip="Skip the Qwen pass and send the loaded image to H3 as it is."/>
+
+                                                <Grid Margin="0,6,0,0">
+                                                    <Grid.ColumnDefinitions>
+                                                        <ColumnDefinition Width="Auto"/>
+                                                        <ColumnDefinition Width="*"/>
+                                                    </Grid.ColumnDefinitions>
+                                                    <TextBlock Grid.Column="0" Text="Panels" FontSize="10" VerticalAlignment="Center"
+                                                               Foreground="{StaticResource TextSecondaryBrush}" Margin="0,0,6,0"/>
+                                                    <ComboBox Grid.Column="1" ItemsSource="{Binding PanelSplitOptions}"
+                                                              DisplayMemberBinding="{Binding Label}" SelectedValueBinding="{Binding Value}"
+                                                              SelectedValue="{Binding SelectedPanelSplit, Mode=TwoWay}"
+                                                              IsEnabled="{Binding HasSheet}" Height="24" FontSize="10"
+                                                              ToolTip.Tip="H3 conditions on each reference image as ONE subject, so a three-panel sheet handed over whole is a three-panel grid it will happily render into the video. The sheet is therefore cut back into its separate views before it is sent, one reference per view.&#x0a;&#x0a;How many of those views are actually sent is the References setting below."/>
+                                                </Grid>
+                                                <TextBlock Text="{Binding SheetStatus}" FontSize="9" Margin="0,4,0,0"
+                                                           Foreground="{StaticResource TextSecondaryBrush}" FontStyle="Italic"
+                                                           TextTrimming="CharacterEllipsis"/>
+                                                <TextBlock Text="{Binding PanelStatus}" FontSize="9" Margin="0,2,0,0"
+                                                           Foreground="{StaticResource TextMutedBrush}" FontStyle="Italic"
+                                                           TextWrapping="Wrap"/>
+                                                <TextBlock Text="{Binding ExpectedWardrobe, StringFormat=👗 {0}}"
+                                                           IsVisible="{Binding ExpectedWardrobe, Converter={StaticResource StringToVisibilityConverter}}"
+                                                           FontSize="9" Margin="0,2,0,0"
+                                                           Foreground="{DynamicResource TabAccentBrush}" FontStyle="Italic"
+                                                           TextWrapping="Wrap"/>
+                                            </StackPanel>
+                                        </Border>
+                                    </DataTemplate>
+                                </ItemsControl.ItemTemplate>
+                            </ItemsControl>
+
+                            <Button Content="{Binding BuildSheetsButtonText}"
+                                    Command="{Binding BuildSheetsCommand}"
+                                    IsEnabled="{Binding CanBuildSheets}"
+                                    Height="32" FontSize="11" Margin="0,0,0,6"
+                                    Theme="{StaticResource AccentButtonStyle}"
+                                    ToolTip.Tip="Runs Qwen-Image-Edit-2511 once per loaded character and turns each photo into a three-panel reference sheet on a plain studio background: full-body front, full-body back, face close-up — wearing that character's locked wardrobe.&#x0a;&#x0a;Safe to press while a video is rendering: it waits for the GPU and starts as soon as that job lets go."/>
+
+                            <TextBlock Text="{Binding SheetPhase}"
+                                       IsVisible="{Binding IsBuildingSheets}"
+                                       FontSize="10" FontWeight="SemiBold" Margin="0,0,0,6"
+                                       Foreground="{DynamicResource TabAccentBrush}"
+                                       TextWrapping="Wrap"/>
+
+                            <!-- Analyze runs on the llama-server: one turn, no progress of its own, and minutes
+                                 of it for a chain. The bar and the clock below are the only sign it is alive. -->
+                            <StackPanel Margin="0,0,0,6">
+                                <StackPanel Orientation="Horizontal">
+                                    <Button Content="{Binding AnalyzeButtonText}"
+                                            Command="{Binding AnalyzeCommand}"
+                                            IsEnabled="{Binding CanAnalyze}"
+                                            Height="32" Padding="14,0" FontSize="11" Margin="0,0,6,0"
+                                            Theme="{StaticResource AccentButtonStyle}"
+                                            ToolTip.Tip="Asks the llama-server for the four sections it is good at — summary, the shot list, the soundscape and the score — telling it which subjects exist, what part each plays, and that a clip should name only the two or three characters really in it. The other two sections, the alignment paragraph and the global negatives are written here in code from the reference list itself, so they cannot drift."/>
+                                    <Button Content="✎ Re-stamp"
+                                            Command="{Binding RestampCommand}"
+                                            Height="32" Padding="10,0" FontSize="11"
+                                            Background="{StaticResource SurfaceAltBrush}" Foreground="{DynamicResource TabAccentBrush}"
+                                            BorderBrush="{StaticResource BorderBrush}" BorderThickness="1"
+                                            ToolTip.Tip="Rebuilds the code-written half of the prompt already in the box against the cast, keyframes, location and wardrobe as they stand now — no llama-server round trip. Press it after adding a character, changing a part, editing the wardrobe or switching the reference budget."/>
+                                </StackPanel>
+
+                                <StackPanel Margin="0,6,0,0"
+                                            IsVisible="{Binding IsAnalyzing}">
+                                    <ProgressBar IsIndeterminate="True" Height="6" Margin="0,0,0,3"
+                                                 Background="{StaticResource SurfaceAltBrush}"
+                                                 BorderBrush="{StaticResource BorderBrush}" BorderThickness="1"
+                                                 Foreground="{DynamicResource TabAccentBrush}"/>
+                                    <TextBlock Text="{Binding AnalyzeBusyText}"
+                                               FontSize="10" FontStyle="Italic" TextWrapping="Wrap"
+                                               Foreground="{DynamicResource TabAccentBrush}"/>
+                                </StackPanel>
+                            </StackPanel>
+
+                            <TextBlock Text="{Binding CastSummary}"
+                                       FontSize="10" Foreground="{StaticResource TextMutedBrush}" FontStyle="Italic"
+                                       TextWrapping="Wrap"/>
+
+                            <!-- How much of each sheet H3 is given. With five characters
+                                 this stops being a preference and becomes arithmetic. -->
+                            <Grid Margin="0,8,0,0">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="Auto"/>
+                                    <ColumnDefinition Width="*"/>
+                                </Grid.ColumnDefinitions>
+                                <TextBlock Grid.Column="0" Text="References" FontSize="10" VerticalAlignment="Center"
+                                           Foreground="{StaticResource TextSecondaryBrush}" Margin="0,0,6,0"/>
+                                <ComboBox Grid.Column="1" ItemsSource="{Binding ReferenceBudgetOptions}"
+                                          DisplayMemberBinding="{Binding Label}" SelectedValueBinding="{Binding Value}"
+                                          SelectedValue="{Binding ReferenceBudget, Mode=TwoWay}"
+                                          Height="24" FontSize="10"
+                                          ToolTip.Tip="How many of each character's sheet panels are handed to H3.&#x0a;&#x0a;All references share ONE nine-slot input and each is encoded at the generation's full pixel area. Five characters at three panels each is fifteen pictures, so this is arithmetic rather than taste.&#x0a;&#x0a;Auto divides what is left after the location and the clip's opening keyframe between however many characters are loaded — two characters get three panels each, five get one. The one it keeps is the face close-up, because a full-body back view costs exactly as much as the face while carrying almost none of the likeness.&#x0a;&#x0a;Only a three-panel sheet built here can be trimmed — any other split is sent whole."/>
+                            </Grid>
+                            <TextBlock Text="{Binding ReferenceBudgetSummary}"
+                                       FontSize="9" Margin="0,2,0,0"
+                                       Foreground="{StaticResource TextMutedBrush}" FontStyle="Italic"
+                                       TextWrapping="Wrap"/>
+
+                            <!-- The whole picture plan: which numbers are locks, which are
+                                 the cast, and which is the set. -->
+                            <TextBlock Text="{Binding PicturePlanSummary}"
+                                       FontSize="10" Margin="0,6,0,0"
+                                       Foreground="{DynamicResource TabAccentBrush}" FontStyle="Italic"
+                                       TextWrapping="Wrap"/>
+                        </StackPanel>
+                    </Border>
+
+                    <!-- Prompt -->
+                    <Border Theme="{StaticResource SectionCardStyle}">
+                        <StackPanel>
+                            <ctrl:SectionHeader Title="H3 ENSEMBLE PROMPT" Note="  · six sections; four of them written here"/>
+                            <TextBox Text="{Binding Prompt}"
+                                     TextWrapping="Wrap" AcceptsReturn="True"
+                                     Height="240" ScrollViewer.VerticalScrollBarVisibility="Auto"
+                                     BorderBrush="{StaticResource BorderBrush}" Background="{StaticResource SurfaceAltBrush}"
+                                     FontSize="11" Padding="8"/>
+
+                            <TextBlock Text="{Binding PromptClipSummary}"
+                                       IsVisible="{Binding HasPromptSequence}"
+                                       FontSize="10" FontWeight="SemiBold" Margin="0,6,0,0"
+                                       Foreground="{DynamicResource TabAccentBrush}" TextWrapping="Wrap"/>
+
+                            <!-- Who the chain actually casts, per character. A character
+                                 no clip names is a sheet built for nothing, and that is
+                                 invisible in the box above. -->
+                            <TextBlock Text="{Binding CastCoverageSummary}"
+                                       FontSize="10" Margin="0,6,0,0" FontStyle="Italic"
+                                       Foreground="{StaticResource TextSecondaryBrush}" TextWrapping="Wrap"/>
+
+                            <!-- Turns red when the prompt's picture numbers no longer match
+                                 the keyframe list. -->
+                            <TextBlock Text="{Binding PromptHealthSummary}"
+                                       FontSize="10" FontWeight="SemiBold" Margin="0,6,0,0"
+                                       Foreground="{StaticResource DangerBrush}" TextWrapping="Wrap"/>
+
+                            <TextBlock Text="subject_definitions, retention_analysis, the alignment paragraph and the global negatives are rebuilt from the reference list every time this prompt is stamped — edit them here and ✎ Re-stamp (or Add to Queue) will overwrite them. The summary paragraph, the shot list, the soundscape and the score are yours and survive."
+                                       FontSize="10" Foreground="{StaticResource TextMutedBrush}" FontStyle="Italic" Margin="0,6,0,0"
+                                       TextWrapping="Wrap"/>
+                        </StackPanel>
+                    </Border>
+
+                    <!-- ─── Storyboard: H3 renders each clip's opening frame first ─── -->
+                    <Border Theme="{StaticResource SectionCardStyle}">
+                        <StackPanel>
+                            <ctrl:SectionHeader Title="STORYBOARD" Note="  · the opening frame of every clip, rendered before the clips are" Margin="0,0,0,10"/>
+
+                            <Grid Margin="0,0,0,8">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="Auto"/>
+                                    <ColumnDefinition Width="*"/>
+                                </Grid.ColumnDefinitions>
+                                <TextBlock Grid.Column="0" Text="Preview length" FontSize="10" VerticalAlignment="Center"
+                                           Foreground="{StaticResource TextSecondaryBrush}" Margin="0,0,6,0"/>
+                                <ComboBox Grid.Column="1" ItemsSource="{Binding StoryboardFrameOptions}"
+                                          DisplayMemberBinding="{Binding Label}" SelectedValueBinding="{Binding Frames}"
+                                          SelectedValue="{Binding StoryboardFrames, Mode=TwoWay}"
+                                          Height="24" FontSize="10"
+                                          ToolTip.Tip="How many frames each preview render asks H3 for. Only the frame you pick is kept — the rest exist because H3 is a video model and a lone frame is not what it was trained to make.&#x0a;&#x0a;The node's own tooltip puts the trained range at 124–362 frames, so a short preview is out of distribution and can come back softer than the clip it stands for. It is also what makes this cheap: a shot costs roughly frames ÷ 124 of the clip it previews, with face refine, interpolation, RTX and the audio branch all pruned out.&#x0a;&#x0a;The canvas is NOT reduced — the still is about to be frame 0 of a render at exactly this size."/>
+                            </Grid>
+
+                            <StackPanel Orientation="Horizontal">
+                                <Button Content="{Binding PreviewKeyframesButtonText}"
+                                        Command="{Binding PreviewKeyframesCommand}"
+                                        IsEnabled="{Binding CanPreviewKeyframes}"
+                                        Height="32" Padding="14,0" FontSize="11" Margin="0,0,6,0"
+                                        Theme="{StaticResource AccentButtonStyle}"
+                                        ToolTip.Tip="Renders one still per clip in the prompt box, on this graph, this canvas and that clip's own cast, from its own prompt with the picture locks dropped — then shows them before anything is queued.&#x0a;&#x0a;On an ensemble it is also the cheapest way to see WHICH PEOPLE H3 has actually put in a beat, before spending twenty minutes finding out.&#x0a;&#x0a;Tick a still and it becomes that clip's opening frame at 0.00s: &lt;Picture 1&gt;, fully preserved, with the cast pushed to &lt;Picture 2&gt; onwards. Untick it and the clip renders as a reference-driven take with no lock.&#x0a;&#x0a;Nothing is enqueued by this. It runs on the same GPU lease as everything else, so pressing it mid-render simply waits."/>
+                                <Button Content="🗑 Clear"
+                                        Command="{Binding ClearStoryboardCommand}"
+                                        Height="32" Padding="10,0" FontSize="11"
+                                        Background="{StaticResource SurfaceAltBrush}" Foreground="{DynamicResource TabAccentBrush}"
+                                        BorderBrush="{StaticResource BorderBrush}" BorderThickness="1"
+                                        ToolTip.Tip="Throws every storyboard still away and re-stamps the prompt without them. The files stay on disk in the storyboard folder."/>
+                            </StackPanel>
+
+                            <StackPanel Margin="0,6,0,0"
+                                        IsVisible="{Binding IsStoryboarding}">
+                                <ProgressBar IsIndeterminate="True" Height="6" Margin="0,0,0,3"
+                                             Background="{StaticResource SurfaceAltBrush}"
+                                             BorderBrush="{StaticResource BorderBrush}" BorderThickness="1"
+                                             Foreground="{DynamicResource TabAccentBrush}"/>
+                            </StackPanel>
+
+                            <TextBlock Text="{Binding StoryboardPhase}"
+                                       FontSize="10" FontWeight="SemiBold" Margin="0,4,0,0"
+                                       Foreground="{DynamicResource TabAccentBrush}" TextWrapping="Wrap"/>
+
+                            <TextBlock Text="{Binding StoryboardSummary}"
+                                       FontSize="10" Margin="0,6,0,0" FontStyle="Italic"
+                                       Foreground="{StaticResource TextMutedBrush}" TextWrapping="Wrap"/>
+                        </StackPanel>
+                    </Border>
+
+                    <!-- ─── Keyframes: hand-placed timeline locks, clip 1 only ─── -->
+                    <Border Theme="{StaticResource SectionCardStyle}">
+                        <StackPanel>
+                            <ctrl:SectionHeader Title="KEYFRAMES" Note="  · optional · stills clip 1 must land on exactly" Margin="0,0,0,10"/>
+
+                            <ItemsControl ItemsSource="{Binding Keyframes}" Margin="0,0,0,8">
+                                <ItemsControl.ItemTemplate>
+                                    <DataTemplate>
+                                        <Border BorderBrush="{StaticResource BorderBrush}" BorderThickness="1"
+                                                CornerRadius="4" Padding="6" Margin="0,0,0,4"
+                                                Background="{StaticResource SurfaceAltBrush}">
+                                            <Grid>
+                                                <Grid.ColumnDefinitions>
+                                                    <ColumnDefinition Width="Auto"/>
+                                                    <ColumnDefinition Width="*"/>
+                                                    <ColumnDefinition Width="Auto"/>
+                                                    <ColumnDefinition Width="Auto"/>
+                                                </Grid.ColumnDefinitions>
+                                                <Image Grid.Column="0" Source="{Binding Preview, Converter={StaticResource PathToBitmapConverter}}"
+                                                       Height="46" Width="60" Stretch="Uniform" Margin="0,0,8,0"/>
+                                                <StackPanel Grid.Column="1" VerticalAlignment="Center">
+                                                    <TextBlock Text="{Binding FileName}" FontSize="10" FontWeight="SemiBold"
+                                                               TextTrimming="CharacterEllipsis"
+                                                               Foreground="{StaticResource TextPrimaryBrush}"/>
+                                                    <TextBlock Text="{Binding Info}" FontSize="9" FontStyle="Italic"
+                                                               Foreground="{StaticResource TextMutedBrush}"
+                                                               TextTrimming="CharacterEllipsis"/>
+                                                </StackPanel>
+                                                <TextBox Grid.Column="2" Width="52" Height="24" FontSize="11"
+                                                         VerticalContentAlignment="Center" Margin="0,0,4,0"
+                                                         FontFamily="Consolas"
+                                                         Text="{Binding Seconds, StringFormat={}{0:0.00}, UpdateSourceTrigger=LostFocus}"
+                                                         BorderBrush="{StaticResource BorderBrush}" Background="White"
+                                                         ToolTip.Tip="The second this still is locked at. The first keyframe should be 0.00 — that is the exact opening frame. A lock at the very end is deliberately not supported: the clip runs on from the last keyframe with no end-frame lock."/>
+                                                <Button Grid.Column="3" Content="✕"
+                                                        Command="{Binding $parent[ItemsControl].DataContext.RemoveKeyframeCommand}"
+                                                        CommandParameter="{Binding}"
+                                                        Width="24" Height="24" FontSize="10" Padding="0"
+                                                        VerticalAlignment="Center"
+                                                        Background="White" Foreground="{StaticResource TextSecondaryBrush}"
+                                                        BorderBrush="{StaticResource BorderBrush}" BorderThickness="1"/>
+                                            </Grid>
+                                        </Border>
+                                    </DataTemplate>
+                                </ItemsControl.ItemTemplate>
+                            </ItemsControl>
+
+                            <Grid Margin="0,0,0,6">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*"/>
+                                    <ColumnDefinition Width="Auto"/>
+                                    <ColumnDefinition Width="Auto"/>
+                                </Grid.ColumnDefinitions>
+                                <Button Grid.Column="0" Content="➕ Add keyframe"
+                                        Command="{Binding AddKeyframeCommand}"
+                                        IsEnabled="{Binding CanAddKeyframe}"
+                                        Height="26" Padding="8,0" FontSize="11" Margin="0,0,4,0"
+                                        Background="{StaticResource SurfaceAltBrush}" Foreground="{DynamicResource TabAccentBrush}"
+                                        BorderBrush="{StaticResource BorderBrush}" BorderThickness="1"
+                                        ToolTip.Tip="Adds a still clip 1 must land on exactly. The first one becomes the opening frame at 0.00s; every later one is a hard cut that replaces pose, outfit and background together at its timestamp.&#x0a;&#x0a;A timeline lives inside a single 15-second pass, so these belong to clip 1 alone — the other clips get their opening frame from the storyboard above.&#x0a;&#x0a;Keyframes, the cast's panels and the location share the reference node's nine slots, so this greys out once they are all spoken for."/>
+                                <Button Grid.Column="1" Content="⇔ Spread"
+                                        Command="{Binding SpreadKeyframesCommand}"
+                                        Height="26" Padding="8,0" FontSize="11" Margin="0,0,4,0"
+                                        Background="{StaticResource SurfaceAltBrush}" Foreground="{StaticResource TextSecondaryBrush}"
+                                        BorderBrush="{StaticResource BorderBrush}" BorderThickness="1"
+                                        ToolTip.Tip="Re-spaces every keyframe evenly, the first at 0.00s and the last about two-thirds of the way in, so the final beat has room to play out rather than the clip ending on a cut."/>
+                                <Button Grid.Column="2" Content="✕"
+                                        Command="{Binding ClearKeyframesCommand}"
+                                        Height="26" Width="26" FontSize="11"
+                                        Background="{StaticResource SurfaceAltBrush}" Foreground="{StaticResource TextSecondaryBrush}"
+                                        BorderBrush="{StaticResource BorderBrush}" BorderThickness="1"
+                                        ToolTip.Tip="Remove every hand-placed keyframe."/>
+                            </Grid>
+
+                            <TextBlock Text="{Binding KeyframeSummary}"
+                                       FontSize="10" Foreground="{StaticResource TextMutedBrush}" FontStyle="Italic"
+                                       TextWrapping="Wrap"/>
+                        </StackPanel>
+                    </Border>
+
+                    <!-- Settings -->
+                    <Border Background="White" BorderBrush="{StaticResource BorderBrush}" BorderThickness="1"
+                            CornerRadius="8" Padding="14">
+                        <StackPanel>
+                            <ctrl:SectionHeader Title="SETTINGS" Margin="0,0,0,10"/>
+
+                            <TextBlock Text="Aspect ratio" FontSize="10" Foreground="{StaticResource TextSecondaryBrush}" Margin="0,0,0,4"/>
+                            <ComboBox ItemsSource="{Binding AspectRatioOptions}"
+                                      SelectedItem="{Binding SelectedAspectRatio}"
+                                      Height="30" FontSize="11" Margin="0,0,0,4"
+                                      ToolTip.Tip="Auto follows the opening keyframe's own aspect — it is literally frame 0, so rendering at a different shape is a crop of the picture you asked to lock. With no keyframe it follows the location image."/>
+                            <TextBlock Text="{Binding ResolvedAspectRatio, StringFormat=→ {0}}"
+                                       FontSize="10" Foreground="{StaticResource TextMutedBrush}" FontStyle="Italic" Margin="0,0,0,10"/>
+
+                            <TextBlock Text="Medium" FontSize="10" Foreground="{StaticResource TextSecondaryBrush}" Margin="0,0,0,4"/>
+                            <ComboBox ItemsSource="{Binding MediumOptions}"
+                                      SelectedItem="{Binding SelectedMedium}"
+                                      Height="30" FontSize="11" Margin="0,0,0,10"
+                                      ToolTip.Tip="How the prompt's global-rules paragraph opens. It is stated in code rather than left to the writer because a chain's clips are written independently, and a style word that drifts is a style that changes mid-story."/>
+
+                            <TextBlock Text="Quality (canvas size)" FontSize="10" Foreground="{StaticResource TextSecondaryBrush}" Margin="0,0,0,4"/>
+                            <ComboBox ItemsSource="{Binding MegapixelOptions}"
+                                      DisplayMemberBinding="{Binding Label}"
+                                      SelectedValueBinding="{Binding Value}"
+                                      SelectedValue="{Binding Megapixels}"
+                                      Height="30" FontSize="11" Margin="0,0,0,8"/>
+
+                            <CheckBox Content="FILM ×2 frame interpolation" IsChecked="{Binding Interpolate}"
+                                      FontSize="11" FontWeight="SemiBold" Margin="0,0,0,6"
+                                      Foreground="{StaticResource TextPrimaryBrush}"
+                                      ToolTip.Tip="Doubles the frame count with the FILM interpolation model and muxes at 48 fps instead of 24. The 8-step turbo stack renders at 24, and this costs a fraction of what the diffusion did, so it is the one finishing pass that is nearly free.&#x0a;&#x0a;It does double the frame stack, which matters when RTX is on as well — watch the line below. Unchecked, the whole branch is pruned out of the graph."/>
+
+                            <CheckBox Content="Face refine pass (one per character in the clip)" IsChecked="{Binding FaceRefine}"
+                                      FontSize="11" FontWeight="SemiBold" Margin="0,0,0,6"
+                                      Foreground="{StaticResource TextPrimaryBrush}"
+                                      ToolTip.Tip="A second MiniMax H3 pass that tracks and crops a face, re-generates the crops and stitches them back into the frames.&#x0a;&#x0a;The tracker holds ONE subject per pass, so a clip gets one pass per character it casts: each tracked by that character's own face close-up, conditioned on that character's own panels alone, each stitching over the last. That is also the setting with the largest cost on this tab — a three-hander runs three passes.&#x0a;&#x0a;Each pass is conditioned on the character sheets only, with its own copy of the prompt: a keyframe still's job is to be a frame at a timestamp and the location's is to be a set, and neither means anything on a 768px crop of a face.&#x0a;&#x0a;Needs the H3-FaceRefine and NativeAudioLock node packs on the server; unchecked, that whole branch is pruned out of the graph."/>
+                            <Slider Value="{Binding RefineDenoise}"
+                                    Minimum="0.15" Maximum="0.75"
+                                    TickFrequency="0.05" IsSnapToTickEnabled="True"
+                                    IsEnabled="{Binding FaceRefine}"
+                                    Foreground="{DynamicResource TabAccentBrush}" Margin="0,0,0,2"
+                                    ToolTip.Tip="Refine denoise. Low cleans the face up and keeps the performance H3 rendered; high re-draws it from the sheet and starts fighting the lip-sync."/>
+                            <TextBlock Text="{Binding RefineSummary}"
+                                       FontSize="10" Foreground="{StaticResource TextMutedBrush}" FontStyle="Italic"
+                                       TextWrapping="Wrap" Margin="0,0,0,10"/>
+
+                            <CheckBox Content="RTX ×2 super-resolution" IsChecked="{Binding RtxUpscale}"
+                                      FontSize="11" FontWeight="SemiBold" Margin="0,0,0,4"
+                                      Foreground="{StaticResource TextPrimaryBrush}"
+                                      ToolTip.Tip="Doubles the resolution on the way to the file — no second diffusion model, so it costs seconds rather than a second render. It is also the graph's largest single allocation: the whole doubled clip is held in one piece at the very end of the run, which is what takes ComfyUI down on a long job. With interpolation on it runs over twice as many frames.&#x0a;&#x0a;Off by default. Upscale afterwards in ✨ Enhance Video, where nothing else is holding memory."/>
+                            <TextBlock Text="{Binding UpscaleSummary}"
+                                       FontSize="10" Foreground="{StaticResource TextMutedBrush}" FontStyle="Italic"
+                                       TextWrapping="Wrap" Margin="0,0,0,4"/>
+                            <TextBlock Text="{Binding LoadSummary}"
+                                       FontSize="10" FontStyle="Italic"
+                                       TextWrapping="Wrap" Margin="0,0,0,10" Classes.on="{Binding HasLoadWarning}">
+                                <TextBlock.Styles>
+                                    <Style Selector="TextBlock">
+                                        <Setter Property="Foreground" Value="{StaticResource TextMutedBrush}"/>
+                                    </Style>
+                                    <Style Selector="TextBlock.on">
+                                        <Setter Property="Foreground" Value="{StaticResource DangerBrush}"/>
+                                        <Setter Property="FontWeight" Value="SemiBold"/>
+                                    </Style>
+                                </TextBlock.Styles>
+                            </TextBlock>
+
+                            <TextBlock Text="Clip length (seconds · 4–15)" FontSize="10" Foreground="{StaticResource TextSecondaryBrush}" Margin="0,0,0,4"/>
+                            <Slider Value="{Binding LengthSeconds}"
+                                    Minimum="4" Maximum="15"
+                                    TickFrequency="1" IsSnapToTickEnabled="True"
+                                    Foreground="{DynamicResource TabAccentBrush}" Margin="0,0,0,2"
+                                    ToolTip.Tip="How long a single H3 pass is — the model's own limit, and the window every keyframe timestamp has to fit inside. Shrinking it pulls any lock that no longer fits back in; the rest keep the timing you gave them."/>
+                            <TextBlock Text="{Binding LengthSummary}"
+                                       FontSize="10" FontFamily="Consolas" Foreground="{StaticResource TextSecondaryBrush}"
+                                       Margin="0,0,0,10"/>
+
+                            <TextBlock Text="Seed (-1 = random)" FontSize="10" Foreground="{StaticResource TextSecondaryBrush}" Margin="0,0,0,4"/>
+                            <Grid>
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*"/>
+                                    <ColumnDefinition Width="Auto"/>
+                                </Grid.ColumnDefinitions>
+                                <TextBox Grid.Column="0"
+                                         Text="{Binding Seed}"
+                                         Height="30" Padding="6,0" VerticalContentAlignment="Center"
+                                         BorderBrush="{StaticResource BorderBrush}" Background="{StaticResource SurfaceAltBrush}"
+                                         FontSize="12" FontFamily="Consolas" Margin="0,0,6,0"/>
+                                <Button Grid.Column="1" Content="🎲"
+                                        Command="{Binding RandomSeedCommand}"
+                                        Height="30" Width="36" FontSize="14"
+                                        Background="{StaticResource SurfaceAltBrush}" Foreground="{DynamicResource TabAccentBrush}"
+                                        BorderBrush="{StaticResource BorderBrush}" BorderThickness="1"/>
+                            </Grid>
+                        </StackPanel>
+                    </Border>
+
+                </StackPanel>
+            </ScrollViewer>
+        </Border>
+
+        <!-- ═══ RIGHT PANEL ══════════════════════════════════════════════ -->
+        <ScrollViewer Grid.Column="1" VerticalScrollBarVisibility="Auto">
+        <Grid>
+            <Grid.RowDefinitions>
+                <RowDefinition Height="280"/>  <!-- Picture strip -->
+                <RowDefinition Height="3"/>    <!-- Progress bar -->
+                <RowDefinition Height="Auto"/> <!-- Status row -->
+                <RowDefinition Height="Auto"/> <!-- Action buttons -->
+                <RowDefinition Height="Auto"/> <!-- Queue -->
+                <RowDefinition Height="Auto"/> <!-- Result output -->
+                <RowDefinition Height="Auto"/> <!-- Log -->
+            </Grid.RowDefinitions>
+
+            <!-- ─── Picture strip: the locks, the storyboard, then the cast ─── -->
+            <Border Grid.Row="0" Background="{StaticResource PlayerSurfaceBrush}">
+                <Grid>
+                    <StackPanel HorizontalAlignment="Center" VerticalAlignment="Center" IsVisible="{Binding HasAnyCharacter, Converter={StaticResource InverseBoolConverter}}">
+                        <Border Width="64" Height="64" CornerRadius="14" Background="{StaticResource PlayerSurfaceRaisedBrush}"
+                                BorderBrush="{StaticResource TextSecondaryBrush}" BorderThickness="1"
+                                HorizontalAlignment="Center" Margin="0,0,0,10">
+                            <TextBlock Text="🎭" FontSize="28" HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                        </Border>
+                        <TextBlock Text="MiniMax H3 · an ensemble of up to five, in one location" FontSize="13" FontWeight="SemiBold"
+                                   Foreground="{StaticResource PlayerTextBrush}" HorizontalAlignment="Center" Margin="0,0,0,4"/>
+                        <TextBlock Text="Location + story → a photo and a part per character → Build Sheets → Analyze → Preview Keyframes → Generate"
+                                   FontSize="11" Foreground="{StaticResource PlayerTextBrush}" HorizontalAlignment="Center"/>
+                    </StackPanel>
+
+                    <Grid IsVisible="{Binding HasAnyCharacter}"
+                          Margin="10">
+                        <Grid.RowDefinitions>
+                            <RowDefinition Height="Auto"/>  <!-- keyframe locks -->
+                            <RowDefinition Height="Auto"/>  <!-- storyboard stills -->
+                            <RowDefinition Height="*"/>     <!-- the cast's sheets + the set -->
+                        </Grid.RowDefinitions>
+
+                        <!-- The hand-placed locks, in timestamp order — the strip reads
+                             left to right the way clip 1 plays. -->
+                        <ItemsControl Grid.Row="0" ItemsSource="{Binding Keyframes}"
+                                      IsVisible="{Binding HasKeyframes}"
+                                      Margin="0,0,0,8">
+                            <ItemsControl.ItemsPanel>
+                                <ItemsPanelTemplate>
+                                    <StackPanel Orientation="Horizontal"/>
+                                </ItemsPanelTemplate>
+                            </ItemsControl.ItemsPanel>
+                            <ItemsControl.ItemTemplate>
+                                <DataTemplate>
+                                    <StackPanel Margin="0,0,8,0">
+                                        <Image Source="{Binding Preview, Converter={StaticResource PathToBitmapConverter}}" Height="76" Stretch="Uniform"/>
+                                        <TextBlock Text="{Binding Seconds, StringFormat=🔒 {0:0.00}s}"
+                                                   HorizontalAlignment="Center" Margin="0,4,0,0"
+                                                   FontSize="10" FontFamily="Consolas"
+                                                   Foreground="{StaticResource PlayerTextBrush}"/>
+                                    </StackPanel>
+                                </DataTemplate>
+                            </ItemsControl.ItemTemplate>
+                        </ItemsControl>
+
+                        <!-- The storyboard: one still per clip, in clip order, each of
+                             them about to be that clip's frame 0. -->
+                        <ScrollViewer Grid.Row="1" HorizontalScrollBarVisibility="Auto"
+                                      VerticalScrollBarVisibility="Disabled"
+                                      IsVisible="{Binding HasStoryboard}"
+                                      Margin="0,0,0,8">
+                            <ItemsControl ItemsSource="{Binding Storyboard}">
+                                <ItemsControl.ItemsPanel>
+                                    <ItemsPanelTemplate>
+                                        <StackPanel Orientation="Horizontal"/>
+                                    </ItemsPanelTemplate>
+                                </ItemsControl.ItemsPanel>
+                                <ItemsControl.ItemTemplate>
+                                    <DataTemplate>
+                                        <Border Margin="0,0,8,0" Padding="6" CornerRadius="4"
+                                                Background="{StaticResource PlayerSurfaceRaisedBrush}"
+                                                BorderThickness="1" Classes.on="{Binding Use, Converter={StaticResource InverseBoolConverter}}">
+                                            <Border.Styles>
+                                                <Style Selector="Border">
+                                                    <Setter Property="BorderBrush" Value="{DynamicResource TabAccentBrush}"/>
+                                                    <Setter Property="Opacity" Value="1"/>
+                                                </Style>
+                                                <Style Selector="Border.on">
+                                                    <Setter Property="BorderBrush" Value="Transparent"/>
+                                                    <Setter Property="Opacity" Value="0.45"/>
+                                                </Style>
+                                            </Border.Styles>
+                                            <StackPanel Width="150">
+                                                <Image Source="{Binding Preview, Converter={StaticResource PathToBitmapConverter}}" Height="90" Stretch="Uniform"
+                                                       ToolTip.Tip="{Binding Beat}"/>
+                                                <TextBlock Text="{Binding Caption}"
+                                                           HorizontalAlignment="Center" Margin="0,4,0,0"
+                                                           FontSize="10" FontFamily="Consolas"
+                                                           Foreground="{StaticResource PlayerTextBrush}"/>
+                                                <TextBlock Text="{Binding Beat}" MaxHeight="28"
+                                                           FontSize="9" TextWrapping="Wrap" TextTrimming="CharacterEllipsis"
+                                                           Foreground="{StaticResource PlayerTextBrush}" Opacity="0.75"/>
+                                                <StackPanel Orientation="Horizontal" HorizontalAlignment="Center" Margin="0,4,0,0">
+                                                    <Button Content="‹" Width="22" Height="20" FontSize="11" Padding="0"
+                                                            IsVisible="{Binding HasChoice}"
+                                                            Command="{Binding $parent[ItemsControl].DataContext.PrevCandidateCommand}"
+                                                            CommandParameter="{Binding}"
+                                                            ToolTip.Tip="The frame before this one out of the same preview render — a later frame simply starts the clip further into the move."/>
+                                                    <Button Content="🎲" Width="26" Height="20" FontSize="10" Padding="0" Margin="3,0"
+                                                            Command="{Binding $parent[ItemsControl].DataContext.RerollShotCommand}"
+                                                            CommandParameter="{Binding}"
+                                                            ToolTip.Tip="Re-renders this clip's still on a fresh seed. Nothing else in the chain moves."/>
+                                                    <Button Content="›" Width="22" Height="20" FontSize="11" Padding="0"
+                                                            IsVisible="{Binding HasChoice}"
+                                                            Command="{Binding $parent[ItemsControl].DataContext.NextCandidateCommand}"
+                                                            CommandParameter="{Binding}"
+                                                            ToolTip.Tip="The next frame out of the same preview render."/>
+                                                    <CheckBox IsChecked="{Binding Use, Mode=TwoWay}" VerticalAlignment="Center" Margin="6,0,0,0"
+                                                              Foreground="{StaticResource PlayerTextBrush}"
+                                                              ToolTip.Tip="Locked in as this clip's opening frame. Unticked, the clip renders as a reference-driven take with no frame lock."/>
+                                                </StackPanel>
+                                            </StackPanel>
+                                        </Border>
+                                    </DataTemplate>
+                                </ItemsControl.ItemTemplate>
+                            </ItemsControl>
+                        </ScrollViewer>
+
+                        <!-- The sheets, one per loaded character, then the set. Scrolls
+                             sideways because five sheets do not fit across a panel. -->
+                        <ScrollViewer Grid.Row="2" HorizontalScrollBarVisibility="Auto"
+                                      VerticalScrollBarVisibility="Disabled">
+                            <StackPanel Orientation="Horizontal">
+                                <ItemsControl ItemsSource="{Binding Cast}">
+                                    <ItemsControl.ItemsPanel>
+                                        <ItemsPanelTemplate>
+                                            <StackPanel Orientation="Horizontal"/>
+                                        </ItemsPanelTemplate>
+                                    </ItemsControl.ItemsPanel>
+                                    <ItemsControl.ItemTemplate>
+                                        <DataTemplate>
+                                            <StackPanel Margin="0,0,10,0"
+                                                        IsVisible="{Binding HasSource}">
+                                                <Image Height="110" Stretch="Uniform" MinWidth="80"
+                                                       Source="{Binding SheetPreview, Converter={StaticResource PathToBitmapConverter}}"/>
+                                                <TextBlock HorizontalAlignment="Center" Margin="0,6,0,0"
+                                                           FontSize="10" MaxWidth="200"
+                                                           TextTrimming="CharacterEllipsis"
+                                                           Text="{Binding Label}"
+                                                           Foreground="{StaticResource PlayerTextBrush}"/>
+                                                <TextBlock HorizontalAlignment="Center"
+                                                           FontSize="9" Opacity="0.75"
+                                                           Text="{Binding Index, StringFormat=&lt;Subject {0}&gt;}"
+                                                           Foreground="{StaticResource PlayerTextBrush}"/>
+                                            </StackPanel>
+                                        </DataTemplate>
+                                    </ItemsControl.ItemTemplate>
+                                </ItemsControl>
+
+                                <StackPanel IsVisible="{Binding HasEnvironment}">
+                                    <Image Height="110" Stretch="Uniform" MinWidth="80"
+                                           Source="{Binding EnvironmentPreview, Converter={StaticResource PathToBitmapConverter}}"/>
+                                    <TextBlock Text="Location" HorizontalAlignment="Center" Margin="0,6,0,0"
+                                               FontSize="10" Foreground="{StaticResource PlayerTextBrush}"/>
+                                    <TextBlock HorizontalAlignment="Center" FontSize="9" Opacity="0.75"
+                                               Foreground="{StaticResource PlayerTextBrush}" Classes.on="{Binding WiresEnvironment}">
+                                        <TextBlock.Styles>
+                                            <Style Selector="TextBlock">
+                                                <Setter Property="Text" Value="prompt only"/>
+                                            </Style>
+                                            <Style Selector="TextBlock.on">
+                                                <Setter Property="Text" Value="last reference picture"/>
+                                            </Style>
+                                        </TextBlock.Styles>
+                                    </TextBlock>
+                                </StackPanel>
+                            </StackPanel>
+                        </ScrollViewer>
+                    </Grid>
+                </Grid>
+            </Border>
+
+            <!-- ─── Progress bar ──────────────────────────────────────── -->
+            <ProgressBar Grid.Row="1"
+                         Value="{Binding ProcessingProgress, Mode=OneWay}"
+                         Foreground="{DynamicResource TabAccentBrush}" BorderThickness="0"
+                         IsVisible="{Binding IsProcessing}"/>
+
+            <!-- ─── Status row ────────────────────────────────────────── -->
+            <Border Grid.Row="2" Theme="{StaticResource ToolStripStyle}"
+                    BorderThickness="0,1,0,0" Padding="12,5">
+                <Grid>
+                    <StackPanel Orientation="Horizontal">
+                        <Ellipse Width="5" Height="5" VerticalAlignment="Center" Margin="0,0,7,0" Classes.on="{Binding IsProcessing}">
+                            <Ellipse.Styles>
+                                <Style Selector="Ellipse">
+                                    <Setter Property="Fill" Value="{StaticResource TextPrimaryBrush}"/>
+                                </Style>
+                                <Style Selector="Ellipse.on">
+                                    <Setter Property="Fill" Value="{DynamicResource TabAccentBrush}"/>
+                                </Style>
+                            </Ellipse.Styles>
+                        </Ellipse>
+                        <TextBlock Text="{Binding ProcessingStatus}"
+                                   FontSize="11" Foreground="{StaticResource TextSecondaryBrush}"
+                                   VerticalAlignment="Center" TextTrimming="CharacterEllipsis"/>
+                    </StackPanel>
+                    <TextBlock HorizontalAlignment="Right" VerticalAlignment="Center"
+                               Text="{Binding ProgressPercentage, Mode=OneWay}"
+                               FontSize="11" FontWeight="Bold" Foreground="{DynamicResource TabAccentBrush}"
+                               FontFamily="Consolas"
+                               IsVisible="{Binding IsProcessing}"/>
+                </Grid>
+            </Border>
+
+            <!-- ─── Action Buttons ────────────────────────────────────── -->
+            <Border Grid.Row="3" Theme="{StaticResource ToolStripStyle}"
+                    BorderThickness="0,1,0,0" Padding="10,8">
+                <Grid>
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="*"/>
+                        <ColumnDefinition Width="Auto"/>
+                    </Grid.ColumnDefinitions>
+
+                    <Button Grid.Column="0" Margin="0,0,8,0" Height="40"
+                            Command="{Binding GenerateCommand}"
+                            IsEnabled="{Binding CanGenerate}"
+                            Theme="{StaticResource AccentButtonStyle}"
+                            FontSize="12" FontWeight="Bold" BorderThickness="0"
+                            ToolTip.Tip="Re-stamps the prompt against the cast, keyframes, location and wardrobe as they stand, snapshots everything into the queue and starts rendering. Each clip is queued with only the characters its own text names.">
+                        <StackPanel Orientation="Horizontal">
+                            <TextBlock Text="🎬 " VerticalAlignment="Center"/>
+                            <TextBlock Text="Add to Queue &amp; Generate" VerticalAlignment="Center"/>
+                        </StackPanel>
+                    </Button>
+
+                    <Button Grid.Column="1" Height="40" Width="82"
+                            Command="{Binding CancelCommand}"
+                            Theme="{StaticResource DangerButtonStyle}"
+                            FontSize="11"
+                            ToolTip.Tip="Stops whatever is on the GPU — the sheet builder, the storyboard or the queue. Pending items stay queued.">
+                        <StackPanel Orientation="Horizontal">
+                            <TextBlock Text="✕ " VerticalAlignment="Center"/>
+                            <TextBlock Text="Cancel" VerticalAlignment="Center"/>
+                        </StackPanel>
+                    </Button>
+                </Grid>
+            </Border>
+
+            <!-- ─── Queue ─────────────────────────────────────────────── -->
+            <Border Grid.Row="4" Background="{StaticResource SurfaceAltBrush}"
+                    BorderBrush="{StaticResource BorderBrush}" BorderThickness="0,1,0,0" Padding="12,8"
+                    IsVisible="{Binding HasQueueItems}">
+                <StackPanel>
+                    <Grid Margin="0,0,0,6">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="Auto"/>
+                            <ColumnDefinition Width="*"/>
+                            <ColumnDefinition Width="Auto"/>
+                            <ColumnDefinition Width="Auto"/>
+                            <ColumnDefinition Width="Auto"/>
+                            <ColumnDefinition Width="Auto"/>
+                        </Grid.ColumnDefinitions>
+                        <TextBlock Grid.Column="0" Text="🎭 Ensemble Queue"
+                                   FontWeight="Bold" FontSize="12" Foreground="{DynamicResource TabAccentBrush}"
+                                   VerticalAlignment="Center" Margin="0,0,10,0"/>
+                        <TextBlock Grid.Column="1" Text="{Binding QueueStatus}"
+                                   FontStyle="Italic" Foreground="{StaticResource TextSecondaryBrush}" FontSize="11"
+                                   VerticalAlignment="Center" TextTrimming="CharacterEllipsis"/>
+                        <Button Grid.Column="2" Content="▶ Start"
+                                Command="{Binding StartQueueCommand}"
+                                Height="26" Padding="8,0" FontSize="11" Margin="0,0,5,0"
+                                Theme="{StaticResource AccentButtonStyle}"
+                                ToolTip.Tip="Resume draining pending items."/>
+                        <Button Grid.Column="3" Content="🔄 Retry"
+                                Command="{Binding ReprocessAllFailedCommand}"
+                                Height="26" Padding="8,0" FontSize="11" Margin="0,0,5,0"
+                                Theme="{StaticResource AccentButtonStyle}"
+                                ToolTip.Tip="Put every failed item back to Pending and run them again."/>
+                        <Button Grid.Column="4" Content="⏹ Stop"
+                                Command="{Binding StopQueueCommand}"
+                                Height="26" Padding="8,0" FontSize="11" Margin="0,0,5,0"
+                                Theme="{StaticResource AccentButtonStyle}"/>
+                        <Button Grid.Column="5" Content="🗑️ Clear"
+                                Command="{Binding ClearQueueCommand}"
+                                Height="26" Padding="8,0" FontSize="11"
+                                Theme="{StaticResource AccentButtonStyle}"/>
+                    </Grid>
+
+                    <ItemsControl ItemsSource="{Binding Queue}">
+                        <ItemsControl.ItemTemplate>
+                            <DataTemplate>
+                                <Border BorderBrush="{StaticResource BorderBrush}" BorderThickness="1" CornerRadius="4"
+                                        Padding="8,5" Margin="0,0,0,3" Background="White">
+                                    <Grid>
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="Auto"/>
+                                            <ColumnDefinition Width="Auto"/>
+                                            <ColumnDefinition Width="*"/>
+                                            <ColumnDefinition Width="Auto"/>
+                                        </Grid.ColumnDefinitions>
+                                        <Border Grid.Column="0" CornerRadius="3" Padding="6,2" Margin="0,0,8,0"
+                                                VerticalAlignment="Center"
+                                                Background="{Binding StatusColor}">
+                                            <TextBlock Text="{Binding StatusDisplay}" FontSize="10"
+                                                       FontWeight="SemiBold" Foreground="White"/>
+                                        </Border>
+                                        <Image Grid.Column="1" Source="{Binding QueueThumbnail, Converter={StaticResource PathToBitmapConverter}}"
+                                               Height="34" Stretch="Uniform" Margin="0,0,8,0"/>
+                                        <StackPanel Grid.Column="2" VerticalAlignment="Center">
+                                            <TextBlock Text="{Binding DisplayText}" FontWeight="SemiBold" FontSize="11"
+                                                       TextTrimming="CharacterEllipsis"/>
+                                            <!-- The beat in one line, not the whole
+                                                 six-section prompt: on a chain, most of
+                                                 that prompt is identical in every row. -->
+                                            <TextBlock Text="{Binding PromptPreview}" FontSize="10"
+                                                       Foreground="{StaticResource TextSecondaryBrush}"
+                                                       TextWrapping="NoWrap"
+                                                       TextTrimming="CharacterEllipsis">
+                                                <ToolTip.Tip>
+                                                    <TextBlock Text="{Binding Prompt}" TextWrapping="Wrap" FontSize="11" MaxWidth="700"/>
+                                                </ToolTip.Tip>
+                                            </TextBlock>
+                                            <TextBlock Text="{Binding ErrorMessage}" FontSize="10"
+                                                       Foreground="{StaticResource DangerBrush}"
+                                                       TextWrapping="NoWrap"
+                                                       TextTrimming="CharacterEllipsis"/>
+                                        </StackPanel>
+                                        <Button Grid.Column="3" Content="✕"
+                                                Theme="{StaticResource SecondaryButtonStyle}"
+                                                Command="{Binding $parent[ItemsControl].DataContext.RemoveQueueItemCommand}"
+                                                CommandParameter="{Binding}"
+                                                VerticalAlignment="Center"
+                                                Width="26" Height="26" Padding="0" FontSize="10"/>
+                                    </Grid>
+                                </Border>
+                            </DataTemplate>
+                        </ItemsControl.ItemTemplate>
+                    </ItemsControl>
+                </StackPanel>
+            </Border>
+
+            <!-- ─── Result Output ──────────────────────────────────────── -->
+            <Border Grid.Row="5" Background="White" BorderBrush="{StaticResource BorderBrush}"
+                    BorderThickness="0,1,0,0" Padding="12,10">
+                <StackPanel>
+                    <TextBlock Text="🎥 Result Video" FontWeight="Bold" FontSize="13"
+                               Foreground="{DynamicResource TabAccentBrush}" Margin="0,0,0,8"/>
+
+                    <Border BorderBrush="{StaticResource BorderBrush}" BorderThickness="1" Background="{StaticResource PlayerSurfaceBrush}"
+                            Height="200" CornerRadius="6" Margin="0,0,0,8">
+                        <Grid>
+                            <TextBlock Text="Video will appear here after generation"
+                                       HorizontalAlignment="Center" VerticalAlignment="Center"
+                                       Foreground="{StaticResource PlayerTextBrush}" FontStyle="Italic" IsVisible="{Binding HasResult, Converter={StaticResource InverseBoolConverter}}"/>
+                            <controls:VideoPreview x:Name="H3EnsembleVideoPlayer" Source="{Binding ResultVideoPath}" IsVisible="{Binding HasResult}"/>
+                        </Grid>
+                    </Border>
+
+                    <StackPanel Orientation="Horizontal" Margin="0,0,0,6">
+                        <Button Content="▶ Play" Theme="{StaticResource PrimaryButtonStyle}"
+                                Command="{Binding PlayVideoCommand}"
+                                IsEnabled="{Binding HasResult}" Margin="0,0,8,0"/>
+                        <Button Content="📁 Open Folder" Theme="{StaticResource SecondaryButtonStyle}"
+                                Command="{Binding OpenResultFolderCommand}"
+                                IsEnabled="{Binding HasResult}"/>
+                    </StackPanel>
+                    <TextBlock Text="{Binding ResultVideoInfo}"
+                               FontStyle="Italic" Foreground="#666" FontSize="11"/>
+                </StackPanel>
+            </Border>
+
+            <!-- ─── Log ───────────────────────────────────────────────── -->
+            <ctrl:ProcessingLogPanel Grid.Row="6" LogText="{Binding LogOutput}" MaxLogHeight="130"/>
+
+        </Grid>
+        </ScrollViewer>
+    </Grid>
+
+</UserControl>

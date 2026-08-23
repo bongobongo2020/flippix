@@ -1,0 +1,675 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:controls="clr-namespace:FlipPix.UI.Linux.Controls"
+             x:Class="FlipPix.UI.Linux.Views.Image.AmateurView">
+
+    <!-- Ported from ImageGeneratorWindow.xaml lines 2907-3620 ("📷 Amateur").
+      -->
+
+    <ScrollViewer VerticalScrollBarVisibility="Auto">
+        <StackPanel Margin="20,20,20,20">
+
+            <!-- Header -->
+            <Grid Margin="0,0,0,20">
+                <TextBlock Text="✨ Amateur Photo Generator"
+                           FontSize="24"
+                           FontWeight="SemiBold"
+                           Foreground="{StaticResource SuccessTextBrush}"
+                           VerticalAlignment="Center"/>
+            </Grid>
+
+            <!-- Saved Prompts Section -->
+            <Border Background="{StaticResource SurfaceAltBrush}" BorderBrush="{StaticResource BorderBrush}" BorderThickness="1" CornerRadius="5" Padding="10" Margin="0,0,0,15">
+                <StackPanel>
+                    <TextBlock Text="📝 Saved Prompts" FontWeight="Bold" FontSize="13" Foreground="{StaticResource TextPrimaryBrush}" Margin="0,0,0,8"/>
+                    <Grid>
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="*"/>
+                            <ColumnDefinition Width="Auto"/>
+                            <ColumnDefinition Width="Auto"/>
+                        </Grid.ColumnDefinitions>
+
+                        <TextBlock Grid.Column="0" Text="Select a saved prompt or save current:" FontWeight="SemiBold" FontSize="12" VerticalAlignment="Center"/>
+                        <Button Grid.Column="1" Content="💾 Save" Theme="{StaticResource SecondaryButtonStyle}"
+                                Command="{Binding AmateurGenerator.SavePromptCommand}" Padding="10,5" Margin="5,0,5,0"
+                                ToolTip.Tip="Save current prompt settings"
+                                Background="{StaticResource SuccessBrush}"/>
+                        <Button Grid.Column="2" Content="🗑️ Delete" Theme="{StaticResource SecondaryButtonStyle}"
+                                Command="{Binding AmateurGenerator.DeletePromptCommand}" Padding="10,5" Margin="0,0,0,0"
+                                ToolTip.Tip="Delete selected saved prompt"
+                                Background="{StaticResource DangerBrush}"/>
+                    </Grid>
+
+                    <ComboBox ItemsSource="{Binding AmateurGenerator.SavedPrompts}"
+                              SelectedItem="{Binding AmateurGenerator.SelectedSavedPrompt, Mode=TwoWay}"
+                              SelectedValueBinding="{Binding Id}"
+                              Padding="10"
+                              Background="White"
+                              BorderBrush="{StaticResource BorderBrush}"
+                              FontSize="12"
+                              Margin="0,5,0,10"
+                              Height="40">
+                        <ComboBox.ItemTemplate>
+                            <DataTemplate>
+                                <StackPanel>
+                                    <TextBlock Text="{Binding Name}" FontWeight="SemiBold" FontSize="12"/>
+                                    <TextBlock Text="{Binding LastUsed, StringFormat='Last used: {0:yyyy-MM-dd HH:mm}'}"
+                                               FontSize="10" Foreground="#666"/>
+                                </StackPanel>
+                            </DataTemplate>
+                        </ComboBox.ItemTemplate>
+                    </ComboBox>
+                    <TextBlock Text="💡 Tip: Your saved prompts appear here. Click Save to store the current prompt settings."
+                               FontSize="11" Foreground="#666" FontStyle="Italic" Margin="0,5,0,0"/>
+                </StackPanel>
+            </Border>
+
+            <!-- Image Analysis & Prompt Enhancement -->
+            <Border Background="{StaticResource SurfaceAltBrush}"
+                   BorderBrush="#C7D2FE"
+                   BorderThickness="1"
+                   CornerRadius="8"
+                   Padding="16"
+                   Margin="0,0,0,15">
+                <StackPanel>
+                    <TextBlock Text="📷 Image Analysis &amp; Prompt Enhancement"
+                               FontWeight="Bold" FontSize="13"
+                               Foreground="{StaticResource AccentIndigoBrush}" Margin="0,0,0,8"/>
+                    <TextBlock Text="Upload an image — it will be analyzed by the remote LLaMA server and automatically generate an enhanced prompt."
+                               FontSize="11" Foreground="{StaticResource TextSecondaryBrush}" TextWrapping="Wrap" Margin="0,0,0,10"/>
+
+                    <!-- Browse row -->
+                    <Grid Margin="0,0,0,8">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="*"/>
+                            <ColumnDefinition Width="Auto"/>
+                        </Grid.ColumnDefinitions>
+                        <TextBox Grid.Column="0"
+                                Text="{Binding AmateurGenerator.SourceImagePath, Mode=OneWay}"
+                                IsReadOnly="True"
+                                Padding="8"
+                                Background="White"
+                                BorderBrush="{StaticResource BorderStrongBrush}"
+                                VerticalContentAlignment="Center"
+                                FontSize="11"
+                                Height="30"
+                                Foreground="{StaticResource TextPrimaryBrush}"/>
+                        <Button Grid.Column="1"
+                               Content="Browse..."
+                               Command="{Binding AmateurGenerator.BrowseImageCommand}"
+                               Height="30"
+                               Width="80"
+                               Margin="6,0,0,0"
+                               Background="{StaticResource BrandBrush}"
+                               Foreground="White"
+                               BorderThickness="0"
+                               FontSize="11"
+                               FontWeight="SemiBold"
+                               Cursor="Hand">
+                            <Button.Template>
+                                <ControlTemplate TargetType="Button">
+                                    <Border Background="{TemplateBinding Background}" CornerRadius="4" Padding="{TemplateBinding Padding}">
+                                        <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center" Content="{TemplateBinding Content}" ContentTemplate="{TemplateBinding ContentTemplate}"/>
+                                    </Border>
+                                </ControlTemplate>
+                            </Button.Template>
+                            <Button.Styles>
+                                <Style Selector="Button:pointerover /template/ Border">
+                                    <Setter Property="Background" Value="{StaticResource AccentIndigoBrush}"/>
+                                </Style>
+                            </Button.Styles>
+                        </Button>
+                    </Grid>
+
+                    <!-- Image preview -->
+                    <Border BorderBrush="{StaticResource BorderStrongBrush}" BorderThickness="1"
+                            Background="White" Height="160"
+                            CornerRadius="6" Margin="0,0,0,10">
+                        <Grid>
+                            <TextBlock Text="No image selected — click Browse to upload"
+                                      HorizontalAlignment="Center"
+                                      VerticalAlignment="Center"
+                                      Foreground="{StaticResource TextMutedBrush}"
+                                      FontStyle="Italic"
+                                      FontSize="12" IsVisible="{Binding AmateurGenerator.HasSourceImage, Converter={StaticResource InverseBoolConverter}}"/>
+                            <Image Source="{Binding AmateurGenerator.SourceImageSource, Converter={StaticResource PathToBitmapConverter}}"
+                                   Stretch="Uniform"
+                                   Margin="5"
+                                   IsVisible="{Binding AmateurGenerator.HasSourceImage}"/>
+                        </Grid>
+                    </Border>
+
+                    <!-- Analyze button + status -->
+                    <Grid>
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="*"/>
+                            <ColumnDefinition Width="Auto"/>
+                        </Grid.ColumnDefinitions>
+
+                        <Button Grid.Column="0"
+                               Content="🔍 Analyze &amp; Enhance Prompt"
+                               Command="{Binding AmateurGenerator.AnalyzeImageCommand}"
+                               Height="38"
+                               Background="{StaticResource AccentAmberBrush}"
+                               Foreground="White"
+                               BorderThickness="0"
+                               FontSize="13"
+                               FontWeight="Bold"
+                               Cursor="Hand">
+                            <Button.Template>
+                                <ControlTemplate TargetType="Button">
+                                    <Border Background="{TemplateBinding Background}" CornerRadius="5" Padding="{TemplateBinding Padding}">
+                                        <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center" Content="{TemplateBinding Content}" ContentTemplate="{TemplateBinding ContentTemplate}"/>
+                                    </Border>
+                                </ControlTemplate>
+                            </Button.Template>
+                            <Button.Styles>
+                                <Style Selector="Button:pointerover /template/ Border">
+                                    <Setter Property="Background" Value="{StaticResource AccentAmberBrush}"/>
+                                </Style>
+                                <Style Selector="Button:disabled">
+                                    <Setter Property="Cursor" Value="Arrow"/>
+                                </Style>
+                                <Style Selector="Button:disabled /template/ Border">
+                                    <Setter Property="Background" Value="#CBD5E1"/>
+                                </Style>
+<Style Selector="Button:disabled">
+                                    <Setter Property="Foreground" Value="#475569"/>
+</Style>
+                            </Button.Styles>
+                        </Button>
+
+                        <Border Grid.Column="1"
+                               IsVisible="{Binding AmateurGenerator.IsAnalyzingImage}"
+                               Margin="10,0,0,0" VerticalAlignment="Center">
+                            <StackPanel Orientation="Horizontal">
+                                <ProgressBar IsIndeterminate="True" Width="80" Height="10" Foreground="{StaticResource AccentAmberBrush}"/>
+                                <TextBlock Text="Analyzing..." FontSize="11" Foreground="{StaticResource TextSecondaryBrush}" Margin="8,0,0,0" VerticalAlignment="Center"/>
+                            </StackPanel>
+                        </Border>
+                    </Grid>
+                </StackPanel>
+            </Border>
+
+            <!-- Main Controls Panel -->
+            <Border Background="{StaticResource SurfaceAltBrush}"
+                   BorderBrush="{StaticResource BorderBrush}"
+                   BorderThickness="1"
+                   CornerRadius="12"
+                   Padding="20"
+                   Margin="0,0,0,20">
+                <Grid>
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="Auto"/>
+                        <RowDefinition Height="Auto"/>
+                    </Grid.RowDefinitions>
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="*"/>
+                        <ColumnDefinition Width="*"/>
+                    </Grid.ColumnDefinitions>
+
+                    <!-- Additional Prompt -->
+                    <StackPanel Grid.Row="0" Grid.Column="0" Grid.ColumnSpan="2" Margin="0,0,0,20">
+                        <Grid Margin="0,0,0,8">
+                            <TextBlock Text="Additional Prompt"
+                                       FontWeight="SemiBold"
+                                       FontSize="13"
+                                       Foreground="{StaticResource TextPrimaryBrush}"
+                                       VerticalAlignment="Center"/>
+                            <Button Content="📋 Paste"
+                                   Command="{Binding AmateurGenerator.PasteFromClipboardCommand}"
+                                   Width="80"
+                                   Height="28"
+                                   HorizontalAlignment="Right"
+                                   FontSize="11"
+                                   Padding="5,0"
+                                   Background="#6B7280"
+                                   Foreground="White"
+                                   BorderThickness="0"
+                                   Cursor="Hand"/>
+                        </Grid>
+                        <TextBox Text="{Binding AmateurGenerator.AdditionalPrompt, Mode=TwoWay}"
+                                 Height="80"
+                                 TextWrapping="Wrap"
+                                 AcceptsReturn="True"
+                                 ScrollViewer.VerticalScrollBarVisibility="Auto"
+                                 Padding="12"
+                                 FontSize="13"
+                                 BorderBrush="{StaticResource BorderStrongBrush}"
+                                 Background="White"/>
+                        <TextBlock Text="The photographer prefix will be added automatically"
+                                   FontSize="11"
+                                   Foreground="{StaticResource TextSecondaryBrush}"
+                                   Margin="0,5,0,0"/>
+                    </StackPanel>
+
+                    <!-- Orientation Selection -->
+                    <StackPanel Grid.Row="1" Grid.Column="0" Margin="0,0,15,0">
+                        <TextBlock Text="Image Orientation"
+                                   FontWeight="SemiBold"
+                                   FontSize="13"
+                                   Foreground="{StaticResource TextPrimaryBrush}"
+                                   Margin="0,0,0,8"/>
+                        <ComboBox ItemsSource="{Binding AmateurGenerator.Orientations}"
+                                  SelectedIndex="{Binding AmateurGenerator.OrientationIndex}"
+                                  FontSize="13"
+                                  Padding="10"
+                                  Background="White"
+                                  BorderBrush="{StaticResource BorderStrongBrush}"/>
+                    </StackPanel>
+
+                    <!-- Style Selection -->
+                    <StackPanel Grid.Row="1" Grid.Column="1" Margin="0,0,0,0">
+                        <TextBlock Text="Style"
+                                   FontWeight="SemiBold"
+                                   FontSize="13"
+                                   Foreground="{StaticResource TextPrimaryBrush}"
+                                   Margin="0,0,0,8"/>
+                        <ComboBox ItemsSource="{Binding AmateurGenerator.Styles}"
+                                  SelectedIndex="{Binding AmateurGenerator.StyleIndex}"
+                                  FontSize="13"
+                                  Padding="10"
+                                  Background="White"
+                                  BorderBrush="{StaticResource BorderStrongBrush}"/>
+                    </StackPanel>
+
+                </Grid>
+            </Border>
+
+            <!-- Character LoRA -->
+            <Border Background="White" BorderBrush="{StaticResource BorderBrush}" BorderThickness="1" CornerRadius="8" Padding="16" Margin="0,0,0,15">
+                <StackPanel>
+                    <CheckBox Content="Character LoRA"
+                             IsChecked="{Binding AmateurGenerator.LoraEnabled, Mode=TwoWay}"
+                             FontWeight="SemiBold"
+                             FontSize="13"
+                             Foreground="{StaticResource TextPrimaryBrush}"
+                             Margin="0,0,0,8"/>
+                    <Grid IsVisible="{Binding AmateurGenerator.LoraEnabled}">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="*"/>
+                            <ColumnDefinition Width="Auto"/>
+                        </Grid.ColumnDefinitions>
+                        <ComboBox Grid.Column="0"
+                                 ItemsSource="{Binding AmateurGenerator.AvailableLoras}"
+                                 SelectedItem="{Binding AmateurGenerator.SelectedLora, Mode=TwoWay}"
+                                 Padding="8"
+                                 Background="White"
+                                 BorderBrush="{StaticResource BorderStrongBrush}"
+                                 FontSize="12"/>
+                        <Button Grid.Column="1"
+                               Content="↻"
+                               Command="{Binding AmateurGenerator.RefreshLorasCommand}"
+                               Width="36"
+                               Margin="6,0,0,0"
+                               Theme="{StaticResource SecondaryButtonStyle}"/>
+                    </Grid>
+                    <StackPanel IsVisible="{Binding AmateurGenerator.LoraEnabled}" Margin="0,8,0,0">
+                        <Grid>
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="Auto"/>
+                                <ColumnDefinition Width="*"/>
+                                <ColumnDefinition Width="Auto"/>
+                            </Grid.ColumnDefinitions>
+                            <TextBlock Grid.Column="0" Text="Strength:" FontSize="11" Foreground="{StaticResource TextSecondaryBrush}" VerticalAlignment="Center" Margin="0,0,8,0"/>
+                            <Slider Grid.Column="1"
+                                   Value="{Binding AmateurGenerator.LoraStrength, Mode=TwoWay}"
+                                   Minimum="0" Maximum="1.5" TickFrequency="0.05"
+                                   VerticalAlignment="Center"/>
+                            <TextBlock Grid.Column="2"
+                                      Text="{Binding AmateurGenerator.LoraStrength, StringFormat='{}{0:F2}'}"
+                                      FontSize="11" Foreground="{StaticResource TextPrimaryBrush}" VerticalAlignment="Center"
+                                      Margin="8,0,0,0" Width="32"/>
+                        </Grid>
+                    </StackPanel>
+                </StackPanel>
+            </Border>
+
+            <!-- Add to Queue Button -->
+            <Grid Margin="0,0,0,15">
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="*"/>
+                    <ColumnDefinition Width="Auto"/>
+                    <ColumnDefinition Width="Auto"/>
+                </Grid.ColumnDefinitions>
+
+                <Button Grid.Column="0"
+                       Content="➕ Add to Queue"
+                       Command="{Binding AmateurGenerator.AddToQueueCommand}"
+                       Theme="{StaticResource PrimaryButtonStyle}"
+                       Height="45"
+                       FontSize="15"
+                       Background="{StaticResource SuccessBrush}"/>
+
+                <Button Grid.Column="1"
+                       Content="▶ Start Queue"
+                       Command="{Binding AmateurGenerator.ProcessQueueCommand}"
+                       Height="45"
+                       Width="130"
+                       Background="{StaticResource SuccessBrush}"
+                       Foreground="White"
+                       BorderThickness="0"
+                       FontSize="13"
+                       FontWeight="Bold"
+                       Cursor="Hand"
+                       Margin="10,0,0,0">
+                    <Button.Template>
+                        <ControlTemplate TargetType="Button">
+                            <Border Background="{TemplateBinding Background}" CornerRadius="5" Padding="{TemplateBinding Padding}">
+                                <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center" Content="{TemplateBinding Content}" ContentTemplate="{TemplateBinding ContentTemplate}"/>
+                            </Border>
+                        </ControlTemplate>
+                    </Button.Template>
+                    <Button.Styles>
+                        <Style Selector="Button:pointerover /template/ Border">
+                            <Setter Property="Background" Value="{StaticResource SuccessBrush}"/>
+                        </Style>
+                        <Style Selector="Button:disabled">
+                            <Setter Property="Cursor" Value="Arrow"/>
+                        </Style>
+                        <Style Selector="Button:disabled /template/ Border">
+                            <Setter Property="Background" Value="#CCC"/>
+                        </Style>
+<Style Selector="Button:disabled">
+                            <Setter Property="Foreground" Value="#475569"/>
+</Style>
+                    </Button.Styles>
+                </Button>
+
+                <Button Grid.Column="2"
+                       Content="⏹ Cancel"
+                       Command="{Binding AmateurGenerator.CancelQueueCommand}"
+                       Height="45"
+                       Width="90"
+                       Background="{StaticResource DangerBrush}"
+                       Foreground="White"
+                       BorderThickness="0"
+                       FontSize="13"
+                       FontWeight="Bold"
+                       Cursor="Hand"
+                       Margin="8,0,0,0">
+                    <Button.Template>
+                        <ControlTemplate TargetType="Button">
+                            <Border Background="{TemplateBinding Background}" CornerRadius="5" Padding="{TemplateBinding Padding}">
+                                <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center" Content="{TemplateBinding Content}" ContentTemplate="{TemplateBinding ContentTemplate}"/>
+                            </Border>
+                        </ControlTemplate>
+                    </Button.Template>
+                    <Button.Styles>
+                        <Style Selector="Button:pointerover /template/ Border">
+                            <Setter Property="Background" Value="#DC2626"/>
+                        </Style>
+                        <Style Selector="Button:disabled">
+                            <Setter Property="Cursor" Value="Arrow"/>
+                        </Style>
+                        <Style Selector="Button:disabled /template/ Border">
+                            <Setter Property="Background" Value="#CCC"/>
+                        </Style>
+<Style Selector="Button:disabled">
+                            <Setter Property="Foreground" Value="#475569"/>
+</Style>
+                    </Button.Styles>
+                </Button>
+            </Grid>
+
+            <!-- Queue Panel -->
+            <Border Background="White"
+                   BorderBrush="{StaticResource BorderBrush}"
+                   BorderThickness="1"
+                   CornerRadius="8"
+                   Margin="0,0,0,20">
+                <StackPanel>
+                    <!-- Queue Header -->
+                    <Grid Margin="15,12,15,8">
+                        <StackPanel Orientation="Horizontal">
+                            <TextBlock Text="Queue"
+                                       FontWeight="SemiBold"
+                                       FontSize="13"
+                                       Foreground="{StaticResource TextPrimaryBrush}"
+                                       VerticalAlignment="Center"/>
+                            <Border Background="{StaticResource SuccessBrush}"
+                                   CornerRadius="10"
+                                   Padding="6,2"
+                                   Margin="8,0,0,0"
+                                   VerticalAlignment="Center">
+                                <TextBlock Text="{Binding AmateurGenerator.QueueCount}"
+                                           FontSize="11"
+                                           FontWeight="Bold"
+                                           Foreground="White"/>
+                            </Border>
+                            <TextBlock Text="processing..."
+                                       FontSize="11"
+                                       Foreground="{StaticResource SuccessTextBrush}"
+                                       FontStyle="Italic"
+                                       Margin="10,0,0,0"
+                                       VerticalAlignment="Center"
+                                       IsVisible="{Binding AmateurGenerator.IsProcessingQueue}"/>
+                        </StackPanel>
+                        <Button Content="Clear All"
+                               Command="{Binding AmateurGenerator.ClearQueueCommand}"
+                               HorizontalAlignment="Right"
+                               Background="#6B7280"
+                               Foreground="White"
+                               BorderThickness="0"
+                               Padding="10,4"
+                               FontSize="11"
+                               Cursor="Hand">
+                            <Button.Template>
+                                <ControlTemplate TargetType="Button">
+                                    <Border Background="{TemplateBinding Background}" CornerRadius="4" Padding="{TemplateBinding Padding}">
+                                        <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center" Content="{TemplateBinding Content}" ContentTemplate="{TemplateBinding ContentTemplate}"/>
+                                    </Border>
+                                </ControlTemplate>
+                            </Button.Template>
+                        </Button>
+                    </Grid>
+
+                    <ScrollViewer VerticalScrollBarVisibility="Auto" MaxHeight="220" Padding="15,0,15,10">
+                        <ItemsControl ItemsSource="{Binding AmateurGenerator.Queue}">
+                            <ItemsControl.ItemTemplate>
+                                <DataTemplate>
+                                    <Border BorderBrush="#F3F4F6"
+                                           BorderThickness="0,0,0,1"
+                                           Padding="0,8">
+                                        <Grid>
+                                            <Grid.ColumnDefinitions>
+                                                <ColumnDefinition Width="*"/>
+                                                <ColumnDefinition Width="Auto"/>
+                                                <ColumnDefinition Width="Auto"/>
+                                                <ColumnDefinition Width="Auto"/>
+                                            </Grid.ColumnDefinitions>
+
+                                            <!-- Item Info -->
+                                            <StackPanel Grid.Column="0" VerticalAlignment="Center">
+                                                <TextBlock Text="{Binding DisplayPrompt}"
+                                                           FontSize="12"
+                                                           FontWeight="SemiBold"
+                                                           TextTrimming="CharacterEllipsis"/>
+                                                <StackPanel Orientation="Horizontal" Margin="0,3,0,0">
+                                                    <TextBlock Text="{Binding OrientationDisplay}"
+                                                               FontSize="10"
+                                                               Foreground="{StaticResource TextSecondaryBrush}"/>
+                                                    <TextBlock Text=" · "
+                                                               FontSize="10"
+                                                               Foreground="{StaticResource TextSecondaryBrush}"/>
+                                                    <TextBlock Text="{Binding StyleDisplay}"
+                                                               FontSize="10"
+                                                               Foreground="{StaticResource TextSecondaryBrush}"/>
+                                                </StackPanel>
+                                            </StackPanel>
+
+                                            <!-- Status / Progress -->
+                                            <StackPanel Grid.Column="1"
+                                                       Orientation="Horizontal"
+                                                       VerticalAlignment="Center"
+                                                       Margin="8,0">
+                                                <TextBlock Text="{Binding StatusDisplay}"
+                                                           FontSize="11"
+                                                           FontWeight="Bold"
+                                                           Foreground="{Binding StatusColor}" IsVisible="{Binding Status, Converter={StaticResource NotEqualsConverter}, ConverterParameter=Completed}"/>
+                                                <ProgressBar Value="{Binding Progress}"
+                                                            Width="50"
+                                                            Height="10"
+                                                            Margin="4,0" IsVisible="{Binding Status, Converter={StaticResource EqualsConverter}, ConverterParameter=Processing}"/>
+                                            </StackPanel>
+
+                                            <!-- Thumbnail when completed -->
+                                            <Button Grid.Column="2"
+                                                   Command="{Binding OpenImageCommand}"
+                                                   Background="Transparent"
+                                                   BorderThickness="0"
+                                                   Cursor="Hand"
+                                                   ToolTip.Tip="Click to open image"
+                                                   Padding="0"
+                                                   Margin="4,0" IsVisible="{Binding Status, Converter={StaticResource EqualsConverter}, ConverterParameter=Completed}">
+                                                <Image Source="{Binding ThumbnailImage, Converter={StaticResource PathToBitmapConverter}}"
+                                                       Height="44"
+                                                       Stretch="Uniform"/>
+                                            </Button>
+
+                                            <!-- Remove Button -->
+                                            <Button Grid.Column="3"
+                                                   Content="❌"
+                                                   Command="{Binding $parent[Window].DataContext.AmateurGenerator.RemoveFromQueueCommand}"
+                                                   CommandParameter="{Binding}"
+                                                   Background="Transparent"
+                                                   BorderThickness="0"
+                                                   Padding="4"
+                                                   ToolTip.Tip="Remove from queue"
+                                                   FontSize="11"
+                                                   Cursor="Hand"/>
+                                        </Grid>
+                                    </Border>
+                                </DataTemplate>
+                            </ItemsControl.ItemTemplate>
+                        </ItemsControl>
+                    </ScrollViewer>
+                </StackPanel>
+            </Border>
+
+            <!-- Progress Section -->
+            <Border Background="{StaticResource SurfaceAltBrush}"
+                   BorderBrush="{StaticResource BorderBrush}"
+                   BorderThickness="1"
+                   CornerRadius="12"
+                   Padding="20"
+                   Margin="0,0,0,20"
+                   IsVisible="{Binding AmateurGenerator.IsProcessing}">
+                <StackPanel>
+                    <Grid>
+                        <TextBlock Text="Processing..."
+                                  FontWeight="SemiBold"
+                                  FontSize="13"
+                                  Foreground="{StaticResource TextPrimaryBrush}"/>
+                        <TextBlock Text="{Binding AmateurGenerator.ProgressPercentage}"
+                                  FontWeight="Bold"
+                                  FontSize="13"
+                                  Foreground="{StaticResource SuccessTextBrush}"
+                                  HorizontalAlignment="Right"/>
+                    </Grid>
+                    <ProgressBar Value="{Binding AmateurGenerator.ProcessingProgress}"
+                               Maximum="100"
+                               Height="8"
+                               Margin="0,10,0,0"
+                               Background="#E5E7EB"
+                               Foreground="{StaticResource SuccessTextBrush}"/>
+                    <TextBlock Text="{Binding AmateurGenerator.ProcessingStatus}"
+                              FontSize="12"
+                              Foreground="{StaticResource TextSecondaryBrush}"
+                              Margin="0,8,0,0"/>
+                </StackPanel>
+            </Border>
+
+            <!-- Result Section -->
+            <Border BorderBrush="{StaticResource BorderBrush}"
+                   BorderThickness="1"
+                   CornerRadius="12"
+                   Padding="20"
+                   Margin="0,0,0,20"
+                   IsVisible="{Binding AmateurGenerator.HasResultImage}">
+                <Grid>
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="Auto"/>
+                        <RowDefinition Height="Auto"/>
+                    </Grid.RowDefinitions>
+
+                    <Grid Grid.Row="0" Margin="0,0,0,15">
+                        <TextBlock Text="Generated Image"
+                                  FontWeight="SemiBold"
+                                  FontSize="14"
+                                  Foreground="{StaticResource TextPrimaryBrush}"/>
+                        <Button Content="Open Folder"
+                               Command="{Binding AmateurGenerator.OpenResultFolderCommand}"
+                               Width="100"
+                               Height="32"
+                               Background="#6B7280"
+                               Foreground="White"
+                               BorderThickness="0"
+                               FontSize="12"
+                               HorizontalAlignment="Right"
+                               Cursor="Hand"/>
+                    </Grid>
+
+                    <Border Grid.Row="1"
+                           BorderBrush="{StaticResource BorderBrush}"
+                           BorderThickness="1"
+                           CornerRadius="8"
+                           Background="White"
+                           HorizontalAlignment="Center">
+                        <Button Command="{Binding AmateurGenerator.OpenResultImageCommand}"
+                                Background="Transparent" BorderThickness="0" Cursor="Hand"
+                                ToolTip.Tip="Click to open in image viewer" Padding="0">
+                            <Image Source="{Binding AmateurGenerator.ResultImageSource, Converter={StaticResource PathToBitmapConverter}}"
+                                  MaxWidth="600"
+                                  MaxHeight="400"
+                                  Margin="10"/>
+                        </Button>
+                    </Border>
+
+                    <TextBlock Grid.Row="1"
+                              Text="{Binding AmateurGenerator.ImageInfo}"
+                              FontSize="12"
+                              Foreground="{StaticResource TextSecondaryBrush}"
+                              Margin="0,15,0,0"
+                              HorizontalAlignment="Center"/>
+                </Grid>
+            </Border>
+
+            <!-- Log Output -->
+            <Border Background="{StaticResource PlayerSurfaceBrush}"
+                   BorderBrush="#374151"
+                   BorderThickness="1"
+                   CornerRadius="8"
+                   Padding="15">
+                <Grid>
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="Auto"/>
+                        <RowDefinition Height="Auto"/>
+                    </Grid.RowDefinitions>
+
+                    <TextBlock Grid.Row="0"
+                              Text="Log Output"
+                              FontWeight="SemiBold"
+                              FontSize="12"
+                              Foreground="{StaticResource PlayerTextBrush}"
+                              Margin="0,0,0,10"/>
+
+                    <TextBox Grid.Row="1"
+                             Text="{Binding AmateurGenerator.LogOutput}"
+                             IsReadOnly="True"
+                             Height="150"
+                             TextWrapping="Wrap"
+                             ScrollViewer.VerticalScrollBarVisibility="Auto"
+                             Background="{StaticResource PlayerSurfaceBrush}"
+                             Foreground="{StaticResource PlayerTextBrush}"
+                             BorderThickness="0"
+                             FontFamily="Consolas"
+                             FontSize="11"
+                             Padding="10"/>
+                </Grid>
+            </Border>
+
+        </StackPanel>
+    </ScrollViewer>
+
+</UserControl>

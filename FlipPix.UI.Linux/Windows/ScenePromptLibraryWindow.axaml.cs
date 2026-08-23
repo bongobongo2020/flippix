@@ -8,7 +8,6 @@ using System.Threading.Tasks;
 using Avalonia.Controls;
 using Avalonia.Input;
 using Avalonia.Interactivity;
-using Avalonia.Markup.Xaml;
 using FlipPix.UI.Linux.Models;
 using FlipPix.UI.Linux.Services;
 
@@ -45,7 +44,9 @@ public partial class ScenePromptLibraryWindow : Window
         Rebuild(string.Empty);
     }
 
-    private void InitializeComponent() => AvaloniaXamlLoader.Load(this);
+    // No hand-written InitializeComponent here: Avalonia's name generator emits one that
+    // loads the XAML *and* assigns the x:Name fields. Shadowing it with a bare
+    // AvaloniaXamlLoader.Load(this) left ScenesList null, so opening this window threw.
 
     /// <summary>Refills the list from <see cref="_entries"/>, keeping only rows matching the filter.</summary>
     private void Rebuild(string? filter)

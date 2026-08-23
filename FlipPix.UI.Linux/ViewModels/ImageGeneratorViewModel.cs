@@ -85,6 +85,12 @@ namespace FlipPix.UI.Linux.ViewModels
         private AmateurGeneratorViewModel _amateurGenerator;
         private CameraAngleViewModel _cameraAngle;
         private KleinControlViewModel _kleinControl;
+        private InpaintEditorViewModel _inpaintEditor;
+        private KleinInpaintViewModel _kleinInpaintEditor;
+        private IdeogramViewModel _ideogram;
+        private QwenEditViewModel _qwenEdit;
+        private RestoreViewModel _restore;
+        private ImageUpscalerViewModel _imageUpscaler;
 
 
         public ImageGeneratorViewModel(FlipPix.ComfyUI.Services.ComfyUIService comfyUIService, IAppLogger logger, FlipPix.Core.Services.SettingsService settingsService, IServiceProvider? serviceProvider = null, IPromptService? promptService = null)
@@ -113,8 +119,18 @@ namespace FlipPix.UI.Linux.ViewModels
             _cameraAngle = new CameraAngleViewModel(comfyUIService, logger, settingsService, fileDialogService, imageRetriever);
             var videoAnalysisService = serviceProvider?.GetRequiredService<VideoAnalysisService>() ?? throw new InvalidOperationException("VideoAnalysisService is required");
             _kleinControl = new KleinControlViewModel(comfyUIService, logger, settingsService, fileDialogService, videoAnalysisService);
+            _inpaintEditor = new InpaintEditorViewModel(comfyUIService, logger, settingsService, fileDialogService);
+            _kleinInpaintEditor = new KleinInpaintViewModel(comfyUIService, logger, settingsService, fileDialogService);
+            _ideogram = new IdeogramViewModel(comfyUIService, logger, settingsService, fileDialogService, lmStudioService, _workflowCoordinator);
+            _qwenEdit = new QwenEditViewModel(comfyUIService, logger, settingsService, fileDialogService, lmStudioService, _workflowCoordinator);
+            _restore = new RestoreViewModel(comfyUIService, logger, settingsService, fileDialogService);
+            _imageUpscaler = new ImageUpscalerViewModel(comfyUIService, logger, settingsService, fileDialogService, imageRetriever);
 
             // Initialize commands
+            SelectEditorModeCommand = new RelayCommand<string>(m =>
+            {
+                if (int.TryParse(m, out var mode)) EditorMode = mode;
+            });
             GenerateImageCommand = new RelayCommand(async () => await GenerateImageAsync(), () => CanGenerate);
             CancelGenerationCommand = new RelayCommand(CancelGeneration, () => IsProcessing);
             OpenResultFolderCommand = new RelayCommand(OpenResultFolder, () => HasResultImage);
@@ -251,6 +267,12 @@ namespace FlipPix.UI.Linux.ViewModels
         public AmateurGeneratorViewModel AmateurGenerator => _amateurGenerator;
         public CameraAngleViewModel CameraAngle => _cameraAngle;
         public KleinControlViewModel KleinControl => _kleinControl;
+        public InpaintEditorViewModel InpaintEditor => _inpaintEditor;
+        public KleinInpaintViewModel KleinInpaintEditor => _kleinInpaintEditor;
+        public IdeogramViewModel Ideogram => _ideogram;
+        public QwenEditViewModel QwenEdit => _qwenEdit;
+        public RestoreViewModel Restore => _restore;
+        public ImageUpscalerViewModel ImageUpscaler => _imageUpscaler;
 
         public string ProcessingStatus
         {
@@ -434,6 +456,31 @@ namespace FlipPix.UI.Linux.ViewModels
         public ICommand CancelGenerationCommand { get; }
         public ICommand OpenResultFolderCommand { get; }
         public ICommand OpenResultImageCommand { get; }
+
+        // Editor tab: which of the two inpaint flows the pills at the top select.
+        // 0 = paint a mask by hand, 1 = let Florence2 + SAM2 find the subject.
+        private int _editorMode = 0;
+
+        public int EditorMode
+        {
+            get => _editorMode;
+            set
+            {
+                if (_editorMode != value)
+                {
+                    _editorMode = value;
+                    OnPropertyChanged();
+                    OnPropertyChanged(nameof(IsPaintEditor));
+                    OnPropertyChanged(nameof(IsAutoDetectEditor));
+                }
+            }
+        }
+
+        public bool IsPaintEditor => _editorMode == 0;
+        public bool IsAutoDetectEditor => _editorMode == 1;
+
+        /// <summary>Pills invoke this with the mode index ("0"/"1") as the parameter.</summary>
+        public ICommand SelectEditorModeCommand { get; }
         public ICommand SendToCameraEditCommand { get; }
         public ICommand SendToVideoGeneratorCommand { get; }
         public ICommand NavigateToCameraEditCommand { get; }

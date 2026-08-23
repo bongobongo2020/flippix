@@ -1,0 +1,33 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             x:Class="FlipPix.UI.Linux.Controls.ProcessingLogPanel"
+             x:Name="Root">
+    <!--
+        Reusable processing-log panel. Each tab binds its own log property:
+            <ctrl:ProcessingLogPanel LogText="{Binding LogOutput}"/>
+        Optional: Header, IsLogExpanded, MaxLogHeight.
+        Ported from FlipPix.UI/Controls/ProcessingLogPanel.xaml.
+    -->
+    <Expander Header="{Binding #Root.Header}"
+              IsExpanded="{Binding #Root.IsLogExpanded}"
+              Margin="0,8,0,0">
+        <Border Background="{StaticResource SurfaceAltBrush}"
+                BorderBrush="{StaticResource BorderBrush}"
+                BorderThickness="1"
+                CornerRadius="6"
+                Margin="0,6,0,0">
+            <ScrollViewer MaxHeight="{Binding #Root.MaxLogHeight}"
+                          VerticalScrollBarVisibility="Auto">
+                <TextBox Text="{Binding #Root.LogText, Mode=OneWay}"
+                         TextWrapping="Wrap"
+                         IsReadOnly="True"
+                         FontFamily="Consolas"
+                         FontSize="11"
+                         Foreground="{StaticResource TextSecondaryBrush}"
+                         Background="Transparent"
+                         BorderThickness="0"
+                         Padding="10"/>
+            </ScrollViewer>
+        </Border>
+    </Expander>
+</UserControl>
