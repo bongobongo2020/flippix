@@ -18,6 +18,21 @@ namespace FlipPix.UI.Linux.ViewModels.Video
         private const string InterpolateOutputSubfolder = "AnimateDiff";
         private const string UpscaleOutputSubfolder = "upscale";
 
+        // ── RTX graph (workflow/upscale nvidaAPI.json) ────────────────────────────────────────
+        // VHS_LoadVideo → RTXVideoSuperResolution → VHS_VideoCombine, with a VHS meta batch so a long
+        // clip is upscaled 29 frames at a time instead of holding every frame of the 2–4× result in RAM.
+        // The meta batch is why the tab cannot just wait on its own prompt — see WaitForMetaBatchOutputAsync.
+        private const string RtxUpscaleWorkflow = "workflow/upscale nvidaAPI.json";
+        private const string RtxUpscaleVideoNode = "2";      // VHS_LoadVideo
+        private const string RtxUpscaleNode = "1";           // RTXVideoSuperResolution — the scale factor
+        private const string RtxCombineNode = "3";           // VHS_VideoCombine — fps + audio come off node 2
+
+        /// <summary>The multiplier the graph ships with, and what the tab offers first.</summary>
+        private const double DefaultRtxScale = 2.0;
+
+        /// <summary>Selectable RTX multipliers. The node itself accepts 1.0–4.0.</summary>
+        public static IReadOnlyList<double> RtxScales { get; } = new[] { 1.5, 2.0, 3.0, 4.0 };
+
         private string InterpolateQueueFilePath => UserPaths.Queue("video_enhance_interpolate_queue.json");
 
         private string UpscaleQueueFilePath => UserPaths.Queue("video_enhance_upscale_queue.json");
@@ -33,6 +48,7 @@ namespace FlipPix.UI.Linux.ViewModels.Video
         // Upscale state
         private string _upscaleVideoPath = string.Empty;
         private string _upscaleVideoInfo = string.Empty;
+        private double _rtxScale = DefaultRtxScale;
         private bool _isProcessingUpscaleQueue = false;
         private string _upscaleQueueStatus = string.Empty;
         private readonly ObservableCollection<VideoEnhanceQueueItem> _upscaleQueue = new();
@@ -190,6 +206,21 @@ namespace FlipPix.UI.Linux.ViewModels.Video
 
         public bool HasUpscaleVideo => !string.IsNullOrEmpty(UpscaleVideoPath) && File.Exists(UpscaleVideoPath);
         public bool CanAddUpscale => HasUpscaleVideo;
+
+        /// <summary>Upscale factor handed to the RTX node. Snapshotted onto the queue item, so changing it
+        /// afterwards does not re-target jobs already waiting.</summary>
+        public double RtxScale
+        {
+            get => _rtxScale;
+            set
+            {
+                if (Math.Abs(_rtxScale - value) < 0.001) return;
+                _rtxScale = value <= 0 ? DefaultRtxScale : value;
+                OnPropertyChanged();
+            }
+        }
+
+        public IReadOnlyList<double> RtxScaleOptions => RtxScales;
 
         public ObservableCollection<VideoEnhanceQueueItem> UpscaleQueue => _upscaleQueue;
         public bool HasUpscaleQueueItems => _upscaleQueue.Any();
@@ -426,6 +457,7 @@ namespace FlipPix.UI.Linux.ViewModels.Video
             {
                 InputVideoPath = UpscaleVideoPath,
                 Mode = VideoEnhanceMode.Upscale,
+                UpscaleScale = RtxScale,
                 ItemStatus = QueueItemStatus.Pending
             };
 
@@ -735,13 +767,27 @@ namespace FlipPix.UI.Linux.ViewModels.Video
                     throw new Exception("Video upload failed.");
                 AddLog($"Uploaded: {uploadedName}");
 
-                var workflowPath = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "workflow", "upscale nvidaAPI.json");
+                var workflowPath = Path.Combine(AppDomain.CurrentDomain.BaseDirectory,
+                    RtxUpscaleWorkflow.Replace('/', Path.DirectorySeparatorChar));
                 if (!File.Exists(workflowPath))
                     throw new FileNotFoundException($"Workflow not found: {workflowPath}");
 
+                // Unique per job: it names the output file, and it is also the only thing that survives a
+                // meta-batch requeue, so it is what the wait below follows. See WaitForMetaBatchOutputAsync.
+                var rtxPrefix = $"RTX_{DateTime.Now:yyyyMMdd_HHmmss}_{Guid.NewGuid():N}"[..30];
+
+                // The node's own range; outside it the run fails validation.
+                var scale = Math.Clamp(item.UpscaleScale <= 0 ? DefaultRtxScale : item.UpscaleScale, 1.0, 4.0);
+
                 var workflowJson = await File.ReadAllTextAsync(workflowPath);
-                WorkflowNodeUpdater.UpdateNodeInput(ref workflowJson, "2", "video", uploadedName);
+                WorkflowNodeUpdater.UpdateNodeInput(ref workflowJson, RtxUpscaleVideoNode, "video", uploadedName);
+                // Both widget shapes the Nvidia pack has shipped; the server reads the one it declares.
+                WorkflowNodeUpdater.UpdateNodeInput(ref workflowJson, RtxUpscaleNode, "resize_type.scale", scale);
+                WorkflowNodeUpdater.UpdateNodeInput(ref workflowJson, RtxUpscaleNode, "scale", scale);
+                WorkflowNodeUpdater.UpdateNodeInput(ref workflowJson, RtxCombineNode, "filename_prefix",
+                    $"{UpscaleOutputSubfolder}/{rtxPrefix}");
                 var workflow = JsonSerializer.Deserialize<JsonElement>(workflowJson);
+                AddLog($"RTX VSR: ×{scale:0.##}, output prefix {rtxPrefix}");
 
                 ProcessingProgress = 20;
                 ProcessingStatus = "Executing upscale...";
@@ -765,7 +811,12 @@ namespace FlipPix.UI.Linux.ViewModels.Video
                 ProcessingProgress = 90;
                 ProcessingStatus = "Waiting for output...";
 
-                var outputVideo = await TryGetVideoFromHistoryAsync(promptId);
+                // The graph runs under a meta batch, so the prompt above is only the first batch of the clip
+                // and its history entry holds no file at all. Follow the requeue chain to the finished mp4.
+                var outputVideo = await WaitForMetaBatchOutputAsync(rtxPrefix,
+                    _upscaleCts?.Token ?? CancellationToken.None);
+
+                outputVideo ??= await TryGetVideoFromHistoryAsync(promptId);
                 if (outputVideo == null)
                 {
                     AddLog("Falling back to filesystem polling...");
@@ -795,6 +846,112 @@ namespace FlipPix.UI.Linux.ViewModels.Video
             {
                 IsProcessing = false;
             }
+        }
+
+        /// <summary>How long to keep following a meta-batch chain before giving up on it.</summary>
+        private static readonly TimeSpan MetaBatchTimeout = TimeSpan.FromHours(2);
+
+        /// <summary>
+        /// Waits for the finished file of a run that upscales in meta batches, and returns a local path to
+        /// it (or null if it never appeared).
+        ///
+        /// <para><b>Why this exists.</b> A VHS meta batch does not process the clip in one execution: it
+        /// runs <c>frames_per_batch</c> frames, then <i>requeues the whole prompt under a new id</i> and
+        /// repeats until the loader runs dry. So the prompt this tab submitted covers only the first 29
+        /// frames; its history entry reports <c>unfinished_batch</c> and no file at all, and the finished
+        /// mp4 lands under a prompt id the app never submitted and cannot ask about.</para>
+        ///
+        /// <para>Waiting on the submitted id therefore returned nothing, the code fell through to
+        /// filesystem polling, and that picked up the output file <i>while ffmpeg was still appending to
+        /// it</i> — the file only gets its moov atom when the last batch closes it. That is the truncated,
+        /// unplayable, far-too-small "upscale" this replaces.</para>
+        ///
+        /// <para>The chain is followed by filename prefix instead, which is the one thing that survives a
+        /// requeue: a history entry naming the prefix means VHS closed (and audio-muxed) the file, so it is
+        /// safe to copy. If the chain leaves the queue without ever producing one, the run died — return
+        /// null and let the caller's fallbacks report it.</para>
+        /// </summary>
+        private async Task<string?> WaitForMetaBatchOutputAsync(string filenamePrefix, CancellationToken token)
+        {
+            var http = _comfyUIService.HttpClient;
+            var deadline = DateTime.UtcNow + MetaBatchTimeout;
+            var lastLog = DateTime.MinValue;
+            var queueClearPolls = 0;
+
+            AddLog($"Meta batch: following the requeue chain for {filenamePrefix}...");
+
+            while (DateTime.UtcNow < deadline)
+            {
+                token.ThrowIfCancellationRequested();
+
+                var historyFile = await http.FindOutputFileFromHistoryAsync(filenamePrefix, token);
+                if (historyFile != null)
+                {
+                    AddLog($"Meta batch finished: {historyFile}");
+                    return await ResolveOutputFileAsync(historyFile);
+                }
+
+                // Still queued or running (our own chain, or someone else's job ahead of it).
+                if (await http.IsQueueEntryContainingAsync(filenamePrefix, token))
+                {
+                    queueClearPolls = 0;
+                }
+                else if (++queueClearPolls >= 4)
+                {
+                    // Four quiet polls with nothing in history: the chain is gone without an output. The
+                    // gap between one batch ending and the requeue landing is milliseconds, so this is not it.
+                    AddLog("Meta batch: the chain left the queue without producing a file.");
+                    return null;
+                }
+
+                if (DateTime.UtcNow - lastLog >= TimeSpan.FromSeconds(30))
+                {
+                    lastLog = DateTime.UtcNow;
+                    var elapsed = (int)(MetaBatchTimeout - (deadline - DateTime.UtcNow)).TotalSeconds;
+                    AddLog($"Meta batch: still upscaling ({elapsed}s elapsed)...");
+                }
+
+                await Task.Delay(TimeSpan.FromSeconds(3), token);
+            }
+
+            AddLog("ERROR: timed out following the meta-batch chain.");
+            return null;
+        }
+
+        /// <summary>
+        /// Turns a "subfolder/filename" from ComfyUI's history into a local path — the shared output folder
+        /// when it is reachable, otherwise a temp copy pulled over /view.
+        /// </summary>
+        private async Task<string?> ResolveOutputFileAsync(string relativeFile)
+        {
+            var settings = _settingsService.Settings;
+            if (settings != null)
+            {
+                var isRemote = IsComfyUIRemote(new Uri(GetComfyUIBaseUrl()).Host);
+                var outputFolder = settings.ResolveOutputFolder(isRemote);
+                if (!string.IsNullOrEmpty(outputFolder))
+                {
+                    var localPath = Path.Combine(outputFolder, relativeFile.Replace('/', Path.DirectorySeparatorChar));
+                    if (File.Exists(localPath)) return localPath;
+                    AddLog($"Output not visible at {localPath}; downloading over /view instead.");
+                }
+            }
+
+            var parts = relativeFile.Split('/');
+            var filename = parts.Last();
+            var subfolder = parts.Length > 1 ? string.Join("/", parts.Take(parts.Length - 1)) : string.Empty;
+
+            var bytes = await _comfyUIService.HttpClient.DownloadOutputVideoAsync(filename, subfolder);
+            if (bytes == null || bytes.Length == 0)
+            {
+                AddLog($"Download failed for {relativeFile}");
+                return null;
+            }
+
+            var tempPath = Path.Combine(Path.GetTempPath(), $"flippix_upscale_{Guid.NewGuid():N}_{filename}");
+            await File.WriteAllBytesAsync(tempPath, bytes);
+            AddLog($"Downloaded {filename} ({bytes.Length / 1024.0 / 1024.0:F1} MB)");
+            return tempPath;
         }
 
         #endregion
