@@ -34,6 +34,15 @@ NODE_CLIP_SEEDS = ["521:3447", "521:3448", "521:3450"]
 NODE_LOOP_SEED_SWITCH = "521:3451"
 NODE_BASE_DETAIL = "16:4194"
 NODE_LOOP_DETAIL = ["521:4209", "521:4214"]
+NODE_BASE_SAMPLER = "16:487"
+NODE_LOOP_SAMPLER = "521:519"
+NODE_DRAFT_SIGMAS = "draft_split"
+NODE_BASE_FULL_SIGMAS = "16:485"
+NODE_LOOP_FULL_SIGMAS = "521:510"
+NODE_BASE_UPSCALER = "16:4187"
+NODE_LOOP_UPSCALER = "521:4202"
+NODE_LOOP_FINISH_DIMS = ["521:4212", "521:4213"]
+LATENT_UPSCALE_FACTOR = 2.0
 NODE_SPARSE_ATTENTION = "478:473"
 NODE_BASE_UPSCALE = "16:3391"
 NODE_LOOP_UPSCALE = "521:3393"
@@ -43,7 +52,7 @@ NODE_LOOP_AUDIO = "521:3444"
 MAX_CLIPS = 4
 
 
-def build(base, opening, clips, *, detail, rtx, audio, overlap, sparse=False, seed=12345):
+def build(base, opening, clips, *, upscale, rtx, audio, overlap, sparse=False, seed=12345):
     """The C# BuildWorkflow, in Python. `clips` is [{end, prompt, seconds}, …], one per clip."""
     g = json.loads(json.dumps(base))
     extensions = len(clips) - 1
@@ -65,14 +74,27 @@ def build(base, opening, clips, *, detail, rtx, audio, overlap, sparse=False, se
     g[NODE_LOOP_START]["inputs"]["total"] = max(1, extensions)
     g[NODE_OVERLAP]["inputs"]["choice"] = str(overlap)
 
+    # The dropdown names the finished size; the draft is sampled at a quarter of it and doubled.
     g[NODE_RESOLUTION]["inputs"]["aspect_ratio"] = "16:9 (Widescreen)"
-    g[NODE_RESOLUTION]["inputs"]["megapixels"] = 0.7
-    g[NODE_RESOLUTION]["inputs"]["multiple"] = 64
+    g[NODE_RESOLUTION]["inputs"]["megapixels"] = (
+        0.7 / (LATENT_UPSCALE_FACTOR ** 2) if upscale else 0.7)
+    g[NODE_RESOLUTION]["inputs"]["multiple"] = 32
 
     g[NODE_SPARSE_ATTENTION]["inputs"]["switch"] = sparse
-    g[NODE_BASE_DETAIL]["inputs"]["switch"] = detail
+
+    g[NODE_BASE_UPSCALER]["inputs"]["mode.scale"] = LATENT_UPSCALE_FACTOR
+    g[NODE_LOOP_UPSCALER]["inputs"]["mode.scale"] = LATENT_UPSCALE_FACTOR
+    for nid in NODE_LOOP_FINISH_DIMS:
+        g[nid]["inputs"]["values.b"] = LATENT_UPSCALE_FACTOR
+
+    g[NODE_BASE_DETAIL]["inputs"]["switch"] = upscale
     for nid in NODE_LOOP_DETAIL:
-        g[nid]["inputs"]["switch"] = detail
+        g[nid]["inputs"]["switch"] = upscale
+
+    g[NODE_BASE_SAMPLER]["inputs"]["sigmas"] = [
+        NODE_DRAFT_SIGMAS if upscale else NODE_BASE_FULL_SIGMAS, 0]
+    g[NODE_LOOP_SAMPLER]["inputs"]["sigmas"] = [
+        NODE_DRAFT_SIGMAS if upscale else NODE_LOOP_FULL_SIGMAS, 0]
     g[NODE_BASE_UPSCALE]["inputs"]["switch"] = (extensions == 0) and rtx
     g[NODE_LOOP_UPSCALE]["inputs"]["switch"] = rtx
     g[NODE_BASE_AUDIO]["inputs"]["switch"] = (extensions == 0) and audio
@@ -178,10 +200,24 @@ def check_chain(g, sink, clips, oi):
     if base.get("last_frame") != [NODE_BASE_END_FRAME, 0]:
         problems.append("base pass is not conditioned on clip 1's end keyframe")
 
+    finish = g.get("16:4195", {}).get("inputs", {})
+    if finish:
+        if finish.get("first_frame") != [NODE_OPENING_FRAME, 0]:
+            problems.append("the base finish pass is not conditioned on the opening frame")
+        if finish.get("last_frame") != [NODE_BASE_END_FRAME, 0]:
+            problems.append("the base finish pass is not conditioned on clip 1's end keyframe")
+
     if len(clips) > 1:
         loop = g.get(NODE_LOOP_FL2V, {}).get("inputs", {})
         if not isinstance(loop.get("last_frame"), list):
             problems.append("the continuation loop has no end keyframe")
+        loop_finish = g.get("521:4210", {}).get("inputs", {})
+        if loop_finish:
+            if not isinstance(loop_finish.get("last_frame"), list):
+                problems.append("the loop's finish pass has no end keyframe")
+            guide = g.get("loop_finish_guide", {}).get("inputs", {})
+            if not guide:
+                problems.append("the loop's finish pass carries no context from the previous clip")
         if g.get(NODE_LOOP_START, {}).get("inputs", {}).get("total") != len(clips) - 1:
             problems.append("loop total does not match the number of continuing clips")
         if NODE_SAVE_SINGLE in g:
@@ -208,18 +244,18 @@ def main():
     clip = lambda end, n, s: {"end": end, "prompt": f"Clip {n} FL2VA prompt.", "seconds": s}
     cases = [
         ("2 keyframes, one clip, defaults", a, [clip(b, 1, 10)],
-         dict(detail=True, rtx=False, audio=True, overlap=22)),
+         dict(upscale=True, rtx=False, audio=True, overlap=22)),
         ("2 keyframes, one clip, everything off", a, [clip(b, 1, 5)],
-         dict(detail=False, rtx=False, audio=False, overlap=5)),
+         dict(upscale=False, rtx=False, audio=False, overlap=5)),
         ("2 keyframes, one clip, RTX + Sol-Attn", a, [clip(b, 1, 15)],
-         dict(detail=True, rtx=True, audio=True, overlap=22, sparse=True)),
+         dict(upscale=True, rtx=True, audio=True, overlap=22, sparse=True)),
         ("3 keyframes, two clips", a, [clip(b, 1, 10), clip(c, 2, 10)],
-         dict(detail=True, rtx=False, audio=True, overlap=22)),
+         dict(upscale=True, rtx=False, audio=True, overlap=22)),
         ("4 keyframes, three clips", a, [clip(b, 1, 8), clip(c, 2, 8), clip(d, 3, 8)],
-         dict(detail=True, rtx=True, audio=True, overlap=39)),
-        ("5 keyframes, four clips, no detail pass", a,
+         dict(upscale=True, rtx=True, audio=True, overlap=39)),
+        ("5 keyframes, four clips, no latent upscale", a,
          [clip(b, 1, 5), clip(c, 2, 12), clip(d, 3, 15), clip(e, 4, 10)],
-         dict(detail=False, rtx=False, audio=False, overlap=56)),
+         dict(upscale=False, rtx=False, audio=False, overlap=56)),
     ]
 
     failed = 0

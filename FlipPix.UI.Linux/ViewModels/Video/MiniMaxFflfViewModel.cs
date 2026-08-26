@@ -39,6 +39,12 @@ namespace FlipPix.UI.Linux.ViewModels.Video
     /// hardcoded local server; that is stripped from the copy this tab ships, so the prompt can be read
     /// and edited before a render is spent.</para>
     ///
+    /// <para>Every clip renders in three moves rather than one: four sampler steps at a quarter of the
+    /// canvas to settle the composition, the MiniMax H3 3D latent upscaler doubling that latent, then
+    /// three fixed-sigma steps at the finished size to put the detail on. Only those last three steps
+    /// ever see the whole canvas, which is what makes it both quicker and sharper than eight full-size
+    /// steps and a 1.5× refine afterwards.</para>
+    ///
     /// <para>Both halves of the graph — the base pass and the continuation loop — end in their own
     /// VHS_VideoCombine sink, and an OUTPUT_NODE runs whether or not anything downstream wants it. So the
     /// run picks its sink and <see cref="PruneToOutputs"/> deletes everything the sink does not reach:
@@ -58,8 +64,22 @@ namespace FlipPix.UI.Linux.ViewModels.Video
         /// <summary>What a continuing clip costs against the base pass of the same length, measured.</summary>
         private const double ContinuationFactor = 1.55;
 
-        /// <summary>The multiple ResolutionSelector rounds to in this graph. See the note where it is set.</summary>
-        private const int ResolutionMultiple = 64;
+        /// <summary>
+        /// The multiple ResolutionSelector rounds the <i>draft</i> canvas to. 32, not 64: the finish pass
+        /// scales the draft by exactly <see cref="LatentUpscaleFactor"/>, so a 32-aligned draft doubles to
+        /// a 64-aligned finish and the upscaler's own alignment can never disagree with the loop's
+        /// <c>round(a * b / 32) * 32</c>. That disagreement — and the token-count mismatch it killed the
+        /// loop with — was what forced 64 back when the factor was 1.5.
+        /// </summary>
+        private const int ResolutionMultiple = 32;
+
+        /// <summary>
+        /// How much bigger the finished canvas is than the sampled draft, per side. Must stay an integer:
+        /// the loop derives the finish canvas twice — once inside MinimaxH3LatentUpscaler3D and once as
+        /// <c>round(draft * factor / 32) * 32</c> for the conditioning latent — and only an integer
+        /// factor guarantees the two land on the same number for every aspect ratio.
+        /// </summary>
+        private const double LatentUpscaleFactor = 2.0;
 
         /// <summary>Clips in the chain: the base pass plus the three slots the loop's switches can address.</summary>
         public const int MaxClips = 4;
@@ -88,10 +108,26 @@ namespace FlipPix.UI.Linux.ViewModels.Video
         /// <summary>Picks the per-iteration seed switch over one seed for the whole loop.</summary>
         private const string NodeLoopSeedSwitch = "521:3451";
 
-        // Detail pass: a 1.5x latent upscale re-sampled at 0.4 denoise. The loop needs the same answer
-        // twice — once for its own pass, once to know whether the frames handed to it are already 1.5x.
+        // Latent upscale: the 2x re-sample that turns the draft into the finished frames. The loop needs
+        // the same answer twice — once for its own pass, once to know whether the frames handed to it
+        // are already at the finished size.
         private const string NodeBaseDetail = "16:4194";
         private static readonly string[] NodeLoopDetail = { "521:4209", "521:4214" };
+
+        // The two samplers of each half, and the sigma sources they can be pointed at. With the latent
+        // upscale on, the draft runs the first four steps of an unshifted 8-step schedule (1.0 -> 0.5) and
+        // the finish runs three fixed sigmas; with it off there is no finish pass at all, so the draft
+        // sampler takes the full 8-step shifted schedule and denoises to zero on its own.
+        private const string NodeBaseSampler = "16:487";
+        private const string NodeLoopSampler = "521:519";
+        private const string NodeDraftSigmas = "draft_split";      // SplitSigmas.high_sigmas
+        private const string NodeBaseFullSigmas = "16:485";        // BasicScheduler, 8 steps, shifted
+        private const string NodeLoopFullSigmas = "521:510";
+
+        // The 2x factor written into the graph in the three places that have to agree about it.
+        private const string NodeBaseUpscaler = "16:4187";
+        private const string NodeLoopUpscaler = "521:4202";
+        private static readonly string[] NodeLoopFinishDims = { "521:4212", "521:4213" };
 
         /// <summary>Sol-Attn sparse attention, on the one MODEL wire both halves share.</summary>
         private const string NodeSparseAttention = "478:473";
@@ -111,7 +147,7 @@ namespace FlipPix.UI.Linux.ViewModels.Video
         private long _seed = -1;
         private OverlapOption _overlap;
         private bool _useSparseAttention;
-        private bool _useDetailPass = true;
+        private bool _useLatentUpscale = true;
         private bool _useRtxUpscale;
         private bool _useAudioEnhancement = true;
         private bool _isAnalyzing;
@@ -149,13 +185,15 @@ namespace FlipPix.UI.Linux.ViewModels.Video
         /// <summary>
         /// Seconds this box takes per Gpx of one pass, learned from the runs it has already done.
         ///
-        /// <para>Seeded from a measured run on 21 Aug: a four-clip 40s take at 0.4 MP (1.47 weighted Gpx)
-        /// rendered in 15m27s, which is 604 s/Gpx — slower than the I2V tab's 513, because an FL2VA pass
-        /// carries a second conditioning image and this graph resizes the carried context on top. Only
-        /// the first minute of a run leans on it; from the first sampler step the estimate is re-derived
-        /// from the run itself.</para>
+        /// <para>Re-measured on 25 Aug under the draft-then-finish scheme, because the old 604 was against
+        /// a Gpx that counted the 1.5× detail tensor and 17 full-canvas step-equivalents of sampling: two
+        /// 10s clips finishing at 1152×640 (0.482 weighted Gpx) rendered in 3m22s with the models already
+        /// resident, which is 336 s/Gpx — above the I2V tab's 270, because an FL2VA pass carries a second
+        /// conditioning image and this graph resizes the carried context on top. Only the first minute of
+        /// a run leans on it; from the first sampler step the estimate is re-derived from the run
+        /// itself.</para>
         /// </summary>
-        private static double _secondsPerGpx = 604;
+        private static double _secondsPerGpx = 336;
 
         private static string QueueFilePath => Path.Combine(
             Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData),
@@ -348,14 +386,15 @@ namespace FlipPix.UI.Linux.ViewModels.Video
 
         /// <summary>
         /// Rough size of the largest tensor a single pass has to hold, in billions of pixel-positions:
-        /// canvas area × frames, ×2.25 when the detail pass is on because its 1.5× is linear. Clips run
-        /// one after another, so the peak is set by the largest clip, not by the total.
+        /// finished canvas area × frames. The finish sampler is what sets it — the draft runs at a
+        /// quarter of the area and is never the clip's peak. Clips run one after another, so the peak is
+        /// set by the largest clip, not by the total.
         /// </summary>
         public double EstimatedPeakGpx
         {
             get
             {
-                var area = SampledArea(ResolvedAspectRatio, Megapixels, UseDetailPass);
+                var area = SampledArea(ResolvedAspectRatio, Megapixels, UseLatentUpscale);
                 var peak = 0;
                 for (var i = 0; i < Clips.Count; i++)
                     peak = Math.Max(peak, FrameCount(Clips[i].Seconds) + (i == 0 ? 0 : Overlap.Frames));
@@ -373,7 +412,7 @@ namespace FlipPix.UI.Linux.ViewModels.Video
         {
             get
             {
-                var area = SampledArea(ResolvedAspectRatio, Megapixels, UseDetailPass);
+                var area = SampledArea(ResolvedAspectRatio, Megapixels, UseLatentUpscale);
                 var totalFrames = 0;
                 for (var i = 0; i < Clips.Count; i++)
                     totalFrames += FrameCount(Clips[i].Seconds) + (i == 0 ? 0 : Overlap.Frames);
@@ -392,7 +431,7 @@ namespace FlipPix.UI.Linux.ViewModels.Video
 
                 if (ram > FrameRamOverLimitGb)
                     return $"⚠ {head} — bigger than anything that has finished on this box. Fewer clips " +
-                           "per take is the biggest lever; then shorter clips, or no detail pass.";
+                           "per take is the biggest lever; then shorter clips, or lower quality.";
                 if (gpx > VramOverLimitGpx)
                     return $"⚠ {head} — this has run out of VRAM on 24 GB.";
                 if (ram > FrameRamRiskyGb)
@@ -750,14 +789,20 @@ namespace FlipPix.UI.Linux.ViewModels.Video
         }
 
         /// <summary>
-        /// Quality presets for the ResolutionSelector. H3's native canvas is a 768px short edge, and the
-        /// detail pass then re-samples at 1.5×, so 0.7 MP is the practical default here rather than 1.0.
+        /// The size of the <b>finished</b> frames, not of the sampling. With the latent upscale on, the
+        /// draft is sampled at a quarter of this and doubled; H3's native canvas is a 768px short edge, so
+        /// 0.7 MP stays the balanced default and 1.5 MP is reachable now that only three steps ever run at
+        /// full size.
         /// </summary>
         public IReadOnlyList<MegapixelOption> MegapixelOptions { get; } = new[]
         {
+            // Sizes are what this graph really produces at 16:9 — what the draft ResolutionSelector
+            // returns for a quarter of the target, doubled — not the megapixel target rounded by eye.
+            // Other aspects land within a few percent of the same pixel count, except 1:1, ~5% smaller.
             new MegapixelOption(0.4, "0.4 MP — fast draft (832×512)"),
             new MegapixelOption(0.7, "0.7 MP — balanced (1152×640)"),
             new MegapixelOption(1.0, "1.0 MP — full quality (1344×768)"),
+            new MegapixelOption(1.5, "1.5 MP — high (1664×960)"),
         };
 
         public double Megapixels
@@ -815,14 +860,19 @@ namespace FlipPix.UI.Linux.ViewModels.Video
             set { if (_useSparseAttention != value) { _useSparseAttention = value; OnPropertyChanged(); } }
         }
 
-        /// <summary>1.5× latent upscale re-sampled at 0.4 denoise, on top of the 8-step base sampling.</summary>
-        public bool UseDetailPass
+        /// <summary>
+        /// The draft-then-finish scheme: four sampler steps at half the width and half the height, a 2×
+        /// pass through the MiniMax H3 3D latent upscaler, then three fixed-sigma steps at the finished
+        /// size. Off, the clip instead denoises the full canvas over eight steps in one go — slower, and
+        /// softer, but it is the fallback if the upscaler ever misbehaves.
+        /// </summary>
+        public bool UseLatentUpscale
         {
-            get => _useDetailPass;
+            get => _useLatentUpscale;
             set
             {
-                if (_useDetailPass == value) return;
-                _useDetailPass = value;
+                if (_useLatentUpscale == value) return;
+                _useLatentUpscale = value;
                 OnPropertyChanged();
                 RaiseMemoryEstimate();
             }
@@ -1107,8 +1157,8 @@ namespace FlipPix.UI.Linux.ViewModels.Video
                     "model weights are staged in the same pool — so a long take can exhaust the server " +
                     "rather than just this job, and that takes the whole queue down with it. It has " +
                     "already happened on this box.\n\n" +
-                    "Fewer clips per take is the biggest lever; then shorter clips, lower quality, or " +
-                    "no detail pass.\n\n" +
+                    "Fewer clips per take is the biggest lever; then shorter clips or lower " +
+                    "quality.\n\n" +
                     (_isQueueingFolder ? "Queue this and every remaining take anyway?" : "Queue it anyway?"),
                     "Likely to run out of memory",
                     MessageBoxButton.YesNo, MessageBoxImage.Warning, MessageBoxResult.No);
@@ -1127,7 +1177,7 @@ namespace FlipPix.UI.Linux.ViewModels.Video
                 Seed = Seed,
                 OverlapFrames = Overlap.Frames,
                 UseSparseAttention = UseSparseAttention,
-                UseDetailPass = UseDetailPass,
+                UseLatentUpscale = UseLatentUpscale,
                 UseRtxUpscale = UseRtxUpscale,
                 UseAudioEnhancement = UseAudioEnhancement,
 
@@ -1307,19 +1357,19 @@ namespace FlipPix.UI.Linux.ViewModels.Video
                            + $"{frameRamGb * PreflightPeakFactor:0.0} GB at peak ({frameRamGb:0.0} GB of "
                            + $"frames, plus the blend copies and the model weights staged beside them) and "
                            + $"the server has {ramFree:0.0} GB free. Fewer clips per take is the biggest "
-                           + "lever; then shorter clips, lower quality, or no detail pass.";
+                           + "lever; then shorter clips or lower quality.";
             }
 
             var gpxCeiling = vramTotal * GpxPerVramGb;
             if (gpx > gpxCeiling)
             {
-                var (w, h) = H3Canvas.Resolve(item.AspectRatio, item.Megapixels, ResolutionMultiple);
+                var (w, h) = ResolveCanvas(item.AspectRatio, item.Megapixels, item.UseLatentUpscale);
                 var fits = Math.Floor(item.Megapixels * (gpxCeiling / gpx) * 20) / 20;
-                var (fw, fh) = H3Canvas.Resolve(item.AspectRatio, fits, ResolutionMultiple);
+                var (fw, fh) = ResolveCanvas(item.AspectRatio, fits, item.UseLatentUpscale);
                 return $"Too large for the GPU: {item.Megapixels:0.0} MP at {item.AspectRatio} resolves to "
                        + $"{w}×{h}, and the biggest clip then needs ~{gpx:0.00} Gpx against a limit of about "
                        + $"{gpxCeiling:0.00} Gpx on a {vramTotal:0.0} GB card. Drop the quality to "
-                       + $"{fits:0.00} MP ({fw}×{fh}), shorten the longest clip, or turn off the detail pass.";
+                       + $"{fits:0.00} MP ({fw}×{fh}), or shorten the longest clip.";
             }
 
             if (gpx > gpxCeiling * 0.95)
@@ -1337,7 +1387,7 @@ namespace FlipPix.UI.Linux.ViewModels.Video
         /// <see cref="EstimatedFrameRamGb"/>, which reads the live form instead.</summary>
         private static double EstimateFrameRamGb(MiniMaxFflfQueueItem item)
         {
-            var area = SampledArea(item.AspectRatio, item.Megapixels, item.UseDetailPass);
+            var area = SampledArea(item.AspectRatio, item.Megapixels, item.UseLatentUpscale);
             var totalFrames = 0;
             for (var pass = 0; pass < item.PassCount; pass++) totalFrames += PassFrames(item, pass);
             return area * totalFrames * 12 / 1e9;
@@ -1412,8 +1462,7 @@ namespace FlipPix.UI.Linux.ViewModels.Video
                         AddLog("=== QUEUE STOPPED ===");
                         AddLog("ComfyUI died mid-run. That is the host running out of RAM, not this job "
                                + "failing — the remaining items are untouched and still Pending.");
-                        AddLog("Shorten the clips, drop one, lower the quality, or turn off the detail "
-                               + "pass, then press Start.");
+                        AddLog("Shorten the clips, drop one, or lower the quality, then press Start.");
                         UpdateQueueStatus();
                         SaveQueueToFile();
                         break;
@@ -1744,7 +1793,7 @@ namespace FlipPix.UI.Linux.ViewModels.Video
                 AddLog($"Generating (seed {runSeed}, ~{item.TotalSeconds}s over {item.PassCount} clip(s), " +
                        $"{item.AspectRatio}, {item.Megapixels:0.0} MP" +
                        $"{(item.UseSparseAttention ? ", Sol-Attn" : "")}" +
-                       $"{(item.UseDetailPass ? ", detail pass" : "")}" +
+                       $"{(item.UseLatentUpscale ? ", latent 2x" : "")}" +
                        $"{(item.UseRtxUpscale ? ", RTX 2x" : "")}, ~{EstimateGpx(item):0.00} Gpx/pass)...");
 
                 // The bar and the clock are handed the shape of the run before it starts, so the very
@@ -1808,19 +1857,24 @@ namespace FlipPix.UI.Linux.ViewModels.Video
 
         /// <summary>
         /// Describes the run to the progress tracker: every sampler bar ComfyUI will report, in order,
-        /// what each of their steps is worth, and the unreported work between them. The figures come from
-        /// measured MiniMax H3 runs — 8 base steps, a 4-step detail re-sample at 3.0× the cost of one, and
-        /// a continuing clip at ~1.55× the base pass it extends. They only have to be roughly right: the
-        /// pace is re-measured from the run itself as it goes.
+        /// what each of their steps is worth, and the unreported work between them.
+        ///
+        /// <para>Everything below is measured in one <em>finish</em> sampler step — the only steps that
+        /// see the whole canvas. The figures carry over from the run measured under the previous scheme,
+        /// rebased on that unit: a draft step costs about a quarter of a finish step because it samples a
+        /// quarter of the pixels, the latent upscale between the two is worth ~2.2, VAE decode and
+        /// stitching after them ~3.8, and a continuing clip ~1.55× the clip it extends. They only have to
+        /// be roughly right — they set the <em>shape</em> of the run, and the pace is re-measured from the
+        /// run itself as it goes.</para>
         /// </summary>
         private (List<ProgressStage> Stages, double LeadUnits, double EstimatedSeconds) BuildProgressPlan(
             MiniMaxFflfQueueItem item)
         {
-            const double detailStepUnits = 3.0;   // a 1.5x-linear step against a base step of the same pass
-            const double afterMainUnits = 6.6;    // latent upscale, between the two samplers of a pass
-            const double afterPassUnits = 11.5;   // VAE decode and stitching at the end of a pass
-            const double rtxUnits = 4.0;          // RTX 2x, on the saved pass only
-            const double leadUnits = 4.0;         // loading the model, encoding the keyframes
+            const double draftStepUnits = 0.25;   // a quarter-canvas step against a finish step
+            const double afterMainUnits = 2.2;    // latent upscale, between the two samplers of a clip
+            const double afterPassUnits = 3.8;    // VAE decode and stitching at the end of a clip
+            const double rtxUnits = 1.3;          // RTX 2x, on the saved pass only
+            const double leadUnits = 1.3;         // loading the model, encoding the keyframes
 
             var stages = new List<ProgressStage>();
             for (var pass = 0; pass < item.PassCount; pass++)
@@ -1830,15 +1884,23 @@ namespace FlipPix.UI.Linux.ViewModels.Video
                 var last = pass == item.PassCount - 1;
                 var tail = afterPassUnits * weight + (last && item.UseRtxUpscale ? rtxUnits * weight : 0);
 
-                stages.Add(new ProgressStage(label, 8, weight,
-                                             item.UseDetailPass ? afterMainUnits * weight : tail));
-                if (item.UseDetailPass)
-                    stages.Add(new ProgressStage($"{label} detail", 4, detailStepUnits * weight, tail));
+                // Latent upscale on: 4 draft steps then 3 finish steps. Off: one 8-step pass at full
+                // size, where every step is worth a finish step because it is already the final canvas.
+                if (item.UseLatentUpscale)
+                {
+                    stages.Add(new ProgressStage($"{label} draft", 4, draftStepUnits * weight,
+                                                 afterMainUnits * weight));
+                    stages.Add(new ProgressStage(label, 3, weight, tail));
+                }
+                else
+                {
+                    stages.Add(new ProgressStage(label, 8, weight, tail));
+                }
             }
 
             // The joined output's frame-by-frame encode. It reports one step per frame and runs at ~90
-            // frames a second, so hundreds of its steps are worth barely one base-pass step.
-            stages.Add(new ProgressStage("Writing the video", 0, 0.0018, 0.8));
+            // frames a second, so hundreds of its steps are worth barely one finish step.
+            stages.Add(new ProgressStage("Writing the video", 0, 0.0054, 0.27));
 
             return (stages, leadUnits, 40 + _secondsPerGpx * WeightedGpx(item));
         }
@@ -1867,7 +1929,7 @@ namespace FlipPix.UI.Linux.ViewModels.Video
 
         /// <summary>Peak tensor size of one clip, in billions of pixel-positions.</summary>
         private static double PassGpx(MiniMaxFflfQueueItem item, int passIndex) =>
-            SampledArea(item.AspectRatio, item.Megapixels, item.UseDetailPass)
+            SampledArea(item.AspectRatio, item.Megapixels, item.UseLatentUpscale)
             * PassFrames(item, passIndex) / 1e9;
 
         /// <summary>
@@ -1884,10 +1946,34 @@ namespace FlipPix.UI.Linux.ViewModels.Video
             return seconds > 0 ? seconds : 10;
         }
 
-        /// <summary>Pixels per sampled frame: the canvas ComfyUI will really produce, times 2.25 when the
-        /// detail pass is on because its 1.5× is linear.</summary>
-        private static double SampledArea(string aspectRatio, double megapixels, bool detailPass) =>
-            H3Canvas.CanvasPixels(aspectRatio, megapixels, ResolutionMultiple) * (detailPass ? 2.25 : 1.0);
+        /// <summary>Pixels in one finished frame: the canvas ComfyUI will really produce. Both memory
+        /// limits are built on this figure, and deriving it from the megapixel target instead understates
+        /// 16:9, 4:3, 3:4, 9:16 and 21:9 by ~5%, which is the entire margin on a 24 GB card.</summary>
+        private static double SampledArea(string aspectRatio, double megapixels, bool latentUpscale)
+        {
+            var (w, h) = ResolveCanvas(aspectRatio, megapixels, latentUpscale);
+            return (double)w * h;
+        }
+
+        /// <summary>
+        /// Width and height of the finished frames. With the latent upscale on, ResolutionSelector is
+        /// handed a quarter of the megapixel target and its answer is doubled, so this has to fold the
+        /// same arithmetic <see cref="BuildWorkflow"/> writes into the graph — taking the size straight
+        /// from the megapixel target would miss the draft's own rounding.
+        /// </summary>
+        private static (int Width, int Height) ResolveCanvas(
+            string aspectRatio, double megapixels, bool latentUpscale)
+        {
+            if (!latentUpscale) return H3Canvas.Resolve(aspectRatio, megapixels, ResolutionMultiple);
+
+            var (w, h) = H3Canvas.Resolve(aspectRatio, DraftMegapixels(megapixels), ResolutionMultiple);
+            return ((int)(w * LatentUpscaleFactor), (int)(h * LatentUpscaleFactor));
+        }
+
+        /// <summary>The megapixel target the draft is sampled at in order to finish at
+        /// <paramref name="megapixels"/>.</summary>
+        private static double DraftMegapixels(double megapixels) =>
+            megapixels / (LatentUpscaleFactor * LatentUpscaleFactor);
 
         /// <summary>
         /// Folds a finished run's real duration back into the seconds-per-Gpx figure. Half-weighted, and
@@ -1971,18 +2057,34 @@ namespace FlipPix.UI.Linux.ViewModels.Video
             SetInput(root, NodeOverlap, "choice", item.OverlapFrames.ToString());
 
             // ── Canvas ────────────────────────────────────────────────────────
+            // ResolutionSelector sizes the *sampled* canvas, which with the latent upscale on is the
+            // draft — a quarter of the megapixel target, doubled afterwards. The dropdown names the
+            // finished size, so the division happens here rather than in the user's head.
             SetInput(root, NodeResolution, "aspect_ratio", item.AspectRatio);
-            SetInput(root, NodeResolution, "megapixels", item.Megapixels);
-            // Multiples of 64, not 32. The detail pass computes its 1.5x twice over — once as
-            // round(base * 1.5 / 32) * 32 on the pixel dimensions for the conditioning latent, and once
-            // inside the 3D latent upscaler — and the two round differently whenever base * 1.5 is not
-            // already 32-aligned. A base that is a multiple of 64 makes 1.5x land exactly.
+            SetInput(root, NodeResolution, "megapixels",
+                     item.UseLatentUpscale ? DraftMegapixels(item.Megapixels) : item.Megapixels);
             SetInput(root, NodeResolution, "multiple", ResolutionMultiple);
 
-            // ── Attention and quality switches ────────────────────────────────
+            // ── Attention and sampling scheme ────────────────────────────────
             SetInput(root, NodeSparseAttention, "switch", item.UseSparseAttention);
-            SetInput(root, NodeBaseDetail, "switch", item.UseDetailPass);
-            foreach (var id in NodeLoopDetail) SetInput(root, id, "switch", item.UseDetailPass);
+
+            // The 2x has to be written into all three places that derive the finished canvas: the two
+            // latent upscalers, and the loop's own width/height expressions for the conditioning latent
+            // its finish sampler is built against. If those disagree the loop dies on a token mismatch.
+            SetInput(root, NodeBaseUpscaler, "mode.scale", LatentUpscaleFactor);
+            SetInput(root, NodeLoopUpscaler, "mode.scale", LatentUpscaleFactor);
+            foreach (var id in NodeLoopFinishDims) SetInput(root, id, "values.b", LatentUpscaleFactor);
+
+            SetInput(root, NodeBaseDetail, "switch", item.UseLatentUpscale);
+            foreach (var id in NodeLoopDetail) SetInput(root, id, "switch", item.UseLatentUpscale);
+
+            // With the upscale on, the first sampler is only a draft and stops half-denoised at sigma 0.5
+            // — the finish sampler picks it up from there. With it off there is no finish sampler, so
+            // the same node has to run the full shifted schedule down to zero instead.
+            Link(root, NodeBaseSampler, "sigmas",
+                 item.UseLatentUpscale ? NodeDraftSigmas : NodeBaseFullSigmas, 0);
+            Link(root, NodeLoopSampler, "sigmas",
+                 item.UseLatentUpscale ? NodeDraftSigmas : NodeLoopFullSigmas, 0);
 
             // Only the half that owns the saved sink finishes the frames and the audio: on the base pass
             // these would hand the loop 2x frames and already-enhanced audio to enhance a second time.
@@ -1996,6 +2098,17 @@ namespace FlipPix.UI.Linux.ViewModels.Video
             SetInput(root, sink, "save_output", true);
 
             return PruneToOutputs(root.ToJsonString(), new[] { sink }, out pruned);
+        }
+
+        /// <summary>Points one node's input at another node's output.</summary>
+        private static void Link(JsonObject root, string nodeId, string input, string sourceId, int slot)
+        {
+            if (root[nodeId]?["inputs"] is not JsonObject inputs)
+                throw new Exception($"Workflow node '{nodeId}' is missing — the workflow file no longer matches this tab.");
+            if (root[sourceId] == null)
+                throw new Exception($"Workflow node '{sourceId}' is missing — the workflow file no longer matches this tab.");
+
+            inputs[input] = new JsonArray(sourceId, slot);
         }
 
         private static void SetInput(JsonObject root, string nodeId, string input, object value)

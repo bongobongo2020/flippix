@@ -1735,7 +1735,7 @@
                                                           SelectedValuePath="Value"
                                                           SelectedValue="{Binding Megapixels}"
                                                           Height="30" FontSize="11" Margin="0,0,0,10"
-                                                          ToolTip="The sampled canvas. With the detail pass on, the finished frames are 1.5× this again."/>
+                                                          ToolTip="The size of the finished frames. With the latent upscale on, the draft is sampled at a quarter of this and doubled, so only the last three steps ever run at the full size."/>
 
                                                 <TextBlock Text="Seed (-1 = random)" FontSize="10" Foreground="{StaticResource TextSecondaryBrush}" Margin="0,0,0,4"/>
                                                 <Grid>
@@ -1763,9 +1763,9 @@
                                             <StackPanel>
                                                 <ctrl:SectionHeader Title="FINISHING" Margin="0,0,0,8"/>
 
-                                                <CheckBox Content="Detail pass (1.5× latent upscale)" IsChecked="{Binding UseDetailPass}"
+                                                <CheckBox Content="Latent upscale (draft → 2× finish)" IsChecked="{Binding UseLatentUpscale}"
                                                           FontSize="11" Margin="0,0,0,7"
-                                                          ToolTip="After the 8-step sampling, the latent is upscaled 1.5× by the Minimax H3 3D upscaler and re-sampled for 4 more steps at 0.4 denoise. It is where most of the texture comes from, and it costs roughly half the base pass again."/>
+                                                          ToolTip="Renders each clip in three moves instead of one: four sampler steps at half the width and half the height to settle the composition, a 2× pass through the MiniMax H3 3D latent upscaler, then three fixed-sigma steps at the finished size to put the detail on.&#x0a;&#x0a;Only those last three steps ever see the full canvas, which is why this is both quicker and sharper than denoising the whole clip over eight steps. Turned off, the clip falls back to exactly that — one 8-step sampling at the full size, no upscaler involved."/>
                                                 <CheckBox Content="Sol-Attn sparse attention" IsChecked="{Binding UseSparseAttention}"
                                                           FontSize="11" Margin="0,0,0,7"
                                                           ToolTip="H3 denoises every frame of the clip in one pass, so attention cost grows with the square of frames × canvas area — a 10s clip costs far more than twice a 5s one. Sol-Attn replaces the dense attention with a sparse approximation over the video tokens.&#x0a;&#x0a;It engages only between 20% and 90% of the steps, and only once a pass exceeds 4096 tokens — the opening steps set the layout and the closing ones set the fine detail, and neither is worth approximating.&#x0a;&#x0a;It is an approximation, so turn it off if you are chasing the last of the detail."/>
@@ -1781,7 +1781,7 @@
                                                            Foreground="{DynamicResource TabAccentBrush}"/>
                                                 <TextBlock Text="{Binding MemoryWarning}" Margin="0,4,0,0"
                                                            FontSize="10" FontFamily="Consolas" TextWrapping="Wrap"
-                                                           ToolTip="Rough peak tensor size for a single clip: canvas area x frames, and x2.25 again when the detail pass is on because its 1.5x is linear. Clips run one after another, so the peak is the largest single clip, not the total.&#x0a;&#x0a;The second figure is the decoded frames the loop holds in system RAM at once, which grows with the whole chain's length — that is the limit that kills the server rather than the job.">
+                                                           ToolTip="Rough peak tensor size for a single clip: finished canvas area x frames. The finish sampler sets it - the draft runs at a quarter of the area and is never the peak. Clips run one after another, so the peak is the largest single clip, not the total.&#x0a;&#x0a;The second figure is the decoded frames the loop holds in system RAM at once, which grows with the whole chain's length — that is the limit that kills the server rather than the job.">
                                                     <TextBlock.Style>
                                                         <Style TargetType="TextBlock">
                                                             <Setter Property="Foreground" Value="{StaticResource TextMutedBrush}"/>

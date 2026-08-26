@@ -141,8 +141,8 @@
   "17": {
     "inputs": {
       "aspect_ratio": "9:16 (Portrait Widescreen)",
-      "megapixels": 0.2,
-      "multiple": 64
+      "megapixels": 0.25,
+      "multiple": 32
     },
     "class_type": "ResolutionSelector",
     "_meta": {
@@ -691,7 +691,7 @@
   "521:4211": {
     "inputs": {
       "conditioning": [
-        "521:4210",
+        "loop_finish_guide",
         0
       ]
     },
@@ -727,7 +727,7 @@
         0
       ],
       "sigmas": [
-        "521:510",
+        "draft_split",
         0
       ],
       "latent_image": [
@@ -755,7 +755,7 @@
         0
       ],
       "sigmas": [
-        "521:4207",
+        "finish_sigmas",
         0
       ],
       "latent_image": [
@@ -789,7 +789,7 @@
     "inputs": {
       "model_name": "minimax_h3_latent_upscaler_3d_fp16.safetensors",
       "mode": "scale by multiplier",
-      "mode.scale": 1.5000000000000004,
+      "mode.scale": 2.0,
       "align": 32,
       "keep_proportion": true,
       "device": "cuda",
@@ -845,7 +845,7 @@
         0
       ],
       "conditioning": [
-        "521:4210",
+        "loop_finish_guide",
         0
       ]
     },
@@ -862,7 +862,7 @@
         0
       ],
       "positive": [
-        "521:4210",
+        "loop_finish_guide",
         0
       ],
       "negative": [
@@ -1031,6 +1031,10 @@
       "vae": [
         "478:3",
         0
+      ],
+      "last_frame": [
+        "3480",
+        0
       ]
     },
     "class_type": "MiniMaxH3ImageToVideo",
@@ -1086,7 +1090,7 @@
         "17",
         0
       ],
-      "values.b": 1.5000000000000004
+      "values.b": 2.0
     },
     "class_type": "ComfyMathExpression",
     "_meta": {
@@ -1100,7 +1104,7 @@
         "17",
         1
       ],
-      "values.b": 1.5000000000000004
+      "values.b": 2.0
     },
     "class_type": "ComfyMathExpression",
     "_meta": {
@@ -1164,7 +1168,7 @@
   },
   "478:3": {
     "inputs": {
-      "vae_name": "minimax_h3_video_vae_int8_convrot.safetensors"
+      "vae_name": "minimax_h3_video_vae_fp16.safetensors"
     },
     "class_type": "VAELoader",
     "_meta": {
@@ -1218,7 +1222,7 @@
   },
   "478:3481": {
     "inputs": {
-      "lora_name": "H3/minimax_h3_fl2v_turbo_8step_v1.0_comfyui_bf16.safetensors",
+      "lora_name": "H3/minimax_h3_fl2v_lightx2v_turbo_4step_v1.0_768p_resized_avg_rank_31_bf16.safetensors",
       "strength_model": 1,
       "model": [
         "478:473",
@@ -1232,7 +1236,7 @@
   },
   "478:465": {
     "inputs": {
-      "enabled": true,
+      "enabled": false,
       "blend_weight": 0.5,
       "degree": 1,
       "ridge_lambda": 0.1,
@@ -1359,7 +1363,7 @@
   },
   "4375:4352": {
     "inputs": {
-      "switch": true,
+      "switch": false,
       "on_false": [
         "478:465",
         0
@@ -1663,7 +1667,7 @@
         0
       ],
       "sigmas": [
-        "16:4191",
+        "finish_sigmas",
         0
       ],
       "latent_image": [
@@ -1812,9 +1816,9 @@
   },
   "16:4187": {
     "inputs": {
-      "model_name": "minimax_h3_latent_upscaler_3d_bf16.safetensors",
+      "model_name": "minimax_h3_latent_upscaler_3d_fp16.safetensors",
       "mode": "scale by multiplier",
-      "mode.scale": 1.4999999999999996,
+      "mode.scale": 2.0,
       "align": 32,
       "keep_proportion": true,
       "device": "cuda",
@@ -1954,7 +1958,7 @@
         0
       ],
       "sigmas": [
-        "16:485",
+        "draft_split",
         0
       ],
       "latent_image": [
@@ -1992,6 +1996,14 @@
       "vae": [
         "478:3",
         0
+      ],
+      "first_frame": [
+        "462",
+        0
+      ],
+      "last_frame": [
+        "463",
+        0
       ]
     },
     "class_type": "MiniMaxH3ImageToVideo",
@@ -2006,7 +2018,7 @@
         "17",
         0
       ],
-      "values.b": 1.4999999999999996
+      "values.b": 2.0
     },
     "class_type": "ComfyMathExpression",
     "_meta": {
@@ -2020,7 +2032,7 @@
         "17",
         1
       ],
-      "values.b": 1.4999999999999996
+      "values.b": 2.0
     },
     "class_type": "ComfyMathExpression",
     "_meta": {
@@ -2103,6 +2115,76 @@
     "class_type": "VHS_VideoCombine",
     "_meta": {
       "title": "VHS_VideoCombine"
+    }
+  },
+  "draft_sched": {
+    "inputs": {
+      "scheduler": "simple",
+      "steps": 8,
+      "denoise": 1,
+      "model": [
+        "478:1",
+        0
+      ]
+    },
+    "class_type": "BasicScheduler",
+    "_meta": {
+      "title": "Draft schedule (8 steps, unshifted model)"
+    }
+  },
+  "draft_split": {
+    "inputs": {
+      "sigmas": [
+        "draft_sched",
+        0
+      ],
+      "step": 4
+    },
+    "class_type": "SplitSigmas",
+    "_meta": {
+      "title": "Draft sigmas (1.0 -> 0.5)"
+    }
+  },
+  "finish_sigmas": {
+    "inputs": {
+      "sigmas": "0.9035, 0.6316, 0.3158, 0.0000"
+    },
+    "class_type": "ManualSigmas",
+    "_meta": {
+      "title": "Finish sigmas (3 steps)"
+    }
+  },
+  "loop_finish_guide": {
+    "inputs": {
+      "frame_idx": 0,
+      "positive": [
+        "521:4210",
+        0
+      ],
+      "latent": [
+        "521:4210",
+        1
+      ],
+      "vae": [
+        "478:3",
+        0
+      ],
+      "audio_vae": [
+        "478:4",
+        0
+      ],
+      "image": [
+        "521:3455",
+        0
+      ],
+      "audio": [
+        "521:3456",
+        0
+      ]
+    },
+    "class_type": "MiniMaxH3AddGuide",
+    "_meta": {
+      "title": "Carried context, at the finished canvas"
     }
   }
 }
