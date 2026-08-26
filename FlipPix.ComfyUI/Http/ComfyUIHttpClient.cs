@@ -368,6 +368,14 @@ public class ComfyUIHttpClient : IDisposable
             // ComfyUI can otherwise silently break a tab. See RtxSuperResolutionCompat.
             workflow = RtxSuperResolutionCompat.Normalize(workflow, m => _logger.LogInfo(m));
 
+            // Workflows exported from a newer ComfyUI can carry model-patch nodes this server doesn't
+            // have (ModelAttentionBackend). They pass their model straight through, so unwire them
+            // rather than blocking the submission on a node there is nothing to install for — this has
+            // to run before the missing-node check, which is what would otherwise reject the graph.
+            var loadedClassTypes = await GetLoadedClassTypesAsync(cancellationToken);
+            if (loadedClassTypes != null)
+                workflow = OptionalModelPatchCompat.Bypass(workflow, loadedClassTypes, m => _logger.LogInfo(m));
+
             // Pre-submit validation (nodes first): catch custom-node types the workflow references
             // but ComfyUI doesn't have loaded, and offer to install them instead of failing with
             // ComfyUI's raw "missing_node_type" dump. Done before the model check because a missing
@@ -1797,6 +1805,32 @@ public class ComfyUIHttpClient : IDisposable
         {
             _logger.LogWarning($"HasNodeClassesAsync: could not read /object_info ({ex.Message})");
             return false;
+        }
+    }
+
+    /// <summary>
+    /// The class types the connected ComfyUI has loaded (the keys of /object_info). Null when
+    /// /object_info can't be read, so callers can leave the graph alone rather than guess.
+    /// </summary>
+    private async Task<HashSet<string>?> GetLoadedClassTypesAsync(CancellationToken cancellationToken)
+    {
+        try
+        {
+            var oiJson = await GetObjectInfoJsonAsync(cancellationToken);
+            if (oiJson == null) return null;
+
+            using var oiDoc = JsonDocument.Parse(oiJson);
+            if (oiDoc.RootElement.ValueKind != JsonValueKind.Object) return null;
+
+            var loaded = new HashSet<string>(StringComparer.Ordinal);
+            foreach (var prop in oiDoc.RootElement.EnumerateObject()) loaded.Add(prop.Name);
+            return loaded;
+        }
+        catch (OperationCanceledException) { throw; }
+        catch (Exception ex)
+        {
+            _logger.LogWarning($"GetLoadedClassTypesAsync failed (skipping node bypass): {ex.Message}");
+            return null;
         }
     }
 
