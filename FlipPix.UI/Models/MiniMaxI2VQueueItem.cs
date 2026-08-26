@@ -47,7 +47,10 @@ namespace FlipPix.UI.Models
         public bool UseSla { get; set; } = true;
         public double SlaSparsity { get; set; } = 0.85;
         public bool UseSparseAttention { get; set; }
-        public bool UseDetailPass { get; set; } = true;
+        /// <summary>The draft → 2× latent upscale → 3-step finish scheme. Serialized under its old name
+        /// so a queue written before the rename still restores with the flag the user set.</summary>
+        [JsonPropertyName("UseDetailPass")]
+        public bool UseLatentUpscale { get; set; } = true;
         public bool UseRtxUpscale { get; set; }
         public bool UseAudioEnhancement { get; set; } = true;
         public bool MaxFidelityReferences { get; set; }
@@ -68,7 +71,7 @@ namespace FlipPix.UI.Models
                     : Path.GetFileNameWithoutExtension(ReferencePaths[0]) +
                       (ReferencePaths.Count > 1 ? $" +{ReferencePaths.Count - 1}" : string.Empty);
                 var passes = PassCount == 1 ? string.Empty : $" · {PassCount} passes";
-                var detail = UseDetailPass ? " · detail" : string.Empty;
+                var detail = UseLatentUpscale ? " · latent ×2" : string.Empty;
                 var rtx = UseRtxUpscale ? " · RTX ×2" : string.Empty;
                 var sla = UseSla ? $" · SLA {SlaSparsity:0.00}" : string.Empty;
                 return $"{refs} → {AspectRatio} · {Megapixels:0.0} MP · {TotalSeconds}s{passes}{detail}{rtx}{sla}";
