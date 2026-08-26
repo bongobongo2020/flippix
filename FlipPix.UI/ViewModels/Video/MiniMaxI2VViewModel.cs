@@ -126,6 +126,14 @@ namespace FlipPix.UI.ViewModels.Video
         private readonly LMStudioService _lmStudioService;
         private CancellationTokenSource? _analyzeCts;
 
+        /// <summary>This tab's own prompt store. Deliberately not the Character tab's: a take here is a
+        /// base pass plus segments written against a numbered picture order, which is not what that
+        /// tab's entries are.</summary>
+        private readonly ScenePromptLibrary _promptLibrary;
+        private readonly SemaphoreSlim _promptLibraryLock = new(1, 1);
+        private List<ScenePrompt>? _savedPrompts;
+        private int _savedPromptCount;
+
         private readonly ObservableCollection<MiniMaxI2VQueueItem> _queue = new();
         private CancellationTokenSource? _queueCts;
         private bool _isProcessingQueue;
@@ -158,6 +166,7 @@ namespace FlipPix.UI.ViewModels.Video
         {
             _lmStudioService = lmStudioService ?? throw new ArgumentNullException(nameof(lmStudioService));
             _fileDialogService = fileDialogService ?? throw new ArgumentNullException(nameof(fileDialogService));
+            _promptLibrary = new ScenePromptLibrary(AddLog, ScenePromptLibrary.FolderFor("minimax-i2v"));
             _overlap = OverlapOptions[1];
 
             _progressTracker = new GenerationProgressTracker(
@@ -189,10 +198,16 @@ namespace FlipPix.UI.ViewModels.Video
             PlayVideoCommand = new RelayCommand(PlayVideo, () => HasResult);
             OpenResultFolderCommand = new RelayCommand(OpenResultFolder, () => HasResult);
             RandomSeedCommand = new RelayCommand(() => Seed = System.Random.Shared.NextInt64(0, int.MaxValue));
+            OpenPromptLibraryCommand = new RelayCommand(async () => await OpenPromptLibraryAsync());
+            SavePromptCommand = new RelayCommand(async () => await SaveCurrentPromptAsync(manual: true),
+                () => !string.IsNullOrWhiteSpace(Prompt));
 
             // Only once every command exists: restoring a queue notifies all of them.
             _queue.CollectionChanged += (_, _) => UpdateQueueStatus();
             LoadQueueFromFile();
+
+            // Reads the index off the UI thread; the button caption picks up the count when it lands.
+            _ = PrimePromptLibraryAsync();
 
             AddLog("MiniMax I2V initialized");
         }
@@ -209,6 +224,8 @@ namespace FlipPix.UI.ViewModels.Video
         public RelayCommand PlayVideoCommand { get; }
         public RelayCommand OpenResultFolderCommand { get; }
         public RelayCommand RandomSeedCommand { get; }
+        public RelayCommand OpenPromptLibraryCommand { get; }
+        public RelayCommand SavePromptCommand { get; }
         public RelayCommand<MiniMaxI2VQueueItem> RemoveQueueItemCommand { get; }
         public RelayCommand ClearQueueCommand { get; }
         public RelayCommand StartQueueCommand { get; }
@@ -734,6 +751,10 @@ namespace FlipPix.UI.ViewModels.Video
 
                 ApplyAnalyzedPrompt(CleanLLMOutput(result));
                 await RepairMissingSegmentsAsync(model, systemPrompt, pictures, draft, token);
+
+                // Filed as soon as it exists, not only when it renders: a prompt worth keeping is often
+                // one the user reads, edits and never queues.
+                await SaveCurrentPromptAsync(manual: false);
             }
             catch (OperationCanceledException) { }
             catch (Exception ex)
@@ -1287,6 +1308,12 @@ namespace FlipPix.UI.ViewModels.Video
                         item.ItemStatus = QueueItemStatus.Completed;
                         item.CompletedAt = DateTime.Now;
                         AddLog($"Completed: {item.DisplayText}");
+
+                        // From the item, not the form: the tab may already be showing the next take. This
+                        // is also the point at which the queue file drops the item, so without it a prompt
+                        // that rendered would be the one prompt the app forgets.
+                        await SavePromptAsync(item.Prompt, item.ContinuationPrompts, item.ContinuationSeconds,
+                            item.ReferencePaths, item.LengthSeconds, item.AspectRatio, manual: false);
                     }
                     catch (OperationCanceledException)
                     {
@@ -1349,6 +1376,229 @@ namespace FlipPix.UI.ViewModels.Video
                 OnCanExecuteChanged();
             }
         }
+
+        #region Prompt library
+
+        /// <summary>
+        /// How many takes are saved. Drives the button caption, so the library advertises itself without
+        /// needing a panel of its own.
+        /// </summary>
+        public int SavedPromptCount
+        {
+            get => _savedPromptCount;
+            private set
+            {
+                if (_savedPromptCount == value) return;
+                _savedPromptCount = value;
+                OnPropertyChanged();
+                OnPropertyChanged(nameof(PromptLibraryLabel));
+            }
+        }
+
+        public string PromptLibraryLabel =>
+            SavedPromptCount > 0 ? $"📚 Prompt Library ({SavedPromptCount})" : "📚 Prompt Library";
+
+        /// <summary>Reads the index in the background so the button can show a count from the first paint.</summary>
+        private async Task PrimePromptLibraryAsync()
+        {
+            try
+            {
+                await EnsurePromptsLoadedAsync();
+            }
+            catch (Exception ex)
+            {
+                AddLog($"Prompt library unavailable: {ex.Message}");
+            }
+        }
+
+        private async Task EnsurePromptsLoadedAsync()
+        {
+            if (_savedPrompts != null) return;
+            await _promptLibraryLock.WaitAsync();
+            try
+            {
+                if (_savedPrompts != null) return;
+                _savedPrompts = await _promptLibrary.LoadAsync();
+                SavedPromptCount = _savedPrompts.Count;
+            }
+            finally
+            {
+                _promptLibraryLock.Release();
+            }
+        }
+
+        /// <summary>
+        /// Files whatever is in the boxes right now. Called automatically after every Analyze, and by the
+        /// Save button — which is the only caller that reports back when nothing was new.
+        /// </summary>
+        private Task SaveCurrentPromptAsync(bool manual) =>
+            SavePromptAsync(Prompt,
+                Continuations.Select(c => c.Prompt).ToList(),
+                Continuations.Select(c => c.Seconds).ToList(),
+                FilledReferences.Select(r => r.Path).ToList(),
+                LengthSeconds, ResolvedAspectRatio, manual);
+
+        /// <summary>
+        /// Files one take. The queue calls this with the finished item's own snapshot rather than the live
+        /// form, because by the time a job completes the boxes may already hold the next take.
+        ///
+        /// <para>The base pass and the continuations are stored apart, so recalling the entry puts each
+        /// segment back in the box it came out of instead of leaving the user to split a wall of text.</para>
+        /// </summary>
+        private async Task SavePromptAsync(
+            string prompt, IReadOnlyList<string> continuationPrompts, IReadOnlyList<int> continuationSeconds,
+            IReadOnlyList<string> referencePaths, int lengthSeconds, string aspectRatio, bool manual)
+        {
+            var body = (prompt ?? string.Empty).Trim();
+            if (body.Length == 0)
+            {
+                if (manual) AddLog("Nothing to save — segment 1 is empty.");
+                return;
+            }
+
+            // Trailing empties are half-filled form state, not part of the take. A blank in the middle is
+            // kept: dropping it would silently renumber the segments after it.
+            var segments = continuationPrompts.Select(p => (p ?? string.Empty).Trim()).ToList();
+            var seconds = continuationSeconds.ToList();
+            while (segments.Count > 0 && segments[^1].Length == 0)
+            {
+                segments.RemoveAt(segments.Count - 1);
+                if (seconds.Count > segments.Count) seconds.RemoveAt(seconds.Count - 1);
+            }
+
+            var held = false;
+            try
+            {
+                await EnsurePromptsLoadedAsync();
+                await _promptLibraryLock.WaitAsync();
+                held = true;
+
+                var saved = _savedPrompts!;
+                var pictures = referencePaths.Where(p => !string.IsNullOrEmpty(p)).ToList();
+                var primary = pictures.FirstOrDefault(File.Exists) ?? string.Empty;
+
+                var draft = new ScenePrompt
+                {
+                    Name = ScenePromptLibrary.SuggestName(primary, body, saved),
+                    Prompt = body,
+                    ContinuationPrompts = segments,
+                    ContinuationSeconds = seconds,
+                    ReferenceImagePaths = pictures,
+                    // The thumbnail is rendered from this one; the rest are recorded for the recall log.
+                    SceneImagePath = primary,
+                    AspectRatio = aspectRatio,
+                    LengthSeconds = lengthSeconds,
+                };
+
+                // Thumbnail encoding runs inside AddOrRefresh — keep the whole thing off the UI thread.
+                var (entry, isNew) = await Task.Run(() => _promptLibrary.AddOrRefresh(saved, draft));
+                await _promptLibrary.SaveAsync(saved);
+                SavedPromptCount = saved.Count;
+
+                AddLog(isNew
+                    ? $"Saved to the prompt library as \"{entry.Name}\" ({SavedPromptCount} takes)."
+                    : $"Already in the prompt library as \"{entry.Name}\" — timestamp refreshed.");
+            }
+            catch (Exception ex)
+            {
+                // Never let a library problem fail the Analyze or Generate that triggered it.
+                AddLog($"Could not save to the prompt library: {ex.Message}");
+            }
+            finally
+            {
+                if (held) _promptLibraryLock.Release();
+            }
+        }
+
+        /// <summary>
+        /// Opens the picker and, on a pick, puts the take back in the boxes: segment 1, one continuation
+        /// per saved segment, and the length and aspect it was written for.
+        ///
+        /// <para>The reference pictures are deliberately <b>not</b> restored — reusing a prompt against new
+        /// pictures is the point of the library. But the prompt names its pictures by number, so recalling
+        /// a three-picture take onto one loaded slot leaves it referring to a &lt;Picture 3&gt; that is not
+        /// there; the log says so rather than letting it fail at render time.</para>
+        /// </summary>
+        private async Task OpenPromptLibraryAsync()
+        {
+            try
+            {
+                await EnsurePromptsLoadedAsync();
+
+                var window = new ScenePromptLibraryWindow(_promptLibrary, _savedPrompts!, new ScenePromptLibraryChrome
+                {
+                    WindowTitle = "Prompt Library — MiniMax I2V",
+                    Heading = "Saved takes",
+                    Subtitle = "Every prompt this tab analyzes or renders is saved here. Pick one to put it "
+                             + "back in the boxes — segment 1 and one continuation per saved segment, at the "
+                             + "length and aspect it was written for.",
+                    PromptNote = "Saved as separate segments; the headers above are only how the preview "
+                               + "shows them. The reference pictures are not restored — load your own, and "
+                               + "keep the <Picture N> order the prompt expects.",
+                    EmptyText = "No saved takes yet.\nAnalyze or render a prompt and it lands here.",
+                    NoMatchText = "No take matches that search.",
+                    UseButtonText = "✓ Use This Take",
+                    LibraryNoun = "prompt library",
+                    AccentColorKey = "AccentAmberColor",
+                });
+
+                window.Owner = Application.Current?.Windows
+                    .OfType<System.Windows.Window>()
+                    .FirstOrDefault(w => w.IsActive);
+                // CenterOwner with no owner lands the window in the top-left corner.
+                if (window.Owner == null)
+                    window.WindowStartupLocation = System.Windows.WindowStartupLocation.CenterScreen;
+
+                var picked = window.ShowDialog() == true ? window.SelectedScene : null;
+                SavedPromptCount = _savedPrompts!.Count;
+                if (picked == null) return;
+
+                Prompt = picked.Prompt;
+                RestoreContinuations(picked.ContinuationPrompts, picked.ContinuationSeconds);
+
+                if (picked.LengthSeconds > 0) LengthSeconds = (int)Math.Round(picked.LengthSeconds);
+                if (!string.IsNullOrEmpty(picked.AspectRatio) && AspectRatioOptions.Contains(picked.AspectRatio))
+                    SelectedAspectRatio = picked.AspectRatio;
+
+                var passes = picked.ContinuationPrompts.Count + 1;
+                AddLog($"Loaded \"{picked.Name}\" from the prompt library "
+                     + $"({passes} pass{(passes == 1 ? string.Empty : "es")}, {LengthSeconds}s base, {ResolvedAspectRatio}).");
+
+                var wanted = picked.ReferenceImagePaths.Count;
+                var loaded = FilledReferences.Count;
+                if (wanted > 0 && wanted != loaded)
+                    AddLog($"NOTE: this prompt was written against {wanted} picture(s) and {loaded} are loaded — "
+                         + "check that the <Picture N> references still match what is in the slots.");
+            }
+            catch (Exception ex)
+            {
+                AddLog($"Prompt library failed to open: {ex.Message}");
+                MessageBox.Show($"Could not open the prompt library:\n{ex.Message}",
+                    "Prompt Library", MessageBoxButton.OK, MessageBoxImage.Error);
+            }
+        }
+
+        /// <summary>Rebuilds the continuation slots to match a recalled take, dropping any beyond the three
+        /// the graph's indexed switches can address.</summary>
+        private void RestoreContinuations(IReadOnlyList<string> prompts, IReadOnlyList<int> seconds)
+        {
+            while (Continuations.Count > 0) RemoveContinuation(Continuations[^1]);
+
+            var count = Math.Min(prompts.Count, MaxContinuations);
+            for (var i = 0; i < count; i++)
+            {
+                AddContinuation();
+                var segment = Continuations[^1];
+                segment.Prompt = prompts[i];
+                if (i < seconds.Count && seconds[i] > 0) segment.Seconds = seconds[i];
+            }
+
+            if (prompts.Count > count)
+                AddLog($"WARNING: the saved take has {prompts.Count} continuations and this tab holds "
+                     + $"{MaxContinuations} — the last {prompts.Count - count} were dropped.");
+        }
+
+        #endregion
 
         private void SaveQueueToFile()
         {
@@ -1961,6 +2211,7 @@ namespace FlipPix.UI.ViewModels.Video
             StartQueueCommand.NotifyCanExecuteChanged();
             StopQueueCommand.NotifyCanExecuteChanged();
             ReprocessAllFailedCommand.NotifyCanExecuteChanged();
+            SavePromptCommand.NotifyCanExecuteChanged();
         }
     }
 

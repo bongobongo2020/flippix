@@ -93,6 +93,15 @@
                          AcceptsReturn="True" TextWrapping="Wrap"
                          VerticalContentAlignment="Top"
                          FontFamily="monospace" FontSize="12"/>
+
+                <TextBlock x:Name="PromptNote" Classes="meta" Margin="0,6,0,0"
+                           TextWrapping="Wrap" TextTrimming="None" FontStyle="Italic"/>
+
+                <TextBlock x:Name="PromptNote" Classes="meta" Margin="0,6,0,0"
+                           TextWrapping="Wrap" TextTrimming="None" FontStyle="Italic"/>
+
+                <TextBlock x:Name="PromptNote" Classes="meta" Margin="0,6,0,0"
+                           TextWrapping="Wrap" TextTrimming="None" FontStyle="Italic"/>
             </StackPanel>
         </Grid>
     </DockPanel>

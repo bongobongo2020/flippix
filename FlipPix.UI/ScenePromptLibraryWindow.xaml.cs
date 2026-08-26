@@ -7,6 +7,7 @@ using System.Runtime.CompilerServices;
 using System.Threading.Tasks;
 using System.Windows;
 using System.Windows.Controls;
+using System.Windows.Media;
 using System.Windows.Media.Imaging;
 using FlipPix.UI.Models;
 using FlipPix.UI.Services;
@@ -18,9 +19,43 @@ using MessageBoxResult = System.Windows.MessageBoxResult;
 namespace FlipPix.UI
 {
     /// <summary>
-    /// Picker over the MiniMax Character tab's saved scene prompts: search, preview, rename, delete, and
-    /// hand one back to the tab. <c>DialogResult == true</c> means <see cref="SelectedScene"/> should be
-    /// loaded into the prompt box.
+    /// The wording and accent one tab wants on the shared library picker. Every value defaults to the
+    /// Character tab's, because that is the tab this window was built for; another tab passes its own so
+    /// the window does not describe a feature that tab does not have (the Character tab's reference-line
+    /// rewriting, in particular, would be a lie on the I2V tab).
+    /// </summary>
+    public sealed class ScenePromptLibraryChrome
+    {
+        public string WindowTitle { get; init; } = "Scene Library";
+        public string Heading { get; init; } = "Saved scenes";
+
+        public string Subtitle { get; init; } =
+            "Every prompt this tab analyzes is saved here. Pick one to drop it into the H3 prompt box — "
+            + "the reference line is rewritten for whichever character images are loaded.";
+
+        public string PromptNote { get; init; } =
+            "Stored without its reference line — that line is written fresh from the character images "
+            + "loaded in the tab.";
+
+        public string EmptyText { get; init; } =
+            "No saved scenes yet.\nAnalyze a scene image and it lands here.";
+
+        public string NoMatchText { get; init; } = "No scene matches that search.";
+        public string UseButtonText { get; init; } = "✓ Use This Scene";
+
+        /// <summary>Confirmation copy: "Delete \"name\" from the {LibraryNoun}?"</summary>
+        public string LibraryNoun { get; init; } = "scene library";
+
+        /// <summary>Key of a <see cref="System.Windows.Media.Color"/> in the app resources — the owning tab's accent. Null
+        /// leaves the window on the Character violet its XAML declares.</summary>
+        public string? AccentColorKey { get; init; }
+    }
+
+    /// <summary>
+    /// Picker over one tab's saved prompt library: search, preview, rename, delete, and hand one back to
+    /// the tab. <c>DialogResult == true</c> means <see cref="SelectedScene"/> should be loaded into the
+    /// prompt box. Which library it shows is decided entirely by the <see cref="ScenePromptLibrary"/>
+    /// instance the caller passes; <see cref="ScenePromptLibraryChrome"/> supplies the wording.
     ///
     /// <para>The window owns the persisted copy while it is open — renames and deletes are written straight
     /// through, so closing with Close (rather than Use) still keeps them.</para>
@@ -29,20 +64,63 @@ namespace FlipPix.UI
     {
         private readonly ScenePromptLibrary _library;
         private readonly List<ScenePrompt> _entries;
+        private readonly ScenePromptLibraryChrome _chrome;
         private readonly ObservableCollection<Row> _rows = new();
 
         /// <summary>The scene the user chose, set only when the dialog returns true.</summary>
         public ScenePrompt? SelectedScene { get; private set; }
 
-        public ScenePromptLibraryWindow(ScenePromptLibrary library, List<ScenePrompt> entries)
+        public ScenePromptLibraryWindow(
+            ScenePromptLibrary library, List<ScenePrompt> entries, ScenePromptLibraryChrome? chrome = null)
         {
             InitializeComponent();
             _library = library;
             _entries = entries;
+            _chrome = chrome ?? new ScenePromptLibraryChrome();
+
+            ApplyChrome();
 
             ScenesList.ItemsSource = _rows;
             Rebuild(string.Empty);
             _ = LoadThumbnailsAsync();
+        }
+
+        /// <summary>Retitles the window for whichever tab opened it, and repaints its accent.</summary>
+        private void ApplyChrome()
+        {
+            Title = _chrome.WindowTitle;
+            HeadingText.Text = _chrome.Heading;
+            SubtitleText.Text = _chrome.Subtitle;
+            PromptNote.Text = _chrome.PromptNote;
+            UseButton.Content = _chrome.UseButtonText;
+
+            // AccentButtonStyle reads TabAccentBrush dynamically, so replacing the window-level entry the
+            // XAML declares is enough - no style needs to know a second tab exists.
+            if (_chrome.AccentColorKey != null &&
+                System.Windows.Application.Current?.TryFindResource(_chrome.AccentColorKey)
+                    is System.Windows.Media.Color accent)
+            {
+                Resources["TabAccentBrush"] = new SolidColorBrush(accent);
+            }
+        }
+
+        /// <summary>
+        /// What the preview pane shows: the whole take, not just its opening. An entry with continuations
+        /// is several prompts, and a pane showing only the base pass would make two takes that share an
+        /// opening look identical.
+        /// </summary>
+        private static string ComposePreview(ScenePrompt entry)
+        {
+            if (entry.ContinuationPrompts.Count == 0) return entry.Prompt;
+
+            var text = new System.Text.StringBuilder();
+            text.Append("=== SEGMENT 1 ===\n").Append(entry.Prompt);
+            for (var i = 0; i < entry.ContinuationPrompts.Count; i++)
+            {
+                text.Append("\n\n=== SEGMENT ").Append(i + 2).Append(" ===\n")
+                    .Append(entry.ContinuationPrompts[i]);
+            }
+            return text.ToString();
         }
 
         /// <summary>Refills the list from <see cref="_entries"/>, keeping only rows matching the filter.</summary>
@@ -57,16 +135,15 @@ namespace FlipPix.UI
                 var needle = filter.Trim();
                 source = source.Where(e =>
                     e.Name.Contains(needle, StringComparison.OrdinalIgnoreCase) ||
-                    e.Prompt.Contains(needle, StringComparison.OrdinalIgnoreCase));
+                    e.Prompt.Contains(needle, StringComparison.OrdinalIgnoreCase) ||
+                    e.ContinuationPrompts.Any(p => p.Contains(needle, StringComparison.OrdinalIgnoreCase)));
             }
 
             foreach (var entry in source)
                 _rows.Add(new Row(entry, _library.ResolveThumbnail(entry) != null));
 
             EmptyText.Visibility = _rows.Count == 0 ? Visibility.Visible : Visibility.Collapsed;
-            EmptyText.Text = _entries.Count == 0
-                ? "No saved scenes yet.\nAnalyze a scene image and it lands here."
-                : "No scene matches that search.";
+            EmptyText.Text = _entries.Count == 0 ? _chrome.EmptyText : _chrome.NoMatchText;
 
             if (previous != null)
                 ScenesList.SelectedItem = _rows.FirstOrDefault(r => ReferenceEquals(r.Entry, previous));
@@ -97,7 +174,7 @@ namespace FlipPix.UI
             var row = ScenesList.SelectedItem as Row;
 
             NameBox.Text = row?.Entry.Name ?? string.Empty;
-            PromptBox.Text = row?.Entry.Prompt ?? string.Empty;
+            PromptBox.Text = row == null ? string.Empty : ComposePreview(row.Entry);
 
             NameBox.IsEnabled = row != null;
             PromptBox.IsEnabled = row != null;
@@ -131,7 +208,7 @@ namespace FlipPix.UI
             if (ScenesList.SelectedItem is not Row row) return;
 
             var confirm = MessageBox.Show(
-                $"Delete \"{row.Entry.Name}\" from the scene library?\n\nThis cannot be undone.",
+                $"Delete \"{row.Entry.Name}\" from the {_chrome.LibraryNoun}?\n\nThis cannot be undone.",
                 "Delete Scene", MessageBoxButton.YesNo, MessageBoxImage.Question);
             if (confirm != MessageBoxResult.Yes) return;
 
@@ -186,6 +263,8 @@ namespace FlipPix.UI
                 get
                 {
                     var parts = new List<string> { Entry.LastUsed.ToString("d MMM yyyy") };
+                    if (Entry.ContinuationPrompts.Count > 0)
+                        parts.Add($"{Entry.ContinuationPrompts.Count + 1} passes");
                     if (Entry.Shots > 0) parts.Add($"{Entry.Shots} shots");
                     if (Entry.LengthSeconds > 0) parts.Add($"{Entry.LengthSeconds:0.#}s");
                     if (!string.IsNullOrEmpty(Entry.AspectRatio)) parts.Add(Entry.AspectRatio);

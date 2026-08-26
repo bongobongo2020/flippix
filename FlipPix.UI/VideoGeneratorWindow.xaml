@@ -894,6 +894,28 @@
                                                          Height="190" VerticalScrollBarVisibility="Auto"
                                                          BorderBrush="{StaticResource BorderBrush}" Background="{StaticResource SurfaceAltBrush}"
                                                          FontSize="11" Padding="8"/>
+
+                                                <!-- Prompt library: analyzed and rendered takes are filed
+                                                     automatically; this row is how they come back out. -->
+                                                <Grid Margin="0,8,0,0">
+                                                    <Grid.ColumnDefinitions>
+                                                        <ColumnDefinition Width="*"/>
+                                                        <ColumnDefinition Width="Auto"/>
+                                                    </Grid.ColumnDefinitions>
+                                                    <Button Grid.Column="0"
+                                                            Content="{Binding PromptLibraryLabel}"
+                                                            Command="{Binding OpenPromptLibraryCommand}"
+                                                            Height="28" Padding="10,0" FontSize="11" Margin="0,0,6,0"
+                                                            Background="{StaticResource SurfaceAltBrush}" Foreground="{DynamicResource TabAccentBrush}"
+                                                            BorderBrush="{StaticResource BorderBrush}" BorderThickness="1"
+                                                            ToolTip="Browse the takes this tab has saved and put one back in the boxes — segment 1 and its continuations, at the length and aspect it was written for. The reference pictures are not restored."/>
+                                                    <Button Grid.Column="1" Content="💾 Save"
+                                                            Command="{Binding SavePromptCommand}"
+                                                            Height="28" Width="76" FontSize="11"
+                                                            Background="{StaticResource SurfaceAltBrush}" Foreground="{StaticResource TextSecondaryBrush}"
+                                                            BorderBrush="{StaticResource BorderBrush}" BorderThickness="1"
+                                                            ToolTip="File the current segments in the prompt library. Analyzed and rendered takes are saved automatically — this is for hand-edited ones."/>
+                                                </Grid>
                                                 <Grid Margin="0,8,0,0">
                                                     <Grid.ColumnDefinitions>
                                                         <ColumnDefinition Width="Auto"/>
