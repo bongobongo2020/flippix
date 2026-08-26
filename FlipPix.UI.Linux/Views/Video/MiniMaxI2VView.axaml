@@ -226,7 +226,7 @@
                                       SelectedValueBinding="{Binding Value}"
                                       SelectedValue="{Binding Megapixels}"
                                       Height="30" FontSize="11" Margin="0,0,0,10"
-                                      ToolTip.Tip="The sampled canvas. With the detail pass on, the finished frames are 1.5× this again."/>
+                                      ToolTip.Tip="The size of the finished frames. With the latent upscale on, the draft is sampled at a quarter of this and doubled, so only the last three steps ever run at the full size."/>
 
                             <TextBlock Text="Seed (-1 = random)" FontSize="10" Foreground="{StaticResource TextSecondaryBrush}" Margin="0,0,0,4"/>
                             <Grid>
@@ -266,9 +266,9 @@
                             <CheckBox Content="Sol-Attn (legacy sparse attention)" IsChecked="{Binding UseSparseAttention}"
                                       FontSize="11" Margin="0,0,0,7"
                                       ToolTip.Tip="H3 denoises every frame of the clip in one pass, so attention cost grows with the square of frames × canvas area — a 10s clip costs far more than twice a 5s one. Sol-Attn replaces the dense attention with a sparse approximation over the video tokens.&#x0a;&#x0a;It engages only between 20% and 90% of the steps, and only once a pass exceeds 4096 tokens — the opening steps set the layout and the closing ones set the fine detail, and neither is worth approximating. Long or large clips are where it pays; short ones may not trip the threshold at all.&#x0a;&#x0a;It is an approximation, so turn it off if you are chasing the last of the detail."/>
-                            <CheckBox Content="Detail pass (1.5× latent upscale)" IsChecked="{Binding UseDetailPass}"
+                            <CheckBox Content="Latent upscale (draft → 2× finish)" IsChecked="{Binding UseLatentUpscale}"
                                       FontSize="11" Margin="0,0,0,7"
-                                      ToolTip.Tip="After the 8-step sampling, the latent is upscaled 1.5× by the Minimax H3 3D upscaler and re-sampled for 4 more steps at 0.4 denoise. It is where most of the texture comes from, and it costs roughly half the base pass again."/>
+                                      ToolTip.Tip="Renders each pass in three moves instead of one: four sampler steps at half the width and half the height to settle the composition, a 2× pass through the MiniMax H3 3D latent upscaler, then three fixed-sigma steps at the finished size to put the detail on.&#x0a;&#x0a;Only those last three steps ever see the full canvas, which is why this is both quicker and sharper than denoising the whole clip over eight steps. Turned off, the pass falls back to exactly that — one 8-step sampling at the full size, no upscaler involved."/>
                             <CheckBox Content="Audio enhancement" IsChecked="{Binding UseAudioEnhancement}"
                                       FontSize="11" Margin="0,0,0,7"
                                       ToolTip.Tip="Runs the decoded soundtrack through the DSRE enhancer — harmonics, stereo width, noise reduction. With continuations it runs once on the joined audio, never per segment."/>
@@ -284,7 +284,7 @@
                                        Foreground="{DynamicResource TabAccentBrush}"/>
                             <TextBlock Text="{Binding MemoryWarning}" Margin="0,4,0,0"
                                        FontSize="10" FontFamily="Consolas" TextWrapping="Wrap"
-                                       ToolTip.Tip="Rough peak tensor size for a single pass: canvas area x frames, and x2.25 again when the detail pass is on because its 1.5x is linear. Continuations run one after another, so the peak is the largest single pass, not the total.&#x0a;&#x0a;Measured on this 24 GB card: 0.40 Gpx completed, 0.57 Gpx ran out of memory. Length is usually the lever - H3 denoises every frame of the clip jointly, so 15s costs about 1.5x what 10s does at the same canvas." Classes.t0="{Binding IsMemoryRisky}" Classes.t1="{Binding IsMemoryOverLimit}">
+                                       ToolTip.Tip="Rough peak tensor size for a single pass: finished canvas area x frames. The finish sampler sets it - the draft runs at a quarter of the area and is never the peak. Continuations run one after another, so the peak is the largest single pass, not the total.&#x0a;&#x0a;Measured on this 24 GB card: 0.40 Gpx completed, 0.57 Gpx ran out of memory. Length is usually the lever - H3 denoises every frame of the clip jointly, so 15s costs about 1.5x what 10s does at the same canvas." Classes.t0="{Binding IsMemoryRisky}" Classes.t1="{Binding IsMemoryOverLimit}">
                                 <TextBlock.Styles>
                                     <Style Selector="TextBlock">
                                         <Setter Property="Foreground" Value="{StaticResource TextMutedBrush}"/>
