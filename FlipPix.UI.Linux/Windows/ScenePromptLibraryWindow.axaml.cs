@@ -14,9 +14,37 @@ using FlipPix.UI.Linux.Services;
 namespace FlipPix.UI.Linux.Windows;
 
 /// <summary>
-/// Picker over the MiniMax Character tab's saved scene prompts: search, preview, rename, delete,
-/// and hand one back to the tab. The Avalonia counterpart of the WPF ScenePromptLibraryWindow;
-/// instead of WPF's DialogResult it closes with the chosen <see cref="ScenePrompt"/>, or null.
+/// The wording one tab wants on the shared library picker. Every value defaults to the Character
+/// tab's, because that is the tab this window was built for; another tab passes its own so the
+/// window does not describe a feature that tab does not have (the Character tab's reference-line
+/// rewriting, in particular, would be a lie on the I2V tab).
+/// </summary>
+public sealed class ScenePromptLibraryChrome
+{
+    public string WindowTitle { get; init; } = "Scene Library";
+    public string SearchWatermark { get; init; } = "Search saved scenes by name or prompt text";
+
+    public string PromptNote { get; init; } =
+        "Stored without its reference line — that line is written fresh from the character images "
+        + "loaded in the tab.";
+
+    public string EmptyText { get; init; } =
+        "No saved scenes yet.\nAnalyze a scene image and it lands here.";
+
+    public string NoMatchText { get; init; } = "No scene matches that search.";
+    public string UseButtonText { get; init; } = "Use Scene";
+
+    /// <summary>Confirmation copy: "Delete \"name\" from the {LibraryNoun}?"</summary>
+    public string LibraryNoun { get; init; } = "scene library";
+    public string DeleteDialogTitle { get; init; } = "Delete Scene";
+}
+
+/// <summary>
+/// Picker over one tab's saved prompt library: search, preview, rename, delete, and hand one back
+/// to the tab. The Avalonia counterpart of the WPF ScenePromptLibraryWindow; instead of WPF's
+/// DialogResult it closes with the chosen <see cref="ScenePrompt"/>, or null. Which library it
+/// shows is decided by the <see cref="ScenePromptLibrary"/> the caller passes;
+/// <see cref="ScenePromptLibraryChrome"/> supplies the wording.
 ///
 /// <para>The window owns the persisted copy while it is open — renames and deletes are written
 /// straight through, so closing with Close (rather than Use) still keeps them.</para>
@@ -25,6 +53,7 @@ public partial class ScenePromptLibraryWindow : Window
 {
     private readonly ScenePromptLibrary _library = null!;
     private readonly List<ScenePrompt> _entries = new();
+    private readonly ScenePromptLibraryChrome _chrome = new();
     private readonly ObservableCollection<Row> _rows = new();
 
     /// <summary>Parameterless constructor for the XAML runtime loader; not used at runtime.</summary>
@@ -34,14 +63,40 @@ public partial class ScenePromptLibraryWindow : Window
         ScenesList.ItemsSource = _rows;
     }
 
-    public ScenePromptLibraryWindow(ScenePromptLibrary library, List<ScenePrompt> entries)
+    public ScenePromptLibraryWindow(
+        ScenePromptLibrary library, List<ScenePrompt> entries, ScenePromptLibraryChrome? chrome = null)
     {
         InitializeComponent();
         _library = library;
         _entries = entries;
+        _chrome = chrome ?? new ScenePromptLibraryChrome();
+
+        Title = _chrome.WindowTitle;
+        SearchBox.Watermark = _chrome.SearchWatermark;
+        PromptNote.Text = _chrome.PromptNote;
+        UseButton.Content = _chrome.UseButtonText;
 
         ScenesList.ItemsSource = _rows;
         Rebuild(string.Empty);
+    }
+
+    /// <summary>
+    /// What the preview pane shows: the whole take, not just its opening. An entry with
+    /// continuations is several prompts, and a pane showing only the base pass would make two takes
+    /// that share an opening look identical.
+    /// </summary>
+    private static string ComposePreview(ScenePrompt entry)
+    {
+        if (entry.ContinuationPrompts.Count == 0) return entry.Prompt;
+
+        var text = new System.Text.StringBuilder();
+        text.Append("=== SEGMENT 1 ===\n").Append(entry.Prompt);
+        for (var i = 0; i < entry.ContinuationPrompts.Count; i++)
+        {
+            text.Append("\n\n=== SEGMENT ").Append(i + 2).Append(" ===\n")
+                .Append(entry.ContinuationPrompts[i]);
+        }
+        return text.ToString();
     }
 
     // No hand-written InitializeComponent here: Avalonia's name generator emits one that
@@ -60,16 +115,15 @@ public partial class ScenePromptLibraryWindow : Window
             var needle = filter.Trim();
             source = source.Where(e =>
                 e.Name.Contains(needle, StringComparison.OrdinalIgnoreCase) ||
-                e.Prompt.Contains(needle, StringComparison.OrdinalIgnoreCase));
+                e.Prompt.Contains(needle, StringComparison.OrdinalIgnoreCase) ||
+                e.ContinuationPrompts.Any(p => p.Contains(needle, StringComparison.OrdinalIgnoreCase)));
         }
 
         foreach (var entry in source)
             _rows.Add(new Row(entry, _library?.ResolveThumbnail(entry) != null));
 
         EmptyText.IsVisible = _rows.Count == 0;
-        EmptyText.Text = _entries.Count == 0
-            ? "No saved scenes yet.\nAnalyze a scene image and it lands here."
-            : "No scene matches that search.";
+        EmptyText.Text = _entries.Count == 0 ? _chrome.EmptyText : _chrome.NoMatchText;
 
         if (previous != null)
             ScenesList.SelectedItem = _rows.FirstOrDefault(r => ReferenceEquals(r.Entry, previous));
@@ -100,7 +154,7 @@ public partial class ScenePromptLibraryWindow : Window
         var row = ScenesList.SelectedItem as Row;
 
         NameBox.Text = row?.Entry.Name ?? string.Empty;
-        PromptBox.Text = row?.Entry.Prompt ?? string.Empty;
+        PromptBox.Text = row == null ? string.Empty : ComposePreview(row.Entry);
 
         NameBox.IsEnabled = row != null;
         PromptBox.IsEnabled = row != null;
@@ -134,8 +188,8 @@ public partial class ScenePromptLibraryWindow : Window
         if (ScenesList.SelectedItem is not Row row) return;
 
         var confirm = await Task.Run(() => System.Windows.MessageBox.Show(
-            $"Delete \"{row.Entry.Name}\" from the scene library?\n\nThis cannot be undone.",
-            "Delete Scene",
+            $"Delete \"{row.Entry.Name}\" from the {_chrome.LibraryNoun}?\n\nThis cannot be undone.",
+            _chrome.DeleteDialogTitle,
             System.Windows.MessageBoxButton.YesNo,
             System.Windows.MessageBoxImage.Question));
         if (confirm != System.Windows.MessageBoxResult.Yes) return;
@@ -185,6 +239,8 @@ public partial class ScenePromptLibraryWindow : Window
             get
             {
                 var parts = new List<string> { Entry.LastUsed.ToString("d MMM yyyy") };
+                if (Entry.ContinuationPrompts.Count > 0)
+                    parts.Add($"{Entry.ContinuationPrompts.Count + 1} passes");
                 if (Entry.Shots > 0) parts.Add($"{Entry.Shots} shots");
                 if (Entry.LengthSeconds > 0) parts.Add($"{Entry.LengthSeconds:0.#}s");
                 if (!string.IsNullOrEmpty(Entry.AspectRatio)) parts.Add(Entry.AspectRatio);

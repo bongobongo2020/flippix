@@ -30,8 +30,8 @@ namespace FlipPix.UI.Models
         /// afterwards does not re-target jobs already waiting.</summary>
         public VideoUpscaleEngine UpscaleEngine { get; set; } = VideoUpscaleEngine.Rtx;
 
-        /// <summary>SeedVR2 only — the pre-resize multiplier fed to the graph. 0 in items persisted before
-        /// this existed; callers fall back to the workflow's own default.</summary>
+        /// <summary>The multiplier fed to the graph — SeedVR2's pre-resize, or the RTX node's scale factor.
+        /// 0 in items persisted before this existed; callers fall back to the workflow's own default.</summary>
         public double UpscaleScale { get; set; }
 
         public string DisplayText =>
@@ -44,6 +44,6 @@ namespace FlipPix.UI.Models
             ? string.Empty
             : UpscaleEngine == VideoUpscaleEngine.SeedVr2
                 ? $"SeedVR2 · {(UpscaleScale > 0 ? UpscaleScale : 1.5):0.##}×"
-                : "RTX VSR";
+                : $"RTX VSR · {(UpscaleScale > 0 ? UpscaleScale : 2.0):0.##}×";
     }
 }

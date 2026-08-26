@@ -11,9 +11,13 @@ using FlipPix.UI.Models;
 namespace FlipPix.UI.Services
 {
     /// <summary>
-    /// Persistent store for the MiniMax Character tab's analyzed scene prompts.
+    /// Persistent store for a tab's analyzed prompts. One instance is one library: the Character tab keeps
+    /// its scenes, the I2V tab keeps its takes, and they do not mix — a Character scene has had its
+    /// reference line stripped for rewriting, while an I2V take carries a segment list and a picture
+    /// order, so an entry from one tab would be wrong in the other's boxes. The separation is just the
+    /// root folder (see <see cref="FolderFor"/>).
     ///
-    /// <para>Everything lives under <c>%APPDATA%\FlipPix\prompts\scenes\</c>: a single
+    /// <para>Everything lives under <c>%APPDATA%\FlipPix\prompts\&lt;library&gt;\</c>: a single
     /// <c>index.json</c> plus one small JPEG per entry in <c>thumbs\</c>. Thumbnails are deliberately
     /// <b>not</b> inlined into the index — a few hundred base64 images would make the index expensive to
     /// read, and this tab is on the Video Generator's startup path.</para>
@@ -34,14 +38,19 @@ namespace FlipPix.UI.Services
         private readonly object _fileLock = new();
         private readonly Action<string>? _log;
 
+        /// <summary>Where a named library lives. Pass the result as the constructor's
+        /// <c>rootFolder</c> to give a tab a store of its own.</summary>
+        public static string FolderFor(string libraryName) => Path.Combine(
+            Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData),
+            "FlipPix", "prompts", libraryName);
+
         /// <param name="log">Optional sink for the non-fatal problems this class swallows.</param>
-        /// <param name="rootFolder">Overrides the storage location; defaults to the AppData path.</param>
+        /// <param name="rootFolder">Which library to open; defaults to the Character tab's scenes, which
+        /// is where this class started and where those entries still live.</param>
         public ScenePromptLibrary(Action<string>? log = null, string? rootFolder = null)
         {
             _log = log;
-            RootFolder = rootFolder ?? Path.Combine(
-                Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData),
-                "FlipPix", "prompts", "scenes");
+            RootFolder = rootFolder ?? FolderFor("scenes");
         }
 
         public string RootFolder { get; }
@@ -68,10 +77,21 @@ namespace FlipPix.UI.Services
                     var json = File.ReadAllText(IndexPath);
                     var entries = JsonSerializer.Deserialize<List<ScenePrompt>>(json);
                     if (entries == null) return new List<ScenePrompt>();
-                    return entries
+                    var loaded = entries
                         .Where(e => !string.IsNullOrWhiteSpace(e.Prompt))
                         .OrderByDescending(e => e.LastUsed)
                         .ToList();
+
+                    // An index written before the list fields existed - or hand-edited to null - must not
+                    // hand callers a null collection to enumerate.
+                    foreach (var entry in loaded)
+                    {
+                        entry.ReferenceImagePaths ??= new List<string>();
+                        entry.ContinuationPrompts ??= new List<string>();
+                        entry.ContinuationSeconds ??= new List<int>();
+                    }
+
+                    return loaded;
                 }
                 catch (Exception ex)
                 {
@@ -128,8 +148,8 @@ namespace FlipPix.UI.Services
         /// </summary>
         public (ScenePrompt Entry, bool IsNew) AddOrRefresh(List<ScenePrompt> entries, ScenePrompt entry)
         {
-            var key = Normalize(entry.Prompt);
-            var existing = entries.FirstOrDefault(e => Normalize(e.Prompt) == key);
+            var key = PromptKey(entry);
+            var existing = entries.FirstOrDefault(e => PromptKey(e) == key);
             var target = existing ?? entry;
 
             if (existing != null)
@@ -142,6 +162,11 @@ namespace FlipPix.UI.Services
                 if (!string.IsNullOrEmpty(entry.AspectRatio)) existing.AspectRatio = entry.AspectRatio;
                 if (entry.LengthSeconds > 0) existing.LengthSeconds = entry.LengthSeconds;
                 if (entry.StoryDurationSeconds > 0) existing.StoryDurationSeconds = entry.StoryDurationSeconds;
+                if (entry.ReferenceImagePaths.Count > 0) existing.ReferenceImagePaths = entry.ReferenceImagePaths;
+                if (entry.ContinuationSeconds.Count > 0) existing.ContinuationSeconds = entry.ContinuationSeconds;
+                // Not conditional: the continuations are part of the key, so they already match - this only
+                // takes the identically-keyed newest wording.
+                existing.ContinuationPrompts = entry.ContinuationPrompts;
             }
             else
             {
@@ -244,7 +269,17 @@ namespace FlipPix.UI.Services
             catch { /* cosmetic */ }
         }
 
-        /// <summary>Whitespace-insensitive comparison key, so a reflowed copy of a prompt is not a new row.</summary>
+        /// <summary>
+        /// Whitespace-insensitive comparison key, so a reflowed copy of a prompt is not a new row.
+        ///
+        /// <para>It spans the continuations as well as the base pass. Two takes that open identically and
+        /// then go different ways are different takes, and folding them together would lose whichever was
+        /// saved second.</para>
+        /// </summary>
+        private static string PromptKey(ScenePrompt entry) =>
+            Normalize(string.Join("\n",
+                new[] { entry.Prompt }.Concat(entry.ContinuationPrompts ?? new List<string>())));
+
         private static string Normalize(string prompt) =>
             string.Join(' ', (prompt ?? string.Empty).Split((char[]?)null, StringSplitOptions.RemoveEmptyEntries));
 

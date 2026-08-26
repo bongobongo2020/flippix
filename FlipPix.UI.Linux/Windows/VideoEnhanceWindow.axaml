@@ -136,6 +136,21 @@
                                                FontSize="11" Foreground="#6C757D"
                                                IsVisible="{Binding HasUpscaleVideo}"/>
 
+                                    <StackPanel Orientation="Horizontal" Spacing="6">
+                                        <TextBlock Text="Scale" FontSize="11" Foreground="#6C757D"
+                                                   VerticalAlignment="Center"/>
+                                        <ComboBox ItemsSource="{Binding RtxScaleOptions}"
+                                                  SelectedItem="{Binding RtxScale, Mode=TwoWay}"
+                                                  Width="86" Height="30" FontSize="11"
+                                                  ToolTip.Tip="RTX Video Super Resolution factor (1–4×).">
+                                            <ComboBox.ItemTemplate>
+                                                <DataTemplate>
+                                                    <TextBlock Text="{Binding StringFormat='{}{0:0.##}×'}"/>
+                                                </DataTemplate>
+                                            </ComboBox.ItemTemplate>
+                                        </ComboBox>
+                                    </StackPanel>
+
                                     <Button Content="Add to Queue" Classes="primary"
                                             Command="{Binding AddUpscaleToQueueCommand}"
                                             HorizontalAlignment="Left" Width="140" Height="36"/>

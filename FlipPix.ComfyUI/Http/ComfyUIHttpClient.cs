@@ -1,4 +1,4 @@
-using System.Net.Http.Json;
+﻿using System.Net.Http.Json;
 using System.Text.Json;
 using System.Text.Json.Nodes;
 using System.Linq;
@@ -367,6 +367,14 @@ public class ComfyUIHttpClient : IDisposable
             // sets so a workflow exported against either version runs here; a re-export from an older
             // ComfyUI can otherwise silently break a tab. See RtxSuperResolutionCompat.
             workflow = RtxSuperResolutionCompat.Normalize(workflow, m => _logger.LogInfo(m));
+
+            // Workflows exported from a newer ComfyUI can carry model-patch nodes this server doesn't
+            // have (ModelAttentionBackend). They pass their model straight through, so unwire them
+            // rather than blocking the submission on a node there is nothing to install for — this has
+            // to run before the missing-node check, which is what would otherwise reject the graph.
+            var loadedClassTypes = await GetLoadedClassTypesAsync(cancellationToken);
+            if (loadedClassTypes != null)
+                workflow = OptionalModelPatchCompat.Bypass(workflow, loadedClassTypes, m => _logger.LogInfo(m));
 
             // Pre-submit validation (nodes first): catch custom-node types the workflow references
             // but ComfyUI doesn't have loaded, and offer to install them instead of failing with
@@ -1556,7 +1564,18 @@ public class ComfyUIHttpClient : IDisposable
     /// QueueItem cannot bind. Returns true on any error so a transient network blip is never
     /// mistaken for a lost prompt.
     /// </summary>
-    public async Task<bool> IsPromptQueuedAsync(string promptId, CancellationToken cancellationToken = default)
+    public Task<bool> IsPromptQueuedAsync(string promptId, CancellationToken cancellationToken = default) =>
+        IsQueueEntryContainingAsync(promptId, cancellationToken);
+
+    /// <summary>
+    /// True when any queued or running entry's JSON contains <paramref name="needle"/>.
+    ///
+    /// <para>A prompt id is the usual needle (see <see cref="IsPromptQueuedAsync"/>), but a VHS meta batch
+    /// re-queues the same graph under <i>new</i> prompt ids until the input runs out, so a chain can only be
+    /// followed by something that survives the requeue — a unique <c>filename_prefix</c>, say. Returns true
+    /// on any error so a transient network blip never reads as "finished".</para>
+    /// </summary>
+    public async Task<bool> IsQueueEntryContainingAsync(string needle, CancellationToken cancellationToken = default)
     {
         try
         {
@@ -1572,15 +1591,80 @@ public class ComfyUIHttpClient : IDisposable
                 if (!doc.RootElement.TryGetProperty(section, out var arr) || arr.ValueKind != JsonValueKind.Array)
                     continue;
                 foreach (var entry in arr.EnumerateArray())
-                    if (entry.GetRawText().Contains(promptId, StringComparison.Ordinal))
+                    if (entry.GetRawText().Contains(needle, StringComparison.Ordinal))
                         return true;
             }
             return false;
         }
+        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested) { throw; }
         catch (Exception ex)
         {
-            _logger.LogDebug($"IsPromptQueuedAsync failed (assuming still queued): {ex.Message}");
+            _logger.LogDebug($"IsQueueEntryContainingAsync failed (assuming still queued): {ex.Message}");
             return true;
+        }
+    }
+
+    /// <summary>
+    /// Newest output file in /history whose filename starts with <paramref name="filenamePrefix"/>, as
+    /// "subfolder/filename" (or just "filename"), or null when the history holds none yet.
+    ///
+    /// <para>Written for the meta-batch case, where the file cannot be found by prompt id: every sub
+    /// execution but the last reports <c>unfinished_batch</c> instead of a file, and the last one lands
+    /// under a prompt id the app never submitted. A unique filename prefix is the only thread that runs
+    /// through the whole chain — and a match here means the file is <i>finished</i>, since VHS only writes
+    /// the history entry once the final batch has been muxed.</para>
+    /// </summary>
+    public async Task<string?> FindOutputFileFromHistoryAsync(
+        string filenamePrefix, CancellationToken cancellationToken = default)
+    {
+        try
+        {
+            using var cts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+            cts.CancelAfter(TimeSpan.FromSeconds(30));
+            var response = await _httpClient.GetAsync("/history?max_items=64", cts.Token);
+            if (!response.IsSuccessStatusCode) return null;
+
+            var json = await response.Content.ReadAsStringAsync(cts.Token);
+            using var doc = JsonDocument.Parse(json);
+            if (doc.RootElement.ValueKind != JsonValueKind.Object) return null;
+
+            string? match = null;   // history is oldest-first, so the last hit is the newest
+            foreach (var entry in doc.RootElement.EnumerateObject())
+            {
+                if (!entry.Value.TryGetProperty("outputs", out var outputs) ||
+                    outputs.ValueKind != JsonValueKind.Object) continue;
+
+                foreach (var node in outputs.EnumerateObject())
+                {
+                    if (node.Value.ValueKind != JsonValueKind.Object) continue;
+
+                    // VHS reports videos under "gifs"; other nodes use images/videos/files.
+                    foreach (var key in new[] { "gifs", "videos", "images", "files" })
+                    {
+                        if (!node.Value.TryGetProperty(key, out var list) ||
+                            list.ValueKind != JsonValueKind.Array) continue;
+
+                        foreach (var file in list.EnumerateArray())
+                        {
+                            if (file.ValueKind != JsonValueKind.Object) continue;
+                            var filename = file.TryGetProperty("filename", out var f) ? f.GetString() : null;
+                            if (string.IsNullOrEmpty(filename) ||
+                                !filename.StartsWith(filenamePrefix, StringComparison.OrdinalIgnoreCase)) continue;
+
+                            var subfolder = file.TryGetProperty("subfolder", out var sf) ? sf.GetString() : null;
+                            match = string.IsNullOrEmpty(subfolder) ? filename : $"{subfolder}/{filename}";
+                        }
+                    }
+                }
+            }
+
+            return match;
+        }
+        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested) { throw; }
+        catch (Exception ex)
+        {
+            _logger.LogDebug($"FindOutputFileFromHistoryAsync failed: {ex.Message}");
+            return null;
         }
     }
 
@@ -1721,6 +1805,32 @@ public class ComfyUIHttpClient : IDisposable
         {
             _logger.LogWarning($"HasNodeClassesAsync: could not read /object_info ({ex.Message})");
             return false;
+        }
+    }
+
+    /// <summary>
+    /// The class types the connected ComfyUI has loaded (the keys of /object_info). Null when
+    /// /object_info can't be read, so callers can leave the graph alone rather than guess.
+    /// </summary>
+    private async Task<HashSet<string>?> GetLoadedClassTypesAsync(CancellationToken cancellationToken)
+    {
+        try
+        {
+            var oiJson = await GetObjectInfoJsonAsync(cancellationToken);
+            if (oiJson == null) return null;
+
+            using var oiDoc = JsonDocument.Parse(oiJson);
+            if (oiDoc.RootElement.ValueKind != JsonValueKind.Object) return null;
+
+            var loaded = new HashSet<string>(StringComparer.Ordinal);
+            foreach (var prop in oiDoc.RootElement.EnumerateObject()) loaded.Add(prop.Name);
+            return loaded;
+        }
+        catch (OperationCanceledException) { throw; }
+        catch (Exception ex)
+        {
+            _logger.LogWarning($"GetLoadedClassTypesAsync failed (skipping node bypass): {ex.Message}");
+            return null;
         }
     }
 

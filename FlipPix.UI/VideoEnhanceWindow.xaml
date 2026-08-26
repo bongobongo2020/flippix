@@ -252,17 +252,17 @@
                                                      Margin="0,0,14,0"
                                                      ToolTip="Diffusion restore (utility_seedvr2_7b_int8_upscale_video.json): the clip is pre-resized, chunked on the temporal axis and denoised in one step. Reconstructs detail, but loads a 7B model and is far slower."/>
 
+                                        <!-- Both engines scale, so one picker drives both; the options and
+                                             the remembered value follow whichever engine is selected. -->
                                         <TextBlock Text="Scale"
                                                    FontSize="11" VerticalAlignment="Center"
                                                    Foreground="{StaticResource TextSecondaryBrush}"
-                                                   Margin="0,0,6,0"
-                                                   Visibility="{Binding IsSeedVr2Selected, Converter={StaticResource BooleanToVisibilityConverter}}"/>
-                                        <ComboBox ItemsSource="{Binding SeedVr2ScaleOptions}"
-                                                  SelectedItem="{Binding SeedVr2Scale, Mode=TwoWay}"
+                                                   Margin="0,0,6,0"/>
+                                        <ComboBox ItemsSource="{Binding UpscaleScaleOptions}"
+                                                  SelectedItem="{Binding UpscaleScale, Mode=TwoWay}"
                                                   Width="78" Height="30" FontSize="11"
                                                   VerticalContentAlignment="Center"
-                                                  Visibility="{Binding IsSeedVr2Selected, Converter={StaticResource BooleanToVisibilityConverter}}"
-                                                  ToolTip="Pre-resize multiplier fed to the graph — this is what sets the output resolution.">
+                                                  ToolTip="Upscale factor. RTX scales the frame directly (1–4×); SeedVR2 pre-resizes by this much and then restores the detail.">
                                             <ComboBox.ItemTemplate>
                                                 <DataTemplate>
                                                     <TextBlock Text="{Binding StringFormat={}{0:0.##}×}"/>

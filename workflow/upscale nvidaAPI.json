@@ -25,7 +25,7 @@
       "frame_load_cap": 0,
       "skip_first_frames": 0,
       "select_every_nth": 1,
-      "format": "Wan",
+      "format": "None",
       "meta_batch": [
         "4",
         0
@@ -38,7 +38,10 @@
   },
   "3": {
     "inputs": {
-      "frame_rate": 24,
+      "frame_rate": [
+        "5",
+        0
+      ],
       "loop_count": 0,
       "filename_prefix": "upscale",
       "format": "video/h264-mp4",
@@ -52,6 +55,10 @@
         "1",
         0
       ],
+      "audio": [
+        "2",
+        2
+      ],
       "meta_batch": [
         "4",
         0
@@ -64,12 +71,23 @@
   },
   "4": {
     "inputs": {
-      "frames_per_batch": 29,
-      "count": 3
+      "frames_per_batch": 29
     },
     "class_type": "VHS_BatchManager",
     "_meta": {
       "title": "Meta Batch Manager 🎥🅥🅗🅢"
+    }
+  },
+  "5": {
+    "inputs": {
+      "video_info": [
+        "2",
+        3
+      ]
+    },
+    "class_type": "VHS_VideoInfoLoaded",
+    "_meta": {
+      "title": "Video Info (Loaded) 🎥🅥🅗🅢"
     }
   }
 }
