@@ -61,7 +61,10 @@ namespace FlipPix.UI.Models
         public int TakeCount { get; set; }
 
         public bool UseSparseAttention { get; set; }
-        public bool UseDetailPass { get; set; } = true;
+        /// <summary>The draft → 2× latent upscale → 3-step finish scheme. Serialized under its old
+        /// name so a queue written before the rename still restores with the flag the user set.</summary>
+        [JsonPropertyName("UseDetailPass")]
+        public bool UseLatentUpscale { get; set; } = true;
         public bool UseRtxUpscale { get; set; }
         public bool UseAudioEnhancement { get; set; } = true;
 
@@ -86,7 +89,7 @@ namespace FlipPix.UI.Models
                     : Path.GetFileNameWithoutExtension(OpeningFramePath);
                 var chain = $"{EndFramePaths.Count + 1} keyframes";
                 var passes = PassCount == 1 ? string.Empty : $" · {PassCount} clips";
-                var detail = UseDetailPass ? " · detail" : string.Empty;
+                var detail = UseLatentUpscale ? " · latent ×2" : string.Empty;
                 var rtx = UseRtxUpscale ? " · RTX ×2" : string.Empty;
                 // Which take of the folder run this is — the queue rows of one run otherwise differ only
                 // by their opening frame's filename.
