@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.Collections.ObjectModel;
 using System.IO;
@@ -89,6 +89,10 @@ namespace FlipPix.UI.Linux.ViewModels.Video
         private const string NodeBaseSeconds = "4145:147";     // easy int → frame-count expression
         private const string NodeBaseSeed = "4145:149";        // RandomNoise
         private const string NodeResolution = "60";            // ResolutionSelector
+        // Added to the graph, not present in the file: the two INT sources that stand in for
+        // ResolutionSelector's outputs when the chosen aspect is one the node's combo does not accept.
+        private const string NodeCanvasWidth = "i2v_canvas_w";  // PrimitiveInt
+        private const string NodeCanvasHeight = "i2v_canvas_h"; // PrimitiveInt
         private const string NodeLoopStart = "4146:126";       // easy forLoopStart (total = continuations)
         private const string NodeOverlap = "4174:4171";        // CustomCombo → overlap frame count
         private const string NodeSaveSingle = "49";            // VHS_VideoCombine, base pass only
@@ -303,7 +307,101 @@ namespace FlipPix.UI.Linux.ViewModels.Video
             OnPropertyChanged(nameof(ResolvedAspectRatio));
             OnPropertyChanged(nameof(ReferenceSummary));
             OnPropertyChanged(nameof(PrimaryReferencePath));
+            OnPropertyChanged(nameof(PrimaryStereo));
+            OnPropertyChanged(nameof(IsPrimaryStereo));
+            OnPropertyChanged(nameof(StereoSummary));
+            RaiseReferenceScale();
+            ApplyStereoPrompt();
             OnCanExecuteChanged();
+        }
+
+        /// <summary>
+        /// The stereo packing of &lt;Picture 1&gt;, which is the only slot whose framing the render has to
+        /// match — the later slots contribute subjects, not the canvas.
+        /// </summary>
+        public StereoLayout PrimaryStereo =>
+            References.FirstOrDefault(r => r.HasImage)?.Stereo ?? StereoLayout.None;
+
+        public bool IsPrimaryStereo => PrimaryStereo != StereoLayout.None;
+
+        /// <summary>The aspect a stereo &lt;Picture 1&gt; wants, or empty when it is an ordinary picture.</summary>
+        private string StereoAspectForPrimary => PrimaryStereo switch
+        {
+            StereoLayout.SideBySide => H3Canvas.StereoAspect,
+            StereoLayout.OverUnder => H3Canvas.StereoOverUnderAspect,
+            _ => string.Empty
+        };
+
+        /// <summary>How the detected packing reads in a prompt, for <c>{LAYOUT}</c>.</summary>
+        private string StereoLayoutWords => PrimaryStereo switch
+        {
+            StereoLayout.SideBySide => "side-by-side split-screen",
+            StereoLayout.OverUnder => "over-under stacked",
+            _ => string.Empty
+        };
+
+        public string StereoSummary => PrimaryStereo switch
+        {
+            StereoLayout.SideBySide =>
+                "<Picture 1> looks like a side-by-side stereo pair — rendering at 2:1, two eye panels.",
+            StereoLayout.OverUnder =>
+                "<Picture 1> looks like an over-under stereo pair — rendering at 1:2, two stacked eyes.",
+            _ => string.Empty
+        };
+
+        /// <summary>
+        /// The wording put in the draft-idea box when &lt;Picture 1&gt; is a stereo pair, with
+        /// <c>{LAYOUT}</c> resolved. Editable, and persisted, because it is source-specific: "wide-angle
+        /// fisheye" is right for VR180 footage and wrong for a stereo photograph.
+        /// </summary>
+        public string StereoPromptTemplate
+        {
+            get => _settingsService.Settings?.MiniMaxI2VStereoPrompt
+                   ?? FlipPix.Core.Models.ComfyUISettings.MiniMaxI2VStereoPromptDefault;
+            set
+            {
+                var settings = _settingsService.Settings;
+                if (settings == null || settings.MiniMaxI2VStereoPrompt == value) return;
+                settings.MiniMaxI2VStereoPrompt = value ?? string.Empty;
+                OnPropertyChanged();
+                _settingsService.SaveSettings(settings);
+            }
+        }
+
+        public void ResetStereoPromptTemplate() =>
+            StereoPromptTemplate = FlipPix.Core.Models.ComfyUISettings.MiniMaxI2VStereoPromptDefault;
+
+        /// <summary>The template with <c>{LAYOUT}</c> filled in, or empty when there is nothing to say.</summary>
+        private string ResolvedStereoPrompt()
+        {
+            var template = StereoPromptTemplate;
+            if (string.IsNullOrWhiteSpace(template) || PrimaryStereo == StereoLayout.None)
+                return string.Empty;
+            return template.Replace("{LAYOUT}", StereoLayoutWords).Trim();
+        }
+
+        /// <summary>
+        /// Seeds the draft-idea box with the stereo wording as soon as a stereo &lt;Picture 1&gt; lands, so
+        /// it does not have to be pasted in by hand every take.
+        ///
+        /// <para>Only ever <em>prepends</em>, and only when the box does not already carry it — so an idea
+        /// already typed survives, and re-loading the same picture cannot stack the line up twice. It
+        /// stays out of the way entirely once Analyze has written a Ref2VA block into the box: at that
+        /// point the box holds a finished prompt, not a draft idea, and the wording is already inside
+        /// its fields.</para>
+        /// </summary>
+        private void ApplyStereoPrompt()
+        {
+            var line = ResolvedStereoPrompt();
+            if (line.Length == 0) return;
+
+            var current = Prompt?.Trim() ?? string.Empty;
+            if (current.Contains(line, StringComparison.OrdinalIgnoreCase)) return;
+            if (current.StartsWith("Ref2VA:", StringComparison.OrdinalIgnoreCase)) return;
+
+            Prompt = current.Length == 0 ? line : line + "\n\n" + current;
+            AddLog($"<Picture 1> is a {StereoLayoutWords.Split(' ')[0]} stereo pair — stereo wording added "
+                   + "to the idea box");
         }
 
         public string ReferenceSummary
@@ -440,6 +538,44 @@ namespace FlipPix.UI.Linux.ViewModels.Video
         }
 
         /// <summary>
+        /// What the blend step costs over the batch it is blending: it holds source, new and result at
+        /// once, and it is the peak on any run that does not finish through the RTX upscaler.
+        /// </summary>
+        private const double BlendPeakFactor = 2.5;
+
+        /// <summary>
+        /// What the RTX pass costs over the batch it upscales: its own input, plus an output at 2× a side
+        /// and therefore 4× the pixels, both alive at once.
+        ///
+        /// <para>This is the largest allocation in any run that uses it, and it is easy to miss because
+        /// <c>RTXVideoSuperResolution</c> reads straight out of <c>easy forLoopEnd</c> — so what it
+        /// quadruples is not one pass but every pass concatenated. Corroborated by the calibration below:
+        /// the 18.4 GB batch that took the process out was recorded at 95 GB RSS, and 18.4 × 5 is 92.</para>
+        /// </summary>
+        private const double RtxPeakFactor = 5.0;
+
+        /// <summary>
+        /// Staged model weights, in GB, that the run reloads immediately after a pre-flight unload.
+        ///
+        /// <para>Only charged in that one case, and it is the term that matters there. Unloading is what
+        /// makes a refused item pass: it frees the weights, the free figure jumps, and the check reads a
+        /// number the run is about to spend again on its way back up. Measured against the 26 Aug run
+        /// that took the server out — 46 GB of frames looked comfortable against 79.1 GB free, and was
+        /// not, because ~40 GB of that had already been promised back to the weights.</para>
+        /// </summary>
+        private const double ModelReloadReserveGb = 40.0;
+
+        /// <summary>
+        /// Peak host RAM the frame buffers reach, in GB — the worse of the two stages that hold more than
+        /// one copy of the batch, not their product. The blend copies are released before the RTX pass
+        /// starts, so the run only ever pays the larger of the two.
+        /// </summary>
+        public double EstimatedPeakRamGb => PeakRamGb(EstimatedFrameRamGb, UseRtxUpscale);
+
+        private static double PeakRamGb(double frameRamGb, bool rtx) =>
+            frameRamGb * (rtx ? Math.Max(BlendPeakFactor, RtxPeakFactor) : BlendPeakFactor);
+
+        /// <summary>
         /// The worse of the two limits, named. Calibrated on real outcomes on this box:
         /// VRAM — 0.40 Gpx completed, 0.57 Gpx raised a CUDA OOM.
         /// Host RAM — an 8.1 GB batch completed; a 18.4 GB batch took the whole ComfyUI process
@@ -451,7 +587,10 @@ namespace FlipPix.UI.Linux.ViewModels.Video
             {
                 var gpx = EstimatedPeakGpx;
                 var ram = EstimatedFrameRamGb;
-                var head = $"~{gpx:0.00} Gpx/pass · ~{ram:0.0} GB frames";
+                // The batch is what the thresholds below are calibrated against; the peak is what the
+                // host actually has to find, and on an RTX run it is twice what it looks like.
+                var head = $"~{gpx:0.00} Gpx/pass · ~{ram:0.0} GB frames · ~{EstimatedPeakRamGb:0.0} GB peak"
+                           + (UseRtxUpscale ? " (RTX 2×)" : "");
 
                 if (ram > FrameRamOverLimitGb)
                     return $"⚠ {head} — this size has OOM-killed the ComfyUI server. Shorten the take, " +
@@ -484,13 +623,100 @@ namespace FlipPix.UI.Linux.ViewModels.Video
         public bool IsMemoryOverLimit => EstimatedPeakGpx > VramOverLimitGpx
                                          || EstimatedFrameRamGb > FrameRamOverLimitGb;
 
+        /// <summary>
+        /// How many times bigger, per edge, a reference may be than the canvas it is encoded at before
+        /// the form says so. 2× per edge is 4× the pixels thrown away, which is about where a face
+        /// stops carrying enough detail to hold identity against a competing reference.
+        /// </summary>
+        private const double ReferenceShrinkRisky = 2.0;
+
+        /// <summary>
+        /// What the reference pictures are actually encoded at, and how far below what was supplied
+        /// that is.
+        ///
+        /// <para>Worth stating in the form because nothing else in it does. <c>ref_image_size</c> is
+        /// <c>match</c>, which scales every reference to the <em>sampled</em> canvas — and with the latent
+        /// upscale on that is the draft, a quarter of the chosen megapixels. A 4K reference at the 0.7 MP
+        /// default is read at 576×320: not enough face for identity to survive against a competing
+        /// reference, and not enough structure for a split-screen layout, a pattern or a chart to survive
+        /// at all. Max-fidelity references is the lever, and this is what tells you to reach for it.</para>
+        /// </summary>
+        public string ReferenceScaleWarning
+        {
+            get
+            {
+                var pictures = FilledReferences;
+                if (pictures.Count == 0) return string.Empty;
+                if (MaxFidelityReferences) return "References at a 2048px short edge — full fidelity.";
+
+                var (cw, ch) = SampledCanvas(ResolvedAspectRatio, Megapixels, UseLatentUpscale);
+                var shrink = ReferenceShrink(pictures, cw, ch);
+                if (shrink <= 0) return string.Empty;
+
+                var head = $"References encoded at {cw}×{ch}";
+                if (shrink < ReferenceShrinkRisky) return $"{head} — close to what you supplied.";
+
+                return $"⚠ {head} — your largest reference is {shrink:0.#}× that on each edge. Faces and "
+                     + "fine structure (split-screen panels, text, patterns) will not survive it. Turn on "
+                     + "max-fidelity references.";
+            }
+        }
+
+        public bool IsReferenceScaleRisky
+        {
+            get
+            {
+                if (MaxFidelityReferences) return false;
+                var pictures = FilledReferences;
+                if (pictures.Count == 0) return false;
+
+                var (cw, ch) = SampledCanvas(ResolvedAspectRatio, Megapixels, UseLatentUpscale);
+                return ReferenceShrink(pictures, cw, ch) >= ReferenceShrinkRisky;
+            }
+        }
+
+        /// <summary>
+        /// How many times bigger per edge the <em>largest</em> supplied reference is than the canvas it
+        /// will be scaled to. The largest one, because it is the one with the most to lose. 0 when
+        /// nothing measurable is loaded.
+        /// </summary>
+        private static double ReferenceShrink(
+            IReadOnlyList<MiniMaxI2VReference> pictures, int canvasWidth, int canvasHeight)
+        {
+            var canvasArea = (double)canvasWidth * canvasHeight;
+            if (canvasArea <= 0) return 0;
+
+            var largest = pictures
+                .Select(p => p.Pixels)
+                .Where(px => px.Width > 0 && px.Height > 0)
+                .Select(px => (double)px.Width * px.Height)
+                .DefaultIfEmpty(0)
+                .Max();
+
+            return largest <= 0 ? 0 : Math.Sqrt(largest / canvasArea);
+        }
+
+        /// <summary>False until a picture is loaded, when the advisory has nothing to measure.</summary>
+        public bool HasReferenceScaleInfo => FilledReferences.Count > 0;
+
+        private void RaiseReferenceScale()
+        {
+            OnPropertyChanged(nameof(ReferenceScaleWarning));
+            OnPropertyChanged(nameof(IsReferenceScaleRisky));
+            OnPropertyChanged(nameof(HasReferenceScaleInfo));
+        }
+
         private void RaiseMemoryEstimate()
         {
             OnPropertyChanged(nameof(EstimatedPeakGpx));
             OnPropertyChanged(nameof(EstimatedFrameRamGb));
+            OnPropertyChanged(nameof(EstimatedPeakRamGb));
             OnPropertyChanged(nameof(MemoryWarning));
             OnPropertyChanged(nameof(IsMemoryRisky));
             OnPropertyChanged(nameof(IsMemoryOverLimit));
+            // Aspect, megapixels and the latent upscale set both of these: what the sampler renders,
+            // and what 'match' scales the references to.
+            RaiseReferenceScale();
         }
 
         public string TotalLengthSummary
@@ -508,8 +734,12 @@ namespace FlipPix.UI.Linux.ViewModels.Video
 
         #region Settings
 
+        /// <summary>
+        /// The node's own eight, plus 2:1 — this tab resolves that one itself rather than setting it on
+        /// ResolutionSelector, which has no such option. See <see cref="BuildWorkflow"/>.
+        /// </summary>
         public IReadOnlyList<string> AspectRatioOptions { get; } =
-            new[] { H3Canvas.AutoAspect }.Concat(H3Canvas.AspectRatios.Select(a => a.Option)).ToList();
+            new[] { H3Canvas.AutoAspect }.Concat(H3Canvas.StereoAspectRatios.Select(a => a.Option)).ToList();
 
         public string SelectedAspectRatio
         {
@@ -520,6 +750,7 @@ namespace FlipPix.UI.Linux.ViewModels.Video
                 _selectedAspectRatio = value;
                 OnPropertyChanged();
                 OnPropertyChanged(nameof(ResolvedAspectRatio));
+                RaiseMemoryEstimate();
             }
         }
 
@@ -531,8 +762,18 @@ namespace FlipPix.UI.Linux.ViewModels.Video
                 if (SelectedAspectRatio != H3Canvas.AutoAspect) return SelectedAspectRatio;
                 var primary = References.FirstOrDefault(r => r.HasImage);
                 if (primary == null) return "16:9 (Widescreen)";
-                var (w, h) = MiniMaxI2VReference.MeasurePixels(primary.Path);
-                return H3Canvas.ClosestAspectRatio(w, h);
+
+                // A detected stereo pair names its own canvas outright. Measuring would get there for a
+                // 2:1 side-by-side frame, but not for an over-under one with 16:9 eyes - that measures
+                // 16:18 and rounds to 3:4, which stacks nothing.
+                var detected = StereoAspectForPrimary;
+                if (detected.Length > 0) return detected;
+
+                var (w, h) = primary.Pixels;
+                // includeStereo: a side-by-side pair measures 2:1, and without it Auto rounds that down
+                // to 16:9 — a frame two eye panels do not fit, which the model resolves by inventing a
+                // different number of panels.
+                return H3Canvas.ClosestAspectRatio(w, h, includeStereo: true);
             }
         }
 
@@ -670,7 +911,15 @@ namespace FlipPix.UI.Linux.ViewModels.Video
         public bool UseRtxUpscale
         {
             get => _useRtxUpscale;
-            set { if (_useRtxUpscale != value) { _useRtxUpscale = value; OnPropertyChanged(); } }
+            set
+            {
+                if (_useRtxUpscale == value) return;
+                _useRtxUpscale = value;
+                OnPropertyChanged();
+                // It doubles the peak host RAM, so it belongs in the estimate like any other setting
+                // that resizes the batch.
+                RaiseMemoryEstimate();
+            }
         }
 
         public bool UseAudioEnhancement
@@ -687,7 +936,13 @@ namespace FlipPix.UI.Linux.ViewModels.Video
         public bool MaxFidelityReferences
         {
             get => _maxFidelityReferences;
-            set { if (_maxFidelityReferences != value) { _maxFidelityReferences = value; OnPropertyChanged(); } }
+            set
+            {
+                if (_maxFidelityReferences == value) return;
+                _maxFidelityReferences = value;
+                OnPropertyChanged();
+                RaiseReferenceScale();
+            }
         }
 
         public bool IsAnalyzing
@@ -842,6 +1097,8 @@ namespace FlipPix.UI.Linux.ViewModels.Video
                     lines.Add($"  Segment {i + 2} — {Continuations[i].Seconds} seconds, continuing directly out of segment {i + 1}.");
             }
 
+            lines.AddRange(StereoInstructions());
+
             lines.Add(string.Empty);
             lines.Add("Draft idea from the user:");
             lines.Add(string.IsNullOrWhiteSpace(Prompt)
@@ -849,6 +1106,46 @@ namespace FlipPix.UI.Linux.ViewModels.Video
                 : Prompt.Trim());
 
             return string.Join("\n", lines);
+        }
+
+        /// <summary>
+        /// What the model has to be told when &lt;Picture 1&gt; is a stereo pair, over and above the wording
+        /// already sitting in the draft-idea box.
+        ///
+        /// <para>The draft line alone is not enough, and putting it there is not the same as it landing
+        /// where it works. Two things have to happen inside the six fields: the layout has to reach
+        /// <c>detailed_description</c>, which the Ref2VA spec calls the authoritative timeline and which
+        /// is the only field the model treats as binding on the frame; and &lt;Picture 1&gt; has to be
+        /// declared a style reference rather than bound as a &lt;Subject N&gt;. A picture given a subject
+        /// binding is a person the video contains — which is how the figure from &lt;Picture 1&gt; keeps
+        /// turning up in takes that never mention them again.</para>
+        ///
+        /// <para>The panel count is spelled out because "split-screen" without a number is an invitation
+        /// to pick one, and picking three is a failure that has actually happened.</para>
+        /// </summary>
+        private List<string> StereoInstructions()
+        {
+            if (PrimaryStereo == StereoLayout.None) return new List<string>();
+
+            var panels = PrimaryStereo == StereoLayout.SideBySide
+                ? "exactly two panels side by side, left eye and right eye"
+                : "exactly two panels stacked, left eye above right eye";
+
+            return new List<string>
+            {
+                string.Empty,
+                "<Picture 1> is a stereoscopic pair packed into one frame. Treat it as a style, format and "
+                + "location reference ONLY:",
+                $"  - Do NOT give <Picture 1> a <Subject N> binding, and do not describe the people in it. "
+                + "Say in subject_definitions and in retention_analysis that it supplies the framing, the "
+                + "lens character and the setting, and that anyone visible in it does not appear in this "
+                + "video at any point.",
+                $"  - Carry identity, face, hair, build and wardrobe from the LATER picture(s) only, and do "
+                + "not carry over their backgrounds.",
+                $"  - State the packing inside detailed_description, not only in retention_analysis: the "
+                + $"frame is one stereoscopic image made of {panels}, each showing the same view from a "
+                + "slightly offset viewpoint, never divided any other way and never showing a third panel.",
+            };
         }
 
         /// <summary>
@@ -973,6 +1270,8 @@ namespace FlipPix.UI.Linux.ViewModels.Video
             lines.Add("Its first interval restarts at 0.0s — timestamps are local to this segment, not cumulative.");
             lines.Add("Re-establish the subjects by their <Subject N> bindings, and keep wardrobe, setting and "
                       + "lighting identical so nothing drifts across the join.");
+
+            lines.AddRange(StereoInstructions());
 
             lines.Add(string.Empty);
             lines.Add("The segment immediately before yours is below. It is CONTEXT ONLY — your segment starts "
@@ -1237,6 +1536,7 @@ namespace FlipPix.UI.Linux.ViewModels.Video
         private async Task<string?> PreflightAsync(MiniMaxI2VQueueItem item, CancellationToken token)
         {
             var frameRamGb = EstimateFrameRamGb(item);
+            var peakRamGb = PeakRamGb(frameRamGb, item.UseRtxUpscale);
             var gpx = EstimateGpx(item);
 
             var head = await FetchHeadroomAsync(token);
@@ -1244,16 +1544,19 @@ namespace FlipPix.UI.Linux.ViewModels.Video
             {
                 AddLog("Pre-flight: could not read /system_stats — falling back to the calibrated limits");
                 if (frameRamGb > FrameRamOverLimitGb)
-                    return $"~{frameRamGb:0.0} GB of frames — past the size that has OOM-killed the server.";
+                    return $"~{frameRamGb:0.0} GB of frames (~{peakRamGb:0.0} GB at peak) — past the size "
+                           + "that has OOM-killed the server.";
                 return null;
             }
 
             var (ramFree, vramFree, vramTotal) = head.Value;
             AddLog($"Pre-flight: server has {ramFree:0.0} GB RAM and {vramFree:0.0} GB of "
-                   + $"{vramTotal:0.0} GB VRAM free; this item wants ~{frameRamGb:0.0} GB of frames "
-                   + $"and ~{gpx:0.00} Gpx per pass");
+                   + $"{vramTotal:0.0} GB VRAM free; this item wants ~{frameRamGb:0.0} GB of frames, "
+                   + $"~{peakRamGb:0.0} GB at peak"
+                   + (item.UseRtxUpscale ? " (RTX 2× on the joined batch)" : " (blend copies)")
+                   + $" and ~{gpx:0.00} Gpx per pass");
 
-            if (frameRamGb * 2.5 > ramFree)
+            if (peakRamGb > ramFree)
             {
                 // Most of what is "in use" is staged weights, not live work — reclaim it and re-measure
                 // before refusing. The lease is already held, so nothing else is mid-run.
@@ -1266,11 +1569,21 @@ namespace FlipPix.UI.Linux.ViewModels.Video
                            + $"(models will reload on demand, roughly a minute)");
                 }
 
-                if (frameRamGb * 2.5 > ramFree)
+                // The freed RAM is not really free: the run reloads the weights it just evicted, so the
+                // frames have to fit alongside them rather than in the space they vacated.
+                var needed = peakRamGb + ModelReloadReserveGb;
+                if (needed > ramFree)
                     return $"Not enough host RAM even after unloading models: the take needs roughly "
-                           + $"{frameRamGb * 2.5:0.0} GB at peak ({frameRamGb:0.0} GB of frames plus blend "
-                           + $"copies) and the server has {ramFree:0.0} GB free. Shorten the take, drop "
-                           + "continuations, or lower the quality.";
+                           + $"{needed:0.0} GB — {peakRamGb:0.0} GB at peak ({frameRamGb:0.0} GB of frames"
+                           + (item.UseRtxUpscale
+                               ? ", quadrupled by the RTX 2× pass over the joined batch"
+                               : " plus blend copies")
+                           + $"), on top of ~{ModelReloadReserveGb:0} GB of weights reloading — and the "
+                           + $"server has {ramFree:0.0} GB free. "
+                           + (item.UseRtxUpscale
+                               ? "Turning off RTX 2× halves the peak and costs no detail the model drew. "
+                               : string.Empty)
+                           + "Otherwise shorten the take, drop continuations, or lower the quality.";
             }
 
             var gpxCeiling = vramTotal * GpxPerVramGb;
@@ -1521,7 +1834,11 @@ namespace FlipPix.UI.Linux.ViewModels.Video
 
                 var saved = _savedPrompts!;
                 var pictures = referencePaths.Where(p => !string.IsNullOrEmpty(p)).ToList();
-                var primary = pictures.FirstOrDefault(File.Exists) ?? string.Empty;
+                var onDisk = pictures.Where(File.Exists).ToList();
+                var primary = onDisk.FirstOrDefault() ?? string.Empty;
+                // <Picture 2> is the take's subject on this tab, so it makes the more recognisable
+                // thumbnail; a single-picture take falls back to the only one it has.
+                var thumbSource = onDisk.Count > 1 ? onDisk[1] : primary;
 
                 var draft = new ScenePrompt
                 {
@@ -1531,7 +1848,7 @@ namespace FlipPix.UI.Linux.ViewModels.Video
                     ContinuationSeconds = seconds,
                     ReferenceImagePaths = pictures,
                     // The thumbnail is rendered from this one; the rest are recorded for the recall log.
-                    SceneImagePath = primary,
+                    SceneImagePath = thumbSource,
                     AspectRatio = aspectRatio,
                     LengthSeconds = lengthSeconds,
                 };
@@ -1767,6 +2084,23 @@ namespace FlipPix.UI.Linux.ViewModels.Video
                 json = BuildWorkflow(json, item, uploaded, runSeed, runToken, sink, out var pruned);
                 AddLog($"Graph prepared: {item.PassCount} pass(es), {pruned} node(s) pruned");
 
+                var frameRam = EstimateFrameRamGb(item);
+                var passFrames = 0;
+                for (var pass = 0; pass < item.PassCount; pass++) passFrames += PassFrames(item, pass);
+                var (finalW, finalH) = ResolveCanvas(item.AspectRatio, item.Megapixels, item.UseLatentUpscale);
+                AddLog($"Frame budget: {passFrames} frames at {finalW}×{finalH} = {frameRam:0.0} GB"
+                       + (item.UseRtxUpscale
+                           ? $", plus an RTX 2× copy at {finalW * 2}×{finalH * 2} — "
+                             + $"~{PeakRamGb(frameRam, true):0.0} GB peak"
+                           : $" — ~{PeakRamGb(frameRam, false):0.0} GB peak with blend copies"));
+
+                var (sampledW, sampledH) = SampledCanvas(
+                    item.AspectRatio, item.Megapixels, item.UseLatentUpscale);
+                AddLog(item.MaxFidelityReferences
+                    ? $"References at a 2048px short edge (sampled canvas {sampledW}×{sampledH})"
+                    : $"References scaled to the sampled canvas, {sampledW}×{sampledH} — turn on "
+                      + "max-fidelity references if identity or fine structure is not coming through");
+
                 ProcessingProgress = 8;
                 AddLog($"Generating (seed {runSeed}, ~{item.TotalSeconds}s over {item.PassCount} pass(es), " +
                        $"{item.AspectRatio}, {item.Megapixels:0.0} MP" +
@@ -1940,11 +2274,23 @@ namespace FlipPix.UI.Linux.ViewModels.Video
         private static (int Width, int Height) ResolveCanvas(
             string aspectRatio, double megapixels, bool latentUpscale)
         {
-            if (!latentUpscale) return H3Canvas.Resolve(aspectRatio, megapixels, ResolutionMultiple);
-
-            var (w, h) = H3Canvas.Resolve(aspectRatio, DraftMegapixels(megapixels), ResolutionMultiple);
+            var (w, h) = SampledCanvas(aspectRatio, megapixels, latentUpscale);
+            if (!latentUpscale) return (w, h);
             return ((int)(w * LatentUpscaleFactor), (int)(h * LatentUpscaleFactor));
         }
+
+        /// <summary>
+        /// The canvas actually written into the graph — what ResolutionSelector emits, which with the
+        /// latent upscale on is the draft rather than the finished frame.
+        ///
+        /// <para>It is not only the sampler that reads it. <c>ref_image_size: match</c> scales every
+        /// reference picture to this size too, which is why the draft's quarter-megapixel target costs
+        /// reference fidelity and not just sampling time — see <see cref="ReferenceScaleWarning"/>.</para>
+        /// </summary>
+        private static (int Width, int Height) SampledCanvas(
+            string aspectRatio, double megapixels, bool latentUpscale) =>
+            H3Canvas.Resolve(aspectRatio, latentUpscale ? DraftMegapixels(megapixels) : megapixels,
+                             ResolutionMultiple);
 
         /// <summary>The megapixel target the draft is sampled at in order to finish at
         /// <paramref name="megapixels"/>.</summary>
@@ -2050,10 +2396,27 @@ namespace FlipPix.UI.Linux.ViewModels.Video
             // ResolutionSelector sizes the *sampled* canvas, which with the latent upscale on is the
             // draft — a quarter of the megapixel target, doubled afterwards. The dropdown names the
             // finished size, so the division happens here rather than in the user's head.
-            SetInput(root, NodeResolution, "aspect_ratio", item.AspectRatio);
-            SetInput(root, NodeResolution, "megapixels",
-                     item.UseLatentUpscale ? DraftMegapixels(item.Megapixels) : item.Megapixels);
-            SetInput(root, NodeResolution, "multiple", ResolutionMultiple);
+            // ResolutionSelector's aspect_ratio is a COMBO of eight fixed strings, so an aspect outside
+            // that list cannot be set on it at all — ComfyUI rejects the prompt on validation. For those,
+            // the canvas is resolved here by the same arithmetic the node uses and fed in as two
+            // PrimitiveInt nodes standing exactly where its width and height outputs were. Six nodes read
+            // those outputs, so the links are retargeted rather than rewritten one at a time, and the
+            // now-orphaned selector falls out in the prune.
+            if (H3Canvas.RequiresLiteralCanvas(item.AspectRatio))
+            {
+                var (cw, ch) = SampledCanvas(item.AspectRatio, item.Megapixels, item.UseLatentUpscale);
+                root[NodeCanvasWidth] = IntNode(cw, "Canvas width");
+                root[NodeCanvasHeight] = IntNode(ch, "Canvas height");
+                Retarget(root, NodeResolution, 0, NodeCanvasWidth);
+                Retarget(root, NodeResolution, 1, NodeCanvasHeight);
+            }
+            else
+            {
+                SetInput(root, NodeResolution, "aspect_ratio", item.AspectRatio);
+                SetInput(root, NodeResolution, "megapixels",
+                         item.UseLatentUpscale ? DraftMegapixels(item.Megapixels) : item.Megapixels);
+                SetInput(root, NodeResolution, "multiple", ResolutionMultiple);
+            }
 
             // ── Attention ─────────────────────────────────────────────────────
             foreach (var id in NodeSla)
@@ -2113,6 +2476,37 @@ namespace FlipPix.UI.Linux.ViewModels.Video
 
             for (var i = 0; i < loaders.Count; i++)
                 inputs[$"ref_images.ref_image_{i}"] = new JsonArray(loaders[i], 0);
+        }
+
+        /// <summary>A literal INT the rest of the graph can link to.</summary>
+        private static JsonObject IntNode(int value, string title) => new()
+        {
+            ["inputs"] = new JsonObject { ["value"] = value },
+            ["class_type"] = "PrimitiveInt",
+            ["_meta"] = new JsonObject { ["title"] = title }
+        };
+
+        /// <summary>
+        /// Repoints every link that reads <paramref name="slot"/> of <paramref name="sourceId"/> at slot 0
+        /// of <paramref name="newId"/> instead. Substitutes a node whose outputs several others consume
+        /// without having to know which those are.
+        /// </summary>
+        private static void Retarget(JsonObject root, string sourceId, int slot, string newId)
+        {
+            foreach (var node in root)
+            {
+                if (node.Value?["inputs"] is not JsonObject inputs) continue;
+
+                foreach (var input in inputs.ToList())
+                {
+                    if (input.Value is not JsonArray link || link.Count != 2) continue;
+                    if (link[0]?.ToString() != sourceId) continue;
+                    if (link[1] is not JsonValue index || !index.TryGetValue<int>(out var i) || i != slot)
+                        continue;
+
+                    inputs[input.Key] = new JsonArray(newId, 0);
+                }
+            }
         }
 
         /// <summary>Points one node's input at another node's output.</summary>
