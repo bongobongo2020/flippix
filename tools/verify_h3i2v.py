@@ -10,6 +10,7 @@ Usage:  python tools/verify_h3i2v.py [http://10.0.0.10:8188]
 
 import io
 import json
+import math
 import sys
 import urllib.request
 
@@ -37,10 +38,58 @@ NODE_LOOP_AUDIO = "4146:73"
 NODE_CONT_PROMPTS = ["57", "58", "46"]
 NODE_CONT_SECONDS = ["7", "8", "6"]
 NODE_CONT_SEEDS = ["4146:97", "4146:96", "4146:94"]
+NODE_CANVAS_WIDTH = "i2v_canvas_w"
+NODE_CANVAS_HEIGHT = "i2v_canvas_h"
+
+RESOLUTION_MULTIPLE = 32
+LATENT_UPSCALE_FACTOR = 2
+
+# The aspects H3Canvas offers, and the integer pairs ResolutionSelector divides the megapixel budget
+# by. 2:1 is not one of the node's own options - see resolve_canvas.
+RATIO_PAIRS = {
+    "1:1 (Square)": (1, 1),
+    "2:3 (Portrait Photo)": (2, 3),
+    "3:2 (Photo)": (3, 2),
+    "3:4 (Portrait Standard)": (3, 4),
+    "4:3 (Standard)": (4, 3),
+    "9:16 (Portrait Widescreen)": (9, 16),
+    "16:9 (Widescreen)": (16, 9),
+    "21:9 (Ultrawide)": (21, 9),
+    "2:1 (Stereo SBS)": (2, 1),
+    "1:2 (Stereo Over-Under)": (1, 2),
+}
+STEREO_ASPECT = "2:1 (Stereo SBS)"
+STEREO_OU_ASPECT = "1:2 (Stereo Over-Under)"
+LITERAL_ASPECTS = (STEREO_ASPECT, STEREO_OU_ASPECT)
+
+
+def resolve_canvas(aspect, megapixels, multiple=RESOLUTION_MULTIPLE):
+    """H3Canvas.Resolve, in Python - the sampled canvas, not the finished one."""
+    w_ratio, h_ratio = RATIO_PAIRS.get(aspect, (16, 9))
+    scale = math.sqrt(megapixels * 1024 * 1024 / (w_ratio * h_ratio))
+    if aspect in LITERAL_ASPECTS:
+        # Exact proportion, both sides on the multiple - the eye panels have to be square.
+        unit = max(multiple, round(scale / multiple) * multiple)
+        return w_ratio * unit, h_ratio * unit
+    return (max(multiple, round(w_ratio * scale / multiple) * multiple),
+            max(multiple, round(h_ratio * scale / multiple) * multiple))
+
+
+def retarget(g, source_id, slot, new_id):
+    """Repoints every link reading one output of a node at slot 0 of another."""
+    for node in g.values():
+        inputs = node.get("inputs")
+        if not isinstance(inputs, dict):
+            continue
+        for name, value in list(inputs.items()):
+            if (isinstance(value, list) and len(value) == 2
+                    and str(value[0]) == source_id and value[1] == slot):
+                inputs[name] = [new_id, 0]
 
 
 def build(base, references, continuations, *, detail, rtx, audio, max_fidelity,
-          overlap, sparse=False, sla=True, sla_sparsity=0.85):
+          overlap, sparse=False, sla=True, sla_sparsity=0.85,
+          aspect="16:9 (Widescreen)", megapixels=0.7):
     """The C# BuildWorkflow, in Python."""
     g = json.loads(json.dumps(base))
     extending = len(continuations) > 0
@@ -74,8 +123,24 @@ def build(base, references, continuations, *, detail, rtx, audio, max_fidelity,
     g[NODE_LOOP_START]["inputs"]["total"] = max(1, len(continuations))
     g[NODE_OVERLAP]["inputs"]["choice"] = str(overlap)
 
-    g[NODE_RESOLUTION]["inputs"]["aspect_ratio"] = "16:9 (Widescreen)"
-    g[NODE_RESOLUTION]["inputs"]["megapixels"] = 0.7
+    # The sampled canvas: with the detail pass on, ResolutionSelector is handed a quarter of the
+    # megapixel target and the upscaler doubles its answer.
+    sampled_mp = megapixels / (LATENT_UPSCALE_FACTOR ** 2) if detail else megapixels
+    if aspect in LITERAL_ASPECTS:
+        # ResolutionSelector's aspect_ratio is a COMBO of eight fixed strings, and neither stereo
+        # canvas is among them, so it is resolved here and fed in as two PrimitiveInt nodes standing
+        # where its outputs were. The orphaned selector falls out in the prune.
+        cw, ch = resolve_canvas(aspect, sampled_mp)
+        g[NODE_CANVAS_WIDTH] = {"inputs": {"value": cw}, "class_type": "PrimitiveInt",
+                                "_meta": {"title": "Canvas width"}}
+        g[NODE_CANVAS_HEIGHT] = {"inputs": {"value": ch}, "class_type": "PrimitiveInt",
+                                 "_meta": {"title": "Canvas height"}}
+        retarget(g, NODE_RESOLUTION, 0, NODE_CANVAS_WIDTH)
+        retarget(g, NODE_RESOLUTION, 1, NODE_CANVAS_HEIGHT)
+    else:
+        g[NODE_RESOLUTION]["inputs"]["aspect_ratio"] = aspect
+        g[NODE_RESOLUTION]["inputs"]["megapixels"] = sampled_mp
+        g[NODE_RESOLUTION]["inputs"]["multiple"] = RESOLUTION_MULTIPLE
 
     for nid in NODE_SLA:
         g[nid]["inputs"]["enabled"] = sla
@@ -201,12 +266,38 @@ def main():
         ("1 ref, 1 continuation", [a], [seg(1, 10)], dict(detail=True, rtx=False, audio=True, max_fidelity=False, overlap=22)),
         ("2 refs, 3 continuations", [a, b], [seg(1, 5), seg(2, 12), seg(3, 15)], dict(detail=True, rtx=True, audio=True, max_fidelity=False, overlap=56)),
         ("4 refs, 3 continuations, no detail pass", [a, b, c, d], [seg(1, 8), seg(2, 8), seg(3, 8)], dict(detail=False, rtx=False, audio=False, max_fidelity=True, overlap=39)),
+        ("21:9, 1 ref", [a], [], dict(detail=True, rtx=False, audio=True, max_fidelity=False, overlap=22, aspect="21:9 (Ultrawide)")),
+        ("9:16, 1 ref", [a], [], dict(detail=True, rtx=False, audio=True, max_fidelity=False, overlap=22, aspect="9:16 (Portrait Widescreen)")),
+        ("2:1 stereo, 2 refs, max fidelity", [a, b], [], dict(detail=True, rtx=False, audio=True, max_fidelity=True, overlap=22, aspect=STEREO_ASPECT)),
+        ("2:1 stereo, 2 refs, no detail pass", [a, b], [], dict(detail=False, rtx=False, audio=True, max_fidelity=True, overlap=22, aspect=STEREO_ASPECT)),
+        ("2:1 stereo, 2 refs, 2 continuations", [a, b], [seg(1, 10), seg(2, 10)], dict(detail=True, rtx=True, audio=True, max_fidelity=True, overlap=22, aspect=STEREO_ASPECT)),
+        ("2:1 stereo at 1.5 MP", [a], [], dict(detail=True, rtx=False, audio=True, max_fidelity=True, overlap=22, aspect=STEREO_ASPECT, megapixels=1.5)),
+        ("1:2 over-under, 2 refs, max fidelity", [a, b], [], dict(detail=True, rtx=False, audio=True, max_fidelity=True, overlap=22, aspect=STEREO_OU_ASPECT)),
+        ("1:2 over-under, no detail pass", [a, b], [], dict(detail=False, rtx=False, audio=True, max_fidelity=True, overlap=22, aspect=STEREO_OU_ASPECT)),
+        ("1:2 over-under, 2 continuations", [a, b], [seg(1, 10), seg(2, 10)], dict(detail=True, rtx=True, audio=True, max_fidelity=True, overlap=22, aspect=STEREO_OU_ASPECT)),
     ]
+
+    # A stereo canvas is only worth having if it holds its exact proportion and survives the 2x the
+    # way the continuation loop's own round(a * b / 32) * 32 expects.
+    for aspect in LITERAL_ASPECTS:
+        w_ratio, h_ratio = RATIO_PAIRS[aspect]
+        for mp in (0.4, 0.7, 1.0, 1.5):
+            cw, ch = resolve_canvas(aspect, mp / (LATENT_UPSCALE_FACTOR ** 2))
+            fw, fh = cw * LATENT_UPSCALE_FACTOR, ch * LATENT_UPSCALE_FACTOR
+            assert cw * h_ratio == ch * w_ratio, f"{aspect} draft {cw}x{ch} is off ratio"
+            assert cw % RESOLUTION_MULTIPLE == 0 and ch % RESOLUTION_MULTIPLE == 0, f"{cw}x{ch} off the grid"
+            assert round(cw * LATENT_UPSCALE_FACTOR / RESOLUTION_MULTIPLE) * RESOLUTION_MULTIPLE == fw
+            assert round(ch * LATENT_UPSCALE_FACTOR / RESOLUTION_MULTIPLE) * RESOLUTION_MULTIPLE == fh
+            eye = f"{fw // 2}x{fh}" if w_ratio > h_ratio else f"{fw}x{fh // 2}"
+            print(f"{aspect:<24} {mp:0.1f} MP -> draft {cw}x{ch}, finished {fw}x{fh}, {eye} per eye")
+    print()
 
     failed = 0
     for label, refs, conts, opts in cases:
         g, sink = build(base, refs, conts, **opts)
         errors, notes = validate(g, oi)
+        if opts.get("aspect") in LITERAL_ASPECTS and NODE_RESOLUTION in g:
+            errors.append(f"{NODE_RESOLUTION}: ResolutionSelector survived the prune on a stereo canvas")
         status = "OK " if not errors else "FAIL"
         print(f"[{status}] {label}: {len(g)} nodes, sink {sink}, {len(notes)} ignored extras")
         for e in errors:

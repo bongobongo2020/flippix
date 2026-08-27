@@ -1068,9 +1068,51 @@
                                                 <CheckBox Content="RTX 2× super-resolution" IsChecked="{Binding UseRtxUpscale}"
                                                           FontSize="11" Margin="0,0,0,7"
                                                           ToolTip="Doubles the finished frames through NVIDIA RTX Video Super Resolution. It is a driver-side upscale, not a sampling pass, so it adds no detail the model did not already draw — and it needs an RTX card with VSR available.&#x0a;&#x0a;It runs only on the final frames: applied to the base pass while continuing, it would feed the loop frames at the wrong size."/>
+                                                <TextBlock Text="{Binding StereoSummary}" Margin="0,0,0,6"
+                                                           FontSize="10" FontFamily="Consolas" TextWrapping="Wrap"
+                                                           Foreground="{StaticResource AccentAmberBrush}" FontWeight="SemiBold">
+                                                    <TextBlock.Style>
+                                                        <Style TargetType="TextBlock">
+                                                            <Setter Property="Visibility" Value="Collapsed"/>
+                                                            <Style.Triggers>
+                                                                <DataTrigger Binding="{Binding IsPrimaryStereo}" Value="True">
+                                                                    <Setter Property="Visibility" Value="Visible"/>
+                                                                </DataTrigger>
+                                                            </Style.Triggers>
+                                                        </Style>
+                                                    </TextBlock.Style>
+                                                </TextBlock>
+                                                <TextBlock Text="STEREO PROMPT ({LAYOUT} is substituted)" Margin="0,0,0,3"
+                                                           FontSize="9" FontWeight="SemiBold"
+                                                           Foreground="{StaticResource TextMutedBrush}"/>
+                                                <TextBox Text="{Binding StereoPromptTemplate, UpdateSourceTrigger=LostFocus}"
+                                                         Margin="0,0,0,8" Height="72" FontSize="10"
+                                                         AcceptsReturn="True" TextWrapping="Wrap"
+                                                         VerticalScrollBarVisibility="Auto"
+                                                         ToolTip="Filled in automatically when &lt;Picture 1&gt; turns out to be a stereoscopic pair packed into one frame, so the wording does not have to be pasted in every take.&#x0a;&#x0a;{LAYOUT} becomes &quot;side-by-side split-screen&quot; or &quot;over-under stacked&quot; to match what was detected. The wording is yours to change - &quot;wide-angle fisheye&quot; is right for VR180 footage and wrong for a stereo photograph, and the tab cannot tell which it is looking at. Clear the box to switch the auto-insert off.&#x0a;&#x0a;It is only ever prepended to the idea box, never to a Ref2VA prompt Analyze has already written - and Analyze is told the same facts separately, so the layout lands inside detailed_description where it binds."/>
+
                                                 <CheckBox Content="Max-fidelity references (slow)" IsChecked="{Binding MaxFidelityReferences}"
-                                                          FontSize="11" Margin="0,0,0,8"
+                                                          FontSize="11" Margin="0,0,0,4"
                                                           ToolTip="Feeds each reference at a 2048px short edge instead of scaling it to the generation's pixel area. Reference tokens ride through every sampling step, so this can be several times slower — it buys identity fidelity and nothing else."/>
+                                                <TextBlock Text="{Binding ReferenceScaleWarning}" Margin="18,0,0,8"
+                                                           FontSize="10" FontFamily="Consolas" TextWrapping="Wrap"
+                                                           ToolTip="Reference pictures are fed at 'match', which scales them to the SAMPLED canvas - and with the latent upscale on that is the draft, a quarter of the megapixels you picked. A 4K reference at 0.7 MP is read at 576x320.&#x0a;&#x0a;That is enough for a pose or a palette, but not for a face to hold identity against a competing reference, and not for fine structure - split-screen panels, text, patterns - to survive at all. Max-fidelity references above is the fix; raising the quality helps a little.">
+                                                    <TextBlock.Style>
+                                                        <Style TargetType="TextBlock">
+                                                            <Setter Property="Foreground" Value="{StaticResource TextMutedBrush}"/>
+                                                            <Setter Property="Visibility" Value="Collapsed"/>
+                                                            <Style.Triggers>
+                                                                <DataTrigger Binding="{Binding HasReferenceScaleInfo}" Value="True">
+                                                                    <Setter Property="Visibility" Value="Visible"/>
+                                                                </DataTrigger>
+                                                                <DataTrigger Binding="{Binding IsReferenceScaleRisky}" Value="True">
+                                                                    <Setter Property="Foreground" Value="{StaticResource AccentAmberBrush}"/>
+                                                                    <Setter Property="FontWeight" Value="SemiBold"/>
+                                                                </DataTrigger>
+                                                            </Style.Triggers>
+                                                        </Style>
+                                                    </TextBlock.Style>
+                                                </TextBlock>
 
                                                 <TextBlock Text="{Binding TotalLengthSummary}"
                                                            FontSize="11" FontWeight="SemiBold" FontFamily="Consolas"

@@ -43,6 +43,23 @@ public class ComfyUISettings
     public double DetectedVramGb { get; set; } = 0;
 
     public List<SavedCameraPrompt> SavedCameraPrompts { get; set; } = new();
+
+    /// <summary>
+    /// What the 🌀 MiniMax I2V tab puts in the draft-idea box when &lt;Picture 1&gt; turns out to be a
+    /// stereoscopic pair packed into one frame. <c>{LAYOUT}</c> is replaced with "side-by-side" or
+    /// "over-under" to match what was detected.
+    ///
+    /// <para>Editable because the wording is source-specific — "wide-angle fisheye" is right for VR180
+    /// footage and wrong for a stereo photograph, and the tab has no way to tell which it is looking at.
+    /// Blank turns the auto-insert off.</para>
+    /// </summary>
+    public string MiniMaxI2VStereoPrompt { get; set; } = MiniMaxI2VStereoPromptDefault;
+
+    /// <summary>The shipped wording for <see cref="MiniMaxI2VStereoPrompt"/>, and what Reset restores.</summary>
+    public const string MiniMaxI2VStereoPromptDefault =
+        "The video maintains the identity and appearance of <Subject 2> from <Picture 2>. "
+        + "The visual style retains the wide-angle fisheye lens distortion and stereoscopic 3D "
+        + "{LAYOUT} format of <Picture 1>, with <Subject 2> as the central figure.";
     public LMStudioSettings LMStudioSettings { get; set; } = new LMStudioSettings();
 
     /// <summary>

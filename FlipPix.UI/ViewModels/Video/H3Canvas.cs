@@ -30,6 +30,41 @@ namespace FlipPix.UI.ViewModels.Video
         };
 
         /// <summary>
+        /// A 2:1 canvas — two square eyes side by side, which is what a stereoscopic side-by-side pair
+        /// actually measures.
+        ///
+        /// <para>Deliberately <b>not</b> in <see cref="AspectRatios"/>: ResolutionSelector's combo accepts
+        /// only the eight strings above, so sending this one to the node fails validation. A tab that
+        /// offers it has to resolve the canvas itself and write the two numbers into the graph —
+        /// <see cref="RequiresLiteralCanvas"/> is the test for that.</para>
+        ///
+        /// <para>It is worth the special case because <see cref="ClosestAspectRatio"/> otherwise rounds a
+        /// 2:1 source down to 16:9 — the log distance is 0.118 against 0.154 to 21:9 — which leaves an SBS
+        /// reference asking for two eye panels in a frame that fits neither, and the model divides the
+        /// frame into whatever does fit instead.</para>
+        /// </summary>
+        internal const string StereoAspect = "2:1 (Stereo SBS)";
+
+        /// <summary>
+        /// A 1:2 canvas — two square eyes stacked, the over-under packing of the same stereoscopic pair.
+        /// Everything said about <see cref="StereoAspect"/> applies to it.
+        /// </summary>
+        internal const string StereoOverUnderAspect = "1:2 (Stereo Over-Under)";
+
+        /// <summary><see cref="AspectRatios"/> with both stereo canvases sorted into the widest-to-tallest
+        /// order, for the tabs that implement the literal canvas.</summary>
+        internal static readonly (string Option, double Ratio)[] StereoAspectRatios =
+            AspectRatios.Append((Option: StereoAspect, Ratio: 2.0))
+                        .Append((Option: StereoOverUnderAspect, Ratio: 0.5))
+                        .OrderByDescending(a => a.Ratio)
+                        .ToArray();
+
+        /// <summary>True when the option cannot be set on ResolutionSelector, and the tab has to resolve
+        /// the width and height itself and feed them into the graph.</summary>
+        internal static bool RequiresLiteralCanvas(string aspectOption) =>
+            aspectOption == StereoAspect || aspectOption == StereoOverUnderAspect;
+
+        /// <summary>
         /// The integer ratios ResolutionSelector works from. Kept separate from
         /// <see cref="AspectRatios"/> because the node divides the megapixel budget by <c>w × h</c> of
         /// these exact integers, and 21/9 as a double does not reproduce that.
@@ -44,10 +79,15 @@ namespace FlipPix.UI.ViewModels.Video
             ["9:16 (Portrait Widescreen)"] = (9, 16),
             ["16:9 (Widescreen)"] = (16, 9),
             ["21:9 (Ultrawide)"] = (21, 9),
+            // Not ResolutionSelector options — see StereoAspect. Present so Resolve and the megapixel
+            // estimates built on it work for the stereo canvases the same way as for the node's own.
+            [StereoAspect] = (2, 1),
+            [StereoOverUnderAspect] = (1, 2),
         };
 
         /// <summary>
-        /// The width and height ComfyUI will actually render at — a line-for-line reproduction of
+        /// The width and height ComfyUI will actually render at — for the node's own eight options, a
+        /// line-for-line reproduction of
         /// <c>comfy_extras/nodes_resolution.py</c>, including that its budget is megapixels × 1024²
         /// (not × 1,000,000) and that each side is rounded to the multiple <em>independently</em>.
         ///
@@ -62,6 +102,18 @@ namespace FlipPix.UI.ViewModels.Video
             var totalPixels = megapixels * 1024 * 1024;
             var scale = Math.Sqrt(totalPixels / (wRatio * hRatio));
 
+            if (RequiresLiteralCanvas(aspectOption))
+            {
+                // Not the node's arithmetic, because the node cannot produce these aspects at all — and
+                // here the exact proportion is the point. Rounding the two sides independently would put
+                // 2:1 at 608×288, which is 2.11:1, and its halves are not the equal eyes a stereo pair
+                // needs. Snapping the ratio unit instead keeps the proportion exact, keeps both sides on
+                // the multiple, and — the ratio and the upscale factor both being integers — keeps them
+                // there after the 2× as well.
+                var unit = Math.Max(multiple, (int)Math.Round(scale / multiple) * multiple);
+                return (wRatio * unit, hRatio * unit);
+            }
+
             // Python's round() and Math.Round both break ties to even, so this matches the node exactly.
             var width = (int)Math.Round(wRatio * scale / multiple) * multiple;
             var height = (int)Math.Round(hRatio * scale / multiple) * multiple;
@@ -75,13 +127,17 @@ namespace FlipPix.UI.ViewModels.Video
             return (double)w * h;
         }
 
-        /// <summary>Nearest ResolutionSelector aspect option for a pixel size (16:9 if unknown).</summary>
-        internal static string ClosestAspectRatio(int w, int h)
+        /// <summary>
+        /// Nearest aspect option for a pixel size (16:9 if unknown). <paramref name="includeStereo"/>
+        /// puts <see cref="StereoAspect"/> in the running, and only tabs that implement the literal
+        /// canvas may pass it — everyone else would hand ResolutionSelector a value it rejects.
+        /// </summary>
+        internal static string ClosestAspectRatio(int w, int h, bool includeStereo = false)
         {
             if (w <= 0 || h <= 0) return "16:9 (Widescreen)";
 
             var ratio = (double)w / h;
-            return AspectRatios
+            return (includeStereo ? StereoAspectRatios : AspectRatios)
                 .OrderBy(a => Math.Abs(Math.Log(a.Ratio) - Math.Log(ratio)))
                 .First().Option;
         }
