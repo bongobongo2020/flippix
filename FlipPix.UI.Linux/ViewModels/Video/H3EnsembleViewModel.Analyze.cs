@@ -102,6 +102,11 @@ namespace FlipPix.UI.Linux.ViewModels.Video
                 var castBlock = BuildCastBrief(clipCount);
                 var setBlock = BuildLocationBrief();
 
+                // Ahead of the story rather than after it: the writer decides the medium in its first
+                // sentence, and a rule that arrives after the material has already been read is one the
+                // opening of [Shot 1] has stopped listening to.
+                var styleRule = H3VisualStyles.Rule(VisualStyle);
+
                 string userMessage;
                 if (fromImage)
                 {
@@ -118,6 +123,7 @@ namespace FlipPix.UI.Linux.ViewModels.Video
                         keyBlock +
                         castBlock + "\n" +
                         lengthBlock +
+                        styleRule +
                         $"Story the video must tell:\n{story}\n" +
                         $"Draft idea from the user:\n{draft}";
                 }
@@ -138,6 +144,7 @@ namespace FlipPix.UI.Linux.ViewModels.Video
                         castBlock + "\n" +
                         lengthBlock +
                         wholeStory +
+                        styleRule +
                         (HasStoryText ? $"The story:\n{StoryText.Trim()}\n" : string.Empty) +
                         $"Draft idea from the user:\n{draft}";
                 }

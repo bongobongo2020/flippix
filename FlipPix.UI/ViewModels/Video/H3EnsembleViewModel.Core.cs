@@ -165,6 +165,7 @@ namespace FlipPix.UI.ViewModels.Video
         private string _storyText = string.Empty;
         private string _storyFileName = string.Empty;
         private double _storyDurationSeconds = 24;
+        private H3VisualStyle _visualStyle = H3VisualStyles.Auto;
         private string _selectedAspectRatio = H3Canvas.AutoAspect;
         private string _selectedMedium = "live-action and cinematic";
         private double _megapixels = 1.0;

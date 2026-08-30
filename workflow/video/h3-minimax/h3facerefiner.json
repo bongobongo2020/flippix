@@ -2,7 +2,7 @@
   "2": {
     "inputs": {
       "samples": [
-        "12",
+        "80",
         0
       ],
       "vae": [
@@ -18,7 +18,7 @@
   "3": {
     "inputs": {
       "samples": [
-        "12",
+        "80",
         0
       ],
       "vae": [
@@ -67,7 +67,7 @@
   "10": {
     "inputs": {
       "model": [
-        "59",
+        "66",
         0
       ],
       "conditioning": [
@@ -104,11 +104,11 @@
         0
       ],
       "sigmas": [
-        "57",
+        "74",
         0
       ],
       "latent_image": [
-        "23",
+        "72",
         1
       ]
     },
@@ -207,7 +207,7 @@
     "inputs": {
       "aspect_ratio": "16:9 (Widescreen)",
       "megapixels": 1,
-      "multiple": 32
+      "multiple": 64
     },
     "class_type": "ResolutionSelector",
     "_meta": {
@@ -284,7 +284,7 @@
       "steps": 6,
       "denoise": 1,
       "model": [
-        "59",
+        "66",
         0
       ]
     },
@@ -376,6 +376,269 @@
     "class_type": "VHS_VideoCombine",
     "_meta": {
       "title": "Video Combine 🎥🅥🅗🅢"
+    }
+  },
+  "66": {
+    "inputs": {
+      "model": [
+        "59",
+        0
+      ],
+      "sparsity_ratio": 0.85,
+      "block_size": "64",
+      "min_seq_len": 8192,
+      "dense_last_steps": 0,
+      "protect_audio": true,
+      "enabled": true
+    },
+    "class_type": "H3SLAAttention",
+    "_meta": {
+      "title": "H3 SLA Attention (base pass)"
+    }
+  },
+  "67": {
+    "inputs": {
+      "model": [
+        "103",
+        0
+      ],
+      "sparsity_ratio": 0.85,
+      "block_size": "64",
+      "min_seq_len": 8192,
+      "dense_last_steps": 0,
+      "protect_audio": true,
+      "enabled": true
+    },
+    "class_type": "H3SLAAttention",
+    "_meta": {
+      "title": "FR SLA Attention (face refine)"
+    }
+  },
+  "70": {
+    "inputs": {
+      "expression": "round(a / b / 32) * 32",
+      "values.a": [
+        "45",
+        0
+      ],
+      "values.b": 2.0
+    },
+    "class_type": "ComfyMathExpression",
+    "_meta": {
+      "title": "Draft width (finished / 2)"
+    }
+  },
+  "71": {
+    "inputs": {
+      "expression": "round(a / b / 32) * 32",
+      "values.a": [
+        "45",
+        1
+      ],
+      "values.b": 2.0
+    },
+    "class_type": "ComfyMathExpression",
+    "_meta": {
+      "title": "Draft height (finished / 2)"
+    }
+  },
+  "72": {
+    "inputs": {
+      "prompt": [
+        "48",
+        0
+      ],
+      "width": [
+        "70",
+        1
+      ],
+      "height": [
+        "71",
+        1
+      ],
+      "length": [
+        "5",
+        1
+      ],
+      "ref_image_size": "match",
+      "clip": [
+        "7",
+        0
+      ],
+      "vae": [
+        "11",
+        0
+      ],
+      "audio_vae": [
+        "8",
+        0
+      ]
+    },
+    "class_type": "MiniMaxH3ReferenceToVideo",
+    "_meta": {
+      "title": "Empty AV latent (draft canvas)"
+    }
+  },
+  "73": {
+    "inputs": {
+      "scheduler": "simple",
+      "steps": 8,
+      "denoise": 1,
+      "model": [
+        "36",
+        0
+      ]
+    },
+    "class_type": "BasicScheduler",
+    "_meta": {
+      "title": "Draft schedule (8 steps, unshifted model)"
+    }
+  },
+  "74": {
+    "inputs": {
+      "sigmas": [
+        "73",
+        0
+      ],
+      "step": 4
+    },
+    "class_type": "SplitSigmas",
+    "_meta": {
+      "title": "Draft sigmas (1.0 -> 0.5)"
+    }
+  },
+  "75": {
+    "inputs": {
+      "sigmas": "0.9035, 0.6316, 0.3158, 0.0000"
+    },
+    "class_type": "ManualSigmas",
+    "_meta": {
+      "title": "Finish sigmas (3 steps)"
+    }
+  },
+  "76": {
+    "inputs": {
+      "av_latent": [
+        "12",
+        1
+      ]
+    },
+    "class_type": "LTXVSeparateAVLatent",
+    "_meta": {
+      "title": "Split draft AV latent"
+    }
+  },
+  "77": {
+    "inputs": {
+      "model_name": "minimax_h3_latent_upscaler_3d_fp16.safetensors",
+      "mode": "scale by multiplier",
+      "mode.scale": 2.0,
+      "align": 32,
+      "keep_proportion": true,
+      "device": "cuda",
+      "precision": "fp16",
+      "latent": [
+        "76",
+        0
+      ]
+    },
+    "class_type": "MinimaxH3LatentUpscaler3D",
+    "_meta": {
+      "title": "Minimax H3 Latent Upscaler (3D)"
+    }
+  },
+  "78": {
+    "inputs": {
+      "video_latent": [
+        "77",
+        0
+      ],
+      "audio_latent": [
+        "76",
+        1
+      ]
+    },
+    "class_type": "LTXVConcatAVLatent",
+    "_meta": {
+      "title": "Rejoin upscaled AV latent"
+    }
+  },
+  "79": {
+    "inputs": {
+      "noise": [
+        "46",
+        0
+      ],
+      "guider": [
+        "10",
+        0
+      ],
+      "sampler": [
+        "60",
+        0
+      ],
+      "sigmas": [
+        "75",
+        0
+      ],
+      "latent_image": [
+        "78",
+        0
+      ]
+    },
+    "class_type": "SamplerCustomAdvanced",
+    "_meta": {
+      "title": "Finish sampler (full canvas)"
+    }
+  },
+  "80": {
+    "inputs": {
+      "switch": true,
+      "on_false": [
+        "12",
+        0
+      ],
+      "on_true": [
+        "79",
+        0
+      ]
+    },
+    "class_type": "ComfySwitchNode",
+    "_meta": {
+      "title": "Draft or finished latent"
+    }
+  },
+  "90": {
+    "inputs": {
+      "model_name": "sam_vit_b_01ec64.pth",
+      "device_mode": "AUTO"
+    },
+    "class_type": "SAMLoader",
+    "_meta": {
+      "title": "Load SAM (face mask)"
+    }
+  },
+  "91": {
+    "inputs": {
+      "crops": [
+        "100",
+        0
+      ],
+      "sam_model": [
+        "90",
+        0
+      ],
+      "transform": [
+        "100",
+        1
+      ],
+      "threshold": 0.93,
+      "dilation": 0,
+      "temporal_smooth": 9
+    },
+    "class_type": "H3FaceMaskSAM",
+    "_meta": {
+      "title": "FR 8b. Face mask (SAM) — overrides paste_region"
     }
   },
   "100": {
@@ -520,7 +783,7 @@
   "105": {
     "inputs": {
       "model": [
-        "103",
+        "67",
         0
       ],
       "conditioning": [
@@ -539,7 +802,7 @@
       "steps": 4,
       "denoise": 0.45,
       "model": [
-        "103",
+        "67",
         0
       ]
     },
@@ -630,7 +893,11 @@
       "colour_match": 1.0,
       "blend": 1.0,
       "undetected_frames": "fade_out",
-      "feather_scales_with_crop": false
+      "feather_scales_with_crop": false,
+      "masks": [
+        "91",
+        0
+      ]
     },
     "class_type": "H3FaceStitch",
     "_meta": {

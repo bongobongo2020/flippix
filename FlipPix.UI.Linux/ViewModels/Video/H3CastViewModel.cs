@@ -97,6 +97,29 @@ namespace FlipPix.UI.Linux.ViewModels.Video
         private const string NodeDuration = "56";       // PrimitiveFloat seconds → node 5
         private const string NodeSeed = "46";           // RandomNoise noise_seed (base pass)
         private const string NodeScheduler = "57";      // BasicScheduler (steps — read, never written)
+        private const string NodeModelLoader = "36";    // UNETLoader — the raw model, before LoRA/shift/patches
+        private const string NodeSigmaShift = "59";     // MiniMaxH3SigmaShift — last patch before the guiders
+        private const string NodeSolAttn = "53";        // SolAttnPatch — the predecessor of SLA
+        private const string NodeSampler = "12";        // SamplerCustomAdvanced — the base pass (the draft, upscaling)
+        private const string NodeBaseAudio = "2";       // VAEDecodeAudio — reads the same latent as node 3
+
+        // ── Attention: one H3SLAAttention per branch, each last on its own MODEL wire ─────────
+        private const string NodeSlaBase = "66";        // after the sigma shift, feeding guider 10 + scheduler 57
+        /// <summary>The face refine's own patch, after the audio lock. Unlike 🪪👥⚡ H3 Cast Hybrid there is no
+        /// free id inside the 100–111 window <see cref="AddSecondRefinePass"/> clones (107 is the refine
+        /// pass's KSamplerSelect), so the clone pair is seeded into that map explicitly.</summary>
+        private const string NodeSlaRefine = "67";
+        private const string NodeSlaRefine2 = "267";    // character 2's copy of it
+
+        // ── Latent upscale: the draft → 2× → finish scheme, nodes 70–80 ───────────────────────
+        // Node 23 keeps the cast's panels at the *finished* canvas; node 72 is a bare
+        // MiniMaxH3ReferenceToVideo with no references at all, supplying only the draft's empty AV latent.
+        private const string NodeDraftWidth = "70";     // ComfyMathExpression — finished width / 2
+        private const string NodeDraftHeight = "71";    // ComfyMathExpression — finished height / 2
+        private const string NodeDraftLatent = "72";    // MiniMaxH3ReferenceToVideo — empty AV latent, no refs
+        private const string NodeDraftSigmas = "74";    // SplitSigmas.high_sigmas — the first 4 of 8 steps
+        private const string NodeLatentUpscaler = "77"; // MinimaxH3LatentUpscaler3D
+        private const string NodeLatentSwitch = "80";   // ComfySwitchNode — draft latent or finished latent
         private const string NodeBaseFrames = "3";      // VAEDecode — the base pass's finished frames
         private const string NodeFaceTrack = "100";     // H3FaceTrackCrop — tracks and crops one subject
         private const string NodeRefineDenoise = "106"; // BasicScheduler of the refine pass (denoise + steps)
@@ -106,6 +129,27 @@ namespace FlipPix.UI.Linux.ViewModels.Video
         // ── Character 2's refine pass — the 100-block cloned into the 200s at submit time ──────
         /// <summary>What nodes 100–111 become in the clone. See <see cref="AddSecondRefinePass"/>.</summary>
         private const int RefinePass2IdOffset = 100;
+
+        /// <summary>
+        /// How much bigger the finished canvas is than the sampled draft, per side. Must stay an integer:
+        /// the draft is derived as <c>round(finished / factor / 32) * 32</c> and the upscaler multiplies
+        /// back by the same factor, and only an integer keeps those two on the same number.
+        /// </summary>
+        private const double LatentUpscaleFactor = 2.0;
+
+        /// <summary>
+        /// What ResolutionSelector rounds the finished canvas to. <b>64 with the latent upscale on</b>: the
+        /// draft is the finished canvas halved, and a merely 32-aligned finish does not survive the round
+        /// trip — 17 of the 24 aspect × quality combinations land 32px away from where they started.
+        /// </summary>
+        private const int ResolutionMultiple = 32;
+        private const int UpscaledResolutionMultiple = 64;
+
+        /// <summary>
+        /// SLA's attention block size, pinned rather than exposed. H3 packs audio at 80 rows per second, so
+        /// a 128-row block forces 1.6s of audio through one attention pattern and speech comes back robotic.
+        /// </summary>
+        private const string SlaBlockSize = "64";
 
         private const string NodeFaceTrack2 = "200";       // H3FaceTrackCrop tracking character 2
         private const string NodeRefineReference2 = "201"; // MiniMaxH3ReferenceToVideo — their panels only
@@ -160,6 +204,28 @@ namespace FlipPix.UI.Linux.ViewModels.Video
         private const int SheetWidth = 1536;
         private const int SheetHeight = 864;
 
+        // ── SAM face mask: what stops the composite being a moving rectangle ─────────────────
+        /// <summary>The SAM model loader, shared by both characters' mask passes — it only loads a model,
+        /// so it is deliberately not in <see cref="AddSecondRefinePass"/>'s clone map.</summary>
+        private const string NodeSamLoader = "90";
+        /// <summary><c>H3FaceMaskSAM</c>. Its id is outside the 100–111 clone window, so its clone pair is
+        /// seeded into that map by hand — character 2's mask has to come from character 2's own crops.</summary>
+        private const string NodeFaceMask = "91";
+        private const string NodeFaceMask2 = "291";
+
+        /// <summary>
+        /// Feather on the paste mask, in source pixels. The two values are not a preference: a rectangle
+        /// needs a wide blend to hide its edge, and a mask that already follows the jaw and hairline needs
+        /// a narrow one or it eats into the face. The node's own guidance is 4–8 with a SAM mask.
+        /// </summary>
+        private const int FeatherWithMask = 6;
+        private const int FeatherWithBox = 24;
+
+        /// <summary>H3FaceTrackCrop.canvas_mode: clamp the refine canvas to H3's native 768 short edge, or
+        /// let it follow the largest crop in the clip. See <see cref="RefineNoDownscale"/>.</summary>
+        private const string CanvasModeCapped = "auto_capped_768";
+        private const string CanvasModeNoDownscale = "auto_no_downscale";
+
         /// <summary>H3 renders at 24 fps and the duration maths below is built on it; written on every submit
         /// so an export at another rate cannot desync what the tab reports from what lands on disk.</summary>
         private const int OutputFrameRate = 24;
@@ -193,6 +259,7 @@ namespace FlipPix.UI.Linux.ViewModels.Video
         private string _storyText = string.Empty;
         private string _storyFileName = string.Empty;
         private double _storyDurationSeconds = 15;
+        private H3VisualStyle _visualStyle = H3VisualStyles.Auto;
         private string _selectedAspectRatio = H3Canvas.AutoAspect;
         private double _megapixels = 1.0;
         private double _lengthSeconds = 10;
@@ -200,9 +267,18 @@ namespace FlipPix.UI.Linux.ViewModels.Video
         private bool _isAnalyzing;
         private bool _faceRefine = true;
         private double _refineDenoise = 0.45;
+        private double _refineBlend = 1.0;
+        private bool _refineNoDownscale;
+        private bool _useSamFaceMask = true;
         // Off by default: it is the graph's largest allocation and the observed cause of ComfyUI dying
         // mid-render on a long clip. Opt in for short ones; otherwise upscale the finished file afterwards.
         private bool _rtxUpscale;
+        private bool _useLatentUpscale = true;
+        private bool _useSla = true;
+        // 0.85, not the faster 0.90: lightx2v's shipped value, and what the turbo LoRA was distilled
+        // against. 0.90 measured hotter and flatter in the speech band on this pipeline.
+        private double _slaSparsity = 0.85;
+        private bool _useSparseAttention;
         private bool _isBuildingSheets;
         private string _sheetPhase = string.Empty;
 
@@ -1056,6 +1132,30 @@ namespace FlipPix.UI.Linux.ViewModels.Video
             }
         }
 
+        /// <summary>
+        /// The medium the prompt writer must work in. Left on Auto the writer picks — which is what it did
+        /// before this existed, and it kept picking the same high-production gacha anime whatever the story
+        /// was, because that was the first example the system prompt showed it.
+        /// </summary>
+        public IReadOnlyList<H3VisualStyle> VisualStyleOptions { get; } = H3VisualStyles.All;
+
+        public H3VisualStyle VisualStyle
+        {
+            get => _visualStyle;
+            set
+            {
+                if (value == null || ReferenceEquals(_visualStyle, value)) return;
+                _visualStyle = value;
+                OnPropertyChanged();
+                OnPropertyChanged(nameof(VisualStyleSummary));
+            }
+        }
+
+        /// <summary>The line the clips will actually open with, so the choice is visible before Analyze runs.</summary>
+        public string VisualStyleSummary => VisualStyle.IsAuto
+            ? "The writer picks the medium off the scene image, or off the story when there is no image."
+            : "[Shot 1] opens: " + VisualStyle.Clause;
+
         public IReadOnlyList<string> AspectRatioOptions { get; } =
             new[] { H3Canvas.AutoAspect }
                 .Concat(H3Canvas.AspectRatios.Select(a => a.Option)).ToList();
@@ -1159,6 +1259,96 @@ namespace FlipPix.UI.Linux.ViewModels.Video
         /// pass rendered. Low keeps the original performance and only cleans it up; high re-draws the face
         /// from the sheet and risks fighting the lip-sync the audio lock is protecting.
         /// </summary>
+        /// <summary>
+        /// Opacity of the refined face when it is composited back — <c>H3FaceStitch.blend</c>, node 111.
+        ///
+        /// <para><b>This, not the denoise, is the floor on how much the pass can change a face.</b> Every
+        /// crop is resized to the refine canvas, VAE-encoded, sampled, VAE-decoded, resized back to source
+        /// and colour-matched to the region it replaces. All of that happens at <i>any</i> denoise,
+        /// including zero: a VAE round trip is lossy and a resample is lossy, so at a low denoise setting
+        /// what reaches the frame is not "the same face, gently cleaned" but "a re-encoded copy of the
+        /// face". Dropping the denoise to 0.15 removes the model's contribution and leaves that residue
+        /// untouched.</para>
+        ///
+        /// <para>Blend is what attenuates it: at 0.6, six parts refined face to four parts the pixels H3
+        /// originally rendered, so the round-trip error is scaled down along with the refinement. 1.00 is
+        /// what the workflow shipped and stays the default, since anything else silently changes what an
+        /// existing job renders; 0.5–0.7 is where a face that is "slightly off at the lowest denoise"
+        /// usually stops being off.</para>
+        /// </summary>
+        /// <summary>
+        /// Sizes the face-refine canvas from the largest crop in the clip instead of clamping it to 768 —
+        /// <c>H3FaceTrackCrop.canvas_mode</c>, <c>auto_no_downscale</c> rather than <c>auto_capped_768</c>.
+        ///
+        /// <para><b>It only does anything on close-ups.</b> The two modes are the same until a crop exceeds
+        /// 768px; below that nothing is being downscaled and there is nothing to recover. When a crop is
+        /// bigger — a 2.5x crop of a 350px face is 875px — the capped mode shrinks it on the way in, and
+        /// that lost detail cannot come back at the stitch no matter what the denoise or the blend is set
+        /// to. This removes the resample half of the round-trip loss described on
+        /// <see cref="RefineBlend"/>.</para>
+        ///
+        /// <para><b>Uncapped, and the cost is quadratic.</b> A 1200px canvas is 2.4x the latent tokens and
+        /// 2.4x the crop stack of a 768px one, and the canvas follows whatever the biggest face in the clip
+        /// happens to be. The node's own note is "can get expensive on clips that include close-ups", so
+        /// this stays off by default and the estimates below stop being an upper bound when it is on.</para>
+        /// </summary>
+        /// <summary>
+        /// Composites the refined face through a SAM mask that follows the actual face, instead of through
+        /// the detected face box.
+        ///
+        /// <para><b>This is the fix for "visible moving layers on the face".</b> With
+        /// <c>paste_region: face_only</c> the stitch pastes an arbitrary rectangle back into the frame —
+        /// re-detected every frame, so it moves and resizes on its own, while the pixels inside it came
+        /// from a different pass and differ subtly from everything outside. A subtly-different rectangle
+        /// that shifts every frame reads exactly as a layer sliding over the face, and neither the denoise
+        /// nor <see cref="RefineBlend"/> can touch it: one does not affect compositing at all, the other
+        /// only lowers the layer's contrast without removing its edge.</para>
+        ///
+        /// <para>Supplying <c>H3FaceStitch.masks</c> overrides <c>paste_region</c> outright, so the blend
+        /// falls on the jaw and hairline. <c>H3FaceMaskSAM.temporal_smooth</c> damps what is left of the
+        /// frame-to-frame movement, and the feather drops from <see cref="FeatherWithBox"/> to
+        /// <see cref="FeatherWithMask"/> because a mask that already follows the face does not need a wide
+        /// blend and is harmed by one.</para>
+        ///
+        /// <para>Costs a SAM pass over the crops. Off, the mask nodes are unwired and pruned and the stitch
+        /// goes back to the face box.</para>
+        /// </summary>
+        public bool UseSamFaceMask
+        {
+            get => _useSamFaceMask;
+            set
+            {
+                if (_useSamFaceMask == value) return;
+                _useSamFaceMask = value;
+                OnPropertyChanged();
+                OnPropertyChanged(nameof(RefineSummary));
+            }
+        }
+
+        public bool RefineNoDownscale
+        {
+            get => _refineNoDownscale;
+            set
+            {
+                if (_refineNoDownscale == value) return;
+                _refineNoDownscale = value;
+                OnPropertyChanged();
+                OnPropertyChanged(nameof(RefineSummary));
+            }
+        }
+
+        public double RefineBlend
+        {
+            get => _refineBlend;
+            set
+            {
+                if (Math.Abs(_refineBlend - value) < 0.0001) return;
+                _refineBlend = value;
+                OnPropertyChanged();
+                OnPropertyChanged(nameof(RefineSummary));
+            }
+        }
+
         public double RefineDenoise
         {
             get => _refineDenoise;
@@ -1173,8 +1363,16 @@ namespace FlipPix.UI.Linux.ViewModels.Video
         }
 
         public string RefineSummary => FaceRefine
-            ? $"Second H3 pass on the tracked face crops at denoise {RefineDenoise:0.00}, stitched back with the " +
-              "stage-1 audio locked so lip-sync survives. Needs the H3-FaceRefine + NativeAudioLock nodes."
+            ? $"Second H3 pass on the tracked face crops at denoise {RefineDenoise:0.00}, blend " +
+              $"{RefineBlend:0.00}, stitched back with the stage-1 audio locked so lip-sync survives. " +
+              (RefineNoDownscale
+                  ? "Crop canvas uncapped — sized from the largest crop, so no frame is downscaled; costs "
+                    + "area squared on a close-up. "
+                  : "Crop canvas capped at 768. ") +
+              (UseSamFaceMask
+                  ? "Composited through a SAM mask that follows the jaw and hairline. "
+                  : "Composited through the detected face box — a rectangle that moves every frame. ") +
+              "Needs the H3-FaceRefine + NativeAudioLock nodes."
             : "Off — the base H3 frames go straight to the RTX upscale. Faces stay as H3 rendered them.";
 
         /// <summary>
@@ -1185,6 +1383,75 @@ namespace FlipPix.UI.Linux.ViewModels.Video
         /// upscale the finished file in ✨ Enhance Video, where nothing else is holding memory.
         /// See <see cref="LoadSummary"/>.
         /// </summary>
+        /// <summary>
+        /// The draft-then-finish scheme on the base pass: four sampler steps at half the width and half the
+        /// height, a 2x pass through the MiniMax H3 3D latent upscaler, then three fixed-sigma steps at the
+        /// finished size. Only those last three ever see the full canvas.
+        ///
+        /// <para><b>The cast's panels are not sampled at the draft canvas.</b> Node 23 keeps every panel at
+        /// the finished canvas exactly as with this off, and a second, reference-free
+        /// MiniMaxH3ReferenceToVideo supplies the draft's empty latent - see
+        /// <see cref="WireLatentUpscale"/>. On a tab whose whole job is holding a face, encoding the
+        /// identity references at a quarter of the area would cost more than the scheme saves.</para>
+        ///
+        /// <para>With it on the tab no longer runs its own 6-step shifted schedule: the draft takes the
+        /// first four steps of an unshifted 8-step ramp and the finish takes three fixed sigmas, which is
+        /// the recipe validated on the MiniMax I2V tab. Off, node 57's 6 steps come back and the whole
+        /// 70-80 block is pruned.</para>
+        /// </summary>
+        public bool UseLatentUpscale
+        {
+            get => _useLatentUpscale;
+            set
+            {
+                if (_useLatentUpscale == value) return;
+                _useLatentUpscale = value;
+                OnPropertyChanged();
+                OnPropertyChanged(nameof(UpscaleSummary));
+                OnPropertyChanged(nameof(LoadSummary));
+                OnPropertyChanged(nameof(HasLoadWarning));
+            }
+        }
+
+        /// <summary>
+        /// Block-sparse attention for MiniMax H3, patched onto both passes - the base render and the face
+        /// refine. Measured 1.4-1.6x on this pipeline. Anything under the kernel's minimum sequence length
+        /// falls back to dense on its own, so a short clip at 0.4 MP may show no change at all.
+        /// </summary>
+        public bool UseSla
+        {
+            get => _useSla;
+            set { if (_useSla != value) { _useSla = value; OnPropertyChanged(); } }
+        }
+
+        /// <summary>The fraction of key blocks SLA skips. Break-even is around 0.60 - below that the kernel
+        /// is <i>slower</i> than dense attention, so a low setting is a loss, not a safe fallback.</summary>
+        public IReadOnlyList<SlaSparsityOption> SlaSparsityOptions { get; } = new[]
+        {
+            new SlaSparsityOption(0.80, "0.80 - conservative"),
+            new SlaSparsityOption(0.85, "0.85 - lightx2v default"),
+            new SlaSparsityOption(0.90, "0.90 - validated, ~15% faster"),
+            new SlaSparsityOption(0.95, "0.95 - maximum"),
+        };
+
+        public double SlaSparsity
+        {
+            get => _slaSparsity;
+            set { if (Math.Abs(_slaSparsity - value) > 0.0001) { _slaSparsity = value; OnPropertyChanged(); } }
+        }
+
+        /// <summary>
+        /// Sol-Attn, the same author's earlier general-purpose sparse attention - node 53, which this
+        /// workflow shipped with wired in and always on. <b>Off by default now</b>: SLA supersedes it for
+        /// H3 and stacking the two bought nothing measurable, so leaving both on would be two
+        /// approximations for one speedup. Off, the node is unwired and pruned.
+        /// </summary>
+        public bool UseSparseAttention
+        {
+            get => _useSparseAttention;
+            set { if (_useSparseAttention != value) { _useSparseAttention = value; OnPropertyChanged(); } }
+        }
+
         public bool RtxUpscale
         {
             get => _rtxUpscale;
@@ -1204,10 +1471,18 @@ namespace FlipPix.UI.Linux.ViewModels.Video
         {
             get
             {
-                var (cw, ch) = CanvasSize(ResolvedAspectRatio, Megapixels);
-                if (!RtxUpscale) return $"Output: the H3 canvas as rendered, ≈{cw}×{ch}. No upscale pass.";
-                var (w, h) = UpscaleSize(ResolvedAspectRatio, Megapixels);
-                return $"Output: RTX ×2 super-resolution → ≈{w}×{h}.";
+                var (cw, ch) = CanvasSize(ResolvedAspectRatio, Megapixels, UseLatentUpscale);
+                var sampled = string.Empty;
+                if (UseLatentUpscale)
+                {
+                    var (dw, dh) = DraftCanvas(ResolvedAspectRatio, Megapixels);
+                    sampled = $" Sampled as a {dw}×{dh} draft, upscaled ×{LatentUpscaleFactor:0.#}; " +
+                              "the cast's panels stay at the finished canvas.";
+                }
+                if (!RtxUpscale)
+                    return $"Output: the H3 canvas as rendered, ≈{cw}×{ch}. No upscale pass.{sampled}";
+                var (w, h) = UpscaleSize(ResolvedAspectRatio, Megapixels, UseLatentUpscale);
+                return $"Output: RTX ×2 super-resolution → ≈{w}×{h}.{sampled}";
             }
         }
 
@@ -1224,13 +1499,13 @@ namespace FlipPix.UI.Linux.ViewModels.Video
             get
             {
                 var frames = FramesForSeconds(ClampLength(LengthSeconds));
-                var (cw, ch) = CanvasSize(ResolvedAspectRatio, Megapixels);
+                var (cw, ch) = CanvasSize(ResolvedAspectRatio, Megapixels, UseLatentUpscale);
                 var baseGb = FrameStackGb(frames, cw, ch);
 
                 if (!RtxUpscale)
                     return $"{frames} frames × {cw}×{ch} ≈ {baseGb:0.#} GB of frames held at once.";
 
-                var (uw, uh) = UpscaleSize(ResolvedAspectRatio, Megapixels);
+                var (uw, uh) = UpscaleSize(ResolvedAspectRatio, Megapixels, UseLatentUpscale);
                 var upGb = FrameStackGb(frames, uw, uh);
                 var text = $"{frames} frames: ≈{baseGb:0.#} GB at the H3 canvas, ≈{upGb:0.#} GB after RTX ×2, " +
                            "both live at the same time during the upscale.";
@@ -1247,7 +1522,7 @@ namespace FlipPix.UI.Linux.ViewModels.Video
             get
             {
                 if (!RtxUpscale) return false;
-                var (uw, uh) = UpscaleSize(ResolvedAspectRatio, Megapixels);
+                var (uw, uh) = UpscaleSize(ResolvedAspectRatio, Megapixels, UseLatentUpscale);
                 return FrameStackGb(FramesForSeconds(ClampLength(LengthSeconds)), uw, uh) >= HeavyFrameStackGb;
             }
         }
@@ -1319,23 +1594,38 @@ namespace FlipPix.UI.Linux.ViewModels.Video
         /// ResolutionSelector. Mirrors that node's maths: the aspect's area at this megapixel count, the
         /// width snapped to a multiple of 32, and the height derived from the <i>snapped</i> width.
         /// </summary>
-        private static (int Width, int Height) CanvasSize(string aspectOption, double megapixels)
+        private static (int Width, int Height) CanvasSize(
+            string aspectOption, double megapixels, bool latentUpscale)
         {
             var ratio = H3Canvas.AspectRatios
                 .FirstOrDefault(a => a.Option == aspectOption).Ratio;
             if (ratio <= 0) ratio = 16.0 / 9.0;
 
+            // The alignment follows the latent upscale, because that is what the graph does. This stays an
+            // approximation of ResolutionSelector rather than H3Canvas.Resolve's exact reproduction of it,
+            // as it always has; the graph does not depend on it, since nodes 70/71 derive the draft from
+            // the selector's real output.
+            var multiple = latentUpscale ? UpscaledResolutionMultiple : ResolutionMultiple;
             var area = Math.Max(0.1, megapixels) * 1_000_000.0;
-            var w = RoundTo32(Math.Sqrt(area * ratio));
-            return (w, RoundTo32(w / ratio));
+            var w = Round(Math.Sqrt(area * ratio));
+            return (w, Round(w / ratio));
 
-            static int RoundTo32(double v) => Math.Max(32, (int)Math.Round(v / 32.0) * 32);
+            int Round(double v) => Math.Max(multiple, (int)Math.Round(v / multiple) * multiple);
+        }
+
+        /// <summary>The canvas the base pass actually samples at - the finished frame with the upscale off,
+        /// a quarter of its area with it on. What nodes 70/71 compute.</summary>
+        private static (int Width, int Height) DraftCanvas(string aspectOption, double megapixels)
+        {
+            var (w, h) = CanvasSize(aspectOption, megapixels, true);
+            return ((int)(w / LatentUpscaleFactor), (int)(h / LatentUpscaleFactor));
         }
 
         /// <summary>The size that reaches the file: <see cref="CanvasSize"/> through the graph's RTX ×2 pass.</summary>
-        private static (int Width, int Height) UpscaleSize(string aspectOption, double megapixels)
+        private static (int Width, int Height) UpscaleSize(
+            string aspectOption, double megapixels, bool latentUpscale)
         {
-            var (w, h) = CanvasSize(aspectOption, megapixels);
+            var (w, h) = CanvasSize(aspectOption, megapixels, latentUpscale);
             return ((int)(w * RtxScale), (int)(h * RtxScale));
         }
 
@@ -1379,6 +1669,9 @@ namespace FlipPix.UI.Linux.ViewModels.Video
                       $"from {source} — sending to {_lmStudioService.DescribeTarget(model)}"
                     : $"Writing a {len:0.#}s multi-shot H3 prompt from {source} " +
                       $"— sending to {_lmStudioService.DescribeTarget(model)}");
+                if (!VisualStyle.IsAuto)
+                    AddLog($"Visual style locked: {VisualStyle.Name}");
+
 
                 // A whole novel will not fit a local model's context; it truncates silently, which looks like
                 // the model ignoring the ending.
@@ -1459,6 +1752,11 @@ namespace FlipPix.UI.Linux.ViewModels.Video
                     ? $"Two character reference sheets will additionally be given to the video model and are addressed as <Picture 1> (Character 1, a {_character1.Noun}) and <Picture 2> (Character 2, a {_character2.Noun}). Each sheet is one person shown from several angles on a plain studio background. You are NOT shown those sheets — the video model is. Write both characters into the action and refer to them ONLY by those tags — wherever the story names its people, cast <Picture 1> and <Picture 2> in those roles and use the tags in place of the names. Their sexes are as stated here, so use the matching pronouns; apart from that, do not write any word for their hair, face, skin, build or age, since the tag already carries all of it. " + wardrobeRule
                     : $"One character reference sheet will additionally be given to the video model and is addressed as <Picture 1> (Character 1, a {_character1.Noun}). The sheet is one person shown from several angles on a plain studio background. You are NOT shown that sheet — the video model is. Write them into the action and refer to them ONLY by that tag — wherever the story names its protagonist, cast <Picture 1> in that role and use the tag in place of the name. Their sex is as stated here, so use the matching pronouns; apart from that, do not write any word for their hair, face, skin, build or age, since the tag already carries all of it. " + wardrobeRule;
 
+                // Ahead of the story rather than after it: the writer decides the medium in its first
+                // sentence, and a rule that arrives after the material has already been read is one the
+                // opening of [Shot 1] has stopped listening to.
+                var styleRule = H3VisualStyles.Rule(VisualStyle);
+
                 const string faceRule =
                     "Faces matter: keep the cast's faces visible and readable — favour medium and close shots " +
                     "over wide ones where the story allows, since a face that is a handful of pixels wide " +
@@ -1477,6 +1775,7 @@ namespace FlipPix.UI.Linux.ViewModels.Video
                         "never see it, so describe the environment — and the clothing — explicitly.\n" +
                         $"{cast}\n" +
                         lengthBlock +
+                        styleRule +
                         faceRule +
                         $"Story the video must tell:\n{story}\n" +
                         $"Draft idea from the user:\n{draft}";
@@ -1499,6 +1798,7 @@ namespace FlipPix.UI.Linux.ViewModels.Video
                         $"{cast}\n" +
                         lengthBlock +
                         wholeStory +
+                        styleRule +
                         faceRule +
                         $"The story:\n{StoryText.Trim()}\n" +
                         $"Draft idea from the user:\n{draft}";
@@ -2234,6 +2534,9 @@ namespace FlipPix.UI.Linux.ViewModels.Video
                     Seed = storySeed,
                     FaceRefine = FaceRefine,
                     RefineDenoise = RefineDenoise,
+                    RefineBlend = RefineBlend,
+                    RefineNoDownscale = RefineNoDownscale,
+                    UseSamFaceMask = UseSamFaceMask,
                     // The refine passes rebuild a reference line of their own, and it names the cast in the
                     // same words this clip's prompt just did.
                     PerCharacterRefine = true,
@@ -2241,6 +2544,10 @@ namespace FlipPix.UI.Linux.ViewModels.Video
                     Sex2 = HasCharacter2 ? _character2.Noun : string.Empty,
                     SheetsShowWardrobe = SheetsShowWardrobe,
                     RtxUpscale = RtxUpscale,
+                    UseLatentUpscale = UseLatentUpscale,
+                    UseSla = UseSla,
+                    SlaSparsity = SlaSparsity,
+                    UseSparseAttention = UseSparseAttention,
                     StoryId = storyId,
                     ClipIndex = i + 1,
                     ClipCount = clips.Count,
@@ -2710,11 +3017,36 @@ namespace FlipPix.UI.Linux.ViewModels.Video
 
                 json = WireReferenceImages(json, uploadedRefs, out var refLoaders);
 
+                // The base pass only: the refine pass is a 0.45-denoise img2img over 768px face crops,
+                // with no composition to settle cheaply and nothing to gain from drafting it.
+                json = WireLatentUpscale(json, item.UseLatentUpscale, out var upscaleWired);
+                if (item.UseLatentUpscale && !upscaleWired)
+                    AddLog($"The latent upscale was requested but the workflow file no longer carries the " +
+                           $"draft block (nodes {NodeDraftWidth}-{NodeLatentSwitch}) — sampling the base " +
+                           "pass in one go at the full canvas instead.");
+
+                // Before AddSecondRefinePass, which clones the model wire verbatim.
+                json = WireAttention(json, item.UseSla, item.SlaSparsity, item.UseSparseAttention,
+                                     out var slaWired);
+                if (item.UseSla && !slaWired)
+                    AddLog($"SLA was requested but the workflow file no longer carries nodes {NodeSlaBase} " +
+                           $"and {NodeSlaRefine} — sampling with dense attention instead.");
+                else if (item.UseSla)
+                    AddLog($"SLA block-sparse attention at sparsity {item.SlaSparsity:0.00}, block " +
+                           $"{SlaBlockSize} — on the base pass and on each face-refine pass. A short or " +
+                           "low-resolution clip falls below the kernel's minimum sequence length and runs " +
+                           "dense on its own.");
+                AddLog(item.UseSparseAttention
+                    ? "Sol-Attn is on as well as SLA — the two are separate approximations of the same "
+                      + "attention and stacking them has not measured faster than SLA alone."
+                    : "Sol-Attn off: node 53 is unwired and pruned.");
+
                 var runSeed = item.Seed >= 0 ? item.Seed : System.Random.Shared.NextInt64(0, long.MaxValue);
                 var len = ClampLength(item.LengthSeconds);
                 var aspect = item.AspectRatio;
-                var (canvasW, canvasH) = CanvasSize(aspect, item.Megapixels);
-                var (upW, upH) = UpscaleSize(aspect, item.Megapixels);
+                var (canvasW, canvasH) = CanvasSize(aspect, item.Megapixels, item.UseLatentUpscale);
+                var (upW, upH) = UpscaleSize(aspect, item.Megapixels, item.UseLatentUpscale);
+                var (draftW, draftH) = DraftCanvas(aspect, item.Megapixels);
                 var ts = DateTime.Now.ToString("yyyyMMdd_HHmmss");
                 // Story clips carry their index in the run token so a chain's outputs sort in story order and
                 // the disk-scan fallback can still tell two clips apart.
@@ -2790,8 +3122,17 @@ namespace FlipPix.UI.Linux.ViewModels.Video
                 if (item.FaceRefine)
                 {
                     SetInput(ref json, NodeRefineDenoise, "denoise", item.RefineDenoise);
+                    SetInput(ref json, NodeFaceStitch, "blend", item.RefineBlend);
+                    SetInput(ref json, NodeFaceTrack, "canvas_mode",
+                             item.RefineNoDownscale ? CanvasModeNoDownscale : CanvasModeCapped);
                     // Its own noise, derived from the run seed so a re-run of the same item is reproducible.
                     SetInput(ref json, NodeRefineSeed, "noise_seed", (runSeed % (long.MaxValue - 1)) + 1);
+                    AddLog(item.RefineNoDownscale
+                        ? "Face refine canvas: uncapped — sized from the largest crop in the clip, so no " +
+                          "frame is downscaled on the way in. Costs area squared on a close-up."
+                        : "Face refine canvas: capped at 768. A crop bigger than that is downscaled on the " +
+                          "way in, and that detail does not come back at the stitch — turn the cap off if " +
+                          "close-up faces are losing texture.");
                     AddLog($"Face refine: character 1's crops re-generated at denoise {item.RefineDenoise:0.00} " +
                            $"against their own {panels1.Count} panel(s)" +
                            (perCharacterRefine ? ", tracked by their face close-up" : string.Empty) +
@@ -2800,6 +3141,9 @@ namespace FlipPix.UI.Linux.ViewModels.Video
                     if (refineCharacter2)
                     {
                         SetInput(ref json, NodeRefineDenoise2, "denoise", item.RefineDenoise);
+                        SetInput(ref json, NodeFaceStitch2, "blend", item.RefineBlend);
+                        SetInput(ref json, NodeFaceTrack2, "canvas_mode",
+                                 item.RefineNoDownscale ? CanvasModeNoDownscale : CanvasModeCapped);
                         // A different seed: the two passes redraw different faces and would otherwise share
                         // the same noise on crops of the same size.
                         SetInput(ref json, NodeRefineSeed2, "noise_seed", (runSeed % (long.MaxValue - 2)) + 2);
@@ -2811,6 +3155,26 @@ namespace FlipPix.UI.Linux.ViewModels.Video
                 else
                 {
                     AddLog("Face refine off: the base H3 frames go straight to the video.");
+                }
+
+
+                // After WireRefinePasses, so the character-2 clone (211/291) already exists to be settled
+                // alongside character 1's. Skipped entirely when the refine branch is not running.
+                if (item.FaceRefine)
+                {
+                    json = WireFaceMask(json, item.UseSamFaceMask, refineCharacter2, out var maskWired);
+                    if (item.UseSamFaceMask && !maskWired)
+                        AddLog($"The SAM face mask was requested but the workflow file no longer carries " +
+                               $"nodes {NodeSamLoader}/{NodeFaceMask} — compositing through the detected " +
+                               "face box instead, which is what puts a moving rectangle over the face.");
+                    else
+                        AddLog(item.UseSamFaceMask
+                            ? $"Face mask: SAM, feather {FeatherWithMask}px — the composite follows the jaw "
+                              + "and hairline instead of the detected face box, so there is no rectangle to "
+                              + "slide around as the box is re-detected each frame."
+                            : $"Face mask: the detected face box, feather {FeatherWithBox}px. The box moves "
+                              + "and resizes every frame, and the refined pixels inside it differ slightly "
+                              + "from those outside — that boundary is what reads as a layer on the face.");
                 }
 
                 json = WireOutputChain(json, item.FaceRefine, refineCharacter2, item.RtxUpscale);
@@ -2825,10 +3189,22 @@ namespace FlipPix.UI.Linux.ViewModels.Video
                     ? $"RTX ×{RtxScale:0.#} → ≈{upW}×{upH}"
                     : "no upscale";
 
+                var latentUpscale = item.UseLatentUpscale && upscaleWired;
+                var sampling = latentUpscale
+                    ? $"4 draft steps at {draftW}×{draftH} → ×{LatentUpscaleFactor:0.#} → 3 finish steps"
+                    : $"{steps} steps";
+
                 ProcessingProgress = 10;
                 ProcessingStatus = "Generating video...";
                 AddLog($"Generating (seed {runSeed}, {len:0.#}s / {frameCount} frames @ {OutputFrameRate}fps, " +
-                       $"{aspect} ≈{canvasW}×{canvasH}, {item.Megapixels:0.0} MP, {steps} steps, {finish})...");
+                       $"{aspect} ≈{canvasW}×{canvasH}, {item.Megapixels:0.0} MP, {sampling}, {finish})...");
+                AddLog(latentUpscale
+                    ? $"Latent upscale on: the base pass settles the composition at {draftW}×{draftH}, the " +
+                      $"MiniMax H3 3D upscaler doubles it, and three fixed-sigma steps finish at " +
+                      $"{canvasW}×{canvasH}. The {uploadedRefs.Count} cast panel(s) are encoded at the " +
+                      $"finished {canvasW}×{canvasH}, not at the draft. Node 57's own {steps}-step shifted " +
+                      "schedule is not used in this mode."
+                    : $"Latent upscale off: one {steps}-step pass at {canvasW}×{canvasH}.");
 
                 // Said out loud before the wait rather than after the crash: every image node in this graph
                 // holds the whole clip, so this is the number that decides whether the server survives.
@@ -3138,7 +3514,15 @@ namespace FlipPix.UI.Linux.ViewModels.Video
             var root = JsonNode.Parse(json)?.AsObject()
                        ?? throw new Exception("Workflow JSON could not be parsed.");
 
-            var map = new Dictionary<string, string>(StringComparer.Ordinal);
+            // The refine pass's SLA patch lives outside the 100-111 window — there is no free id inside it —
+            // so its clone pair is seeded by hand. Without this, character 2's guider and scheduler would be
+            // patched off character 1's audio lock. Harmless when the node is absent: the loop skips a
+            // source that is not in the graph.
+            var map = new Dictionary<string, string>(StringComparer.Ordinal)
+            {
+                [NodeSlaRefine] = NodeSlaRefine2,
+                [NodeFaceMask] = NodeFaceMask2,
+            };
             foreach (var kv in root.ToList())
             {
                 if (!int.TryParse(kv.Key, out var id) || id < 100 || id > 111) continue;
@@ -3299,6 +3683,156 @@ namespace FlipPix.UI.Linux.ViewModels.Video
             SetInput(ref json, NodeRtxUpscale, "images", new JsonArray(frames, 0));
             SetInput(ref json, NodeVideoCombine, "images",
                 new JsonArray(rtxUpscale ? NodeRtxUpscale : frames, 0));
+            return json;
+        }
+
+        /// <summary>
+        /// Settles the draft -> 2x -> finish scheme on the base pass (nodes 70-80).
+        ///
+        /// <para><b>Why this is wired the other way round from the MiniMax I2V tab.</b> There,
+        /// ResolutionSelector is handed a quarter of the megapixel target and names the <i>draft</i>; the
+        /// reference node hangs off it, and since <c>ref_image_size</c> is <c>match</c> every panel is
+        /// encoded at the draft canvas, a quarter of the area the user asked for. This tab exists to hold a
+        /// face across a clip, so that is the wrong trade here.</para>
+        ///
+        /// <para>So the selector keeps naming the <b>finished</b> canvas and node 23 keeps every panel at
+        /// it, exactly as with the upscale off. The draft canvas exists only as node 72 - a bare
+        /// <c>MiniMaxH3ReferenceToVideo</c> with no reference images, whose only output of interest is an
+        /// empty AV latent at half the width and half the height. Both samplers share node 23's
+        /// conditioning, which is sound because the I2V base pass already reuses one conditioning across a
+        /// draft and a 2x finish.</para>
+        ///
+        /// <para>Node 73 reads the <b>raw UNet</b> rather than the patched model: <c>MiniMaxH3SigmaShift</c>
+        /// sits on the wire the tab's own scheduler reads, and a shifted ramp does not have its halfway
+        /// point at sigma 0.5, which is where the draft has to stop for the finish sigmas to pick it up.</para>
+        ///
+        /// <para>Off, the base pass goes back to one 6-step sampling at the finished canvas: the sampler
+        /// takes node 23's own latent and node 57's schedule again, the decoders read the sampler directly,
+        /// and the whole 70-80 block falls out in the prune. Returns false when the workflow file predates
+        /// the block, so the caller can say so.</para>
+        /// </summary>
+        private static string WireLatentUpscale(string json, bool useUpscale, out bool wired)
+        {
+            var root = JsonNode.Parse(json)?.AsObject()
+                       ?? throw new Exception("Workflow JSON could not be parsed.");
+
+            wired = root[NodeDraftLatent] is JsonObject && root[NodeLatentUpscaler] is JsonObject &&
+                    root[NodeLatentSwitch] is JsonObject && root[NodeDraftSigmas] is JsonObject;
+            if (!wired) return json;
+
+            RequireClass(root, NodeDraftLatent, "MiniMaxH3ReferenceToVideo");
+            RequireClass(root, NodeLatentUpscaler, "MinimaxH3LatentUpscaler3D");
+            RequireClass(root, NodeLatentSwitch, "ComfySwitchNode");
+            RequireClass(root, NodeDraftSigmas, "SplitSigmas");
+
+            json = root.ToJsonString();
+            if (useUpscale)
+            {
+                // The factor has to be the same number in both places that derive the finished canvas: the
+                // upscaler, and the two expressions that halve the selector's output for the draft.
+                SetInput(ref json, NodeLatentUpscaler, "mode.scale", LatentUpscaleFactor);
+                SetInput(ref json, NodeDraftWidth, "values.b", LatentUpscaleFactor);
+                SetInput(ref json, NodeDraftHeight, "values.b", LatentUpscaleFactor);
+                SetInput(ref json, NodeResolution, "multiple", UpscaledResolutionMultiple);
+                return json;
+            }
+
+            SetInput(ref json, NodeSampler, "latent_image", new JsonArray(NodeReference, 1));
+            SetInput(ref json, NodeSampler, "sigmas", new JsonArray(NodeScheduler, 0));
+            SetInput(ref json, NodeBaseFrames, "samples", new JsonArray(NodeSampler, 0));
+            SetInput(ref json, NodeBaseAudio, "samples", new JsonArray(NodeSampler, 0));
+            SetInput(ref json, NodeResolution, "multiple", ResolutionMultiple);
+            return json;
+        }
+
+        /// <summary>
+        /// Settles the two attention patches: <c>H3SLAAttention</c> on each branch (node 66 after the sigma
+        /// shift, node 67 after the audio lock, each last on its own MODEL wire), and the workflow's own
+        /// <c>SolAttnPatch</c> at node 53.
+        ///
+        /// <para>Either one that is off is <b>cut out rather than disabled</b>: its consumers are pointed
+        /// back at whatever fed it, which leaves it unreachable for <see cref="PruneToOutputs"/> to delete.
+        /// That is what lets a server without the SLA pack render the job at all - a disabled node is still
+        /// a node the server has to know how to load - and it is also how Sol-Attn, which this workflow
+        /// shipped with hard-wired and no switch, gets turned off.</para>
+        ///
+        /// <para>Must run before <see cref="AddSecondRefinePass"/>: that clones the model wire verbatim, so
+        /// whatever it finds is what character 2's pass inherits.</para>
+        /// </summary>
+        private static string WireAttention(
+            string json, bool useSla, double sparsity, bool useSolAttn, out bool slaWired)
+        {
+            var root = JsonNode.Parse(json)?.AsObject()
+                       ?? throw new Exception("Workflow JSON could not be parsed.");
+
+            slaWired = false;
+            foreach (var id in new[] { NodeSlaBase, NodeSlaRefine })
+            {
+                if (root[id] is not JsonObject node) continue;
+                RequireClass(root, id, "H3SLAAttention");
+                slaWired = true;
+                if (!useSla) { Unwire(root, id); continue; }
+
+                var inputs = node["inputs"]!.AsObject();
+                inputs["enabled"] = true;
+                inputs["sparsity_ratio"] = sparsity;
+                inputs["block_size"] = SlaBlockSize;
+            }
+
+            if (!useSolAttn && root[NodeSolAttn] is JsonObject) Unwire(root, NodeSolAttn);
+
+            return root.ToJsonString();
+
+            // Hands every consumer the model this patch was reading, and lets the prune take it.
+            static void Unwire(JsonObject root, string id)
+            {
+                if (root[id]?["inputs"]?["model"] is not JsonArray source || source.Count < 2) return;
+                var fromNode = source[0]!.GetValue<string>();
+                var fromSlot = source[1]!.GetValue<int>();
+                foreach (var other in root.ToList())
+                {
+                    if (other.Value?["inputs"] is not JsonObject otherInputs) continue;
+                    foreach (var input in otherInputs.ToList())
+                        if (input.Value is JsonArray link && link.Count >= 2 &&
+                            link[0]?.GetValue<string>() == id)
+                            otherInputs[input.Key] = new JsonArray(fromNode, fromSlot);
+                }
+            }
+        }
+
+        /// <summary>
+        /// Points the stitch at a SAM mask that follows the face, or back at the detected face box.
+        ///
+        /// <para>Off is an unwire, not a flag: the <c>masks</c> input is removed from each stitch, which
+        /// leaves <c>H3FaceMaskSAM</c> and the loader unreachable for <see cref="PruneToOutputs"/> to
+        /// delete — so a server without an installed SAM model still renders the job. The feather moves
+        /// with it, because the right blend width for a mask and for a rectangle are different numbers.</para>
+        /// </summary>
+        private static string WireFaceMask(string json, bool useMask, bool refineCharacter2, out bool wired)
+        {
+            var root = JsonNode.Parse(json)?.AsObject()
+                       ?? throw new Exception("Workflow JSON could not be parsed.");
+
+            wired = root[NodeFaceMask] is JsonObject && root[NodeSamLoader] is JsonObject;
+            if (!wired)
+            {
+                // A file without the mask nodes still has to lose any dangling link to them.
+                foreach (var id in new[] { NodeFaceStitch, NodeFaceStitch2 })
+                    (root[id]?["inputs"] as JsonObject)?.Remove("masks");
+                return root.ToJsonString();
+            }
+
+            RequireClass(root, NodeFaceMask, "H3FaceMaskSAM");
+            RequireClass(root, NodeSamLoader, "SAMLoader");
+
+            if (!useMask)
+                foreach (var id in new[] { NodeFaceStitch, NodeFaceStitch2 })
+                    (root[id]?["inputs"] as JsonObject)?.Remove("masks");
+
+            json = root.ToJsonString();
+            SetInput(ref json, NodeFaceStitch, "feather", useMask ? FeatherWithMask : FeatherWithBox);
+            if (refineCharacter2 && JsonNode.Parse(json)?[NodeFaceStitch2] is JsonObject)
+                SetInput(ref json, NodeFaceStitch2, "feather", useMask ? FeatherWithMask : FeatherWithBox);
             return json;
         }
 

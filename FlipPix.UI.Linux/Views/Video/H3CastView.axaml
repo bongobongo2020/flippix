@@ -1,4 +1,4 @@
-<UserControl xmlns="https://github.com/avaloniaui"
+﻿<UserControl xmlns="https://github.com/avaloniaui"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              xmlns:controls="clr-namespace:FlipPix.UI.Linux.Controls"
              xmlns:ctrl="clr-namespace:FlipPix.UI.Linux.Controls"
@@ -178,6 +178,21 @@
                                     Foreground="{DynamicResource TabAccentBrush}" Margin="0,0,0,4"
                                     ToolTip.Tip="Length of the finished video, in 5-second steps up to 2 minutes. MiniMax H3 renders at most ~15s per pass, so anything longer is written as a chain of consecutive clips — Analyze writes them all in one reply, Add to Queue enqueues one job per clip against the same character sheets, and they are joined into a single file when the last one lands."/>
                             <TextBlock Text="{Binding ClipPlanSummary}"
+                                       FontSize="10" Foreground="{StaticResource TextMutedBrush}" FontStyle="Italic"
+                                       TextWrapping="Wrap" Margin="0,0,0,10"/>
+
+                            <!-- The medium the writer works in. Left on Auto it picks,
+                                 and it used to pick gacha anime almost every time
+                                 whatever the story was. -->
+                            <TextBlock Text="Visual style" FontSize="10" FontWeight="SemiBold"
+                                       Foreground="{StaticResource TextSecondaryBrush}" Margin="0,0,0,4"/>
+                            <ComboBox ItemsSource="{Binding VisualStyleOptions}"
+                                      SelectedItem="{Binding VisualStyle, Mode=TwoWay}"
+                                      DisplayMemberBinding="{Binding Name}"
+                                      HorizontalAlignment="Stretch"
+                                      Height="30" FontSize="11" Margin="0,0,0,4"
+                                      ToolTip.Tip="The medium every clip is written in. The style words open [Shot 1], which is the only place MiniMax H3 reads the look of the video from &#x2014; so the choice here is handed to the prompt writer as settled fact and copied verbatim into every clip of a chain, exactly the way the wardrobe is.&#x0a;&#x0a;Auto leaves it to the writer, which is what this tab did before: it reads the medium off the scene image where there is one and off the story where there is not."/>
+                            <TextBlock Text="{Binding VisualStyleSummary}"
                                        FontSize="10" Foreground="{StaticResource TextMutedBrush}" FontStyle="Italic"
                                        TextWrapping="Wrap" Margin="0,0,0,10"/>
 
@@ -452,6 +467,25 @@
                                       SelectedValue="{Binding Megapixels}"
                                       Height="30" FontSize="11" Margin="0,0,0,8"/>
 
+                            <CheckBox Content="Latent upscale (draft → 2× finish)" IsChecked="{Binding UseLatentUpscale}"
+                                      FontSize="11" FontWeight="SemiBold" Margin="0,0,0,4"
+                                      Foreground="{StaticResource TextPrimaryBrush}"
+                                      ToolTip.Tip="Renders the base pass in three moves instead of one: four sampler steps at half the width and half the height to settle the composition, a 2× pass through the MiniMax H3 3D latent upscaler, then three fixed-sigma steps at the finished size to put the detail on. Only those last three ever see the full canvas.&#x0a;&#x0a;Your cast&apos;s panels are NOT affected: they are still encoded at the finished canvas, exactly as with this off. (The 🌀 MiniMax I2V tab does shrink them — this tab deliberately does not, because holding a face is the whole point here.)&#x0a;&#x0a;With this on the tab no longer uses its own 6-step shifted schedule; the draft takes four steps of an unshifted ramp and the finish takes three fixed sigmas, which is the recipe validated on MiniMax I2V. The face-refine pass is untouched either way.&#x0a;&#x0a;Needs the MinimaxH3LatentUpscaler3D node pack on the server. Unchecked, the base pass falls back to its own 6-step sampling at the full size and the whole block is pruned out of the graph."/>
+
+                            <CheckBox Content="SLA block-sparse attention" IsChecked="{Binding UseSla}"
+                                      FontSize="11" FontWeight="SemiBold" Margin="0,0,0,4"
+                                      Foreground="{StaticResource TextPrimaryBrush}"
+                                      ToolTip.Tip="Block-sparse attention for MiniMax H3: each query block is scored against every key block with one pooled matmul, and only the top slice is actually attended. Nothing is loaded and nothing is trained — the sparsity is decided at runtime from q and k. Measured 1.4–1.6× on this pipeline.&#x0a;&#x0a;It patches both H3 passes: the base render, and the face refine downstream of the audio lock. Attention cost grows with the square of frames × canvas area, so long or large clips gain most; anything under the kernel&apos;s minimum sequence length falls back to dense on its own, which is why a short clip at 0.4 MP may show no change at all.&#x0a;&#x0a;Needs the H3-SLA-Attention node pack on the server. Unchecked, the patches are unwired and pruned out of the graph entirely — which is what lets a server without the pack still render the job."/>
+                            <ComboBox ItemsSource="{Binding SlaSparsityOptions}"
+                                      DisplayMemberBinding="{Binding Label}" SelectedValueBinding="{Binding Value}"
+                                      SelectedValue="{Binding SlaSparsity}"
+                                      IsEnabled="{Binding UseSla}"
+                                      Height="28" FontSize="11" Margin="18,0,0,6"
+                                      ToolTip.Tip="Fraction of key blocks skipped. Break-even is around 0.60 — below that the kernel is SLOWER than dense attention, so a low value is a loss, not a safe fallback.&#x0a;&#x0a;0.85 is lightx2v&apos;s shipped value and what the turbo LoRA was distilled against. 0.90 is roughly 13% quicker, and measured hotter and flatter in the speech band — which matters here because every clip this tab renders carries a soundtrack."/>
+                            <CheckBox Content="Sol-Attn (legacy sparse attention)" IsChecked="{Binding UseSparseAttention}"
+                                      FontSize="11" Margin="0,0,0,10"
+                                      ToolTip.Tip="Sol-Attn — the same author&apos;s earlier, general-purpose sparse attention, which this workflow shipped with wired in and always on.&#x0a;&#x0a;Off by default now: SLA supersedes it for H3 and stacking the two has not measured faster than SLA alone, so leaving both on is two approximations bought for one speedup. Unchecked, node 53 is unwired and pruned. Turn it on only to compare against SLA, or if the SLA pack is missing from the server."/>
+
                             <CheckBox Content="RTX ×2 super-resolution" IsChecked="{Binding RtxUpscale}"
                                       FontSize="11" FontWeight="SemiBold" Margin="0,0,0,4"
                                       Foreground="{StaticResource TextPrimaryBrush}"
@@ -487,6 +521,22 @@
                             <TextBlock Text="{Binding RefineSummary}"
                                        FontSize="10" Foreground="{StaticResource TextMutedBrush}" FontStyle="Italic"
                                        TextWrapping="Wrap" Margin="0,0,0,10"/>
+                            <TextBlock Text="Refine blend (how much of the refined face is kept)"
+                                       FontSize="10" Foreground="{StaticResource TextSecondaryBrush}" Margin="0,0,0,2"/>
+                            <Slider Value="{Binding RefineBlend}"
+                                    Minimum="0.2" Maximum="1.0"
+                                    TickFrequency="0.05" IsSnapToTickEnabled="True"
+                                    IsEnabled="{Binding FaceRefine}"
+                                    Foreground="{DynamicResource TabAccentBrush}" Margin="0,0,0,2"
+                                    ToolTip.Tip="How much of the refined face is actually composited back over the original.&#x0a;&#x0a;This is the control that matters when faces come back slightly off even at the lowest denoise. The refine pass crops each face, resizes it to the refine canvas, VAE-encodes it, samples, VAE-decodes and resizes it back. Everything except the sampling happens at ANY denoise — a VAE round trip and a resample both change pixels — so turning the denoise down removes the model&apos;s contribution but leaves that residue behind. That residue is the floor, and the denoise slider cannot reach below it.&#x0a;&#x0a;Blend scales it: at 0.60 you get six parts refined face to four parts the pixels H3 originally rendered, so the round-trip error comes down with it. 1.00 is what the workflow shipped. Try 0.5–0.7 if the refine is helping the shape but hurting the texture."/>
+                            <CheckBox Content="Never downscale the face crop (close-ups)" IsChecked="{Binding RefineNoDownscale}"
+                                      FontSize="11" Margin="0,0,0,2"
+                                      IsEnabled="{Binding FaceRefine}"
+                                      ToolTip.Tip="Sizes the face-refine canvas from the largest crop in the clip instead of clamping it to 768px.&#x0a;&#x0a;It only does anything on close-ups. Below 768 the two settings are identical — nothing is being downscaled, so there is nothing to recover. Above it they diverge: a 2.5× crop of a 350px face is 875px, and with the cap on that gets shrunk to 768 before H3 ever sees it. That lost detail cannot come back at the stitch, whatever the denoise or the blend is set to. This is the other half of the round-trip loss — the resample half.&#x0a;&#x0a;Uncapped, and the cost is quadratic: a 1200px canvas is 2.4× the latent tokens and 2.4× the crop stack of a 768px one, and the canvas follows whatever the biggest face in the clip happens to be. The node&apos;s own warning is that it can get expensive on clips with close-ups, so it is off by default — and with it on, the frame-stack figures below are a floor rather than a ceiling."/>
+                            <CheckBox Content="Composite through a SAM face mask" IsChecked="{Binding UseSamFaceMask}"
+                                      FontSize="11" Margin="0,0,0,2"
+                                      IsEnabled="{Binding FaceRefine}"
+                                      ToolTip.Tip="Composites the refined face through a mask that follows the actual face, instead of through the detected face box.&#x0a;&#x0a;This is the fix for visible moving layers on a face. Without it the stitch pastes an arbitrary rectangle back into the frame — re-detected every frame, so it moves and resizes on its own, while the pixels inside it came from a different pass and differ subtly from everything outside. A subtly-different rectangle that shifts every frame reads as a layer sliding over the face. Neither the denoise nor the blend can reach it: one does not affect compositing at all, the other only lowers the layer&apos;s contrast without removing its edge.&#x0a;&#x0a;With a SAM mask supplied, the blend falls on the jaw and hairline, the mask is smoothed over time to damp what movement is left, and the feather drops from 24px to 6px because a mask that already follows the face is harmed by a wide blend.&#x0a;&#x0a;Costs a SAM pass over the crops. Needs a SAM model on the server; unchecked, the mask nodes are pruned and the face box comes back."/>
 
                             <TextBlock Text="Clip length (seconds · 4–15)" FontSize="10" Foreground="{StaticResource TextSecondaryBrush}" Margin="0,0,0,4"/>
                             <Slider Value="{Binding LengthSeconds}"

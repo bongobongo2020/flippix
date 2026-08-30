@@ -127,11 +127,47 @@ namespace FlipPix.UI.Models
         public double RefineDenoise { get; set; } = 0.45;
 
         /// <summary>
+        /// Opacity of the refined face at the stitch (<c>H3FaceStitch.blend</c>). 1.0 replaces the face
+        /// outright with a VAE round-tripped copy; below that mixes the original pixels back, which is the
+        /// only control that attenuates the round-trip loss the denoise cannot reach.
+        /// </summary>
+        public double RefineBlend { get; set; } = 1.0;
+
+        /// <summary>
+        /// Sizes the refine canvas from the largest crop rather than clamping it to 768
+        /// (<c>H3FaceTrackCrop.canvas_mode</c>). Only bites on close-ups, where the capped mode would
+        /// downscale the crop on the way in. Off by default: uncapped, and the cost is quadratic.
+        /// </summary>
+        public bool RefineNoDownscale { get; set; }
+
+        /// <summary>
+        /// Composite the refined face through a SAM mask (<c>H3FaceStitch.masks</c>) rather than the
+        /// detected face box. On by default: the box is re-detected every frame, so pasting through it puts
+        /// a moving rectangle over the face. Off, the mask nodes are pruned and the box comes back.
+        /// </summary>
+        public bool UseSamFaceMask { get; set; } = true;
+
+        /// <summary>
         /// FILM ×2 frame interpolation, muxed at double the render rate. On by default: the 8-step turbo
         /// stack renders 24 fps and the interpolation is cheap next to the diffusion, so it is the one
         /// finishing pass that is nearly free.
         /// </summary>
         public bool Interpolate { get; set; } = true;
+
+        /// <summary>
+        /// The draft → 2× latent upscale → 3-step finish scheme on the base pass. On by default. The
+        /// reference pictures are unaffected either way: they are encoded at the finished canvas.
+        /// </summary>
+        public bool UseLatentUpscale { get; set; } = true;
+
+        /// <summary>
+        /// Block-sparse attention on both H3 passes. On by default; when false the two H3SLAAttention nodes
+        /// are unwired and pruned, so a server without the pack still renders the job.
+        /// </summary>
+        public bool UseSla { get; set; } = true;
+
+        /// <summary>The fraction of key blocks SLA skips. Below ~0.60 the kernel is slower than dense.</summary>
+        public double SlaSparsity { get; set; } = 0.85;
 
         /// <summary>
         /// When false — the default — the RTX ×2 super-resolution node is pruned. It is the single largest

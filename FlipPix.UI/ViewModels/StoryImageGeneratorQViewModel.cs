@@ -76,6 +76,7 @@ namespace FlipPix.UI.ViewModels
                     OnPropertyChanged(nameof(ShowLoRAOption));
                     OnPropertyChanged(nameof(ShowKreaLoraOption));
                     OnPropertyChanged(nameof(ShowKrea2EditOption));
+                    OnPropertyChanged(nameof(ShowKrea2Orientation));
                     OnPropertyChanged(nameof(ShowZOptions));
                     OnPropertyChanged(nameof(CanLoadPrompts));
 
@@ -128,6 +129,44 @@ namespace FlipPix.UI.ViewModels
         public bool ShowZOptions => SelectedWorkflowMode == "StoryImageZ";
 
         public bool ShowKrea2EditOption => SelectedWorkflowMode == Krea2EditMode;
+
+        public bool ShowKrea2Orientation => SelectedWorkflowMode == "Krea2";
+
+        // --- Krea2 canvas size ---
+        // Only the text-to-image Krea2 mode needs this; krea2-edit takes its canvas from the
+        // input image. Every option sits near 1 MP so the Turbo pass stays fast — the workflow's
+        // own FluxResolutionNode link defaults to a ~2.5 MP latent, which is why node 10 is pinned.
+
+        public static readonly IReadOnlyList<string> Krea2Orientations = new[]
+        {
+            "Portrait (1024x1280)",
+            "Tall Portrait (768x1344)",
+            "Square (1152x1152)",
+            "Widescreen (1344x768)",
+            "Ultrawide (1536x640)"
+        };
+
+        private string _krea2SelectedOrientation = "Portrait (1024x1280)";
+        public string Krea2SelectedOrientation
+        {
+            get => _krea2SelectedOrientation;
+            set { if (_krea2SelectedOrientation != value) { _krea2SelectedOrientation = value; OnPropertyChanged(); } }
+        }
+
+        /// <summary>
+        /// Pixel size behind the selected Krea2 orientation label, parsed from its "(WxH)" suffix.
+        /// Falls back to the portrait default if the label is ever malformed.
+        /// </summary>
+        private (int Width, int Height) Krea2Canvas()
+        {
+            var match = System.Text.RegularExpressions.Regex.Match(Krea2SelectedOrientation ?? string.Empty, @"\((\d+)x(\d+)\)");
+            if (match.Success
+                && int.TryParse(match.Groups[1].Value, out var w)
+                && int.TryParse(match.Groups[2].Value, out var h))
+                return (w, h);
+
+            return (1024, 1280);
+        }
 
         // --- Krea2 Edit fields ---
         // Image A (the scene being edited) is the queue's normal input image, per story item.
@@ -880,10 +919,12 @@ namespace FlipPix.UI.ViewModels
             WorkflowNodeUpdater.UpdateNodeInput(ref workflowJson, "6", "text", prompt);
             // Node 27 - ClownsharKSampler_Beta (seed only; turbo steps/cfg fixed in workflow)
             WorkflowNodeUpdater.UpdateNodeInput(ref workflowJson, "27", "seed", Random.Shared.NextInt64(0, long.MaxValue));
-            // Node 10 - EmptyLatentImage: pin a fixed portrait size, overriding the workflow's
-            // FluxResolutionNode link (which defaults to a slow 2.5 MP latent).
-            WorkflowNodeUpdater.UpdateNodeInput(ref workflowJson, "10", "width", 1024);
-            WorkflowNodeUpdater.UpdateNodeInput(ref workflowJson, "10", "height", 1280);
+            // Node 10 - EmptyLatentImage: pin the selected orientation's size, overriding the
+            // workflow's FluxResolutionNode link (which defaults to a slow 2.5 MP latent).
+            var (kreaWidth, kreaHeight) = Krea2Canvas();
+            WorkflowNodeUpdater.UpdateNodeInput(ref workflowJson, "10", "width", kreaWidth);
+            WorkflowNodeUpdater.UpdateNodeInput(ref workflowJson, "10", "height", kreaHeight);
+            AddLog($"Krea2 canvas: {Krea2SelectedOrientation} -> {kreaWidth}x{kreaHeight}");
 
             // Replace SaveImageKJ (node 23) with a standard SaveImage fed from the RTX-upscaled
             // image (node 28 - RTXVideoSuperResolution, 2×), drop the PreviewImage (node 5), and

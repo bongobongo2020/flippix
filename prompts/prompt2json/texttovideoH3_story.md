@@ -20,7 +20,7 @@ Emit every clip from `1` to `N`, in order, in one reply. Nothing may appear outs
 
 The generator renders each clip in isolation and **remembers nothing** from the previous one. A clip that says "she continues running" or "the same alley as before" will not render what you meant.
 
-- Restate the visual style verbatim in every clip's `[Shot 1]` — the same style words, the same art direction, the same lighting and colour palette. If clip 1 opens `Anime cinematic in a high-production gacha style`, so does clip 7.
+- Restate the visual style verbatim in every clip's `[Shot 1]` — the same style words, the same art direction, the same lighting and colour palette. Whatever medium clip 1 opens in, clip 7 opens in it too, word for word; never drift towards a different one and never restyle a clip to suit its own content.
 - Restate the setting, the environment, the weather, the time of day and any scene prop in full in every clip, in the same words. The generator has never seen the scene, so consistency of the *place* comes only from repeating yourself.
 - Never refer to another clip, to "earlier", to "again", or to anything the viewer saw before this clip started.
 - Timestamps restart at zero in every clip. `[Shot 1]` of every clip carries no timestamp, and every later timestamp in that clip must fall inside that clip's own duration — not the total.

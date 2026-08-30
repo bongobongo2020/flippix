@@ -62,6 +62,7 @@ namespace FlipPix.UI.ViewModels.Video
         private BitmapImage? _imagePreview;
         private string _imageInfo = string.Empty;
         private string _prompt = string.Empty;
+        private H3VisualStyle _visualStyle = H3VisualStyles.Auto;
         private string _selectedAspectRatio = H3Canvas.AutoAspect;
         private double _megapixels = 1.0;
         private double _lengthSeconds = 15;
@@ -163,6 +164,30 @@ namespace FlipPix.UI.ViewModels.Video
         public string ImageRoleDescription => UseImageAsFirstFrame
             ? "First frame at 0.00s — the video starts on this exact image."
             : "Reference only — the model never sees it; the prompt carries the whole look.";
+
+        /// <summary>
+        /// The medium the prompt writer must work in. Left on Auto the writer picks — which is what every
+        /// H3 tab did before this existed, and it kept picking the same high-production gacha anime whatever
+        /// the story was, because that was the first example the system prompt showed it.
+        /// </summary>
+        public IReadOnlyList<H3VisualStyle> VisualStyleOptions { get; } = H3VisualStyles.All;
+
+        public H3VisualStyle VisualStyle
+        {
+            get => _visualStyle;
+            set
+            {
+                if (value == null || ReferenceEquals(_visualStyle, value)) return;
+                _visualStyle = value;
+                OnPropertyChanged();
+                OnPropertyChanged(nameof(VisualStyleSummary));
+            }
+        }
+
+        /// <summary>The line the clips will actually open with, so the choice is visible before Analyze runs.</summary>
+        public string VisualStyleSummary => VisualStyle.IsAuto
+            ? "The writer picks the medium off the image it is shown."
+            : "[Shot 1] opens: " + VisualStyle.Clause;
 
         public IReadOnlyList<string> AspectRatioOptions { get; } =
             new[] { H3Canvas.AutoAspect }
@@ -379,6 +404,7 @@ namespace FlipPix.UI.ViewModels.Video
                 var userMessage =
                     $"{role}\n" +
                     $"Target duration: {len:0.##} seconds.\n" +
+                    H3VisualStyles.Rule(VisualStyle) +
                     $"Draft idea from the user:\n{draft}";
 
                 var result = await _lmStudioService.AnalyzeImageWithSystemPromptAsync(

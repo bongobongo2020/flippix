@@ -151,6 +151,7 @@ namespace FlipPix.UI.Linux.ViewModels.Video
         private int _promptClipCount;
         private string _storyGuidance = string.Empty;
         private double _storyDurationSeconds = 10;
+        private H3VisualStyle _visualStyle = H3VisualStyles.Auto;
         private string _selectedAspectRatio = H3Canvas.AutoAspect;
         private double _megapixels = 1.0;
         private double _lengthSeconds = 10;
@@ -461,6 +462,30 @@ namespace FlipPix.UI.Linux.ViewModels.Video
                 ? $"This prompt holds {PromptClipCount} clips — Generate queues {PromptClipCount} jobs, in order."
                 : string.Empty;
 
+        /// <summary>
+        /// The medium the prompt writer must work in. Left on Auto the writer picks — which is what every
+        /// H3 tab did before this existed, and it kept picking the same high-production gacha anime whatever
+        /// the story was, because that was the first example the system prompt showed it.
+        /// </summary>
+        public IReadOnlyList<H3VisualStyle> VisualStyleOptions { get; } = H3VisualStyles.All;
+
+        public H3VisualStyle VisualStyle
+        {
+            get => _visualStyle;
+            set
+            {
+                if (value == null || ReferenceEquals(_visualStyle, value)) return;
+                _visualStyle = value;
+                OnPropertyChanged();
+                OnPropertyChanged(nameof(VisualStyleSummary));
+            }
+        }
+
+        /// <summary>The line the clips will actually open with, so the choice is visible before Analyze runs.</summary>
+        public string VisualStyleSummary => VisualStyle.IsAuto
+            ? "The writer picks the medium off the scene image."
+            : "[Shot 1] opens: " + VisualStyle.Clause;
+
         public IReadOnlyList<string> AspectRatioOptions { get; } =
             new[] { H3Canvas.AutoAspect }
                 .Concat(H3Canvas.AspectRatios.Select(a => a.Option)).ToList();
@@ -715,6 +740,7 @@ namespace FlipPix.UI.Linux.ViewModels.Video
                     "never see it, so describe the environment — and the clothing — explicitly.\n" +
                     $"{cast}\n" +
                     lengthBlock +
+                    H3VisualStyles.Rule(VisualStyle) +
                     $"Story the video must tell:\n{story}\n" +
                     $"Draft idea from the user:\n{draft}";
 

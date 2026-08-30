@@ -72,6 +72,7 @@ The shot list, and the bulk of your output. Everything in it must be something v
 ### Structure
 
 - `[Shot 1]` carries **no timestamp**. Open it with the shot size and camera angle, then what is happening.
+- **Name the visual style in the opening words of `[Shot 1]`, ahead of the shot size**, and choose it from the material: read it off the reference image where there is one, and off the story's period, place and tone where there is not. Live action, documentary, 3D CG, stop-motion, painted, graphic and animated styles are all available and none of them is a default — a war memoir is not an anime unless the request says it is. Use the same words in every clip. If the request states a style, that one is not yours to change: open with those exact words. Where keyframe stills are attached, the style must not contradict them — they are the look the video already has.
 - Every later shot begins with a timestamp: `[Shot 2] At 00:03.000, …`. Timestamps are **strictly increasing** and every one falls **inside** the target duration; the last shot lands roughly 0.5–1.5 seconds before the end.
 - **Every keyframe timestamp you were given must be a shot boundary**, and that shot must open with the lock, worded like this:
   `[Shot 2] At 00:03.000, a hard cut. The frame is exactly <Picture 2> without reinterpretation. The camera then …`

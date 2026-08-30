@@ -327,6 +327,20 @@
                                        Foreground="{DynamicResource TabAccentBrush}"
                                        TextWrapping="Wrap"/>
 
+                            <!-- The medium the writer works in. Left on Auto it picks, and it
+                                 used to pick gacha anime almost every time whatever the story was. -->
+                            <TextBlock Text="Visual style" FontSize="10" FontWeight="SemiBold"
+                                       Foreground="{StaticResource TextSecondaryBrush}" Margin="0,0,0,4"/>
+                            <ComboBox ItemsSource="{Binding VisualStyleOptions}"
+                                      SelectedItem="{Binding VisualStyle, Mode=TwoWay}"
+                                      DisplayMemberBinding="{Binding Name}"
+                                      HorizontalAlignment="Stretch"
+                                      Height="30" FontSize="11" Margin="0,0,0,4"
+                                      ToolTip.Tip="The medium every clip is written in. The style words open [Shot 1], which is the only place MiniMax H3 reads the look of the video from &#x2014; so the choice here is handed to the prompt writer as settled fact and copied verbatim into every clip of a chain, exactly the way the wardrobe is.&#x0a;&#x0a;Auto leaves it to the writer, which is what this tab did before: it reads the medium off the location image where there is one and off the story where there is not.&#x0a;&#x0a;Keyframe stills outrank the style at their own timestamps &#x2014; a frame lock reproduces the picture you supplied whatever this says."/>
+                            <TextBlock Text="{Binding VisualStyleSummary}"
+                                       FontSize="10" Foreground="{StaticResource TextMutedBrush}" FontStyle="Italic"
+                                       TextWrapping="Wrap" Margin="0,0,0,10"/>
+
                             <!-- Analyze runs on the llama-server: one turn, no progress of its own, and minutes
                                  of it for a chain. The bar and the clock below are the only sign it is alive. -->
                             <StackPanel Margin="0,0,0,6">

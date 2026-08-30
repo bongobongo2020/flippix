@@ -1732,6 +1732,40 @@
                             </Grid>
                         </Border>
 
+                        <!-- Krea2 Orientation Panel -->
+                        <Border Background="{StaticResource SurfaceAltBrush}"
+                                BorderBrush="#C4B5FD"
+                                BorderThickness="1"
+                                CornerRadius="12"
+                                Padding="20"
+                                Margin="0,0,0,20">
+                            <Border.Style>
+                                <Style TargetType="Border">
+                                    <Setter Property="Visibility" Value="Collapsed"/>
+                                    <Style.Triggers>
+                                        <DataTrigger Binding="{Binding StoryGeneratorQ.ShowKrea2Orientation}" Value="True">
+                                            <Setter Property="Visibility" Value="Visible"/>
+                                        </DataTrigger>
+                                    </Style.Triggers>
+                                </Style>
+                            </Border.Style>
+                            <StackPanel>
+                                <TextBlock Text="&#x1F4D0; Krea2 Orientation"
+                                           FontWeight="SemiBold" FontSize="13" Foreground="#6D28D9" Margin="0,0,0,2"/>
+                                <TextBlock Text="Canvas every image in the story is rendered at. All sizes sit near 1 MP so the Turbo pass stays fast."
+                                           FontSize="11" Opacity="0.6" TextWrapping="Wrap" Margin="0,0,0,8"/>
+                                <ComboBox ItemsSource="{x:Static local:StoryImageGeneratorQViewModel.Krea2Orientations}"
+                                          SelectedItem="{Binding StoryGeneratorQ.Krea2SelectedOrientation, Mode=TwoWay}"
+                                          Height="32"
+                                          Padding="8,0"
+                                          FontSize="12"
+                                          HorizontalAlignment="Left"
+                                          MinWidth="220"
+                                          Background="White"
+                                          BorderBrush="#C4B5FD"/>
+                            </StackPanel>
+                        </Border>
+
                         <!-- Krea2 LoRA Panel -->
                         <Border Background="{StaticResource SurfaceAltBrush}"
                                 BorderBrush="#C4B5FD"

@@ -97,6 +97,10 @@ namespace FlipPix.UI.Linux.ViewModels.Video
                 OnCanExecuteChanged();
             };
 
+            // Third tab, wired from its own partial — see VideoEnhanceViewModel.TargetedWan.cs.
+            InitializeTargetedEnhance();
+            InitializeH3HdEnhance();
+
             AddLog("Video Enhance initialized");
             LoadInterpolateQueueFromFile();
             LoadUpscaleQueueFromFile();
@@ -967,6 +971,8 @@ namespace FlipPix.UI.Linux.ViewModels.Video
             ClearUpscaleQueueCommand.NotifyCanExecuteChanged();
             StopUpscaleQueueCommand.NotifyCanExecuteChanged();
             ReprocessUpscaleFailedCommand.NotifyCanExecuteChanged();
+            OnTargetedCanExecuteChanged();
+            OnH3HdCanExecuteChanged();
             PlayVideoCommand.NotifyCanExecuteChanged();
             OpenResultFolderCommand.NotifyCanExecuteChanged();
         }

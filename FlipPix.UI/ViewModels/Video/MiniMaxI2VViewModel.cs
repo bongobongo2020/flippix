@@ -554,13 +554,15 @@ namespace FlipPix.UI.ViewModels.Video
         private const double RtxPeakFactor = 5.0;
 
         /// <summary>
-        /// Staged model weights, in GB, that the run reloads immediately after a pre-flight unload.
+        /// Staged model weights, in GB, that the run needs back in host RAM whatever is resident when
+        /// pre-flight looks.
         ///
-        /// <para>Only charged in that one case, and it is the term that matters there. Unloading is what
-        /// makes a refused item pass: it frees the weights, the free figure jumps, and the check reads a
-        /// number the run is about to spend again on its way back up. Measured against the 26 Aug run
-        /// that took the server out — 46 GB of frames looked comfortable against 79.1 GB free, and was
-        /// not, because ~40 GB of that had already been promised back to the weights.</para>
+        /// <para>Held back from the pool rather than charged to the take, because free RAM on its own is
+        /// not a stable bar: it reads ~10 GB with the weights loaded and ~51 GB the moment anything
+        /// unloads them, so the same take is refused against the first figure and waved through against
+        /// the second. Withholding it either way asks one question in both states. Measured against the
+        /// 26 Aug run that took the server out — 46 GB of frames looked comfortable against 79.1 GB
+        /// free, and was not, because ~40 GB of that had already been promised back to the weights.</para>
         /// </summary>
         private const double ModelReloadReserveGb = 40.0;
 
@@ -1454,7 +1456,7 @@ namespace FlipPix.UI.ViewModels.Video
         }
 
         /// <summary>What the server has free right now, in GB. Null when it could not be read.</summary>
-        private async Task<(double RamFreeGb, double VramFreeGb, double VramTotalGb)?> FetchHeadroomAsync(
+        private async Task<(double RamFreeGb, double RamTotalGb, double VramFreeGb, double VramTotalGb)?> FetchHeadroomAsync(
             CancellationToken token)
         {
             try
@@ -1465,6 +1467,7 @@ namespace FlipPix.UI.ViewModels.Video
                 if (root == null) return null;
 
                 var ram = root["system"]?["ram_free"]?.GetValue<double>() ?? 0;
+                var ramTotal = root["system"]?["ram_total"]?.GetValue<double>() ?? 0;
                 double vramFree = 0, vramTotal = 0;
                 if (root["devices"] is JsonArray devices && devices.Count > 0)
                 {
@@ -1478,7 +1481,7 @@ namespace FlipPix.UI.ViewModels.Video
                     }
                 }
                 const double gb = 1024 * 1024 * 1024;
-                return (ram / gb, vramFree / gb, vramTotal / gb);
+                return (ram / gb, ramTotal / gb, vramFree / gb, vramTotal / gb);
             }
             catch { return null; }
         }
@@ -1494,7 +1497,7 @@ namespace FlipPix.UI.ViewModels.Video
         /// <para>Only ever called with the workflow-coordinator lease held: unloading models underneath
         /// another tab's running job would break it.</para>
         /// </summary>
-        private async Task<(double RamFreeGb, double VramFreeGb, double VramTotalGb)?> FreeServerMemoryAsync(
+        private async Task<(double RamFreeGb, double RamTotalGb, double VramFreeGb, double VramTotalGb)?> FreeServerMemoryAsync(
             CancellationToken token)
         {
             try
@@ -1548,37 +1551,45 @@ namespace FlipPix.UI.ViewModels.Video
                 return null;
             }
 
-            var (ramFree, vramFree, vramTotal) = head.Value;
-            AddLog($"Pre-flight: server has {ramFree:0.0} GB RAM and {vramFree:0.0} GB of "
-                   + $"{vramTotal:0.0} GB VRAM free; this item wants ~{frameRamGb:0.0} GB of frames, "
-                   + $"~{peakRamGb:0.0} GB at peak"
+            var (ramFree, ramTotal, vramFree, vramTotal) = head.Value;
+
+            // Withhold the weights' share of the pool whether or not they are resident right now. Reading
+            // raw free RAM asked two different questions: low while the weights were loaded, ~40 GB higher
+            // the moment any tab unloaded them — so consecutive identical takes were refused, then run.
+            var ramCeiling = ramTotal > ModelReloadReserveGb
+                ? ramTotal - ModelReloadReserveGb
+                : double.MaxValue;
+            var usableRam = Math.Min(ramFree, ramCeiling);
+
+            AddLog($"Pre-flight: server has {ramFree:0.0} GB RAM"
+                   + (usableRam < ramFree ? $" ({usableRam:0.0} GB usable beside the weights)" : string.Empty)
+                   + $" and {vramFree:0.0} GB of {vramTotal:0.0} GB VRAM free; this item wants "
+                   + $"~{frameRamGb:0.0} GB of frames, ~{peakRamGb:0.0} GB at peak"
                    + (item.UseRtxUpscale ? " (RTX 2× on the joined batch)" : " (blend copies)")
                    + $" and ~{gpx:0.00} Gpx per pass");
 
-            if (peakRamGb > ramFree)
+            if (peakRamGb > usableRam)
             {
                 // Most of what is "in use" is staged weights, not live work — reclaim it and re-measure
                 // before refusing. The lease is already held, so nothing else is mid-run.
-                AddLog($"Pre-flight: {ramFree:0.0} GB free is not enough — unloading models to reclaim RAM…");
+                AddLog($"Pre-flight: {usableRam:0.0} GB usable is not enough — unloading models to reclaim RAM…");
                 var freed = await FreeServerMemoryAsync(token);
                 if (freed != null)
                 {
                     ramFree = freed.Value.RamFreeGb;
-                    AddLog($"Pre-flight: {ramFree:0.0} GB RAM free after unloading "
-                           + $"(models will reload on demand, roughly a minute)");
+                    usableRam = Math.Min(ramFree, ramCeiling);
+                    AddLog($"Pre-flight: {ramFree:0.0} GB RAM free after unloading, {usableRam:0.0} GB of it "
+                           + $"usable (models will reload on demand, roughly a minute)");
                 }
 
-                // The freed RAM is not really free: the run reloads the weights it just evicted, so the
-                // frames have to fit alongside them rather than in the space they vacated.
-                var needed = peakRamGb + ModelReloadReserveGb;
-                if (needed > ramFree)
+                if (peakRamGb > usableRam)
                     return $"Not enough host RAM even after unloading models: the take needs roughly "
-                           + $"{needed:0.0} GB — {peakRamGb:0.0} GB at peak ({frameRamGb:0.0} GB of frames"
+                           + $"{peakRamGb:0.0} GB at peak ({frameRamGb:0.0} GB of frames"
                            + (item.UseRtxUpscale
                                ? ", quadrupled by the RTX 2× pass over the joined batch"
                                : " plus blend copies")
-                           + $"), on top of ~{ModelReloadReserveGb:0} GB of weights reloading — and the "
-                           + $"server has {ramFree:0.0} GB free. "
+                           + $") and only {usableRam:0.0} GB of the server's {ramFree:0.0} GB free is usable "
+                           + $"beside the ~{ModelReloadReserveGb:0} GB of weights the run reloads. "
                            + (item.UseRtxUpscale
                                ? "Turning off RTX 2× halves the peak and costs no detail the model drew. "
                                : string.Empty)

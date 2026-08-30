@@ -63,6 +63,27 @@ namespace FlipPix.UI.Models
         public double RefineDenoise { get; set; } = 0.45;
 
         /// <summary>
+        /// Opacity of the refined face at the stitch (<c>H3FaceStitch.blend</c>). 1.0 replaces the face
+        /// outright with a VAE round-tripped copy; below that mixes the original pixels back, which is the
+        /// only control that attenuates the round-trip loss the denoise cannot reach.
+        /// </summary>
+        public double RefineBlend { get; set; } = 1.0;
+
+        /// <summary>
+        /// Sizes the refine canvas from the largest crop rather than clamping it to 768
+        /// (<c>H3FaceTrackCrop.canvas_mode</c>). Only bites on close-ups, where the capped mode would
+        /// downscale the crop on the way in. Off by default: uncapped, and the cost is quadratic.
+        /// </summary>
+        public bool RefineNoDownscale { get; set; }
+
+        /// <summary>
+        /// Composite the refined face through a SAM mask (<c>H3FaceStitch.masks</c>) rather than the
+        /// detected face box. On by default: the box is re-detected every frame, so pasting through it puts
+        /// a moving rectangle over the face. Off, the mask nodes are pruned and the box comes back.
+        /// </summary>
+        public bool UseSamFaceMask { get; set; } = true;
+
+        /// <summary>
         /// One refine pass per character rather than one for the whole cast.
         ///
         /// <para><c>H3FaceTrackCrop</c> holds a single subject, so the old single pass refined whoever was
@@ -86,6 +107,28 @@ namespace FlipPix.UI.Models
         /// <summary>Whether the sheets were built wearing the locked wardrobe — flips the reference line
         /// between disowning the references' clothing and pointing at it.</summary>
         public bool SheetsShowWardrobe { get; set; }
+
+        /// <summary>
+        /// The draft → 2× latent upscale → 3-step finish scheme on the base pass. On by default. The cast's
+        /// panels are unaffected either way: they are encoded at the finished canvas.
+        /// </summary>
+        public bool UseLatentUpscale { get; set; } = true;
+
+        /// <summary>
+        /// Block-sparse attention on both H3 passes. On by default; when false the two H3SLAAttention nodes
+        /// are unwired and pruned, so a server without the pack still renders the job.
+        /// </summary>
+        public bool UseSla { get; set; } = true;
+
+        /// <summary>The fraction of key blocks SLA skips. Below ~0.60 the kernel is slower than dense.</summary>
+        public double SlaSparsity { get; set; } = 0.85;
+
+        /// <summary>
+        /// Sol-Attn (node 53), which this workflow shipped with always on. <b>Off by default</b>: SLA
+        /// supersedes it for H3, and an item queued before this field existed deserializes to off, which is
+        /// the right way round now that SLA carries the speedup.
+        /// </summary>
+        public bool UseSparseAttention { get; set; }
 
         /// <summary>
         /// When false — the default — the RTX ×2 super-resolution node is pruned and the frames are muxed at
