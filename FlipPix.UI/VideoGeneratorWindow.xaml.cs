@@ -5,6 +5,7 @@ using System.Windows.Input;
 using System.Windows.Threading;
 using FlipPix.UI.Services;
 using FlipPix.UI.ViewModels;
+using FlipPix.UI.ViewModels.Video;
 
 namespace FlipPix.UI
 {
@@ -222,6 +223,45 @@ namespace FlipPix.UI
 
         private void Scail2RefPlayer_MediaEnded(object sender, RoutedEventArgs e)
             => _scail2IsPlaying = false;
+
+        /// <summary>
+        /// Opens a cast card's ✨ Generate menu on a left click (WPF only opens a Button's ContextMenu
+        /// on right-click by itself). The menu's bindings go through PlacementTarget — see the card
+        /// templates in VideoGeneratorWindow.xaml.
+        /// </summary>
+        private void CastGenerateButton_Click(object sender, RoutedEventArgs e)
+        {
+            if (sender is System.Windows.Controls.Button { ContextMenu: { } menu } button)
+            {
+                menu.PlacementTarget = button;
+                menu.Placement = System.Windows.Controls.Primitives.PlacementMode.Bottom;
+                menu.IsOpen = true;
+            }
+        }
+
+        /// <summary>
+        /// Runs for every cast-photo menu — left- or right-clicked open. The menu's LoRA entries carry
+        /// only the LoRA as their parameter, so the card they belong to is remembered on the tab's
+        /// ViewModel here, and the LoRA lists are rescanned while the menu opens. Tag carries the
+        /// tab's ViewModel (H3Cast or H3Ensemble) across the ContextMenu boundary.
+        /// </summary>
+        private void CastPhotoMenu_Opened(object sender, RoutedEventArgs e)
+        {
+            if (sender is System.Windows.Controls.ContextMenu { PlacementTarget: System.Windows.Controls.Button { } button })
+            {
+                switch (button.Tag)
+                {
+                    case H3CastViewModel cast when button.DataContext is CharacterSlot castSlot:
+                        cast.CastPhotoMenuSlot = castSlot;
+                        cast.RefreshCastPhotoLoras();
+                        break;
+                    case H3EnsembleViewModel ensemble when button.DataContext is CharacterSlot ensembleSlot:
+                        ensemble.CastPhotoMenuSlot = ensembleSlot;
+                        ensemble.RefreshCastPhotoLoras();
+                        break;
+                }
+            }
+        }
 
         private void SeekScail2RefTo(double seconds)
         {

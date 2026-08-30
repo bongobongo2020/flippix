@@ -108,48 +108,8 @@ namespace FlipPix.UI.ViewModels.Video
                 for (var i = 0; i < todo.Count; i++)
                 {
                     token.ThrowIfCancellationRequested();
-                    var slot = todo[i];
                     var progress = todo.Count > 1 ? $" ({i + 1}/{todo.Count})" : string.Empty;
-                    var outfit = CastPromptStamp.OutfitFor(CastWardrobe, slot.Index);
-
-                    SheetPhase = $"Uploading character {slot.Index}…{progress}";
-                    var uploaded = await EnsureUploadedAsync(slot.SourcePath);
-
-                    var ts = DateTime.Now.ToString("yyyyMMddHHmmss");
-                    var runToken = $"sheet_{slot.Index}_{ts}";
-
-                    var json = await LoadFileAsync(SheetWorkflowFileName, token);
-                    json = UseSheetCanvas(json);
-                    SetInput(ref json, SheetLoadImage, "image", uploaded);
-                    SetInput(ref json, SheetPositive, "prompt", BuildSheetInstruction(instruction, slot, outfit));
-                    SetInput(ref json, SheetSampler, "seed", System.Random.Shared.NextInt64(0, 1_000_000_000_000_000L));
-                    SetInput(ref json, SheetLatent, "width", SheetWidth);
-                    SetInput(ref json, SheetLatent, "height", SheetHeight);
-                    SetInput(ref json, SheetSave, "filename_prefix", $"{OutputSubfolder}/{runToken}");
-                    // The sheet graph's SaveImage reads from an RTX upscale, and that node's widgets changed
-                    // with the Nvidia pack — without this the sheet reaches the GPU and dies there.
-                    json = RtxSuperResolutionCompat.Normalize(json, AddLog);
-
-                    SheetPhase = $"Generating character {slot.Index}'s sheet…{progress}";
-                    AddLog($"Character {slot.Index} ({slot.Description}): generating a {SheetWidth}×{SheetHeight} " +
-                           $"sheet from {Path.GetFileName(slot.SourcePath)}...");
-                    if (outfit.Length > 0)
-                        AddLog($"Character {slot.Index} is being dressed in the locked wardrobe: {outfit}");
-                    var promptId = await SubmitSheetAsync(json, token);
-
-                    string? local = null;
-                    var byNode = await _comfyUIService.HttpClient.GetOutputsByNodeAsync(promptId, token);
-                    if (byNode.TryGetValue(SheetSave, out var outs) && outs.Count > 0)
-                        local = await ResolveImageToLocalAsync(outs[0]);
-                    local ??= FindTokenImageOnDisk(runToken);
-                    if (local == null || !File.Exists(local))
-                        throw new Exception($"Character {slot.Index}'s sheet was not produced.");
-
-                    await EnsureUploadedAsync(local);
-                    var applied = local;
-                    var wornInSheet = outfit;
-                    Application.Current.Dispatcher.Invoke(() => slot.SetSheet(applied, wornInSheet));
-                    AddLog($"Character {slot.Index}: sheet ready — {Path.GetFileName(local)}");
+                    await BuildOneSheetAsync(todo[i], instruction, progress, token);
                 }
 
                 SheetPhase = AllSheetsReady ? "Sheets ready." : "Sheets built.";
@@ -174,6 +134,56 @@ namespace FlipPix.UI.ViewModels.Video
                 _sheetCts = null;
                 OnCanExecuteChanged();
             }
+        }
+
+        /// <summary>
+        /// Builds one character's sheet: upload the photo → Qwen-Image-Edit-2511 → retrieve →
+        /// <see cref="CharacterSlot.SetSheet"/>. The loop body of <see cref="BuildSheetsAsync"/> in its
+        /// own method, so the ✨ Generate button can run it for the character it just photographed —
+        /// inside the workflow lease its caller already holds, with the wardrobe already settled.
+        /// </summary>
+        private async Task BuildOneSheetAsync(CharacterSlot slot, string instruction, string progress, CancellationToken token)
+        {
+            var outfit = CastPromptStamp.OutfitFor(CastWardrobe, slot.Index);
+
+            SheetPhase = $"Uploading character {slot.Index}…{progress}";
+            var uploaded = await EnsureUploadedAsync(slot.SourcePath);
+
+            var ts = DateTime.Now.ToString("yyyyMMddHHmmss");
+            var runToken = $"sheet_{slot.Index}_{ts}";
+
+            var json = await LoadFileAsync(SheetWorkflowFileName, token);
+            json = UseSheetCanvas(json);
+            SetInput(ref json, SheetLoadImage, "image", uploaded);
+            SetInput(ref json, SheetPositive, "prompt", BuildSheetInstruction(instruction, slot, outfit));
+            SetInput(ref json, SheetSampler, "seed", System.Random.Shared.NextInt64(0, 1_000_000_000_000_000L));
+            SetInput(ref json, SheetLatent, "width", SheetWidth);
+            SetInput(ref json, SheetLatent, "height", SheetHeight);
+            SetInput(ref json, SheetSave, "filename_prefix", $"{OutputSubfolder}/{runToken}");
+            // The sheet graph's SaveImage reads from an RTX upscale, and that node's widgets changed
+            // with the Nvidia pack — without this the sheet reaches the GPU and dies there.
+            json = RtxSuperResolutionCompat.Normalize(json, AddLog);
+
+            SheetPhase = $"Generating character {slot.Index}'s sheet…{progress}";
+            AddLog($"Character {slot.Index} ({slot.Description}): generating a {SheetWidth}×{SheetHeight} " +
+                   $"sheet from {Path.GetFileName(slot.SourcePath)}...");
+            if (outfit.Length > 0)
+                AddLog($"Character {slot.Index} is being dressed in the locked wardrobe: {outfit}");
+            var promptId = await SubmitSheetAsync(json, token);
+
+            string? local = null;
+            var byNode = await _comfyUIService.HttpClient.GetOutputsByNodeAsync(promptId, token);
+            if (byNode.TryGetValue(SheetSave, out var outs) && outs.Count > 0)
+                local = await ResolveImageToLocalAsync(outs[0]);
+            local ??= FindTokenImageOnDisk(runToken);
+            if (local == null || !File.Exists(local))
+                throw new Exception($"Character {slot.Index}'s sheet was not produced.");
+
+            await EnsureUploadedAsync(local);
+            var applied = local;
+            var wornInSheet = outfit;
+            Application.Current.Dispatcher.Invoke(() => slot.SetSheet(applied, wornInSheet));
+            AddLog($"Character {slot.Index}: sheet ready — {Path.GetFileName(local)}");
         }
 
         /// <summary>
@@ -576,6 +586,9 @@ namespace FlipPix.UI.ViewModels.Video
                 OnPropertyChanged(nameof(StorySourceSummary));
                 ClearStoryCommand.NotifyCanExecuteChanged();
                 OnCanExecuteChanged();
+                // The story names the cast before anybody browses for a photo — read the characters
+                // out of it and fill the empty cards, then the wardrobe pass dresses them.
+                ScheduleCastDerive();
                 ScheduleWardrobeDerive();
             }
         }

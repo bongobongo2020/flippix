@@ -318,6 +318,14 @@ namespace FlipPix.UI.ViewModels.Video
             SelectCharacter1Command = new RelayCommand(async () => await PickCharacterAsync(_character1));
             SelectCharacter2Command = new RelayCommand(async () => await PickCharacterAsync(_character2));
             ClearCharacter2Command = new RelayCommand(() => _character2.Clear());
+            GenerateCastZimageLoraCommand = new RelayCommand<CastPhotoWorkflows.CastLora>(
+                async lora => await GenerateCastPhotoAsync(CastPhotoMenuSlot, "zimage", lora),
+                _ => CanGenerateCastPhoto(CastPhotoMenuSlot));
+            GenerateCastKrea2LoraCommand = new RelayCommand<CastPhotoWorkflows.CastLora>(
+                async lora => await GenerateCastPhotoAsync(CastPhotoMenuSlot, "krea2", lora),
+                _ => CanGenerateCastPhoto(CastPhotoMenuSlot));
+            GenerateCastQwenCommand = new RelayCommand<CharacterSlot>(
+                async slot => await GenerateCastPhotoAsync(slot, "qwen"), slot => CanGenerateCastPhoto(slot));
             SelectSceneImageCommand = new RelayCommand(async () => await SelectSceneImageAsync());
             ClearSceneImageCommand = new RelayCommand(() => SceneImagePath = string.Empty);
             LoadStoryCommand = new RelayCommand(async () => await LoadStoryFileAsync());
@@ -353,6 +361,13 @@ namespace FlipPix.UI.ViewModels.Video
         public ICommand SelectCharacter1Command { get; }
         public ICommand SelectCharacter2Command { get; }
         public ICommand ClearCharacter2Command { get; }
+        /// <summary>Renders this card's character photo with the Image Generator's Z-Image base
+        /// workflow and the LoRA picked in the ✨ menu (or the workflow's own when "as authored" is
+        /// picked). Runs for the card whose menu was last opened — see
+        /// <see cref="CastPhotoMenuSlot"/>. See H3CastViewModel.Cast.cs.</summary>
+        public RelayCommand<CastPhotoWorkflows.CastLora> GenerateCastZimageLoraCommand { get; }
+        public RelayCommand<CastPhotoWorkflows.CastLora> GenerateCastKrea2LoraCommand { get; }
+        public RelayCommand<CharacterSlot> GenerateCastQwenCommand { get; }
         public ICommand SelectSceneImageCommand { get; }
         public RelayCommand ClearSceneImageCommand { get; }
         /// <summary>Reads a .txt/.md story off disk into <see cref="StoryText"/>.</summary>
@@ -624,46 +639,8 @@ namespace FlipPix.UI.ViewModels.Video
                 for (var i = 0; i < todo.Count; i++)
                 {
                     token.ThrowIfCancellationRequested();
-                    var slot = todo[i];
                     var progress = todo.Count > 1 ? $" ({i + 1}/{todo.Count})" : string.Empty;
-                    var outfit = CastPromptStamp.OutfitFor(CastWardrobe, slot.Index);
-
-                    SheetPhase = $"Uploading character {slot.Index}…{progress}";
-                    var uploaded = await EnsureUploadedAsync(slot.SourcePath);
-
-                    var ts = DateTime.Now.ToString("yyyyMMddHHmmss");
-                    var runToken = $"sheet_{slot.Index}_{ts}";
-
-                    var json = await LoadFileAsync(SheetWorkflowFileName, token);
-                    json = UseSheetCanvas(json);
-                    SetInput(ref json, SheetLoadImage, "image", uploaded);
-                    SetInput(ref json, SheetPositive, "prompt", BuildSheetInstruction(instruction, slot, outfit));
-                    SetInput(ref json, SheetSampler, "seed", System.Random.Shared.NextInt64(0, 1_000_000_000_000_000L));
-                    SetInput(ref json, SheetLatent, "width", SheetWidth);
-                    SetInput(ref json, SheetLatent, "height", SheetHeight);
-                    SetInput(ref json, SheetSave, "filename_prefix", $"{OutputSubfolder}/{runToken}");
-
-                    SheetPhase = $"Generating character {slot.Index}'s sheet…{progress}";
-                    AddLog($"Character {slot.Index} ({slot.Noun}): generating a {SheetWidth}×{SheetHeight} sheet " +
-                           $"from {Path.GetFileName(slot.SourcePath)}...");
-                    if (outfit.Length > 0)
-                        AddLog($"Character {slot.Index} is being dressed in the locked wardrobe: {outfit}");
-                    var promptId = await SubmitSheetAsync(json, token);
-
-                    string? local = null;
-                    var byNode = await _comfyUIService.HttpClient.GetOutputsByNodeAsync(promptId, token);
-                    if (byNode.TryGetValue(SheetSave, out var outs) && outs.Count > 0)
-                        local = await ResolveImageToLocalAsync(outs[0]);
-                    local ??= FindTokenImageOnDisk(runToken);
-                    if (local == null || !File.Exists(local))
-                        throw new Exception($"Character {slot.Index}'s sheet was not produced.");
-
-                    // Uploaded now so the video graph's LoadImage can read it as a ComfyUI input later.
-                    await EnsureUploadedAsync(local);
-                    var applied = local;
-                    var wornInSheet = outfit;
-                    Application.Current.Dispatcher.Invoke(() => slot.SetSheet(applied, wornInSheet));
-                    AddLog($"Character {slot.Index}: sheet ready — {Path.GetFileName(local)}");
+                    await BuildOneSheetAsync(todo[i], instruction, progress, token);
                 }
 
                 SheetPhase = AllSheetsReady ? "Sheets ready." : "Sheets built.";
@@ -688,6 +665,54 @@ namespace FlipPix.UI.ViewModels.Video
                 _sheetCts = null;
                 OnCanExecuteChanged();
             }
+        }
+
+        /// <summary>
+        /// Builds one character's sheet: upload the photo → Qwen-Image-Edit-2511 → retrieve →
+        /// <see cref="CharacterSlot.SetSheet"/>. The loop body of <see cref="BuildSheetsAsync"/> in its
+        /// own method, so the ✨ Generate button can run it for the character it just photographed —
+        /// inside the workflow lease its caller already holds, with the wardrobe already settled.
+        /// </summary>
+        private async Task BuildOneSheetAsync(CharacterSlot slot, string instruction, string progress, CancellationToken token)
+        {
+            var outfit = CastPromptStamp.OutfitFor(CastWardrobe, slot.Index);
+
+            SheetPhase = $"Uploading character {slot.Index}…{progress}";
+            var uploaded = await EnsureUploadedAsync(slot.SourcePath);
+
+            var ts = DateTime.Now.ToString("yyyyMMddHHmmss");
+            var runToken = $"sheet_{slot.Index}_{ts}";
+
+            var json = await LoadFileAsync(SheetWorkflowFileName, token);
+            json = UseSheetCanvas(json);
+            SetInput(ref json, SheetLoadImage, "image", uploaded);
+            SetInput(ref json, SheetPositive, "prompt", BuildSheetInstruction(instruction, slot, outfit));
+            SetInput(ref json, SheetSampler, "seed", System.Random.Shared.NextInt64(0, 1_000_000_000_000_000L));
+            SetInput(ref json, SheetLatent, "width", SheetWidth);
+            SetInput(ref json, SheetLatent, "height", SheetHeight);
+            SetInput(ref json, SheetSave, "filename_prefix", $"{OutputSubfolder}/{runToken}");
+
+            SheetPhase = $"Generating character {slot.Index}'s sheet…{progress}";
+            AddLog($"Character {slot.Index} ({slot.Noun}): generating a {SheetWidth}×{SheetHeight} sheet " +
+                   $"from {Path.GetFileName(slot.SourcePath)}...");
+            if (outfit.Length > 0)
+                AddLog($"Character {slot.Index} is being dressed in the locked wardrobe: {outfit}");
+            var promptId = await SubmitSheetAsync(json, token);
+
+            string? local = null;
+            var byNode = await _comfyUIService.HttpClient.GetOutputsByNodeAsync(promptId, token);
+            if (byNode.TryGetValue(SheetSave, out var outs) && outs.Count > 0)
+                local = await ResolveImageToLocalAsync(outs[0]);
+            local ??= FindTokenImageOnDisk(runToken);
+            if (local == null || !File.Exists(local))
+                throw new Exception($"Character {slot.Index}'s sheet was not produced.");
+
+            // Uploaded now so the video graph's LoadImage can read it as a ComfyUI input later.
+            await EnsureUploadedAsync(local);
+            var applied = local;
+            var wornInSheet = outfit;
+            Application.Current.Dispatcher.Invoke(() => slot.SetSheet(applied, wornInSheet));
+            AddLog($"Character {slot.Index}: sheet ready — {Path.GetFileName(local)}");
         }
 
         /// <summary>
@@ -1063,6 +1088,9 @@ namespace FlipPix.UI.ViewModels.Video
                 OnPropertyChanged(nameof(StorySourceSummary));
                 ClearStoryCommand.NotifyCanExecuteChanged();
                 OnCanExecuteChanged();
+                // The story names the cast before anybody browses for a photo — read the two leads
+                // out of it and fill the cards, then the wardrobe pass dresses them.
+                ScheduleCastDerive();
                 // The wardrobe comes out of the story, so it follows the story rather than waiting to be asked.
                 ScheduleWardrobeDerive();
             }
@@ -4060,6 +4088,9 @@ namespace FlipPix.UI.ViewModels.Video
             ReprocessAllFailedCommand.NotifyCanExecuteChanged();
             PlayVideoCommand.NotifyCanExecuteChanged();
             OpenResultFolderCommand.NotifyCanExecuteChanged();
+            GenerateCastZimageLoraCommand.NotifyCanExecuteChanged();
+            GenerateCastKrea2LoraCommand.NotifyCanExecuteChanged();
+            GenerateCastQwenCommand.NotifyCanExecuteChanged();
         }
     }
 
@@ -4088,6 +4119,8 @@ namespace FlipPix.UI.ViewModels.Video
         private string _role = string.Empty;
         private string _sheetWardrobe = string.Empty;
         private string _expectedWardrobe = string.Empty;
+        private bool _isGeneratingPhoto;
+        private string _photoPhase = string.Empty;
 
         public CharacterSlot(int index, PreviewLoader loadPreview, Action onChanged)
         {
@@ -4139,7 +4172,7 @@ namespace FlipPix.UI.ViewModels.Video
                 _kind = v;
                 Raise(nameof(Kind), nameof(Sex), nameof(Noun), nameof(Descriptor), nameof(Description),
                       nameof(IsPerson), nameof(IsGroup), nameof(HasFace), nameof(Pronoun),
-                      nameof(IsCast), nameof(Label));
+                      nameof(IsCast), nameof(Label), nameof(CanGeneratePhoto));
             }
         }
 
@@ -4252,7 +4285,8 @@ namespace FlipPix.UI.ViewModels.Video
                 var v = (value ?? string.Empty).Trim();
                 if (_role == v) return;
                 _role = v;
-                Raise(nameof(Role), nameof(HasRole), nameof(Descriptor), nameof(Description), nameof(Label));
+                Raise(nameof(Role), nameof(HasRole), nameof(Descriptor), nameof(Description), nameof(Label),
+                      nameof(IsCast), nameof(CanGeneratePhoto));
             }
         }
 
@@ -4333,7 +4367,7 @@ namespace FlipPix.UI.ViewModels.Video
                 Raise(nameof(SourcePath), nameof(SourcePreview), nameof(SourceInfo), nameof(HasSource),
                       nameof(SheetPath), nameof(SheetPreview), nameof(HasSheet), nameof(SheetStatus),
                       nameof(SheetWardrobe), nameof(SheetMatchesWardrobe),
-                      nameof(PanelCount), nameof(PanelStatus));
+                      nameof(PanelCount), nameof(PanelStatus), nameof(CanGeneratePhoto));
             }
         }
 
@@ -4463,7 +4497,40 @@ namespace FlipPix.UI.ViewModels.Video
                   nameof(Role), nameof(HasRole), nameof(Label), nameof(Descriptor),
                   nameof(Description), nameof(Kind), nameof(Sex), nameof(Noun),
                   nameof(IsPerson), nameof(IsGroup), nameof(HasFace), nameof(Pronoun),
-                  nameof(IsCast));
+                  nameof(IsCast), nameof(CanGeneratePhoto));
+        }
+
+        /// <summary>Whether this card's ✨ Generate button may run: the slot has to say who the
+        /// character is (a Part, a non-person Kind, or a photo — i.e. <see cref="IsCast"/>), and
+        /// no photo for it can already be in flight.</summary>
+        public bool CanGeneratePhoto => IsCast && !IsGeneratingPhoto;
+
+        /// <summary>Set by the ensemble tab while it renders this character's photo with an Image
+        /// Generator workflow. Blocks a second run for the same card while the first is in flight.</summary>
+        public bool IsGeneratingPhoto
+        {
+            get => _isGeneratingPhoto;
+            set
+            {
+                if (_isGeneratingPhoto == value) return;
+                _isGeneratingPhoto = value;
+                Raise(nameof(IsGeneratingPhoto), nameof(CanGeneratePhoto), nameof(PhotoPhase));
+            }
+        }
+
+        /// <summary>What this card's photo generation is doing right now — shown under the ✨ Generate
+        /// button. Raised directly rather than through <see cref="Raise"/> on purpose: it ticks with
+        /// the sampler's progress, and must not retrigger the tab-level change handlers every step.</summary>
+        public string PhotoPhase
+        {
+            get => _photoPhase;
+            set
+            {
+                var v = value ?? string.Empty;
+                if (_photoPhase == v) return;
+                _photoPhase = v;
+                PropertyChanged?.Invoke(this, new(nameof(PhotoPhase)));
+            }
         }
 
         public event System.ComponentModel.PropertyChangedEventHandler? PropertyChanged;

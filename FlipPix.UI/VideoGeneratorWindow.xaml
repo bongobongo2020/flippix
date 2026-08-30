@@ -3083,6 +3083,22 @@
                                                                   Width="86" Height="24" FontSize="10"
                                                                   ToolTip="Male or female. The wardrobe pass dresses this character accordingly, the character sheet is generated as that person, and the prompt names them so H3 uses the right pronouns."/>
                                                     </Grid>
+                                                    <!-- Part — who this character is in the story. Filled by the story's
+                                                         automatic cast; see H3CastViewModel.Cast.cs. -->
+                                                    <Grid Margin="0,0,0,6">
+                                                        <Grid.ColumnDefinitions>
+                                                            <ColumnDefinition Width="Auto"/>
+                                                            <ColumnDefinition Width="*"/>
+                                                        </Grid.ColumnDefinitions>
+                                                        <TextBlock Grid.Column="0" Text="Part" FontSize="10" VerticalAlignment="Center"
+                                                                   Foreground="{StaticResource TextSecondaryBrush}" Margin="0,0,6,0"/>
+                                                        <TextBox Grid.Column="1"
+                                                                 Text="{Binding Role, UpdateSourceTrigger=LostFocus}"
+                                                                 Height="24" FontSize="10" Padding="5,0"
+                                                                 VerticalContentAlignment="Center"
+                                                                 BorderBrush="{StaticResource BorderBrush}" Background="White"
+                                                                 ToolTip="Who this character is in the story — &quot;the detective&quot;, &quot;her younger brother&quot;. A pasted or loaded story fills this in automatically; edit it freely — the tab never overwrites a card you have made your own. It reaches the wardrobe pass and the ✨ Generate button, so the photo and the outfit match the part."/>
+                                                    </Grid>
                                                     <TextBlock Text="&lt;Picture 1&gt; · the first reference H3 receives"
                                                                FontSize="9" Foreground="{StaticResource TextMutedBrush}" Margin="0,0,0,4"/>
                                                     <Grid>
@@ -3142,6 +3158,52 @@
                                                             Height="26" Padding="8,0" FontSize="11" Margin="0,6,0,0"
                                                             Background="{StaticResource SurfaceAltBrush}" Foreground="{DynamicResource TabAccentBrush}"
                                                             BorderBrush="{StaticResource BorderBrush}" BorderThickness="1"/>
+                                                    <!-- ✨ Generate — this character's photo, rendered by one of the Image
+                                                         Generator's base workflows instead of browsed for. -->
+                                                    <Button Content="✨ Generate photo ▾" Margin="0,4,0,0"
+                                                            Click="CastGenerateButton_Click"
+                                                            Tag="{Binding DataContext, ElementName=H3CastRoot}"
+                                                            IsEnabled="{Binding CanGeneratePhoto}"
+                                                            Height="26" Padding="8,0" FontSize="11"
+                                                            Background="{StaticResource SurfaceAltBrush}" Foreground="{DynamicResource TabAccentBrush}"
+                                                            BorderBrush="{StaticResource BorderBrush}" BorderThickness="1"
+                                                            ToolTip="Generates this character's photo instead of browsing for one — their Part and the locked wardrobe become the prompt, and the result lands in this card as if it had been browsed. Z-Image and Krea2 open into a LoRA list (the same folders the Image Generator reads); Qwen 2.5.1.2's lightning LoRA is baked into its workflow.&#x0a;&#x0a;Needs the character to be described first: a Part on the card, or the story's automatic cast. The character sheet is built automatically afterwards.">
+                                                        <!-- Tag carries the tab's ViewModel across the ContextMenu boundary;
+                                                             the card's DataContext is the CharacterSlot each command takes. -->
+                                                        <Button.ContextMenu>
+                                                            <!-- The menu remembers whose card it opened on: the window sets
+                                                                 CastPhotoMenuSlot as it opens. -->
+                                                            <ContextMenu DataContext="{Binding PlacementTarget.Tag, RelativeSource={RelativeSource Self}}"
+                                                                         Opened="CastPhotoMenu_Opened">
+                                                                <MenuItem Header="Z-Image ▸ pick the LoRA" ItemsSource="{Binding CastZimageLoraMenu}">
+                                                                    <MenuItem.ItemContainerStyle>
+                                                                        <Style TargetType="MenuItem">
+                                                                            <Setter Property="Header" Value="{Binding Name}"/>
+                                                                            <Setter Property="Command"
+                                                                                    Value="{Binding DataContext.GenerateCastZimageLoraCommand, RelativeSource={RelativeSource AncestorType=ContextMenu}}"/>
+                                                                            <Setter Property="CommandParameter" Value="{Binding}"/>
+                                                                        </Style>
+                                                                    </MenuItem.ItemContainerStyle>
+                                                                </MenuItem>
+                                                                <MenuItem Header="Krea2 ▸ pick the LoRA" ItemsSource="{Binding CastKrea2LoraMenu}">
+                                                                    <MenuItem.ItemContainerStyle>
+                                                                        <Style TargetType="MenuItem">
+                                                                            <Setter Property="Header" Value="{Binding Name}"/>
+                                                                            <Setter Property="Command"
+                                                                                    Value="{Binding DataContext.GenerateCastKrea2LoraCommand, RelativeSource={RelativeSource AncestorType=ContextMenu}}"/>
+                                                                            <Setter Property="CommandParameter" Value="{Binding}"/>
+                                                                        </Style>
+                                                                    </MenuItem.ItemContainerStyle>
+                                                                </MenuItem>
+                                                                <MenuItem Header="Qwen 2.5.1.2 — detailed illustration"
+                                                                          Command="{Binding GenerateCastQwenCommand}"
+                                                                          CommandParameter="{Binding PlacementTarget.DataContext, RelativeSource={RelativeSource AncestorType=ContextMenu}}"/>
+                                                            </ContextMenu>
+                                                        </Button.ContextMenu>
+                                                    </Button>
+                                                    <TextBlock Text="{Binding PhotoPhase}" FontSize="9" Margin="0,3,0,0"
+                                                               Foreground="{DynamicResource TabAccentBrush}" FontStyle="Italic"
+                                                               TextTrimming="CharacterEllipsis"/>
                                                     <CheckBox Content="This image is already a character sheet"
                                                               IsChecked="{Binding UseSourceAsSheet}"
                                                               IsEnabled="{Binding HasSource}"
@@ -3189,6 +3251,22 @@
                                                                   SelectedItem="{Binding Sex, Mode=TwoWay}"
                                                                   Width="86" Height="24" FontSize="10"
                                                                   ToolTip="Male or female. The wardrobe pass dresses this character accordingly, the character sheet is generated as that person, and the prompt names them so H3 uses the right pronouns."/>
+                                                    </Grid>
+                                                    <!-- Part — who this character is in the story. Filled by the story's
+                                                         automatic cast; see H3CastViewModel.Cast.cs. -->
+                                                    <Grid Margin="0,0,0,6">
+                                                        <Grid.ColumnDefinitions>
+                                                            <ColumnDefinition Width="Auto"/>
+                                                            <ColumnDefinition Width="*"/>
+                                                        </Grid.ColumnDefinitions>
+                                                        <TextBlock Grid.Column="0" Text="Part" FontSize="10" VerticalAlignment="Center"
+                                                                   Foreground="{StaticResource TextSecondaryBrush}" Margin="0,0,6,0"/>
+                                                        <TextBox Grid.Column="1"
+                                                                 Text="{Binding Role, UpdateSourceTrigger=LostFocus}"
+                                                                 Height="24" FontSize="10" Padding="5,0"
+                                                                 VerticalContentAlignment="Center"
+                                                                 BorderBrush="{StaticResource BorderBrush}" Background="White"
+                                                                 ToolTip="Who this character is in the story — &quot;the detective&quot;, &quot;her younger brother&quot;. A pasted or loaded story fills this in automatically; edit it freely — the tab never overwrites a card you have made your own. It reaches the wardrobe pass and the ✨ Generate button, so the photo and the outfit match the part."/>
                                                     </Grid>
                                                     <TextBlock Text="&lt;Picture 2&gt; · optional — leave empty for a one-character video"
                                                                FontSize="9" Foreground="{StaticResource TextMutedBrush}" Margin="0,0,0,4"/>
@@ -3260,6 +3338,52 @@
                                                                 Background="{StaticResource SurfaceAltBrush}" Foreground="{StaticResource TextSecondaryBrush}"
                                                                 BorderBrush="{StaticResource BorderBrush}" BorderThickness="1"/>
                                                     </Grid>
+                                                    <!-- ✨ Generate — this character's photo, rendered by one of the Image
+                                                         Generator's base workflows instead of browsed for. -->
+                                                    <Button Content="✨ Generate photo ▾" Margin="0,4,0,0"
+                                                            Click="CastGenerateButton_Click"
+                                                            Tag="{Binding DataContext, ElementName=H3CastRoot}"
+                                                            IsEnabled="{Binding CanGeneratePhoto}"
+                                                            Height="26" Padding="8,0" FontSize="11"
+                                                            Background="{StaticResource SurfaceAltBrush}" Foreground="{DynamicResource TabAccentBrush}"
+                                                            BorderBrush="{StaticResource BorderBrush}" BorderThickness="1"
+                                                            ToolTip="Generates this character's photo instead of browsing for one — their Part and the locked wardrobe become the prompt, and the result lands in this card as if it had been browsed. Z-Image and Krea2 open into a LoRA list (the same folders the Image Generator reads); Qwen 2.5.1.2's lightning LoRA is baked into its workflow.&#x0a;&#x0a;Needs the character to be described first: a Part on the card, or the story's automatic cast. The character sheet is built automatically afterwards.">
+                                                        <!-- Tag carries the tab's ViewModel across the ContextMenu boundary;
+                                                             the card's DataContext is the CharacterSlot each command takes. -->
+                                                        <Button.ContextMenu>
+                                                            <!-- The menu remembers whose card it opened on: the window sets
+                                                                 CastPhotoMenuSlot as it opens. -->
+                                                            <ContextMenu DataContext="{Binding PlacementTarget.Tag, RelativeSource={RelativeSource Self}}"
+                                                                         Opened="CastPhotoMenu_Opened">
+                                                                <MenuItem Header="Z-Image ▸ pick the LoRA" ItemsSource="{Binding CastZimageLoraMenu}">
+                                                                    <MenuItem.ItemContainerStyle>
+                                                                        <Style TargetType="MenuItem">
+                                                                            <Setter Property="Header" Value="{Binding Name}"/>
+                                                                            <Setter Property="Command"
+                                                                                    Value="{Binding DataContext.GenerateCastZimageLoraCommand, RelativeSource={RelativeSource AncestorType=ContextMenu}}"/>
+                                                                            <Setter Property="CommandParameter" Value="{Binding}"/>
+                                                                        </Style>
+                                                                    </MenuItem.ItemContainerStyle>
+                                                                </MenuItem>
+                                                                <MenuItem Header="Krea2 ▸ pick the LoRA" ItemsSource="{Binding CastKrea2LoraMenu}">
+                                                                    <MenuItem.ItemContainerStyle>
+                                                                        <Style TargetType="MenuItem">
+                                                                            <Setter Property="Header" Value="{Binding Name}"/>
+                                                                            <Setter Property="Command"
+                                                                                    Value="{Binding DataContext.GenerateCastKrea2LoraCommand, RelativeSource={RelativeSource AncestorType=ContextMenu}}"/>
+                                                                            <Setter Property="CommandParameter" Value="{Binding}"/>
+                                                                        </Style>
+                                                                    </MenuItem.ItemContainerStyle>
+                                                                </MenuItem>
+                                                                <MenuItem Header="Qwen 2.5.1.2 — detailed illustration"
+                                                                          Command="{Binding GenerateCastQwenCommand}"
+                                                                          CommandParameter="{Binding PlacementTarget.DataContext, RelativeSource={RelativeSource AncestorType=ContextMenu}}"/>
+                                                            </ContextMenu>
+                                                        </Button.ContextMenu>
+                                                    </Button>
+                                                    <TextBlock Text="{Binding PhotoPhase}" FontSize="9" Margin="0,3,0,0"
+                                                               Foreground="{DynamicResource TabAccentBrush}" FontStyle="Italic"
+                                                               TextTrimming="CharacterEllipsis"/>
                                                     <CheckBox Content="This image is already a character sheet"
                                                               IsChecked="{Binding UseSourceAsSheet}"
                                                               IsEnabled="{Binding HasSource}"
@@ -5288,6 +5412,56 @@
                                                                                 BorderBrush="{StaticResource BorderBrush}" BorderThickness="1"
                                                                                 ToolTip="Takes this character out of the film — photo, sheet and part."/>
                                                                     </Grid>
+
+                                                                    <!-- ✨ Generate — the character's photo, rendered by one of the Image
+                                                                         Generator's base workflows instead of browsed for. The dropdown picks
+                                                                         the engine; see H3EnsembleViewModel.Cast.cs. -->
+                                                                    <Button x:Name="CastPhotoGenerateButton" Content="✨ Generate photo ▾" Margin="0,4,0,0"
+                                                                            Click="CastGenerateButton_Click"
+                                                                            Tag="{Binding DataContext, ElementName=H3EnsembleRoot}"
+                                                                            IsEnabled="{Binding CanGeneratePhoto}"
+                                                                            Height="26" Padding="8,0" FontSize="11"
+                                                                            Background="White" Foreground="{DynamicResource TabAccentBrush}"
+                                                                            BorderBrush="{StaticResource BorderBrush}" BorderThickness="1"
+                                                                            ToolTip="Generates this character's photo instead of browsing for one — their Part and the locked wardrobe become the prompt, and the result lands in this card as if it had been browsed. Z-Image and Krea2 open into a LoRA list (the same folders the Image Generator reads); Qwen 2.5.1.2's lightning LoRA is baked into its workflow.&#x0a;&#x0a;Needs the character to be described first: a Part on the card, a non-person Kind, or the story's automatic cast. The character sheet is built automatically afterwards.">
+                                                                        <!-- Tag carries the tab's ViewModel across the ContextMenu boundary;
+                                                                             the card's DataContext is the CharacterSlot each command takes. -->
+                                                                        <Button.ContextMenu>
+                                                                            <!-- Z-Image and Krea2 open into a LoRA list — the same folders the Image
+                                                                                 Generator tab reads. Qwen's lightning LoRA is baked into its workflow,
+                                                                                 so it has no list. The menu remembers whose card it opened on: the
+                                                                                 window sets CastPhotoMenuSlot as it opens. -->
+                                                                            <ContextMenu DataContext="{Binding PlacementTarget.Tag, RelativeSource={RelativeSource Self}}"
+                                                                                         Opened="CastPhotoMenu_Opened">
+                                                                                <MenuItem Header="Z-Image ▸ pick the LoRA" ItemsSource="{Binding CastZimageLoraMenu}">
+                                                                                    <MenuItem.ItemContainerStyle>
+                                                                                        <Style TargetType="MenuItem">
+                                                                                            <Setter Property="Header" Value="{Binding Name}"/>
+                                                                                            <Setter Property="Command"
+                                                                                                    Value="{Binding DataContext.GenerateCastZimageLoraCommand, RelativeSource={RelativeSource AncestorType=ContextMenu}}"/>
+                                                                                            <Setter Property="CommandParameter" Value="{Binding}"/>
+                                                                                        </Style>
+                                                                                    </MenuItem.ItemContainerStyle>
+                                                                                </MenuItem>
+                                                                                <MenuItem Header="Krea2 ▸ pick the LoRA" ItemsSource="{Binding CastKrea2LoraMenu}">
+                                                                                    <MenuItem.ItemContainerStyle>
+                                                                                        <Style TargetType="MenuItem">
+                                                                                            <Setter Property="Header" Value="{Binding Name}"/>
+                                                                                            <Setter Property="Command"
+                                                                                                    Value="{Binding DataContext.GenerateCastKrea2LoraCommand, RelativeSource={RelativeSource AncestorType=ContextMenu}}"/>
+                                                                                            <Setter Property="CommandParameter" Value="{Binding}"/>
+                                                                                        </Style>
+                                                                                    </MenuItem.ItemContainerStyle>
+                                                                                </MenuItem>
+                                                                                <MenuItem Header="Qwen 2.5.1.2 — detailed illustration"
+                                                                                          Command="{Binding GenerateCastQwenCommand}"
+                                                                                          CommandParameter="{Binding PlacementTarget.DataContext, RelativeSource={RelativeSource AncestorType=ContextMenu}}"/>
+                                                                            </ContextMenu>
+                                                                        </Button.ContextMenu>
+                                                                    </Button>
+                                                                    <TextBlock Text="{Binding PhotoPhase}" FontSize="9" Margin="0,3,0,0"
+                                                                               Foreground="{DynamicResource TabAccentBrush}" FontStyle="Italic"
+                                                                               TextTrimming="CharacterEllipsis"/>
 
                                                                     <CheckBox Content="This image is already a character sheet"
                                                                               IsChecked="{Binding UseSourceAsSheet}"
