@@ -223,6 +223,9 @@ namespace FlipPix.UI.ViewModels.Video
             GenerateCastZimageLoraCommand = new RelayCommand<CastPhotoWorkflows.CastLora>(
                 async lora => await GenerateCastPhotoAsync(CastPhotoMenuSlot, "zimage", lora),
                 _ => CanGenerateCastPhoto(CastPhotoMenuSlot));
+            GenerateCastFamegridLoraCommand = new RelayCommand<CastPhotoWorkflows.CastLora>(
+                async lora => await GenerateCastPhotoAsync(CastPhotoMenuSlot, "famegrid", lora),
+                _ => CanGenerateCastPhoto(CastPhotoMenuSlot));
             GenerateCastKrea2LoraCommand = new RelayCommand<CastPhotoWorkflows.CastLora>(
                 async lora => await GenerateCastPhotoAsync(CastPhotoMenuSlot, "krea2", lora),
                 _ => CanGenerateCastPhoto(CastPhotoMenuSlot));
@@ -280,6 +283,7 @@ namespace FlipPix.UI.ViewModels.Video
         /// workflow and the LoRA picked in the ✨ menu (or the workflow's own when "as authored" is
         /// picked). Runs for the card whose menu was last opened — see <see cref="CastPhotoMenuSlot"/>.</summary>
         public RelayCommand<CastPhotoWorkflows.CastLora> GenerateCastZimageLoraCommand { get; }
+        public RelayCommand<CastPhotoWorkflows.CastLora> GenerateCastFamegridLoraCommand { get; }
         public RelayCommand<CastPhotoWorkflows.CastLora> GenerateCastKrea2LoraCommand { get; }
         public RelayCommand<CharacterSlot> GenerateCastQwenCommand { get; }
         public RelayCommand SelectEnvironmentCommand { get; }
@@ -889,6 +893,7 @@ namespace FlipPix.UI.ViewModels.Video
             PlayVideoCommand.NotifyCanExecuteChanged();
             OpenResultFolderCommand.NotifyCanExecuteChanged();
             GenerateCastZimageLoraCommand.NotifyCanExecuteChanged();
+            GenerateCastFamegridLoraCommand.NotifyCanExecuteChanged();
             GenerateCastKrea2LoraCommand.NotifyCanExecuteChanged();
             GenerateCastQwenCommand.NotifyCanExecuteChanged();
         }

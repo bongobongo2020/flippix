@@ -3167,7 +3167,7 @@
                                                             Height="26" Padding="8,0" FontSize="11"
                                                             Background="{StaticResource SurfaceAltBrush}" Foreground="{DynamicResource TabAccentBrush}"
                                                             BorderBrush="{StaticResource BorderBrush}" BorderThickness="1"
-                                                            ToolTip="Generates this character's photo instead of browsing for one — their Part and the locked wardrobe become the prompt, and the result lands in this card as if it had been browsed. Z-Image and Krea2 open into a LoRA list (the same folders the Image Generator reads); Qwen 2.5.1.2's lightning LoRA is baked into its workflow.&#x0a;&#x0a;Needs the character to be described first: a Part on the card, or the story's automatic cast. The character sheet is built automatically afterwards.">
+                                                            ToolTip="Generates this character's photo instead of browsing for one — their Part and the locked wardrobe become the prompt, and the result lands in this card as if it had been browsed. Z-Image, Z-Famegrid and Krea2 open into a LoRA list (the same folders the Image Generator reads); Qwen 2.5.1.2's lightning LoRA is baked into its workflow.&#x0a;&#x0a;Needs the character to be described first: a Part on the card, or the story's automatic cast. The character sheet is built automatically afterwards.">
                                                         <!-- Tag carries the tab's ViewModel across the ContextMenu boundary;
                                                              the card's DataContext is the CharacterSlot each command takes. -->
                                                         <Button.ContextMenu>
@@ -3181,6 +3181,16 @@
                                                                             <Setter Property="Header" Value="{Binding Name}"/>
                                                                             <Setter Property="Command"
                                                                                     Value="{Binding DataContext.GenerateCastZimageLoraCommand, RelativeSource={RelativeSource AncestorType=ContextMenu}}"/>
+                                                                            <Setter Property="CommandParameter" Value="{Binding}"/>
+                                                                        </Style>
+                                                                    </MenuItem.ItemContainerStyle>
+                                                                </MenuItem>
+                                                                <MenuItem Header="Z-Famegrid ▸ pick the LoRA" ItemsSource="{Binding CastFamegridLoraMenu}">
+                                                                    <MenuItem.ItemContainerStyle>
+                                                                        <Style TargetType="MenuItem">
+                                                                            <Setter Property="Header" Value="{Binding Name}"/>
+                                                                            <Setter Property="Command"
+                                                                                    Value="{Binding DataContext.GenerateCastFamegridLoraCommand, RelativeSource={RelativeSource AncestorType=ContextMenu}}"/>
                                                                             <Setter Property="CommandParameter" Value="{Binding}"/>
                                                                         </Style>
                                                                     </MenuItem.ItemContainerStyle>
@@ -3347,7 +3357,7 @@
                                                             Height="26" Padding="8,0" FontSize="11"
                                                             Background="{StaticResource SurfaceAltBrush}" Foreground="{DynamicResource TabAccentBrush}"
                                                             BorderBrush="{StaticResource BorderBrush}" BorderThickness="1"
-                                                            ToolTip="Generates this character's photo instead of browsing for one — their Part and the locked wardrobe become the prompt, and the result lands in this card as if it had been browsed. Z-Image and Krea2 open into a LoRA list (the same folders the Image Generator reads); Qwen 2.5.1.2's lightning LoRA is baked into its workflow.&#x0a;&#x0a;Needs the character to be described first: a Part on the card, or the story's automatic cast. The character sheet is built automatically afterwards.">
+                                                            ToolTip="Generates this character's photo instead of browsing for one — their Part and the locked wardrobe become the prompt, and the result lands in this card as if it had been browsed. Z-Image, Z-Famegrid and Krea2 open into a LoRA list (the same folders the Image Generator reads); Qwen 2.5.1.2's lightning LoRA is baked into its workflow.&#x0a;&#x0a;Needs the character to be described first: a Part on the card, or the story's automatic cast. The character sheet is built automatically afterwards.">
                                                         <!-- Tag carries the tab's ViewModel across the ContextMenu boundary;
                                                              the card's DataContext is the CharacterSlot each command takes. -->
                                                         <Button.ContextMenu>
@@ -3361,6 +3371,16 @@
                                                                             <Setter Property="Header" Value="{Binding Name}"/>
                                                                             <Setter Property="Command"
                                                                                     Value="{Binding DataContext.GenerateCastZimageLoraCommand, RelativeSource={RelativeSource AncestorType=ContextMenu}}"/>
+                                                                            <Setter Property="CommandParameter" Value="{Binding}"/>
+                                                                        </Style>
+                                                                    </MenuItem.ItemContainerStyle>
+                                                                </MenuItem>
+                                                                <MenuItem Header="Z-Famegrid ▸ pick the LoRA" ItemsSource="{Binding CastFamegridLoraMenu}">
+                                                                    <MenuItem.ItemContainerStyle>
+                                                                        <Style TargetType="MenuItem">
+                                                                            <Setter Property="Header" Value="{Binding Name}"/>
+                                                                            <Setter Property="Command"
+                                                                                    Value="{Binding DataContext.GenerateCastFamegridLoraCommand, RelativeSource={RelativeSource AncestorType=ContextMenu}}"/>
                                                                             <Setter Property="CommandParameter" Value="{Binding}"/>
                                                                         </Style>
                                                                     </MenuItem.ItemContainerStyle>
@@ -3849,6 +3869,1067 @@
                                                     </TextBlock.Style>
                                                 </TextBlock>
                                                 <MediaElement x:Name="H3CastVideoPlayer"
+                                                              Source="{Binding ResultVideoPath}"
+                                                              LoadedBehavior="Manual" UnloadedBehavior="Stop"
+                                                              Stretch="Uniform"
+                                                              Visibility="{Binding HasResult, Converter={StaticResource BooleanToVisibilityConverter}}"/>
+                                            </Grid>
+                                        </Border>
+
+                                        <StackPanel Orientation="Horizontal" Margin="0,0,0,6">
+                                            <Button Content="▶ Play" Style="{StaticResource PrimaryButtonStyle}"
+                                                    Command="{Binding PlayVideoCommand}"
+                                                    IsEnabled="{Binding HasResult}" Margin="0,0,8,0"/>
+                                            <Button Content="📁 Open Folder" Style="{StaticResource SecondaryButtonStyle}"
+                                                    Command="{Binding OpenResultFolderCommand}"
+                                                    IsEnabled="{Binding HasResult}"/>
+                                        </StackPanel>
+                                        <TextBlock Text="{Binding ResultVideoInfo}"
+                                                   FontStyle="Italic" Foreground="#666" FontSize="11"/>
+                                    </StackPanel>
+                                </Border>
+
+                                <!-- ─── Log ───────────────────────────────────────────────── -->
+                                <ctrl:ProcessingLogPanel Grid.Row="6" LogText="{Binding LogOutput}" MaxLogHeight="130"/>
+
+                            </Grid>
+                            </ScrollViewer>
+                        </Grid>
+                    </TabItem>
+
+                    <!-- ═══════════════════════════════════════════════════════════════
+                         H3 DUO — the H3 Cast flow on the MiniMax I2V turbo
+                         pipeline. Everything the 🪪👥 H3 Cast tab does — story →
+                         locked wardrobe → two characters' sheets (photo in, ✨
+                         generate, panel split) → chain of clip prompts → queue →
+                         FFmpeg join — but each clip renders through the graph the
+                         🌀 MiniMax I2V tab runs: a 4-step draft at a quarter of
+                         the canvas, a 2× pass through the MiniMax H3 3D latent
+                         upscaler, then 3 fixed-sigma steps at the finished size.
+
+                         Quicker and sharper than the Cast tab's own graph; the
+                         trade is there is no face-refine pass here — identity is
+                         held by the references themselves, encoded at a 2048px
+                         short edge by default (the checkbox in Settings).
+                         ═══════════════════════════════════════════════════════════════ -->
+                    <TabItem Header="🪪🌀 H3 Duo">
+                        <!-- Named so the per-character cards, whose DataContext is a CharacterSlot, can
+                             still reach the tab's own commands. -->
+                        <Grid x:Name="H3DuoRoot" DataContext="{Binding H3DuoVM}" Style="{StaticResource TabPageStyle}">
+                            <Grid.Resources>
+                                <SolidColorBrush x:Key="TabAccentBrush" Color="{StaticResource AccentAmberColor}"/>
+                            </Grid.Resources>
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="340"/>
+                                <ColumnDefinition Width="*"/>
+                            </Grid.ColumnDefinitions>
+
+                            <!-- ═══ LEFT PANEL ═══════════════════════════════════════════════ -->
+                            <Border Grid.Column="0" Style="{StaticResource TabSideRailStyle}">
+                                <ScrollViewer VerticalScrollBarVisibility="Auto">
+                                    <StackPanel Margin="12">
+
+                                        <!-- Scene & story: two ways in, either one is enough.
+                                             The image (never uploaded) carries setting, light and
+                                             wardrobe; the story carries what happens. With no image
+                                             the request goes to the llama-server as plain text. -->
+                                        <Border Style="{StaticResource SectionCardStyle}">
+                                            <StackPanel>
+                                                <ctrl:SectionHeader Title="SCENE &amp; STORY" Note="  · either one is enough — and the wardrobe comes from it" Margin="0,0,0,10"/>
+
+                                                <Grid Margin="0,0,0,8">
+                                                    <Grid.ColumnDefinitions>
+                                                        <ColumnDefinition Width="124"/>
+                                                        <ColumnDefinition Width="8"/>
+                                                        <ColumnDefinition Width="*"/>
+                                                    </Grid.ColumnDefinitions>
+
+                                                    <!-- Scene image -->
+                                                    <StackPanel Grid.Column="0">
+                                                        <TextBlock Text="Scene image" FontSize="10" FontWeight="SemiBold"
+                                                                   Foreground="{StaticResource TextSecondaryBrush}" Margin="0,0,0,4"/>
+                                                        <Border BorderBrush="{StaticResource BorderBrush}" BorderThickness="1" CornerRadius="6"
+                                                                Background="{StaticResource SurfaceAltBrush}" Height="126" Margin="0,0,0,6">
+                                                            <Grid>
+                                                                <TextBlock Text="Optional"
+                                                                           HorizontalAlignment="Center" VerticalAlignment="Center"
+                                                                           Foreground="{StaticResource TextMutedBrush}" FontSize="10">
+                                                                    <TextBlock.Style>
+                                                                        <Style TargetType="TextBlock">
+                                                                            <Setter Property="Visibility" Value="Collapsed"/>
+                                                                            <Style.Triggers>
+                                                                                <DataTrigger Binding="{Binding SceneImagePreview}" Value="{x:Null}">
+                                                                                    <Setter Property="Visibility" Value="Visible"/>
+                                                                                </DataTrigger>
+                                                                            </Style.Triggers>
+                                                                        </Style>
+                                                                    </TextBlock.Style>
+                                                                </TextBlock>
+                                                                <Image Source="{Binding SceneImagePreview}" Stretch="Uniform"/>
+                                                            </Grid>
+                                                        </Border>
+                                                        <Grid>
+                                                            <Grid.ColumnDefinitions>
+                                                                <ColumnDefinition Width="*"/>
+                                                                <ColumnDefinition Width="Auto"/>
+                                                            </Grid.ColumnDefinitions>
+                                                            <Button Grid.Column="0" Content="Browse…"
+                                                                    Command="{Binding SelectSceneImageCommand}"
+                                                                    Height="26" Padding="6,0" FontSize="11" Margin="0,0,4,0"
+                                                                    Background="{StaticResource SurfaceAltBrush}" Foreground="{DynamicResource TabAccentBrush}"
+                                                                    BorderBrush="{StaticResource BorderBrush}" BorderThickness="1"/>
+                                                            <Button Grid.Column="1" Content="✕"
+                                                                    Command="{Binding ClearSceneImageCommand}"
+                                                                    IsEnabled="{Binding HasSceneImage}"
+                                                                    Height="26" Width="26" FontSize="11"
+                                                                    ToolTip="Drop the scene image and work from the story alone."
+                                                                    Background="{StaticResource SurfaceAltBrush}" Foreground="{StaticResource TextSecondaryBrush}"
+                                                                    BorderBrush="{StaticResource BorderBrush}" BorderThickness="1"/>
+                                                        </Grid>
+                                                        <TextBlock Text="{Binding SceneImageInfo}" FontSize="9" Margin="0,4,0,0"
+                                                                   Foreground="{StaticResource TextSecondaryBrush}" FontStyle="Italic"
+                                                                   TextTrimming="CharacterEllipsis"/>
+                                                    </StackPanel>
+
+                                                    <!-- Story text -->
+                                                    <StackPanel Grid.Column="2">
+                                                        <TextBlock Text="Story" FontSize="10" FontWeight="SemiBold"
+                                                                   Foreground="{StaticResource TextSecondaryBrush}" Margin="0,0,0,4"/>
+                                                        <TextBox Text="{Binding StoryText, UpdateSourceTrigger=PropertyChanged}"
+                                                                 TextWrapping="Wrap" AcceptsReturn="True" AcceptsTab="False"
+                                                                 Height="126" VerticalScrollBarVisibility="Auto" Margin="0,0,0,6"
+                                                                 BorderBrush="{StaticResource BorderBrush}" Background="{StaticResource SurfaceAltBrush}"
+                                                                 FontSize="11" Padding="6"
+                                                                 ToolTip="Type or paste the story the video tells. With a scene image it says what happens in it; on its own it is the whole brief — Analyze then works from the text alone and writes the setting, lighting and wardrobe out of the prose, casting &lt;Picture 1&gt; and &lt;Picture 2&gt; in the story's roles."/>
+                                                        <Grid>
+                                                            <Grid.ColumnDefinitions>
+                                                                <ColumnDefinition Width="*"/>
+                                                                <ColumnDefinition Width="Auto"/>
+                                                            </Grid.ColumnDefinitions>
+                                                            <Button Grid.Column="0" Content="📄 Load .txt"
+                                                                    Command="{Binding LoadStoryCommand}"
+                                                                    Height="26" Padding="6,0" FontSize="11" Margin="0,0,4,0"
+                                                                    Background="{StaticResource SurfaceAltBrush}" Foreground="{DynamicResource TabAccentBrush}"
+                                                                    BorderBrush="{StaticResource BorderBrush}" BorderThickness="1"
+                                                                    ToolTip="Read a story out of a .txt or .md file into the box."/>
+                                                            <Button Grid.Column="1" Content="✕"
+                                                                    Command="{Binding ClearStoryCommand}"
+                                                                    Height="26" Width="26" FontSize="11"
+                                                                    ToolTip="Empty the story box."
+                                                                    Background="{StaticResource SurfaceAltBrush}" Foreground="{StaticResource TextSecondaryBrush}"
+                                                                    BorderBrush="{StaticResource BorderBrush}" BorderThickness="1"/>
+                                                        </Grid>
+                                                    </StackPanel>
+                                                </Grid>
+
+                                                <TextBlock Text="{Binding StorySourceSummary}"
+                                                           FontSize="10" Foreground="{StaticResource TextMutedBrush}" FontStyle="Italic"
+                                                           TextWrapping="Wrap" Margin="0,0,0,10"/>
+
+                                                <!-- Wardrobe. Decided once and written into every clip's
+                                                     prompt verbatim: the clips are generated separately from
+                                                     text written block by block, so an outfit left to the
+                                                     prose is re-invented every few clips. -->
+                                                <Grid Margin="0,0,0,4">
+                                                    <Grid.ColumnDefinitions>
+                                                        <ColumnDefinition Width="*"/>
+                                                        <ColumnDefinition Width="Auto"/>
+                                                        <ColumnDefinition Width="Auto"/>
+                                                        <ColumnDefinition Width="Auto"/>
+                                                    </Grid.ColumnDefinitions>
+                                                    <TextBlock Grid.Column="0" Text="Wardrobe — derived from the story"
+                                                               FontSize="10" FontWeight="SemiBold" VerticalAlignment="Center"
+                                                               Foreground="{StaticResource TextSecondaryBrush}"/>
+                                                    <Button Grid.Column="1" Content="{Binding WardrobeLockButtonText}"
+                                                            Command="{Binding ToggleWardrobeLockCommand}"
+                                                            Height="24" Padding="8,0" FontSize="10" Margin="0,0,4,0"
+                                                            Background="{StaticResource SurfaceAltBrush}" Foreground="{StaticResource TextSecondaryBrush}"
+                                                            BorderBrush="{StaticResource BorderBrush}" BorderThickness="1"
+                                                            ToolTip="Locked, the wardrobe is the story's: it is rewritten whenever the story, the scene image or the cast changes, and cannot be typed over.&#x0a;&#x0a;Unlock to dress the cast yourself — your text then stands, and the story stops rewriting it until you lock it again."/>
+                                                    <Button Grid.Column="2" Content="🎽 Derive"
+                                                            Command="{Binding DeriveWardrobeCommand}"
+                                                            Height="24" Padding="8,0" FontSize="10" Margin="0,0,4,0"
+                                                            Background="{StaticResource SurfaceAltBrush}" Foreground="{DynamicResource TabAccentBrush}"
+                                                            BorderBrush="{StaticResource BorderBrush}" BorderThickness="1"
+                                                            ToolTip="Re-rolls the outfits now, without waiting for the story to change — off the scene image if there is one, otherwise out of the story.&#x0a;&#x0a;It always writes an outfit for BOTH characters, whether or not their photos have been picked yet: the wardrobe is a decision about the story, and a second character's line is simply left out of any clip they are not in. The sheets are built from whatever is in this box, so derive before you build them."/>
+                                                    <Button Grid.Column="3" Content="✕"
+                                                            Command="{Binding ClearWardrobeCommand}"
+                                                            Height="24" Width="24" FontSize="10"
+                                                            ToolTip="Empty the wardrobe box and let the story write a fresh one."
+                                                            Background="{StaticResource SurfaceAltBrush}" Foreground="{StaticResource TextSecondaryBrush}"
+                                                            BorderBrush="{StaticResource BorderBrush}" BorderThickness="1"/>
+                                                </Grid>
+                                                <TextBox Text="{Binding CastWardrobe, UpdateSourceTrigger=PropertyChanged}"
+                                                         IsReadOnly="{Binding IsWardrobeLocked}"
+                                                         TextWrapping="Wrap" AcceptsReturn="True" AcceptsTab="False"
+                                                         Height="64" VerticalScrollBarVisibility="Auto" Margin="0,0,0,4"
+                                                         BorderBrush="{StaticResource BorderBrush}" Background="{StaticResource SurfaceAltBrush}"
+                                                         FontSize="11" Padding="6"
+                                                         ToolTip="One line per character, naming every garment. It is written from the story a couple of seconds after you stop typing, and it is what the character sheets are generated in AND what every clip's prompt quotes — the picture and the words then agree, which is what stops the cast changing outfits between clips.&#x0a;&#x0a;Read-only while locked; press 🔒 to take it over."/>
+                                                <TextBlock Text="{Binding WardrobeSummary}"
+                                                           FontSize="10" Foreground="{StaticResource TextMutedBrush}" FontStyle="Italic"
+                                                           TextWrapping="Wrap" Margin="0,0,0,10"/>
+
+                                                <!-- Total video length. H3 tops out at ~15s per pass, so
+                                                     anything longer is written as a chain of clips and
+                                                     queued one job per clip, same sheets throughout. -->
+                                                <Grid Margin="0,0,0,6">
+                                                    <Grid.ColumnDefinitions>
+                                                        <ColumnDefinition Width="*"/>
+                                                        <ColumnDefinition Width="Auto"/>
+                                                    </Grid.ColumnDefinitions>
+                                                    <TextBlock Grid.Column="0" Text="Video length" FontSize="10" FontWeight="SemiBold"
+                                                               Foreground="{StaticResource TextSecondaryBrush}" VerticalAlignment="Center"/>
+                                                    <Border Grid.Column="1" Background="{StaticResource SurfaceAltBrush}"
+                                                            BorderBrush="{StaticResource BorderBrush}" BorderThickness="1"
+                                                            CornerRadius="4" Padding="10,2">
+                                                        <TextBlock Text="{Binding StoryDurationSeconds, StringFormat={}{0:0} s}"
+                                                                   FontFamily="Consolas" FontSize="13" FontWeight="Bold"
+                                                                   Foreground="{DynamicResource TabAccentBrush}"/>
+                                                    </Border>
+                                                </Grid>
+                                                <Slider Value="{Binding StoryDurationSeconds}"
+                                                        Minimum="5" Maximum="120"
+                                                        TickFrequency="5" IsSnapToTickEnabled="True"
+                                                        SmallChange="5" LargeChange="15"
+                                                        Foreground="{DynamicResource TabAccentBrush}" Margin="0,0,0,4"
+                                                        ToolTip="Length of the finished video, in 5-second steps up to 2 minutes. MiniMax H3 renders at most ~15s per pass, so anything longer is written as a chain of consecutive clips — Analyze writes them all in one reply, Add to Queue enqueues one job per clip against the same character sheets, and they are joined into a single file when the last one lands."/>
+                                                <TextBlock Text="{Binding ClipPlanSummary}"
+                                                           FontSize="10" Foreground="{StaticResource TextMutedBrush}" FontStyle="Italic"
+                                                           TextWrapping="Wrap" Margin="0,0,0,10"/>
+
+                                                <!-- The medium the writer works in. Left on Auto it
+                                                     picks, and it used to pick gacha anime almost every
+                                                     time whatever the story was. -->
+                                                <TextBlock Text="Visual style" FontSize="10" FontWeight="SemiBold"
+                                                           Foreground="{StaticResource TextSecondaryBrush}" Margin="0,0,0,4"/>
+                                                <ComboBox ItemsSource="{Binding VisualStyleOptions}"
+                                                          DisplayMemberPath="Name"
+                                                          SelectedItem="{Binding VisualStyle, Mode=TwoWay}"
+                                                          Height="30" FontSize="11" Margin="0,0,0,4"
+                                                          ToolTip="The medium every clip is written in. The style words open [Shot 1], which is the only place MiniMax H3 reads the look of the video from &#x2014; so the choice here is handed to the prompt writer as settled fact and copied verbatim into every clip of a chain, exactly the way the wardrobe is.&#x0a;&#x0a;Auto leaves it to the writer, which is what this tab did before: it reads the medium off the scene image where there is one and off the story where there is not."/>
+                                                <TextBlock Text="{Binding VisualStyleSummary}"
+                                                           FontSize="10" Foreground="{StaticResource TextMutedBrush}" FontStyle="Italic"
+                                                           TextWrapping="Wrap" Margin="0,0,0,10"/>
+
+                                                <StackPanel Orientation="Horizontal">
+                                                    <Button Content="🔍 Analyze → H3 Prompt"
+                                                            Command="{Binding AnalyzeCommand}"
+                                                            IsEnabled="{Binding CanAnalyze}"
+                                                            Height="32" Padding="14,0" FontSize="11"
+                                                            Style="{StaticResource AccentButtonStyle}"
+                                                            ToolTip="Sends whatever is loaded — the scene image, the story, or both — to the llama-server with texttovideoH3.md and writes a dense multi-shot H3 prompt in which the cast is named only as &lt;Picture 1&gt; / &lt;Picture 2&gt; and framed so faces stay readable. The locked wardrobe above is handed to it as settled fact, so no clip picks its own outfit."/>
+                                                    <TextBlock FontStyle="Italic" FontSize="11" VerticalAlignment="Center" Margin="8,0,0,0"
+                                                               Text="{Binding AnalyzeBusyText}" Foreground="{DynamicResource TabAccentBrush}">
+                                                        <TextBlock.Style>
+                                                            <Style TargetType="TextBlock">
+                                                                <Setter Property="Visibility" Value="Collapsed"/>
+                                                                <Style.Triggers>
+                                                                    <DataTrigger Binding="{Binding IsAnalyzing}" Value="True">
+                                                                        <Setter Property="Visibility" Value="Visible"/>
+                                                                    </DataTrigger>
+                                                                </Style.Triggers>
+                                                            </Style>
+                                                        </TextBlock.Style>
+                                                    </TextBlock>
+                                                </StackPanel>
+                                            </StackPanel>
+                                        </Border>
+
+                                        <!-- Cast: photo in, sheet out -->
+                                        <Border Style="{StaticResource SectionCardStyle}">
+                                            <StackPanel>
+                                                <ctrl:SectionHeader Title="CAST" Note="  · one photo per character, dressed from the wardrobe above" Margin="0,0,0,10"/>
+
+                                                <!-- Character 1 -->
+                                                <StackPanel DataContext="{Binding Character1}" Margin="0,0,0,10">
+                                                    <!-- The sex is a real input, not a label: it goes into the
+                                                         wardrobe request, into the sheet builder's instruction
+                                                         and into the reference line H3 reads. -->
+                                                    <Grid Margin="0,0,0,4">
+                                                        <Grid.ColumnDefinitions>
+                                                            <ColumnDefinition Width="*"/>
+                                                            <ColumnDefinition Width="Auto"/>
+                                                        </Grid.ColumnDefinitions>
+                                                        <TextBlock Grid.Column="0" Text="{Binding Label}" FontSize="11" FontWeight="Bold"
+                                                                   VerticalAlignment="Center"
+                                                                   Foreground="{StaticResource TextPrimaryBrush}"/>
+                                                        <ComboBox Grid.Column="1" ItemsSource="{Binding SexOptions}"
+                                                                  SelectedItem="{Binding Sex, Mode=TwoWay}"
+                                                                  Width="86" Height="24" FontSize="10"
+                                                                  ToolTip="Male or female. The wardrobe pass dresses this character accordingly, the character sheet is generated as that person, and the prompt names them so H3 uses the right pronouns."/>
+                                                    </Grid>
+                                                    <!-- Part — who this character is in the story. Filled by the story's
+                                                         automatic cast; see H3CastViewModel.Cast.cs. -->
+                                                    <Grid Margin="0,0,0,6">
+                                                        <Grid.ColumnDefinitions>
+                                                            <ColumnDefinition Width="Auto"/>
+                                                            <ColumnDefinition Width="*"/>
+                                                        </Grid.ColumnDefinitions>
+                                                        <TextBlock Grid.Column="0" Text="Part" FontSize="10" VerticalAlignment="Center"
+                                                                   Foreground="{StaticResource TextSecondaryBrush}" Margin="0,0,6,0"/>
+                                                        <TextBox Grid.Column="1"
+                                                                 Text="{Binding Role, UpdateSourceTrigger=LostFocus}"
+                                                                 Height="24" FontSize="10" Padding="5,0"
+                                                                 VerticalContentAlignment="Center"
+                                                                 BorderBrush="{StaticResource BorderBrush}" Background="White"
+                                                                 ToolTip="Who this character is in the story — &quot;the detective&quot;, &quot;her younger brother&quot;. A pasted or loaded story fills this in automatically; edit it freely — the tab never overwrites a card you have made your own. It reaches the wardrobe pass and the ✨ Generate button, so the photo and the outfit match the part."/>
+                                                    </Grid>
+                                                    <TextBlock Text="&lt;Picture 1&gt; · the first reference H3 receives"
+                                                               FontSize="9" Foreground="{StaticResource TextMutedBrush}" Margin="0,0,0,4"/>
+                                                    <Grid>
+                                                        <Grid.ColumnDefinitions>
+                                                            <ColumnDefinition Width="98"/>
+                                                            <ColumnDefinition Width="6"/>
+                                                            <ColumnDefinition Width="*"/>
+                                                        </Grid.ColumnDefinitions>
+
+                                                        <!-- Source photo -->
+                                                        <Border Grid.Column="0" BorderBrush="{StaticResource BorderBrush}" BorderThickness="1"
+                                                                CornerRadius="6" Background="{StaticResource SurfaceAltBrush}" Height="92">
+                                                            <Grid>
+                                                                <TextBlock Text="Photo"
+                                                                           HorizontalAlignment="Center" VerticalAlignment="Center"
+                                                                           Foreground="{StaticResource TextMutedBrush}" FontSize="10">
+                                                                    <TextBlock.Style>
+                                                                        <Style TargetType="TextBlock">
+                                                                            <Setter Property="Visibility" Value="Collapsed"/>
+                                                                            <Style.Triggers>
+                                                                                <DataTrigger Binding="{Binding SourcePreview}" Value="{x:Null}">
+                                                                                    <Setter Property="Visibility" Value="Visible"/>
+                                                                                </DataTrigger>
+                                                                            </Style.Triggers>
+                                                                        </Style>
+                                                                    </TextBlock.Style>
+                                                                </TextBlock>
+                                                                <Image Source="{Binding SourcePreview}" Stretch="Uniform"/>
+                                                            </Grid>
+                                                        </Border>
+
+                                                        <!-- Built sheet -->
+                                                        <Border Grid.Column="2" BorderBrush="{StaticResource BorderBrush}" BorderThickness="1"
+                                                                CornerRadius="6" Background="{StaticResource SurfaceAltBrush}" Height="92">
+                                                            <Grid>
+                                                                <TextBlock Text="Sheet → H3"
+                                                                           HorizontalAlignment="Center" VerticalAlignment="Center"
+                                                                           Foreground="{StaticResource TextMutedBrush}" FontSize="10">
+                                                                    <TextBlock.Style>
+                                                                        <Style TargetType="TextBlock">
+                                                                            <Setter Property="Visibility" Value="Collapsed"/>
+                                                                            <Style.Triggers>
+                                                                                <DataTrigger Binding="{Binding SheetPreview}" Value="{x:Null}">
+                                                                                    <Setter Property="Visibility" Value="Visible"/>
+                                                                                </DataTrigger>
+                                                                            </Style.Triggers>
+                                                                        </Style>
+                                                                    </TextBlock.Style>
+                                                                </TextBlock>
+                                                                <Image Source="{Binding SheetPreview}" Stretch="Uniform"/>
+                                                            </Grid>
+                                                        </Border>
+                                                    </Grid>
+
+                                                    <Button Content="Browse…"
+                                                            Command="{Binding DataContext.SelectCharacter1Command, ElementName=H3DuoRoot}"
+                                                            Height="26" Padding="8,0" FontSize="11" Margin="0,6,0,0"
+                                                            Background="{StaticResource SurfaceAltBrush}" Foreground="{DynamicResource TabAccentBrush}"
+                                                            BorderBrush="{StaticResource BorderBrush}" BorderThickness="1"/>
+                                                    <!-- ✨ Generate — this character's photo, rendered by one of the Image
+                                                         Generator's base workflows instead of browsed for. -->
+                                                    <Button Content="✨ Generate photo ▾" Margin="0,4,0,0"
+                                                            Click="CastGenerateButton_Click"
+                                                            Tag="{Binding DataContext, ElementName=H3DuoRoot}"
+                                                            IsEnabled="{Binding CanGeneratePhoto}"
+                                                            Height="26" Padding="8,0" FontSize="11"
+                                                            Background="{StaticResource SurfaceAltBrush}" Foreground="{DynamicResource TabAccentBrush}"
+                                                            BorderBrush="{StaticResource BorderBrush}" BorderThickness="1"
+                                                            ToolTip="Generates this character's photo instead of browsing for one — their Part and the locked wardrobe become the prompt, and the result lands in this card as if it had been browsed. Z-Image, Z-Famegrid and Krea2 open into a LoRA list (the same folders the Image Generator reads); Qwen 2.5.1.2's lightning LoRA is baked into its workflow.&#x0a;&#x0a;Needs the character to be described first: a Part on the card, or the story's automatic cast. The character sheet is built automatically afterwards.">
+                                                        <!-- Tag carries the tab's ViewModel across the ContextMenu boundary;
+                                                             the card's DataContext is the CharacterSlot each command takes. -->
+                                                        <Button.ContextMenu>
+                                                            <!-- The menu remembers whose card it opened on: the window sets
+                                                                 CastPhotoMenuSlot as it opens. -->
+                                                            <ContextMenu DataContext="{Binding PlacementTarget.Tag, RelativeSource={RelativeSource Self}}"
+                                                                         Opened="CastPhotoMenu_Opened">
+                                                                <MenuItem Header="Z-Image ▸ pick the LoRA" ItemsSource="{Binding CastZimageLoraMenu}">
+                                                                    <MenuItem.ItemContainerStyle>
+                                                                        <Style TargetType="MenuItem">
+                                                                            <Setter Property="Header" Value="{Binding Name}"/>
+                                                                            <Setter Property="Command"
+                                                                                    Value="{Binding DataContext.GenerateCastZimageLoraCommand, RelativeSource={RelativeSource AncestorType=ContextMenu}}"/>
+                                                                            <Setter Property="CommandParameter" Value="{Binding}"/>
+                                                                        </Style>
+                                                                    </MenuItem.ItemContainerStyle>
+                                                                </MenuItem>
+                                                                <MenuItem Header="Z-Famegrid ▸ pick the LoRA" ItemsSource="{Binding CastFamegridLoraMenu}">
+                                                                    <MenuItem.ItemContainerStyle>
+                                                                        <Style TargetType="MenuItem">
+                                                                            <Setter Property="Header" Value="{Binding Name}"/>
+                                                                            <Setter Property="Command"
+                                                                                    Value="{Binding DataContext.GenerateCastFamegridLoraCommand, RelativeSource={RelativeSource AncestorType=ContextMenu}}"/>
+                                                                            <Setter Property="CommandParameter" Value="{Binding}"/>
+                                                                        </Style>
+                                                                    </MenuItem.ItemContainerStyle>
+                                                                </MenuItem>
+                                                                <MenuItem Header="Krea2 ▸ pick the LoRA" ItemsSource="{Binding CastKrea2LoraMenu}">
+                                                                    <MenuItem.ItemContainerStyle>
+                                                                        <Style TargetType="MenuItem">
+                                                                            <Setter Property="Header" Value="{Binding Name}"/>
+                                                                            <Setter Property="Command"
+                                                                                    Value="{Binding DataContext.GenerateCastKrea2LoraCommand, RelativeSource={RelativeSource AncestorType=ContextMenu}}"/>
+                                                                            <Setter Property="CommandParameter" Value="{Binding}"/>
+                                                                        </Style>
+                                                                    </MenuItem.ItemContainerStyle>
+                                                                </MenuItem>
+                                                                <MenuItem Header="Qwen 2.5.1.2 — detailed illustration"
+                                                                          Command="{Binding GenerateCastQwenCommand}"
+                                                                          CommandParameter="{Binding PlacementTarget.DataContext, RelativeSource={RelativeSource AncestorType=ContextMenu}}"/>
+                                                            </ContextMenu>
+                                                        </Button.ContextMenu>
+                                                    </Button>
+                                                    <TextBlock Text="{Binding PhotoPhase}" FontSize="9" Margin="0,3,0,0"
+                                                               Foreground="{DynamicResource TabAccentBrush}" FontStyle="Italic"
+                                                               TextTrimming="CharacterEllipsis"/>
+                                                    <CheckBox Content="This image is already a character sheet"
+                                                              IsChecked="{Binding UseSourceAsSheet}"
+                                                              IsEnabled="{Binding HasSource}"
+                                                              FontSize="10" Margin="0,6,0,0"
+                                                              Foreground="{StaticResource TextSecondaryBrush}"
+                                                              ToolTip="Skip the Qwen pass and send the loaded image to H3 as it is."/>
+                                                    <Grid Margin="0,6,0,0">
+                                                        <Grid.ColumnDefinitions>
+                                                            <ColumnDefinition Width="Auto"/>
+                                                            <ColumnDefinition Width="*"/>
+                                                        </Grid.ColumnDefinitions>
+                                                        <TextBlock Grid.Column="0" Text="Panels" FontSize="10" VerticalAlignment="Center"
+                                                                   Foreground="{StaticResource TextSecondaryBrush}" Margin="0,0,6,0"/>
+                                                        <ComboBox Grid.Column="1" ItemsSource="{Binding PanelSplitOptions}"
+                                                                  DisplayMemberPath="Label" SelectedValuePath="Value"
+                                                                  SelectedValue="{Binding SelectedPanelSplit, Mode=TwoWay}"
+                                                                  IsEnabled="{Binding HasSheet}" Height="24" FontSize="10"
+                                                                  ToolTip="H3 conditions on each reference image as ONE subject, so a three-panel sheet handed over whole is a three-panel grid it will happily render into the video — the same person standing next to themselves against a studio wall.&#x0a;&#x0a;The sheet is therefore cut back into its separate views before it is sent, one reference per view. Auto looks for the background gaps between the figures; a number splits evenly; Whole sheet is the old single-collage behaviour, kept for comparison."/>
+                                                    </Grid>
+                                                    <TextBlock Text="{Binding SheetStatus}" FontSize="9" Margin="0,4,0,0"
+                                                               Foreground="{StaticResource TextSecondaryBrush}" FontStyle="Italic"
+                                                               TextTrimming="CharacterEllipsis"/>
+                                                    <TextBlock Text="{Binding PanelStatus}" FontSize="9" Margin="0,2,0,0"
+                                                               Foreground="{StaticResource TextMutedBrush}" FontStyle="Italic"
+                                                               TextWrapping="Wrap"/>
+                                                    <!-- The outfit this character's sheet is (or will be) built in. -->
+                                                    <TextBlock Text="{Binding ExpectedWardrobe, StringFormat=👗 {0}}"
+                                                               Visibility="{Binding ExpectedWardrobe, Converter={StaticResource StringToVisibilityConverter}}"
+                                                               FontSize="9" Margin="0,2,0,0"
+                                                               Foreground="{DynamicResource TabAccentBrush}" FontStyle="Italic"
+                                                               TextWrapping="Wrap"/>
+                                                </StackPanel>
+
+                                                <!-- Character 2 -->
+                                                <StackPanel DataContext="{Binding Character2}" Margin="0,0,0,8">
+                                                    <Grid Margin="0,0,0,4">
+                                                        <Grid.ColumnDefinitions>
+                                                            <ColumnDefinition Width="*"/>
+                                                            <ColumnDefinition Width="Auto"/>
+                                                        </Grid.ColumnDefinitions>
+                                                        <TextBlock Grid.Column="0" Text="{Binding Label}" FontSize="11" FontWeight="Bold"
+                                                                   VerticalAlignment="Center"
+                                                                   Foreground="{StaticResource TextPrimaryBrush}"/>
+                                                        <ComboBox Grid.Column="1" ItemsSource="{Binding SexOptions}"
+                                                                  SelectedItem="{Binding Sex, Mode=TwoWay}"
+                                                                  Width="86" Height="24" FontSize="10"
+                                                                  ToolTip="Male or female. The wardrobe pass dresses this character accordingly, the character sheet is generated as that person, and the prompt names them so H3 uses the right pronouns."/>
+                                                    </Grid>
+                                                    <!-- Part — who this character is in the story. Filled by the story's
+                                                         automatic cast; see H3CastViewModel.Cast.cs. -->
+                                                    <Grid Margin="0,0,0,6">
+                                                        <Grid.ColumnDefinitions>
+                                                            <ColumnDefinition Width="Auto"/>
+                                                            <ColumnDefinition Width="*"/>
+                                                        </Grid.ColumnDefinitions>
+                                                        <TextBlock Grid.Column="0" Text="Part" FontSize="10" VerticalAlignment="Center"
+                                                                   Foreground="{StaticResource TextSecondaryBrush}" Margin="0,0,6,0"/>
+                                                        <TextBox Grid.Column="1"
+                                                                 Text="{Binding Role, UpdateSourceTrigger=LostFocus}"
+                                                                 Height="24" FontSize="10" Padding="5,0"
+                                                                 VerticalContentAlignment="Center"
+                                                                 BorderBrush="{StaticResource BorderBrush}" Background="White"
+                                                                 ToolTip="Who this character is in the story — &quot;the detective&quot;, &quot;her younger brother&quot;. A pasted or loaded story fills this in automatically; edit it freely — the tab never overwrites a card you have made your own. It reaches the wardrobe pass and the ✨ Generate button, so the photo and the outfit match the part."/>
+                                                    </Grid>
+                                                    <TextBlock Text="&lt;Picture 2&gt; · optional — leave empty for a one-character video"
+                                                               FontSize="9" Foreground="{StaticResource TextMutedBrush}" Margin="0,0,0,4"/>
+                                                    <Grid>
+                                                        <Grid.ColumnDefinitions>
+                                                            <ColumnDefinition Width="98"/>
+                                                            <ColumnDefinition Width="6"/>
+                                                            <ColumnDefinition Width="*"/>
+                                                        </Grid.ColumnDefinitions>
+
+                                                        <Border Grid.Column="0" BorderBrush="{StaticResource BorderBrush}" BorderThickness="1"
+                                                                CornerRadius="6" Background="{StaticResource SurfaceAltBrush}" Height="92">
+                                                            <Grid>
+                                                                <TextBlock Text="Photo"
+                                                                           HorizontalAlignment="Center" VerticalAlignment="Center"
+                                                                           Foreground="{StaticResource TextMutedBrush}" FontSize="10">
+                                                                    <TextBlock.Style>
+                                                                        <Style TargetType="TextBlock">
+                                                                            <Setter Property="Visibility" Value="Collapsed"/>
+                                                                            <Style.Triggers>
+                                                                                <DataTrigger Binding="{Binding SourcePreview}" Value="{x:Null}">
+                                                                                    <Setter Property="Visibility" Value="Visible"/>
+                                                                                </DataTrigger>
+                                                                            </Style.Triggers>
+                                                                        </Style>
+                                                                    </TextBlock.Style>
+                                                                </TextBlock>
+                                                                <Image Source="{Binding SourcePreview}" Stretch="Uniform"/>
+                                                            </Grid>
+                                                        </Border>
+
+                                                        <Border Grid.Column="2" BorderBrush="{StaticResource BorderBrush}" BorderThickness="1"
+                                                                CornerRadius="6" Background="{StaticResource SurfaceAltBrush}" Height="92">
+                                                            <Grid>
+                                                                <TextBlock Text="Sheet → H3"
+                                                                           HorizontalAlignment="Center" VerticalAlignment="Center"
+                                                                           Foreground="{StaticResource TextMutedBrush}" FontSize="10">
+                                                                    <TextBlock.Style>
+                                                                        <Style TargetType="TextBlock">
+                                                                            <Setter Property="Visibility" Value="Collapsed"/>
+                                                                            <Style.Triggers>
+                                                                                <DataTrigger Binding="{Binding SheetPreview}" Value="{x:Null}">
+                                                                                    <Setter Property="Visibility" Value="Visible"/>
+                                                                                </DataTrigger>
+                                                                            </Style.Triggers>
+                                                                        </Style>
+                                                                    </TextBlock.Style>
+                                                                </TextBlock>
+                                                                <Image Source="{Binding SheetPreview}" Stretch="Uniform"/>
+                                                            </Grid>
+                                                        </Border>
+                                                    </Grid>
+
+                                                    <Grid Margin="0,6,0,0">
+                                                        <Grid.ColumnDefinitions>
+                                                            <ColumnDefinition Width="*"/>
+                                                            <ColumnDefinition Width="Auto"/>
+                                                        </Grid.ColumnDefinitions>
+                                                        <Button Grid.Column="0" Content="Browse…"
+                                                                Command="{Binding DataContext.SelectCharacter2Command, ElementName=H3DuoRoot}"
+                                                                Height="26" Padding="8,0" FontSize="11" Margin="0,0,4,0"
+                                                                Background="{StaticResource SurfaceAltBrush}" Foreground="{DynamicResource TabAccentBrush}"
+                                                                BorderBrush="{StaticResource BorderBrush}" BorderThickness="1"/>
+                                                        <Button Grid.Column="1" Content="✕"
+                                                                Command="{Binding DataContext.ClearCharacter2Command, ElementName=H3DuoRoot}"
+                                                                IsEnabled="{Binding HasSource}"
+                                                                Height="26" Width="26" FontSize="11"
+                                                                ToolTip="Clear the second character and run as a single-reference scene."
+                                                                Background="{StaticResource SurfaceAltBrush}" Foreground="{StaticResource TextSecondaryBrush}"
+                                                                BorderBrush="{StaticResource BorderBrush}" BorderThickness="1"/>
+                                                    </Grid>
+                                                    <!-- ✨ Generate — this character's photo, rendered by one of the Image
+                                                         Generator's base workflows instead of browsed for. -->
+                                                    <Button Content="✨ Generate photo ▾" Margin="0,4,0,0"
+                                                            Click="CastGenerateButton_Click"
+                                                            Tag="{Binding DataContext, ElementName=H3DuoRoot}"
+                                                            IsEnabled="{Binding CanGeneratePhoto}"
+                                                            Height="26" Padding="8,0" FontSize="11"
+                                                            Background="{StaticResource SurfaceAltBrush}" Foreground="{DynamicResource TabAccentBrush}"
+                                                            BorderBrush="{StaticResource BorderBrush}" BorderThickness="1"
+                                                            ToolTip="Generates this character's photo instead of browsing for one — their Part and the locked wardrobe become the prompt, and the result lands in this card as if it had been browsed. Z-Image, Z-Famegrid and Krea2 open into a LoRA list (the same folders the Image Generator reads); Qwen 2.5.1.2's lightning LoRA is baked into its workflow.&#x0a;&#x0a;Needs the character to be described first: a Part on the card, or the story's automatic cast. The character sheet is built automatically afterwards.">
+                                                        <!-- Tag carries the tab's ViewModel across the ContextMenu boundary;
+                                                             the card's DataContext is the CharacterSlot each command takes. -->
+                                                        <Button.ContextMenu>
+                                                            <!-- The menu remembers whose card it opened on: the window sets
+                                                                 CastPhotoMenuSlot as it opens. -->
+                                                            <ContextMenu DataContext="{Binding PlacementTarget.Tag, RelativeSource={RelativeSource Self}}"
+                                                                         Opened="CastPhotoMenu_Opened">
+                                                                <MenuItem Header="Z-Image ▸ pick the LoRA" ItemsSource="{Binding CastZimageLoraMenu}">
+                                                                    <MenuItem.ItemContainerStyle>
+                                                                        <Style TargetType="MenuItem">
+                                                                            <Setter Property="Header" Value="{Binding Name}"/>
+                                                                            <Setter Property="Command"
+                                                                                    Value="{Binding DataContext.GenerateCastZimageLoraCommand, RelativeSource={RelativeSource AncestorType=ContextMenu}}"/>
+                                                                            <Setter Property="CommandParameter" Value="{Binding}"/>
+                                                                        </Style>
+                                                                    </MenuItem.ItemContainerStyle>
+                                                                </MenuItem>
+                                                                <MenuItem Header="Z-Famegrid ▸ pick the LoRA" ItemsSource="{Binding CastFamegridLoraMenu}">
+                                                                    <MenuItem.ItemContainerStyle>
+                                                                        <Style TargetType="MenuItem">
+                                                                            <Setter Property="Header" Value="{Binding Name}"/>
+                                                                            <Setter Property="Command"
+                                                                                    Value="{Binding DataContext.GenerateCastFamegridLoraCommand, RelativeSource={RelativeSource AncestorType=ContextMenu}}"/>
+                                                                            <Setter Property="CommandParameter" Value="{Binding}"/>
+                                                                        </Style>
+                                                                    </MenuItem.ItemContainerStyle>
+                                                                </MenuItem>
+                                                                <MenuItem Header="Krea2 ▸ pick the LoRA" ItemsSource="{Binding CastKrea2LoraMenu}">
+                                                                    <MenuItem.ItemContainerStyle>
+                                                                        <Style TargetType="MenuItem">
+                                                                            <Setter Property="Header" Value="{Binding Name}"/>
+                                                                            <Setter Property="Command"
+                                                                                    Value="{Binding DataContext.GenerateCastKrea2LoraCommand, RelativeSource={RelativeSource AncestorType=ContextMenu}}"/>
+                                                                            <Setter Property="CommandParameter" Value="{Binding}"/>
+                                                                        </Style>
+                                                                    </MenuItem.ItemContainerStyle>
+                                                                </MenuItem>
+                                                                <MenuItem Header="Qwen 2.5.1.2 — detailed illustration"
+                                                                          Command="{Binding GenerateCastQwenCommand}"
+                                                                          CommandParameter="{Binding PlacementTarget.DataContext, RelativeSource={RelativeSource AncestorType=ContextMenu}}"/>
+                                                            </ContextMenu>
+                                                        </Button.ContextMenu>
+                                                    </Button>
+                                                    <TextBlock Text="{Binding PhotoPhase}" FontSize="9" Margin="0,3,0,0"
+                                                               Foreground="{DynamicResource TabAccentBrush}" FontStyle="Italic"
+                                                               TextTrimming="CharacterEllipsis"/>
+                                                    <CheckBox Content="This image is already a character sheet"
+                                                              IsChecked="{Binding UseSourceAsSheet}"
+                                                              IsEnabled="{Binding HasSource}"
+                                                              FontSize="10" Margin="0,6,0,0"
+                                                              Foreground="{StaticResource TextSecondaryBrush}"/>
+                                                    <Grid Margin="0,6,0,0">
+                                                        <Grid.ColumnDefinitions>
+                                                            <ColumnDefinition Width="Auto"/>
+                                                            <ColumnDefinition Width="*"/>
+                                                        </Grid.ColumnDefinitions>
+                                                        <TextBlock Grid.Column="0" Text="Panels" FontSize="10" VerticalAlignment="Center"
+                                                                   Foreground="{StaticResource TextSecondaryBrush}" Margin="0,0,6,0"/>
+                                                        <ComboBox Grid.Column="1" ItemsSource="{Binding PanelSplitOptions}"
+                                                                  DisplayMemberPath="Label" SelectedValuePath="Value"
+                                                                  SelectedValue="{Binding SelectedPanelSplit, Mode=TwoWay}"
+                                                                  IsEnabled="{Binding HasSheet}" Height="24" FontSize="10"
+                                                                  ToolTip="How this character's sheet is cut into separate reference images before it is sent to H3. Auto finds the gaps between the figures."/>
+                                                    </Grid>
+                                                    <TextBlock Text="{Binding SheetStatus}" FontSize="9" Margin="0,4,0,0"
+                                                               Foreground="{StaticResource TextSecondaryBrush}" FontStyle="Italic"
+                                                               TextTrimming="CharacterEllipsis"/>
+                                                    <TextBlock Text="{Binding PanelStatus}" FontSize="9" Margin="0,2,0,0"
+                                                               Foreground="{StaticResource TextMutedBrush}" FontStyle="Italic"
+                                                               TextWrapping="Wrap"/>
+                                                    <!-- The outfit this character's sheet is (or will be) built in. -->
+                                                    <TextBlock Text="{Binding ExpectedWardrobe, StringFormat=👗 {0}}"
+                                                               Visibility="{Binding ExpectedWardrobe, Converter={StaticResource StringToVisibilityConverter}}"
+                                                               FontSize="9" Margin="0,2,0,0"
+                                                               Foreground="{DynamicResource TabAccentBrush}" FontStyle="Italic"
+                                                               TextWrapping="Wrap"/>
+                                                </StackPanel>
+
+                                                <Button Content="{Binding BuildSheetsButtonText}"
+                                                        Command="{Binding BuildSheetsCommand}"
+                                                        IsEnabled="{Binding CanBuildSheets}"
+                                                        Height="32" FontSize="11" Margin="0,0,0,6"
+                                                        Style="{StaticResource AccentButtonStyle}"
+                                                        ToolTip="Runs Qwen-Image-Edit-2511 (int8 convrot, 8-step Lightning) once per character and turns each photo into a three-panel reference sheet on a plain studio background: full-body front, full-body back, face close-up. That sheet — not the photo — is what MiniMax H3 receives, which is how one image can carry silhouette, hair from behind and facial identity at once.&#x0a;&#x0a;The sheet is generated with the character wearing the locked wardrobe, so the reference photographs and every clip's prompt describe the same clothes. Change the wardrobe and the sheets must be rebuilt — the cast card says so when they no longer match.&#x0a;&#x0a;Safe to press while a video is rendering: it waits for the GPU and runs as soon as that job lets go, so the next pair of characters can be prepared without stopping the queue."/>
+
+                                                <!-- The builder's own status line: a render underneath owns
+                                                     the tab's status bar and progress bar. -->
+                                                <TextBlock Text="{Binding SheetPhase}"
+                                                           Visibility="{Binding IsBuildingSheets, Converter={StaticResource BooleanToVisibilityConverter}}"
+                                                           FontSize="10" FontWeight="SemiBold" Margin="0,0,0,6"
+                                                           Foreground="{DynamicResource TabAccentBrush}"
+                                                           TextWrapping="Wrap"/>
+
+                                                <TextBlock Text="{Binding CastSummary}"
+                                                           FontSize="10" Foreground="{StaticResource TextMutedBrush}" FontStyle="Italic"
+                                                           TextWrapping="Wrap"/>
+
+                                                <!-- Which <Picture n> maps to whom once the sheets are split. -->
+                                                <TextBlock Text="{Binding PanelPlanSummary}"
+                                                           FontSize="10" Margin="0,6,0,0"
+                                                           Foreground="{DynamicResource TabAccentBrush}" FontStyle="Italic"
+                                                           TextWrapping="Wrap"/>
+                                            </StackPanel>
+                                        </Border>
+
+                                        <!-- Prompt -->
+                                        <Border Style="{StaticResource SectionCardStyle}">
+                                            <StackPanel>
+                                                <ctrl:SectionHeader Title="H3 PROMPT" Note="  · draft idea, or the full prompt"/>
+                                                <TextBox Text="{Binding Prompt, UpdateSourceTrigger=PropertyChanged}"
+                                                         TextWrapping="Wrap" AcceptsReturn="True"
+                                                         Height="240" VerticalScrollBarVisibility="Auto"
+                                                         BorderBrush="{StaticResource BorderBrush}" Background="{StaticResource SurfaceAltBrush}"
+                                                         FontSize="11" Padding="8"/>
+
+                                                <!-- What Add to Queue will actually enqueue: the chain is
+                                                     split on its headers, so hand-edits here are honoured. -->
+                                                <TextBlock Text="{Binding PromptClipSummary}"
+                                                           Visibility="{Binding HasPromptSequence, Converter={StaticResource BooleanToVisibilityConverter}}"
+                                                           FontSize="10" FontWeight="SemiBold" Margin="0,6,0,0"
+                                                           Foreground="{DynamicResource TabAccentBrush}" TextWrapping="Wrap"/>
+
+                                                <TextBlock Text="The sheet reference line is rewritten automatically to match how many characters are loaded, which sex each of them is, and whether their sheets were built in the locked wardrobe — when they were, it tells H3 to copy the clothing out of the references rather than ignore it. The studio background is discarded either way."
+                                                           FontSize="10" Foreground="{StaticResource TextMutedBrush}" FontStyle="Italic" Margin="0,6,0,0"
+                                                           TextWrapping="Wrap"/>
+                                            </StackPanel>
+                                        </Border>
+
+                                        <!-- Settings -->
+                                        <Border Background="White" BorderBrush="{StaticResource BorderBrush}" BorderThickness="1"
+                                                CornerRadius="8" Padding="14">
+                                            <StackPanel>
+                                                <ctrl:SectionHeader Title="SETTINGS" Margin="0,0,0,10"/>
+
+                                                <TextBlock Text="Aspect ratio" FontSize="10" Foreground="{StaticResource TextSecondaryBrush}" Margin="0,0,0,4"/>
+                                                <ComboBox ItemsSource="{Binding AspectRatioOptions}"
+                                                          SelectedItem="{Binding SelectedAspectRatio}"
+                                                          Height="30" FontSize="11" Margin="0,0,0,4"/>
+                                                <TextBlock Text="{Binding ResolvedAspectRatio, StringFormat=→ {0}}"
+                                                           FontSize="10" Foreground="{StaticResource TextMutedBrush}" FontStyle="Italic" Margin="0,0,0,10"/>
+
+                                                <TextBlock Text="Quality (canvas size)" FontSize="10" Foreground="{StaticResource TextSecondaryBrush}" Margin="0,0,0,4"/>
+                                                <ComboBox ItemsSource="{Binding MegapixelOptions}"
+                                                          DisplayMemberPath="Label"
+                                                          SelectedValuePath="Value"
+                                                          SelectedValue="{Binding Megapixels}"
+                                                          Height="30" FontSize="11" Margin="0,0,0,8"/>
+
+                                                <!-- The I2V graph scales references to the DRAFT canvas under
+                                                     'match' — a quarter of the area picked. This is the lever
+                                                     that stands in for the Cast tab's at-finished-canvas
+                                                     panels: without it there is not enough face for identity
+                                                     to survive against a competing reference. -->
+                                                <CheckBox Content="Max-fidelity references (2048px)" IsChecked="{Binding MaxFidelityReferences}"
+                                                          FontSize="11" FontWeight="SemiBold" Margin="0,0,0,4"
+                                                          Foreground="{StaticResource TextPrimaryBrush}"
+                                                          ToolTip="Encodes every cast panel at a 2048px short edge instead of scaling them to the sampled canvas.&#x0a;&#x0a;On this tab's pipeline the sampled canvas is the DRAFT — a quarter of the quality you picked — and the Cast tab's trick of holding its panels at the finished canvas does not exist in this graph. So this is on by default: holding a face is the whole point of a character sheet, and a 2048px reference is more face than even the finished canvas would carry.&#x0a;&#x0a;Reference tokens ride through every sampling step, so this is several times slower than 'match' — it buys identity fidelity, nothing else. Turn it off for speed when the cast is distinctive enough to survive."/>
+
+                                                <CheckBox Content="Latent upscale (draft → 2× finish)" IsChecked="{Binding UseLatentUpscale}"
+                                                          FontSize="11" FontWeight="SemiBold" Margin="0,0,0,4"
+                                                          Foreground="{StaticResource TextPrimaryBrush}"
+                                                          ToolTip="Renders each clip in three moves instead of one: four sampler steps at half the width and half the height to settle the composition, a 2× pass through the MiniMax H3 3D latent upscaler, then three fixed-sigma steps at the finished size to put the detail on. Only those last three ever see the full canvas, which is why this is both quicker and sharper than denoising the whole clip over eight steps. This is the MiniMax I2V tab's recipe, and the reason this tab exists.&#x0a;&#x0a;Needs the MinimaxH3LatentUpscaler3D node pack on the server. Unchecked, the clip falls back to exactly that — one 8-step sampling at the full size, no upscaler involved."/>
+
+                                                <CheckBox Content="SLA block-sparse attention" IsChecked="{Binding UseSla}"
+                                                          FontSize="11" FontWeight="SemiBold" Margin="0,0,0,4"
+                                                          Foreground="{StaticResource TextPrimaryBrush}"
+                                                          ToolTip="Block-sparse attention for MiniMax H3: each query block is scored against every key block with one pooled matmul, and only the top slice is actually attended. Nothing is loaded and nothing is trained — the sparsity is decided at runtime from q and k. Measured 1.4–1.6× on this pipeline.&#x0a;&#x0a;It patches this tab's one H3 pass, the base render. Attention cost grows with the square of frames × canvas area, so long or large clips gain most; anything under the kernel&apos;s minimum sequence length falls back to dense on its own, which is why a short clip at 0.4 MP may show no change at all.&#x0a;&#x0a;Needs the H3-SLA-Attention node pack on the server. Unchecked, the patch is disabled and the graph runs dense attention."/>
+                                                <ComboBox ItemsSource="{Binding SlaSparsityOptions}"
+                                                          DisplayMemberPath="Label" SelectedValuePath="Value"
+                                                          SelectedValue="{Binding SlaSparsity}"
+                                                          IsEnabled="{Binding UseSla}"
+                                                          Height="28" FontSize="11" Margin="18,0,0,6"
+                                                          ToolTip="Fraction of key blocks skipped. Break-even is around 0.60 — below that the kernel is SLOWER than dense attention, so a low value is a loss, not a safe fallback.&#x0a;&#x0a;0.85 is lightx2v&apos;s shipped value and what the turbo LoRA was distilled against. 0.90 is roughly 13% quicker, and measured hotter and flatter in the speech band — which matters here because every clip this tab renders carries a soundtrack."/>
+                                                <CheckBox Content="Sol-Attn (legacy sparse attention)" IsChecked="{Binding UseSparseAttention}"
+                                                          FontSize="11" Margin="0,0,0,10"
+                                                          ToolTip="Sol-Attn — the same author&apos;s earlier, general-purpose sparse attention, which this workflow ships with wired in and off.&#x0a;&#x0a;SLA supersedes it for H3 and stacking the two has not measured faster than SLA alone, so leaving both on is two approximations bought for one speedup. Turn it on only to compare against SLA, or if the SLA pack is missing from the server."/>
+
+                                                <CheckBox Content="RTX ×2 super-resolution" IsChecked="{Binding RtxUpscale}"
+                                                          FontSize="11" FontWeight="SemiBold" Margin="0,0,0,4"
+                                                          Foreground="{StaticResource TextPrimaryBrush}"
+                                                          ToolTip="Doubles the frames on the way to the file — driver-side, not a sampling pass, so it costs seconds rather than a second render. It is also the graph's largest single allocation: the whole doubled clip is held in one piece at the very end of the run, which is what takes ComfyUI down on a long job.&#x0a;&#x0a;Off by default for that reason. The video is then muxed at the H3 canvas and can be upscaled afterwards in ✨ Enhance Video, where nothing else is holding memory. Worth turning on for a short clip; watch the frame-stack line below."/>
+                                                <TextBlock Text="{Binding UpscaleSummary}"
+                                                           FontSize="10" Foreground="{StaticResource TextMutedBrush}" FontStyle="Italic"
+                                                           TextWrapping="Wrap" Margin="0,0,0,4"/>
+                                                <!-- Turns red once the frame stack reaches the size that kills the server. -->
+                                                <TextBlock Text="{Binding LoadSummary}"
+                                                           FontSize="10" FontStyle="Italic"
+                                                           TextWrapping="Wrap" Margin="0,0,0,10">
+                                                    <TextBlock.Style>
+                                                        <Style TargetType="TextBlock">
+                                                            <Setter Property="Foreground" Value="{StaticResource TextMutedBrush}"/>
+                                                            <Style.Triggers>
+                                                                <DataTrigger Binding="{Binding HasLoadWarning}" Value="True">
+                                                                    <Setter Property="Foreground" Value="{StaticResource DangerBrush}"/>
+                                                                    <Setter Property="FontWeight" Value="SemiBold"/>
+                                                                </DataTrigger>
+                                                            </Style.Triggers>
+                                                        </Style>
+                                                    </TextBlock.Style>
+                                                </TextBlock>
+
+                                                <CheckBox Content="Audio enhancement on the saved clip" IsChecked="{Binding UseAudioEnhancement}"
+                                                          FontSize="11" FontWeight="SemiBold" Margin="0,0,0,10"
+                                                          Foreground="{StaticResource TextPrimaryBrush}"
+                                                          ToolTip="Runs the finished clip's soundtrack through the audio-enhancement pass (DSRE) on the way to the file: noise reduction, presence and stereo width. On by default — the same switch the 🌀 MiniMax I2V tab ships on. Costs seconds; it does not touch the render."/>
+
+                                                <TextBlock Text="Clip length (seconds · 4–15)" FontSize="10" Foreground="{StaticResource TextSecondaryBrush}" Margin="0,0,0,4"/>
+                                                <Slider Value="{Binding LengthSeconds}"
+                                                        Minimum="4" Maximum="15"
+                                                        TickFrequency="1" IsSnapToTickEnabled="True"
+                                                        Foreground="{DynamicResource TabAccentBrush}" Margin="0,0,0,2"
+                                                        ToolTip="How long a single H3 pass is — the model's own limit. The Video length slider divides by this to decide how many clips the story is split into, and it is also what decides the peak frame stack above."/>
+                                                <TextBlock Text="{Binding LengthSummary}"
+                                                           FontSize="10" FontFamily="Consolas" Foreground="{StaticResource TextSecondaryBrush}"
+                                                           Margin="0,0,0,2"/>
+                                                <TextBlock Text="{Binding ClipPlanSummary}"
+                                                           FontSize="10" Foreground="{StaticResource TextMutedBrush}" FontStyle="Italic"
+                                                           TextWrapping="Wrap" Margin="0,0,0,10"/>
+
+                                                <TextBlock Text="Seed (-1 = random)" FontSize="10" Foreground="{StaticResource TextSecondaryBrush}" Margin="0,0,0,4"/>
+                                                <Grid>
+                                                    <Grid.ColumnDefinitions>
+                                                        <ColumnDefinition Width="*"/>
+                                                        <ColumnDefinition Width="Auto"/>
+                                                    </Grid.ColumnDefinitions>
+                                                    <TextBox Grid.Column="0"
+                                                             Text="{Binding Seed, UpdateSourceTrigger=PropertyChanged}"
+                                                             Height="30" Padding="6,0" VerticalContentAlignment="Center"
+                                                             BorderBrush="{StaticResource BorderBrush}" Background="{StaticResource SurfaceAltBrush}"
+                                                             FontSize="12" FontFamily="Consolas" Margin="0,0,6,0"/>
+                                                    <Button Grid.Column="1" Content="🎲"
+                                                            Command="{Binding RandomSeedCommand}"
+                                                            Height="30" Width="36" FontSize="14"
+                                                            Background="{StaticResource SurfaceAltBrush}" Foreground="{DynamicResource TabAccentBrush}"
+                                                            BorderBrush="{StaticResource BorderBrush}" BorderThickness="1"/>
+                                                </Grid>
+                                            </StackPanel>
+                                        </Border>
+
+                                    </StackPanel>
+                                </ScrollViewer>
+                            </Border>
+
+                            <!-- ═══ RIGHT PANEL ══════════════════════════════════════════════ -->
+                            <ScrollViewer Grid.Column="1" VerticalScrollBarVisibility="Auto">
+                            <Grid>
+                                <Grid.RowDefinitions>
+                                    <RowDefinition Height="240"/>  <!-- Sheet strip -->
+                                    <RowDefinition Height="3"/>    <!-- Progress bar -->
+                                    <RowDefinition Height="Auto"/> <!-- Status row -->
+                                    <RowDefinition Height="Auto"/> <!-- Action buttons -->
+                                    <RowDefinition Height="Auto"/> <!-- Queue -->
+                                    <RowDefinition Height="Auto"/> <!-- Result output -->
+                                    <RowDefinition Height="Auto"/> <!-- Log -->
+                                </Grid.RowDefinitions>
+
+                                <!-- ─── Sheet strip: what H3 will actually see ───────────────── -->
+                                <Border Grid.Row="0" Background="{StaticResource PlayerSurfaceBrush}">
+                                    <Grid>
+                                        <StackPanel HorizontalAlignment="Center" VerticalAlignment="Center">
+                                            <StackPanel.Style>
+                                                <Style TargetType="StackPanel">
+                                                    <Setter Property="Visibility" Value="Visible"/>
+                                                    <Style.Triggers>
+                                                        <DataTrigger Binding="{Binding HasCharacter1}" Value="True">
+                                                            <Setter Property="Visibility" Value="Collapsed"/>
+                                                        </DataTrigger>
+                                                    </Style.Triggers>
+                                                </Style>
+                                            </StackPanel.Style>
+                                            <Border Width="64" Height="64" CornerRadius="14" Background="{StaticResource PlayerSurfaceRaisedBrush}"
+                                                    BorderBrush="{StaticResource TextSecondaryBrush}" BorderThickness="1"
+                                                    HorizontalAlignment="Center" Margin="0,0,0,10">
+                                                <TextBlock Text="🪪" FontSize="28" HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                                            </Border>
+                                            <TextBlock Text="MiniMax H3 · Duo — sheets in, I2V turbo out" FontSize="13" FontWeight="SemiBold"
+                                                       Foreground="{StaticResource PlayerTextBrush}" HorizontalAlignment="Center" Margin="0,0,0,4"/>
+                                            <TextBlock Text="Photo per character → Build Sheets → scene image and/or story → Analyze → Generate"
+                                                       FontSize="11" Foreground="{StaticResource PlayerTextBrush}" HorizontalAlignment="Center"/>
+                                        </StackPanel>
+
+                                        <Grid Visibility="{Binding HasCharacter1, Converter={StaticResource BooleanToVisibilityConverter}}"
+                                              Margin="10">
+                                            <Grid.RowDefinitions>
+                                                <RowDefinition Height="*"/>
+                                                <RowDefinition Height="Auto"/>
+                                            </Grid.RowDefinitions>
+                                            <Grid.ColumnDefinitions>
+                                                <ColumnDefinition Width="*"/>
+                                                <ColumnDefinition Width="*"/>
+                                                <ColumnDefinition Width="*"/>
+                                            </Grid.ColumnDefinitions>
+
+                                            <Image Grid.Row="0" Grid.Column="0" Margin="0,0,6,0" Stretch="Uniform"
+                                                   Source="{Binding Character1.SheetPreview}"/>
+                                            <TextBlock Grid.Row="1" Grid.Column="0" Text="Sheet 1 · &lt;Picture 1&gt;"
+                                                       HorizontalAlignment="Center" Margin="0,6,0,0"
+                                                       FontSize="10" Foreground="{StaticResource PlayerTextBrush}"/>
+
+                                            <Image Grid.Row="0" Grid.Column="1" Margin="6,0" Stretch="Uniform"
+                                                   Source="{Binding Character2.SheetPreview}"
+                                                   Visibility="{Binding HasCharacter2, Converter={StaticResource BooleanToVisibilityConverter}}"/>
+                                            <TextBlock Grid.Row="1" Grid.Column="1" Text="Sheet 2 · &lt;Picture 2&gt;"
+                                                       HorizontalAlignment="Center" Margin="0,6,0,0"
+                                                       FontSize="10" Foreground="{StaticResource PlayerTextBrush}"
+                                                       Visibility="{Binding HasCharacter2, Converter={StaticResource BooleanToVisibilityConverter}}"/>
+
+                                            <Image Grid.Row="0" Grid.Column="2" Margin="6,0,0,0" Stretch="Uniform"
+                                                   Source="{Binding SceneImagePreview}"
+                                                   Visibility="{Binding HasSceneImage, Converter={StaticResource BooleanToVisibilityConverter}}"/>
+                                            <TextBlock Grid.Row="1" Grid.Column="2" Text="Scene · prompt only"
+                                                       HorizontalAlignment="Center" Margin="0,6,0,0"
+                                                       FontSize="10" Foreground="{StaticResource PlayerTextBrush}"
+                                                       Visibility="{Binding HasSceneImage, Converter={StaticResource BooleanToVisibilityConverter}}"/>
+                                        </Grid>
+                                    </Grid>
+                                </Border>
+
+                                <!-- ─── Progress bar ──────────────────────────────────────── -->
+                                <ProgressBar Grid.Row="1"
+                                             Value="{Binding ProcessingProgress, Mode=OneWay}"
+                                             Foreground="{DynamicResource TabAccentBrush}" BorderThickness="0"
+                                             Visibility="{Binding IsProcessing, Converter={StaticResource BooleanToVisibilityConverter}}"/>
+
+                                <!-- ─── Status row ────────────────────────────────────────── -->
+                                <Border Grid.Row="2" Style="{StaticResource ToolStripStyle}"
+                                        BorderThickness="0,1,0,0" Padding="12,5">
+                                    <Grid>
+                                        <StackPanel Orientation="Horizontal">
+                                            <Ellipse Width="5" Height="5" VerticalAlignment="Center" Margin="0,0,7,0">
+                                                <Ellipse.Style>
+                                                    <Style TargetType="Ellipse">
+                                                        <Setter Property="Fill" Value="{StaticResource TextPrimaryBrush}"/>
+                                                        <Style.Triggers>
+                                                            <DataTrigger Binding="{Binding IsProcessing}" Value="True">
+                                                                <Setter Property="Fill" Value="{DynamicResource TabAccentBrush}"/>
+                                                            </DataTrigger>
+                                                        </Style.Triggers>
+                                                    </Style>
+                                                </Ellipse.Style>
+                                            </Ellipse>
+                                            <TextBlock Text="{Binding ProcessingStatus}"
+                                                       FontSize="11" Foreground="{StaticResource TextSecondaryBrush}"
+                                                       VerticalAlignment="Center" TextTrimming="CharacterEllipsis"/>
+                                        </StackPanel>
+                                        <TextBlock HorizontalAlignment="Right" VerticalAlignment="Center"
+                                                   Text="{Binding ProgressPercentage, Mode=OneWay}"
+                                                   FontSize="11" FontWeight="Bold" Foreground="{DynamicResource TabAccentBrush}"
+                                                   FontFamily="Consolas"
+                                                   Visibility="{Binding IsProcessing, Converter={StaticResource BooleanToVisibilityConverter}}"/>
+                                    </Grid>
+                                </Border>
+
+                                <!-- ─── Action Buttons ────────────────────────────────────── -->
+                                <Border Grid.Row="3" Style="{StaticResource ToolStripStyle}"
+                                        BorderThickness="0,1,0,0" Padding="10,8">
+                                    <Grid>
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="*"/>
+                                            <ColumnDefinition Width="Auto"/>
+                                        </Grid.ColumnDefinitions>
+
+                                        <Button Grid.Column="0" Margin="0,0,8,0" Height="40"
+                                                Command="{Binding GenerateCommand}"
+                                                IsEnabled="{Binding CanGenerate}"
+                                                Style="{StaticResource AccentButtonStyle}"
+                                                FontSize="12" FontWeight="Bold" BorderThickness="0"
+                                                ToolTip="Snapshots the sheets, the prompt and the settings into the queue and starts rendering through the MiniMax I2V turbo pipeline. The sheets are already built, so nothing here waits on the GPU — load the next scene image and Analyze it while this one runs.">
+                                            <StackPanel Orientation="Horizontal">
+                                                <TextBlock Text="⚡ " VerticalAlignment="Center"/>
+                                                <TextBlock Text="Add to Queue &amp; Generate" VerticalAlignment="Center"/>
+                                            </StackPanel>
+                                        </Button>
+
+                                        <Button Grid.Column="1" Height="40" Width="82"
+                                                Command="{Binding CancelCommand}"
+                                                Style="{StaticResource DangerButtonStyle}"
+                                                FontSize="11"
+                                                ToolTip="Stops whatever is on the GPU — the sheet builder or the queue. Pending items stay queued.">
+                                            <StackPanel Orientation="Horizontal">
+                                                <TextBlock Text="✕ " VerticalAlignment="Center"/>
+                                                <TextBlock Text="Cancel" VerticalAlignment="Center"/>
+                                            </StackPanel>
+                                        </Button>
+                                    </Grid>
+                                </Border>
+
+                                <!-- ─── Queue ─────────────────────────────────────────────── -->
+                                <Border Grid.Row="4" Background="{StaticResource SurfaceAltBrush}"
+                                        BorderBrush="{StaticResource BorderBrush}" BorderThickness="0,1,0,0" Padding="12,8"
+                                        Visibility="{Binding HasQueueItems, Converter={StaticResource BooleanToVisibilityConverter}}">
+                                    <StackPanel>
+                                        <Grid Margin="0,0,0,6">
+                                            <Grid.ColumnDefinitions>
+                                                <ColumnDefinition Width="Auto"/>
+                                                <ColumnDefinition Width="*"/>
+                                                <ColumnDefinition Width="Auto"/>
+                                                <ColumnDefinition Width="Auto"/>
+                                                <ColumnDefinition Width="Auto"/>
+                                                <ColumnDefinition Width="Auto"/>
+                                            </Grid.ColumnDefinitions>
+                                            <TextBlock Grid.Column="0" Text="🪪 Duo Queue"
+                                                       FontWeight="Bold" FontSize="12" Foreground="{DynamicResource TabAccentBrush}"
+                                                       VerticalAlignment="Center" Margin="0,0,10,0"/>
+                                            <TextBlock Grid.Column="1" Text="{Binding QueueStatus}"
+                                                       FontStyle="Italic" Foreground="{StaticResource TextSecondaryBrush}" FontSize="11"
+                                                       VerticalAlignment="Center" TextTrimming="CharacterEllipsis"/>
+                                            <Button Grid.Column="2" Content="▶ Start"
+                                                    Command="{Binding StartQueueCommand}"
+                                                    Height="26" Padding="8,0" FontSize="11" Margin="0,0,5,0"
+                                                    Style="{StaticResource AccentButtonStyle}"
+                                                    ToolTip="Resume draining pending items."/>
+                                            <Button Grid.Column="3" Content="🔄 Retry"
+                                                    Command="{Binding ReprocessAllFailedCommand}"
+                                                    Height="26" Padding="8,0" FontSize="11" Margin="0,0,5,0"
+                                                    Style="{StaticResource AccentButtonStyle}"
+                                                    ToolTip="Put every failed item back to Pending and run them again."/>
+                                            <Button Grid.Column="4" Content="⏹ Stop"
+                                                    Command="{Binding StopQueueCommand}"
+                                                    Height="26" Padding="8,0" FontSize="11" Margin="0,0,5,0"
+                                                    Style="{StaticResource AccentButtonStyle}"/>
+                                            <Button Grid.Column="5" Content="🗑️ Clear"
+                                                    Command="{Binding ClearQueueCommand}"
+                                                    Height="26" Padding="8,0" FontSize="11"
+                                                    Style="{StaticResource AccentButtonStyle}"/>
+                                        </Grid>
+
+                                        <ItemsControl ItemsSource="{Binding Queue}">
+                                            <ItemsControl.ItemTemplate>
+                                                <DataTemplate>
+                                                    <Border BorderBrush="{StaticResource BorderBrush}" BorderThickness="1" CornerRadius="4"
+                                                            Padding="8,5" Margin="0,0,0,3" Background="White">
+                                                        <Grid>
+                                                            <Grid.ColumnDefinitions>
+                                                                <ColumnDefinition Width="Auto"/>
+                                                                <ColumnDefinition Width="Auto"/>
+                                                                <ColumnDefinition Width="*"/>
+                                                                <ColumnDefinition Width="Auto"/>
+                                                            </Grid.ColumnDefinitions>
+                                                            <Border Grid.Column="0" CornerRadius="3" Padding="6,2" Margin="0,0,8,0"
+                                                                    VerticalAlignment="Center"
+                                                                    Background="{Binding StatusColor}">
+                                                                <TextBlock Text="{Binding StatusDisplay}" FontSize="10"
+                                                                           FontWeight="SemiBold" Foreground="White"/>
+                                                            </Border>
+                                                            <Image Grid.Column="1" Source="{Binding QueueThumbnail}"
+                                                                   Height="34" Stretch="Uniform" Margin="0,0,8,0"/>
+                                                            <StackPanel Grid.Column="2" VerticalAlignment="Center">
+                                                                <TextBlock Text="{Binding DisplayText}" FontWeight="SemiBold" FontSize="11"
+                                                                           TextTrimming="CharacterEllipsis"/>
+                                                                <TextBlock Text="{Binding Prompt}" FontSize="10"
+                                                                           Foreground="{StaticResource TextSecondaryBrush}"
+                                                                           TextTrimming="CharacterEllipsis"/>
+                                                                <TextBlock Text="{Binding ErrorMessage}" FontSize="10"
+                                                                           Foreground="{StaticResource DangerBrush}"
+                                                                           TextTrimming="CharacterEllipsis"/>
+                                                            </StackPanel>
+                                                            <Button Grid.Column="3" Content="✕"
+                                                                    Style="{StaticResource SecondaryButtonStyle}"
+                                                                    Command="{Binding DataContext.RemoveQueueItemCommand, RelativeSource={RelativeSource AncestorType=ItemsControl}}"
+                                                                    CommandParameter="{Binding}"
+                                                                    VerticalAlignment="Center"
+                                                                    Width="26" Height="26" Padding="0" FontSize="10"/>
+                                                        </Grid>
+                                                    </Border>
+                                                </DataTemplate>
+                                            </ItemsControl.ItemTemplate>
+                                        </ItemsControl>
+                                    </StackPanel>
+                                </Border>
+
+                                <!-- ─── Result Output ──────────────────────────────────────── -->
+                                <Border Grid.Row="5" Background="White" BorderBrush="{StaticResource BorderBrush}"
+                                        BorderThickness="0,1,0,0" Padding="12,10">
+                                    <StackPanel>
+                                        <TextBlock Text="🎥 Result Video" FontWeight="Bold" FontSize="13"
+                                                   Foreground="{DynamicResource TabAccentBrush}" Margin="0,0,0,8"/>
+
+                                        <Border BorderBrush="{StaticResource BorderBrush}" BorderThickness="1" Background="{StaticResource PlayerSurfaceBrush}"
+                                                Height="200" CornerRadius="6" Margin="0,0,0,8">
+                                            <Grid>
+                                                <TextBlock Text="Video will appear here after generation"
+                                                           HorizontalAlignment="Center" VerticalAlignment="Center"
+                                                           Foreground="{StaticResource PlayerTextBrush}" FontStyle="Italic">
+                                                    <TextBlock.Style>
+                                                        <Style TargetType="TextBlock">
+                                                            <Setter Property="Visibility" Value="Collapsed"/>
+                                                            <Style.Triggers>
+                                                                <DataTrigger Binding="{Binding HasResult}" Value="False">
+                                                                    <Setter Property="Visibility" Value="Visible"/>
+                                                                </DataTrigger>
+                                                            </Style.Triggers>
+                                                        </Style>
+                                                    </TextBlock.Style>
+                                                </TextBlock>
+                                                <MediaElement x:Name="H3DuoVideoPlayer"
                                                               Source="{Binding ResultVideoPath}"
                                                               LoadedBehavior="Manual" UnloadedBehavior="Stop"
                                                               Stretch="Uniform"
@@ -5423,11 +6504,11 @@
                                                                             Height="26" Padding="8,0" FontSize="11"
                                                                             Background="White" Foreground="{DynamicResource TabAccentBrush}"
                                                                             BorderBrush="{StaticResource BorderBrush}" BorderThickness="1"
-                                                                            ToolTip="Generates this character's photo instead of browsing for one — their Part and the locked wardrobe become the prompt, and the result lands in this card as if it had been browsed. Z-Image and Krea2 open into a LoRA list (the same folders the Image Generator reads); Qwen 2.5.1.2's lightning LoRA is baked into its workflow.&#x0a;&#x0a;Needs the character to be described first: a Part on the card, a non-person Kind, or the story's automatic cast. The character sheet is built automatically afterwards.">
+                                                                            ToolTip="Generates this character's photo instead of browsing for one — their Part and the locked wardrobe become the prompt, and the result lands in this card as if it had been browsed. Z-Image, Z-Famegrid and Krea2 open into a LoRA list (the same folders the Image Generator reads); Qwen 2.5.1.2's lightning LoRA is baked into its workflow.&#x0a;&#x0a;Needs the character to be described first: a Part on the card, a non-person Kind, or the story's automatic cast. The character sheet is built automatically afterwards.">
                                                                         <!-- Tag carries the tab's ViewModel across the ContextMenu boundary;
                                                                              the card's DataContext is the CharacterSlot each command takes. -->
                                                                         <Button.ContextMenu>
-                                                                            <!-- Z-Image and Krea2 open into a LoRA list — the same folders the Image
+                                                                            <!-- Z-Image, Z-Famegrid and Krea2 open into a LoRA list — the same folders the Image
                                                                                  Generator tab reads. Qwen's lightning LoRA is baked into its workflow,
                                                                                  so it has no list. The menu remembers whose card it opened on: the
                                                                                  window sets CastPhotoMenuSlot as it opens. -->
@@ -5439,6 +6520,16 @@
                                                                                             <Setter Property="Header" Value="{Binding Name}"/>
                                                                                             <Setter Property="Command"
                                                                                                     Value="{Binding DataContext.GenerateCastZimageLoraCommand, RelativeSource={RelativeSource AncestorType=ContextMenu}}"/>
+                                                                                            <Setter Property="CommandParameter" Value="{Binding}"/>
+                                                                                        </Style>
+                                                                                    </MenuItem.ItemContainerStyle>
+                                                                                </MenuItem>
+                                                                                <MenuItem Header="Z-Famegrid ▸ pick the LoRA" ItemsSource="{Binding CastFamegridLoraMenu}">
+                                                                                    <MenuItem.ItemContainerStyle>
+                                                                                        <Style TargetType="MenuItem">
+                                                                                            <Setter Property="Header" Value="{Binding Name}"/>
+                                                                                            <Setter Property="Command"
+                                                                                                    Value="{Binding DataContext.GenerateCastFamegridLoraCommand, RelativeSource={RelativeSource AncestorType=ContextMenu}}"/>
                                                                                             <Setter Property="CommandParameter" Value="{Binding}"/>
                                                                                         </Style>
                                                                                     </MenuItem.ItemContainerStyle>

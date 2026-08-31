@@ -30,9 +30,9 @@ namespace FlipPix.UI.ViewModels.Video
     /// 🎬🎭 H3 Ensemble tab.</para>
     ///
     /// <para><b>Generating the photo.</b> Each card's ✨ Generate button renders that character's
-    /// portrait with one of the Image Generator tab's base graphs — Z-Image, Krea2 realism, or Qwen
-    /// 2.5.1.2 — from the character's Part plus the locked wardrobe, and drops the result into the
-    /// card's photo slot as if it had been browsed for. Build Character Sheet then turns it into the
+    /// portrait with one of the Image Generator tab's base graphs — Z-Image, Z-Famegrid, Krea2 realism,
+    /// or Qwen 2.5.1.2 — from the character's Part plus the locked wardrobe, and drops the result into
+    /// the card's photo slot as if it had been browsed for. Build Character Sheet then turns it into the
     /// reference H3 receives, exactly as with a browsed photo.</para>
     /// </summary>
     public partial class H3CastViewModel
@@ -192,6 +192,10 @@ namespace FlipPix.UI.ViewModels.Video
         /// on disk. Rebuilt each time a menu opens — see <see cref="RefreshCastPhotoLoras"/>.</summary>
         public System.Collections.ObjectModel.ObservableCollection<CastPhotoWorkflows.CastLora> CastZimageLoraMenu { get; } = new();
 
+        /// <summary>The ✨ menu's Z-Famegrid entries — the same zimage LoRA folder, feeding that
+        /// workflow's own character-LoRA slot. Same shape as the Z-Image list.</summary>
+        public System.Collections.ObjectModel.ObservableCollection<CastPhotoWorkflows.CastLora> CastFamegridLoraMenu { get; } = new();
+
         /// <summary>The ✨ menu's Krea2 entries, same shape as the Z-Image list.</summary>
         public System.Collections.ObjectModel.ObservableCollection<CastPhotoWorkflows.CastLora> CastKrea2LoraMenu { get; } = new();
 
@@ -200,6 +204,7 @@ namespace FlipPix.UI.ViewModels.Video
         internal void RefreshCastPhotoLoras()
         {
             Refill(CastZimageLoraMenu, CastPhotoWorkflows.ListZimageLoras(_settingsService.Settings, AddLog), "zimage");
+            Refill(CastFamegridLoraMenu, CastPhotoWorkflows.ListZimageLoras(_settingsService.Settings, AddLog), "famegrid");
             Refill(CastKrea2LoraMenu, CastPhotoWorkflows.ListKrea2Loras(_settingsService.Settings, AddLog), "krea2");
 
             void Refill(

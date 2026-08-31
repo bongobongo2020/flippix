@@ -91,6 +91,12 @@ namespace FlipPix.UI
                 H3ChainVideoPlayer.Position = System.TimeSpan.Zero;
                 H3ChainVideoPlayer.Play();
             }
+
+            if (H3DuoVideoPlayer != null && H3DuoVideoPlayer.Source != null)
+            {
+                H3DuoVideoPlayer.Position = System.TimeSpan.Zero;
+                H3DuoVideoPlayer.Play();
+            }
         }
 
         // Never seek a scrub preview to the exact end of the clip. Landing on the final
@@ -439,6 +445,7 @@ namespace FlipPix.UI
             MiniMaxFflfVideoPlayer?.Stop();
             MiniMaxCharacterVideoPlayer?.Stop();
             H3ChainVideoPlayer?.Stop();
+            H3DuoVideoPlayer?.Stop();
         }
 
         protected override void OnClosing(System.ComponentModel.CancelEventArgs e)

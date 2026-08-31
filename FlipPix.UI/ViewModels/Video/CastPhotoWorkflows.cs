@@ -52,12 +52,29 @@ namespace FlipPix.UI.ViewModels.Video
         private const string QwenImgLatentNode = "107";   // EmptySD3LatentImage
         private const string QwenImgSaveNode = "123";     // SaveImage
 
+        // Zimage-Famegrid.json — the Z-Image "igmodel" look: a 20-step base pass, a 0.3-denoise refine
+        // pass, the famegrid spice LoRA on both, a Laplacian sharpen between the passes and a 4× photo
+        // upscale on the way out.
+        private const string FamegridPromptNode = "48";     // PrimitiveStringMultiline → CLIPTextEncode 6
+        private const string FamegridSamplerNode = "265";   // ClownsharKSampler_Beta — the base pass
+        private const string FamegridRefineNode = "344";    // ClownsharKSampler_Beta — the refine pass
+        private const string FamegridSaveNode = "213";      // SaveImage
+        // The workflow's own character-LoRA slot ("YOUR CHARACTER LORA HERE OR BYPASS"): one easy
+        // loraNames feeding a loader on each model chain. As authored the slot is bypassed — both
+        // shift nodes read the spice chain around it — and a picked LoRA puts it back by pointing the
+        // shifts at the loaders again.
+        private const string FamegridCharLoraNode = "364";  // easy loraNames
+        private const string FamegridBaseShiftNode = "316"; // ModelSamplingAuraFlow — end of the base chain
+        private const string FamegridRefineShiftNode = "348";// ModelSamplingAuraFlow — end of the refine chain
+        private const string FamegridCharLoraBase = "362";  // LoraLoaderModelOnly — the base chain's slot
+        private const string FamegridCharLoraRefine = "363";// LoraLoaderModelOnly — the refine chain's slot
+
         /// <summary>
         /// Loads the chosen Image Generator base graph and patches it for one portrait: the prompt,
         /// a fresh seed, a portrait canvas where the graph takes one, and a save prefix the caller
         /// can find again. Everything else is left exactly as the Image Generator tab ships it.
         /// </summary>
-        /// <param name="engine">"zimage", "krea2" or "qwen".</param>
+        /// <param name="engine">"zimage", "famegrid", "krea2" or "qwen".</param>
         /// <param name="prefix">SaveImage filename_prefix — an output-subfolder path ending in a
         /// unique run token, so the caller's disk scan can find the file.</param>
         /// <param name="lora">A LoRA picked from the ✨ menu, or null for the workflow's own. Qwen
@@ -137,6 +154,46 @@ namespace FlipPix.UI.ViewModels.Video
                     return (json, QwenImgSaveNode);
                 }
 
+                case "famegrid": // Z-Famegrid — the igmodel look, run as authored except prompt / seed / save prefix / character LoRA
+                {
+                    var json = await ReadWorkflowAsync("workflow/image/zimage/base/Zimage-Famegrid.json");
+                    var root = ParseGraph(json);
+                    RequireClass(root, FamegridPromptNode, "PrimitiveStringMultiline");
+                    RequireClass(root, FamegridSamplerNode, "ClownsharKSampler_Beta");
+                    RequireClass(root, FamegridRefineNode, "ClownsharKSampler_Beta");
+                    RequireClass(root, FamegridSaveNode, "SaveImage");
+                    if (lora != null)
+                    {
+                        RequireClass(root, FamegridCharLoraNode, "easy loraNames");
+                        RequireClass(root, FamegridCharLoraBase, "LoraLoaderModelOnly");
+                        RequireClass(root, FamegridCharLoraRefine, "LoraLoaderModelOnly");
+                    }
+                    json = root.ToJsonString();
+
+                    SetInput(ref json, FamegridPromptNode, "value", prompt);
+                    // The workflow feeds both passes from one Seed (rgthree) node; the API export
+                    // carries that as a literal, so the same seed is written into both samplers.
+                    SetInput(ref json, FamegridSamplerNode, "seed", seed);
+                    SetInput(ref json, FamegridRefineNode, "seed", seed);
+                    SetInput(ref json, FamegridSaveNode, "filename_prefix", prefix);
+
+                    // As authored the character-LoRA slot is bypassed: both shift nodes read the
+                    // spice chain around it, and the slot's loaders sit in the file defined, wired
+                    // and unreachable. A picked LoRA puts the slot back in — the loaders are pointed
+                    // at by the shifts, and the name node feeds them as the UI graph designed it.
+                    if (lora?.Reference is { } reference)
+                    {
+                        SetInput(ref json, FamegridCharLoraNode, "lora_name", reference);
+                        root = ParseGraph(json);
+                        if (root[FamegridBaseShiftNode]?["inputs"] is JsonObject baseShift)
+                            baseShift["model"] = new JsonArray(FamegridCharLoraBase, 0);
+                        if (root[FamegridRefineShiftNode]?["inputs"] is JsonObject refineShift)
+                            refineShift["model"] = new JsonArray(FamegridCharLoraRefine, 0);
+                        json = root.ToJsonString();
+                    }
+                    return (json, FamegridSaveNode);
+                }
+
                 default: // zimage — the base graph, run as authored except prompt / seed / save prefix / LoRA
                 {
                     var path = WorkflowLocator.Resolve("workflow", "image", "zimage", "base", "z-image-base.json");
@@ -167,6 +224,7 @@ namespace FlipPix.UI.ViewModels.Video
         {
             "krea2" => "Krea2",
             "qwen" => "Qwen 2.5.1.2",
+            "famegrid" => "Z-Famegrid",
             _ => "Z-Image",
         };
 

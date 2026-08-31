@@ -195,6 +195,10 @@ namespace FlipPix.UI.ViewModels.Video
         /// on disk. Rebuilt each time a menu opens — see <see cref="RefreshCastPhotoLoras"/>.</summary>
         public System.Collections.ObjectModel.ObservableCollection<CastPhotoWorkflows.CastLora> CastZimageLoraMenu { get; } = new();
 
+        /// <summary>The ✨ menu's Z-Famegrid entries — the same zimage LoRA folder, feeding that
+        /// workflow's own character-LoRA slot. Same shape as the Z-Image list.</summary>
+        public System.Collections.ObjectModel.ObservableCollection<CastPhotoWorkflows.CastLora> CastFamegridLoraMenu { get; } = new();
+
         /// <summary>The ✨ menu's Krea2 entries, same shape as the Z-Image list.</summary>
         public System.Collections.ObjectModel.ObservableCollection<CastPhotoWorkflows.CastLora> CastKrea2LoraMenu { get; } = new();
 
@@ -203,6 +207,7 @@ namespace FlipPix.UI.ViewModels.Video
         internal void RefreshCastPhotoLoras()
         {
             Refill(CastZimageLoraMenu, CastPhotoWorkflows.ListZimageLoras(_settingsService.Settings, AddLog), "zimage");
+            Refill(CastFamegridLoraMenu, CastPhotoWorkflows.ListZimageLoras(_settingsService.Settings, AddLog), "famegrid");
             Refill(CastKrea2LoraMenu, CastPhotoWorkflows.ListKrea2Loras(_settingsService.Settings, AddLog), "krea2");
 
             void Refill(

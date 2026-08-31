@@ -76,9 +76,15 @@ namespace FlipPix.UI.ViewModels.Video
     /// </summary>
     public partial class H3CastViewModel : VideoProcessingBaseViewModel
     {
-        private const string WorkflowFileName = "workflow/video/h3-minimax/h3facerefiner.json";
+        /// <summary>The render graph this tab submits. Virtual so the H3 Duo tab — the same cast
+        /// machinery on the MiniMax I2V turbo pipeline — can render through its own copy of that graph.</summary>
+        protected virtual string WorkflowFileName => "workflow/video/h3-minimax/h3facerefiner.json";
         private const string SheetWorkflowFileName = "workflow/image/qwen-edit/Qwen_Edit_2511_INT8_Convrot_WF.json";
-        private const string OutputSubfolder = "h3_cast";
+        /// <summary>Where ComfyUI writes this tab's runs, under the output folder. Virtual for
+        /// <see cref="H3DuoViewModel"/>, which renders into its own subfolder.</summary>
+        protected virtual string OutputSubfolder => "h3_cast";
+        /// <summary>The stem of this tab's output files and joined stories — "H3Cast" / "H3Duo".</summary>
+        protected virtual string OutputFileStem => "H3Cast";
         private const string SystemPromptFile = "texttovideoH3.md";
         private const string SheetPromptFile = "h3-charsheet-2511.md";
 
@@ -148,7 +154,7 @@ namespace FlipPix.UI.ViewModels.Video
         /// SLA's attention block size, pinned rather than exposed. H3 packs audio at 80 rows per second, so
         /// a 128-row block forces 1.6s of audio through one attention pattern and speech comes back robotic.
         /// </summary>
-        private const string SlaBlockSize = "64";
+        protected const string SlaBlockSize = "64";
 
         private const string NodeFaceTrack2 = "200";       // H3FaceTrackCrop tracking character 2
         private const string NodeRefineReference2 = "201"; // MiniMaxH3ReferenceToVideo — their panels only
@@ -167,7 +173,7 @@ namespace FlipPix.UI.ViewModels.Video
 
         /// <summary><c>MiniMaxH3ReferenceToVideo</c>'s autogrow cap — nine <c>ref_image_N</c> slots, which is
         /// three panels each for two characters with room to spare.</summary>
-        private const int MaxReferenceImages = 9;
+        protected const int MaxReferenceImages = 9;
 
         // ── Tagged references (MiniMaxH3-Contex-Loop ≥ v0.4.0) ─────────────────
         /// <summary>The reference node that resolves <c>@tags</c> instead of fixed <c>ref_image_N</c> slots.</summary>
@@ -227,7 +233,7 @@ namespace FlipPix.UI.ViewModels.Video
 
         /// <summary>H3 renders at 24 fps and the duration maths below is built on it; written on every submit
         /// so an export at another rate cannot desync what the tab reports from what lands on disk.</summary>
-        private const int OutputFrameRate = 24;
+        protected const int OutputFrameRate = 24;
 
         /// <summary>RTX Video Super Resolution factor — node 64's <c>scale</c>, mirrored here so the tab can
         /// say what size the file will be before it renders.</summary>
@@ -278,6 +284,8 @@ namespace FlipPix.UI.ViewModels.Video
         // against. 0.90 measured hotter and flatter in the speech band on this pipeline.
         private double _slaSparsity = 0.85;
         private bool _useSparseAttention;
+        private bool _maxFidelityReferences;
+        private bool _useAudioEnhancement = true;
         private bool _isBuildingSheets;
         private string _sheetPhase = string.Empty;
 
@@ -295,7 +303,8 @@ namespace FlipPix.UI.ViewModels.Video
         private bool _isProcessingQueue;
         private string _queueStatus = string.Empty;
 
-        private static string QueueFilePath => Path.Combine(
+        /// <summary>This tab's persisted queue. Virtual so the H3 Duo tab keeps its own queue file.</summary>
+        protected virtual string QueueFilePath => Path.Combine(
             Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData),
             "FlipPix", "queue", "h3cast_queue.json");
 
@@ -320,6 +329,9 @@ namespace FlipPix.UI.ViewModels.Video
             ClearCharacter2Command = new RelayCommand(() => _character2.Clear());
             GenerateCastZimageLoraCommand = new RelayCommand<CastPhotoWorkflows.CastLora>(
                 async lora => await GenerateCastPhotoAsync(CastPhotoMenuSlot, "zimage", lora),
+                _ => CanGenerateCastPhoto(CastPhotoMenuSlot));
+            GenerateCastFamegridLoraCommand = new RelayCommand<CastPhotoWorkflows.CastLora>(
+                async lora => await GenerateCastPhotoAsync(CastPhotoMenuSlot, "famegrid", lora),
                 _ => CanGenerateCastPhoto(CastPhotoMenuSlot));
             GenerateCastKrea2LoraCommand = new RelayCommand<CastPhotoWorkflows.CastLora>(
                 async lora => await GenerateCastPhotoAsync(CastPhotoMenuSlot, "krea2", lora),
@@ -366,6 +378,7 @@ namespace FlipPix.UI.ViewModels.Video
         /// picked). Runs for the card whose menu was last opened — see
         /// <see cref="CastPhotoMenuSlot"/>. See H3CastViewModel.Cast.cs.</summary>
         public RelayCommand<CastPhotoWorkflows.CastLora> GenerateCastZimageLoraCommand { get; }
+        public RelayCommand<CastPhotoWorkflows.CastLora> GenerateCastFamegridLoraCommand { get; }
         public RelayCommand<CastPhotoWorkflows.CastLora> GenerateCastKrea2LoraCommand { get; }
         public RelayCommand<CharacterSlot> GenerateCastQwenCommand { get; }
         public ICommand SelectSceneImageCommand { get; }
@@ -831,7 +844,7 @@ namespace FlipPix.UI.ViewModels.Video
         }
 
         /// <summary>Uploads a file to ComfyUI once, caching the returned input-folder name by path.</summary>
-        private async Task<string> EnsureUploadedAsync(string path)
+        protected async Task<string> EnsureUploadedAsync(string path)
         {
             if (_uploadCache.TryGetValue(path, out var cached) && !string.IsNullOrEmpty(cached))
                 return cached;
@@ -846,7 +859,7 @@ namespace FlipPix.UI.ViewModels.Video
         }
 
         /// <summary>Reads a file shipped next to the exe (workflow JSON or prompt), relative to BaseDirectory.</summary>
-        private static async Task<string> LoadFileAsync(string relativePath, CancellationToken token)
+        protected static async Task<string> LoadFileAsync(string relativePath, CancellationToken token)
         {
             var path = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, relativePath);
             if (!File.Exists(path))
@@ -1208,8 +1221,10 @@ namespace FlipPix.UI.ViewModels.Video
                 ? ClosestAspectRatio(SceneImagePath)
                 : SelectedAspectRatio;
 
-        /// <summary>The same ResolutionSelector presets as the other H3 tabs — H3's native canvas is a 768px short edge.</summary>
-        public IReadOnlyList<MegapixelOption> MegapixelOptions { get; } = new[]
+        /// <summary>The same ResolutionSelector presets as the other H3 tabs — H3's native canvas is a 768px short edge.
+        /// Virtual so H3 Duo can offer the wider range its I2V pipeline can afford (only three steps ever see
+        /// the full canvas there).</summary>
+        public virtual IReadOnlyList<MegapixelOption> MegapixelOptions { get; } = new[]
         {
             new MegapixelOption(0.4, "0.4 MP — fast draft (≈864×480)"),
             new MegapixelOption(0.7, "0.7 MP — balanced (≈1120×640)"),
@@ -1494,7 +1509,7 @@ namespace FlipPix.UI.ViewModels.Video
         }
 
         /// <summary>What the saved file will be.</summary>
-        public string UpscaleSummary
+        public virtual string UpscaleSummary
         {
             get
             {
@@ -1521,7 +1536,7 @@ namespace FlipPix.UI.ViewModels.Video
         /// twenty minutes. The failure looks nothing like an error in the graph: the server process simply
         /// disappears and the job is neither queued nor in the history.
         /// </summary>
-        public string LoadSummary
+        public virtual string LoadSummary
         {
             get
             {
@@ -1544,7 +1559,7 @@ namespace FlipPix.UI.ViewModels.Video
         }
 
         /// <summary>True when <see cref="LoadSummary"/> is carrying a warning, so the UI can colour it.</summary>
-        public bool HasLoadWarning
+        public virtual bool HasLoadWarning
         {
             get
             {
@@ -1555,11 +1570,40 @@ namespace FlipPix.UI.ViewModels.Video
         }
 
         /// <summary>Where a whole-clip frame stack starts being the thing that fails, in gigabytes.</summary>
-        private const double HeavyFrameStackGb = 8.0;
+        protected const double HeavyFrameStackGb = 8.0;
 
         /// <summary>An uncompressed fp32 RGB frame stack, in GB — what an image tensor of this clip costs.</summary>
-        private static double FrameStackGb(int frames, int width, int height) =>
+        protected static double FrameStackGb(int frames, int width, int height) =>
             (double)frames * width * height * 3 * 4 / (1024.0 * 1024.0 * 1024.0);
+
+        /// <summary>
+        /// Switches the reference pipeline from 'match' — references scaled to the generation's pixel area,
+        /// which on the MiniMax I2V graph this tab's <see cref="H3DuoViewModel"/> renders through is the
+        /// <i>draft</i> canvas, a quarter of the chosen megapixels — to 'max', a 2048px short edge. The H3
+        /// Cast graph keeps its panels at the finished canvas by construction and ignores this; on the Duo
+        /// tab it is the lever for identity fidelity, and it is on there by default.
+        /// </summary>
+        public bool MaxFidelityReferences
+        {
+            get => _maxFidelityReferences;
+            set
+            {
+                if (_maxFidelityReferences == value) return;
+                _maxFidelityReferences = value;
+                OnPropertyChanged();
+                OnPropertyChanged(nameof(UpscaleSummary));
+            }
+        }
+
+        /// <summary>
+        /// The audio-enhancement pass over the saved clip, on the Duo render's I2V graph. The H3 Cast graph
+        /// has no such switch and ignores this.
+        /// </summary>
+        public bool UseAudioEnhancement
+        {
+            get => _useAudioEnhancement;
+            set { if (_useAudioEnhancement != value) { _useAudioEnhancement = value; OnPropertyChanged(); } }
+        }
 
         public bool IsAnalyzing
         {
@@ -1657,11 +1701,11 @@ namespace FlipPix.UI.ViewModels.Video
         }
 
         /// <summary>H3's supported clip length is 4–15 seconds at 24 fps.</summary>
-        private static double ClampLength(double seconds) =>
+        protected static double ClampLength(double seconds) =>
             Math.Clamp(seconds <= 0 ? 10 : seconds, 4, 15);
 
         /// <summary>Mirrors node 5's expression: 24 fps snapped onto the model's 17k+5 frame grid.</summary>
-        private static int FramesForSeconds(double seconds)
+        protected static int FramesForSeconds(double seconds)
         {
             var frames = Math.Max(5, (int)Math.Round(seconds * 24));
             return frames + (5 - frames % 17 + 17) % 17;
@@ -2575,6 +2619,8 @@ namespace FlipPix.UI.ViewModels.Video
                     UseSla = UseSla,
                     SlaSparsity = SlaSparsity,
                     UseSparseAttention = UseSparseAttention,
+                    MaxFidelityReferences = MaxFidelityReferences,
+                    UseAudioEnhancement = UseAudioEnhancement,
                     StoryId = storyId,
                     ClipIndex = i + 1,
                     ClipCount = clips.Count,
@@ -2839,7 +2885,7 @@ namespace FlipPix.UI.ViewModels.Video
 
             // Re-running a chain (after retrying a failed clip) re-joins the same story from the same clips,
             // so overwriting this file is a refresh, not a loss.
-            var joinedPath = Path.Combine(outputDir, $"H3Cast_{storyId}_joined.mp4");
+            var joinedPath = Path.Combine(outputDir, $"{OutputFileStem}_{storyId}_joined.mp4");
             var total = clips.Sum(c => ClampLength(c.LengthSeconds));
 
             ProcessingStatus = $"Joining {paths.Count} clips...";
@@ -2858,7 +2904,7 @@ namespace FlipPix.UI.ViewModels.Video
             Application.Current.Dispatcher.Invoke(() =>
             {
                 ResultVideoPath = joinedPath;
-                ResultVideoInfo = $"H3 Cast • joined story • {paths.Count} clips • {total:0.#}s • " +
+                ResultVideoInfo = $"{OutputFileStem} • joined story • {paths.Count} clips • {total:0.#}s • " +
                                   $"{fi.Length / 1024 / 1024.0:F1}MB";
                 HasResult = true;
                 OnCanExecuteChanged();
@@ -2992,7 +3038,9 @@ namespace FlipPix.UI.ViewModels.Video
 
         #region Generation
 
-        private async Task GenerateItemAsync(H3CastQueueItem item, CancellationToken token)
+        /// <summary>The render itself. Virtual because the whole point of <see cref="H3DuoViewModel"/> is
+        /// this method: the same queued <see cref="H3CastQueueItem"/>, driven through a different graph.</summary>
+        protected virtual async Task GenerateItemAsync(H3CastQueueItem item, CancellationToken token)
         {
             IsProcessing = true;
             HasResult = false;
@@ -3358,7 +3406,7 @@ namespace FlipPix.UI.ViewModels.Video
         /// whole. Re-queue it to get the split.</item>
         /// </list>
         /// </summary>
-        private IReadOnlyList<string> ResolvePanels(
+        protected IReadOnlyList<string> ResolvePanels(
             IReadOnlyList<string> frozen, string sheetPath, int character)
         {
             var kept = frozen.Where(p => !string.IsNullOrEmpty(p) && File.Exists(p)).ToList();
@@ -3437,7 +3485,7 @@ namespace FlipPix.UI.ViewModels.Video
         /// <summary>Rewrites a reference node's autogrow <c>ref_image_N</c> inputs to exactly these loaders.
         /// Cleared rather than overwritten: a run with fewer panels than the file was authored for must not
         /// inherit a stale slot pointing at a node that is about to be pruned.</summary>
-        private static void AttachReferences(JsonObject root, string nodeId, IReadOnlyList<string> loaders)
+        protected static void AttachReferences(JsonObject root, string nodeId, IReadOnlyList<string> loaders)
         {
             if (root[nodeId]?["inputs"] is not JsonObject inputs)
                 throw new Exception($"Workflow node '{nodeId}' has no inputs — the workflow file no longer matches this tab.");
@@ -3874,7 +3922,7 @@ namespace FlipPix.UI.ViewModels.Video
         /// <summary>Fails loudly when a node the patches rewire is missing or is no longer the class they
         /// assume — both would otherwise produce a graph that only fails on the server, or worse, silently
         /// renders the wrong thing.</summary>
-        private static void RequireClass(JsonObject root, string nodeId, string expected)
+        protected static void RequireClass(JsonObject root, string nodeId, string expected)
         {
             if (root[nodeId] is not JsonObject node)
                 throw new Exception($"Workflow node '{nodeId}' is not in the graph — the workflow file no longer matches this tab.");
@@ -3889,7 +3937,7 @@ namespace FlipPix.UI.ViewModels.Video
         /// ending in an OUTPUT_NODE runs whether or not something downstream consumes it, so unhooking a
         /// sink is not enough on its own.
         /// </summary>
-        private static string PruneToOutputs(string json, IEnumerable<string> keepOutputs, out int removed)
+        protected static string PruneToOutputs(string json, IEnumerable<string> keepOutputs, out int removed)
         {
             var root = JsonNode.Parse(json)?.AsObject()
                        ?? throw new Exception("Workflow JSON could not be parsed.");
@@ -3933,7 +3981,7 @@ namespace FlipPix.UI.ViewModels.Video
 
         /// <summary>Submits the workflow, waits for completion, and resolves the video sink's output to a
         /// local file — first via /history node outputs, then a disk scan for the run token.</summary>
-        private async Task<string?> SubmitAndRetrieveAsync(
+        protected async Task<string?> SubmitAndRetrieveAsync(
             string json, string runToken, string outputNode, double from, double to, CancellationToken token)
         {
             var existing = GetExistingVideoFiles("*.mp4", OutputSubfolder);
@@ -4089,6 +4137,7 @@ namespace FlipPix.UI.ViewModels.Video
             PlayVideoCommand.NotifyCanExecuteChanged();
             OpenResultFolderCommand.NotifyCanExecuteChanged();
             GenerateCastZimageLoraCommand.NotifyCanExecuteChanged();
+            GenerateCastFamegridLoraCommand.NotifyCanExecuteChanged();
             GenerateCastKrea2LoraCommand.NotifyCanExecuteChanged();
             GenerateCastQwenCommand.NotifyCanExecuteChanged();
         }
