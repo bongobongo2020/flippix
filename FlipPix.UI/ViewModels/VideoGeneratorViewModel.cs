@@ -114,6 +114,15 @@ namespace FlipPix.UI.ViewModels
         public H3CastViewModel H3CastVM { get; }
 
         /// <summary>
+        /// H3 Duo ViewModel — the H3 Cast machinery (story → wardrobe → character sheets → chain of clip
+        /// prompts) on the MiniMax I2V turbo render pipeline: each clip renders as a quarter-canvas draft,
+        /// a 2× pass through the MiniMax H3 3D latent upscaler, and three fixed-sigma finish steps. Faster
+        /// and sharper than the Cast tab's own graph, with no face-refine branch — identity is held by the
+        /// full-fidelity references instead.
+        /// </summary>
+        public H3DuoViewModel H3DuoVM { get; }
+
+        /// <summary>
         /// H3 Chain ViewModel - MiniMax H3 run as an autoregressive chain: two reference images and a
         /// soundtrack become one continuous take of arbitrary length, rendered as N segments inside a
         /// single ComfyUI submission where each segment continues out of the last frame of the one
@@ -281,6 +290,15 @@ namespace FlipPix.UI.ViewModels
                 _workflowCoordinator,
                 _fileDialogService);
 
+            H3DuoVM = new H3DuoViewModel(
+                comfyUIService,
+                lmStudioService,
+                logger,
+                settingsService,
+                serviceProvider,
+                _workflowCoordinator,
+                _fileDialogService);
+
             H3ChainVM = new H3ChainViewModel(
                 comfyUIService,
                 lmStudioService,
@@ -321,6 +339,7 @@ namespace FlipPix.UI.ViewModels
             MiniMaxH3T2VVM.PlayRequested += (s, e) => PlayRequested?.Invoke(this, e);
             MiniMaxCharacterVM.PlayRequested += (s, e) => PlayRequested?.Invoke(this, e);
             H3CastVM.PlayRequested += (s, e) => PlayRequested?.Invoke(this, e);
+            H3DuoVM.PlayRequested += (s, e) => PlayRequested?.Invoke(this, e);
             H3ChainVM.PlayRequested += (s, e) => PlayRequested?.Invoke(this, e);
             H3CastHybridVM.PlayRequested += (s, e) => PlayRequested?.Invoke(this, e);
             H3EnsembleVM.PlayRequested += (s, e) => PlayRequested?.Invoke(this, e);
@@ -338,6 +357,7 @@ namespace FlipPix.UI.ViewModels
             MiniMaxH3T2VVM.PropertyChanged += ForwardPropertyChanged;
             MiniMaxCharacterVM.PropertyChanged += ForwardPropertyChanged;
             H3CastVM.PropertyChanged += ForwardPropertyChanged;
+            H3DuoVM.PropertyChanged += ForwardPropertyChanged;
             H3ChainVM.PropertyChanged += ForwardPropertyChanged;
             H3CastHybridVM.PropertyChanged += ForwardPropertyChanged;
             H3EnsembleVM.PropertyChanged += ForwardPropertyChanged;
@@ -630,6 +650,7 @@ namespace FlipPix.UI.ViewModels
                 MiniMaxH3T2VVM.PropertyChanged -= ForwardPropertyChanged;
                 MiniMaxCharacterVM.PropertyChanged -= ForwardPropertyChanged;
                 H3CastVM.PropertyChanged -= ForwardPropertyChanged;
+                H3DuoVM.PropertyChanged -= ForwardPropertyChanged;
                 H3ChainVM.PropertyChanged -= ForwardPropertyChanged;
                 H3CastHybridVM.PropertyChanged -= ForwardPropertyChanged;
                 H3EnsembleVM.PropertyChanged -= ForwardPropertyChanged;
@@ -646,6 +667,7 @@ namespace FlipPix.UI.ViewModels
                 (MiniMaxH3T2VVM as IDisposable)?.Dispose();
                 (MiniMaxCharacterVM as IDisposable)?.Dispose();
                 (H3CastVM as IDisposable)?.Dispose();
+                (H3DuoVM as IDisposable)?.Dispose();
                 (H3ChainVM as IDisposable)?.Dispose();
                 (H3CastHybridVM as IDisposable)?.Dispose();
                 (H3EnsembleVM as IDisposable)?.Dispose();

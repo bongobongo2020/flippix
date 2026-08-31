@@ -139,6 +139,21 @@ namespace FlipPix.UI.Models
         public bool RtxUpscale { get; set; }
 
         /// <summary>
+        /// The reference pipeline's encoding size on the H3 Duo render: 'max' — a 2048px short edge —
+        /// rather than 'match', which on that graph scales every reference to the <i>draft</i> canvas, a
+        /// quarter of the chosen megapixels. On by default there because holding a face is the point; it
+        /// costs reference tokens on every step. The H3 Cast graph has no such switch — its panels are
+        /// encoded at the finished canvas either way — so it ignores this.
+        /// </summary>
+        public bool MaxFidelityReferences { get; set; }
+
+        /// <summary>
+        /// The audio-enhancement pass over the saved clip, on the H3 Duo render's I2V graph. On by
+        /// default. The H3 Cast graph has no such switch and ignores this.
+        /// </summary>
+        public bool UseAudioEnhancement { get; set; } = true;
+
+        /// <summary>
         /// Groups the clips of one story so they render in order, sort together on disk and can be joined
         /// when the last one lands. Empty for a standalone clip.
         /// </summary>

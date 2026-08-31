@@ -220,6 +220,17 @@ namespace FlipPix.UI.ViewModels.Video
 
             SelectCharacterCommand = new RelayCommand<CharacterSlot>(async slot => await PickCharacterAsync(slot));
             ClearCharacterCommand = new RelayCommand<CharacterSlot>(ClearCharacter);
+            GenerateCastZimageLoraCommand = new RelayCommand<CastPhotoWorkflows.CastLora>(
+                async lora => await GenerateCastPhotoAsync(CastPhotoMenuSlot, "zimage", lora),
+                _ => CanGenerateCastPhoto(CastPhotoMenuSlot));
+            GenerateCastFamegridLoraCommand = new RelayCommand<CastPhotoWorkflows.CastLora>(
+                async lora => await GenerateCastPhotoAsync(CastPhotoMenuSlot, "famegrid", lora),
+                _ => CanGenerateCastPhoto(CastPhotoMenuSlot));
+            GenerateCastKrea2LoraCommand = new RelayCommand<CastPhotoWorkflows.CastLora>(
+                async lora => await GenerateCastPhotoAsync(CastPhotoMenuSlot, "krea2", lora),
+                _ => CanGenerateCastPhoto(CastPhotoMenuSlot));
+            GenerateCastQwenCommand = new RelayCommand<CharacterSlot>(
+                async slot => await GenerateCastPhotoAsync(slot, "qwen"), slot => CanGenerateCastPhoto(slot));
             SelectEnvironmentCommand = new RelayCommand(async () => await SelectEnvironmentAsync());
             ClearEnvironmentCommand = new RelayCommand(() => EnvironmentPath = string.Empty, () => HasEnvironment);
             AddKeyframeCommand = new RelayCommand(async () => await AddKeyframesAsync(), () => CanAddKeyframe);
@@ -268,6 +279,13 @@ namespace FlipPix.UI.ViewModels.Video
         /// are an <c>ItemsControl</c>, not five hand-written panels.</summary>
         public RelayCommand<CharacterSlot> SelectCharacterCommand { get; }
         public RelayCommand<CharacterSlot> ClearCharacterCommand { get; }
+        /// <summary>Renders this card's character photo with the Image Generator's Z-Image base
+        /// workflow and the LoRA picked in the ✨ menu (or the workflow's own when "as authored" is
+        /// picked). Runs for the card whose menu was last opened — see <see cref="CastPhotoMenuSlot"/>.</summary>
+        public RelayCommand<CastPhotoWorkflows.CastLora> GenerateCastZimageLoraCommand { get; }
+        public RelayCommand<CastPhotoWorkflows.CastLora> GenerateCastFamegridLoraCommand { get; }
+        public RelayCommand<CastPhotoWorkflows.CastLora> GenerateCastKrea2LoraCommand { get; }
+        public RelayCommand<CharacterSlot> GenerateCastQwenCommand { get; }
         public RelayCommand SelectEnvironmentCommand { get; }
         public RelayCommand ClearEnvironmentCommand { get; }
         public RelayCommand AddKeyframeCommand { get; }
@@ -874,6 +892,10 @@ namespace FlipPix.UI.ViewModels.Video
             ReprocessAllFailedCommand.NotifyCanExecuteChanged();
             PlayVideoCommand.NotifyCanExecuteChanged();
             OpenResultFolderCommand.NotifyCanExecuteChanged();
+            GenerateCastZimageLoraCommand.NotifyCanExecuteChanged();
+            GenerateCastFamegridLoraCommand.NotifyCanExecuteChanged();
+            GenerateCastKrea2LoraCommand.NotifyCanExecuteChanged();
+            GenerateCastQwenCommand.NotifyCanExecuteChanged();
         }
     }
 }

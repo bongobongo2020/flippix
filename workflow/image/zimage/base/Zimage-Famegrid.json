@@ -1,0 +1,402 @@
+{
+  "6": {
+    "inputs": {
+      "clip": [
+        "223",
+        0
+      ],
+      "text": [
+        "48",
+        0
+      ]
+    },
+    "class_type": "CLIPTextEncode",
+    "_meta": {
+      "title": "CLIPTextEncode"
+    }
+  },
+  "48": {
+    "inputs": {
+      "value": "(A photo shot on iphone,iphone image quality:1.3) of an igmodel woman ,(amature photo,unedited:1.3) IGMODEL holding a handmade cardboard protest sign that clearly reads “FameGrid Revolution” in bold uneven black marker with small ink bleeds and slightly warped edges. She is a white woman with fair skin and faint pink undertones, light freckles across cheeks, blue eyes, and visible natural skin texture with minor blemishes and subtle under-eye creasing. Her body shape is curvy with wide hips, narrow waist, fuller chest, and thick thighs. She stands with her weight resting on her left leg, right knee relaxed forward, torso angled slightly to the camera. Both hands hold the sign at stomach height, elbows bent outward. Her head is tilted slightly right, eyes looking straight into the camera with a relaxed confident expression.\n\nHer hair is short blonde, chin-length textured bob cut, softly feathered ends, slightly messy as if air-dried with flyaways around the crown. She wears a fitted ribbed beige crop top with slight stretching at the seams and high-waisted charcoal gray athletic leggings with subtle fabric pilling and knee creases. No heavy makeup, just light mascara and natural lips.\n\nCamera: handheld iPhone, eye-level angle, medium full-body shot cropped just below the knees, vertical framing, slight natural tilt. Subject in focus with realistic phone background blur. The image feels candid and unposed, like a quick photo taken during a gathering.\n\nImmediate surroundings: cracked sidewalk pavement with small pebbles, cigarette butts near a curb, a backpack set on the ground with a water bottle sticking out, and a takeaway coffee cup lid resting beside it. The cardboard sign shows finger smudges and bent corners.\n\nMidground: behind her stands a loose group of men and women, some holding open laptops with stickers on the lids, others carrying poster boards and handwritten signs. A folding table with tangled charging cables and a power strip sits nearby, and a brick wall has taped flyers and peeling tape residue.\n\nDistant background: the street stretches behind them with parked cars, a bus stop shelter, and people walking past glancing toward the gathering. Building windows reflect late afternoon sky and distant traffic lights glowing faintly.\n\nLighting: warm late-day sunlight from the left mixes with cooler shadow from buildings and bluish light reflecting off laptop screens, casting soft shadows across her clothing and the pavement.\n\niPhone-style sharpening, mild noise in shaded areas, slight HDR compression in highlights, realistic exposure falloff. Warm and cool color mix with subtle yellow streetlight tint beginning. No heavy filters, no cinematic grading, no studio polish."
+    },
+    "class_type": "PrimitiveStringMultiline",
+    "_meta": {
+      "title": "Positive"
+    }
+  },
+  "210": {
+    "inputs": {
+      "vae_name": "ae.safetensors"
+    },
+    "class_type": "VAELoader",
+    "_meta": {
+      "title": "VAELoader"
+    }
+  },
+  "213": {
+    "inputs": {
+      "images": [
+        "327",
+        0
+      ],
+      "filename_prefix": "zim_%date:yyyy-MM-dd_hh-mm-ss%"
+    },
+    "class_type": "SaveImage",
+    "_meta": {
+      "title": "SaveImage"
+    }
+  },
+  "223": {
+    "inputs": {
+      "clip_name": "qwen_3_4b.safetensors",
+      "type": "lumina2",
+      "device": "default"
+    },
+    "class_type": "CLIPLoader",
+    "_meta": {
+      "title": "CLIPLoader"
+    }
+  },
+  "231": {
+    "inputs": {
+      "width": [
+        "361",
+        0
+      ],
+      "height": [
+        "361",
+        1
+      ],
+      "batch_size": 1
+    },
+    "class_type": "EmptyLatentImage",
+    "_meta": {
+      "title": "EmptyLatentImage"
+    }
+  },
+  "265": {
+    "inputs": {
+      "model": [
+        "316",
+        0
+      ],
+      "positive": [
+        "6",
+        0
+      ],
+      "negative": [
+        "272",
+        0
+      ],
+      "latent_image": [
+        "231",
+        0
+      ],
+      "eta": 0.5,
+      "sampler_name": "exponential/res_2s",
+      "scheduler": "beta57",
+      "steps": 20,
+      "steps_to_run": -1,
+      "denoise": 1,
+      "cfg": 3,
+      "seed": 521814160903964,
+      "sampler_mode": "standard",
+      "bongmath": true
+    },
+    "class_type": "ClownsharKSampler_Beta",
+    "_meta": {
+      "title": "⚡ClownsharKSampler⚡"
+    }
+  },
+  "271": {
+    "inputs": {
+      "value": "(painting, cartoon, anime, 3d, render, illustration, airbrushed skin, blurry, plastic skin, oversaturarated, cartoon face,cartoon eyes, plastic face, blurry skin, bad quality,illustration, painting, big eyes, drawing, sketch, anime, cartoon, cgi, plastic skin, doll, waxy, airbrushed,blurry, blurred background, lowres, worst quality, low quality, jpeg artifacts, overexposed, underexposed,out of frame:1.3)"
+    },
+    "class_type": "PrimitiveStringMultiline",
+    "_meta": {
+      "title": "Negative"
+    }
+  },
+  "272": {
+    "inputs": {
+      "clip": [
+        "223",
+        0
+      ],
+      "text": [
+        "271",
+        0
+      ]
+    },
+    "class_type": "CLIPTextEncode",
+    "_meta": {
+      "title": "CLIPTextEncode"
+    }
+  },
+  "316": {
+    "inputs": {
+      "model": [
+        "320",
+        0
+      ],
+      "shift": 4
+    },
+    "class_type": "ModelSamplingAuraFlow",
+    "_meta": {
+      "title": "ModelSamplingAuraFlow"
+    }
+  },
+  "319": {
+    "inputs": {
+      "unet_name": "z_image_bf16.safetensors",
+      "weight_dtype": "default"
+    },
+    "class_type": "UNETLoader",
+    "_meta": {
+      "title": "UNETLoader"
+    }
+  },
+  "320": {
+    "inputs": {
+      "model": [
+        "319",
+        0
+      ],
+      "lora_name": [
+        "353",
+        0
+      ],
+      "strength_model": 0.7
+    },
+    "class_type": "LoraLoaderModelOnly",
+    "_meta": {
+      "title": "LoraLoaderModelOnly"
+    }
+  },
+  "321": {
+    "inputs": {
+      "samples": [
+        "344",
+        0
+      ],
+      "vae": [
+        "210",
+        0
+      ]
+    },
+    "class_type": "VAEDecode",
+    "_meta": {
+      "title": "VAEDecode"
+    }
+  },
+  "327": {
+    "inputs": {
+      "upscale_model": [
+        "328",
+        0
+      ],
+      "image": [
+        "321",
+        0
+      ]
+    },
+    "class_type": "ImageUpscaleWithModel",
+    "_meta": {
+      "title": "ImageUpscaleWithModel"
+    }
+  },
+  "328": {
+    "inputs": {
+      "model_name": "4xPurePhoto-RealPLSKR.pth"
+    },
+    "class_type": "UpscaleModelLoader",
+    "_meta": {
+      "title": "UpscaleModelLoader"
+    }
+  },
+  "342": {
+    "inputs": {
+      "unet_name": "z_image_turbo_bf16.safetensors",
+      "weight_dtype": "default"
+    },
+    "class_type": "UNETLoader",
+    "_meta": {
+      "title": "UNETLoader"
+    }
+  },
+  "343": {
+    "inputs": {
+      "model": [
+        "342",
+        0
+      ],
+      "lora_name": [
+        "353",
+        0
+      ],
+      "strength_model": 0.7
+    },
+    "class_type": "LoraLoaderModelOnly",
+    "_meta": {
+      "title": "LoraLoaderModelOnly"
+    }
+  },
+  "344": {
+    "inputs": {
+      "model": [
+        "348",
+        0
+      ],
+      "positive": [
+        "6",
+        0
+      ],
+      "negative": [
+        "272",
+        0
+      ],
+      "latent_image": [
+        "366",
+        0
+      ],
+      "eta": 0.5,
+      "sampler_name": "exponential/res_4s_krogstad",
+      "scheduler": "beta",
+      "steps": 10,
+      "steps_to_run": -1,
+      "denoise": 0.3,
+      "cfg": 1,
+      "seed": 38779925157671,
+      "sampler_mode": "standard",
+      "bongmath": true
+    },
+    "class_type": "ClownsharKSampler_Beta",
+    "_meta": {
+      "title": "ClownsharKSampler_Beta"
+    }
+  },
+  "348": {
+    "inputs": {
+      "model": [
+        "343",
+        0
+      ],
+      "shift": 3.5
+    },
+    "class_type": "ModelSamplingAuraFlow",
+    "_meta": {
+      "title": "ModelSamplingAuraFlow"
+    }
+  },
+  "353": {
+    "inputs": {
+      "lora_name": "zimage/famegrid_spice_v2_z_image_fp32.safetensors"
+    },
+    "class_type": "easy loraNames",
+    "_meta": {
+      "title": "FAMEGRID LORA HERE"
+    }
+  },
+  "359": {
+    "inputs": {
+      "samples": [
+        "265",
+        0
+      ],
+      "vae": [
+        "210",
+        0
+      ]
+    },
+    "class_type": "VAEDecode",
+    "_meta": {
+      "title": "VAEDecode"
+    }
+  },
+  "361": {
+    "inputs": {
+      "megapixel": "2.0",
+      "aspect_ratio": "4:5 (Artistic Frame)",
+      "divisible_by": "32",
+      "custom_ratio": false,
+      "custom_aspect_ratio": ""
+    },
+    "class_type": "FluxResolutionNode",
+    "_meta": {
+      "title": "FluxResolutionNode"
+    }
+  },
+  "362": {
+    "inputs": {
+      "model": [
+        "343",
+        0
+      ],
+      "lora_name": [
+        "364",
+        0
+      ],
+      "strength_model": 0.8
+    },
+    "class_type": "LoraLoaderModelOnly",
+    "_meta": {
+      "title": "LoraLoaderModelOnly"
+    }
+  },
+  "363": {
+    "inputs": {
+      "model": [
+        "320",
+        0
+      ],
+      "lora_name": [
+        "364",
+        0
+      ],
+      "strength_model": 0.8
+    },
+    "class_type": "LoraLoaderModelOnly",
+    "_meta": {
+      "title": "LoraLoaderModelOnly"
+    }
+  },
+  "364": {
+    "inputs": {
+      "lora_name": "zimage/zib/skin texture style zib v2.1.safetensors"
+    },
+    "class_type": "easy loraNames",
+    "_meta": {
+      "title": "YOUR CHARACTER LORA HERE OR BYBASS"
+    }
+  },
+  "365": {
+    "inputs": {
+      "images": [
+        "359",
+        0
+      ],
+      "strength": 0.3,
+      "use_gpu": false
+    },
+    "class_type": "FastLaplacianSharpen",
+    "_meta": {
+      "title": "FastLaplacianSharpen"
+    }
+  },
+  "366": {
+    "inputs": {
+      "pixels": [
+        "365",
+        0
+      ],
+      "vae": [
+        "210",
+        0
+      ]
+    },
+    "class_type": "VAEEncode",
+    "_meta": {
+      "title": "VAEEncode"
+    }
+  }
+}
