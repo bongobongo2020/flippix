@@ -84,3 +84,5 @@ tasksdone.md
 switcher
 # Python bytecode from the tools/ scripts
 __pycache__/
+#test
+test/
