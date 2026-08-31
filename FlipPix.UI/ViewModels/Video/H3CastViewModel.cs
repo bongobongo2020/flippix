@@ -338,6 +338,8 @@ namespace FlipPix.UI.ViewModels.Video
                 _ => CanGenerateCastPhoto(CastPhotoMenuSlot));
             GenerateCastQwenCommand = new RelayCommand<CharacterSlot>(
                 async slot => await GenerateCastPhotoAsync(slot, "qwen"), slot => CanGenerateCastPhoto(slot));
+            GenerateCastKrea2SpicyCommand = new RelayCommand<CharacterSlot>(
+                async slot => await GenerateCastPhotoAsync(slot, "krea2spicy"), slot => CanGenerateCastPhoto(slot));
             SelectSceneImageCommand = new RelayCommand(async () => await SelectSceneImageAsync());
             ClearSceneImageCommand = new RelayCommand(() => SceneImagePath = string.Empty);
             LoadStoryCommand = new RelayCommand(async () => await LoadStoryFileAsync());
@@ -381,6 +383,9 @@ namespace FlipPix.UI.ViewModels.Video
         public RelayCommand<CastPhotoWorkflows.CastLora> GenerateCastFamegridLoraCommand { get; }
         public RelayCommand<CastPhotoWorkflows.CastLora> GenerateCastKrea2LoraCommand { get; }
         public RelayCommand<CharacterSlot> GenerateCastQwenCommand { get; }
+        /// <summary>The ✨ menu's Krea2-Spicy entry — the famegrid spicy selfie workflow, its
+        /// LoRAs baked in, no picking. Takes the card directly, like Qwen.</summary>
+        public RelayCommand<CharacterSlot> GenerateCastKrea2SpicyCommand { get; }
         public ICommand SelectSceneImageCommand { get; }
         public RelayCommand ClearSceneImageCommand { get; }
         /// <summary>Reads a .txt/.md story off disk into <see cref="StoryText"/>.</summary>
@@ -4140,6 +4145,7 @@ namespace FlipPix.UI.ViewModels.Video
             GenerateCastFamegridLoraCommand.NotifyCanExecuteChanged();
             GenerateCastKrea2LoraCommand.NotifyCanExecuteChanged();
             GenerateCastQwenCommand.NotifyCanExecuteChanged();
+            GenerateCastKrea2SpicyCommand.NotifyCanExecuteChanged();
         }
     }
 

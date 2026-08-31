@@ -54,6 +54,14 @@ namespace FlipPix.UI.ViewModels.Video
         private const string QwenImgLatentNode = "107";   // EmptySD3LatentImage
         private const string QwenImgSaveNode = "123";     // SaveImage
 
+        // FameGrid_Krea2_Spicy_CORRECTED (1).json — the famegrid "spicy" selfie look on Krea 2:
+        // turbo, filter-bypass and famegrid_spicy LoRAs all baked in (nothing to pick), a 6-step
+        // base pass and a 2-step 0.2-denoise refine, and a FameGridColorFinish before the save.
+        private const string SpicyPromptNode = "48";      // PrimitiveStringMultiline → CLIPTextEncode 6
+        private const string SpicySamplerNode = "265";    // ClownsharKSampler_Beta — the base pass
+        private const string SpicyRefineNode = "274";     // ClownsharKSampler_Beta — the refine pass
+        private const string SpicySaveNode = "213";       // SaveImage (after FameGridColorFinish 340)
+
         // Zimage-Famegrid.json — the Z-Image "igmodel" look: a 20-step base pass, a 0.3-denoise refine
         // pass, the famegrid spice LoRA on both, a Laplacian sharpen between the passes and a 4× photo
         // upscale on the way out.
@@ -77,11 +85,11 @@ namespace FlipPix.UI.ViewModels.Video
         /// can find again. Everything else is left exactly as the graph ships it — for Z-Image that
         /// is the lo-fi mobile-photo look of workflow/image/zimage/simple/Lo-Fi-Mobile.json.
         /// </summary>
-        /// <param name="engine">"zimage", "famegrid", "krea2" or "qwen".</param>
+        /// <param name="engine">"zimage", "famegrid", "krea2", "krea2spicy" or "qwen".</param>
         /// <param name="prefix">SaveImage filename_prefix — an output-subfolder path ending in a
         /// unique run token, so the caller's disk scan can find the file.</param>
-        /// <param name="lora">A LoRA picked from the ✨ menu, or null for the workflow's own. Qwen
-        /// ignores it — its lightning LoRA is baked in by the workflow.</param>
+        /// <param name="lora">A LoRA picked from the ✨ menu, or null for the workflow's own. Qwen and
+        /// Krea2-Spicy ignore it — their LoRAs are baked in by the workflow.</param>
         public static async Task<(string Json, string SaveNode)> BuildAsync(
             string engine, string prefix, long seed, string prompt, Action<string> log, CastLora? lora = null)
         {
@@ -155,6 +163,24 @@ namespace FlipPix.UI.ViewModels.Video
                     SetInput(ref json, QwenImgLatentNode, "height", 1600);
                     SetInput(ref json, QwenImgSaveNode, "filename_prefix", prefix);
                     return (json, QwenImgSaveNode);
+                }
+
+                case "krea2spicy": // Krea2-Spicy — the famegrid spicy selfie look, LoRAs baked in, nothing to pick
+                {
+                    var json = await ReadWorkflowAsync("workflow/image/krea/FameGrid_Krea2_Spicy_CORRECTED (1).json");
+                    var root = ParseGraph(json);
+                    RequireClass(root, SpicyPromptNode, "PrimitiveStringMultiline");
+                    RequireClass(root, SpicySamplerNode, "ClownsharKSampler_Beta");
+                    RequireClass(root, SpicyRefineNode, "ClownsharKSampler_Beta");
+                    RequireClass(root, SpicySaveNode, "SaveImage");
+                    json = root.ToJsonString();
+
+                    SetInput(ref json, SpicyPromptNode, "value", prompt);
+                    // Both passes carry the same seed, as the workflow's own pair does.
+                    SetInput(ref json, SpicySamplerNode, "seed", seed);
+                    SetInput(ref json, SpicyRefineNode, "seed", seed);
+                    SetInput(ref json, SpicySaveNode, "filename_prefix", prefix);
+                    return (json, SpicySaveNode);
                 }
 
                 case "famegrid": // Z-Famegrid — the igmodel look, run as authored except prompt / seed / save prefix / character LoRA
@@ -237,6 +263,7 @@ namespace FlipPix.UI.ViewModels.Video
         public static string LabelFor(string engine) => engine switch
         {
             "krea2" => "Krea2",
+            "krea2spicy" => "Krea2-Spicy",
             "qwen" => "Qwen 2.5.1.2",
             "famegrid" => "Z-Famegrid",
             _ => "Z-Image",
