@@ -173,9 +173,10 @@ namespace FlipPix.UI.ViewModels.Video
         #region LoRA folders — the same resolution the Image Generator tab uses
 
         /// <summary>
-        /// The Z-Image LoRAs on offer: every <c>.safetensors</c> at the top of the LoRA root's
-        /// <c>zimage</c> subfolder — the folder the Image Generator tab's own LoRA dropdown reads.
-        /// No subfolder, no entries: the ✨ menu then offers only "as authored".
+        /// The Z-Image LoRAs on offer: every <c>.safetensors</c> under the LoRA root's <c>zimage</c>
+        /// folder, <b>including its subfolders</b> — the folder is typically organised as
+        /// <c>zimage/zib/…</c>, <c>zimage/amateur/…</c> and so on, and ComfyUI's <c>lora_name</c>
+        /// wants the path exactly as it lies under the LoRA root, subfolders included.
         /// </summary>
         public static IReadOnlyList<CastLora> ListZimageLoras(FlipPix.Core.Models.ComfyUISettings? settings, Action<string> log)
         {
@@ -219,12 +220,23 @@ namespace FlipPix.UI.ViewModels.Video
             return Array.Empty<CastLora>();
         }
 
+        /// <summary>
+        /// Scans a LoRA folder <b>recursively</b>. The menu name is the path under the folder without
+        /// the extension (<c>foo</c>, or <c>zib/foo</c> when nested); the reference is the full path
+        /// under the LoRA root with forward slashes, which is what ComfyUI's <c>lora_name</c> wants.
+        /// </summary>
         private static IReadOnlyList<CastLora> Scan(string folder, string subfolder) =>
-            Directory.GetFiles(folder, "*.safetensors")
-                .Select(file => (File: Path.GetFileName(file), Name: Path.GetFileNameWithoutExtension(file)))
-                .Where(x => !string.IsNullOrEmpty(x.File) && !string.IsNullOrEmpty(x.Name))
+            Directory.GetFiles(folder, "*.safetensors", SearchOption.AllDirectories)
+                .Select(file =>
+                {
+                    var relative = Path.GetRelativePath(folder, file).Replace('\\', '/');
+                    var dot = relative.LastIndexOf('.');
+                    return (Name: dot > 0 ? relative[..dot] : relative,
+                            Reference: $"{subfolder}/{relative}");
+                })
+                .Where(x => !string.IsNullOrEmpty(x.Name))
                 .OrderBy(x => x.Name)
-                .Select(x => new CastLora(x.Name!, $"{subfolder}/{x.File}"))
+                .Select(x => new CastLora(x.Name, x.Reference))
                 .ToList();
 
         /// <summary>
