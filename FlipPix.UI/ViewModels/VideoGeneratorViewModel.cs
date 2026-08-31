@@ -106,14 +106,6 @@ namespace FlipPix.UI.ViewModels
         public MiniMaxCharacterViewModel MiniMaxCharacterVM { get; }
 
         /// <summary>
-        /// H3 Cast ViewModel - the same reference-to-video idea as MiniMaxCharacterVM, but each character
-        /// arrives as an ordinary photo and is turned into a three-panel Qwen-Image-Edit-2511 character
-        /// sheet (front, back, face close-up) first; the video then runs through the face-refiner graph,
-        /// whose second H3 pass re-generates the tracked face crops against those same sheets.
-        /// </summary>
-        public H3CastViewModel H3CastVM { get; }
-
-        /// <summary>
         /// H3 Duo ViewModel — the H3 Cast machinery (story → wardrobe → character sheets → chain of clip
         /// prompts) on the MiniMax I2V turbo render pipeline: each clip renders as a quarter-canvas draft,
         /// a 2× pass through the MiniMax H3 3D latent upscaler, and three fixed-sigma finish steps. Faster
@@ -129,23 +121,6 @@ namespace FlipPix.UI.ViewModels
         /// before it, and assembled and muxed against the song by the workflow itself.
         /// </summary>
         public H3ChainViewModel H3ChainVM { get; }
-
-        /// <summary>
-        /// H3 Cast Hybrid ViewModel - the H3 Cast pipeline on MiniMax H3's hybrid fl2va+ref2va checkpoint,
-        /// which completes supplied keyframes and generates from the character sheets in one pass: stills
-        /// pinned to timestamps become hard frame locks, the sheets ride along as identity references that
-        /// must never become frames, and the alignment between the two is stated in the prompt text rather
-        /// than wired into a first/last-frame node.
-        /// </summary>
-        public H3CastHybridViewModel H3CastHybridVM { get; }
-
-        /// <summary>
-        /// H3 Ensemble ViewModel - the H3 Cast Hybrid pipeline widened from a two-hander to a cast of up to
-        /// five, plus a photograph of the location that is both what the language model reads the setting off
-        /// and a reference wired into the generator. The nine reference slots are divided between whoever a
-        /// clip actually names, so a five-character story renders as a chain of two- and three-handers.
-        /// </summary>
-        public H3EnsembleViewModel H3EnsembleVM { get; }
 
         /// <summary>
         /// H3 Multi ViewModel — the same ensemble machinery (five cast slots, wardrobe, location,
@@ -291,15 +266,6 @@ namespace FlipPix.UI.ViewModels
                 _workflowCoordinator,
                 _fileDialogService);
 
-            H3CastVM = new H3CastViewModel(
-                comfyUIService,
-                lmStudioService,
-                logger,
-                settingsService,
-                serviceProvider,
-                _workflowCoordinator,
-                _fileDialogService);
-
             H3DuoVM = new H3DuoViewModel(
                 comfyUIService,
                 lmStudioService,
@@ -310,24 +276,6 @@ namespace FlipPix.UI.ViewModels
                 _fileDialogService);
 
             H3ChainVM = new H3ChainViewModel(
-                comfyUIService,
-                lmStudioService,
-                logger,
-                settingsService,
-                serviceProvider,
-                _workflowCoordinator,
-                _fileDialogService);
-
-            H3CastHybridVM = new H3CastHybridViewModel(
-                comfyUIService,
-                lmStudioService,
-                logger,
-                settingsService,
-                serviceProvider,
-                _workflowCoordinator,
-                _fileDialogService);
-
-            H3EnsembleVM = new H3EnsembleViewModel(
                 comfyUIService,
                 lmStudioService,
                 logger,
@@ -357,11 +305,8 @@ namespace FlipPix.UI.ViewModels
             MiniMaxFflfVM.PlayRequested += (s, e) => PlayRequested?.Invoke(this, e);
             MiniMaxH3T2VVM.PlayRequested += (s, e) => PlayRequested?.Invoke(this, e);
             MiniMaxCharacterVM.PlayRequested += (s, e) => PlayRequested?.Invoke(this, e);
-            H3CastVM.PlayRequested += (s, e) => PlayRequested?.Invoke(this, e);
             H3DuoVM.PlayRequested += (s, e) => PlayRequested?.Invoke(this, e);
             H3ChainVM.PlayRequested += (s, e) => PlayRequested?.Invoke(this, e);
-            H3CastHybridVM.PlayRequested += (s, e) => PlayRequested?.Invoke(this, e);
-            H3EnsembleVM.PlayRequested += (s, e) => PlayRequested?.Invoke(this, e);
             H3MultiVM.PlayRequested += (s, e) => PlayRequested?.Invoke(this, e);
 
             // Forward PropertyChanged events from all sub-VMs for backward compatibility
@@ -376,11 +321,8 @@ namespace FlipPix.UI.ViewModels
             MiniMaxFflfVM.PropertyChanged += ForwardPropertyChanged;
             MiniMaxH3T2VVM.PropertyChanged += ForwardPropertyChanged;
             MiniMaxCharacterVM.PropertyChanged += ForwardPropertyChanged;
-            H3CastVM.PropertyChanged += ForwardPropertyChanged;
             H3DuoVM.PropertyChanged += ForwardPropertyChanged;
             H3ChainVM.PropertyChanged += ForwardPropertyChanged;
-            H3CastHybridVM.PropertyChanged += ForwardPropertyChanged;
-            H3EnsembleVM.PropertyChanged += ForwardPropertyChanged;
             H3MultiVM.PropertyChanged += ForwardPropertyChanged;
 
             NavigateToImageGeneratorCommand = new RelayCommand(NavigateToImageGenerator);
@@ -670,11 +612,8 @@ namespace FlipPix.UI.ViewModels
                 MiniMaxFflfVM.PropertyChanged -= ForwardPropertyChanged;
                 MiniMaxH3T2VVM.PropertyChanged -= ForwardPropertyChanged;
                 MiniMaxCharacterVM.PropertyChanged -= ForwardPropertyChanged;
-                H3CastVM.PropertyChanged -= ForwardPropertyChanged;
                 H3DuoVM.PropertyChanged -= ForwardPropertyChanged;
                 H3ChainVM.PropertyChanged -= ForwardPropertyChanged;
-                H3CastHybridVM.PropertyChanged -= ForwardPropertyChanged;
-                H3EnsembleVM.PropertyChanged -= ForwardPropertyChanged;
                 H3MultiVM.PropertyChanged -= ForwardPropertyChanged;
 
                 // Dispose all sub-ViewModels
@@ -688,11 +627,8 @@ namespace FlipPix.UI.ViewModels
                 (MiniMaxFflfVM as IDisposable)?.Dispose();
                 (MiniMaxH3T2VVM as IDisposable)?.Dispose();
                 (MiniMaxCharacterVM as IDisposable)?.Dispose();
-                (H3CastVM as IDisposable)?.Dispose();
                 (H3DuoVM as IDisposable)?.Dispose();
                 (H3ChainVM as IDisposable)?.Dispose();
-                (H3CastHybridVM as IDisposable)?.Dispose();
-                (H3EnsembleVM as IDisposable)?.Dispose();
                 (H3MultiVM as IDisposable)?.Dispose();
 
                 _disposed = true;
