@@ -147,6 +147,16 @@ namespace FlipPix.UI.ViewModels
         /// </summary>
         public H3EnsembleViewModel H3EnsembleVM { get; }
 
+        /// <summary>
+        /// H3 Multi ViewModel — the same ensemble machinery (five cast slots, wardrobe, location,
+        /// storyboard, chained clips) rendered through the MiniMax I2V turbo pipeline instead of the
+        /// hybrid graph: each clip is a 4-step draft at a quarter of the canvas, a 2× pass through the
+        /// MiniMax H3 3D latent upscaler, then 3 fixed-sigma finish steps. Quicker and sharper; no
+        /// face-refine branch and no FILM interpolation — identity is held by encoding the reference
+        /// panels at a 2048px short edge by default (max-fidelity references).
+        /// </summary>
+        public H3MultiViewModel H3MultiVM { get; }
+
         // Bound to the main TabControl so code can switch tabs programmatically.
         // 0 = Scail 2 tab.
         private int _selectedTabIndex = 0;
@@ -326,6 +336,15 @@ namespace FlipPix.UI.ViewModels
                 _workflowCoordinator,
                 _fileDialogService);
 
+            H3MultiVM = new H3MultiViewModel(
+                comfyUIService,
+                lmStudioService,
+                logger,
+                settingsService,
+                serviceProvider,
+                _workflowCoordinator,
+                _fileDialogService);
+
             // Forward PlayRequested events from sub-VMs
             MainVM.PlayRequested += (s, e) => PlayRequested?.Invoke(this, e);
             InfiniteTalkVM.PlayRequested += (s, e) => PlayRequested?.Invoke(this, e);
@@ -343,6 +362,7 @@ namespace FlipPix.UI.ViewModels
             H3ChainVM.PlayRequested += (s, e) => PlayRequested?.Invoke(this, e);
             H3CastHybridVM.PlayRequested += (s, e) => PlayRequested?.Invoke(this, e);
             H3EnsembleVM.PlayRequested += (s, e) => PlayRequested?.Invoke(this, e);
+            H3MultiVM.PlayRequested += (s, e) => PlayRequested?.Invoke(this, e);
 
             // Forward PropertyChanged events from all sub-VMs for backward compatibility
             MainVM.PropertyChanged += ForwardPropertyChanged;
@@ -361,6 +381,7 @@ namespace FlipPix.UI.ViewModels
             H3ChainVM.PropertyChanged += ForwardPropertyChanged;
             H3CastHybridVM.PropertyChanged += ForwardPropertyChanged;
             H3EnsembleVM.PropertyChanged += ForwardPropertyChanged;
+            H3MultiVM.PropertyChanged += ForwardPropertyChanged;
 
             NavigateToImageGeneratorCommand = new RelayCommand(NavigateToImageGenerator);
 
@@ -654,6 +675,7 @@ namespace FlipPix.UI.ViewModels
                 H3ChainVM.PropertyChanged -= ForwardPropertyChanged;
                 H3CastHybridVM.PropertyChanged -= ForwardPropertyChanged;
                 H3EnsembleVM.PropertyChanged -= ForwardPropertyChanged;
+                H3MultiVM.PropertyChanged -= ForwardPropertyChanged;
 
                 // Dispose all sub-ViewModels
                 (MainVM as IDisposable)?.Dispose();
@@ -671,6 +693,7 @@ namespace FlipPix.UI.ViewModels
                 (H3ChainVM as IDisposable)?.Dispose();
                 (H3CastHybridVM as IDisposable)?.Dispose();
                 (H3EnsembleVM as IDisposable)?.Dispose();
+                (H3MultiVM as IDisposable)?.Dispose();
 
                 _disposed = true;
             }

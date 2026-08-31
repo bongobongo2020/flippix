@@ -89,6 +89,41 @@ namespace FlipPix.UI.Models
         /// <summary>RTX ×2 super-resolution. Off by default — the graph's largest single allocation.</summary>
         public bool RtxUpscale { get; set; }
 
+        /// <summary>
+        /// The reference pipeline's encoding size on the H3 Multi render: 'max' — a 2048px short edge —
+        /// rather than 'match', which on the I2V graph scales every reference to the <i>draft</i> canvas, a
+        /// quarter of the chosen megapixels. Defaulted on by the H3 Multi tab, because holding five faces is
+        /// the point of the graph that tab runs; it costs reference tokens on every sampling step. The H3
+        /// Ensemble render ignores this — its hybrid graph encodes its panels at the finished canvas either
+        /// way, and it neither knows nor cares that the field exists.
+        /// </summary>
+        public bool MaxFidelityReferences { get; set; }
+
+        /// <summary>
+        /// The audio-enhancement pass over the saved clip, on the H3 Multi render's I2V graph. On by
+        /// default. The H3 Ensemble render has no such switch and ignores this.
+        /// </summary>
+        public bool UseAudioEnhancement { get; set; } = true;
+
+        /// <summary>
+        /// The I2V turbo sampling scheme on the H3 Multi render: four draft steps at a quarter of the
+        /// canvas, a 2× pass through the MiniMax H3 3D latent upscaler, then three fixed-sigma finish
+        /// steps at the finished size. Off, one 8-step pass at the full canvas — the graph's other mode.
+        /// On by default. The H3 Ensemble render ignores this.
+        /// </summary>
+        public bool UseLatentUpscale { get; set; } = true;
+
+        /// <summary>SLA block-sparse attention on the H3 Multi render's samplers. On by default. The H3
+        /// Ensemble render ignores this.</summary>
+        public bool UseSla { get; set; } = true;
+
+        /// <summary>SLA sparsity — how much of the attention is dropped. The lightx2v default 0.85.</summary>
+        public double SlaSparsity { get; set; } = 0.85;
+
+        /// <summary>Sol-Attn (the legacy sparse-attention switch) on the H3 Multi render. The H3 Ensemble
+        /// render ignores this.</summary>
+        public bool UseSparseAttention { get; set; }
+
         /// <summary>Groups the clips of one story so they render in order and can be joined when the last one
         /// lands. Empty for a standalone clip.</summary>
         public string StoryId { get; set; } = string.Empty;

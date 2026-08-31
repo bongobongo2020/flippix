@@ -307,7 +307,7 @@ namespace FlipPix.UI.ViewModels.Video
                 AddLog($"ERROR (cast photo): {ex.Message}");
                 slot.PhotoPhase = $"Error: {ex.Message}";
                 MessageBox.Show($"Generating Character {slot.Index}'s photo failed:\n{ex.Message}",
-                    "H3 Ensemble", MessageBoxButton.OK, MessageBoxImage.Error);
+                    TabLogName, MessageBoxButton.OK, MessageBoxImage.Error);
             }
             finally
             {

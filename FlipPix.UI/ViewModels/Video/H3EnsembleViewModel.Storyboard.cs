@@ -504,7 +504,7 @@ namespace FlipPix.UI.ViewModels.Video
             try
             {
                 var frames = ClampStoryboardFrames(StoryboardFrames);
-                AddLog($"=== H3 Ensemble: storyboarding {wanted.Count} clip(s) — a {frames}-frame H3 pass " +
+                AddLog($"=== {TabLogName}: storyboarding {wanted.Count} clip(s) — a {frames}-frame H3 pass " +
                        "each, frame 0 kept as that clip's opening lock ===");
                 if (frames < 124)
                     AddLog($"Note: {frames} frames is below MiniMaxH3ReferenceToVideo's trained range " +
@@ -595,8 +595,11 @@ namespace FlipPix.UI.ViewModels.Video
         /// reference generation: this pass has no keyframes, so a <c>&lt;Picture n&gt;</c> left in it would
         /// point at a cast photograph. The location <i>is</i> kept — this still is about to be frame 0 of a
         /// render in that place, and a preview shot somewhere else is a preview of nothing.
+        ///
+        /// <para>Virtual so the H3 Multi tab can render its stills on the turbo graph its clips run on —
+        /// the node ids the wiring below writes belong to the hybrid graph.</para>
         /// </summary>
-        private async Task<IReadOnlyList<string>> RenderClipStillsAsync(
+        protected virtual async Task<IReadOnlyList<string>> RenderClipStillsAsync(
             int clipIndex, int clipCount, string clip, long seed, int frames, CancellationToken token)
         {
             var cast = CastMembers;
@@ -661,7 +664,7 @@ namespace FlipPix.UI.ViewModels.Video
         /// <summary>The panels of everyone an assembled prompt actually casts, in wiring order — the same
         /// selection Add to Queue freezes onto a queue item, resolved live because the storyboard renders
         /// from the form rather than from a queued job.</summary>
-        private IReadOnlyList<string> CurrentCastPanels(string assembledPrompt)
+        protected IReadOnlyList<string> CurrentCastPanels(string assembledPrompt)
         {
             var paths = new List<string>();
             foreach (var slot in LoadedCharacters)
@@ -682,7 +685,7 @@ namespace FlipPix.UI.ViewModels.Video
         /// composition actually wanted.
         /// </summary>
         /// <returns>SaveImage node id → the batch index it holds, in candidate order.</returns>
-        private static IReadOnlyList<KeyValuePair<string, int>> WireStillOutputs(
+        private IReadOnlyList<KeyValuePair<string, int>> WireStillOutputs(
             ref string json, int frames, string runToken)
         {
             var root = JsonNode.Parse(json)?.AsObject()
@@ -727,13 +730,13 @@ namespace FlipPix.UI.ViewModels.Video
 
         /// <summary>Copies a still out of ComfyUI's output folder into the tab's own. A lock living in a temp
         /// file is a lock that goes missing between queueing a chain and rendering clip 8 of it.</summary>
-        private string KeepStill(string local, int clipIndex, int frameIndex, long seed)
+        protected string KeepStill(string local, int clipIndex, int frameIndex, long seed)
         {
             try
             {
                 var dir = Path.Combine(
                     _settingsService.Settings?.OutputFolderPath ?? Path.GetTempPath(),
-                    "H3Ensemble", "storyboard");
+                    OutputFolderName, "storyboard");
                 Directory.CreateDirectory(dir);
                 var name = $"clip{clipIndex:00}_f{frameIndex:000}_{seed % 100000:00000}_" +
                            $"{DateTime.Now:yyyyMMdd_HHmmss}{Path.GetExtension(local)}";
@@ -750,7 +753,7 @@ namespace FlipPix.UI.ViewModels.Video
 
         /// <summary>Submits a storyboard render. Reports through its own phase line and never touches the
         /// progress bar or the status line — a queued clip may well be rendering underneath it.</summary>
-        private async Task<string> SubmitStoryboardAsync(string json, CancellationToken token)
+        protected async Task<string> SubmitStoryboardAsync(string json, CancellationToken token)
         {
             var workflow = JsonSerializer.Deserialize<JsonElement>(json);
             var phase = StoryboardPhase;
@@ -794,7 +797,7 @@ namespace FlipPix.UI.ViewModels.Video
 
         /// <summary>The reference node takes 5 and steps in 17s — 5, 22, 39, 56, … — and the server rejects
         /// anything off that grid rather than rounding it.</summary>
-        private static int ClampStoryboardFrames(int frames)
+        protected static int ClampStoryboardFrames(int frames)
         {
             var clamped = Math.Clamp(frames, 5, 362);
             return clamped - (clamped - 5) % 17;

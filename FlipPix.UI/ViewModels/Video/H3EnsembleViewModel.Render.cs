@@ -169,6 +169,10 @@ namespace FlipPix.UI.ViewModels.Video
                     ItemStatus = QueueItemStatus.Pending,
                 };
 
+                // The pipeline switches the render graph itself cares about — the turbo pipeline's on the
+                // H3 Multi tab, nothing extra on this one.
+                ConfigureQueuedItem(item);
+
                 _queue.Add(item);
                 AddLog($"Queued: {item.DisplayText}");
             }
@@ -291,7 +295,7 @@ namespace FlipPix.UI.ViewModels.Video
             _queueCts = new CancellationTokenSource();
             var token = _queueCts.Token;
 
-            AddLog("Starting H3 Ensemble queue...");
+            AddLog($"Starting {TabLogName} queue...");
             try
             {
                 H3EnsembleQueueItem? item;
@@ -406,7 +410,7 @@ namespace FlipPix.UI.ViewModels.Video
             }
 
             var outputDir = Path.GetDirectoryName(paths[0])
-                            ?? Path.Combine(_settingsService.Settings?.OutputFolderPath ?? Path.GetTempPath(), "H3Ensemble");
+                            ?? Path.Combine(_settingsService.Settings?.OutputFolderPath ?? Path.GetTempPath(), OutputFolderName);
             Directory.CreateDirectory(outputDir);
 
             var joinedPath = Path.Combine(outputDir, $"H3Ensemble_{storyId}_joined.mp4");
@@ -547,7 +551,12 @@ namespace FlipPix.UI.ViewModels.Video
 
         #region Generation
 
-        private async Task GenerateItemAsync(H3EnsembleQueueItem item, CancellationToken token)
+        /// <summary>
+        /// Renders one queued clip. Virtual so the 🪪🎬 H3 Multi tab — the same cast, keyframes, wardrobe
+        /// and chain, on the MiniMax I2V turbo graph — can substitute its own submit path while inheriting
+        /// this tab's queue, storyboard, analysis and everything else.
+        /// </summary>
+        protected virtual async Task GenerateItemAsync(H3EnsembleQueueItem item, CancellationToken token)
         {
             IsProcessing = true;
             HasResult = false;
@@ -794,7 +803,7 @@ namespace FlipPix.UI.ViewModels.Video
                     throw new Exception("No output video was generated.");
 
                 var outputDir = Path.Combine(
-                    _settingsService.Settings?.OutputFolderPath ?? Path.GetTempPath(), "H3Ensemble");
+                    _settingsService.Settings?.OutputFolderPath ?? Path.GetTempPath(), OutputFolderName);
                 Directory.CreateDirectory(outputDir);
                 var finalName = item.IsStoryClip
                     ? $"H3Ensemble_{(string.IsNullOrEmpty(item.StoryId) ? ts : item.StoryId)}_clip{item.ClipIndex:00}.mp4"
@@ -834,6 +843,14 @@ namespace FlipPix.UI.ViewModels.Video
                 OnCanExecuteChanged();
             }
         }
+
+        /// <summary>
+        /// A queued item's last stop before it joins the queue: the tab stamps whichever pipeline switches
+        /// its own render graph reads. The base stamps none — every switch the hybrid graph honours is
+        /// already in the initializer above. The H3 Multi tab overrides this to freeze its turbo-pipeline
+        /// settings (latent upscale, max-fidelity references, audio enhancement, SLA) onto the item.
+        /// </summary>
+        protected virtual void ConfigureQueuedItem(H3EnsembleQueueItem item) { }
 
         /// <summary>One character's face-refine pass: who it redraws, which of the run's reference loaders
         /// it is conditioned on, which of those is their face close-up, and the prompt it reads.</summary>
@@ -918,7 +935,7 @@ namespace FlipPix.UI.ViewModels.Video
         /// the frozen paths are gone. Whatever this returns has to have the <i>same number</i> of entries as
         /// the item's prompt was numbered for, so the panel count is forced, never re-detected.
         /// </summary>
-        private IReadOnlyList<string> ResolvePanels(
+        protected IReadOnlyList<string> ResolvePanels(
             IReadOnlyList<string> frozen, string sheetPath, int character)
         {
             var kept = frozen.Where(p => !string.IsNullOrEmpty(p) && File.Exists(p)).ToList();
@@ -941,7 +958,7 @@ namespace FlipPix.UI.ViewModels.Video
         /// Narrows a character's panels to the ones this job actually sends, and says what each one shows.
         /// The selection is the reference budget frozen at queue time.
         /// </summary>
-        private SelectedPanels SelectPanels(
+        protected SelectedPanels SelectPanels(
             IReadOnlyList<string> panels, IReadOnlyList<int> indices, IReadOnlyList<string> views,
             int character, bool isPerson = true, bool isGroup = false)
         {
@@ -966,7 +983,7 @@ namespace FlipPix.UI.ViewModels.Video
 
         /// <summary>The panels of one character that a job uploads, what they show, and which of them is the
         /// face close-up — the picture that character's refine pass tracks them by.</summary>
-        private sealed record SelectedPanels(
+        protected sealed record SelectedPanels(
             IReadOnlyList<string> Paths, IReadOnlyList<string> Views, int FacePanel)
         {
             public static SelectedPanels Of(IReadOnlyList<string> paths, IReadOnlyList<string> views)
@@ -1031,7 +1048,7 @@ namespace FlipPix.UI.ViewModels.Video
         /// <summary>Replaces a reference node's whole <c>ref_image_N</c> list. Cleared rather than
         /// overwritten: a run with fewer pictures than the file was authored for must not inherit a stale
         /// slot pointing at a node that is about to be pruned.</summary>
-        private static void AttachReferences(JsonObject root, string nodeId, IReadOnlyList<string> loaders)
+        protected static void AttachReferences(JsonObject root, string nodeId, IReadOnlyList<string> loaders)
         {
             if (root[nodeId]?["inputs"] is not JsonObject inputs)
                 throw new Exception($"Workflow node '{nodeId}' has no inputs — the workflow file no longer matches this tab.");
@@ -1220,7 +1237,7 @@ namespace FlipPix.UI.ViewModels.Video
         /// <summary>Fails loudly when a node the patches rewire is missing or is no longer the class they
         /// assume — both would otherwise produce a graph that only fails on the server, or worse, silently
         /// renders the wrong thing.</summary>
-        private static void RequireClass(JsonObject root, string nodeId, string expected)
+        protected static void RequireClass(JsonObject root, string nodeId, string expected)
         {
             if (root[nodeId] is not JsonObject node)
                 throw new Exception($"Workflow node '{nodeId}' is not in the graph — the workflow file no longer matches this tab.");
@@ -1235,7 +1252,7 @@ namespace FlipPix.UI.ViewModels.Video
         /// ending in an OUTPUT_NODE runs whether or not something downstream consumes it, so unhooking a sink
         /// is not enough on its own.
         /// </summary>
-        private static string PruneToOutputs(string json, IEnumerable<string> keepOutputs, out int removed)
+        protected static string PruneToOutputs(string json, IEnumerable<string> keepOutputs, out int removed)
         {
             var root = JsonNode.Parse(json)?.AsObject()
                        ?? throw new Exception("Workflow JSON could not be parsed.");
@@ -1280,7 +1297,7 @@ namespace FlipPix.UI.ViewModels.Video
 
         /// <summary>Submits the workflow, waits for completion, and resolves the video sink's output to a
         /// local file — first via /history node outputs, then a disk scan for the run token.</summary>
-        private async Task<string?> SubmitAndRetrieveAsync(
+        protected async Task<string?> SubmitAndRetrieveAsync(
             string json, string runToken, string outputNode, double from, double to, CancellationToken token)
         {
             var existing = GetExistingVideoFiles("*.mp4", OutputSubfolder);
@@ -1324,7 +1341,7 @@ namespace FlipPix.UI.ViewModels.Video
             return promptId;
         }
 
-        private async Task<string?> ResolveOutputToLocalAsync(string videoFile)
+        protected async Task<string?> ResolveOutputToLocalAsync(string videoFile)
         {
             try
             {
@@ -1363,7 +1380,7 @@ namespace FlipPix.UI.ViewModels.Video
             return null;
         }
 
-        private string? FindTokenVideoOnDisk(string runToken)
+        protected string? FindTokenVideoOnDisk(string runToken)
         {
             try
             {
