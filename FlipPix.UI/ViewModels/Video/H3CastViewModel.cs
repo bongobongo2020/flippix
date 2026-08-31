@@ -1838,6 +1838,24 @@ namespace FlipPix.UI.ViewModels.Video
                     "over wide ones where the story allows, since a face that is a handful of pixels wide " +
                     "cannot hold an identity.\n";
 
+                // The story's events are the whole plot. A short story is stretched by budgeting the clips
+                // across its own action — several clips per exchange of the fight — never by inventing new
+                // events around it; without an explicit budget the model plays the story out at its natural
+                // pace, then pads the remaining clips with journeys and epilogues of its own.
+                const string storyFidelityRule =
+                    "THE STORY IS THE COMPLETE PLOT — expand its action, never invent events. Show only what " +
+                    "the story narrates, in its order, from its first line to its last: no new events, " +
+                    "journeys, locations or outcomes the story does not contain, and nothing past its ending — " +
+                    "no walking away, no epilogue, no aftermath the prose has not written.\n" +
+                    "BUDGET THE CLIPS FIRST: list the story's events in order (in a fight, every strike, " +
+                    "dodge, grab, throw and fall is one event) and share the clips between them — several " +
+                    "clips per exchange when there are fewer exchanges than clips — so that the story's " +
+                    "FINAL event is what the LAST clip shows. Render each share at full detail: wind-up, " +
+                    "strike, contact, recoil, fall, recovery, each its own shots, angles and impact detail. " +
+                    "If your plan finishes the story before the last clip, the plan is wrong — you have gone " +
+                    "too fast; re-split and give each exchange more clips. Never bridge the gap with new " +
+                    "events.\n";
+
                 string userMessage;
                 if (fromImage)
                 {
@@ -1853,6 +1871,7 @@ namespace FlipPix.UI.ViewModels.Video
                         lengthBlock +
                         styleRule +
                         faceRule +
+                        (HasStoryText ? storyFidelityRule : string.Empty) +
                         $"Story the video must tell:\n{story}\n" +
                         $"Draft idea from the user:\n{draft}";
                 }
@@ -1862,7 +1881,8 @@ namespace FlipPix.UI.ViewModels.Video
                     // told to establish it rather than assume a picture it was never given.
                     var wholeStory = clipCount > 1
                         ? $"Together the {clipCount} clips must tell the whole story below, beginning to end — " +
-                          "split it into that many beats before writing anything, one beat per clip.\n"
+                          "budget the clips across its events before writing anything: one event per clip " +
+                          "when the story has that many, and several clips per event when it has fewer.\n"
                         : $"The whole story has to be told inside {len:0.##} seconds, so pick the beats that " +
                           "carry it and compress the rest; do not stop halfway through.\n";
 
@@ -1874,6 +1894,7 @@ namespace FlipPix.UI.ViewModels.Video
                         $"{cast}\n" +
                         lengthBlock +
                         wholeStory +
+                        storyFidelityRule +
                         styleRule +
                         faceRule +
                         $"The story:\n{StoryText.Trim()}\n" +

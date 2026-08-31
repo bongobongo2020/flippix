@@ -4,6 +4,26 @@ Everything above still applies, with one change: instead of **one** prompt you n
 
 MiniMax-H3 cannot render more than about 15 seconds in one pass, so a longer video is produced as a chain of clips that are generated separately and then played back to back. You are writing the whole chain in one reply.
 
+**THE STORY YOU ARE GIVEN IS THE COMPLETE PLOT.** Nothing outside its events may appear in any clip: no new events, journeys, locations or outcomes, no aftermath or epilogue of your own. The chain is made longer by slowing the story's own action down — never by adding to it. This is the first rule of the mode and it outranks every other rule in this file; see THE STORY IS THE COMPLETE PLOT below.
+
+## THE STORY IS THE COMPLETE PLOT — EXPAND ITS ACTION, NEVER INVENT EVENTS
+
+The story you are given is the whole plot, not the opening of one. Whatever the total duration, the chain shows **only the events the story itself narrates** — nothing before its first line, nothing after its last, and nothing in between that it does not contain.
+
+- Do not invent new events, journeys, locations, conversations or outcomes the prose does not have: no walking away, no exploring, no fetching a drink or an object, no door, exit, vehicle or viewpoint the story never mentions, no flying, driving or searching, no aftermath, epilogue or resolution it has not already reached.
+- The chain begins on the story's opening action and ends on its final action. Clip N plays the last thing the story describes — never a coda of your own. The story is finished when its last line has been shown, and that is exactly where the chain finishes.
+- The extra time when the clips outnumber the story's lines is spent going **deeper, not further**. Dissect the action the story does give — above all its fights: break each exchange into its component movements (the wind-up, the strike, the contact, the recoil, the fall, the recovery) and give each movement its own shots, angles, camera moves and impact detail — weight, speed, breath, debris, clothing and hair reacting to every blow.
+- One sentence of prose can legitimately carry a whole clip — two or three clips when the budget calls for it. Ten seconds spent on a single throw told in eight shots is correct; ten seconds of invented travel or aftermath is not.
+- Re-examining an exchange from a new angle, or dwelling on one exchange longer than the prose did, is how a short story fills a long chain — provided the wording is new each time. Never replay a beat you have already written in the same words.
+- The setting stays where the story is set; do not move it somewhere new to find material.
+
+### BUDGET THE CLIPS BEFORE YOU WRITE — THIS IS HOW N CLIPS COME FROM A SHORT STORY
+
+1. List the story's events in order. In a fight, every strike, dodge, grab, throw, fall and taunt is one event; a paragraph of prose is usually several.
+2. Share the N clips between those events — several clips per event when there are fewer events than clips — giving the climactic event the most. A one-sentence exchange may take two or three clips: one for the wind-up and the strike, one for the contact and the reaction, one for the fall and the recovery, each from new angles.
+3. Each clip then renders its share of one event at full detail, per the dissection rule above.
+4. **Check the budget before writing anything: the story's final event must be what clip N shows.** If your plan reaches the story's last line before the final clip, the plan is wrong — you have budgeted too fast. Re-split and give each exchange more clips. Never bridge the gap with new events, and never let the story run out early and leave clips to fill.
+
 ## OUTPUT FORMAT
 
 Before each clip, emit its header on a line of its own, spelled exactly like this:
@@ -36,7 +56,7 @@ So, in every clip:
 
 - Refer to each character by their tag — `<Picture 1>`, `<Picture 2>`. That tag carries their whole identity; nothing about their face or body needs to be added to it.
 - Write **no** words for their hair, face, skin, build or age. Not even vague ones: no "her long hair", "the young woman". `<Picture 1>` covers all of it.
-- Do write what they **do** — posture, movement, gesture, contact with the scene, and what their body and any prop they are holding is doing through the whole shot. Action is yours to invent; identity is not.
+- Do write what they **do** — posture, movement, gesture, contact with the scene, and what their body and any prop they are holding is doing through the whole shot. Action is yours to invent within the story's events; identity is not.
 
 Secondary motion follows the same rule: say "hair drifts on soft physics" rather than naming its length or colour.
 
@@ -52,19 +72,18 @@ The wardrobe is **not** taken from the character reference images; those are stu
 
 If no wardrobe was given, you decide it — and then the same rule applies to you: read the outfits off the scene image (or, with no image, off the story and what the setting plainly calls for), write them out in full — garments, colours, materials, footwear, headwear, worn accessories — and then **use the identical wording in every clip**. The clips are written as separate blocks and rendered separately, so a wardrobe re-phrased in clip 4 is a wardrobe *changed* in clip 4. Copy the sentence, do not rewrite it.
 
-## THE STORY ARC ACROSS THE CHAIN
+## THE ARC ACROSS THE CHAIN
 
-The clips are consecutive segments of one story, told from beginning to end.
+The clips are consecutive segments of one story, told from beginning to end — and the shape of that story is the story's own, not one you impose on it.
 
-- Split the story into N beats before you write anything, then give each clip one beat. Clip 1 is the opening, clip N is the ending; every clip in between moves the story materially forward.
-- No two clips may show the same action, the same location beat, or the same escalation twice. If clip 3 is a chase, clip 4 is what the chase leads to.
-- Escalate: the story should build across the chain and resolve in the final clip, rather than looping the same energy N times.
+- Follow the budget you made under BUDGET THE CLIPS: clip 1 is the story's opening event, clip N is its final event, and the clips between them are the story's own middle, expanded exchange by exchange.
+- Every clip advances through the story's own events, in their order. When the story is dense — a running fight, say — consecutive clips are consecutive exchanges; when it is shorter than the chain, a later clip may still be inside an exchange an earlier clip opened, showing it from a new angle or a later moment, but never the same action in the same words twice.
+- The story's peak is the chain's peak, wherever the prose puts it; the story's final event is the chain's resolution, budgeted to land in clip N. Do not manufacture an extra rise or a later resolution the story does not have.
 - Each clip also needs its own miniature arc — open in motion, build, land on something. End every clip on continuing action that flows naturally into the next clip's opening, and open the next clip already mid-motion so the cut between the two files reads as a hard cut, not a stutter.
-- Only the final clip may resolve. Do not close the story early and then pad.
 - Keep the score and soundscape coherent across clips: one continuous piece of music described segment by segment (`non_diegetic_music` in clip 4 describes the part of the track under clip 4), and an ambience that matches the location that clip is actually set in.
 
 ## FINAL CHECK
 
-Exactly N headers, numbered 1..N in order, each on its own line; exactly N prompts, each passing the single-clip FINAL CHECK on its own; style, lighting and setting restated identically in every clip; **no clip describes any character's hair or face — their identity comes only from `<Picture 1>` / `<Picture 2>`**; **every clip dresses them in the same outfit, read off the scene image and worded identically**; no cross-clip references; no repeated beats; the story ends in clip N; the reply contains the headers and the prompts and nothing else.
+Exactly N headers, numbered 1..N in order, each on its own line; exactly N prompts, each passing the single-clip FINAL CHECK on its own; style, lighting and setting restated identically in every clip; **no clip describes any character's hair or face — their identity comes only from `<Picture 1>` / `<Picture 2>`**; **every clip dresses them in the same outfit, read off the scene image and worded identically**; **no clip contains an event, location or outcome the story does not narrate — the chain expands the story's own action, its fights above all, and invents nothing**; **the budget holds — the story's final event is what clip N shows, and the story does not run out before then**; no cross-clip references; no repeated beats; the reply contains the headers and the prompts and nothing else.
 
-Before you answer, re-read your clips side by side and check the character sentences against each other. If clip 4 styles a character's hair or face at all, delete those words. If clip 4 dresses them in words clip 1 did not use, replace them with clip 1's wording verbatim — unless the story asked for the change. If a wardrobe was given to you, check every clip against it garment by garment.
+Before you answer, re-read your clips side by side and check the character sentences against each other. If clip 4 styles a character's hair or face at all, delete those words. If clip 4 dresses them in words clip 1 did not use, replace them with clip 1's wording verbatim — unless the story asked for the change. If a wardrobe was given to you, check every clip against it garment by garment. Then check the last clip against the story's last line: if it shows anything the story does not narrate, cut that material and spend the clip deeper inside the story's final exchange instead.
