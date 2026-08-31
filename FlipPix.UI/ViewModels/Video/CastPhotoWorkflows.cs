@@ -31,11 +31,13 @@ namespace FlipPix.UI.ViewModels.Video
             public bool IsDefault => Reference == null;
         }
         // ── Node ids of the three Image Generator base graphs ──────────────────────────────────
-        // z-image-base.json — run as authored except for these three inputs.
-        private const string ZBasePromptNode = "76:67";   // CLIPTextEncode
-        private const string ZBaseSamplerNode = "76:69";  // KSampler (seed only — steps/cfg stay as authored)
-        private const string ZBaseSaveNode = "9";         // SaveImage
-        private const string ZBaseLoraNode = "76:96";     // LoraLoaderModelOnly (lora_name, when a LoRA is picked)
+        // Lo-Fi-Mobile.json — a "simple" z-image graph. The prompt lands in a StringTrim
+        // reroute that the STYLE INTEGRATOR splices into its fixed lo-fi template, and the
+        // character LoRA rides a Power Lora Loader's first slot. Run as authored otherwise.
+        private const string ZBasePromptNode = "385";   // StringTrim — the subject the style integrator splices in
+        private const string ZBaseSeedNode = "307";     // PrimitiveInt "SEED" — feeds SamplerCustom's noise_seed
+        private const string ZBaseSaveNode = "9";       // SaveImage
+        private const string ZBaseLoraNode = "128";     // Power Lora Loader (rgthree) — lora_1 slot, when a LoRA is picked
 
         // krea2RealismV1_krea2RealismV1WF.json — turbo sampler, its LoRA stays as authored.
         private const string Krea2PromptNode = "6";       // CLIPTextEncode
@@ -70,9 +72,10 @@ namespace FlipPix.UI.ViewModels.Video
         private const string FamegridCharLoraRefine = "363";// LoraLoaderModelOnly — the refine chain's slot
 
         /// <summary>
-        /// Loads the chosen Image Generator base graph and patches it for one portrait: the prompt,
+        /// Loads the chosen cast-photo graph and patches it for one portrait: the prompt,
         /// a fresh seed, a portrait canvas where the graph takes one, and a save prefix the caller
-        /// can find again. Everything else is left exactly as the Image Generator tab ships it.
+        /// can find again. Everything else is left exactly as the graph ships it — for Z-Image that
+        /// is the lo-fi mobile-photo look of workflow/image/zimage/simple/Lo-Fi-Mobile.json.
         /// </summary>
         /// <param name="engine">"zimage", "famegrid", "krea2" or "qwen".</param>
         /// <param name="prefix">SaveImage filename_prefix — an output-subfolder path ending in a
@@ -194,26 +197,37 @@ namespace FlipPix.UI.ViewModels.Video
                     return (json, FamegridSaveNode);
                 }
 
-                default: // zimage — the base graph, run as authored except prompt / seed / save prefix / LoRA
+                default: // zimage — Lo-Fi-Mobile: the lo-fi mobile-photo graph, as authored except prompt / seed / save prefix / LoRA
                 {
-                    var path = WorkflowLocator.Resolve("workflow", "image", "zimage", "base", "z-image-base.json");
+                    var path = WorkflowLocator.Resolve("workflow", "image", "zimage", "simple", "Lo-Fi-Mobile.json");
                     if (!File.Exists(path))
                         throw new FileNotFoundException($"Workflow file not found: {path}");
                     var json = await File.ReadAllTextAsync(path);
                     var root = ParseGraph(json);
-                    RequireClass(root, ZBasePromptNode, "CLIPTextEncode");
-                    RequireClass(root, ZBaseSamplerNode, "KSampler");
+                    RequireClass(root, ZBasePromptNode, "StringTrim");
+                    RequireClass(root, ZBaseSeedNode, "PrimitiveInt");
                     RequireClass(root, ZBaseSaveNode, "SaveImage");
-                    if (lora != null) RequireClass(root, ZBaseLoraNode, "LoraLoaderModelOnly");
+                    if (lora != null) RequireClass(root, ZBaseLoraNode, "Power Lora Loader");
                     json = root.ToJsonString();
 
-                    SetInput(ref json, ZBasePromptNode, "text", prompt);
-                    SetInput(ref json, ZBaseSamplerNode, "seed", seed);
+                    // The graph's subject slot: the STYLE INTEGRATOR splices this into its
+                    // "…showcases {$@}" lo-fi template, so the portrait wears the look for free.
+                    SetInput(ref json, ZBasePromptNode, "string", prompt);
+                    SetInput(ref json, ZBaseSeedNode, "value", seed);
                     SetInput(ref json, ZBaseSaveNode, "filename_prefix", prefix);
-                    // The graph's own skin-texture LoRA node, repointed at the picked LoRA — the
-                    // strength stays what the workflow ships (0.8), as the Image Generator does.
+                    // The shipped character LoRA's slot, repointed at the picked LoRA — the same
+                    // slot the Krea2 graph rides, on and at strength 1 as the workflow ships it.
                     if (lora?.Reference is { } reference)
-                        SetInput(ref json, ZBaseLoraNode, "lora_name", reference);
+                    {
+                        root = ParseGraph(json);
+                        if (root[ZBaseLoraNode]?["inputs"] is JsonObject loraInputs &&
+                            loraInputs["lora_1"] is JsonObject slot)
+                        {
+                            slot["lora"] = reference;
+                            slot["on"] = true;
+                            json = root.ToJsonString();
+                        }
+                    }
                     return (json, ZBaseSaveNode);
                 }
             }
@@ -231,23 +245,59 @@ namespace FlipPix.UI.ViewModels.Video
         #region LoRA folders — the same resolution the Image Generator tab uses
 
         /// <summary>
-        /// The Z-Image LoRAs on offer: every <c>.safetensors</c> under the LoRA root's <c>zimage</c>
-        /// folder, <b>including its subfolders</b> — the folder is typically organised as
+        /// Resolves the zimage LoRA folder: the LoRA root's <c>zimage</c> subfolder — or, when the
+        /// resolved path already <i>is</i> one (a remote install whose <c>RemoteLoraFolderPath</c>
+        /// points straight at it), that folder itself. Appending <c>zimage</c> blindly would look
+        /// for <c>zimage/zimage</c> and find nothing. Returns the folder and the reference prefix
+        /// ComfyUI's <c>lora_name</c> wants — the folder's own name, whatever the casing on disk.
+        /// </summary>
+        private static (string Folder, string Prefix)? ResolveZimageFolder(
+            FlipPix.Core.Models.ComfyUISettings? settings, Action<string> log)
+        {
+            var root = ResolveLoraBasePath(settings, log);
+            if (root == null) return null;
+
+            // The folder's own casing is what the remote server sees — keep it for the reference.
+            if (IsLeafNamed(root, "zimage"))
+                return (root, Path.GetFileName(root.TrimEnd('/', '\\')));
+
+            var folder = FindSubfolder(root, "zimage");
+            if (folder == null)
+            {
+                log($"No zimage LoRA folder at or under {root} — the cast menu offers only the workflow's own LoRA.");
+                return null;
+            }
+            return (folder, Path.GetFileName(folder));
+        }
+
+        /// <summary>
+        /// The Z-Image LoRAs on offer: every <c>.safetensors</c> under the zimage folder,
+        /// <b>including its subfolders</b> — the folder is typically organised as
         /// <c>zimage/zib/…</c>, <c>zimage/amateur/…</c> and so on, and ComfyUI's <c>lora_name</c>
         /// wants the path exactly as it lies under the LoRA root, subfolders included.
         /// </summary>
         public static IReadOnlyList<CastLora> ListZimageLoras(FlipPix.Core.Models.ComfyUISettings? settings, Action<string> log)
         {
-            var root = ResolveLoraBasePath(settings, log);
-            if (root == null) return Array.Empty<CastLora>();
+            var resolved = ResolveZimageFolder(settings, log);
+            return resolved == null ? Array.Empty<CastLora>() : Scan(resolved.Value.Folder, resolved.Value.Prefix);
+        }
 
-            var folder = Path.Combine(root, "zimage");
-            if (!Directory.Exists(folder))
-            {
-                log($"No zimage LoRA folder at {folder} — the cast menu offers only the workflow's own LoRA.");
-                return Array.Empty<CastLora>();
-            }
-            return Scan(folder, "zimage");
+        /// <summary>
+        /// The Z-Famegrid LoRAs on offer: the identity LoRAs of the zimage tree's <c>zib</c>
+        /// subfolder, when the install has one — the same character-LoRA material that workflow's
+        /// spice chain was built around — with references spelled <c>zimage/zib/…</c> the way
+        /// ComfyUI sees them. Without a <c>zib</c> subfolder the whole recursive zimage list is
+        /// offered instead, as before.
+        /// </summary>
+        public static IReadOnlyList<CastLora> ListFamegridLoras(FlipPix.Core.Models.ComfyUISettings? settings, Action<string> log)
+        {
+            var resolved = ResolveZimageFolder(settings, log);
+            if (resolved == null) return Array.Empty<CastLora>();
+
+            var zib = FindSubfolder(resolved.Value.Folder, "zib");
+            return zib != null
+                ? Scan(zib, $"{resolved.Value.Prefix}/{Path.GetFileName(zib)}")
+                : Scan(resolved.Value.Folder, resolved.Value.Prefix);
         }
 
         /// <summary>
@@ -268,15 +318,24 @@ namespace FlipPix.UI.ViewModels.Video
             var root = ResolveLoraBasePath(settings, log);
             if (root == null) return Array.Empty<CastLora>();
 
-            foreach (var name in new[] { "krea2", "Krea2" })
-            {
-                var folder = Path.Combine(root, name);
-                if (Directory.Exists(folder))
-                    return Scan(folder, name);
-            }
+            var folder = FindSubfolder(root, "krea2");
+            if (folder != null) return Scan(folder, Path.GetFileName(folder));
+
             log($"No krea2 LoRA folder under {root} — the cast menu offers only the workflow's own LoRA.");
             return Array.Empty<CastLora>();
         }
+
+        /// <summary>True when the path's last segment is <paramref name="name"/> — the configured
+        /// remote LoRA path may point straight at the engine's own folder (e.g.
+        /// <c>…/loras/zimage</c>), and appending the engine name again would find nothing.</summary>
+        private static bool IsLeafNamed(string path, string name) =>
+            string.Equals(Path.GetFileName(path.TrimEnd('/', '\\')), name, StringComparison.OrdinalIgnoreCase);
+
+        /// <summary>The subfolder of <paramref name="root"/> named <paramref name="name"/> in any
+        /// casing, or null — the LoRA folders are hand-made and their casing varies.</summary>
+        private static string? FindSubfolder(string root, string name) =>
+            Directory.EnumerateDirectories(root)
+                .FirstOrDefault(d => IsLeafNamed(d, name));
 
         /// <summary>
         /// Scans a LoRA folder <b>recursively</b>. The menu name is the path under the folder without

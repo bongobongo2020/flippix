@@ -192,8 +192,9 @@ namespace FlipPix.UI.ViewModels.Video
         /// on disk. Rebuilt each time a menu opens — see <see cref="RefreshCastPhotoLoras"/>.</summary>
         public System.Collections.ObjectModel.ObservableCollection<CastPhotoWorkflows.CastLora> CastZimageLoraMenu { get; } = new();
 
-        /// <summary>The ✨ menu's Z-Famegrid entries — the same zimage LoRA folder, feeding that
-        /// workflow's own character-LoRA slot. Same shape as the Z-Image list.</summary>
+        /// <summary>The ✨ menu's Z-Famegrid entries — the zib identity LoRAs of the zimage tree
+        /// (the whole zimage folder when there is no zib), feeding that workflow's own
+        /// character-LoRA slot. Same shape as the Z-Image list.</summary>
         public System.Collections.ObjectModel.ObservableCollection<CastPhotoWorkflows.CastLora> CastFamegridLoraMenu { get; } = new();
 
         /// <summary>The ✨ menu's Krea2 entries, same shape as the Z-Image list.</summary>
@@ -204,7 +205,7 @@ namespace FlipPix.UI.ViewModels.Video
         internal void RefreshCastPhotoLoras()
         {
             Refill(CastZimageLoraMenu, CastPhotoWorkflows.ListZimageLoras(_settingsService.Settings, AddLog), "zimage");
-            Refill(CastFamegridLoraMenu, CastPhotoWorkflows.ListZimageLoras(_settingsService.Settings, AddLog), "famegrid");
+            Refill(CastFamegridLoraMenu, CastPhotoWorkflows.ListFamegridLoras(_settingsService.Settings, AddLog), "famegrid");
             Refill(CastKrea2LoraMenu, CastPhotoWorkflows.ListKrea2Loras(_settingsService.Settings, AddLog), "krea2");
 
             void Refill(
@@ -290,15 +291,16 @@ namespace FlipPix.UI.ViewModels.Video
                     throw new Exception($"Character {slot.Index}'s photo was not produced.");
 
                 // Exactly what browsing for it does — the sheet build, the references and the
-                // refine pass all take it from there. A portrait is not yet a reference, so the
-                // sheet is built straight away, in the lease this run already holds.
+                // refine pass all take it from there. A portrait is not yet a reference; the
+                // sheet waits for 🪪 Build Character Sheet, so the user can re-generate or
+                // swap photos first and only pay for the sheet once they are satisfied.
                 Application.Current.Dispatcher.Invoke(() =>
                 {
                     slot.SourcePath = local;
                     slot.UseSourceAsSheet = false;   // a generated portrait is a photo, never a ready-made sheet
                 });
                 AddLog($"Character {slot.Index}: photo generated — {Path.GetFileName(local)}.");
-                await BuildSheetAfterPhotoAsync(slot);
+                slot.PhotoPhase = "Photo ready — build the sheet with 🪪";
             }
             catch (Exception ex)
             {
@@ -312,36 +314,6 @@ namespace FlipPix.UI.ViewModels.Video
                 lease?.Dispose();
                 slot.IsGeneratingPhoto = false;
                 OnCanExecuteChanged();
-            }
-        }
-
-        /// <summary>
-        /// The half of ✨ Generate that follows the photo: cutting it into the three-panel reference
-        /// sheet H3 is actually handed. Runs in the workflow lease <see cref="GenerateCastPhotoAsync"/>
-        /// already holds, so there is no second GPU wait. A sheet failure does not fail the photo —
-        /// the card keeps the photo and says so, and 🪪 Build Character Sheet remains the fallback.
-        /// </summary>
-        private async Task BuildSheetAfterPhotoAsync(CharacterSlot slot)
-        {
-            slot.PhotoPhase = "Building the character sheet…";
-            IsBuildingSheets = true;
-            try
-            {
-                var instruction = (await LoadFileAsync(
-                    Path.Combine("prompts", "prompt2json", SheetPromptFile), CancellationToken.None)).Trim();
-                await BuildOneSheetAsync(slot, instruction, string.Empty, CancellationToken.None);
-                SheetPhase = "Sheets ready.";
-                slot.PhotoPhase = "Done — photo and sheet ready";
-            }
-            catch (Exception ex)
-            {
-                AddLog($"ERROR (character sheet after photo): {ex.Message}");
-                SheetPhase = $"Error: {ex.Message}";
-                slot.PhotoPhase = "Photo ready — build the sheet with 🪪";
-            }
-            finally
-            {
-                IsBuildingSheets = false;
             }
         }
 
