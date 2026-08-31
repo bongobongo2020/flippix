@@ -535,7 +535,7 @@ namespace FlipPix.UI.ViewModels.Video
             {
                 AddLog($"ERROR writing the wardrobe: {ex.Message}");
                 MessageBox.Show($"Writing the wardrobe failed:\n{ex.Message}",
-                    "H3 Ensemble", MessageBoxButton.OK, MessageBoxImage.Error);
+                    TabLogName, MessageBoxButton.OK, MessageBoxImage.Error);
             }
             finally
             {

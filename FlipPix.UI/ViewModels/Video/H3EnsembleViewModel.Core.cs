@@ -55,9 +55,15 @@ namespace FlipPix.UI.ViewModels.Video
     /// </summary>
     public partial class H3EnsembleViewModel : VideoProcessingBaseViewModel
     {
-        private const string WorkflowFileName = "workflow/video/h3-minimax/h3-cast-hybrid.json";
+        // Workflow/output names are virtual so the 🪪🎬 H3 Multi tab — this same machinery on the
+        // MiniMax I2V turbo graph, see H3MultiViewModel — can substitute its own while inheriting everything else.
+        /// <summary>The hybrid graph this tab renders through.</summary>
+        protected virtual string WorkflowFileName => "workflow/video/h3-minimax/h3-cast-hybrid.json";
         private const string SheetWorkflowFileName = "workflow/image/qwen-edit/Qwen_Edit_2511_INT8_Convrot_WF.json";
-        private const string OutputSubfolder = "h3_ensemble";
+        /// <summary>The ComfyUI output subfolder this tab's renders are written under.</summary>
+        protected virtual string OutputSubfolder => "h3_ensemble";
+        /// <summary>The folder under the output root this tab's finished files are copied to.</summary>
+        protected virtual string OutputFolderName => "H3Ensemble";
         private const string SystemPromptFile = "h3-ensemble.md";
         private const string StorySystemPromptFile = "h3-ensemble_story.md";
         private const string SheetPromptFile = "h3-charsheet-2511.md";
@@ -107,7 +113,7 @@ namespace FlipPix.UI.ViewModels.Video
         /// <summary><c>MiniMaxH3ReferenceToVideo</c>'s autogrow cap — nine <c>ref_image_N</c> slots, shared
         /// between the keyframes, every cast panel and the location. This number is why this tab has a
         /// reference budget rather than a preference.</summary>
-        private const int MaxReferenceImages = 9;
+        protected const int MaxReferenceImages = 9;
 
         /// <summary>How many character slots the tab offers. Five plus the location is six pictures before a
         /// single panel is doubled up, which already spends two thirds of the nine slots.</summary>
@@ -124,7 +130,7 @@ namespace FlipPix.UI.ViewModels.Video
         private const int SheetHeight = 864;
 
         /// <summary>H3 renders at 24 fps and the duration maths is built on it.</summary>
-        private const int OutputFrameRate = 24;
+        protected const int OutputFrameRate = 24;
 
         /// <summary>FILM's multiplier — node 33's <c>multiplier</c> and node 36's expression.</summary>
         private const int InterpolationFactor = 2;
@@ -133,7 +139,7 @@ namespace FlipPix.UI.ViewModels.Video
         private const double RtxScale = 2.0;
 
         /// <summary>Where a whole-clip frame stack starts being the thing that fails, in gigabytes.</summary>
-        private const double HeavyFrameStackGb = 8.0;
+        protected const double HeavyFrameStackGb = 8.0;
 
         // ── Cast ───────────────────────────────────────────────────────────────
         private readonly ObservableCollection<CharacterSlot> _cast = new();
@@ -196,9 +202,15 @@ namespace FlipPix.UI.ViewModels.Video
         private bool _isProcessingQueue;
         private string _queueStatus = string.Empty;
 
-        private static string QueueFilePath => Path.Combine(
+        /// <summary>Where this tab's queue is persisted. Per-tab so a Multi queue never loads as an
+        /// Ensemble one — the items serialize identically but render on different graphs.</summary>
+        protected virtual string QueueFilePath => Path.Combine(
             Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData),
             "FlipPix", "queue", "h3ensemble_queue.json");
+
+        /// <summary>This tab's name in logs, message-box captions and the queue's lease — what the H3 Multi
+        /// tab overrides along with its graph so its runs read as its own.</summary>
+        protected virtual string TabLogName => "H3 Ensemble";
 
         public H3EnsembleViewModel(
             ComfyUIService comfyUIService,
@@ -343,7 +355,7 @@ namespace FlipPix.UI.ViewModels.Video
 
         /// <summary>The cast as <see cref="HybridCastPrompt"/> wants it — subject index, the word for them,
         /// what each of the pictures actually sent for them shows, and whether they are a person at all.</summary>
-        private IReadOnlyList<HybridCastPrompt.CastMember> CastMembers =>
+        protected IReadOnlyList<HybridCastPrompt.CastMember> CastMembers =>
             LoadedCharacters.Select(c => new HybridCastPrompt.CastMember(
                 c.Index, c.Noun, ReferencePlanFor(c).Views, c.IsPerson, c.Descriptor, c.IsGroup)).ToList();
 

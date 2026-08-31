@@ -81,7 +81,7 @@ namespace FlipPix.UI.ViewModels.Video
             try
             {
                 var todo = LoadedCharacters.Where(c => !c.UseSourceAsSheet).ToList();
-                AddLog($"=== H3 Ensemble: building {todo.Count} character sheet(s) with Qwen-Image-Edit-2511 ===");
+                AddLog($"=== {TabLogName}: building {todo.Count} character sheet(s) with Qwen-Image-Edit-2511 ===");
 
                 SheetPhase = "Deciding the wardrobe…";
                 if (!await EnsureWardrobeAsync(token) && (HasStoryText || HasEnvironment))
@@ -124,7 +124,7 @@ namespace FlipPix.UI.ViewModels.Video
                 AddLog($"ERROR (character sheets): {ex.Message}");
                 SheetPhase = $"Error: {ex.Message}";
                 MessageBox.Show($"Building the character sheets failed:\n{ex.Message}",
-                    "H3 Ensemble", MessageBoxButton.OK, MessageBoxImage.Error);
+                    TabLogName, MessageBoxButton.OK, MessageBoxImage.Error);
             }
             finally
             {
@@ -653,7 +653,7 @@ namespace FlipPix.UI.ViewModels.Video
             {
                 AddLog($"Could not read the story file: {ex.Message}");
                 MessageBox.Show($"Could not read that file:\n{ex.Message}",
-                    "H3 Ensemble", MessageBoxButton.OK, MessageBoxImage.Error);
+                    TabLogName, MessageBoxButton.OK, MessageBoxImage.Error);
             }
         }
 
@@ -727,7 +727,7 @@ namespace FlipPix.UI.ViewModels.Video
             set { if (_selectedMedium != value) { _selectedMedium = value; OnPropertyChanged(); } }
         }
 
-        public IReadOnlyList<MegapixelOption> MegapixelOptions { get; } = new[]
+        public virtual IReadOnlyList<MegapixelOption> MegapixelOptions { get; } = new[]
         {
             new MegapixelOption(0.4, "0.4 MP — fast draft (≈864×480)"),
             new MegapixelOption(0.7, "0.7 MP — balanced (≈1120×640)"),
@@ -896,7 +896,7 @@ namespace FlipPix.UI.ViewModels.Video
             }
         }
 
-        public string UpscaleSummary
+        public virtual string UpscaleSummary
         {
             get
             {
@@ -912,7 +912,7 @@ namespace FlipPix.UI.ViewModels.Video
         /// The frame stack the run will have to hold in one piece, and a warning when that is the size that
         /// kills ComfyUI mid-render.
         /// </summary>
-        public string LoadSummary
+        public virtual string LoadSummary
         {
             get
             {
@@ -936,7 +936,7 @@ namespace FlipPix.UI.ViewModels.Video
             }
         }
 
-        public bool HasLoadWarning
+        public virtual bool HasLoadWarning
         {
             get
             {
@@ -950,7 +950,7 @@ namespace FlipPix.UI.ViewModels.Video
         private int FinishedFrameCount() =>
             FramesForSeconds(ClampLength(LengthSeconds)) * (Interpolate ? InterpolationFactor : 1);
 
-        private static double FrameStackGb(int frames, int width, int height) =>
+        protected static double FrameStackGb(int frames, int width, int height) =>
             (double)frames * width * height * 3 * 4 / (1024.0 * 1024.0 * 1024.0);
 
         private string ClosestAspectRatio(string path)
@@ -990,11 +990,11 @@ namespace FlipPix.UI.ViewModels.Video
         }
 
         /// <summary>H3's supported clip length is 4–15 seconds at 24 fps.</summary>
-        private static double ClampLength(double seconds) =>
+        protected static double ClampLength(double seconds) =>
             Math.Clamp(seconds <= 0 ? 8 : seconds, 4, 15);
 
         /// <summary>Mirrors node 13's expression: 24 fps snapped onto the model's 17k+5 frame grid.</summary>
-        private static int FramesForSeconds(double seconds)
+        protected static int FramesForSeconds(double seconds)
         {
             var frames = Math.Max(5, (int)Math.Round(seconds * 24));
             return frames + (5 - frames % 17 + 17) % 17;
@@ -1072,7 +1072,7 @@ namespace FlipPix.UI.ViewModels.Video
         #region File helpers
 
         /// <summary>Uploads a file to ComfyUI once, caching the returned input-folder name by path.</summary>
-        private async Task<string> EnsureUploadedAsync(string path)
+        protected async Task<string> EnsureUploadedAsync(string path)
         {
             if (_uploadCache.TryGetValue(path, out var cached) && !string.IsNullOrEmpty(cached))
                 return cached;
@@ -1087,7 +1087,7 @@ namespace FlipPix.UI.ViewModels.Video
         }
 
         /// <summary>Reads a file shipped next to the exe (workflow JSON or prompt), relative to BaseDirectory.</summary>
-        private static async Task<string> LoadFileAsync(string relativePath, CancellationToken token)
+        protected static async Task<string> LoadFileAsync(string relativePath, CancellationToken token)
         {
             var path = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, relativePath);
             if (!File.Exists(path))
@@ -1095,7 +1095,7 @@ namespace FlipPix.UI.ViewModels.Video
             return await File.ReadAllTextAsync(path, token);
         }
 
-        private async Task<string?> ResolveImageToLocalAsync(string imageFile)
+        protected async Task<string?> ResolveImageToLocalAsync(string imageFile)
         {
             try
             {
