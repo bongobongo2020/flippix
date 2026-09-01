@@ -60,6 +60,16 @@ namespace FlipPix.UI.Services
             RepeatPenalty: 1.08, AllowThinking: true);
 
         /// <summary>
+        /// The writer turn of a two-turn pipeline: the StoryChain anti-repetition penalties with the
+        /// scratchpad closed. The planning StoryChain's thinking exists for has already happened — the
+        /// brief turn did it — so this call is guide-driven formatting, and a reasoning preamble before
+        /// N clips only adds minutes of latency and eats the token budget.
+        /// </summary>
+        public static LlmSampling StoryChainFormatted => new(
+            Temperature: 0.85, PresencePenalty: 0.6, FrequencyPenalty: 0.35,
+            RepeatPenalty: 1.08, AllowThinking: false);
+
+        /// <summary>
         /// The retry after a chain came back looping. Harder on repetition than
         /// <see cref="StoryChain"/> — at this point the model has already demonstrated it will copy a
         /// block, and a slightly mangled beat is worth more than an exact duplicate of one already used.

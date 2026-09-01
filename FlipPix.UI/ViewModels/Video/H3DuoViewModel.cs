@@ -113,6 +113,14 @@ namespace FlipPix.UI.ViewModels.Video
         /// <summary>The MiniMax I2V turbo graph (a copy the I2V tab cannot break by evolving its own).</summary>
         protected override string WorkflowFileName => "workflow/video/h3-minimax/h3-duo.json";
 
+        /// <summary>The name this tab writes itself under in status lines, logs and the result banner.
+        /// Derived tabs (the 🧪 H3 Experimental fork) override it so their output reads as theirs.</summary>
+        protected virtual string TabDisplayName => "H3 Duo";
+
+        /// <summary>The folder, under the output root, finished clips are copied into. Distinct from
+        /// <see cref="OutputSubfolder"/>, which prefixes ComfyUI's own save path.</summary>
+        protected virtual string OutputFolderName => "H3Duo";
+
         protected override string OutputSubfolder => "h3_duo";
 
         protected override string OutputFileStem => "H3Duo";
@@ -231,13 +239,13 @@ namespace FlipPix.UI.ViewModels.Video
             ResultVideoPath = string.Empty;
             ResultVideoInfo = string.Empty;
             ProcessingProgress = 0;
-            ProcessingStatus = "Preparing H3 Duo workflow...";
+            ProcessingStatus = $"Preparing {TabDisplayName} workflow...";
 
             WorkflowQueueCoordinator.WorkflowLease? lease = null;
             try
             {
                 var clipLabel = item.IsStoryClip ? $", clip {item.ClipIndex}/{item.ClipCount}" : string.Empty;
-                AddLog($"=== H3 Duo · MiniMax I2V turbo pipeline ({(item.HasCharacter2 ? "2 sheets" : "1 sheet")}{clipLabel}) ===");
+                AddLog($"=== {TabDisplayName} · MiniMax I2V turbo pipeline ({(item.HasCharacter2 ? "2 sheets" : "1 sheet")}{clipLabel}) ===");
                 AddLog("Waiting for other workflows to finish...");
                 lease = await _workflowCoordinator.AcquireAsync("H3Duo", token);
 
@@ -333,7 +341,7 @@ namespace FlipPix.UI.ViewModels.Video
                     throw new Exception("No output video was generated.");
 
                 var outputDir = Path.Combine(
-                    _settingsService.Settings?.OutputFolderPath ?? Path.GetTempPath(), "H3Duo");
+                    _settingsService.Settings?.OutputFolderPath ?? Path.GetTempPath(), OutputFolderName);
                 Directory.CreateDirectory(outputDir);
                 var finalName = item.IsStoryClip
                     ? $"{OutputFileStem}_{(string.IsNullOrEmpty(item.StoryId) ? ts : item.StoryId)}_clip{item.ClipIndex:00}.mp4"
@@ -348,7 +356,7 @@ namespace FlipPix.UI.ViewModels.Video
                 Application.Current.Dispatcher.Invoke(() =>
                 {
                     ResultVideoPath = finalPath;
-                    ResultVideoInfo = $"H3 Duo • {(item.IsStoryClip ? $"clip {item.ClipIndex}/{item.ClipCount} • " : string.Empty)}" +
+                    ResultVideoInfo = $"{TabDisplayName} • {(item.IsStoryClip ? $"clip {item.ClipIndex}/{item.ClipCount} • " : string.Empty)}" +
                                       $"{(item.HasCharacter2 ? "2 sheets" : "1 sheet")} • " +
                                       $"I2V turbo {(item.UseLatentUpscale ? "4+3" : "8")}-step • {size} • {aspect} • " +
                                       $"{len:0.#}s • {fi.Length / 1024 / 1024.0:F1}MB";

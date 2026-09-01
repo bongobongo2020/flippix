@@ -4,9 +4,11 @@ using System.Diagnostics;
 using System.Drawing;
 using System.Drawing.Imaging;
 using System.IO;
+using System.Linq;
 using System.Net.Http;
 using System.Text;
 using System.Text.Json;
+using System.Text.Json.Nodes;
 using System.Threading;
 using System.Threading.Tasks;
 using FlipPix.Core.Interfaces;
@@ -602,6 +604,95 @@ namespace FlipPix.UI.Services
                 }
 
                 throw new Exception("No choices in LM Studio API response");
+            }
+            catch (OperationCanceledException) { throw; }
+            catch (HttpRequestException ex)
+            {
+                throw new Exception($"Failed to connect to LM Studio at {_baseUrl}: {ex.Message}", ex);
+            }
+            finally
+            {
+                _semaphore.Release();
+            }
+        }
+
+        /// <summary>
+        /// Sends one chat turn whose answer is a forced <b>tool call</b>, and returns the call the model
+        /// made — the client-side half of the MCP flow llama-server exposes (the server hands the call back
+        /// to whoever asked; it does not run the tool itself).
+        ///
+        /// <para><c>tool_choice</c> is forced to the named tool, so the reply is the call itself and not prose
+        /// about maybe calling it — the dependable shape for a local model. <paramref name="parametersSchemaJson"/>
+        /// is a raw JSON-Schema object passed through verbatim, so the caller owns the argument shape the
+        /// grammar constrains the model to.</para>
+        ///
+        /// <para>Returns the first call's name and its arguments <i>string</i>; null when the server replied
+        /// with plain content instead (caller decides whether that text is a usable fallback). Servers that
+        /// reject the <c>tools</c> field entirely will throw, as usual.</para>
+        /// </summary>
+        public async Task<LMStudioToolCall?> CallToolAsync(
+            string modelName,
+            string systemPrompt,
+            string userMessage,
+            string toolName,
+            string toolDescription,
+            string parametersSchemaJson,
+            int maxTokens = 4000,
+            CancellationToken cancellationToken = default,
+            LlmSampling? sampling = null)
+        {
+            await _semaphore.WaitAsync(cancellationToken);
+            try
+            {
+                var s = sampling ?? LlmSampling.Default;
+                var body = BuildChatBody(
+                    modelName,
+                    new object[]
+                    {
+                        new { role = "system", content = systemPrompt },
+                        new { role = "user",   content = userMessage }
+                    },
+                    maxTokens, s);
+
+                // The schema rides as a parsed node so it reaches the wire verbatim, not re-cased.
+                var schema = JsonNode.Parse(parametersSchemaJson)
+                               ?? throw new ArgumentException("parametersSchemaJson is not valid JSON.");
+                body["tools"] = new object[]
+                {
+                    new { type = "function", function = new { name = toolName, description = toolDescription, parameters = schema } }
+                };
+                body["tool_choice"] = new Dictionary<string, object> { ["type"] = "tool", ["name"] = toolName };
+
+                var json = JsonSerializer.Serialize(body, new JsonSerializerOptions
+                {
+                    PropertyNamingPolicy = JsonNamingPolicy.CamelCase
+                });
+
+                _logger.LogInfo($"CallToolAsync: model={modelName}, tool={toolName}, userMessage length={userMessage.Length}{s.Describe()}");
+
+                var fullUrl = $"{_baseUrl.TrimEnd('/')}/v1/chat/completions";
+                using var content = new StringContent(json, Encoding.UTF8, "application/json");
+                using var response = await _httpClient.PostAsync(fullUrl, content, cancellationToken);
+
+                if (!response.IsSuccessStatusCode)
+                {
+                    var errorContent = await response.Content.ReadAsStringAsync(cancellationToken);
+                    throw new Exception($"LM Studio API error: {response.StatusCode} - {errorContent}");
+                }
+
+                await using var stream = await response.Content.ReadAsStreamAsync(cancellationToken);
+                var result = await JsonSerializer.DeserializeAsync<LMStudioChatResponse>(stream,
+                    new JsonSerializerOptions { PropertyNameCaseInsensitive = true }, cancellationToken);
+
+                var call = result?.Choices?.FirstOrDefault(c => c.Message?.ToolCalls?.Count > 0)?.Message?.ToolCalls?[0];
+                if (call != null)
+                {
+                    _logger.LogInfo($"CallToolAsync: model called '{call.Function.Name}' with {call.Function.Arguments?.Length ?? 0} chars of arguments");
+                    return call;
+                }
+
+                _logger.LogInfo("CallToolAsync: model replied with content instead of a tool call");
+                return null;
             }
             catch (OperationCanceledException) { throw; }
             catch (HttpRequestException ex)

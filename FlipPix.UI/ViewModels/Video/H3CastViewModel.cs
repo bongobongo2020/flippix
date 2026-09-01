@@ -290,8 +290,12 @@ namespace FlipPix.UI.ViewModels.Video
         private string _sheetPhase = string.Empty;
 
         private readonly IFileDialogService _fileDialogService;
-        private readonly LMStudioService _lmStudioService;
-        private CancellationTokenSource? _analyzeCts;
+        // Protected so derived tabs can issue their own llama-server calls (the H3 Experimental
+        // fork's MCP tool loop) against the same configured server.
+        protected readonly LMStudioService _lmStudioService;
+        // Protected so derived tabs (the H3 Experimental fork) can run their own analyze loop with the
+        // same cancel plumbing.
+        protected CancellationTokenSource? _analyzeCts;
         private CancellationTokenSource? _sheetCts;
 
         /// <summary>path → ComfyUI input-folder filename; each file is uploaded once per session.</summary>
@@ -435,10 +439,10 @@ namespace FlipPix.UI.ViewModels.Video
         /// Falls back to 1 before a sheet exists, so a prompt can be written while the sheets are still
         /// building and still be renumbered correctly when the job is queued.
         /// </summary>
-        private int Panels1 => Math.Max(1, _character1.PanelCount);
+        protected int Panels1 => Math.Max(1, _character1.PanelCount);
 
         /// <summary>The same for character 2, or 0 when the run has a single character.</summary>
-        private int Panels2 => HasCharacter2 ? Math.Max(1, _character2.PanelCount) : 0;
+        protected int Panels2 => HasCharacter2 ? Math.Max(1, _character2.PanelCount) : 0;
 
         /// <summary>
         /// What the cast costs in reference slots and how the picture tags map onto them — the tab's answer to
@@ -997,7 +1001,7 @@ namespace FlipPix.UI.ViewModels.Video
             HasCastWardrobe && HasCharacter1 && LoadedCharacters.All(c => c.SheetMatchesWardrobe);
 
         /// <summary>Who the preamble names and whether the references can be trusted for clothing.</summary>
-        private CastPromptStamp.CastInfo CastDescriptor => new(
+        protected CastPromptStamp.CastInfo CastDescriptor => new(
             _character1.Noun,
             HasCharacter2 ? _character2.Noun : null,
             SheetsShowWardrobe);
@@ -1142,7 +1146,9 @@ namespace FlipPix.UI.ViewModels.Video
         /// Reads a story off disk. Text only: the point is a story someone already wrote, in the file they
         /// wrote it in.
         /// </summary>
-        private async Task LoadStoryFileAsync()
+        /// <summary>Virtual so a derived tab can react to a story file landing (the H3 Experimental
+        /// fork auto-runs its prompt writer the moment a .txt is loaded).</summary>
+        protected virtual async Task LoadStoryFileAsync()
         {
             var initialDir = _settingsService.Settings?.VideoGeneratorImageFolder;
             if (string.IsNullOrEmpty(initialDir) || !Directory.Exists(initialDir))
@@ -1266,8 +1272,14 @@ namespace FlipPix.UI.ViewModels.Video
                 OnPropertyChanged(nameof(PlannedClipCount));
                 OnPropertyChanged(nameof(IsStorySequence));
                 OnPropertyChanged(nameof(ClipPlanSummary));
+                OnLengthSecondsChanged();
             }
         }
+
+        /// <summary>Fires after the per-clip length — the divisor behind the story split — changes. A
+        /// no-op here; the H3 Experimental tab overrides it to run its prompt writer once the video time
+        /// is set, rather than the moment a story lands.</summary>
+        protected virtual void OnLengthSecondsChanged() { }
 
         public string LengthSummary
         {
@@ -1720,7 +1732,9 @@ namespace FlipPix.UI.ViewModels.Video
 
         #region Analysis (scene image → multi-shot H3 prompt)
 
-        private async Task AnalyzeAsync()
+        /// <summary>Virtual so a derived tab can replace the writer flow outright (the H3 Experimental
+        /// fork routes story runs through the MCP prompt-writer tool loop instead).</summary>
+        protected virtual async Task AnalyzeAsync()
         {
             if (!CanAnalyze) return;
 
@@ -1968,7 +1982,7 @@ namespace FlipPix.UI.ViewModels.Video
             }
         }
 
-        private static async Task<string> ReadSystemPromptAsync(string fileName, CancellationToken token)
+        protected static async Task<string> ReadSystemPromptAsync(string fileName, CancellationToken token)
         {
             var path = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "prompts", "prompt2json", fileName);
             if (!File.Exists(path))
@@ -1980,7 +1994,7 @@ namespace FlipPix.UI.ViewModels.Video
         /// Strips the wrappers small vision models like to add (code fences, bold markers, a leading
         /// "prompt:" label, surrounding quotes) without touching the H3 field structure.
         /// </summary>
-        private static string CleanOutput(string text)
+        protected static string CleanOutput(string text)
         {
             if (string.IsNullOrWhiteSpace(text)) return string.Empty;
             text = text.Replace("**", "").Trim();
@@ -2013,7 +2027,7 @@ namespace FlipPix.UI.ViewModels.Video
         /// <param name="quiet">Set by the automatic wardrobe pass: nobody pressed anything, so a modal
         /// "no model available" two and a half seconds after a keystroke would be an interruption rather than
         /// an answer. It logs and gives up instead.</param>
-        private async Task<string?> ResolveLlmModelAsync(CancellationToken token, bool quiet = false)
+        protected async Task<string?> ResolveLlmModelAsync(CancellationToken token, bool quiet = false)
         {
             var baseUrl = _settingsService.Settings?.LMStudioSettings?.BaseUrl ?? "http://alien:8080";
             await _lmStudioService.SetBaseUrlAsync(baseUrl);
@@ -2247,7 +2261,7 @@ namespace FlipPix.UI.ViewModels.Video
         ///
         /// <para>Returns whether there is a wardrobe to work with at all.</para>
         /// </summary>
-        private async Task<bool> EnsureWardrobeAsync(CancellationToken token, string? llmModel = null)
+        protected async Task<bool> EnsureWardrobeAsync(CancellationToken token, string? llmModel = null)
         {
             var dress = CharactersNeedingWardrobe();
             if (dress.Count == 0)
@@ -2420,7 +2434,7 @@ namespace FlipPix.UI.ViewModels.Video
         /// Splits a prompt chain into its individual clip prompts, headers removed. Text with no headers is
         /// one clip, so every caller can treat the single-clip case as a chain of length 1.
         /// </summary>
-        private static List<string> SplitClips(string? text)
+        protected static List<string> SplitClips(string? text)
         {
             // Normalized first: `$` in a .NET multiline match sits *before* the \n, so a CRLF header line
             // would never match — and the prompt box hands back CRLF the moment it is edited by hand.
@@ -2451,7 +2465,7 @@ namespace FlipPix.UI.ViewModels.Video
 
         /// <summary>Reassembles clip prompts into one chain. A single clip is returned bare — headers only
         /// appear once there is actually a sequence.</summary>
-        private static string JoinClips(IReadOnlyList<string> clips)
+        protected static string JoinClips(IReadOnlyList<string> clips)
         {
             if (clips.Count == 0) return string.Empty;
             if (clips.Count == 1) return clips[0].Trim();
@@ -2471,7 +2485,7 @@ namespace FlipPix.UI.ViewModels.Video
         /// its own copy of the wardrobe, because every clip is submitted to H3 as a separate prompt with the
         /// same references attached and no memory of the clip before it. A chain of more than one clip gets the
         /// selective cast: a beat nobody's second character appears in does not carry their photographs.</summary>
-        private static string ApplyReferenceLineToChain(
+        protected static string ApplyReferenceLineToChain(
             string prompt, int panels1, int panels2, string? wardrobe, CastPromptStamp.CastInfo cast)
         {
             var clips = SplitClips(prompt);
@@ -2505,7 +2519,7 @@ namespace FlipPix.UI.ViewModels.Video
         /// clip 4 is a wardrobe <i>changed</i> in clip 4 — and that only becomes visible after minutes of GPU
         /// time per clip. Only <b>inconsistent</b> terms are reported, which is what keeps the check quiet.</para>
         /// </summary>
-        private static string? DescribeWardrobeDrift(IReadOnlyList<string> clips)
+        protected static string? DescribeWardrobeDrift(IReadOnlyList<string> clips)
         {
             if (clips.Count < 2) return null;
 
@@ -2534,7 +2548,7 @@ namespace FlipPix.UI.ViewModels.Video
         #region Analysis helpers
 
         /// <summary>Counts `[Shot n]` markers, purely for the log line.</summary>
-        private static int CountShots(string prompt)
+        protected static int CountShots(string prompt)
         {
             var count = 0;
             var idx = prompt.IndexOf("[Shot ", StringComparison.OrdinalIgnoreCase);
