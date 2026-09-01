@@ -244,7 +244,7 @@ namespace FlipPix.UI.ViewModels.Video
                     PromptWriterToolSchema,
                     maxTokens: Math.Min(32000, 2500 + 1200 * clipCount),
                     cancellationToken: token,
-                    sampling: LlmSampling.StoryChain);
+                    sampling: LlmSampling.StoryChainBrief);
 
                 if (call == null)
                     throw new Exception("the model did not call the prompt writer tool — the server may not " +
@@ -267,7 +267,7 @@ namespace FlipPix.UI.ViewModels.Video
                         PromptWriterToolSchema,
                         maxTokens: Math.Min(32000, 2500 + 1200 * clipCount),
                         cancellationToken: token,
-                        sampling: LlmSampling.StoryChain);
+                        sampling: LlmSampling.StoryChainBrief);
                     if (retry != null)
                     {
                         call = retry;
@@ -278,6 +278,15 @@ namespace FlipPix.UI.ViewModels.Video
 
                 if (string.IsNullOrWhiteSpace(brief))
                     throw new Exception("the prompt writer was called with an empty creative brief.");
+
+                // The brief runs away into word-salad too, and that is the worse of the two failures: the
+                // writer reads the budget line for a clip and writes what it says, so one degenerate line
+                // in the brief becomes a degenerate clip — and the brief's tail is where the chain's
+                // ending lives. One clean re-submission before falling back to the cut.
+                (brief, briefClips, briefSeconds) = await StabilizeBriefAsync(
+                    model, briefSystem, briefUser, clipCount,
+                    (brief, briefClips, briefSeconds), token);
+
                 if (briefClips != clipCount)
                     AddLog($"Note: the brief budgets {briefClips} clips; the chain will be written as " +
                            $"{clipCount} (the tab's plan).");
@@ -332,7 +341,9 @@ namespace FlipPix.UI.ViewModels.Video
                 //    line land in every clip even if a body still forgot the tag, because a two-hander
                 //    fight has both fighters on screen throughout — clipping either one's references is
                 //    how the duplicate-of-self render happens.
-                var bodies = SplitClips(TruncateDegenerateTail(CleanOutput(result)));
+                var bodies = SplitClips(TruncateDegenerateTail(CleanOutput(result)))
+                    .Select((b, i) => SanitizeClipFields(b, i + 1))
+                    .ToList();
                 var dropped = bodies.Where(b => !KeepsClipStructure(b)).ToList();
                 if (dropped.Count > 0)
                     AddLog($"WARNING: {dropped.Count} clip(s) came back structurally incomplete (missing " +
@@ -536,6 +547,144 @@ namespace FlipPix.UI.ViewModels.Video
 
         // ── Post-writing passes ─────────────────────────────────────────────────────────────────
 
+        /// <summary>
+        /// Keeps a degenerate creative brief out of the writer turn. The brief is one long string, and the
+        /// runaway that hits the clip writer hits it the same way — the observed one walked the thesaurus
+        /// from the middle of clip 8's budget line to the token ceiling, and the writer then copied that
+        /// salad, verbatim, into the description of every clip it fed.
+        ///
+        /// <para>A clean brief passes through untouched. A degenerate one is re-submitted once — a fresh
+        /// sample usually lands fine — and whichever of the two carries more healthy prose is cut back to
+        /// its last complete sentence. Truncation is the fallback, not the goal: the tail of a brief is
+        /// where the story's ending is budgeted, so it is worth one more call to keep it.</para>
+        /// </summary>
+        private async Task<(string Brief, int Clips, double Seconds)> StabilizeBriefAsync(
+            string model, string briefSystem, string briefUser, int clipCount,
+            (string Brief, int Clips, double Seconds) submitted, CancellationToken token)
+        {
+            if (DegenerateCutIndex(submitted.Brief) < 0) return submitted;
+
+            AddLog("WARNING: the creative brief degenerated into unpunctuated word-salad — the writer would " +
+                   "copy that into every clip it budgets. Asking for the brief once more...");
+
+            var retry = await _lmStudioService.CallToolAsync(
+                model,
+                briefSystem,
+                briefUser,
+                PromptWriterTool,
+                PromptWriterToolDescription,
+                PromptWriterToolSchema,
+                maxTokens: Math.Min(32000, 2500 + 1200 * clipCount),
+                cancellationToken: token,
+                sampling: LlmSampling.StoryChainBrief);
+
+            if (retry != null)
+            {
+                var second = ParseBriefCall(retry.Function.Arguments);
+                if (!string.IsNullOrWhiteSpace(second.Brief) &&
+                    HealthyLength(second.Brief) > HealthyLength(submitted.Brief))
+                {
+                    submitted = second;
+                    if (DegenerateCutIndex(submitted.Brief) < 0)
+                    {
+                        AddLog("The re-submitted brief is clean.");
+                        return submitted;
+                    }
+                }
+            }
+
+            var cut = DegenerateCutIndex(submitted.Brief);
+            if (cut < 0) return submitted;
+
+            AddLog($"WARNING: {submitted.Brief.Length - cut:N0} characters of word-salad cut off the end of " +
+                   "the brief — the last clips are budgeted from a brief that stops early. Check how the " +
+                   "chain ends, or re-run Analyze.");
+            return (submitted.Brief[..cut].TrimEnd(), submitted.Clips, submitted.Seconds);
+        }
+
+        /// <summary>How much of a text is healthy prose — its whole length, or the index the runaway
+        /// starts at. The measure the two brief submissions are compared on.</summary>
+        private static int HealthyLength(string text)
+        {
+            var cut = DegenerateCutIndex(text);
+            return cut < 0 ? (text?.Length ?? 0) : cut;
+        }
+
+        /// <summary>The three H3 field labels, in the order the guide writes them.</summary>
+        private static readonly string[] ClipFieldLabels =
+        {
+            "integrated_multimodal_description:",
+            "overall_soundscape:",
+            "non_diegetic_music:",
+        };
+
+        /// <summary>
+        /// The runaway guard applied field by field <i>inside</i> one clip.
+        /// <see cref="TruncateDegenerateTail"/> only ever sees the end of the whole reply, so a clip that
+        /// degenerated in the middle of the chain — the common case, because the model recovers at the next
+        /// field label and writes the following clips normally — carried its word-salad through untouched
+        /// and rendered it. Cutting each field back to its own last complete sentence removes the salad and
+        /// keeps the clip: the structure survives, so the clip is not dropped for the sake of one bad field.
+        /// A field that is salad end to end comes back empty and the clip fails
+        /// <see cref="KeepsClipStructure"/> instead.
+        /// </summary>
+        private string SanitizeClipFields(string body, int clipNumber)
+        {
+            var marks = new List<(string Label, int Index)>();
+            foreach (var label in ClipFieldLabels)
+            {
+                var index = body.IndexOf(label, StringComparison.Ordinal);
+                if (index >= 0) marks.Add((label, index));
+            }
+            if (marks.Count == 0) return body;
+            marks.Sort((a, b) => a.Index.CompareTo(b.Index));
+
+            var parts = new List<string>();
+            var preamble = body[..marks[0].Index].Trim();
+            if (preamble.Length > 0) parts.Add(preamble);
+
+            var removed = 0;
+            for (var i = 0; i < marks.Count; i++)
+            {
+                var start = marks[i].Index + marks[i].Label.Length;
+                var end = i + 1 < marks.Count ? marks[i + 1].Index : body.Length;
+                var text = body[start..end].Trim();
+
+                var cut = DegenerateCutIndex(text);
+                if (cut >= 0)
+                {
+                    removed += text.Length - cut;
+                    text = text[..cut].TrimEnd();
+                }
+
+                parts.Add($"{marks[i].Label} {text}".TrimEnd());
+            }
+
+            if (removed > 0)
+                AddLog($"WARNING: clip {clipNumber} degenerated — {removed:N0} characters of unpunctuated " +
+                       "word-salad cut back to the last complete sentence in the field(s) that ran away.");
+
+            return string.Join("\n\n", parts);
+        }
+
+        /// <summary>Whether one field label is present AND followed by something to render. A label the
+        /// runaway guard emptied is not a field the generator can use, so it does not count as present.</summary>
+        private static bool HasFieldContent(string body, string label)
+        {
+            var index = body.IndexOf(label, StringComparison.Ordinal);
+            if (index < 0) return false;
+
+            var rest = body[(index + label.Length)..];
+            foreach (var other in ClipFieldLabels)
+            {
+                if (string.Equals(other, label, StringComparison.Ordinal)) continue;
+                var next = rest.IndexOf(other, StringComparison.Ordinal);
+                if (next >= 0) rest = rest[..next];
+            }
+            return rest.Trim().Length > 0;
+        }
+
+
         // ── The runaway guard ────────────────────────────────────────────────────────────────────
 
         /// <summary>
@@ -599,14 +748,14 @@ namespace FlipPix.UI.ViewModels.Video
             body.Contains("<Picture 1>", StringComparison.Ordinal) &&
             body.Contains("<Picture 2>", StringComparison.Ordinal);
 
-        /// <summary>Whether a clip body still carries the three H3 field labels — the structure a repair
-        /// turn must preserve to be worth keeping. A retagged clip that lost its labels is worse than an
-        /// untagged clip that kept them: the stamped reference line already carries both fighters, so the
-        /// structure is the part that cannot be sacrificed.</summary>
+        /// <summary>Whether a clip body still carries the three H3 field labels <i>with something under
+        /// each of them</i> — the structure a repair turn must preserve to be worth keeping. A retagged
+        /// clip that lost its labels is worse than an untagged clip that kept them: the stamped reference
+        /// line already carries both fighters, so the structure is the part that cannot be sacrificed. The
+        /// content half of the test is what drops a clip <see cref="SanitizeClipFields"/> emptied — a field
+        /// that was word-salad end to end leaves a bare label, and a bare label renders nothing.</summary>
         private static bool KeepsClipStructure(string body) =>
-            body.Contains("integrated_multimodal_description:", StringComparison.Ordinal) &&
-            body.Contains("overall_soundscape:", StringComparison.Ordinal) &&
-            body.Contains("non_diegetic_music:", StringComparison.Ordinal);
+            ClipFieldLabels.All(label => HasFieldContent(body, label));
 
         /// <summary>
         /// One focused rewrite turn per offending clip: the body comes back with the opponent named by their

@@ -60,14 +60,38 @@ namespace FlipPix.UI.Services
             RepeatPenalty: 1.08, AllowThinking: true);
 
         /// <summary>
-        /// The writer turn of a two-turn pipeline: the StoryChain anti-repetition penalties with the
-        /// scratchpad closed. The planning StoryChain's thinking exists for has already happened — the
-        /// brief turn did it — so this call is guide-driven formatting, and a reasoning preamble before
-        /// N clips only adds minutes of latency and eats the token budget.
+        /// The <b>brief</b> turn of a two-turn pipeline (H3 Experimental): one long tool-call argument
+        /// planning the whole chain, with the scratchpad open so the model can split the story before it
+        /// budgets it. Deliberately <b>without</b> the OpenAI-standard penalties <see cref="StoryChain"/>
+        /// carries — see <see cref="StoryChainFormatted"/> for why they poison a single long block.
+        /// </summary>
+        public static LlmSampling StoryChainBrief => new(
+            Temperature: 0.8, RepeatPenalty: 1.05, AllowThinking: true);
+
+        /// <summary>
+        /// The writer turn of a two-turn pipeline: guide-driven formatting with the scratchpad closed. The
+        /// planning StoryChain's thinking exists for has already happened — the brief turn did it — so a
+        /// reasoning preamble before N clips only adds minutes of latency and eats the token budget.
+        ///
+        /// <para><b>Why no presence/frequency penalty here (observed 2026-09-01).</b> This profile used to
+        /// carry <see cref="StoryChain"/>'s penalties (presence 0.6, frequency 0.35) and produced clip
+        /// bodies that collapsed into thousands of characters of unpunctuated synonym-walk — "…polishing
+        /// buffing shining glimmering sparkling twinkling…", degrading into word fragments ("twink
+        /// glitter … radi glow") as the whole-word tokens were used up. llama.cpp applies presence and
+        /// frequency penalties over a <i>sliding window</i> of the last <c>penalty_last_n</c> tokens (64 by
+        /// default), not over the whole reply: inside that window a flat 0.6 presence penalty is levied on
+        /// every token just used — including the function words and, fatally, the sentence-ending
+        /// <c>.</c> itself. Once the model enters an enumeration it can neither reuse a word nor close the
+        /// sentence, so it walks the thesaurus until the token ceiling.</para>
+        ///
+        /// <para>The task makes it worse: a chain clip is <i>supposed</i> to restate the style, the setting
+        /// and the quoted wardrobe word for word in every clip, which is exactly what these penalties
+        /// price out. Block-copy protection on this path is structural instead — the chain guide's
+        /// per-clip rules, and the deterministic passes that truncate runaways, drop broken clips and
+        /// re-tag fighters after the reply.</para>
         /// </summary>
         public static LlmSampling StoryChainFormatted => new(
-            Temperature: 0.85, PresencePenalty: 0.6, FrequencyPenalty: 0.35,
-            RepeatPenalty: 1.08, AllowThinking: false);
+            Temperature: 0.8, RepeatPenalty: 1.05, AllowThinking: false);
 
         /// <summary>
         /// The retry after a chain came back looping. Harder on repetition than
