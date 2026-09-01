@@ -257,16 +257,15 @@
   },
   "525": {
     "inputs": {
-      "sage_attention": "auto",
-      "allow_compile": true,
+      "attention": "comfy kitchen attention",
       "model": [
         "510",
         0
       ]
     },
-    "class_type": "PathchSageAttentionKJ",
+    "class_type": "ModelAttentionBackend",
     "_meta": {
-      "title": "Patch Sage Attention KJ"
+      "title": "Model Attention Backend"
     }
   },
   "526": {
@@ -288,9 +287,9 @@
       "clear_cache_after_n_frames": 250,
       "multiplier": 2,
       "fast_mode": true,
-      "ensemble": true,
+      "ensemble": false,
       "scale_factor": 1,
-      "dtype": "float32",
+      "dtype": "float16",
       "torch_compile": false,
       "batch_size": 10,
       "frames": [
@@ -412,7 +411,7 @@
       "weight_dtype": "default",
       "compute_dtype": "default",
       "patch_cublaslinear": false,
-      "sage_attention": "auto",
+      "sage_attention": "disabled",
       "enable_fp16_accumulation": true
     },
     "class_type": "DiffusionModelLoaderKJ",
@@ -951,7 +950,7 @@
   },
   "199:625": {
     "inputs": {
-      "value": 6
+      "value": 4
     },
     "class_type": "INTConstant",
     "_meta": {
@@ -963,7 +962,7 @@
       "refine_iterations": 2,
       "auto_detect": true,
       "detection_threshold": 0.5,
-      "detect_interval": 1,
+      "detect_interval": 4,
       "markers": "{\"reference\":[],\"driving\":[]}",
       "sam3_model": [
         "199:484",
