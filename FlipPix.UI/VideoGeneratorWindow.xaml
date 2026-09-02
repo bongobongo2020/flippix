@@ -1268,6 +1268,7 @@
                                         <Grid.ColumnDefinitions>
                                             <ColumnDefinition Width="*"/>
                                             <ColumnDefinition Width="Auto"/>
+                                            <ColumnDefinition Width="Auto"/>
                                         </Grid.ColumnDefinitions>
                                         <Grid.RowDefinitions>
                                             <RowDefinition Height="Auto"/>
@@ -1277,9 +1278,9 @@
                                         <Button Grid.Column="0" Grid.Row="0" Margin="0,0,8,0" Height="40"
                                                 Command="{Binding GenerateCommand}"
                                                 IsEnabled="{Binding CanGenerate}"
-                                                Style="{StaticResource AccentButtonStyle}"
-                                                FontSize="12" FontWeight="Bold" BorderThickness="0"
-                                                ToolTip="Snapshots the references, prompt, continuations and every setting into the queue, and starts draining if nothing is running. Each item is frozen at this moment — change the form afterwards and the queued job is unaffected.&#x0a;&#x0a;The tab stays free while jobs render: load the next picture and Analyze it, and add that too.&#x0a;&#x0a;Whichever half of the graph an item does not use — the continuation loop, or the base-only sink — is deleted before submitting rather than switched off, because a ComfyUI output node runs whether or not anything downstream wants it.">
+                                                Style="{StaticResource AccentOutlineButtonStyle}"
+                                                FontSize="12" FontWeight="Bold"
+                                                ToolTip="Snapshots the references, prompt, continuations and every setting into the queue. Nothing renders until ▶ Generate is pressed. Each item is frozen at this moment — change the form afterwards and the queued job is unaffected.&#x0a;&#x0a;The tab stays free while jobs render: load the next picture and Analyze it, and add that too.&#x0a;&#x0a;Whichever half of the graph an item does not use — the continuation loop, or the base-only sink — is deleted before submitting rather than switched off, because a ComfyUI output node runs whether or not anything downstream wants it.">
                                             <StackPanel Orientation="Horizontal">
                                                 <TextBlock Text="⚡ " VerticalAlignment="Center"/>
                                                 <TextBlock Text="Add to Queue" VerticalAlignment="Center"/>
@@ -1291,7 +1292,18 @@
                                                    Foreground="{StaticResource DangerBrush}"
                                                    Visibility="{Binding GenerateBlockedReason, Converter={StaticResource StringToVisibilityConverter}}"/>
 
-                                        <Button Grid.Column="1" Grid.Row="0" Height="40" Width="82"
+                                        <Button Grid.Column="1" Grid.Row="0" Height="40" Width="118" Margin="0,0,8,0"
+                                                Command="{Binding StartQueueCommand}"
+                                                Style="{StaticResource AccentButtonStyle}"
+                                                FontSize="12" FontWeight="Bold"
+                                                ToolTip="Starts rendering everything pending in the queue. Add to Queue only stages a job — nothing reaches the GPU until this is pressed, so several prompts can be queued and then rendered in one run. Greyed out while the queue is already running, and when nothing is pending.">
+                                            <StackPanel Orientation="Horizontal">
+                                                <TextBlock Text="▶ " VerticalAlignment="Center"/>
+                                                <TextBlock Text="Generate" VerticalAlignment="Center"/>
+                                            </StackPanel>
+                                        </Button>
+
+                                        <Button Grid.Column="2" Grid.Row="0" Height="40" Width="82"
                                                 Command="{Binding CancelCommand}"
                                                 Style="{StaticResource DangerButtonStyle}"
                                                 FontSize="11">
@@ -1324,11 +1336,11 @@
                                             <TextBlock Grid.Column="1" Text="{Binding QueueStatus}"
                                                        FontStyle="Italic" Foreground="{StaticResource TextSecondaryBrush}" FontSize="11"
                                                        VerticalAlignment="Center" TextTrimming="CharacterEllipsis"/>
-                                            <Button Grid.Column="2" Content="▶ Start"
+                                            <Button Grid.Column="2" Content="▶ Generate"
                                                     Command="{Binding StartQueueCommand}"
                                                     Height="26" Padding="8,0" FontSize="11" Margin="0,0,5,0"
                                                     Style="{StaticResource AccentButtonStyle}"
-                                                    ToolTip="Resume draining pending items."/>
+                                                    ToolTip="Starts rendering the pending items — the same command as the ▶ Generate button above."/>
                                             <Button Grid.Column="3" Content="🔄 Retry"
                                                     Command="{Binding ReprocessAllFailedCommand}"
                                                     Height="26" Padding="8,0" FontSize="11" Margin="0,0,5,0"
@@ -1986,6 +1998,7 @@
                                         <Grid.ColumnDefinitions>
                                             <ColumnDefinition Width="*"/>
                                             <ColumnDefinition Width="Auto"/>
+                                            <ColumnDefinition Width="Auto"/>
                                         </Grid.ColumnDefinitions>
                                         <Grid.RowDefinitions>
                                             <RowDefinition Height="Auto"/>
@@ -1995,9 +2008,9 @@
                                         <Button Grid.Column="0" Grid.Row="0" Margin="0,0,8,0" Height="40"
                                                 Command="{Binding GenerateCommand}"
                                                 IsEnabled="{Binding CanGenerate}"
-                                                Style="{StaticResource AccentButtonStyle}"
-                                                FontSize="12" FontWeight="Bold" BorderThickness="0"
-                                                ToolTip="Snapshots the keyframes, the prompts and every setting into the queue, and starts draining if nothing is running. Each item is frozen at this moment — change the form afterwards and the queued job is unaffected.&#x0a;&#x0a;The tab stays free while jobs render: load the next chain and Analyze it, and add that too.&#x0a;&#x0a;Whichever half of the graph an item does not use — the continuation loop, or the single-clip sink — is deleted before submitting rather than switched off, because a ComfyUI output node runs whether or not anything downstream wants it.">
+                                                Style="{StaticResource AccentOutlineButtonStyle}"
+                                                FontSize="12" FontWeight="Bold"
+                                                ToolTip="Snapshots the keyframes, the prompts and every setting into the queue. Nothing renders until ▶ Generate is pressed. Each item is frozen at this moment — change the form afterwards and the queued job is unaffected.&#x0a;&#x0a;The tab stays free while jobs render: load the next chain and Analyze it, and add that too.&#x0a;&#x0a;Whichever half of the graph an item does not use — the continuation loop, or the single-clip sink — is deleted before submitting rather than switched off, because a ComfyUI output node runs whether or not anything downstream wants it.">
                                             <StackPanel Orientation="Horizontal">
                                                 <TextBlock Text="⚡ " VerticalAlignment="Center"/>
                                                 <TextBlock Text="Add to Queue" VerticalAlignment="Center"/>
@@ -2009,7 +2022,18 @@
                                                    Foreground="{StaticResource DangerBrush}"
                                                    Visibility="{Binding GenerateBlockedReason, Converter={StaticResource StringToVisibilityConverter}}"/>
 
-                                        <Button Grid.Column="1" Grid.Row="0" Height="40" Width="82"
+                                        <Button Grid.Column="1" Grid.Row="0" Height="40" Width="118" Margin="0,0,8,0"
+                                                Command="{Binding StartQueueCommand}"
+                                                Style="{StaticResource AccentButtonStyle}"
+                                                FontSize="12" FontWeight="Bold"
+                                                ToolTip="Starts rendering everything pending in the queue. Add to Queue only stages a job — nothing reaches the GPU until this is pressed, so several prompts can be queued and then rendered in one run. Greyed out while the queue is already running, and when nothing is pending.">
+                                            <StackPanel Orientation="Horizontal">
+                                                <TextBlock Text="▶ " VerticalAlignment="Center"/>
+                                                <TextBlock Text="Generate" VerticalAlignment="Center"/>
+                                            </StackPanel>
+                                        </Button>
+
+                                        <Button Grid.Column="2" Grid.Row="0" Height="40" Width="82"
                                                 Command="{Binding CancelCommand}"
                                                 Style="{StaticResource DangerButtonStyle}"
                                                 FontSize="11">
@@ -2042,11 +2066,11 @@
                                             <TextBlock Grid.Column="1" Text="{Binding QueueStatus}"
                                                        FontStyle="Italic" Foreground="{StaticResource TextSecondaryBrush}" FontSize="11"
                                                        VerticalAlignment="Center" TextTrimming="CharacterEllipsis"/>
-                                            <Button Grid.Column="2" Content="▶ Start"
+                                            <Button Grid.Column="2" Content="▶ Generate"
                                                     Command="{Binding StartQueueCommand}"
                                                     Height="26" Padding="8,0" FontSize="11" Margin="0,0,5,0"
                                                     Style="{StaticResource AccentButtonStyle}"
-                                                    ToolTip="Resume draining pending items."/>
+                                                    ToolTip="Starts rendering the pending items — the same command as the ▶ Generate button above."/>
                                             <Button Grid.Column="3" Content="🔄 Retry"
                                                     Command="{Binding ReprocessAllFailedCommand}"
                                                     Height="26" Padding="8,0" FontSize="11" Margin="0,0,5,0"
@@ -2636,23 +2660,35 @@
                                             <ColumnDefinition Width="*"/>
                                             <ColumnDefinition Width="Auto"/>
                                             <ColumnDefinition Width="Auto"/>
+                                            <ColumnDefinition Width="Auto"/>
                                         </Grid.ColumnDefinitions>
 
                                         <Button Grid.Column="0" Margin="0,0,8,0" Height="40"
                                                 Command="{Binding GenerateCommand}"
                                                 IsEnabled="{Binding CanGenerate}"
-                                                Style="{StaticResource AccentButtonStyle}"
-                                                FontSize="12" FontWeight="Bold" BorderThickness="0"
-                                                ToolTip="Snapshots the characters, prompt and settings into the queue and starts rendering. A multi-clip story is split on its &quot;=== CLIP n of N ===&quot; headers and queued as one job per clip, rendered in order. The tab stays free — load the next scene image and Analyze it while this one runs.">
+                                                Style="{StaticResource AccentOutlineButtonStyle}"
+                                                FontSize="12" FontWeight="Bold"
+                                                ToolTip="Snapshots the characters, prompt and settings into the queue. Nothing renders until ▶ Generate is pressed. A multi-clip story is split on its &quot;=== CLIP n of N ===&quot; headers and queued as one job per clip, rendered in order. The tab stays free — load the next scene image and Analyze it while this one runs.">
                                             <StackPanel Orientation="Horizontal">
                                                 <TextBlock Text="⚡ " VerticalAlignment="Center"/>
-                                                <TextBlock Text="Add to Queue &amp; Generate" VerticalAlignment="Center"/>
+                                                <TextBlock Text="Add to Queue" VerticalAlignment="Center"/>
+                                            </StackPanel>
+                                        </Button>
+
+                                        <Button Grid.Column="1" Height="40" Width="118" Margin="0,0,8,0"
+                                                Command="{Binding StartQueueCommand}"
+                                                Style="{StaticResource AccentButtonStyle}"
+                                                FontSize="12" FontWeight="Bold"
+                                                ToolTip="Starts rendering everything pending in the queue. Add to Queue only stages a job — nothing reaches the GPU until this is pressed, so several prompts can be queued and then rendered in one run. Greyed out while the queue is already running, and when nothing is pending.">
+                                            <StackPanel Orientation="Horizontal">
+                                                <TextBlock Text="▶ " VerticalAlignment="Center"/>
+                                                <TextBlock Text="Generate" VerticalAlignment="Center"/>
                                             </StackPanel>
                                         </Button>
 
                                         <!-- A story queued in this session joins itself when its last clip
                                              lands; this is for clips already sitting on disk. -->
-                                        <Button Grid.Column="1" Height="40" Width="92" Margin="0,0,8,0"
+                                        <Button Grid.Column="2" Height="40" Width="92" Margin="0,0,8,0"
                                                 Command="{Binding JoinClipsCommand}"
                                                 Style="{StaticResource AccentButtonStyle}"
                                                 FontSize="11"
@@ -2663,7 +2699,7 @@
                                             </StackPanel>
                                         </Button>
 
-                                        <Button Grid.Column="2" Height="40" Width="82"
+                                        <Button Grid.Column="3" Height="40" Width="82"
                                                 Command="{Binding CancelCommand}"
                                                 IsEnabled="{Binding IsProcessingQueue}"
                                                 Style="{StaticResource DangerButtonStyle}"
@@ -2699,11 +2735,11 @@
                                             <TextBlock Grid.Column="1" Text="{Binding QueueStatus}"
                                                        FontStyle="Italic" Foreground="{StaticResource TextSecondaryBrush}" FontSize="11"
                                                        VerticalAlignment="Center" TextTrimming="CharacterEllipsis"/>
-                                            <Button Grid.Column="2" Content="▶ Start"
+                                            <Button Grid.Column="2" Content="▶ Generate"
                                                     Command="{Binding StartQueueCommand}"
                                                     Height="26" Padding="8,0" FontSize="11" Margin="0,0,5,0"
                                                     Style="{StaticResource AccentButtonStyle}"
-                                                    ToolTip="Resume draining pending items."/>
+                                                    ToolTip="Starts rendering the pending items — the same command as the ▶ Generate button above."/>
                                             <Button Grid.Column="3" Content="🔄 Retry"
                                                     Command="{Binding ReprocessAllFailedCommand}"
                                                     Height="26" Padding="8,0" FontSize="11" Margin="0,0,5,0"
@@ -3719,21 +3755,33 @@
                                         <Grid.ColumnDefinitions>
                                             <ColumnDefinition Width="*"/>
                                             <ColumnDefinition Width="Auto"/>
+                                            <ColumnDefinition Width="Auto"/>
                                         </Grid.ColumnDefinitions>
 
                                         <Button Grid.Column="0" Margin="0,0,8,0" Height="40"
                                                 Command="{Binding GenerateCommand}"
                                                 IsEnabled="{Binding CanGenerate}"
-                                                Style="{StaticResource AccentButtonStyle}"
-                                                FontSize="12" FontWeight="Bold" BorderThickness="0"
-                                                ToolTip="Snapshots the sheets, the prompt and the settings into the queue and starts rendering through the MiniMax I2V turbo pipeline. The sheets are already built, so nothing here waits on the GPU — load the next scene image and Analyze it while this one runs.">
+                                                Style="{StaticResource AccentOutlineButtonStyle}"
+                                                FontSize="12" FontWeight="Bold"
+                                                ToolTip="Snapshots the sheets, the prompt and the settings into the queue. Nothing renders until ▶ Generate is pressed. The render itself is the MiniMax I2V turbo pipeline. The sheets are already built, so nothing here waits on the GPU — load the next scene image and Analyze it while this one runs.">
                                             <StackPanel Orientation="Horizontal">
                                                 <TextBlock Text="⚡ " VerticalAlignment="Center"/>
-                                                <TextBlock Text="Add to Queue &amp; Generate" VerticalAlignment="Center"/>
+                                                <TextBlock Text="Add to Queue" VerticalAlignment="Center"/>
                                             </StackPanel>
                                         </Button>
 
-                                        <Button Grid.Column="1" Height="40" Width="82"
+                                        <Button Grid.Column="1" Height="40" Width="118" Margin="0,0,8,0"
+                                                Command="{Binding StartQueueCommand}"
+                                                Style="{StaticResource AccentButtonStyle}"
+                                                FontSize="12" FontWeight="Bold"
+                                                ToolTip="Starts rendering everything pending in the queue. Add to Queue only stages a job — nothing reaches the GPU until this is pressed, so several prompts can be queued and then rendered in one run. Greyed out while the queue is already running, and when nothing is pending.">
+                                            <StackPanel Orientation="Horizontal">
+                                                <TextBlock Text="▶ " VerticalAlignment="Center"/>
+                                                <TextBlock Text="Generate" VerticalAlignment="Center"/>
+                                            </StackPanel>
+                                        </Button>
+
+                                        <Button Grid.Column="2" Height="40" Width="82"
                                                 Command="{Binding CancelCommand}"
                                                 Style="{StaticResource DangerButtonStyle}"
                                                 FontSize="11"
@@ -3766,11 +3814,11 @@
                                             <TextBlock Grid.Column="1" Text="{Binding QueueStatus}"
                                                        FontStyle="Italic" Foreground="{StaticResource TextSecondaryBrush}" FontSize="11"
                                                        VerticalAlignment="Center" TextTrimming="CharacterEllipsis"/>
-                                            <Button Grid.Column="2" Content="▶ Start"
+                                            <Button Grid.Column="2" Content="▶ Generate"
                                                     Command="{Binding StartQueueCommand}"
                                                     Height="26" Padding="8,0" FontSize="11" Margin="0,0,5,0"
                                                     Style="{StaticResource AccentButtonStyle}"
-                                                    ToolTip="Resume draining pending items."/>
+                                                    ToolTip="Starts rendering the pending items — the same command as the ▶ Generate button above."/>
                                             <Button Grid.Column="3" Content="🔄 Retry"
                                                     Command="{Binding ReprocessAllFailedCommand}"
                                                     Height="26" Padding="8,0" FontSize="11" Margin="0,0,5,0"
@@ -4825,21 +4873,33 @@
                                         <Grid.ColumnDefinitions>
                                             <ColumnDefinition Width="*"/>
                                             <ColumnDefinition Width="Auto"/>
+                                            <ColumnDefinition Width="Auto"/>
                                         </Grid.ColumnDefinitions>
 
                                         <Button Grid.Column="0" Margin="0,0,8,0" Height="40"
                                                 Command="{Binding GenerateCommand}"
                                                 IsEnabled="{Binding CanGenerate}"
-                                                Style="{StaticResource AccentButtonStyle}"
-                                                FontSize="12" FontWeight="Bold" BorderThickness="0"
-                                                ToolTip="Snapshots the sheets, the prompt and the settings into the queue and starts rendering through the MiniMax I2V turbo pipeline. The sheets are already built, so nothing here waits on the GPU — load the next scene image and Analyze it while this one runs.">
+                                                Style="{StaticResource AccentOutlineButtonStyle}"
+                                                FontSize="12" FontWeight="Bold"
+                                                ToolTip="Snapshots the sheets, the prompt and the settings into the queue. Nothing renders until ▶ Generate is pressed. The render itself is the MiniMax I2V turbo pipeline. The sheets are already built, so nothing here waits on the GPU — load the next scene image and Analyze it while this one runs.">
                                             <StackPanel Orientation="Horizontal">
                                                 <TextBlock Text="⚡ " VerticalAlignment="Center"/>
-                                                <TextBlock Text="Add to Queue &amp; Generate" VerticalAlignment="Center"/>
+                                                <TextBlock Text="Add to Queue" VerticalAlignment="Center"/>
                                             </StackPanel>
                                         </Button>
 
-                                        <Button Grid.Column="1" Height="40" Width="82"
+                                        <Button Grid.Column="1" Height="40" Width="118" Margin="0,0,8,0"
+                                                Command="{Binding StartQueueCommand}"
+                                                Style="{StaticResource AccentButtonStyle}"
+                                                FontSize="12" FontWeight="Bold"
+                                                ToolTip="Starts rendering everything pending in the queue. Add to Queue only stages a job — nothing reaches the GPU until this is pressed, so several prompts can be queued and then rendered in one run. Greyed out while the queue is already running, and when nothing is pending.">
+                                            <StackPanel Orientation="Horizontal">
+                                                <TextBlock Text="▶ " VerticalAlignment="Center"/>
+                                                <TextBlock Text="Generate" VerticalAlignment="Center"/>
+                                            </StackPanel>
+                                        </Button>
+
+                                        <Button Grid.Column="2" Height="40" Width="82"
                                                 Command="{Binding CancelCommand}"
                                                 Style="{StaticResource DangerButtonStyle}"
                                                 FontSize="11"
@@ -4873,11 +4933,11 @@
                                             <TextBlock Grid.Column="1" Text="{Binding QueueStatus}"
                                                        FontStyle="Italic" Foreground="{StaticResource TextSecondaryBrush}" FontSize="11"
                                                        VerticalAlignment="Center" TextTrimming="CharacterEllipsis"/>
-                                            <Button Grid.Column="2" Content="▶ Start"
+                                            <Button Grid.Column="2" Content="▶ Generate"
                                                     Command="{Binding StartQueueCommand}"
                                                     Height="26" Padding="8,0" FontSize="11" Margin="0,0,5,0"
                                                     Style="{StaticResource AccentButtonStyle}"
-                                                    ToolTip="Resume draining pending items."/>
+                                                    ToolTip="Starts rendering the pending items — the same command as the ▶ Generate button above."/>
                                             <Button Grid.Column="3" Content="🔄 Retry"
                                                     Command="{Binding ReprocessAllFailedCommand}"
                                                     Height="26" Padding="8,0" FontSize="11" Margin="0,0,5,0"
@@ -6016,21 +6076,33 @@
                                         <Grid.ColumnDefinitions>
                                             <ColumnDefinition Width="*"/>
                                             <ColumnDefinition Width="Auto"/>
+                                            <ColumnDefinition Width="Auto"/>
                                         </Grid.ColumnDefinitions>
 
                                         <Button Grid.Column="0" Margin="0,0,8,0" Height="40"
                                                 Command="{Binding GenerateCommand}"
                                                 IsEnabled="{Binding CanGenerate}"
-                                                Style="{StaticResource AccentButtonStyle}"
-                                                FontSize="12" FontWeight="Bold" BorderThickness="0"
-                                                ToolTip="Re-stamps the prompt against the cast, keyframes, location and wardrobe as they stand, snapshots everything into the queue and starts rendering. Each clip is queued with only the characters its own text names.">
+                                                Style="{StaticResource AccentOutlineButtonStyle}"
+                                                FontSize="12" FontWeight="Bold"
+                                                ToolTip="Re-stamps the prompt against the cast, keyframes, location and wardrobe as they stand, snapshots everything into the queue. Nothing renders until ▶ Generate is pressed. Each clip is queued with only the characters its own text names.">
                                             <StackPanel Orientation="Horizontal">
                                                 <TextBlock Text="🎬 " VerticalAlignment="Center"/>
-                                                <TextBlock Text="Add to Queue &amp; Generate" VerticalAlignment="Center"/>
+                                                <TextBlock Text="Add to Queue" VerticalAlignment="Center"/>
                                             </StackPanel>
                                         </Button>
 
-                                        <Button Grid.Column="1" Height="40" Width="82"
+                                        <Button Grid.Column="1" Height="40" Width="118" Margin="0,0,8,0"
+                                                Command="{Binding StartQueueCommand}"
+                                                Style="{StaticResource AccentButtonStyle}"
+                                                FontSize="12" FontWeight="Bold"
+                                                ToolTip="Starts rendering everything pending in the queue. Add to Queue only stages a job — nothing reaches the GPU until this is pressed, so several prompts can be queued and then rendered in one run. Greyed out while the queue is already running, and when nothing is pending.">
+                                            <StackPanel Orientation="Horizontal">
+                                                <TextBlock Text="▶ " VerticalAlignment="Center"/>
+                                                <TextBlock Text="Generate" VerticalAlignment="Center"/>
+                                            </StackPanel>
+                                        </Button>
+
+                                        <Button Grid.Column="2" Height="40" Width="82"
                                                 Command="{Binding CancelCommand}"
                                                 Style="{StaticResource DangerButtonStyle}"
                                                 FontSize="11"
@@ -6063,11 +6135,11 @@
                                             <TextBlock Grid.Column="1" Text="{Binding QueueStatus}"
                                                        FontStyle="Italic" Foreground="{StaticResource TextSecondaryBrush}" FontSize="11"
                                                        VerticalAlignment="Center" TextTrimming="CharacterEllipsis"/>
-                                            <Button Grid.Column="2" Content="▶ Start"
+                                            <Button Grid.Column="2" Content="▶ Generate"
                                                     Command="{Binding StartQueueCommand}"
                                                     Height="26" Padding="8,0" FontSize="11" Margin="0,0,5,0"
                                                     Style="{StaticResource AccentButtonStyle}"
-                                                    ToolTip="Resume draining pending items."/>
+                                                    ToolTip="Starts rendering the pending items — the same command as the ▶ Generate button above."/>
                                             <Button Grid.Column="3" Content="🔄 Retry"
                                                     Command="{Binding ReprocessAllFailedCommand}"
                                                     Height="26" Padding="8,0" FontSize="11" Margin="0,0,5,0"
@@ -6660,21 +6732,33 @@
                                         <Grid.ColumnDefinitions>
                                             <ColumnDefinition Width="*"/>
                                             <ColumnDefinition Width="Auto"/>
+                                            <ColumnDefinition Width="Auto"/>
                                         </Grid.ColumnDefinitions>
 
                                         <Button Grid.Column="0" Margin="0,0,8,0" Height="40"
                                                 Command="{Binding GenerateCommand}"
                                                 IsEnabled="{Binding CanGenerate}"
-                                                Style="{StaticResource AccentButtonStyle}"
-                                                FontSize="12" FontWeight="Bold" BorderThickness="0"
-                                                ToolTip="Snapshots the references, the soundtrack and every segment plan into ONE queue item and starts it. The whole chain is a single ComfyUI submission — it renders every segment, carries motion across each seam, and assembles and muxes the finished take itself.">
+                                                Style="{StaticResource AccentOutlineButtonStyle}"
+                                                FontSize="12" FontWeight="Bold"
+                                                ToolTip="Snapshots the references, the soundtrack and every segment plan into ONE queue item. Nothing renders until ▶ Generate is pressed. The whole chain is a single ComfyUI submission — it renders every segment, carries motion across each seam, and assembles and muxes the finished take itself.">
                                             <StackPanel Orientation="Horizontal">
                                                 <TextBlock Text="♾️ " VerticalAlignment="Center"/>
-                                                <TextBlock Text="Queue Chain &amp; Generate" VerticalAlignment="Center"/>
+                                                <TextBlock Text="Queue Chain" VerticalAlignment="Center"/>
                                             </StackPanel>
                                         </Button>
 
-                                        <Button Grid.Column="1" Height="40" Width="82"
+                                        <Button Grid.Column="1" Height="40" Width="118" Margin="0,0,8,0"
+                                                Command="{Binding StartQueueCommand}"
+                                                Style="{StaticResource AccentButtonStyle}"
+                                                FontSize="12" FontWeight="Bold"
+                                                ToolTip="Starts rendering everything pending in the queue. Add to Queue only stages a job — nothing reaches the GPU until this is pressed, so several prompts can be queued and then rendered in one run. Greyed out while the queue is already running, and when nothing is pending.">
+                                            <StackPanel Orientation="Horizontal">
+                                                <TextBlock Text="▶ " VerticalAlignment="Center"/>
+                                                <TextBlock Text="Generate" VerticalAlignment="Center"/>
+                                            </StackPanel>
+                                        </Button>
+
+                                        <Button Grid.Column="2" Height="40" Width="82"
                                                 Command="{Binding CancelCommand}"
                                                 IsEnabled="{Binding IsProcessingQueue}"
                                                 Style="{StaticResource DangerButtonStyle}"
@@ -6709,11 +6793,11 @@
                                             <TextBlock Grid.Column="1" Text="{Binding QueueStatus}"
                                                        FontStyle="Italic" Foreground="{StaticResource TextSecondaryBrush}" FontSize="11"
                                                        VerticalAlignment="Center" TextTrimming="CharacterEllipsis"/>
-                                            <Button Grid.Column="2" Content="▶ Start"
+                                            <Button Grid.Column="2" Content="▶ Generate"
                                                     Command="{Binding StartQueueCommand}"
                                                     Height="26" Padding="8,0" FontSize="11" Margin="0,0,5,0"
                                                     Style="{StaticResource AccentButtonStyle}"
-                                                    ToolTip="Resume draining pending chains."/>
+                                                    ToolTip="Starts rendering the pending chains — the same command as the ▶ Generate button above."/>
                                             <Button Grid.Column="3" Content="🔄 Retry"
                                                     Command="{Binding ReprocessAllFailedCommand}"
                                                     Height="26" Padding="8,0" FontSize="11" Margin="0,0,5,0"

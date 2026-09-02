@@ -1197,7 +1197,13 @@ namespace FlipPix.UI.ViewModels.Video
             UpdateQueueStatus();
             SaveQueueToFile();
 
-            if (!IsProcessingQueue) _ = ProcessQueueAsync();
+            // Queueing stages the job; it does not start it. Add to Queue and Generate are separate
+            // buttons so a run can be built up prompt by prompt and then rendered in one pass — the
+            // GPU is only claimed when ▶ Generate (StartQueueCommand) is pressed.
+            AddLog(IsProcessingQueue
+                ? "Added to the queue — the queue is already running, so this is picked up when the item " +
+                  "on the GPU finishes."
+                : "Added to the queue — nothing is rendering yet. Press ▶ Generate to start.");
 
             // Walking a folder, the obvious next thing is the next take, and the item just queued has
             // its own frozen copy of everything — so nothing is lost by moving the form on.

@@ -1099,7 +1099,13 @@ namespace FlipPix.UI.ViewModels.Video
             SaveQueueToFile();
             UpdateQueueStatus();
 
-            if (!IsProcessingQueue) _ = ProcessQueueAsync();
+            // Queueing stages the job; it does not start it. Add to Queue and Generate are separate
+            // buttons so a run can be built up prompt by prompt and then rendered in one pass — the
+            // GPU is only claimed when ▶ Generate (StartQueueCommand) is pressed.
+            AddLog(IsProcessingQueue
+                ? "Added to the queue — the queue is already running, so this is picked up when the item " +
+                  "on the GPU finishes."
+                : "Added to the queue — nothing is rendering yet. Press ▶ Generate to start.");
         }
 
         /// <summary>
@@ -1337,7 +1343,7 @@ namespace FlipPix.UI.ViewModels.Video
                 // Deliberately not auto-started: a leftover chain is hours of GPU time and should not seize
                 // the card the moment the app opens.
                 if (HasPendingItems)
-                    AddLog($"Queue restored: {_queue.Count} chain(s) — press ▶ Start to run one, " +
+                    AddLog($"Queue restored: {_queue.Count} chain(s) — press ▶ Generate to run one, " +
                            "or ⏩ Resume to continue an interrupted one from its checkpoints.");
                 else if (_queue.Count > 0)
                     AddLog($"Queue restored: {_queue.Count} chain(s)");
