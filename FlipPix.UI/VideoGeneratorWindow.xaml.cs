@@ -104,6 +104,12 @@ namespace FlipPix.UI
                 H3ExperimentalVideoPlayer.Play();
             }
 
+            if (H3ErosVideoPlayer != null && H3ErosVideoPlayer.Source != null)
+            {
+                H3ErosVideoPlayer.Position = System.TimeSpan.Zero;
+                H3ErosVideoPlayer.Play();
+            }
+
             if (H3MultiVideoPlayer != null && H3MultiVideoPlayer.Source != null)
             {
                 H3MultiVideoPlayer.Position = System.TimeSpan.Zero;
@@ -186,6 +192,20 @@ namespace FlipPix.UI
         private void ErosConvRotPlayer_MediaFailed(object sender, ExceptionRoutedEventArgs e)
         {
             _viewModel.ErosConvRotVM.ReportPreviewFailed(e.ErrorException?.Message ?? "unknown media error");
+        }
+
+        // ──────────────────────────────────────────────────────────────────────
+        // H3 Eros — one shared player for the three seed samples and the finished
+        // clip. Its Source is the ViewModel's ActivePreviewUri, which changes as
+        // tiles are clicked, so it has to start playing on its own each time.
+        // ──────────────────────────────────────────────────────────────────────
+
+        private void H3ErosPlayer_MediaOpened(object sender, RoutedEventArgs e) => H3ErosVideoPlayer.Play();
+
+        private void H3ErosPlayer_MediaEnded(object sender, RoutedEventArgs e)
+        {
+            H3ErosVideoPlayer.Position = System.TimeSpan.FromMilliseconds(1);
+            H3ErosVideoPlayer.Play();
         }
 
         // ──────────────────────────────────────────────────────────────────────
@@ -459,6 +479,7 @@ namespace FlipPix.UI
             H3ChainVideoPlayer?.Stop();
             H3DuoVideoPlayer?.Stop();
             H3ExperimentalVideoPlayer?.Stop();
+            H3ErosVideoPlayer?.Stop();
             H3MultiVideoPlayer?.Stop();
         }
 

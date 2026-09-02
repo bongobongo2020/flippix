@@ -3057,7 +3057,7 @@ namespace FlipPix.UI.ViewModels.Video
 
         #region Queue persistence
 
-        private void SaveQueueToFile()
+        protected void SaveQueueToFile()
         {
             try
             {
@@ -4112,7 +4112,7 @@ namespace FlipPix.UI.ViewModels.Video
             return promptId;
         }
 
-        private async Task<string> SubmitAsync(string json, double progressFrom, double progressTo, CancellationToken token)
+        protected async Task<string> SubmitAsync(string json, double progressFrom, double progressTo, CancellationToken token)
         {
             var workflow = JsonSerializer.Deserialize<JsonElement>(json);
             var span = progressTo - progressFrom;
@@ -4134,7 +4134,7 @@ namespace FlipPix.UI.ViewModels.Video
             return promptId;
         }
 
-        private async Task<string?> ResolveOutputToLocalAsync(string videoFile)
+        protected async Task<string?> ResolveOutputToLocalAsync(string videoFile)
         {
             try
             {
@@ -4173,7 +4173,7 @@ namespace FlipPix.UI.ViewModels.Video
             return null;
         }
 
-        private string? FindTokenVideoOnDisk(string runToken)
+        protected string? FindTokenVideoOnDisk(string runToken)
         {
             try
             {

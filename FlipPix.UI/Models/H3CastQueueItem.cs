@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Text.Json.Serialization;
@@ -152,6 +152,40 @@ namespace FlipPix.UI.Models
         /// default. The H3 Cast graph has no such switch and ignores this.
         /// </summary>
         public bool UseAudioEnhancement { get; set; } = true;
+
+        /// <summary>
+        /// 🌹 H3 Eros only — the megapixels the three seed previews are sampled at. Small on purpose:
+        /// the hunt exists to compare compositions cheaply, and <see cref="Megapixels"/> is what the
+        /// picked one is finished at.
+        /// </summary>
+        public double PreviewMegapixels { get; set; } = 0.2;
+
+        /// <summary>
+        /// 🌹 H3 Eros only — how many fixed sigmas the upscale pass runs (3, 4 or 5). The graph ships
+        /// one ManualSigmas schedule per count and the render links the chosen one.
+        /// </summary>
+        public int UpscaleSteps { get; set; } = 4;
+
+        /// <summary>
+        /// 🌹 H3 Eros only — RIFE frame interpolation on the finished clip, 24 → 48 fps. On by default,
+        /// which is how the authored graph runs.
+        /// </summary>
+        public bool UseRife { get; set; } = true;
+
+        /// <summary>
+        /// 🌹 H3 Eros only — which of the three seed previews was picked, 1-3, or 0 while the hunt has
+        /// not run or is waiting on the user. Written back onto the item so a re-run of a completed
+        /// story clip finishes the same sample rather than hunting again.
+        /// </summary>
+        public int ChosenSampleSlot { get; set; }
+
+        /// <summary>
+        /// 🌹 H3 Eros only — the base noise seed the hunt that produced <see cref="ChosenSampleSlot"/>
+        /// ran on, or -1 when no hunt has run. Recorded because the pick is only meaningful next to it:
+        /// the three previews are this seed and its two successors, so a retry that skipped the hunt
+        /// and rolled a fresh seed would finish a take nobody ever saw.
+        /// </summary>
+        public long HuntBaseSeed { get; set; } = -1;
 
         /// <summary>
         /// Groups the clips of one story so they render in order, sort together on disk and can be joined

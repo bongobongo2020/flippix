@@ -123,6 +123,14 @@ namespace FlipPix.UI.ViewModels
         public H3ExperimentalViewModel H3ExperimentalVM { get; }
 
         /// <summary>
+        /// H3 Eros ViewModel — the H3 Experimental story flow rendered through the EROS-Hybrid
+        /// seed-hunter graph: every clip is sampled three times at a small draft canvas, the user picks
+        /// one of the three, and only that latent is upscaled to the finished megapixels and joined into
+        /// the story.
+        /// </summary>
+        public H3ErosViewModel H3ErosVM { get; }
+
+        /// <summary>
         /// H3 Chain ViewModel - MiniMax H3 run as an autoregressive chain: two reference images and a
         /// soundtrack become one continuous take of arbitrary length, rendered as N segments inside a
         /// single ComfyUI submission where each segment continues out of the last frame of the one
@@ -292,6 +300,15 @@ namespace FlipPix.UI.ViewModels
                 _workflowCoordinator,
                 _fileDialogService);
 
+            H3ErosVM = new H3ErosViewModel(
+                comfyUIService,
+                lmStudioService,
+                logger,
+                settingsService,
+                serviceProvider,
+                _workflowCoordinator,
+                _fileDialogService);
+
             H3ChainVM = new H3ChainViewModel(
                 comfyUIService,
                 lmStudioService,
@@ -324,6 +341,7 @@ namespace FlipPix.UI.ViewModels
             MiniMaxCharacterVM.PlayRequested += (s, e) => PlayRequested?.Invoke(this, e);
             H3DuoVM.PlayRequested += (s, e) => PlayRequested?.Invoke(this, e);
             H3ExperimentalVM.PlayRequested += (s, e) => PlayRequested?.Invoke(this, e);
+            H3ErosVM.PlayRequested += (s, e) => PlayRequested?.Invoke(this, e);
             H3ChainVM.PlayRequested += (s, e) => PlayRequested?.Invoke(this, e);
             H3MultiVM.PlayRequested += (s, e) => PlayRequested?.Invoke(this, e);
 
@@ -341,6 +359,7 @@ namespace FlipPix.UI.ViewModels
             MiniMaxCharacterVM.PropertyChanged += ForwardPropertyChanged;
             H3DuoVM.PropertyChanged += ForwardPropertyChanged;
             H3ExperimentalVM.PropertyChanged += ForwardPropertyChanged;
+            H3ErosVM.PropertyChanged += ForwardPropertyChanged;
             H3ChainVM.PropertyChanged += ForwardPropertyChanged;
             H3MultiVM.PropertyChanged += ForwardPropertyChanged;
 
@@ -633,6 +652,7 @@ namespace FlipPix.UI.ViewModels
                 MiniMaxCharacterVM.PropertyChanged -= ForwardPropertyChanged;
                 H3DuoVM.PropertyChanged -= ForwardPropertyChanged;
                 H3ExperimentalVM.PropertyChanged -= ForwardPropertyChanged;
+                H3ErosVM.PropertyChanged -= ForwardPropertyChanged;
                 H3ChainVM.PropertyChanged -= ForwardPropertyChanged;
                 H3MultiVM.PropertyChanged -= ForwardPropertyChanged;
 
@@ -649,6 +669,7 @@ namespace FlipPix.UI.ViewModels
                 (MiniMaxCharacterVM as IDisposable)?.Dispose();
                 (H3DuoVM as IDisposable)?.Dispose();
                 (H3ExperimentalVM as IDisposable)?.Dispose();
+                (H3ErosVM as IDisposable)?.Dispose();
                 (H3ChainVM as IDisposable)?.Dispose();
                 (H3MultiVM as IDisposable)?.Dispose();
 
