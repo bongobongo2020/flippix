@@ -41,6 +41,19 @@ namespace FlipPix.UI.ViewModels.Video
     /// machinery unchanged.</item>
     /// </list>
     ///
+    /// <para><b>The one place the bundled guide is wrong for this tab.</b>
+    /// <c>h3pw_guide_base.md</c> is MiniMax's guide to the <i>keyframe</i> tasks — T2VA, I2VA, FL2VA,
+    /// L2VA — and every one of them treats <c>&lt;Picture N&gt;</c> as a frame of the target video: its
+    /// §2.1 makes an alignment line mandatory and its §3.1 has <c>[Shot 1]</c> open by establishing "the
+    /// composition and scene anchors in the image". Here the pictures are studio reference photographs
+    /// of the cast, so a writer following the guide literally opens every clip on the references
+    /// themselves — plain backdrop, neutral pose, the cast lined up — and H3 renders the character sheet
+    /// inside the video. <c>h3pw_chain.md</c> overrides both sections by name, the mode line in
+    /// <see cref="BuildWriterRequest"/> repeats the override next to the material, and two deterministic
+    /// passes clean up what a local model still slips through: the anchor line is cut in
+    /// <see cref="SanitizeClipFields"/> and the style-block-as-a-second-<c>[Shot 1]</c> is folded in
+    /// <see cref="NormalizeShots"/>.</para>
+    ///
     /// <para>Everything else is inherited: the story/scene inputs, the wardrobe derived once and locked
     /// (populated automatically the moment a story lands, as always), the two character cards and their
     /// panel-split sheets, the queue, and the turbo render (draft → 2× latent upscale → finish) on this
@@ -106,7 +119,7 @@ namespace FlipPix.UI.ViewModels.Video
             StoryDurationSeconds = 120;
 
             // The tab's own store, so its story chains and the I2V tab's takes never share a picker.
-            _chainLibrary = new ScenePromptLibrary(AddLog, ScenePromptLibrary.FolderFor("h3experimental"));
+            _chainLibrary = new ScenePromptLibrary(AddLog, ScenePromptLibrary.FolderFor(ChainLibraryFolder));
             OpenChainLibraryCommand = new RelayCommand(async () => await OpenChainLibraryAsync());
             SaveChainCommand = new RelayCommand(async () => await SaveCurrentChainAsync(manual: true));
 
@@ -120,6 +133,10 @@ namespace FlipPix.UI.ViewModels.Video
             // Generator's startup path.
             _ = PrimeChainLibraryAsync();
         }
+
+        /// <summary>The store the chain library files this tab's story chains under. Its own, so a derived
+        /// tab's takes and this one's never share a picker.</summary>
+        protected virtual string ChainLibraryFolder => "h3experimental";
 
         /// <summary>The Duo graph's copy under this tab's name — experiments cannot break the Duo tab's file.</summary>
         protected override string WorkflowFileName => "workflow/video/h3-minimax/h3-experimental.json";
@@ -364,33 +381,40 @@ namespace FlipPix.UI.ViewModels.Video
                         sampling: LlmSampling.StoryChainFormatted);
 
                 // ── Post-writing passes, all deterministic on the clip bodies ──────────────────
-                // 1. The runaway guard: a reply that collapsed into unpunctuated word-salad (observed:
+                // 1. The field labels are canonicalised first — a writer that gets terser as the chain
+                //    goes on starts typing them as headings, bullets or plain English ("## Overall
+                //    Soundscape:"), and every pass below matches them ordinally against the guide's
+                //    spelling.
+                // 2. The runaway guard: a reply that collapsed into unpunctuated word-salad (observed:
                 //    one clip's description turning into 141,000 characters of noun-associations that ran
-                //    to the token ceiling) is truncated at its last complete sentence, and clip bodies
-                //    left structurally incomplete by the cut are dropped — a shorter honest chain beats
-                //    a full-length one with a clip that cannot render.
-                // 2. Every clip of a two-person fight must name BOTH fighters — an opponent left as an
+                //    to the token ceiling) is truncated at its last complete sentence. Only a clip left
+                //    with no description at all is then dropped: the audio fields are optional to a
+                //    render, and dropping on them turned a 12-clip 120s chain into 2 clips.
+                // 3. Every clip of a two-person fight must name BOTH fighters — an opponent left as an
                 //    untagged pronoun has no identity in that clip, and renders as the tagged fighter
                 //    fighting a duplicate of themselves (the failure this pass exists to prevent).
                 //    Offending bodies get one focused rewrite turn each; whatever survives is warned about.
-                // 3. Timestamps are padded to the guide's MM:SS.mmm shape — models write "00:9.3".
-                // 4. Stamping is NON-selective on this tab: both cast members' references and wardrobe
+                // 4. Timestamps are padded to the guide's MM:SS.mmm shape — models write "00:9.3".
+                // 5. The keyframe leftovers the base guide keeps asking for are cut: an I2VA/FL2VA/L2VA
+                //    anchor line ahead of the fields, and a [Shot] marker with no timestamp behind it —
+                //    which is how the writer emits its style/setting restatement, as a second [Shot 1]
+                //    ahead of the real opening shot. Both tell H3 the reference photographs are the
+                //    frame it opens on, and that is the character sheet showing up inside the video.
+                // 6. Stamping is NON-selective on this tab: both cast members' references and wardrobe
                 //    line land in every clip even if a body still forgot the tag, because a two-hander
                 //    fight has both fighters on screen throughout — clipping either one's references is
                 //    how the duplicate-of-self render happens.
                 var bodies = SplitClips(TruncateDegenerateTail(CleanOutput(result)))
-                    .Select((b, i) => SanitizeClipFields(b, i + 1))
+                    .Select((b, i) => SanitizeClipFields(CanonicalizeFieldLabels(b), i + 1))
                     .ToList();
-                var dropped = bodies.Where(b => !KeepsClipStructure(b)).ToList();
-                if (dropped.Count > 0)
-                    AddLog($"WARNING: {dropped.Count} clip(s) came back structurally incomplete (missing " +
-                           "fields) and were dropped. Re-run Analyze, or write the missing clips into the " +
-                           "prompt box by hand.");
-                bodies = bodies.Where(KeepsClipStructure).ToList();
+                bodies = KeepRenderableClips(bodies);
                 if (HasCharacter2 && bodies.Count > 0)
                     bodies = await RepairUntaggedOpponentAsync(model, bodies, token);
                 var perClipSeconds = briefSeconds > 0 ? briefSeconds : len;
-                bodies = bodies.Select(b => NormalizeTimestamps(b, perClipSeconds)).ToList();
+                bodies = bodies
+                    .Select(b => NormalizeTimestamps(b, perClipSeconds))
+                    .Select((b, i) => NormalizeShots(b, i + 1))
+                    .ToList();
 
                 var cleaned = JoinClips(bodies
                     .Select(b => CastPromptStamp.Apply(b, Panels1, Panels2, CastWardrobe,
@@ -541,9 +565,17 @@ namespace FlipPix.UI.ViewModels.Video
                             ? " The build waits for the GPU and starts when the current render finishes."
                             : string.Empty);
 
-            return IsProcessingQueue
-                ? $"{clips} — ready to queue; it will render after the clips already queued."
-                : $"{clips} — ready to queue.";
+            // Add to Queue only stages the job now — ▶ Generate is what starts the GPU — so the
+            // readiness line has to say which of the two the tab is waiting on.
+            if (HasPendingItems)
+                return IsProcessingQueue
+                    ? $"{clips} — ready to queue; the queue is running, so it renders after what is "
+                      + "already in it."
+                    : $"{clips} — ready to queue. Nothing is rendering: press ▶ Generate to start "
+                      + "the queue when you have added everything you want in this run.";
+
+            return $"{clips} — ready to queue. Queueing does not start a render; press ▶ Generate "
+                   + "when the queue holds everything you want in this run.";
         }
 
         // ── Request builders ───────────────────────────────────────────────────────────────────────
@@ -632,8 +664,24 @@ namespace FlipPix.UI.ViewModels.Video
                   "or the viewer; write only what is seen and heard.";
 
             return
-                "Mode: T2VA body with character references — there is NO first-frame image, so every clip " +
-                "begins directly with the three core fields; never write the I2VA/FL2VA/L2VA anchor line. The " +
+                // The mode line, ahead of everything: the base guide in the system prompt documents ONLY
+                // the keyframe tasks, and every one of them says <Picture N> is a frame of the video whose
+                // composition [Shot 1] must open on. Followed literally — which is what happened — that
+                // renders the reference photographs themselves: studio backdrop, neutral pose, the cast
+                // lined up, i.e. a character sheet. h3pw_chain.md overrides those sections; this repeats
+                // the override where the material is, and deliberately does NOT call the mode "T2VA",
+                // whose case in the guide is defined as "with no reference image".
+                "Mode: character-reference video. It is NONE of the base guide's keyframe tasks (T2VA, " +
+                "I2VA, FL2VA, L2VA), and that guide's sections 2.1 and 3.1 do not apply. The attached " +
+                "pictures are studio reference photographs of the cast — plain backdrop, neutral " +
+                "standing pose, shot for identity alone. They are NOT frames of the video and the viewer " +
+                "never sees them. So: write no alignment or anchor line of any kind, begin every clip " +
+                "directly with the three core fields, and open [Shot 1] on the brief's own location and " +
+                "action — never on the pictures' composition. Never render the references themselves: " +
+                "no studio backdrop, no neutral standing pose, no line-up of the cast, no panel, grid, " +
+                "split-screen, turnaround or character-sheet layout, and never the same person twice in " +
+                "one frame. Exactly one [Shot 1] per clip, carrying no timestamp, with the restated " +
+                "style and setting inside it rather than in a block of its own ahead of it. The " +
                 "multi-shot structure is explicitly required by this brief — a fight chain cut like a music " +
                 "video is the user's intent, not cinematic embellishment.\n\n" +
                 // Ahead of the brief, not after it: the medium is decided in the opening words of [Shot 1],
@@ -758,14 +806,58 @@ namespace FlipPix.UI.ViewModels.Video
         };
 
         /// <summary>
+        /// The same three labels as the writer actually types them: any case, any of the three word
+        /// separators, and with a markdown heading or bullet in front. <c>CleanOutput</c> already strips
+        /// <c>**</c>, so what survives is <c>## Overall Soundscape:</c>, <c>- non-diegetic music:</c>,
+        /// <c>Integrated Multimodal Description:</c> and so on. Every downstream pass matches the labels
+        /// with an ordinal comparison against the canonical spelling, so a clip written in any of those
+        /// variants read as a clip with no fields at all — which is what dropped ten clips of a twelve-clip
+        /// chain on the observed run. Anchored to the start of a line: a field label is something the
+        /// writer puts on its own line, and an unanchored match would rewrite the words mid-description.
+        /// </summary>
+        private static readonly (Regex Pattern, string Canonical)[] FieldLabelVariants =
+            ClipFieldLabels.Select(label => (
+                new Regex(
+                    @"^[ \t]*(?:[-*•>]\s*)?(?:#{1,6}\s*)?" +
+                    Regex.Escape(label.TrimEnd(':')).Replace("_", @"[ _\-]") +
+                    @"[ \t]*:[ \t]*",
+                    RegexOptions.IgnoreCase | RegexOptions.Multiline | RegexOptions.Compiled),
+                label + " ")).ToArray();
+
+        /// <summary>
+        /// Rewrites every recognised spelling of the three field labels into the canonical one, so the
+        /// sanitizer, the structure check and the shot pass all see the fields the writer meant to write.
+        /// A body already in canonical form passes through unchanged.
+        /// </summary>
+        private static string CanonicalizeFieldLabels(string body)
+        {
+            if (string.IsNullOrWhiteSpace(body)) return body;
+            foreach (var (pattern, canonical) in FieldLabelVariants)
+                body = pattern.Replace(body, canonical);
+            return body;
+        }
+
+        /// <summary>
+        /// The base guide's keyframe alignment instructions — the I2VA anchor line and the FL2VA/L2VA
+        /// alignment line. Both are meaningless on this tab, where the pictures are studio reference
+        /// photographs rather than frames, and telling H3 that a reference is "fully referenced" at the
+        /// 0.00-second mark is precisely how the character sheet ends up as the video's opening frame.
+        /// Written out of the system prompt by <c>h3pw_chain.md</c>; cut here as well, because the guide
+        /// that asks for them is long, authoritative and read by a local model.
+        /// </summary>
+        private static readonly Regex KeyframeAnchorLineRegex = new(
+            @"^[ \t]*(?:For the target video,[^\n]*?fully referenced\.?|How the reference pictures align[^\n]*)[ \t]*$",
+            RegexOptions.Multiline | RegexOptions.IgnoreCase | RegexOptions.Compiled);
+
+        /// <summary>
         /// The runaway guard applied field by field <i>inside</i> one clip.
         /// <see cref="TruncateDegenerateTail"/> only ever sees the end of the whole reply, so a clip that
         /// degenerated in the middle of the chain — the common case, because the model recovers at the next
         /// field label and writes the following clips normally — carried its word-salad through untouched
         /// and rendered it. Cutting each field back to its own last complete sentence removes the salad and
         /// keeps the clip: the structure survives, so the clip is not dropped for the sake of one bad field.
-        /// A field that is salad end to end comes back empty and the clip fails
-        /// <see cref="KeepsClipStructure"/> instead.
+        /// A field that is salad end to end comes back empty, and
+        /// <see cref="KeepRenderableClips"/> then decides whether what is left still renders.
         /// </summary>
         private string SanitizeClipFields(string body, int clipNumber)
         {
@@ -780,6 +872,15 @@ namespace FlipPix.UI.ViewModels.Video
 
             var parts = new List<string>();
             var preamble = body[..marks[0].Index].Trim();
+            if (preamble.Length > 0)
+            {
+                var kept = KeyframeAnchorLineRegex.Replace(preamble, string.Empty).Trim();
+                if (kept.Length != preamble.Length)
+                    AddLog($"Clip {clipNumber}: the base guide's keyframe anchor line was dropped "
+                           + "— the attached pictures are reference photographs of the cast, not "
+                           + "frames of the video, and an anchor line renders them as the first frame.");
+                preamble = kept;
+            }
             if (preamble.Length > 0) parts.Add(preamble);
 
             var removed = 0;
@@ -887,14 +988,66 @@ namespace FlipPix.UI.ViewModels.Video
             body.Contains("<Picture 1>", StringComparison.Ordinal) &&
             body.Contains("<Picture 2>", StringComparison.Ordinal);
 
-        /// <summary>Whether a clip body still carries the three H3 field labels <i>with something under
-        /// each of them</i> — the structure a repair turn must preserve to be worth keeping. A retagged
-        /// clip that lost its labels is worse than an untagged clip that kept them: the stamped reference
-        /// line already carries both fighters, so the structure is the part that cannot be sacrificed. The
-        /// content half of the test is what drops a clip <see cref="SanitizeClipFields"/> emptied — a field
-        /// that was word-salad end to end leaves a bare label, and a bare label renders nothing.</summary>
-        private static bool KeepsClipStructure(string body) =>
-            ClipFieldLabels.All(label => HasFieldContent(body, label));
+        /// <summary>Whether a rewritten body still carries content under every field label the original
+        /// carried. The repair turn's gate: it may not lose a field, but it is not asked to invent one the
+        /// writer never wrote.</summary>
+        private static bool PreservesClipFields(string original, string rewritten) =>
+            ClipFieldLabels.All(label => !HasFieldContent(original, label) ||
+                                         HasFieldContent(rewritten, label));
+
+        /// <summary>
+        /// The clips of a written chain that are worth queueing, with what was missing from the rest said
+        /// out loud.
+        ///
+        /// <para>The bar is <c>integrated_multimodal_description:</c> — the field H3 actually renders from.
+        /// A clip without it is a clip with nothing to render and is dropped, as before. The two audio
+        /// fields are not that: a clip missing <c>overall_soundscape:</c> or <c>non_diegetic_music:</c>
+        /// renders its picture exactly as written and comes back quieter than the rest of the chain, which
+        /// is worth far more than the hole it leaves in a story when the clip is thrown away. Dropping on
+        /// all three is what turned a twelve-clip 120-second chain into two clips on the observed run: a
+        /// local writer that gets terser as the chain goes on stops writing the audio fields long before
+        /// it stops writing the description.</para>
+        ///
+        /// <para>Both outcomes name the clip numbers and the fields, because "10 clip(s) came back
+        /// structurally incomplete" said nothing about which clips or what they were missing.</para>
+        /// </summary>
+        private List<string> KeepRenderableClips(List<string> bodies)
+        {
+            var kept = new List<string>();
+            var dropped = new List<int>();
+            var quiet = new List<string>();
+
+            for (var i = 0; i < bodies.Count; i++)
+            {
+                var clipNumber = i + 1;
+                var missing = ClipFieldLabels
+                    .Where(label => !HasFieldContent(bodies[i], label))
+                    .Select(label => label.TrimEnd(':'))
+                    .ToList();
+
+                if (!HasFieldContent(bodies[i], ClipFieldLabels[0]))
+                {
+                    dropped.Add(clipNumber);
+                    continue;
+                }
+
+                if (missing.Count > 0)
+                    quiet.Add($"{clipNumber} (no {string.Join(", no ", missing)})");
+                kept.Add(bodies[i]);
+            }
+
+            if (quiet.Count > 0)
+                AddLog($"Note: clip(s) {string.Join("; ", quiet)} came back without their audio field(s). " +
+                       "They are kept and queued — the picture is written in full and only the sound is " +
+                       "missing, so those clips render quieter than the rest of the chain.");
+
+            if (dropped.Count > 0)
+                AddLog($"WARNING: clip(s) {string.Join(", ", dropped)} came back with no " +
+                       $"{ClipFieldLabels[0].TrimEnd(':')} to render and were dropped. Re-run Analyze, or " +
+                       "write those clips into the prompt box by hand.");
+
+            return kept;
+        }
 
         /// <summary>
         /// One focused rewrite turn per offending clip: the body comes back with the opponent named by their
@@ -933,11 +1086,14 @@ namespace FlipPix.UI.ViewModels.Video
                         maxTokens: 4000,
                         cancellationToken: token));
 
-                    // Both gates or nothing: the rewrite must name both fighters AND still be a structurally
-                    // intact H3 clip. A repair that retags but drops the field labels is discarded — the
-                    // stamped reference line carries both fighters anyway, so structure is not for sale.
+                    // Both gates or nothing: the rewrite must name both fighters AND still carry every
+                    // field the original had. A repair that retags but drops a field label is discarded —
+                    // the stamped reference line carries both fighters anyway, so structure is not for
+                    // sale. Measured against the original rather than against all three labels, because a
+                    // clip kept by KeepRenderableClips may never have had the audio fields, and demanding
+                    // them back would reject every repair of exactly those clips.
                     if (!string.IsNullOrWhiteSpace(rewritten) && NamesBothFighters(rewritten) &&
-                        KeepsClipStructure(rewritten))
+                        PreservesClipFields(bodies[i], rewritten))
                         bodies[i] = rewritten;
                     else
                         AddLog($"Cast repair: clip {i + 1} could not be retagged without losing the clip's " +
@@ -1011,6 +1167,83 @@ namespace FlipPix.UI.ViewModels.Video
 
             static string Format(int minutes, int seconds, int millis) =>
                 $"At {minutes:00}:{seconds:00}.{millis:000}";
+        }
+
+        /// <summary>Matches a <c>[Shot n]</c> marker however it is spaced.</summary>
+        private static readonly Regex ShotMarkerRegex =
+            new(@"\[\s*Shot\s+\d+\s*\]", RegexOptions.IgnoreCase | RegexOptions.Compiled);
+
+        /// <summary>The timestamp every shot but the first opens with. Read after
+        /// <see cref="NormalizeTimestamps"/> has run, so the shape is already the guide's.</summary>
+        private static readonly Regex ShotOpensWithTimestampRegex =
+            new(@"^[\s,;:.\-–—]*[Aa]t\s+\d", RegexOptions.Compiled);
+
+        /// <summary>
+        /// Folds a clip's shot markers back into the shape the guide actually defines: exactly one
+        /// <c>[Shot 1]</c>, and a timestamp on every marker after it.
+        ///
+        /// <para>The base guide the H3 Prompt Writer runs on (<c>h3pw_guide_base.md</c>) documents only
+        /// the keyframe tasks, in which <c>[Shot 1]</c> opens by establishing the reference picture's own
+        /// composition. <c>h3pw_chain.md</c> now overrides that in words, but the habit survives as a
+        /// subject-less style-and-setting block emitted as its own <c>[Shot 1]</c> ahead of the real
+        /// opening shot — every clip of the observed chain carried two <c>[Shot 1]</c> markers. A clip
+        /// whose first shot is a static anchor with no camera and no cast is a clip H3 resolves out of
+        /// the reference photographs themselves: studio backdrop, neutral pose, the cast lined up — the
+        /// character sheet turning up inside the video.</para>
+        ///
+        /// <para>A marker after the first whose text does not open with a timestamp is not a shot by the
+        /// guide's own rule, so the marker is dropped and its text joins the shot before it — which puts
+        /// the style and setting inside <c>[Shot 1]</c>, exactly where the chain layer asks for them.
+        /// What survives is renumbered 1..N so the numbering is strictly increasing again.</para>
+        /// </summary>
+        private string NormalizeShots(string body, int clipNumber)
+        {
+            var label = ClipFieldLabels[0];
+            var start = body.IndexOf(label, StringComparison.Ordinal);
+            if (start < 0) return body;
+            start += label.Length;
+
+            var end = body.Length;
+            for (var i = 1; i < ClipFieldLabels.Length; i++)
+            {
+                var next = body.IndexOf(ClipFieldLabels[i], start, StringComparison.Ordinal);
+                if (next >= 0 && next < end) end = next;
+            }
+
+            var field = body[start..end];
+            var markers = ShotMarkerRegex.Matches(field);
+            if (markers.Count == 0) return body;
+
+            // Anything ahead of the first marker is prose the writer put before its own shots; it stays.
+            var lead = field[..markers[0].Index].Trim();
+
+            var shots = new List<string>();
+            var folded = 0;
+            for (var i = 0; i < markers.Count; i++)
+            {
+                var from = markers[i].Index + markers[i].Length;
+                var to = i + 1 < markers.Count ? markers[i + 1].Index : field.Length;
+                var text = field[from..to].Trim();
+
+                if (shots.Count > 0 && !ShotOpensWithTimestampRegex.IsMatch(text))
+                {
+                    shots[^1] = (shots[^1] + " " + text).Trim();
+                    folded++;
+                    continue;
+                }
+                shots.Add(text);
+            }
+
+            if (folded > 0)
+                AddLog($"Clip {clipNumber}: {folded} timestamp-less [Shot] marker(s) folded into the shot " +
+                       "before them — a style/setting block written as a shot of its own is what makes H3 " +
+                       "open on the reference photographs instead of on the scene.");
+
+            var rebuilt = string.Join(" ", shots.Select((s, i) => $"[Shot {i + 1}] {s}".TrimEnd()));
+            if (lead.Length > 0) rebuilt = lead + " " + rebuilt;
+
+            var tail = end < body.Length ? "\n\n" + body[end..].TrimStart() : string.Empty;
+            return body[..start] + " " + rebuilt + tail;
         }
     }
 }
