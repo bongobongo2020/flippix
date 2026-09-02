@@ -32,7 +32,7 @@ namespace FlipPix.UI.ViewModels.Video
         // exceed the default 30 min on longer clips. Real completion is detected via /history,
         // so this is just a safety net — keep it generous.
         protected virtual TimeSpan ExecutionTimeout => TimeSpan.FromHours(3);
-        private const string OutputSubfolder = "wan_scail";
+        protected const string OutputSubfolder = "wan_scail";
 
         private string QueueFilePath => Path.Combine(
             Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData),
@@ -1443,6 +1443,13 @@ namespace FlipPix.UI.ViewModels.Video
                     foreach (var f in chunkFiles)
                         try { File.Delete(f); } catch { }
 
+                    // Optional second pass, run only once the sampler's own output is safely on disk
+                    // (see RunPostProcessAsync). If it fails it returns null and we keep the raw video,
+                    // so post-processing can never cost the sampling run that produced it.
+                    var postProcessed = await RunPostProcessAsync(finalPath, item, cancellationToken);
+                    if (!string.IsNullOrWhiteSpace(postProcessed) && File.Exists(postProcessed))
+                        finalPath = postProcessed;
+
                     item.OutputVideoPath = finalPath;
                     ResultVideoPath = finalPath;
                     await LocalCopyService.CopyVideoAsync(finalPath);
@@ -1482,6 +1489,17 @@ namespace FlipPix.UI.ViewModels.Video
                 IsProcessing = false;
             }
         }
+
+        /// <summary>
+        /// Optional second ComfyUI pass over the finished video, run after the sampler's output has been
+        /// merged and written to disk. Returns the path to the post-processed video, or null to keep the
+        /// raw one. Overrides must swallow their own failures and return null rather than throw: the
+        /// sampler's result is already final by the time this runs, and no post-processing failure is
+        /// worth discarding it. Base implementation is a no-op.
+        /// </summary>
+        protected virtual Task<string?> RunPostProcessAsync(
+            string rawVideoPath, WanScailQueueItem item, CancellationToken cancellationToken)
+            => Task.FromResult<string?>(null);
 
         // Subclasses override this to fix a specific output resolution (e.g. GGUF always uses 832×480).
         protected virtual (int Width, int Height) ComputeOutputResolution(int videoW, int videoH, int maxEdge)
