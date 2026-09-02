@@ -228,6 +228,8 @@ namespace FlipPix.UI.ViewModels.Video
 
                 AddLog($"H3 Prompt Writer: writing a {clipCount}-clip chain ({clipCount} × {len:0.#}s = " +
                        $"{clipCount * len:0.#}s continuous) from the story — via {_lmStudioService.DescribeTarget(model)}");
+                if (!VisualStyle.IsAuto)
+                    AddLog($"Visual style locked: {VisualStyle.Name}");
 
                 if (StoryText.Length > 20000)
                     AddLog($"WARNING: the story is {StoryText.Length:N0} characters — a local model will very " +
@@ -246,8 +248,9 @@ namespace FlipPix.UI.ViewModels.Video
                     "You are the director of a MiniMax H3 story chain. You never write video prompts yourself — " +
                     "that is what the h3_prompt_writer tool is for. Your one job this turn is to call that tool " +
                     "with the best possible creative brief: the story's events in their order, the setting read " +
-                    "out of the prose (period, place, time of day, weather, mood), the visual style the material " +
-                    "calls for, each character cast onto their <Picture N> tag, the quoted wardrobe, and above " +
+                    "out of the prose (period, place, time of day, weather, mood), the visual style — yours to " +
+                    "choose only when the request does not hand you one, and otherwise quoted back word for " +
+                    "word — each character cast onto their <Picture N> tag, the quoted wardrobe, and above " +
                     "all the FIGHT BUDGET — how the chain's clips are shared across the story's own action: " +
                     "which exchange each clip dissects (wind-up, strike, contact, recoil, fall, recovery) and " +
                     "from what angles, so the story's final event lands in the final clip. The story's own " +
@@ -517,6 +520,19 @@ namespace FlipPix.UI.ViewModels.Video
                 : "No wardrobe has been decided — the brief must dress the cast itself (read the outfits off " +
                   "the story and the setting it calls for) and word them identically every time they appear.";
 
+            // The style, like the wardrobe, is settled before the brief rather than after it: the brief is
+            // what the writer reads the medium out of, so a style the brief picked for itself is one the
+            // clips keep whatever the writer is told a turn later.
+            var style = VisualStyle.IsAuto
+                ? "The visual style is the brief's to choose — read the medium off the story's period, place " +
+                  "and tone (live action, documentary, 3D CG, stop-motion, painted, graphic and animated are " +
+                  "all equally available, and anime is not the default), and state it in the brief as the one " +
+                  "medium every clip opens in."
+                : "THE VISUAL STYLE IS ALREADY DECIDED and is NOT the brief's to choose. Quote these words " +
+                  "inside the brief, verbatim, as the medium every clip opens in, and describe every clip's " +
+                  "look — lighting, palette, texture, how motion renders — as this medium would look. Never " +
+                  "name another style anywhere:\n" + VisualStyle.Clause;
+
             var cast = HasCharacter2
                 ? $"Two character reference images are attached to every clip: <Picture 1> (Character 1) and " +
                   "<Picture 2> (Character 2). Cast the story's people onto those tags — and budget BOTH fighters " +
@@ -527,6 +543,7 @@ namespace FlipPix.UI.ViewModels.Video
 
             return
                 $"{cast}\n" +
+                $"{style}\n" +
                 $"{wardrobe}\n" +
                 $"The chain: {clipCount} clips, each {len:0.##} seconds, that together run the whole story " +
                 $"continuously ({clipCount} × {len:0.##}s ≈ {clipCount * len:0.##}s total).\n\n" +
@@ -580,8 +597,12 @@ namespace FlipPix.UI.ViewModels.Video
                 "Mode: T2VA body with character references — there is NO first-frame image, so every clip " +
                 "begins directly with the three core fields; never write the I2VA/FL2VA/L2VA anchor line. The " +
                 "multi-shot structure is explicitly required by this brief — a fight chain cut like a music " +
-                "video is the user's intent, not cinematic embellishment.\n" +
-                "Creative brief from the director:\n" +
+                "video is the user's intent, not cinematic embellishment.\n\n" +
+                // Ahead of the brief, not after it: the medium is decided in the opening words of [Shot 1],
+                // and a rule that arrives after the material has been read is one that opening has stopped
+                // listening to. Same block the stock tab uses, so a style behaves identically on both.
+                H3VisualStyles.Rule(VisualStyle) +
+                "\nCreative brief from the director:\n" +
                 $"{brief.Trim()}\n\n" +
                 $"{cast}\n" +
                 $"{wardrobe}\n\n" +
