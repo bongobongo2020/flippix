@@ -98,6 +98,12 @@ namespace FlipPix.UI
                 H3DuoVideoPlayer.Play();
             }
 
+            if (H3ExperimentalVideoPlayer != null && H3ExperimentalVideoPlayer.Source != null)
+            {
+                H3ExperimentalVideoPlayer.Position = System.TimeSpan.Zero;
+                H3ExperimentalVideoPlayer.Play();
+            }
+
             if (H3MultiVideoPlayer != null && H3MultiVideoPlayer.Source != null)
             {
                 H3MultiVideoPlayer.Position = System.TimeSpan.Zero;
@@ -452,6 +458,7 @@ namespace FlipPix.UI
             MiniMaxCharacterVideoPlayer?.Stop();
             H3ChainVideoPlayer?.Stop();
             H3DuoVideoPlayer?.Stop();
+            H3ExperimentalVideoPlayer?.Stop();
             H3MultiVideoPlayer?.Stop();
         }
 

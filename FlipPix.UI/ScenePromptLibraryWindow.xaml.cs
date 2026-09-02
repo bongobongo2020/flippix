@@ -1,9 +1,10 @@
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.Collections.ObjectModel;
 using System.ComponentModel;
 using System.Linq;
 using System.Runtime.CompilerServices;
+using System.Text.RegularExpressions;
 using System.Threading.Tasks;
 using System.Windows;
 using System.Windows.Controls;
@@ -49,6 +50,14 @@ namespace FlipPix.UI
         /// <summary>Key of a <see cref="System.Windows.Media.Color"/> in the app resources — the owning tab's accent. Null
         /// leaves the window on the Character violet its XAML declares.</summary>
         public string? AccentColorKey { get; init; }
+
+        /// <summary>
+        /// Lets the preview pane be typed in, saving the edit back to the entry when it loses focus. Only
+        /// for libraries whose entries are a single body — an entry with continuations is shown as a
+        /// composed preview with <c>=== SEGMENT n ===</c> headers the window would have to take apart
+        /// again, so those stay read-only however this is set.
+        /// </summary>
+        public bool PromptEditable { get; init; }
     }
 
     /// <summary>
@@ -93,6 +102,7 @@ namespace FlipPix.UI
             SubtitleText.Text = _chrome.Subtitle;
             PromptNote.Text = _chrome.PromptNote;
             UseButton.Content = _chrome.UseButtonText;
+            PromptBox.IsReadOnly = !_chrome.PromptEditable;
 
             // AccentButtonStyle reads TabAccentBrush dynamically, so replacing the window-level entry the
             // XAML declares is enough - no style needs to know a second tab exists.
@@ -203,6 +213,42 @@ namespace FlipPix.UI
             _ = _library.SaveAsync(_entries);
         }
 
+        /// <summary>
+        /// Saves an edited prompt back to the entry. Only reachable when the chrome asked for an editable
+        /// pane, and refused for an entry with continuations: what the pane shows there is a <i>composed</i>
+        /// preview, and writing it back whole would flatten several segments into the first one.
+        /// </summary>
+        private void PromptBox_LostFocus(object sender, RoutedEventArgs e)
+        {
+            if (!_chrome.PromptEditable) return;
+            if (ScenesList.SelectedItem is not Row row) return;
+            if (row.Entry.ContinuationPrompts.Count > 0) return;
+
+            var text = PromptBox.Text.Trim();
+            if (text.Length == 0 || text == row.Entry.Prompt)
+            {
+                // An emptied box is a slip, not an instruction to blank the entry.
+                PromptBox.Text = row.Entry.Prompt;
+                return;
+            }
+
+            row.Entry.Prompt = text;
+            row.Entry.Shots = CountShots(text);
+            row.Entry.LastUsed = DateTime.Now;
+            row.Refresh();
+            _ = _library.SaveAsync(_entries);
+        }
+
+        /// <summary>Mirrors the tabs' own shot counter, so an edited entry's meta line stays true.</summary>
+        private static int CountShots(string prompt) =>
+            Regex.Matches(prompt, @"\[\s*Shot\s+\d+", RegexOptions.IgnoreCase).Count;
+
+        /// <summary>Clip headers in a stored chain — <c>=== CLIP 3 of 12 ===</c> and the looser shapes the
+        /// tabs accept. 0 for a library whose entries are single prompts.</summary>
+        private static int CountClips(string prompt) =>
+            Regex.Matches(prompt, @"^[ 	]*[=#*\-–—\[]{0,6}[ 	]*CLIP[ 	]+\d+",
+                          RegexOptions.IgnoreCase | RegexOptions.Multiline).Count;
+
         private void DeleteButton_Click(object sender, RoutedEventArgs e)
         {
             if (ScenesList.SelectedItem is not Row row) return;
@@ -265,6 +311,8 @@ namespace FlipPix.UI
                     var parts = new List<string> { Entry.LastUsed.ToString("d MMM yyyy") };
                     if (Entry.ContinuationPrompts.Count > 0)
                         parts.Add($"{Entry.ContinuationPrompts.Count + 1} passes");
+                    var clips = CountClips(Entry.Prompt);
+                    if (clips > 1) parts.Add($"{clips} clips");
                     if (Entry.Shots > 0) parts.Add($"{Entry.Shots} shots");
                     if (Entry.LengthSeconds > 0) parts.Add($"{Entry.LengthSeconds:0.#}s");
                     if (!string.IsNullOrEmpty(Entry.AspectRatio)) parts.Add(Entry.AspectRatio);

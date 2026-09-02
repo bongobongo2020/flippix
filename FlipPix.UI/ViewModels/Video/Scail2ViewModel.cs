@@ -1541,38 +1541,31 @@ namespace FlipPix.UI.ViewModels.Video
             UpdateNode(dict, "414", inputs => { inputs["input1"] = videoAudio; inputs["input2"] = videoAudio; });
             dict.Remove("204");
 
-            // Post pass: node 624 chooses between the RIFE-interpolated frames (1) and the raw sampler
-            // frames (2). The interpolated branch continues into the RTX upscale (196) and is saved by
-            // node 8; the raw branch is saved by node 425. Keeping both leaves two mp4s in /history, so we
-            // keep exactly one — the unselected sink (and, when off, the RIFE + RTX nodes themselves) is
-            // removed. Node 425 is re-pointed at node 624 so the authored VRAM-cleanup chain
+            // This prompt always ends at the raw sampler frames, saved by node 425. The authored graph
+            // continues into RIFE (599) → RTX upscale (196) → node 8, but running that tail here means the
+            // only save node in the graph sits behind it: the RTX upscale materialises every frame at 2×
+            // in float32 and reliably exhausts host RAM on a long clip, and when it dies it takes the
+            // sampler's frames — which only ever existed as tensors — with it. An hour of correct sampling
+            // is not worth risking on a post-process, so the tail moved to its own prompt over the saved
+            // mp4 (see RunPostProcessAsync). InterpolateAndUpscale now selects whether that second prompt
+            // runs, not what this one contains.
+            //
+            // Both branches of 624 have to point at the raw frames (602) before 599 goes, otherwise the
+            // unselected input1 is a link to a node that no longer exists and ComfyUI rejects the whole
+            // prompt at validation — it checks every declared input, including ones a lazy switch will
+            // never pull on. Node 425 is re-pointed at node 624 so the authored VRAM-cleanup chain
             // (436 → 430 cleanGpuUsed → 520 clearCacheAll → 602) still runs on the raw path.
-            bool interpolate = InterpolateAndUpscale;
-            string finalCombineNode;
-            if (interpolate)
+            const string finalCombineNode = "425";
+            var rawFrames = new object[] { "602", 0 };
+            UpdateNode(dict, "624", inputs =>
             {
-                UpdateNode(dict, "624", inputs => inputs["select"] = 1);
-                dict.Remove("425");
-                finalCombineNode = "8";
-            }
-            else
-            {
-                // Both branches of 624 have to point at the raw frames (602) before 599 goes, otherwise the
-                // unselected input1 is a link to a node that no longer exists and ComfyUI rejects the whole
-                // prompt at validation — it checks every declared input, including ones a lazy switch will
-                // never pull on.
-                var rawFrames = new object[] { "602", 0 };
-                UpdateNode(dict, "624", inputs =>
-                {
-                    inputs["select"] = 2;
-                    inputs["input1"] = rawFrames;
-                    inputs["input2"] = rawFrames;
-                });
-                UpdateNode(dict, "425", inputs => inputs["images"] = new object[] { "624", 0 });
-                foreach (var n in new[] { "8", "196", "599" })
-                    dict.Remove(n);
-                finalCombineNode = "425";
-            }
+                inputs["select"] = 2;
+                inputs["input1"] = rawFrames;
+                inputs["input2"] = rawFrames;
+            });
+            UpdateNode(dict, "425", inputs => inputs["images"] = new object[] { "624", 0 });
+            foreach (var n in new[] { "8", "196", "599" })
+                dict.Remove(n);
 
             var workflowJson = JsonSerializer.Serialize(dict);
 
@@ -1599,7 +1592,7 @@ namespace FlipPix.UI.ViewModels.Video
             AddLog($"Updating SCAIL2 segmentation-control workflow: whole video, fps={fps}, " +
                    $"subject=\"{subject}\", replacementMode={replacementMode}, skip={skipFrames} frames, " +
                    $"cap={(capFrames > 0 ? capFrames + " frames" : "all")}, " +
-                   $"post={(interpolate ? "RIFE 2× + RTX upscale 2×" : "none")}");
+                   $"post={(InterpolateAndUpscale ? "RIFE 2× + RTX upscale 2× (second prompt)" : "none")}");
 
             // Node 208: main character / reference image (LoadImage)
             WorkflowNodeUpdater.UpdateNodeInput(ref workflowJson, "208", "image", characterImageName);
@@ -1636,12 +1629,11 @@ namespace FlipPix.UI.ViewModels.Video
             AddLog($"SCAIL2 sampler window: {windowFrames} frames (from chunk size {VideoBatchSize})");
 
             // Final combine — match the frame rate and pin into the wan_scail subfolder so the
-            // filesystem-polling fallback (OutputSubfolder = "wan_scail") can find it. RIFE doubles the
-            // frame count, so the interpolated sink plays back at twice the source rate.
+            // filesystem-polling fallback (OutputSubfolder = "wan_scail") can find it.
             WorkflowNodeUpdater.UpdateNodeInputMultiple(ref workflowJson, finalCombineNode, new Dictionary<string, object>
             {
-                { "frame_rate", interpolate ? fps * 2 : fps },
-                { "filename_prefix", interpolate ? "wan_scail/SCAIL2_seg_hires" : "wan_scail/SCAIL2_seg" },
+                { "frame_rate", fps },
+                { "filename_prefix", "wan_scail/SCAIL2_seg" },
                 { "save_output", true }
             });
 
@@ -1666,6 +1658,258 @@ namespace FlipPix.UI.ViewModels.Video
 
             AddLog("✓ SCAIL2 segmentation-control workflow nodes updated");
             return JsonSerializer.Deserialize<JsonElement>(workflowJson);
+        }
+
+        #endregion
+
+        #region Stage B — post pass (RIFE + RTX upscale as a second prompt)
+
+        // Raw frames per post segment. The RTX upscale holds its entire output batch in host RAM at
+        // float32, and RIFE has already doubled the frame count by then, so one segment costs roughly
+        //     2·N · (2·W)·(2·H) · 3 channels · 4 bytes
+        // ≈ 18 GB at N = 300 on the authored 640×960 canvas. The whole 1141-frame clip in one pass would
+        // have wanted ~67 GB, which is what used to take the run down.
+        private const int PostSegmentFrames = 300;
+
+        // Node id for the ImageFromBatch that drops each segment's duplicated leading frame. Any id not
+        // already in the authored graph works; 700 is clear of both the top-level and 199:* ranges.
+        private const string PostTrimNode = "700";
+
+        /// <summary>
+        /// Second ComfyUI prompt: RIFE 2× interpolation and the RTX 2× upscale, run over the raw mp4 the
+        /// sampler already saved rather than as a tail on the sampler's own graph.
+        /// </summary>
+        /// <remarks>
+        /// Three things this buys over the authored single-graph layout:
+        /// the sampler's output is on disk before any of this is attempted, so a failure here costs only
+        /// the post; the clip is fed through in <see cref="PostSegmentFrames"/>-frame segments, so peak
+        /// host RAM is bounded by segment size instead of clip length; and the pass is re-runnable on its
+        /// own against the saved raw video.
+        ///
+        /// Segments overlap by one raw frame. RIFE turns n frames into 2n−1 — it emits intermediates
+        /// *between* frames — so butt-joined segments would lose the intermediate spanning every cut. The
+        /// overlap hands the next segment the previous segment's last frame as its first, and node 700
+        /// drops the duplicate from the output batch, leaving the frame sequence continuous across joins.
+        ///
+        /// Audio is deliberately not rendered per segment: VHS_LoadVideo's audio output is not reliably
+        /// sliced to the loaded frame range, and a full-length track on every segment would survive the
+        /// concat as garbage. The segments are rendered mute and the raw video's audio is muxed back over
+        /// the joined result, which lines up exactly — 2× the frame rate over 2× the frames is the same
+        /// wall-clock duration.
+        /// </remarks>
+        protected override async Task<string?> RunPostProcessAsync(
+            string rawVideoPath, WanScailQueueItem item, CancellationToken cancellationToken)
+        {
+            if (!InterpolateAndUpscale) return null;
+
+            var segmentFiles = new List<string>();
+            try
+            {
+                AddLog("=== SCAIL2 post pass: RIFE 2× + RTX upscale 2× (second prompt) ===");
+                ProcessingStatus = "Post: interpolating and upscaling…";
+
+                var totalRawFrames = GetVideoFrameCount(rawVideoPath);
+                if (totalRawFrames <= 0)
+                {
+                    AddLog("Post pass skipped: could not read the raw video's frame count. Keeping the raw video.");
+                    return null;
+                }
+
+                var (rawW, rawH) = GetVideoDimensions(rawVideoPath);
+                var segmentCount = (int)Math.Ceiling((double)totalRawFrames / PostSegmentFrames);
+                AddLog($"Post: {totalRawFrames} frames at {rawW}×{rawH} → " +
+                       $"{segmentCount} segment(s) of ≤{PostSegmentFrames} raw frames");
+
+                if (!_comfyUIService.IsConnected)
+                    await _comfyUIService.ConnectAsync();
+
+                AddLog("Post: uploading the raw video…");
+                var uploadedRaw = await _comfyUIService.UploadVideoAsync(rawVideoPath);
+                if (string.IsNullOrEmpty(uploadedRaw))
+                {
+                    AddLog("Post pass skipped: failed to upload the raw video. Keeping the raw video.");
+                    return null;
+                }
+                AddLog($"Post: raw video uploaded as {uploadedRaw}");
+
+                var workflowPath = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "workflow", WorkflowFileName);
+                var baseWorkflowJson = await File.ReadAllTextAsync(workflowPath, cancellationToken);
+
+                for (int seg = 0; seg < segmentCount; seg++)
+                {
+                    cancellationToken.ThrowIfCancellationRequested();
+
+                    // Segment s covers raw frames [start, start + cap - 1]; every segment after the first
+                    // starts one frame early so it shares a frame with its predecessor (see remarks).
+                    var start = seg == 0 ? 0 : seg * PostSegmentFrames - 1;
+                    var cap = Math.Min(totalRawFrames - start, PostSegmentFrames + (seg == 0 ? 0 : 1));
+                    if (cap <= 0) break;
+
+                    AddLog($"Post: segment {seg + 1}/{segmentCount} — raw frames {start}–{start + cap - 1}");
+                    ProcessingStatus = $"Post: segment {seg + 1}/{segmentCount}";
+                    ProcessingProgress = 85.0 + 14.0 * seg / segmentCount;
+
+                    var segmentWorkflow = BuildPostWorkflow(
+                        baseWorkflowJson, uploadedRaw, start, cap, dropLeadingFrame: seg > 0, fps: item.Fps);
+
+                    var existingFiles = GetExistingVideoFiles("*.mp4", OutputSubfolder);
+                    var promptId = await _comfyUIService.ExecuteWorkflowAsync(
+                        segmentWorkflow, null, cancellationToken, executionTimeout: ExecutionTimeout);
+                    AddLog($"Post: segment {seg + 1} submitted, prompt ID: {promptId}");
+
+                    var outputVideo = await TryGetVideoFromHistoryAsync(promptId)
+                                      ?? await WaitForNewVideoAsync(
+                                          existingFiles, "*.mp4", ExecutionTimeout,
+                                          TimeSpan.FromSeconds(5), OutputSubfolder);
+
+                    if (outputVideo == null || !File.Exists(outputVideo))
+                    {
+                        AddLog($"Post: segment {seg + 1} produced no output — abandoning the post pass, " +
+                               "keeping the raw video.");
+                        return null;
+                    }
+
+                    var segmentFile = Path.Combine(
+                        Path.GetTempPath(), $"scail2_post_{seg:D3}_{Path.GetFileName(outputVideo)}");
+                    File.Copy(outputVideo, segmentFile, true);
+                    segmentFiles.Add(segmentFile);
+                    AddLog($"Post: segment {seg + 1}/{segmentCount} complete");
+                }
+
+                if (segmentFiles.Count == 0)
+                {
+                    AddLog("Post pass produced no segments. Keeping the raw video.");
+                    return null;
+                }
+
+                // Join the mute segments, then mux the raw video's audio back over the result.
+                var mutePath = Path.Combine(
+                    Path.GetTempPath(), $"scail2_post_joined_{Guid.NewGuid():N}.mp4");
+                if (segmentFiles.Count == 1)
+                    File.Copy(segmentFiles[0], mutePath, true);
+                else
+                    MergeVideoChunks(segmentFiles, mutePath, "scail2post");
+
+                var finalPath = Path.Combine(
+                    Path.GetDirectoryName(rawVideoPath)!,
+                    Path.GetFileNameWithoutExtension(rawVideoPath) + "_hires.mp4");
+
+                if (!MuxAudioFrom(rawVideoPath, mutePath, finalPath))
+                {
+                    // No audio track, or ffmpeg refused the mux — the picture is still the point.
+                    File.Copy(mutePath, finalPath, true);
+                    AddLog("Post: no audio muxed; keeping the interpolated video as-is.");
+                }
+                try { File.Delete(mutePath); } catch { /* temp file: best effort */ }
+
+                var info = new FileInfo(finalPath);
+                AddLog($"=== SCAIL2 post pass complete: {Path.GetFileName(finalPath)} " +
+                       $"({info.Length / 1024 / 1024:F1}MB, {item.Fps * 2}fps, {rawW * 2}×{rawH * 2}) ===");
+                return finalPath;
+            }
+            catch (OperationCanceledException)
+            {
+                AddLog("Post pass cancelled — keeping the raw video.");
+                return null;
+            }
+            catch (Exception ex)
+            {
+                // Never let the post pass throw: the sampler's video is already the run's result.
+                AddLog($"Post pass failed ({ex.Message}) — keeping the raw video.");
+                return null;
+            }
+            finally
+            {
+                foreach (var f in segmentFiles)
+                    try { File.Delete(f); } catch { /* temp file: best effort */ }
+            }
+        }
+
+        /// <summary>
+        /// Prunes the SCAIL-2 graph down to its post-processing tail and points it at an uploaded video:
+        /// 207 (loader) → 599 (RIFE) → 700 (drop the shared frame) → 196 (RTX upscale) → 8 (combine).
+        /// Everything else — the samplers, the SAM3 tracker, the loaders, the raw sink — is dropped.
+        /// </summary>
+        private JsonElement BuildPostWorkflow(
+            string baseWorkflowJson, string uploadedVideo, int startFrame, int frameCap, bool dropLeadingFrame, int fps)
+        {
+            var dict = JsonSerializer.Deserialize<Dictionary<string, JsonElement>>(baseWorkflowJson)
+                ?? throw new InvalidOperationException("Failed to parse SCAIL2 workflow JSON for the post pass");
+
+            foreach (var id in dict.Keys.ToList())
+                if (id is not ("207" or "599" or "196" or "8"))
+                    dict.Remove(id);
+
+            // 207: the saved raw video. force_rate 0 and format "None" keep it exactly as written —
+            // it is already at the target rate and canvas, and any resample here would fight the sampler.
+            UpdateNode(dict, "207", inputs =>
+            {
+                inputs["video"] = uploadedVideo;
+                inputs["force_rate"] = 0;
+                inputs["custom_width"] = 0;
+                inputs["custom_height"] = 0;
+                inputs["select_every_nth"] = 1;
+                inputs["skip_first_frames"] = startFrame;
+                inputs["frame_load_cap"] = frameCap;
+                inputs["format"] = "None";
+            });
+
+            // 599: RIFE reads the loader directly — node 602 and the VRAM-cleanup chain feeding it
+            // belong to the sampler graph and are gone.
+            UpdateNode(dict, "599", inputs => inputs["frames"] = new object[] { "207", 0 });
+
+            // 700: drop the leading frame this segment shares with the previous one. length is the node's
+            // 4096 ceiling, which comfortably exceeds a segment's 2·N−1 output frames and means "the rest".
+            dict[PostTrimNode] = JsonSerializer.SerializeToElement(new Dictionary<string, object>
+            {
+                ["inputs"] = new Dictionary<string, object>
+                {
+                    ["image"] = new object[] { "599", 0 },
+                    ["batch_index"] = dropLeadingFrame ? 1 : 0,
+                    ["length"] = 4096
+                },
+                ["class_type"] = "ImageFromBatch",
+                ["_meta"] = new Dictionary<string, object> { ["title"] = "Drop shared segment frame" }
+            });
+
+            UpdateNode(dict, "196", inputs => inputs["images"] = new object[] { PostTrimNode, 0 });
+
+            // 8: mute (audio is muxed back after the join) and pinned into wan_scail so the
+            // filesystem-polling fallback can find it. RIFE doubled the frames, so double the rate.
+            UpdateNode(dict, "8", inputs =>
+            {
+                inputs["images"] = new object[] { "196", 0 };
+                inputs["frame_rate"] = fps * 2;
+                inputs["filename_prefix"] = "wan_scail/SCAIL2_post";
+                inputs["save_output"] = true;
+                inputs.Remove("audio");
+            });
+
+            return JsonSerializer.SerializeToElement(dict);
+        }
+
+        /// <summary>
+        /// Copies the audio track of <paramref name="audioSource"/> over <paramref name="videoSource"/>.
+        /// Returns false when there is no audio to copy or ffmpeg is unavailable.
+        /// </summary>
+        private bool MuxAudioFrom(string audioSource, string videoSource, string outputPath)
+        {
+            var ffmpeg = FindFFmpeg();
+            if (string.IsNullOrEmpty(ffmpeg)) return false;
+
+            try
+            {
+                RunFFmpeg(ffmpeg,
+                    $"-y -i \"{videoSource}\" -i \"{audioSource}\" " +
+                    "-map 0:v:0 -map 1:a:0? -c:v copy -c:a aac -shortest " +
+                    $"\"{outputPath}\"");
+                return File.Exists(outputPath);
+            }
+            catch (Exception ex)
+            {
+                AddLog($"Post: audio mux failed ({ex.Message}).");
+                return false;
+            }
         }
 
         #endregion

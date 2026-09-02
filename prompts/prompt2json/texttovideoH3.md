@@ -101,7 +101,7 @@ One paragraph, 2–4 English sentences: the diegetic layer across the whole clip
 ## RULES
 
 - Ground the look in the image. Do not contradict the subject, costume, colours, props, setting, lighting, or art style that are actually visible.
-- Do not invent people or locations that are neither in the image nor in the draft idea. New *action*, new camera angles, and new effects are expected and encouraged — new characters are not.
+- Do not invent people or locations that are neither in the image nor in the draft idea. New camera angles, new effects, and new detail on action the material already contains are expected and encouraged — new characters are not, and neither are new events the draft idea (when it is a story) does not narrate.
 - Do not name or identify real people; do not infer ethnicity, nationality, religion, occupation, or background.
 - Keep identity, costume, and colours consistent across every shot.
 - Write in English only. No word counts, no notes to the user, no trailing commentary.

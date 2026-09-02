@@ -1,4 +1,4 @@
-<Window x:Class="FlipPix.UI.ScenePromptLibraryWindow"
+﻿<Window x:Class="FlipPix.UI.ScenePromptLibraryWindow"
         Icon="flippix.ico"
         xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
@@ -158,6 +158,7 @@
                          TextWrapping="Wrap" AcceptsReturn="True" IsReadOnly="True"
                          VerticalScrollBarVisibility="Auto"
                          FontSize="11" Padding="8" IsEnabled="False"
+                         LostFocus="PromptBox_LostFocus"
                          Background="{StaticResource SurfaceBrush}"
                          BorderBrush="{StaticResource BorderBrush}"/>
                 <TextBlock Grid.Row="2" Name="PromptNote"
