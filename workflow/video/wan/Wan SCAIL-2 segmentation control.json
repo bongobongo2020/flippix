@@ -804,9 +804,9 @@
         2
       ],
       "upscale_method": "lanczos",
-      "keep_proportion": "stretch",
+      "keep_proportion": "crop",
       "pad_color": "255,255,255",
-      "crop_position": "bottom",
+      "crop_position": "center",
       "divisible_by": 32,
       "device": "cpu",
       "image": [

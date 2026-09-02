@@ -359,9 +359,8 @@
                                        VerticalAlignment="Center" Margin="0,0,6,0"/>
                             <ComboBox SelectedValue="{Binding OutputResolution, Mode=TwoWay}" SelectedValueBinding="{Binding Tag}"
                                       Width="200" Height="24" FontSize="10" VerticalContentAlignment="Center"
-                                      ToolTip.Tip="Resolution the video is generated at. Measured on a 24 GB card with a ~21s clip: 960 × 544 completes in ~14 min; 1280 × 720 takes the ComfyUI server down mid-run (a hard process kill, not a recoverable error) on anything longer than a few seconds, at any chunk size. Memory use grows with clip LENGTH as well as resolution, so longer clips need a lower preset.">
-                                <ComboBoxItem Content="960 × 544 (landscape — recommended)" Tag="960x544"/>
-                                <ComboBoxItem Content="Default (640 × 960 portrait)" Tag="0x0"/>
+                                      ToolTip.Tip="Resolution the video is generated at.&#10;&#10;Auto keeps the source video's own aspect ratio at the same pixel budget as 960 × 544, so a portrait clip generates portrait and a landscape clip landscape. Leave it on Auto unless you deliberately want a different shape: a fixed preset crops the driving video to that aspect and crops the character image to match, and picking one that doesn't fit the source is what makes the output look stretched or cut off.&#10;&#10;Measured on a 24 GB card with a ~21s clip: the Auto/960 × 544 pixel budget completes in ~14 min; 1280 × 720 takes the ComfyUI server down mid-run (a hard process kill, not a recoverable error) on anything longer than a few seconds, at any chunk size. Memory use grows with clip LENGTH as well as resolution, so longer clips need a lower preset.">
+                                <ComboBoxItem Content="Auto — match source video (recommended)" Tag="auto"/>
                                 <ComboBoxItem Content="832 × 480 (landscape)" Tag="832x480"/>
                                 <ComboBoxItem Content="768 × 768 (square)" Tag="768x768"/>
                                 <ComboBoxItem Content="544 × 960 (portrait)" Tag="544x960"/>

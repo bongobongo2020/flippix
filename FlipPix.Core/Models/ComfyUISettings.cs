@@ -157,10 +157,12 @@ public class ComfyUISettings
     // safe on a 24GB card; persisted so the choice survives restarts.
     public int Scail2VideoBatchSize { get; set; } = 40;
 
-    // Scail 2 tab: output resolution override for the final SCAIL II video, as "WxH" (e.g. "1280x720").
-    // Empty or "0x0" keeps the workflow's authored ResolutionMaster default; a concrete value forces the
-    // generation canvas (EmptyImage node 30) to exactly that size. Persisted so the choice survives restarts.
-    public string Scail2Resolution { get; set; } = "0x0";
+    // Scail 2 tab: output resolution for the final SCAIL II video. "auto" (the default) sizes the
+    // generation canvas from the driving video's own aspect ratio at ≈960×544 worth of pixels, so the
+    // character image is never stretched onto a canvas of a different shape. A concrete "WxH" (e.g.
+    // "1280x720") forces that exact canvas instead, and "0x0" keeps the workflow's authored 640×960 one.
+    // Persisted so the choice survives restarts.
+    public string Scail2Resolution { get; set; } = "auto";
 
     // Scail 2 tab: keep the driving video's original background (SCAIL2 "replacement" mode, node 39) and
     // regenerate only the swapped character, instead of regenerating the whole frame ("animation" mode).
