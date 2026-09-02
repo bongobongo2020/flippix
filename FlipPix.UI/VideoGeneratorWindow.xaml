@@ -4059,70 +4059,6 @@
                                                 <TextBlock Text="{Binding WardrobeSummary}"
                                                            FontSize="10" Foreground="{StaticResource TextMutedBrush}" FontStyle="Italic"
                                                            TextWrapping="Wrap" Margin="0,0,0,10"/>
-
-                                                <!-- Total video length. H3 tops out at ~15s per pass, so
-                                                     anything longer is written as a chain of clips and
-                                                     queued one job per clip, same sheets throughout. -->
-                                                <Grid Margin="0,0,0,6">
-                                                    <Grid.ColumnDefinitions>
-                                                        <ColumnDefinition Width="*"/>
-                                                        <ColumnDefinition Width="Auto"/>
-                                                    </Grid.ColumnDefinitions>
-                                                    <TextBlock Grid.Column="0" Text="Video length" FontSize="10" FontWeight="SemiBold"
-                                                               Foreground="{StaticResource TextSecondaryBrush}" VerticalAlignment="Center"/>
-                                                    <Border Grid.Column="1" Background="{StaticResource SurfaceAltBrush}"
-                                                            BorderBrush="{StaticResource BorderBrush}" BorderThickness="1"
-                                                            CornerRadius="4" Padding="10,2">
-                                                        <TextBlock Text="{Binding StoryDurationSeconds, StringFormat={}{0:0} s}"
-                                                                   FontFamily="Consolas" FontSize="13" FontWeight="Bold"
-                                                                   Foreground="{DynamicResource TabAccentBrush}"/>
-                                                    </Border>
-                                                </Grid>
-                                                <Slider Value="{Binding StoryDurationSeconds}"
-                                                        Minimum="5" Maximum="120"
-                                                        TickFrequency="5" IsSnapToTickEnabled="True"
-                                                        SmallChange="5" LargeChange="15"
-                                                        Foreground="{DynamicResource TabAccentBrush}" Margin="0,0,0,4"
-                                                        ToolTip="Length of the finished video, in 5-second steps up to 2 minutes. MiniMax H3 renders at most ~15s per pass, so anything longer is written as a chain of consecutive clips — Analyze writes them all in one reply, Add to Queue enqueues one job per clip against the same character sheets, and they are joined into a single file when the last one lands."/>
-                                                <TextBlock Text="{Binding ClipPlanSummary}"
-                                                           FontSize="10" Foreground="{StaticResource TextMutedBrush}" FontStyle="Italic"
-                                                           TextWrapping="Wrap" Margin="0,0,0,10"/>
-
-                                                <!-- The medium the writer works in. Left on Auto it
-                                                     picks, and it used to pick gacha anime almost every
-                                                     time whatever the story was. -->
-                                                <TextBlock Text="Visual style" FontSize="10" FontWeight="SemiBold"
-                                                           Foreground="{StaticResource TextSecondaryBrush}" Margin="0,0,0,4"/>
-                                                <ComboBox ItemsSource="{Binding VisualStyleOptions}"
-                                                          DisplayMemberPath="Name"
-                                                          SelectedItem="{Binding VisualStyle, Mode=TwoWay}"
-                                                          Height="30" FontSize="11" Margin="0,0,0,4"
-                                                          ToolTip="The medium every clip is written in. The style words open [Shot 1], which is the only place MiniMax H3 reads the look of the video from &#x2014; so the choice here is handed to the prompt writer as settled fact and copied verbatim into every clip of a chain, exactly the way the wardrobe is.&#x0a;&#x0a;Auto leaves it to the writer, which is what this tab did before: it reads the medium off the scene image where there is one and off the story where there is not."/>
-                                                <TextBlock Text="{Binding VisualStyleSummary}"
-                                                           FontSize="10" Foreground="{StaticResource TextMutedBrush}" FontStyle="Italic"
-                                                           TextWrapping="Wrap" Margin="0,0,0,10"/>
-
-                                                <StackPanel Orientation="Horizontal">
-                                                    <Button Content="🔍 Analyze → H3 Prompt"
-                                                            Command="{Binding AnalyzeCommand}"
-                                                            IsEnabled="{Binding CanAnalyze}"
-                                                            Height="32" Padding="14,0" FontSize="11"
-                                                            Style="{StaticResource AccentButtonStyle}"
-                                                            ToolTip="Sends whatever is loaded — the scene image, the story, or both — to the llama-server with texttovideoH3.md and writes a dense multi-shot H3 prompt in which the cast is named only as &lt;Picture 1&gt; / &lt;Picture 2&gt; and framed so faces stay readable. The locked wardrobe above is handed to it as settled fact, so no clip picks its own outfit."/>
-                                                    <TextBlock FontStyle="Italic" FontSize="11" VerticalAlignment="Center" Margin="8,0,0,0"
-                                                               Text="{Binding AnalyzeBusyText}" Foreground="{DynamicResource TabAccentBrush}">
-                                                        <TextBlock.Style>
-                                                            <Style TargetType="TextBlock">
-                                                                <Setter Property="Visibility" Value="Collapsed"/>
-                                                                <Style.Triggers>
-                                                                    <DataTrigger Binding="{Binding IsAnalyzing}" Value="True">
-                                                                        <Setter Property="Visibility" Value="Visible"/>
-                                                                    </DataTrigger>
-                                                                </Style.Triggers>
-                                                            </Style>
-                                                        </TextBlock.Style>
-                                                    </TextBlock>
-                                                </StackPanel>
                                             </StackPanel>
                                         </Border>
 
@@ -4532,6 +4468,75 @@
                                                            FontSize="10" Margin="0,6,0,0"
                                                            Foreground="{DynamicResource TabAccentBrush}" FontStyle="Italic"
                                                            TextWrapping="Wrap"/>
+
+                                                <!-- The writer's own controls sit under the cast, which
+                                                     is the order the tab is used in: story, wardrobe,
+                                                     cast, sheets, then write the chain those sheets
+                                                     will be rendered against.
+                                                     Total video length: H3 tops out at ~15s per pass,
+                                                     so anything longer is written as a chain of clips
+                                                     and queued one job per clip, same sheets
+                                                     throughout. -->
+                                                <Grid Margin="0,14,0,6">
+                                                    <Grid.ColumnDefinitions>
+                                                        <ColumnDefinition Width="*"/>
+                                                        <ColumnDefinition Width="Auto"/>
+                                                    </Grid.ColumnDefinitions>
+                                                    <TextBlock Grid.Column="0" Text="Video length" FontSize="10" FontWeight="SemiBold"
+                                                               Foreground="{StaticResource TextSecondaryBrush}" VerticalAlignment="Center"/>
+                                                    <Border Grid.Column="1" Background="{StaticResource SurfaceAltBrush}"
+                                                            BorderBrush="{StaticResource BorderBrush}" BorderThickness="1"
+                                                            CornerRadius="4" Padding="10,2">
+                                                        <TextBlock Text="{Binding StoryDurationSeconds, StringFormat={}{0:0} s}"
+                                                                   FontFamily="Consolas" FontSize="13" FontWeight="Bold"
+                                                                   Foreground="{DynamicResource TabAccentBrush}"/>
+                                                    </Border>
+                                                </Grid>
+                                                <Slider Value="{Binding StoryDurationSeconds}"
+                                                        Minimum="5" Maximum="120"
+                                                        TickFrequency="5" IsSnapToTickEnabled="True"
+                                                        SmallChange="5" LargeChange="15"
+                                                        Foreground="{DynamicResource TabAccentBrush}" Margin="0,0,0,4"
+                                                        ToolTip="Length of the finished video, in 5-second steps up to 2 minutes. MiniMax H3 renders at most ~15s per pass, so anything longer is written as a chain of consecutive clips — Analyze writes them all in one reply, Add to Queue enqueues one job per clip against the same character sheets, and they are joined into a single file when the last one lands."/>
+                                                <TextBlock Text="{Binding ClipPlanSummary}"
+                                                           FontSize="10" Foreground="{StaticResource TextMutedBrush}" FontStyle="Italic"
+                                                           TextWrapping="Wrap" Margin="0,0,0,10"/>
+
+                                                <!-- The medium the writer works in. Left on Auto it
+                                                     picks, and it used to pick gacha anime almost every
+                                                     time whatever the story was. -->
+                                                <TextBlock Text="Visual style" FontSize="10" FontWeight="SemiBold"
+                                                           Foreground="{StaticResource TextSecondaryBrush}" Margin="0,0,0,4"/>
+                                                <ComboBox ItemsSource="{Binding VisualStyleOptions}"
+                                                          DisplayMemberPath="Name"
+                                                          SelectedItem="{Binding VisualStyle, Mode=TwoWay}"
+                                                          Height="30" FontSize="11" Margin="0,0,0,4"
+                                                          ToolTip="The medium every clip is written in. The style words open [Shot 1], which is the only place MiniMax H3 reads the look of the video from &#x2014; so the choice here is handed to the prompt writer as settled fact and copied verbatim into every clip of a chain, exactly the way the wardrobe is.&#x0a;&#x0a;Auto leaves it to the writer, which is what this tab did before: it reads the medium off the scene image where there is one and off the story where there is not."/>
+                                                <TextBlock Text="{Binding VisualStyleSummary}"
+                                                           FontSize="10" Foreground="{StaticResource TextMutedBrush}" FontStyle="Italic"
+                                                           TextWrapping="Wrap" Margin="0,0,0,10"/>
+
+                                                <StackPanel Orientation="Horizontal">
+                                                    <Button Content="🔍 Analyze → H3 Prompt"
+                                                            Command="{Binding AnalyzeCommand}"
+                                                            IsEnabled="{Binding CanAnalyze}"
+                                                            Height="32" Padding="14,0" FontSize="11"
+                                                            Style="{StaticResource AccentButtonStyle}"
+                                                            ToolTip="Sends whatever is loaded — the scene image, the story, or both — to the llama-server with texttovideoH3.md and writes a dense multi-shot H3 prompt in which the cast is named only as &lt;Picture 1&gt; / &lt;Picture 2&gt; and framed so faces stay readable. The locked wardrobe above is handed to it as settled fact, so no clip picks its own outfit."/>
+                                                    <TextBlock FontStyle="Italic" FontSize="11" VerticalAlignment="Center" Margin="8,0,0,0"
+                                                               Text="{Binding AnalyzeBusyText}" Foreground="{DynamicResource TabAccentBrush}">
+                                                        <TextBlock.Style>
+                                                            <Style TargetType="TextBlock">
+                                                                <Setter Property="Visibility" Value="Collapsed"/>
+                                                                <Style.Triggers>
+                                                                    <DataTrigger Binding="{Binding IsAnalyzing}" Value="True">
+                                                                        <Setter Property="Visibility" Value="Visible"/>
+                                                                    </DataTrigger>
+                                                                </Style.Triggers>
+                                                            </Style>
+                                                        </TextBlock.Style>
+                                                    </TextBlock>
+                                                </StackPanel>
                                             </StackPanel>
                                         </Border>
 

@@ -100,6 +100,11 @@ namespace FlipPix.UI.ViewModels.Video
             : base(comfyUIService, lmStudioService, logger, settingsService, serviceProvider,
                    workflowCoordinator, fileDialogService)
         {
+            // The tab is for long stories — a two-minute chain is what it is for, and the H3 Cast
+            // family's 15s default meant every run started by dragging the slider the whole way
+            // across. Set here rather than in the base so the other cast tabs keep theirs.
+            StoryDurationSeconds = 120;
+
             // The tab's own store, so its story chains and the I2V tab's takes never share a picker.
             _chainLibrary = new ScenePromptLibrary(AddLog, ScenePromptLibrary.FolderFor("h3experimental"));
             OpenChainLibraryCommand = new RelayCommand(async () => await OpenChainLibraryAsync());
