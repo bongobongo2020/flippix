@@ -179,12 +179,77 @@ namespace FlipPix.UI.Services
         }
 
         /// <summary>
+        /// A picture tag a model <i>meant</i> to write and did not quite: an opening angle bracket, an
+        /// optional space, some spelling of "Picture", the number — and then anything or nothing where the
+        /// closing bracket belongs.
+        ///
+        /// <para>Observed on H3 Duo 2026-09-02: from clip 4 of a 12-clip chain onwards, every tag arrived as
+        /// <c>&lt;Picture 1</c> with no closing bracket, and by clip 10 as <c>&lt; Picture 2</c> with a space
+        /// after the bracket as well. Earlier, on H3 Eros, as <c>&lt;P 1&gt;</c>. None of those match
+        /// <see cref="PictureTagRegex"/>, and the consequences are silent and total: the tag is never
+        /// resolved to a reference, so H3 is handed the literal text; and because
+        /// <see cref="IncludesCharacter2"/> and the selective cast read the same regex, a clip whose only
+        /// mention of character 2 was malformed is submitted <b>with character 2's photographs left off
+        /// altogether</b> — which is the clip that comes back with a stranger in it.</para>
+        ///
+        /// <para>The opening <c>&lt;</c> is what makes this safe to repair: prose does not contain it, so a
+        /// match is always a tag that was aimed at and missed.</para>
+        /// </summary>
+        /// <para>The closing bracket and the space in front of it are consumed <i>together or not at
+        /// all</i> — <c>(?:\s*&gt;)?</c>, never <c>\s*&gt;?</c>. The loose form swallows the space after an
+        /// unclosed tag and welds the tag to the next word (<c>&lt;Picture 1&gt;leaps</c>), which trades one
+        /// malformation for another.</para>
+        private static readonly Regex BrokenPictureTagRegex =
+            new(@"<\s*(?:Picture|Pictuer|Picutre|Pic|P)\s*(\d{1,2})(?:\s*>)?",
+                RegexOptions.IgnoreCase | RegexOptions.Compiled);
+
+        /// <summary>
+        /// A cast alias run straight into the next word — <c>@char1_frontkicks off his collarbone</c>,
+        /// observed in the same chain. <see cref="CastTagRegex"/> ends on <c>\b</c>, so this matches
+        /// <i>nothing at all</i>: the alias is not seen, and the character it names loses their references
+        /// for that clip exactly as a malformed picture tag does.
+        /// </summary>
+        private static readonly Regex RunOnAliasRegex =
+            new(@"(?<![\w@])(@char\d+(?:_(?:front|back|face|v\d+))?)(?=[A-Za-z])",
+                RegexOptions.IgnoreCase | RegexOptions.Compiled);
+
+        /// <summary>
+        /// Repairs the near-miss cast tags a model writes when a long reply starts to drift, so they resolve
+        /// to references instead of being silently dropped. Idempotent, and a no-op on a clean body.
+        ///
+        /// <para>Public because it is worth running — and reporting — before a prompt is stamped, so the
+        /// tab can say how many tags it had to mend rather than repairing them invisibly.</para>
+        /// </summary>
+        public static string RepairTags(string? body)
+        {
+            if (string.IsNullOrEmpty(body)) return body ?? string.Empty;
+            body = RunOnAliasRegex.Replace(body, "$1 ");
+            return BrokenPictureTagRegex.Replace(body, m => $"<Picture {m.Groups[1].Value}>");
+        }
+
+        /// <summary>How many tags <see cref="RepairTags"/> would mend — what the tab reports.</summary>
+        public static int CountBrokenTags(string? body)
+        {
+            if (string.IsNullOrEmpty(body)) return 0;
+            var broken = RunOnAliasRegex.Matches(body).Count;
+            foreach (Match m in BrokenPictureTagRegex.Matches(body))
+                if (m.Value != $"<Picture {m.Groups[1].Value}>") broken++;
+            return broken;
+        }
+
+        /// <summary>
         /// Puts a body into the one form everything here is written against: two characters, named
         /// <c>&lt;Picture 1&gt;</c> and <c>&lt;Picture 2&gt;</c>. Both the numbered slots of an already-stamped
         /// prompt and the aliases of a tagged one collapse to it.
+        ///
+        /// <para>Near-miss tags are mended first (<see cref="RepairTags"/>). It happens here rather than at
+        /// the call sites because every path into the stamp — Analyze, a re-stamp after a wardrobe edit, Add
+        /// to Queue, a prompt typed by hand — goes through <see cref="Strip"/>, and a tag that is still
+        /// broken by the time it reaches the queue costs a render.</para>
         /// </summary>
         private static string Canonicalize(string body)
         {
+            body = RepairTags(body);
             body = CastTagRegex.Replace(body, m => m.Groups[1].Value == "1" ? "<Picture 1>" : "<Picture 2>");
             return PictureTagRegex.Replace(body, m => m.Groups[1].Value == "1" ? "<Picture 1>" : "<Picture 2>");
         }

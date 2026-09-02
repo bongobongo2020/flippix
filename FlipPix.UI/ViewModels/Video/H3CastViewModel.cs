@@ -1955,23 +1955,35 @@ namespace FlipPix.UI.ViewModels.Video
                 // so the request cannot exceed a modest local context window.
                 var maxTokens = Math.Min(32000, 6000 + 2500 * (Math.Max(1, clipCount) - 1));
 
-                var result = fromImage
-                    ? await _lmStudioService.AnalyzeImageWithSystemPromptAsync(
-                        model,
-                        SceneImagePath,
-                        userMessage,
-                        systemPrompt,
-                        maxTokens: maxTokens,
-                        cancellationToken: token)
-                    : await _lmStudioService.SendTextChatAsync(
-                        model,
-                        systemPrompt,
-                        userMessage,
-                        maxTokens: maxTokens,
-                        cancellationToken: token);
+                // A chain is written one clip at a time — one beat-sheet call, then one call per clip.
+                // See H3CastViewModel.ChainWriter.cs for what asking for all N in one reply did to the
+                // cast tags, and what that cost at render time. A lone clip was never that failure and
+                // keeps the request this tab has always sent.
+                string cleaned;
+                if (clipCount > 1)
+                {
+                    cleaned = await WriteChainClipByClipAsync(model, len, clipCount, token);
+                }
+                else
+                {
+                    var result = fromImage
+                        ? await _lmStudioService.AnalyzeImageWithSystemPromptAsync(
+                            model,
+                            SceneImagePath,
+                            userMessage,
+                            systemPrompt,
+                            maxTokens: maxTokens,
+                            cancellationToken: token)
+                        : await _lmStudioService.SendTextChatAsync(
+                            model,
+                            systemPrompt,
+                            userMessage,
+                            maxTokens: maxTokens,
+                            cancellationToken: token);
 
-                var cleaned = ApplyReferenceLineToChain(
-                    CleanOutput(result), Panels1, Panels2, CastWardrobe, CastDescriptor);
+                    cleaned = ApplyReferenceLineToChain(
+                        CleanOutput(result), Panels1, Panels2, CastWardrobe, CastDescriptor);
+                }
                 if (!string.IsNullOrWhiteSpace(cleaned))
                 {
                     Prompt = cleaned;

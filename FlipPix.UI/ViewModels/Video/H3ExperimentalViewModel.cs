@@ -65,9 +65,6 @@ namespace FlipPix.UI.ViewModels.Video
     /// </summary>
     public partial class H3ExperimentalViewModel : H3DuoViewModel
     {
-        /// <summary>The per-clip writer's system prompt — the whole system prompt for step 2.</summary>
-        private const string ClipFile = "h3pw_clip.md";
-
         public H3ExperimentalViewModel(
             ComfyUIService comfyUIService,
             LMStudioService lmStudioService,
@@ -233,7 +230,7 @@ namespace FlipPix.UI.ViewModels.Video
                 var (setting, beats) = await BuildBeatSheetAsync(model, clipCount, len, token);
 
                 // ── Step 2 — one call per clip ─────────────────────────────────────────────────────
-                var system = await ReadSystemPromptAsync(ClipFile, token);
+                var system = await ReadSystemPromptAsync(ClipSystemPromptFile, token);
                 // The guide's own pacing: roughly one cut per 1.25s, floored at 6 so a short clip is still
                 // cut like a fight and capped at 14 so a long one stays inside 500 words.
                 var shots = Math.Clamp((int)Math.Round(len * 0.8, MidpointRounding.AwayFromZero), 6, 14);
@@ -480,13 +477,12 @@ namespace FlipPix.UI.ViewModels.Video
 
         // ── Step 2: one call per clip ──────────────────────────────────────────────────────────────
 
-        /// <summary>Raw reply → clip body. A model told not to emit a clip header sometimes emits one
-        /// anyway; <see cref="SplitClips"/> takes it off and is a no-op on a body that has none.</summary>
-        private static string NormalizeClipBody(string raw)
-        {
-            var body = CanonicalizeFieldLabels(CleanOutput(raw));
-            return SplitClips(body).FirstOrDefault() ?? body;
-        }
+        /// <summary>The base cleanup plus this tab's field-label canonicalisation — a writer that gets
+        /// terser as a chain goes on starts typing the three labels as headings or bullets
+        /// ("## Overall Soundscape:"), and every pass after this one matches them ordinally against the
+        /// guide's spelling.</summary>
+        protected override string NormalizeClipBody(string raw) =>
+            CanonicalizeFieldLabels(base.NormalizeClipBody(raw));
 
         /// <summary>
         /// What makes a clip renderable here: the description H3 renders from, and — in a two-hander —

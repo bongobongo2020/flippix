@@ -718,6 +718,9 @@ namespace FlipPix.UI.Services
             var t = Normalize(prompt);
             if (t.Length == 0) return string.Empty;
 
+            // Before anything reads the tags: a slipped bracket here costs a character their reference
+            // photographs for the whole clip. See RepairTags.
+            t = RepairTags(t);
             t = StripWardrobeBlock(t);
             var sections = SplitSections(t);
             if (sections.Count == 0) return t;
@@ -856,6 +859,60 @@ namespace FlipPix.UI.Services
 
         private static readonly Regex PictureRegex =
             new(@"<\s*Picture\s+(\d+)\s*>", RegexOptions.IgnoreCase | RegexOptions.Compiled);
+
+        /// <summary>
+        /// A subject or picture tag a model <i>meant</i> to write and did not quite: the opening bracket,
+        /// an optional space, the word, the number, and then anything or nothing where the closing bracket
+        /// belongs.
+        ///
+        /// <para>Observed on the sibling H3 Duo tab, whose tags fail the same way: from clip 4 of a 12-clip
+        /// chain every tag arrived as <c>&lt;Picture 1</c> with no closing bracket, and by clip 10 as
+        /// <c>&lt; Picture 2,</c> with a space after the bracket too. The consequence here is worse than
+        /// cosmetic, because <see cref="MentionsSubject"/> uses <see cref="SubjectRegex"/> to decide whose
+        /// photographs are uploaded: a clip whose only mention of a character was malformed is submitted
+        /// <b>without that character's references at all</b>, and the generator invents somebody.</para>
+        ///
+        /// <para>The closing bracket and the space before it are consumed together or not at all, so an
+        /// unclosed tag is not welded to the word after it. The opening <c>&lt;</c> is what makes the
+        /// repair safe: prose does not contain one.</para>
+        /// </summary>
+        private static readonly Regex BrokenTagRegex =
+            new(@"<\s*(Subject|Picture|Pictuer|Pic|Subj|S|P)\s*(\d{1,2})(?:\s*>)?",
+                RegexOptions.IgnoreCase | RegexOptions.Compiled);
+
+        /// <summary>
+        /// Mends near-miss subject and picture tags so they resolve to references instead of being silently
+        /// dropped. Idempotent, and a no-op on a clean body. Called from <see cref="Strip"/>, so every path
+        /// into <see cref="Assemble"/> — Analyze, a re-stamp, Add to Queue, a prompt edited by hand — gets it.
+        /// </summary>
+        public static string RepairTags(string? body)
+        {
+            if (string.IsNullOrEmpty(body)) return body ?? string.Empty;
+            return BrokenTagRegex.Replace(body, m =>
+            {
+                var word = m.Groups[1].Value;
+                var subject = word.Equals("Subject", StringComparison.OrdinalIgnoreCase) ||
+                              word.Equals("Subj", StringComparison.OrdinalIgnoreCase) ||
+                              word.Equals("S", StringComparison.OrdinalIgnoreCase);
+                return $"<{(subject ? "Subject" : "Picture")} {m.Groups[2].Value}>";
+            });
+        }
+
+        /// <summary>How many tags <see cref="RepairTags"/> would mend — what a tab reports after writing.</summary>
+        public static int CountBrokenTags(string? body)
+        {
+            if (string.IsNullOrEmpty(body)) return 0;
+            var broken = 0;
+            foreach (Match m in BrokenTagRegex.Matches(body))
+            {
+                var word = m.Groups[1].Value;
+                var canonical = word.Equals("Subject", StringComparison.Ordinal) ? "Subject"
+                              : word.Equals("Picture", StringComparison.Ordinal) ? "Picture"
+                              : null;
+                if (canonical == null || m.Value != $"<{canonical} {m.Groups[2].Value}>") broken++;
+            }
+            return broken;
+        }
 
         /// <summary>Whether the body casts a given subject — what decides, per clip of a chain, whose
         /// reference photographs are uploaded at all.</summary>
