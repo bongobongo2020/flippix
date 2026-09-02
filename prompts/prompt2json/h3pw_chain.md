@@ -1,9 +1,16 @@
 <!-- The H3 Experimental tab's story-chain layer, laid over the official MiniMax base guide
      (h3pw_guide_base.md) by the h3_prompt_writer tool. It carries the rules a chain of
      separately-rendered clips needs that a single prompt does not: clip headers, per-clip
-     self-containment, tag-only identity, the locked wardrobe — and, first among equals, the
-     action-expansion rule that scales the story's own fight across the chain's runtime
-     without inventing anything the story does not narrate. -->
+     self-containment, tag-only identity, the locked wardrobe, and the action-expansion rule
+     that scales the story's own fight across the chain's runtime without inventing anything
+     the story does not narrate.
+
+     It also carries the one override the base guide makes necessary: that guide documents only
+     the keyframe tasks, in which <Picture N> IS a frame of the video and [Shot 1] must open on
+     its composition (its §2.1 and §3.1). Here the pictures are studio reference photographs of
+     the cast, so following the guide literally renders the character sheet — plain backdrop,
+     neutral pose, cast lined up — as the video's opening frame. See THE REFERENCE PICTURES ARE
+     NOT FRAMES below. -->
 
 # STORY CHAIN MODE
 
@@ -28,6 +35,36 @@ Then a blank line, then that clip's prompt in the **exact** format of the base g
 three field labels (`integrated_multimodal_description:`, `overall_soundscape:`,
 `non_diegetic_music:`), the same rules, nothing else. Emit every clip from 1 to N in order, in
 one reply. Nothing may appear outside the headers and the prompts.
+
+## THE REFERENCE PICTURES ARE NOT FRAMES — OVERRIDE OF THE BASE GUIDE'S §2.1 AND §3.1
+
+The base guide covers only the keyframe tasks — T2VA, I2VA, FL2VA, L2VA — in which
+`<Picture N>` is a frame of the target video that the description must align to and open on.
+**This mode is none of them, and those sections do not apply.** The pictures attached to every
+clip here are **studio reference photographs of the cast**: plain backdrop, neutral standing
+pose, shot for identity alone. They are not frame 0, not the last frame, and not a single thing
+the viewer ever sees. Where the base guide and this section disagree, this section wins.
+
+- **Write no alignment or anchor instruction, ever.** Not `For the target video, at 0.00 seconds
+  into the target video, <Picture 1> (from [Shot 1]) is fully referenced.`, not `How the
+  reference pictures align with the target video — …`, not any rewording of either. Every clip
+  begins directly with `integrated_multimodal_description:`. Guide §2.1 is void in this mode.
+- **`[Shot 1]` establishes the scene from the brief — never the picture's composition.** Guide
+  §3.1's "first establish the style, subjects, composition, and scene anchors in the image" is
+  exactly wrong here: the pictures show a studio, and the video is set wherever the brief says.
+  Open `[Shot 1]` on the style words, then the shot size and camera angle, then the tagged cast
+  already in motion in the brief's own location.
+- **Never put the references themselves on screen.** No plain, seamless or studio backdrop; no
+  neutral standing pose; no line-up of the cast side by side; no panel, grid, split-screen,
+  turnaround, contact-sheet or character-sheet layout; and never the same person twice in one
+  frame. If a rendered clip could be mistaken for the reference photographs, the clip is wrong.
+- **Take only identity from them** — face, hair, skin, build — together with the garments the
+  wardrobe block already quotes. Every other thing in the frame comes from your words.
+
+There is **exactly one `[Shot 1]` per clip**, and it carries no timestamp. The style and setting
+that EACH CLIP IS SELF-CONTAINED tells you to restate belong **inside** that one `[Shot 1]`,
+running straight into the action it opens on — never as a separate `[Shot 1]` block of their own
+standing ahead of the real opening shot.
 
 ## EXPAND THE ACTION — ONLY THE ACTION, NOTHING ELSE
 
@@ -104,9 +141,11 @@ The generator renders each clip in isolation and **remembers nothing** from the 
 
 ## IDENTITY COMES FROM THE TAGS — NEVER DESCRIBE THE CAST
 
-The characters reach the generator as **reference images** attached to every clip, addressed
-as `<Picture 1>`, `<Picture 2>` (the brief says which tag is which character). Those images —
-not your words — fix their faces, hair and build, and you have not seen them:
+The characters reach the generator as **studio reference photographs** attached to every clip,
+addressed as `<Picture 1>`, `<Picture 2>` (the brief says which tag is which character). Those
+images — not your words — fix their faces, hair and build, and you have not seen them. They fix
+nothing else: see THE REFERENCE PICTURES ARE NOT FRAMES above for what must never be copied out
+of them.
 
 - Refer to each character only by their tag. Write no word for hair, face, skin, build or age —
   not even vague ones. The tag carries all of it.
@@ -159,9 +198,12 @@ across the chain. Your job is not to contradict it:
 ## FINAL CHECK
 
 Exactly N headers numbered 1..N, each on its own line; exactly N prompts, each obeying the
-base guide's own format on its own; **each clip carries its full shot count — 9–14 shots for
-a 15-second clip, one cut every 1–1.5 seconds, never fewer than 8**; style and setting
-restated identically in every clip; no
+base guide's own format on its own; **no clip carries an alignment or anchor line and no clip
+opens on the reference pictures' composition — one `[Shot 1]` per clip, no timestamp on it, the
+restated style and setting inside it, and no studio backdrop, neutral pose, line-up, panel,
+grid, split-screen or character-sheet layout anywhere in the chain**; **each clip carries its
+full shot count — 9–14 shots for a 15-second clip, one cut every 1–1.5 seconds, never fewer
+than 8**; style and setting restated identically in every clip; no
 clip describes the cast's hair or faces; **every clip of a two-person fight names BOTH
 fighters' tags — no fighter appears only as an untagged pronoun**; every clip dresses them in
 the quoted wardrobe wording; **no clip contains an event, location or outcome the story does
