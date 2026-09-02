@@ -1068,7 +1068,7 @@ namespace FlipPix.UI.ViewModels.Video
 
         public bool IsStorySequence => PlannedClipCount > 1;
 
-        public string ClipPlanSummary
+        public virtual string ClipPlanSummary
         {
             get
             {

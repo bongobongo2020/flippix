@@ -17,8 +17,8 @@ using Application = System.Windows.Application;
 namespace FlipPix.UI.ViewModels.Video
 {
     /// <summary>
-    /// "H3 Eros" tab — the 🧪 H3 Experimental flow (story in, the H3 Prompt Writer tool loop, the cast
-    /// sheets, the wardrobe lock, the clip queue, the FFmpeg join) rendered through the author's
+    /// "H3 Eros" tab — the 🧪 H3 Experimental flow (story in, the beat sheet and the per-clip writer, the
+    /// cast sheets, the wardrobe lock, the clip queue, the FFmpeg join) rendered through the author's
     /// <b>MiniMax SEEDHUNTER v122 EROS-Hybrid</b> graph, which turns every clip into a seed hunt.
     ///
     /// <para><b>What a clip costs, and why it is two submissions.</b> The graph builds one
@@ -46,9 +46,10 @@ namespace FlipPix.UI.ViewModels.Video
     ///
     /// <para>Everything before the render is inherited unchanged from
     /// <see cref="H3ExperimentalViewModel"/>: the story and scene inputs, the wardrobe derived once and
-    /// locked, the two character cards and their panel-split sheets, the prompt-writer tool loop that
-    /// turns a story into a clip chain, the queue, and the FFmpeg join that runs when the last clip of a
-    /// chain lands.</para>
+    /// locked, the two character cards and their panel-split sheets, the two-step writer that turns a
+    /// story into a clip chain (one call divides it into one beat per clip, then one call writes each
+    /// clip from its beat), the queue, and the FFmpeg join that runs when the last clip of a chain
+    /// lands.</para>
     /// </summary>
     public partial class H3ErosViewModel : H3ExperimentalViewModel
     {

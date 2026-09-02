@@ -1,4 +1,4 @@
-using System.Globalization;
+﻿using System.Globalization;
 
 namespace FlipPix.UI.Services
 {
@@ -14,9 +14,13 @@ namespace FlipPix.UI.Services
     /// <para>Observed 2026-08-18: a 15-clip H3 Cast Hybrid chain came back with three distinct beats and
     /// then twelve verbatim copies, alternating two of them to the end. Nothing was truncated — the reply
     /// was 8.5k tokens against a 32k budget. With every block sharing a six-section skeleton and nothing
-    /// penalising reuse, the sampler simply fell into a two-cycle, and with reasoning switched off the
-    /// model had nowhere to enumerate the beats before writing them. Twelve wasted renders, ~85 minutes of
+    /// penalising reuse, the sampler simply fell into a two-cycle. Twelve wasted renders, ~85 minutes of
     /// GPU.</para>
+    ///
+    /// <para>The penalties that fixed <i>that</i> caused a worse failure of their own — see
+    /// <see cref="StoryChainFormatted"/> — and both are now moot: no call in the app asks for N clips in
+    /// one reply any more. The chain tabs write one clip per call
+    /// (<c>StoryBeatSheet</c> → <c>ClipChainWriter</c>), which is a shape neither failure has.</para>
     ///
     /// <para>The defaults reproduce the old request exactly, so this is inert everywhere it is not passed.</para>
     /// </summary>
@@ -51,30 +55,24 @@ namespace FlipPix.UI.Services
         public static LlmSampling Default => new();
 
         /// <summary>
-        /// For writing a multi-clip story chain in one reply. Penalties strong enough to make a verbatim
-        /// block copy expensive, temperature nudged up so the model reaches for a different beat rather
-        /// than the nearest one, and the scratchpad open so it can split the story before writing it.
-        /// </summary>
-        public static LlmSampling StoryChain => new(
-            Temperature: 0.85, PresencePenalty: 0.6, FrequencyPenalty: 0.35,
-            RepeatPenalty: 1.08, AllowThinking: true);
-
-        /// <summary>
-        /// The <b>brief</b> turn of a two-turn pipeline (H3 Experimental): one long tool-call argument
-        /// planning the whole chain, with the scratchpad open so the model can split the story before it
-        /// budgets it. Deliberately <b>without</b> the OpenAI-standard penalties <see cref="StoryChain"/>
-        /// carries — see <see cref="StoryChainFormatted"/> for why they poison a single long block.
+        /// The <b>planning</b> call of a story chain — <c>StoryBeatSheet</c>: read the whole story and
+        /// divide it into one beat per clip, with the scratchpad open so the model can enumerate the beats
+        /// before committing to the split. Deliberately <b>without</b> the OpenAI-standard
+        /// presence/frequency penalties — see <see cref="StoryChainFormatted"/> for why they poison a
+        /// single long block.
         /// </summary>
         public static LlmSampling StoryChainBrief => new(
             Temperature: 0.8, RepeatPenalty: 1.05, AllowThinking: true);
 
         /// <summary>
-        /// The writer turn of a two-turn pipeline: guide-driven formatting with the scratchpad closed. The
-        /// planning StoryChain's thinking exists for has already happened — the brief turn did it — so a
-        /// reasoning preamble before N clips only adds minutes of latency and eats the token budget.
+        /// The <b>writing</b> call of a story chain — <c>ClipChainWriter</c>, once per clip: guide-driven
+        /// formatting with the scratchpad closed. The planning has already happened in the beat sheet, so a
+        /// reasoning preamble in front of every clip would only add minutes of latency per chain and eat
+        /// the token budget.
         ///
         /// <para><b>Why no presence/frequency penalty here (observed 2026-09-01).</b> This profile used to
-        /// carry <see cref="StoryChain"/>'s penalties (presence 0.6, frequency 0.35) and produced clip
+        /// carry presence 0.6 / frequency 0.35 — the settings the removed <c>StoryChain</c> profile used
+        /// for whole-chain-in-one-reply writing — and produced clip
         /// bodies that collapsed into thousands of characters of unpunctuated synonym-walk — "…polishing
         /// buffing shining glimmering sparkling twinkling…", degrading into word fragments ("twink
         /// glitter … radi glow") as the whole-word tokens were used up. llama.cpp applies presence and
@@ -86,21 +84,14 @@ namespace FlipPix.UI.Services
         ///
         /// <para>The task makes it worse: a chain clip is <i>supposed</i> to restate the style, the setting
         /// and the quoted wardrobe word for word in every clip, which is exactly what these penalties
-        /// price out. Block-copy protection on this path is structural instead — the chain guide's
-        /// per-clip rules, and the deterministic passes that truncate runaways, drop broken clips and
-        /// re-tag fighters after the reply.</para>
+        /// price out.</para>
+        ///
+        /// <para>Nothing here guards against a model copying one clip into the next, and nothing needs to:
+        /// each call is handed one beat and never sees the others, so there is no block to copy. That is
+        /// what the penalties used to be for, back when a single reply had to hold the whole chain.</para>
         /// </summary>
         public static LlmSampling StoryChainFormatted => new(
             Temperature: 0.8, RepeatPenalty: 1.05, AllowThinking: false);
-
-        /// <summary>
-        /// The retry after a chain came back looping. Harder on repetition than
-        /// <see cref="StoryChain"/> — at this point the model has already demonstrated it will copy a
-        /// block, and a slightly mangled beat is worth more than an exact duplicate of one already used.
-        /// </summary>
-        public static LlmSampling StoryChainRetry => new(
-            Temperature: 0.95, PresencePenalty: 1.0, FrequencyPenalty: 0.6,
-            RepeatPenalty: 1.12, AllowThinking: true);
 
         /// <summary>One log fragment naming whatever is not the default, or empty when nothing is.</summary>
         public string Describe()

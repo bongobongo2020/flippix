@@ -65,7 +65,6 @@ namespace FlipPix.UI.ViewModels.Video
         /// <summary>The folder under the output root this tab's finished files are copied to.</summary>
         protected virtual string OutputFolderName => "H3Ensemble";
         private const string SystemPromptFile = "h3-ensemble.md";
-        private const string StorySystemPromptFile = "h3-ensemble_story.md";
         private const string SheetPromptFile = "h3-charsheet-2511.md";
 
         // ── Video node ids (locked from h3-minimax/h3-cast-hybrid.json) ────────────────────────
