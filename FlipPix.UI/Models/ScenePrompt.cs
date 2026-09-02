@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Collections.Generic;
 
 namespace FlipPix.UI.Models
@@ -76,6 +76,21 @@ namespace FlipPix.UI.Models
 
         /// <summary><c>[Shot n]</c> markers, shown in the picker so long and short prompts are told apart.</summary>
         public int Shots { get; set; }
+
+        /// <summary>
+        /// The prose the chain was written from, on the tabs that write clips out of a story (🧪 H3
+        /// Experimental). Stored with the entry so a take is self-contained: recalling it puts the story
+        /// back beside its clips, and re-running Analyze against a new cast writes the same story again
+        /// rather than whatever happens to be in the box. Empty on tabs with no story input.
+        /// </summary>
+        public string StoryText { get; set; } = string.Empty;
+
+        /// <summary>
+        /// The wardrobe the chain was written and stamped with, recorded for reference only — it is
+        /// <b>not</b> pushed back into the tab on recall. The whole point of a saved chain is to re-run it
+        /// with a different cast, and the tab dresses whoever is loaded now from the story itself.
+        /// </summary>
+        public string Wardrobe { get; set; } = string.Empty;
 
         public DateTime CreatedAt { get; set; } = DateTime.Now;
         public DateTime LastUsed { get; set; } = DateTime.Now;

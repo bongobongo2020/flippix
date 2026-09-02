@@ -4545,6 +4545,30 @@
                                                          BorderBrush="{StaticResource BorderBrush}" Background="{StaticResource SurfaceAltBrush}"
                                                          FontSize="11" Padding="8"/>
 
+                                                <!-- Prompt library: every chain the writer finishes, and
+                                                     every chain that reaches the queue, is filed
+                                                     automatically; this row is how they come back out —
+                                                     re-cast for whoever is loaded then. -->
+                                                <Grid Margin="0,8,0,0">
+                                                    <Grid.ColumnDefinitions>
+                                                        <ColumnDefinition Width="*"/>
+                                                        <ColumnDefinition Width="Auto"/>
+                                                    </Grid.ColumnDefinitions>
+                                                    <Button Grid.Column="0"
+                                                            Content="{Binding ChainLibraryLabel}"
+                                                            Command="{Binding OpenChainLibraryCommand}"
+                                                            Height="28" Padding="10,0" FontSize="11" Margin="0,0,6,0"
+                                                            Background="{StaticResource SurfaceAltBrush}" Foreground="{DynamicResource TabAccentBrush}"
+                                                            BorderBrush="{StaticResource BorderBrush}" BorderThickness="1"
+                                                            ToolTip="Browse the story chains this tab has saved and put one back in the prompt box, with the story it was written from and the clip plan it was written against.&#x0a;&#x0a;Chains are stored as clip bodies with no cast preamble, so a story written for one cast can be rendered later with another: the reference line and the wardrobe block are written fresh from the characters loaded at the time. The saved take's own cast and wardrobe are NOT restored.&#x0a;&#x0a;Entries can be renamed, edited and deleted in the picker."/>
+                                                    <Button Grid.Column="1" Content="&#x1F4BE; Save"
+                                                            Command="{Binding SaveChainCommand}"
+                                                            Height="28" Width="76" FontSize="11"
+                                                            Background="{StaticResource SurfaceAltBrush}" Foreground="{StaticResource TextSecondaryBrush}"
+                                                            BorderBrush="{StaticResource BorderBrush}" BorderThickness="1"
+                                                            ToolTip="File the chain in the prompt box now. Analyzed and queued chains are saved automatically — this is for one you have edited here and do not intend to queue yet."/>
+                                                </Grid>
+
                                                 <!-- What Add to Queue will actually enqueue: the chain is
                                                      split on its headers, so hand-edits here are honoured. -->
                                                 <TextBlock Text="{Binding PromptClipSummary}"

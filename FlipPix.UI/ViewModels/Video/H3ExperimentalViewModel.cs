@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Globalization;
 using System.IO;
 using System.Text.Json.Nodes;
@@ -6,6 +6,7 @@ using System.Text.RegularExpressions;
 using System.Threading;
 using System.Threading.Tasks;
 using System.Windows;
+using CommunityToolkit.Mvvm.Input;
 using FlipPix.ComfyUI.Services;
 using FlipPix.Core.Interfaces;
 using FlipPix.UI.Models;
@@ -50,7 +51,7 @@ namespace FlipPix.UI.ViewModels.Video
     /// it should be. Setting the per-clip length (debounced, so stepping through values is one run) is
     /// what starts the writer; the Analyze button re-runs it by hand at any time.</para>
     /// </summary>
-    public class H3ExperimentalViewModel : H3DuoViewModel
+    public partial class H3ExperimentalViewModel : H3DuoViewModel
     {
         // ── The MCP-style tool the model is offered in turn 1. The name matches what the user's
         //    llama-server MCP config would expose; since llama-server hands tool calls back to the
@@ -99,9 +100,18 @@ namespace FlipPix.UI.ViewModels.Video
             : base(comfyUIService, lmStudioService, logger, settingsService, serviceProvider,
                    workflowCoordinator, fileDialogService)
         {
+            // The tab's own store, so its story chains and the I2V tab's takes never share a picker.
+            _chainLibrary = new ScenePromptLibrary(AddLog, ScenePromptLibrary.FolderFor("h3experimental"));
+            OpenChainLibraryCommand = new RelayCommand(async () => await OpenChainLibraryAsync());
+            SaveChainCommand = new RelayCommand(async () => await SaveCurrentChainAsync(manual: true));
+
             AddLog("H3 Experimental initialized — story chains are written through the H3 Prompt Writer " +
                    "tool (brief → official MiniMax guide → clips); a story derives the wardrobe, and " +
                    "setting the video time runs the writer");
+
+            // Off the constructor's thread: the index is read from disk and this tab is on the Video
+            // Generator's startup path.
+            _ = PrimeChainLibraryAsync();
         }
 
         /// <summary>The Duo graph's copy under this tab's name — experiments cannot break the Duo tab's file.</summary>
@@ -135,6 +145,9 @@ namespace FlipPix.UI.ViewModels.Video
         protected override void OnLengthSecondsChanged()
         {
             if (!HasStoryText) return; // the prompt-writer flow is story-driven; nothing to auto-run
+            // A recall is restoring the length a saved chain was written at — the chain is already written,
+            // and running the writer again would overwrite it two seconds later.
+            if (_restoringChain) return;
 
             _autoAnalyzeCts?.Cancel();
             _autoAnalyzeCts?.Dispose();
@@ -196,6 +209,9 @@ namespace FlipPix.UI.ViewModels.Video
             _analyzeCts?.Dispose();
             _analyzeCts = new CancellationTokenSource();
             var token = _analyzeCts.Token;
+            // What the status line said before the writer borrowed it — a render in flight owns that line
+            // and gets it back untouched when the writer is done.
+            var statusBeforeWriting = ProcessingStatus;
 
             try
             {
@@ -395,6 +411,10 @@ namespace FlipPix.UI.ViewModels.Video
                             AddLog("Cast check: every clip names both fighters — no duplicate-of-self renders.");
                     }
 
+                    // Filed as soon as it exists: a chain costs a long llama-server turn and is not
+                    // reproducible run to run, so it is worth keeping before anything else can go wrong.
+                    await SaveCurrentChainAsync(manual: false);
+
                     var drift = DescribeWardrobeDrift(SplitClips(cleaned).Select(CastPromptStamp.Strip).ToList());
                     if (drift != null)
                         AddLog(HasCastWardrobe
@@ -422,7 +442,62 @@ namespace FlipPix.UI.ViewModels.Video
                 IsAnalyzing = false;
                 _analyzeCts?.Dispose();
                 _analyzeCts = null;
+                // The writer's own status line is not left standing: it said "writing the clip chain..."
+                // for as long as the tab stayed open, which reads as a run that never finished — and it
+                // was the only thing on screen explaining why Add to Queue was still greyed out. It now
+                // reports what the queue is actually waiting for.
+                if (IsProcessing || IsProcessingQueue) ProcessingStatus = statusBeforeWriting;
+                else RefreshQueueReadinessStatus(force: true);
             }
+        }
+
+        // The last readiness line this tab wrote. The status line is shared with the render pipeline, so it
+        // is only ever rewritten while it still says what we last put there — a render's own progress is
+        // never stomped.
+        private string _readinessStatus = string.Empty;
+
+        /// <summary>
+        /// Puts the reason Add to Queue is greyed out on the status line, and keeps it current: the usual
+        /// answer is the character sheets, and they finish building long after the writer has stopped.
+        /// </summary>
+        private void RefreshQueueReadinessStatus(bool force = false)
+        {
+            if (IsAnalyzing || IsBuildingSheets || IsProcessing || IsProcessingQueue) return;
+            // The writer's own line is claimed on the way out (force); after that the line is only ever
+            // updated while it still says what we last wrote.
+            if (!force && !string.IsNullOrEmpty(ProcessingStatus) &&
+                !string.Equals(ProcessingStatus, _readinessStatus, StringComparison.Ordinal)) return;
+
+            _readinessStatus = DescribeQueueReadiness();
+            ProcessingStatus = _readinessStatus;
+        }
+
+        protected override void OnCanExecuteChanged()
+        {
+            base.OnCanExecuteChanged();
+            RefreshQueueReadinessStatus();
+        }
+
+        /// <summary>
+        /// What the status line says once the writer has stopped — the reason
+        /// <see cref="H3CastViewModel.CanGenerate"/> is false, said out loud. Building the sheets is the
+        /// usual answer: the chain writes fine without them, but a job cannot be queued until every loaded
+        /// character has one.
+        /// </summary>
+        private string DescribeQueueReadiness()
+        {
+            if (string.IsNullOrWhiteSpace(Prompt))
+                return "No prompt written — press Analyze to run the H3 Prompt Writer.";
+
+            var clips = PromptClipCount > 1 ? $"{PromptClipCount}-clip chain written" : "Prompt written";
+
+            if (!HasCharacter1)
+                return $"{clips} — load character 1 and build the sheets before queueing.";
+            if (!AllSheetsReady)
+                return $"{clips} — press 🃏 Build Sheets; Add to Queue stays off until every " +
+                       "character has a sheet.";
+
+            return $"{clips} — ready to queue.";
         }
 
         // ── Request builders ───────────────────────────────────────────────────────────────────────

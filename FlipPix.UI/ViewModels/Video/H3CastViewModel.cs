@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.Collections.ObjectModel;
 using System.IO;
@@ -1119,6 +1119,10 @@ namespace FlipPix.UI.ViewModels.Video
         }
 
         public bool HasStoryText => !string.IsNullOrWhiteSpace(StoryText);
+
+        /// <summary>File name of the story .txt currently loaded, or empty when the story was typed or
+        /// pasted. Derived tabs use it to name what they save.</summary>
+        protected string StoryFileName => _storyFileName;
 
         /// <summary>Says which of the two inputs Analyze will actually use, and what it will do with them.</summary>
         public string StorySourceSummary
@@ -2600,7 +2604,9 @@ namespace FlipPix.UI.ViewModels.Video
         /// in order and the drain loop always takes the first Pending item, so they render in story order,
         /// against the same character sheets.</para>
         /// </summary>
-        private void AddToQueue()
+        /// <summary>Virtual so a derived tab can act on a queue-add — the 🧪 H3 Experimental fork files the
+        /// chain in its prompt library there, which is where a hand-edited chain gets caught.</summary>
+        protected virtual void AddToQueue()
         {
             if (!CanGenerate) return;
 
