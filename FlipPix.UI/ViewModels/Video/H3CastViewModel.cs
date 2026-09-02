@@ -270,6 +270,7 @@ namespace FlipPix.UI.ViewModels.Video
         private double _lengthSeconds = 10;
         private long _seed = -1;
         private bool _isAnalyzing;
+        private bool _isWritingPrompt;
         private bool _faceRefine = true;
         private double _refineDenoise = 0.45;
         private double _refineBlend = 1.0;
@@ -1639,10 +1640,38 @@ namespace FlipPix.UI.ViewModels.Video
             }
         }
 
-        /// <summary>What the spinner beside Analyze says. The wardrobe watcher borrows the same busy flag —
-        /// it is the same server and the same "do not queue this yet" — so it names itself rather than
-        /// claiming a prompt is being written.</summary>
-        public string AnalyzeBusyText => _isDerivingWardrobe ? "Writing the wardrobe…" : "Analyzing…";
+        /// <summary>
+        /// True only while the <i>prompt writer</i> is running — the pass that is about to overwrite the
+        /// prompt box.
+        ///
+        /// <para>Kept apart from <see cref="IsAnalyzing"/> on purpose. That flag is the llama-server mutex:
+        /// the automatic wardrobe pass and the automatic cast pass borrow it too, because only one turn may
+        /// be in flight at a time. Neither of those touches the prompt box, so neither is a reason to
+        /// refuse a queue-add — and they are exactly the passes that fire on a debounce after the story
+        /// changes, reschedule themselves when they collide with a real Analyze run, and then take a long
+        /// time because the GPU is busy rendering the queue. Gating
+        /// <see cref="CanGenerate"/> on <see cref="IsAnalyzing"/> is what left Add to Queue greyed out for
+        /// minutes after the chain had visibly landed in the box.</para>
+        /// </summary>
+        public bool IsWritingPrompt
+        {
+            get => _isWritingPrompt;
+            protected set
+            {
+                if (_isWritingPrompt == value) return;
+                _isWritingPrompt = value;
+                OnPropertyChanged();
+                OnCanExecuteChanged();
+            }
+        }
+
+        /// <summary>What the spinner beside Analyze says. The wardrobe and cast watchers borrow the same busy
+        /// flag — it is the same server and the same "one turn at a time" — so they name themselves rather
+        /// than claiming a prompt is being written.</summary>
+        public string AnalyzeBusyText =>
+            _isDerivingWardrobe ? "Writing the wardrobe…" :
+            _isDerivingCast ? "Reading the cast…" :
+            "Analyzing…";
 
         /// <summary>
         /// Analyze needs <i>something</i> to work from — the scene image, the story text, or both. Neither is
@@ -1655,10 +1684,11 @@ namespace FlipPix.UI.ViewModels.Video
 
         /// <summary>
         /// Queueing needs a prompt and a sheet for every loaded character. A render in flight does not block
-        /// it — that is what the queue is for — but an in-flight analysis does, since it is about to
-        /// overwrite the prompt box that would be snapshotted.
+        /// it — that is what the queue is for — but the prompt writer does, since it is about to overwrite
+        /// the prompt box that would be snapshotted. The background wardrobe and cast passes deliberately do
+        /// <i>not</i>: see <see cref="IsWritingPrompt"/>.
         /// </summary>
-        public bool CanGenerate => !string.IsNullOrWhiteSpace(Prompt) && AllSheetsReady && !IsAnalyzing;
+        public bool CanGenerate => !string.IsNullOrWhiteSpace(Prompt) && AllSheetsReady && !IsWritingPrompt;
 
         /// <summary>Maps the scene image's own aspect to the nearest ratio the ResolutionSelector offers.</summary>
         private string ClosestAspectRatio(string path)
@@ -1743,6 +1773,7 @@ namespace FlipPix.UI.ViewModels.Video
             if (!CanAnalyze) return;
 
             IsAnalyzing = true;
+            IsWritingPrompt = true;
             _analyzeCts?.Dispose();
             _analyzeCts = new CancellationTokenSource();
             var token = _analyzeCts.Token;
@@ -1980,6 +2011,7 @@ namespace FlipPix.UI.ViewModels.Video
             }
             finally
             {
+                IsWritingPrompt = false;
                 IsAnalyzing = false;
                 _analyzeCts?.Dispose();
                 _analyzeCts = null;
@@ -2240,7 +2272,10 @@ namespace FlipPix.UI.ViewModels.Video
                 finally
                 {
                     _isDerivingWardrobe = false;
-                    IsAnalyzing = false;
+                    // Not unconditionally: Analyze cancels this pass from inside EnsureWardrobeAsync, and
+                    // clearing the shared busy flag there would re-arm the Analyze button on top of the run
+                    // that just cancelled us.
+                    if (!IsWritingPrompt) IsAnalyzing = false;
                 }
             }
             catch (OperationCanceledException) { }

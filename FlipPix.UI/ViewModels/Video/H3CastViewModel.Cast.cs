@@ -110,7 +110,9 @@ namespace FlipPix.UI.ViewModels.Video
                 finally
                 {
                     _isDerivingCast = false;
-                    IsAnalyzing = false;
+                    // See the wardrobe pass: the shared busy flag is only ours to clear while nothing else
+                    // is holding it.
+                    if (!IsWritingPrompt) IsAnalyzing = false;
                 }
             }
             catch (OperationCanceledException) { }

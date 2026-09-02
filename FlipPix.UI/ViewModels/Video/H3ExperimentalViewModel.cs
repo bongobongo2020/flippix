@@ -110,6 +110,8 @@ namespace FlipPix.UI.ViewModels.Video
             OpenChainLibraryCommand = new RelayCommand(async () => await OpenChainLibraryAsync());
             SaveChainCommand = new RelayCommand(async () => await SaveCurrentChainAsync(manual: true));
 
+            QueueReadiness = DescribeQueueReadiness();
+
             AddLog("H3 Experimental initialized — story chains are written through the H3 Prompt Writer " +
                    "tool (brief → official MiniMax guide → clips); a story derives the wardrobe, and " +
                    "setting the video time runs the writer");
@@ -211,6 +213,7 @@ namespace FlipPix.UI.ViewModels.Video
             }
 
             IsAnalyzing = true;
+            IsWritingPrompt = true;
             _analyzeCts?.Dispose();
             _analyzeCts = new CancellationTokenSource();
             var token = _analyzeCts.Token;
@@ -457,6 +460,7 @@ namespace FlipPix.UI.ViewModels.Video
             }
             finally
             {
+                IsWritingPrompt = false;
                 IsAnalyzing = false;
                 _analyzeCts?.Dispose();
                 _analyzeCts = null;
@@ -473,6 +477,22 @@ namespace FlipPix.UI.ViewModels.Video
         // is only ever rewritten while it still says what we last put there — a render's own progress is
         // never stomped.
         private string _readinessStatus = string.Empty;
+        private string _queueReadiness = string.Empty;
+
+        /// <summary>
+        /// The reason Add to Queue is enabled or greyed out, always current, on a line of its own under the
+        /// button.
+        ///
+        /// <para>This exists because the status line cannot carry it. That line belongs to whatever is
+        /// rendering, so <see cref="RefreshQueueReadinessStatus"/> stays silent for the whole length of a
+        /// queue run — and a queue run is exactly when this tab is used to prepare the next story, which is
+        /// when the button being greyed out needs explaining most.</para>
+        /// </summary>
+        public string QueueReadiness
+        {
+            get => _queueReadiness;
+            private set { if (_queueReadiness != value) { _queueReadiness = value; OnPropertyChanged(); } }
+        }
 
         /// <summary>
         /// Puts the reason Add to Queue is greyed out on the status line, and keeps it current: the usual
@@ -493,17 +513,20 @@ namespace FlipPix.UI.ViewModels.Video
         protected override void OnCanExecuteChanged()
         {
             base.OnCanExecuteChanged();
+            // Unconditional, unlike the status line: this one has no other owner to defer to.
+            QueueReadiness = DescribeQueueReadiness();
             RefreshQueueReadinessStatus();
         }
 
         /// <summary>
-        /// What the status line says once the writer has stopped — the reason
-        /// <see cref="H3CastViewModel.CanGenerate"/> is false, said out loud. Building the sheets is the
-        /// usual answer: the chain writes fine without them, but a job cannot be queued until every loaded
-        /// character has one.
+        /// The reason <see cref="H3CastViewModel.CanGenerate"/> is false, said out loud. Building the sheets
+        /// is the usual answer: the chain writes fine without them, but a job cannot be queued until every
+        /// loaded character has one.
         /// </summary>
         private string DescribeQueueReadiness()
         {
+            if (IsWritingPrompt)
+                return "The H3 Prompt Writer is still writing — Add to Queue unlocks when the chain lands.";
             if (string.IsNullOrWhiteSpace(Prompt))
                 return "No prompt written — press Analyze to run the H3 Prompt Writer.";
 
@@ -513,9 +536,14 @@ namespace FlipPix.UI.ViewModels.Video
                 return $"{clips} — load character 1 and build the sheets before queueing.";
             if (!AllSheetsReady)
                 return $"{clips} — press 🃏 Build Sheets; Add to Queue stays off until every " +
-                       "character has a sheet.";
+                       "character has a sheet." +
+                       (IsProcessing || IsProcessingQueue
+                            ? " The build waits for the GPU and starts when the current render finishes."
+                            : string.Empty);
 
-            return $"{clips} — ready to queue.";
+            return IsProcessingQueue
+                ? $"{clips} — ready to queue; it will render after the clips already queued."
+                : $"{clips} — ready to queue.";
         }
 
         // ── Request builders ───────────────────────────────────────────────────────────────────────

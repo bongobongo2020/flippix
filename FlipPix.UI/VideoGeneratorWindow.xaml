@@ -4815,6 +4815,13 @@
                                 <!-- ─── Action Buttons ────────────────────────────────────── -->
                                 <Border Grid.Row="3" Style="{StaticResource ToolStripStyle}"
                                         BorderThickness="0,1,0,0" Padding="10,8">
+                                    <StackPanel>
+                                      <!-- Why Add to Queue is on or off, on a line of its own: the status row above
+                                           belongs to whatever is rendering, so during a queue run it cannot say this —
+                                           which is exactly when it needs saying. -->
+                                      <TextBlock Text="{Binding QueueReadiness}" Margin="2,0,2,6"
+                                                 FontSize="10" TextWrapping="Wrap"
+                                                 Foreground="{StaticResource TextSecondaryBrush}"/>
                                     <Grid>
                                         <Grid.ColumnDefinitions>
                                             <ColumnDefinition Width="*"/>
@@ -4844,6 +4851,7 @@
                                             </StackPanel>
                                         </Button>
                                     </Grid>
+                                    </StackPanel>
                                 </Border>
 
                                 <!-- ─── Queue ─────────────────────────────────────────────── -->
