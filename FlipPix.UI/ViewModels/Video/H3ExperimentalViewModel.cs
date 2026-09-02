@@ -271,8 +271,9 @@ namespace FlipPix.UI.ViewModels.Video
                     sampling: LlmSampling.StoryChainBrief);
 
                 if (call == null)
-                    throw new Exception("the model did not call the prompt writer tool — the server may not " +
-                                        "support tool calling. Re-run, or use the 🪪🌀 H3 Duo tab.");
+                    throw new Exception("the brief came back neither as a tool call nor as schema-constrained " +
+                                        "JSON — this model/chat-template pair emits neither. Load a model whose " +
+                                        "template supports tool calling, or use the 🪪🌀 H3 Duo tab.");
 
                 // Grammar-constrained as the call is, a local model occasionally emits an arguments string
                 // that is not clean JSON (an unescaped quote or newline inside the brief). One retry before
@@ -310,6 +311,15 @@ namespace FlipPix.UI.ViewModels.Video
                 (brief, briefClips, briefSeconds) = await StabilizeBriefAsync(
                     model, briefSystem, briefUser, clipCount,
                     (brief, briefClips, briefSeconds), token);
+
+                // A brief has to carry a budget line per clip to be worth anything downstream: the writer
+                // reads that line and writes the clip from it. A schema-constrained reply that came back
+                // as three terse sentences parses perfectly and still starves the chain, so say so rather
+                // than letting a thin brief pass as a good one.
+                if (brief.Length < 120 * clipCount)
+                    AddLog($"WARNING: the brief is only {brief.Length:N0} characters for {clipCount} clips — " +
+                           "too thin to budget them individually, so the writer will be inventing the shot " +
+                           "breakdown itself. Re-run Analyze if the chain comes back generic.");
 
                 if (briefClips != clipCount)
                     AddLog($"Note: the brief budgets {briefClips} clips; the chain will be written as " +

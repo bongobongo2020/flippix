@@ -645,14 +645,16 @@ namespace FlipPix.UI.Services
             try
             {
                 var s = sampling ?? LlmSampling.Default;
-                var body = BuildChatBody(
-                    modelName,
-                    new object[]
-                    {
-                        new { role = "system", content = systemPrompt },
-                        new { role = "user",   content = userMessage }
-                    },
-                    maxTokens, s);
+                var messages = new object[]
+                {
+                    new { role = "system", content = systemPrompt },
+                    new { role = "user",   content = userMessage }
+                };
+
+                _logger.LogInfo($"CallToolAsync: model={modelName}, tool={toolName}, userMessage length={userMessage.Length}{s.Describe()}");
+
+                // ── Attempt 1: the tool call proper ───────────────────────────────────
+                var body = BuildChatBody(modelName, messages, maxTokens, s);
 
                 // The schema rides as a parsed node so it reaches the wire verbatim, not re-cased.
                 var schema = JsonNode.Parse(parametersSchemaJson)
@@ -661,28 +663,18 @@ namespace FlipPix.UI.Services
                 {
                     new { type = "function", function = new { name = toolName, description = toolDescription, parameters = schema } }
                 };
-                body["tool_choice"] = new Dictionary<string, object> { ["type"] = "tool", ["name"] = toolName };
-
-                var json = JsonSerializer.Serialize(body, new JsonSerializerOptions
+                // OpenAI's forced-call shape — {"type":"function","function":{"name":...}} — which is the
+                // one an OpenAI-compatible /v1/chat/completions parses. (This used to send Anthropic's
+                // {"type":"tool","name":...}; llama-server silently ignores a tool_choice it cannot read,
+                // so the call was never actually forced — a model willing to answer in prose just did,
+                // which is the failure this pairs with the fallback below to close.)
+                body["tool_choice"] = new Dictionary<string, object>
                 {
-                    PropertyNamingPolicy = JsonNamingPolicy.CamelCase
-                });
+                    ["type"] = "function",
+                    ["function"] = new Dictionary<string, object> { ["name"] = toolName }
+                };
 
-                _logger.LogInfo($"CallToolAsync: model={modelName}, tool={toolName}, userMessage length={userMessage.Length}{s.Describe()}");
-
-                var fullUrl = $"{_baseUrl.TrimEnd('/')}/v1/chat/completions";
-                using var content = new StringContent(json, Encoding.UTF8, "application/json");
-                using var response = await _httpClient.PostAsync(fullUrl, content, cancellationToken);
-
-                if (!response.IsSuccessStatusCode)
-                {
-                    var errorContent = await response.Content.ReadAsStringAsync(cancellationToken);
-                    throw new Exception($"LM Studio API error: {response.StatusCode} - {errorContent}");
-                }
-
-                await using var stream = await response.Content.ReadAsStreamAsync(cancellationToken);
-                var result = await JsonSerializer.DeserializeAsync<LMStudioChatResponse>(stream,
-                    new JsonSerializerOptions { PropertyNameCaseInsensitive = true }, cancellationToken);
+                var result = await PostChatAsync(body, cancellationToken);
 
                 var call = result?.Choices?.FirstOrDefault(c => c.Message?.ToolCalls?.Count > 0)?.Message?.ToolCalls?[0];
                 if (call != null)
@@ -691,7 +683,48 @@ namespace FlipPix.UI.Services
                     return call;
                 }
 
-                _logger.LogInfo("CallToolAsync: model replied with content instead of a tool call");
+                // ── Attempt 2: the same schema, enforced as structured output ───────────────
+                // Not every model reaches this point able to call a tool: the server only emits tool_calls
+                // when the loaded chat template knows how to express them, and when it does not, the tools
+                // field is dropped on the floor and the model just writes prose until the token ceiling.
+                // response_format carries the identical schema down the grammar path instead, which needs
+                // no template support, and the JSON that comes back IS the arguments payload the caller was
+                // about to parse — so the call is synthesised from it and the flow upstream never learns
+                // the difference. It is a floor, not a substitute: a grammar-constrained reply tends to be
+                // terser than a real tool call, which is why the caller checks the brief for thinness.
+                _logger.LogInfo("CallToolAsync: no tool_calls in the reply — retrying under " +
+                                "response_format json_schema (this template may not support tool calling)");
+
+                var jsonBody = BuildChatBody(modelName, messages, maxTokens, s);
+                jsonBody["response_format"] = new Dictionary<string, object>
+                {
+                    ["type"] = "json_schema",
+                    ["json_schema"] = new Dictionary<string, object>
+                    {
+                        ["name"] = toolName,
+                        // Parsed fresh: the node above is spoken for by the tools payload.
+                        ["schema"] = JsonNode.Parse(parametersSchemaJson)!
+                    }
+                };
+
+                var structured = await PostChatAsync(jsonBody, cancellationToken);
+                var text = StripThinkingBlocks(
+                    structured?.Choices?.FirstOrDefault()?.Message?.EffectiveContent?.Trim() ?? string.Empty);
+                var arguments = ExtractJsonObject(text);
+
+                if (!string.IsNullOrWhiteSpace(arguments))
+                {
+                    _logger.LogInfo("CallToolAsync: structured-output fallback stood in for the tool call " +
+                                    $"({arguments.Length} chars of arguments)");
+                    return new LMStudioToolCall
+                    {
+                        Type = "function",
+                        Function = new LMStudioToolCallFunction { Name = toolName, Arguments = arguments }
+                    };
+                }
+
+                _logger.LogInfo("CallToolAsync: model replied with content instead of a tool call, and the " +
+                                "structured-output fallback produced no JSON object either");
                 return null;
             }
             catch (OperationCanceledException) { throw; }
@@ -942,6 +975,58 @@ namespace FlipPix.UI.Services
         {
             if (!IsThinkingModel(modelName)) return prompt;
             return "/no_think\n" + prompt;
+        }
+
+        /// <summary>
+        /// Posts one already-built chat body to <c>/v1/chat/completions</c> and deserialises the reply.
+        /// Shared by the two attempts <see cref="CallToolAsync"/> makes, which differ only in the body.
+        /// </summary>
+        private async Task<LMStudioChatResponse?> PostChatAsync(
+            Dictionary<string, object> body, CancellationToken cancellationToken)
+        {
+            var json = JsonSerializer.Serialize(body, new JsonSerializerOptions
+            {
+                PropertyNamingPolicy = JsonNamingPolicy.CamelCase
+            });
+
+            var fullUrl = $"{_baseUrl.TrimEnd('/')}/v1/chat/completions";
+            using var content = new StringContent(json, Encoding.UTF8, "application/json");
+            using var response = await _httpClient.PostAsync(fullUrl, content, cancellationToken);
+
+            if (!response.IsSuccessStatusCode)
+            {
+                var errorContent = await response.Content.ReadAsStringAsync(cancellationToken);
+                throw new Exception($"LM Studio API error: {response.StatusCode} - {errorContent}");
+            }
+
+            await using var stream = await response.Content.ReadAsStreamAsync(cancellationToken);
+            return await JsonSerializer.DeserializeAsync<LMStudioChatResponse>(stream,
+                new JsonSerializerOptions { PropertyNameCaseInsensitive = true }, cancellationToken);
+        }
+
+        /// <summary>
+        /// Pulls the one JSON object out of a reply that is supposed to be nothing but JSON — grammar
+        /// constrained replies are clean, but a model that ignores the constraint wraps it in a ```json
+        /// fence or a sentence of preamble. Returns empty when there is no braced span at all, which is
+        /// the caller's signal that the structured-output path failed too.
+        /// </summary>
+        private static string ExtractJsonObject(string text)
+        {
+            if (string.IsNullOrWhiteSpace(text)) return string.Empty;
+
+            var trimmed = text.Trim();
+
+            // A fenced block, ```json or bare ``` — take what is inside it.
+            var fence = System.Text.RegularExpressions.Regex.Match(
+                trimmed, @"```(?:json)?\s*([\s\S]*?)```",
+                System.Text.RegularExpressions.RegexOptions.IgnoreCase);
+            if (fence.Success) trimmed = fence.Groups[1].Value.Trim();
+
+            var start = trimmed.IndexOf('{');
+            var end = trimmed.LastIndexOf('}');
+            if (start < 0 || end <= start) return string.Empty;
+
+            return trimmed.Substring(start, end - start + 1).Trim();
         }
 
         private static string StripThinkingBlocks(string text)
