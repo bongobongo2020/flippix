@@ -304,7 +304,9 @@ namespace FlipPix.UI.ViewModels.Video
 
         // ── Queue ──────────────────────────────────────────────────────────────
         private readonly ObservableCollection<H3CastQueueItem> _queue = new();
-        private CancellationTokenSource? _queueCts;
+        /// <summary>The drain loop's own cancellation. Protected so a fork that drives the queue in more
+        /// than one pass (🌹 H3 Eros hunts every clip, then finishes the picked ones) can own it too.</summary>
+        protected CancellationTokenSource? _queueCts;
         private bool _isProcessingQueue;
         private string _queueStatus = string.Empty;
 
@@ -2625,7 +2627,7 @@ namespace FlipPix.UI.ViewModels.Video
         public bool IsProcessingQueue
         {
             get => _isProcessingQueue;
-            private set
+            protected set
             {
                 if (_isProcessingQueue == value) return;
                 _isProcessingQueue = value;
@@ -2822,7 +2824,7 @@ namespace FlipPix.UI.ViewModels.Video
             if (!IsProcessingQueue) _ = ProcessQueueAsync();
         }
 
-        private void UpdateQueueStatus()
+        protected void UpdateQueueStatus()
         {
             var pending = _queue.Count(x => x.ItemStatus == QueueItemStatus.Pending);
             var running = _queue.Count(x => x.ItemStatus == QueueItemStatus.Processing);
@@ -2842,7 +2844,7 @@ namespace FlipPix.UI.ViewModels.Video
         /// than around the loop, so a long queue does not lock every other tab out of ComfyUI for its whole
         /// run — and items added mid-drain are picked up on the next pass.
         /// </summary>
-        private async Task ProcessQueueAsync()
+        protected virtual async Task ProcessQueueAsync()
         {
             if (IsProcessingQueue) return;
 
@@ -2914,7 +2916,7 @@ namespace FlipPix.UI.ViewModels.Video
         /// been marked Completed, and that loop's catch would otherwise read a join failure as a render
         /// failure and push an already-rendered clip back to Pending.</para>
         /// </summary>
-        private async Task CompleteStoryAsync(H3CastQueueItem finished, CancellationToken token)
+        protected async Task CompleteStoryAsync(H3CastQueueItem finished, CancellationToken token)
         {
             try
             {
@@ -2954,7 +2956,7 @@ namespace FlipPix.UI.ViewModels.Video
         /// result so ▶ Play opens the whole story rather than its last beat. Best-effort — the individual
         /// clips are untouched and remain usable if the join cannot run.
         /// </summary>
-        private async Task JoinStoryAsync(string storyId, IReadOnlyList<H3CastQueueItem> clips,
+        protected async Task JoinStoryAsync(string storyId, IReadOnlyList<H3CastQueueItem> clips,
             CancellationToken token)
         {
             var paths = clips.Select(c => c.OutputVideoPath)

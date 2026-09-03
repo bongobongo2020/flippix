@@ -50,6 +50,7 @@ namespace FlipPix.UI
             // MediaElement.Source silently fails to load the Z:\ output paths (black frame, no
             // MediaOpened/MediaFailed). Set an absolute Uri explicitly instead.
             _viewModel.ErosConvRotVM.PropertyChanged += ErosConvRotVM_PropertyChanged;
+            _viewModel.H3ErosVM.PropertyChanged += H3ErosVM_PropertyChanged;
         }
 
         private void OnLoaded(object sender, RoutedEventArgs e)
@@ -58,6 +59,7 @@ namespace FlipPix.UI
             // Pick up a video that was already loaded before this window's handlers wired up.
             ApplyScail2RefSource();
             ApplyErosConvRotSource();
+            ApplyH3ErosSource();
         }
 
         private void Header_MouseLeftButtonDown(object sender, MouseButtonEventArgs e)
@@ -194,11 +196,52 @@ namespace FlipPix.UI
             _viewModel.ErosConvRotVM.ReportPreviewFailed(e.ErrorException?.Message ?? "unknown media error");
         }
 
-        // ──────────────────────────────────────────────────────────────────────
-        // H3 Eros — one shared player for the three seed samples and the finished
-        // clip. Its Source is the ViewModel's ActivePreviewUri, which changes as
-        // tiles are clicked, so it has to start playing on its own each time.
-        // ──────────────────────────────────────────────────────────────────────
+        // ────────────────────────────────────────────────────────────────────
+        // H3 Eros — one shared player for every take on the hunt board and for the
+        // finished clips. It follows H3ErosVM.ActivePreviewUri, which changes on every
+        // tile click, so it has to start playing on its own each time.
+        //
+        // The Source is built here as an ABSOLUTE Uri rather than bound as a string:
+        // WPF's string→Uri conversion silently fails to open the Z:\output paths these
+        // drafts live on — no MediaOpened, no MediaFailed, just a black frame. The
+        // element is also never collapsed, because a collapsed MediaElement will not
+        // open media at all. Both mistakes have already cost this app a working preview
+        // once each; see project_fflfseedhunt_preview_player.
+        // ────────────────────────────────────────────────────────────────────
+
+        private void H3ErosVM_PropertyChanged(object? sender, System.ComponentModel.PropertyChangedEventArgs e)
+        {
+            if (e.PropertyName != nameof(ViewModels.Video.H3ErosViewModel.ActivePreviewUri)) return;
+            if (Dispatcher.CheckAccess()) ApplyH3ErosSource();
+            else Dispatcher.Invoke(ApplyH3ErosSource);
+        }
+
+        private void ApplyH3ErosSource()
+        {
+            var p = H3ErosVideoPlayer;
+            if (p == null) return;
+            var path = _viewModel.H3ErosVM.ActivePreviewUri;
+            if (string.IsNullOrEmpty(path))
+            {
+                p.Stop();
+                p.Source = null;
+                return;
+            }
+
+            Uri target;
+            try { target = new Uri(System.IO.Path.GetFullPath(path), UriKind.Absolute); }
+            catch { target = new Uri(path, UriKind.RelativeOrAbsolute); }
+
+            // Clicking the same tile twice replays it rather than doing nothing.
+            if (string.Equals(p.Source?.OriginalString, target.OriginalString, StringComparison.OrdinalIgnoreCase))
+            {
+                p.Position = System.TimeSpan.Zero;
+                p.Play();
+                return;
+            }
+            p.Stop();
+            p.Source = target; // MediaOpened starts playback.
+        }
 
         private void H3ErosPlayer_MediaOpened(object sender, RoutedEventArgs e) => H3ErosVideoPlayer.Play();
 
@@ -207,6 +250,9 @@ namespace FlipPix.UI
             H3ErosVideoPlayer.Position = System.TimeSpan.FromMilliseconds(1);
             H3ErosVideoPlayer.Play();
         }
+
+        private void H3ErosPlayer_MediaFailed(object sender, ExceptionRoutedEventArgs e) =>
+            _viewModel.H3ErosVM.ReportPreviewFailed(e.ErrorException?.Message ?? "unknown media error");
 
         // ──────────────────────────────────────────────────────────────────────
         // Scail 2 — same reference-player + trim-marker machinery as WAN SCAIL II,

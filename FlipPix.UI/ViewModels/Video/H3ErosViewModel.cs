@@ -21,39 +21,41 @@ namespace FlipPix.UI.ViewModels.Video
     /// cast sheets, the wardrobe lock, the clip queue, the FFmpeg join) rendered through the author's
     /// <b>MiniMax SEEDHUNTER v122 EROS-Hybrid</b> graph, which turns every clip into a seed hunt.
     ///
-    /// <para><b>What a clip costs, and why it is two submissions.</b> The graph builds one
-    /// <c>MiniMaxH3ReferenceToVideo</c> conditioning and latent and then samples it <b>three times</b>,
-    /// with three noise seeds, at a small draft canvas. That is the hunt: three cheap takes of the same
-    /// prompt to choose a composition from. The picked take's latent — not a re-render of it — is then
-    /// split, lifted to the finished megapixels by <c>MinimaxH3LatentUpscaler3D</c>, re-sampled by a
-    /// short fixed-sigma pass, interpolated by RIFE and muxed. So:</para>
+    /// <para><b>Three sweeps, not twelve interruptions.</b> The graph builds one
+    /// <c>MiniMaxH3ReferenceToVideo</c> conditioning and latent and samples it three times, on three noise
+    /// seeds, at a small draft canvas. The tab runs that for <i>every clip in the queue, back to back,
+    /// without ever stopping to ask a question</i>, and only then hands over a board of drafts to choose
+    /// from. So one ▶ Generate is:</para>
     /// <list type="number">
-    /// <item><b>Hunt.</b> The graph pruned to its three preview sinks. Three clips come back and land in
-    /// the sample strip.</item>
-    /// <item><b>Pick.</b> The render stops here and waits — with the GPU lease <i>released</i>, so the
-    /// rest of the app is not locked out while a human looks at three videos. Re-roll runs the hunt
-    /// again on fresh seeds; Use this one moves on. <see cref="AutoPickSample"/> answers for you.</item>
-    /// <item><b>Finish.</b> The same file, the same first-pass inputs — byte for byte, so ComfyUI's own
-    /// cache hands back the exact latent the preview was decoded from rather than sampling it again —
-    /// with the picked sampler wired into the upscale and the graph pruned to the final sink.</item>
+    /// <item><b>Hunt sweep.</b> Down the queue, three drafts per clip, at the cheapest canvas that still
+    /// lets two takes be told apart. A twelve-clip story lands as thirty-six drafts.</item>
+    /// <item><b>Pick.</b> The board. Click a tile to watch it and make it that clip's take; 🎲 re-rolls one
+    /// draft or a whole clip's three; ✕ throws one away. Nothing is on the GPU while this happens, so the
+    /// rest of the app — and every other tab — keeps working.</item>
+    /// <item><b>Finish sweep.</b> Every picked clip, in story order: the picked latent is lifted to the
+    /// finished megapixels by <c>MinimaxH3LatentUpscaler3D</c>, re-sampled by a short fixed-sigma pass,
+    /// RIFE'd and muxed. When the last clip of a chain lands, the inherited FFmpeg concat joins them.</item>
     /// </list>
     ///
-    /// <para><b>Two megapixel dials, not one.</b> <see cref="PreviewMegapixels"/> is what the three
-    /// samples are drafted at (the composition, cheaply); <c>Megapixels</c> — the tab's usual quality
-    /// dropdown — is what the picked one is finished at. They are independent here because the upscaler
-    /// takes a target, not a factor, so the hunt can be as cheap as it likes without deciding the
-    /// finished size.</para>
+    /// <para><b>Why the finish re-samples the first pass.</b> When a hunt and its finish were adjacent
+    /// submissions, ComfyUI's execution cache handed the picked latent straight back. Hunting the whole
+    /// queue first gives that up — eleven other clips have been through the sampler by then. What replaces
+    /// it is determinism: the same seed, model, steps and canvas produce the same latent, so the finish
+    /// re-samples <i>one</i> draft branch (the picked one; the other two are pruned out) and gets the take
+    /// that was chosen. A third of a hunt, once, to buy an uninterrupted queue.</para>
+    ///
+    /// <para><b>Two megapixel dials, not one.</b> <see cref="PreviewMegapixels"/> is what the drafts are
+    /// sampled at; <c>Megapixels</c> — the tab's usual quality dropdown — is what the picked one is
+    /// finished at. They are independent because the upscaler takes a target, not a factor.</para>
     ///
     /// <para>Everything before the render is inherited unchanged from
     /// <see cref="H3ExperimentalViewModel"/>: the story and scene inputs, the wardrobe derived once and
-    /// locked, the two character cards and their panel-split sheets, the two-step writer that turns a
-    /// story into a clip chain (one call divides it into one beat per clip, then one call writes each
-    /// clip from its beat), the queue, and the FFmpeg join that runs when the last clip of a chain
-    /// lands.</para>
+    /// locked, the two character cards and their panel-split sheets, the two-step writer that turns a story
+    /// into a clip chain, the queue, and the join.</para>
     /// </summary>
-    public partial class H3ErosViewModel : H3ExperimentalViewModel
+    public partial class H3ErosViewModel : H3ExperimentalViewModel, IErosBoardHost
     {
-        /// <summary>How many samples one hunt produces. The graph has exactly three sampler branches.</summary>
+        /// <summary>How many drafts one hunt produces. The graph has exactly three sampler branches.</summary>
         public const int SampleCount = 3;
 
         // ── Workflow node ids (locked to h3-minimax/h3-eros.json; see tools/convert_h3_eros.py) ──
@@ -78,6 +80,11 @@ namespace FlipPix.UI.ViewModels.Video
         private const string NodeCanvasWidth = "eros_canvas_w";
         private const string NodeCanvasHeight = "eros_canvas_h";
 
+        /// <summary><see cref="H3CastQueueItem.ErosStage"/> values. A hunted clip is still a Pending queue
+        /// item — there is GPU work left on it — so the stage is tracked beside the status, not in it.</summary>
+        private const string StageHunted = "hunted";
+        private const string StageFinished = "finished";
+
         /// <summary>ManualSigmas schedules, by step count. The graph ships all three; the render links one.</summary>
         private static readonly Dictionary<int, string> SigmaSchedules = new()
         {
@@ -86,7 +93,7 @@ namespace FlipPix.UI.ViewModels.Video
             [5] = "220",   // 0.9231, 0.8780, 0.8000, 0.6316, 0.3158, 0.0000
         };
 
-        /// <summary>Preview slot (1-based) → the sampler that produced it and the sink that saved it.</summary>
+        /// <summary>Draft slot (1-based) → the sampler that produced it, the sink that saved it, its noise.</summary>
         private static readonly (string Sampler, string Sink, string Noise)[] SampleBranches =
         {
             ("125:12", "18", "125:17"),
@@ -101,22 +108,26 @@ namespace FlipPix.UI.ViewModels.Video
         /// <summary>Frames per second the preview sinks and the un-interpolated final are muxed at.</summary>
         private const int DraftFrameRate = 24;
 
-        private readonly ObservableCollection<SeedHuntSample> _samples = new(
-            Enumerable.Range(1, SampleCount).Select(i => new SeedHuntSample(i)));
+        /// <summary>
+        /// Steps on the first pass — the one that produces the drafts. A constant rather than a dial: a hunt
+        /// is a comparison between seeds, and the finish re-samples the picked branch, so this number has to
+        /// mean the same thing in both submissions or the finish is not the take that was picked.
+        /// </summary>
+        private const int FirstPassSteps = 12;
 
-        /// <summary>Completed by the sample-strip buttons; awaited by the render between the two phases.</summary>
-        private TaskCompletionSource<int>? _pick;
+        private readonly ObservableCollection<ErosHuntClip> _board = new();
 
-        private double _previewMegapixels = 0.2;
+        private double _previewMegapixels = 0.15;
         private int _upscaleSteps = 4;
         private bool _useRife = true;
         private bool _autoPickSample;
         private int _autoPickSlot = 1;
-        private bool _isAwaitingPick;
+        private bool _autoFinishWhenPicked = true;
+        private bool _isSidePanelVisible = true;
+        private bool _isTopPanelVisible = true;
         private string _huntStatus = string.Empty;
         private string? _activePreviewUri;
-        private long _huntSeed = -1;
-        private int _huntRound;
+        private bool _thumbnailSweepRunning;
 
         public H3ErosViewModel(
             ComfyUIService comfyUIService,
@@ -129,18 +140,24 @@ namespace FlipPix.UI.ViewModels.Video
             : base(comfyUIService, lmStudioService, logger, settingsService, serviceProvider,
                    workflowCoordinator, fileDialogService)
         {
-            // The three previews are the whole point of this graph, and they are drafts — the finished
-            // canvas is the upscaler's target, not a multiple of the draft. Nothing here doubles anything,
-            // so the Duo tab's draft/finish switch has no meaning and stays off.
+            // The drafts are the whole point of this graph, and the finished canvas is the upscaler's own
+            // target rather than a multiple of the draft — so the Duo tab's draft/finish switch has no
+            // meaning here and stays off.
             UseLatentUpscale = false;
             RtxUpscale = false;
 
-            UseSampleCommand = new RelayCommand<SeedHuntSample>(UseSample, s => IsAwaitingPick && s is { HasVideo: true });
-            RerollSamplesCommand = new RelayCommand(() => ResolvePick(0), () => IsAwaitingPick);
-            PreviewSampleCommand = new RelayCommand<SeedHuntSample>(PreviewSample);
+            ToggleSidePanelCommand = new RelayCommand(() => IsSidePanelVisible = !IsSidePanelVisible);
+            ToggleTopPanelCommand = new RelayCommand(() => IsTopPanelVisible = !IsTopPanelVisible);
+            FinishPickedCommand = new RelayCommand(() => _ = ProcessQueueAsync(), () => HasUnfinishedPicks && !IsProcessingQueue);
+            PickFirstEverywhereCommand = new RelayCommand(PickFirstEverywhere, () => HasBoard && !IsProcessingQueue);
+            ClearPicksCommand = new RelayCommand(ClearPicks, () => HasAnyPick && !IsProcessingQueue);
+            ToggleAllPromptsCommand = new RelayCommand(ToggleAllPrompts, () => HasBoard);
 
-            AddLog("H3 Eros initialized — every clip is a seed hunt: three drafts of the same prompt, " +
-                   "you pick one, and only that one is upscaled and joined into the story");
+            Queue.CollectionChanged += (_, _) => Application.Current.Dispatcher.Invoke(SyncBoard);
+            SyncBoard();
+
+            AddLog("H3 Eros initialized — one ▶ Generate hunts three drafts for every clip in the queue " +
+                   "back to back, then you pick the good ones and only those are upscaled and joined");
         }
 
         // ── Identity ────────────────────────────────────────────────────────────────────────────────
@@ -180,9 +197,9 @@ namespace FlipPix.UI.ViewModels.Video
         // ── The tab's own dials ─────────────────────────────────────────────────────────────────────
 
         /// <summary>
-        /// The megapixels the three seed previews are drafted at. Cheap on purpose — a hunt is three
-        /// samples, so its cost is three times whatever this says, and its only job is to let you choose
-        /// a composition. The finished clip is rendered at <c>Megapixels</c>.
+        /// The megapixels the drafts are sampled at. Cheap on purpose — a queue of N clips costs 3N of
+        /// these before anything is picked, and their only job is to let you tell compositions apart. The
+        /// picked one is finished at <c>Megapixels</c>.
         /// </summary>
         public double PreviewMegapixels
         {
@@ -199,8 +216,8 @@ namespace FlipPix.UI.ViewModels.Video
 
         public IReadOnlyList<MegapixelOption> PreviewMegapixelOptions { get; } = new[]
         {
-            new MegapixelOption(0.15, "0.15 MP — quickest (512×288)"),
-            new MegapixelOption(0.2, "0.2 MP — default (608×352)"),
+            new MegapixelOption(0.15, "0.15 MP — default, quickest (512×288)"),
+            new MegapixelOption(0.2, "0.2 MP — a little clearer (608×352)"),
             new MegapixelOption(0.3, "0.3 MP — clearer (736×416)"),
             new MegapixelOption(0.4, "0.4 MP — closest to the finish (864×480)"),
         };
@@ -229,9 +246,8 @@ namespace FlipPix.UI.ViewModels.Video
         }
 
         /// <summary>
-        /// Answers the pick for you, so a long chain renders unattended. Off by default — choosing is
-        /// what the tab is for — but a twelve-clip story that has to be watched clip by clip is not a
-        /// queue, and this is the switch that makes it one again.
+        /// Picks a slot for every clip the moment its hunt lands, so ▶ Generate runs the whole story —
+        /// hunt, finish and join — without a human. Off by default: choosing is what the tab is for.
         /// </summary>
         public bool AutoPickSample
         {
@@ -242,12 +258,11 @@ namespace FlipPix.UI.ViewModels.Video
                 _autoPickSample = value;
                 OnPropertyChanged();
                 OnPropertyChanged(nameof(HuntSummary));
-                // A render already parked on the gate is answered right away rather than at the next clip.
-                if (value && IsAwaitingPick) ResolvePick(AutoPickSlot);
+                OnCanExecuteChanged();
             }
         }
 
-        /// <summary>Which sample <see cref="AutoPickSample"/> takes, 1-3.</summary>
+        /// <summary>Which draft <see cref="AutoPickSample"/> takes, 1-3.</summary>
         public int AutoPickSlot
         {
             get => _autoPickSlot;
@@ -262,7 +277,22 @@ namespace FlipPix.UI.ViewModels.Video
 
         public IReadOnlyList<int> AutoPickSlotOptions { get; } = new[] { 1, 2, 3 };
 
-        /// <summary>What the two phases will cost and produce, in one line under the controls.</summary>
+        /// <summary>
+        /// Starts the finish sweep on its own once <i>every</i> hunted clip has a take picked, rather than
+        /// waiting for ✨ Finish picked. On by default, so the ordinary run is: press Generate, watch the
+        /// board fill, click your way down it, and the last click starts the upscales and the join.
+        ///
+        /// <para>It waits for all of them on purpose. Finishing clip 1 the instant it is picked would put
+        /// the GPU under the board while clip 2 is still being watched, and would make going back to
+        /// re-roll clip 1 a race against its own upscale.</para>
+        /// </summary>
+        public bool AutoFinishWhenPicked
+        {
+            get => _autoFinishWhenPicked;
+            set { if (_autoFinishWhenPicked == value) return; _autoFinishWhenPicked = value; OnPropertyChanged(); }
+        }
+
+        /// <summary>What the sweeps will cost and produce, in one line under the controls.</summary>
         public string HuntSummary
         {
             get
@@ -271,25 +301,26 @@ namespace FlipPix.UI.ViewModels.Video
                 var (fw, fh) = H3Canvas.Resolve(ResolvedAspectRatio, Megapixels, 32);
                 var fps = UseRife ? $"RIFE {DraftFrameRate}→{DraftFrameRate * 2} fps" : $"{DraftFrameRate} fps";
                 var pick = AutoPickSample
-                    ? $"sample {AutoPickSlot} taken automatically"
-                    : "you pick one";
-                return $"Hunt: {SampleCount} drafts at ≈{dw}×{dh} ({PreviewMegapixels:0.##} MP), {pick}. " +
-                       $"Finish: that latent upscaled to ≈{fw}×{fh} ({Megapixels:0.0} MP), " +
-                       $"{UpscaleSteps} fixed sigmas, {fps}.";
+                    ? $"take {AutoPickSlot} picked automatically"
+                    : "you pick one per clip";
+                return $"Hunt sweep: {SampleCount} drafts per clip at ≈{dw}×{dh} ({PreviewMegapixels:0.##} MP), " +
+                       $"the whole queue without stopping, then {pick}. " +
+                       $"Finish sweep: each picked latent upscaled to ≈{fw}×{fh} ({Megapixels:0.0} MP), " +
+                       $"{UpscaleSteps} fixed sigmas, {fps}, then joined.";
             }
         }
 
         /// <summary>
-        /// What the two phases produce, in the words of this graph rather than the Duo tab's. The base
-        /// class describes a draft that is doubled by a fixed factor; here the finished canvas is the
-        /// upscaler's own target and the draft is whatever the hunt was told to cost.
+        /// What the two sweeps produce, in the words of this graph rather than the Duo tab's. The base class
+        /// describes a draft that is doubled by a fixed factor; here the finished canvas is the upscaler's
+        /// own target and the draft is whatever the hunt was told to cost.
         /// </summary>
         public override string UpscaleSummary => HuntSummary;
 
         /// <summary>
-        /// The peak frame stack, reported at the size the <i>finish</i> holds — the hunt's three drafts
-        /// are sampled one after another and are a fraction of it, so the finished canvas is the number
-        /// that decides whether the server survives the clip.
+        /// The peak frame stack, reported at the size the <i>finish</i> holds — the drafts are sampled one
+        /// after another and are a fraction of it, so the finished canvas is the number that decides whether
+        /// the server survives the clip.
         /// </summary>
         public override string LoadSummary
         {
@@ -322,38 +353,50 @@ namespace FlipPix.UI.ViewModels.Video
             }
         }
 
-        // ── The sample strip ────────────────────────────────────────────────────────────────────────
+        // ── The board ───────────────────────────────────────────────────────────────────────────────
 
-        public ObservableCollection<SeedHuntSample> Samples => _samples;
+        /// <summary>One row per queued clip, each holding that clip's drafts. A view of the queue, not a
+        /// copy of it: picks are written straight through onto the queue items and saved with them.</summary>
+        public ObservableCollection<ErosHuntClip> HuntBoard => _board;
 
-        public RelayCommand<SeedHuntSample> UseSampleCommand { get; }
-        public RelayCommand RerollSamplesCommand { get; }
-        public RelayCommand<SeedHuntSample> PreviewSampleCommand { get; }
+        public RelayCommand FinishPickedCommand { get; }
+        public RelayCommand PickFirstEverywhereCommand { get; }
+        public RelayCommand ClearPicksCommand { get; }
+        public RelayCommand ToggleAllPromptsCommand { get; }
 
-        /// <summary>True while a render is parked between the hunt and the finish, waiting to be told
-        /// which sample to upscale. The strip's buttons are live only then.</summary>
-        public bool IsAwaitingPick
-        {
-            get => _isAwaitingPick;
-            private set
-            {
-                if (_isAwaitingPick == value) return;
-                _isAwaitingPick = value;
-                OnPropertyChanged();
-                OnCanExecuteChanged();
-            }
-        }
+        public bool HasBoard => _board.Count > 0;
 
-        public bool HasSamples => _samples.Any(s => s.HasVideo);
+        /// <summary>Any drafts anywhere — what makes the board worth showing.</summary>
+        public bool HasDrafts => _board.Any(c => c.HasDrafts);
 
-        /// <summary>The one-line story of the hunt: which clip, which round, what to do next.</summary>
+        public bool HasAnyPick => _board.Any(c => c.HasPick);
+
+        /// <summary>Whether any row has its prompt box open — what the board-wide toggle does next.</summary>
+        public bool ArePromptsOpen => _board.Any(c => c.IsDescriptionOpen);
+
+        public string PromptsToggleLabel => ArePromptsOpen ? "✎ Hide prompts" : "✎ Show prompts";
+
+        /// <summary>
+        /// Whether the board is worth showing. As soon as anything is queued: before the hunt it is a list of
+        /// the clips with their descriptions open for editing, which is the cheapest moment to fix a beat that
+        /// came out wrong; during the hunt the tiles fill in; after it, it is what the tab is for.
+        /// </summary>
+        public bool ShowBoard => HasBoard;
+
+        /// <summary>Picked clips that have not been upscaled yet — what ✨ Finish picked would run.</summary>
+        public bool HasUnfinishedPicks => _board.Any(c => c.HasPick && !c.IsFinished);
+
+        /// <summary>Hunted clips still waiting for a take to be chosen.</summary>
+        public int UnpickedCount => _board.Count(c => c.HasDrafts && !c.HasPick && !c.IsFinished);
+
+        /// <summary>The one-line story of where the tab is: hunting, waiting on picks, finishing, done.</summary>
         public string HuntStatus
         {
             get => _huntStatus;
             private set { if (_huntStatus == value) return; _huntStatus = value; OnPropertyChanged(); }
         }
 
-        /// <summary>The clip the shared player is showing — a sample while picking, the finished clip after.</summary>
+        /// <summary>The clip the shared player is showing — a draft while choosing, a finished clip after.</summary>
         public string? ActivePreviewUri
         {
             get => _activePreviewUri;
@@ -366,137 +409,812 @@ namespace FlipPix.UI.ViewModels.Video
             }
         }
 
-        /// <summary>Whether the shared player has anything loaded. Separate from <c>HasResult</c>: a
-        /// sample is playable long before this clip has a finished file.</summary>
+        /// <summary>Whether the shared player has anything loaded. Separate from <c>HasResult</c>: a draft is
+        /// playable long before any clip has a finished file.</summary>
         public bool HasActivePreview => !string.IsNullOrEmpty(ActivePreviewUri);
 
-        private void PreviewSample(SeedHuntSample? sample)
-        {
-            if (sample?.VideoPath == null) return;
-            ActivePreviewUri = sample.VideoPath;
-        }
-
-        private void UseSample(SeedHuntSample? sample)
-        {
-            if (sample == null) return;
-            foreach (var s in _samples) s.IsSelected = s.Slot == sample.Slot;
-            ResolvePick(sample.Slot);
-        }
-
-        /// <summary>Answers the gate. Slot 1-3 finishes that sample; 0 re-runs the hunt on fresh seeds.</summary>
-        private void ResolvePick(int slot)
-        {
-            var pick = _pick;
-            if (pick == null) return;
-            pick.TrySetResult(slot);
-        }
-
-        // ── The render ──────────────────────────────────────────────────────────────────────────────
+        // ── Room for the board ──────────────────────────────────────────────────────────────────────
 
         /// <summary>
-        /// Renders one queued clip as a hunt, a pick and a finish. The queue loop awaits this, so the
-        /// pause for the pick pauses the whole chain — which is the point: clip 2 is written to follow
-        /// whichever take of clip 1 was chosen.
+        /// Whether the tab's input side — the scene, the story, the cast cards, the dials — is on screen.
+        ///
+        /// <para>It is a form you fill in once and a board you then look at for a long time, and the board is
+        /// the larger job: a twelve-clip story is thirty-six videos to tell apart. Folding the inputs away
+        /// gives their 340px to the tiles and drops the reference-sheet strip above them, which together is
+        /// most of a screen. Nothing is lost — every input is exactly where it was when it comes back.</para>
         /// </summary>
-        protected override async Task GenerateItemAsync(H3CastQueueItem item, CancellationToken token)
+        public bool IsSidePanelVisible
         {
-            IsProcessing = true;
-            HasResult = false;
-            ResultVideoPath = string.Empty;
-            ResultVideoInfo = string.Empty;
-            ProcessingProgress = 0;
-            ProcessingStatus = $"Preparing {TabDisplayName} workflow...";
+            get => _isSidePanelVisible;
+            set
+            {
+                if (_isSidePanelVisible == value) return;
+                _isSidePanelVisible = value;
+                OnPropertyChanged();
+                OnPropertyChanged(nameof(SidePanelToggleGlyph));
+                OnPropertyChanged(nameof(SidePanelToggleTip));
+            }
+        }
+
+        public RelayCommand ToggleSidePanelCommand { get; }
+
+        /// <summary>Which way the fold arrow points — towards where the panel will go.</summary>
+        public string SidePanelToggleGlyph => IsSidePanelVisible ? "◀" : "▶";
+
+        public string SidePanelToggleTip => IsSidePanelVisible
+            ? "Fold the inputs away and give their width to the hunt board — the takes get half again as "
+              + "wide. Nothing is lost; everything comes back exactly as you left it."
+            : "Bring the scene, story, cast and dials back.";
+
+        /// <summary>
+        /// Whether the results pane's top half — the reference-sheet strip and the list of queued clips —
+        /// is on screen. Both are things you check before pressing Generate and then stop needing: together
+        /// they are most of the height above the board, and twelve queue rows alone are taller than the
+        /// tiles they are pushing down. The queue's own header, with its buttons and its counts, stays.
+        /// </summary>
+        public bool IsTopPanelVisible
+        {
+            get => _isTopPanelVisible;
+            set
+            {
+                if (_isTopPanelVisible == value) return;
+                _isTopPanelVisible = value;
+                OnPropertyChanged();
+                OnPropertyChanged(nameof(TopPanelToggleLabel));
+                OnPropertyChanged(nameof(TopPanelToggleTip));
+            }
+        }
+
+        public RelayCommand ToggleTopPanelCommand { get; }
+
+        public string TopPanelToggleLabel => IsTopPanelVisible
+            ? "▲  Hide the sheets and the queue list"
+            : "▼  Show the sheets and the queue list";
+
+        public string TopPanelToggleTip => IsTopPanelVisible
+            ? "Folds away the character-sheet strip and the list of queued clips, and gives their height to "
+              + "the hunt board. The queue's header — its counts and its buttons — stays where it is."
+            : "Brings the character sheets and the queued clips back.";
+
+        /// <summary>The window's <c>MediaFailed</c> handler, routed into the tab's log. A preview that will
+        /// not open is the symptom this tab has had twice — a black frame with nothing said about it — so
+        /// the failure is written down rather than swallowed.</summary>
+        public void ReportPreviewFailed(string reason) =>
+            AddLog($"Preview failed to open: {reason}");
+
+        /// <summary>
+        /// Rebuilds the board from the queue, keeping the rows that are already there so a queue change does
+        /// not throw away drafts that are on screen. Rows for items that have gone are dropped; new items get
+        /// a row hydrated from whatever the queue file remembered about their hunt.
+        /// </summary>
+        private void SyncBoard()
+        {
+            var byItem = _board.ToDictionary(c => c.Item);
+
+            for (var i = 0; i < Queue.Count; i++)
+            {
+                var item = Queue[i];
+                if (!byItem.TryGetValue(item, out var row))
+                {
+                    row = new ErosHuntClip(item, SampleCount, this);
+                    Hydrate(row);
+                }
+                else
+                {
+                    byItem.Remove(item);
+                }
+
+                var at = _board.IndexOf(row);
+                if (at < 0) _board.Insert(Math.Min(i, _board.Count), row);
+                else if (at != i) _board.Move(at, i);
+            }
+
+            // Whatever is left in the map no longer has a queue item behind it.
+            foreach (var orphan in byItem.Values) _board.Remove(orphan);
+
+            RefreshBoardState();
+            StartThumbnailSweep();
+        }
+
+        /// <summary>Fills a fresh row from its queue item — the drafts the queue file remembered, the pick
+        /// that was made against them, and whether the clip has already been finished.</summary>
+        private void Hydrate(ErosHuntClip row)
+        {
+            var item = row.Item;
+            row.Title = item.IsStoryClip ? $"Clip {item.ClipIndex} / {item.ClipCount}" : "Single clip";
+            row.Summary = Shorten(CastPromptStamp.ExtractDescription(item.Prompt));
+            row.OutputPath = !string.IsNullOrEmpty(item.OutputVideoPath) && File.Exists(item.OutputVideoPath)
+                ? item.OutputVideoPath : null;
+            row.IsFinished = item.ErosStage == StageFinished && row.OutputPath != null;
+
+            for (var slot = 1; slot <= SampleCount; slot++)
+            {
+                var draft = row.Drafts[slot - 1];
+                var path = slot <= item.HuntSamplePaths.Count ? item.HuntSamplePaths[slot - 1] : string.Empty;
+                var seed = slot <= item.HuntSampleSeeds.Count ? item.HuntSampleSeeds[slot - 1] : -1;
+                if (string.IsNullOrEmpty(path) || !File.Exists(path))
+                {
+                    draft.Status = "not hunted yet";
+                    continue;
+                }
+                draft.VideoPath = path;
+                draft.Seed = seed;
+                draft.Status = draft.SeedText;
+            }
+
+            // Set before the pick: the setter runs DescriptionEdited, which stales a row whose prompt has
+            // moved on, and a stale row must not come back from the queue file already picked.
+            row.Description = CastPromptStamp.ShotLines(CastPromptStamp.ExtractDescription(item.Prompt));
+            row.IsStale = row.HasDrafts && !string.IsNullOrEmpty(item.HuntPromptStamp)
+                          && item.HuntPromptStamp != item.Prompt;
+
+            row.ApplyPick(!row.IsStale && row.Drafts.Any(d => d.Slot == item.ChosenSampleSlot && d.HasVideo)
+                ? item.ChosenSampleSlot : 0);
+            // A queue file written before the per-slot seeds existed carries a pick with no seed behind it.
+            // The finish needs that number, so it is taken from the draft the pick points at rather than
+            // left at -1, which would fail the clip the moment the finish sweep reached it.
+            if (row.HasPick && item.ChosenSeed < 0)
+                item.ChosenSeed = row.Drafts[row.PickedSlot - 1].Seed;
+            if (row.HasPick && item.ChosenSeed < 0)
+            {
+                row.ApplyPick(0);
+                item.ChosenSampleSlot = 0;
+            }
+
+            row.Status = DescribeRow(row);
+        }
+
+        /// <summary>What a row is waiting for, in the two or three words the header has space for.</summary>
+        private static string DescribeRow(ErosHuntClip row) =>
+            row.IsFinished ? "finished"
+            : row.IsStale ? "prompt edited — 🎲 to hunt it"
+            : !row.HasDrafts ? "not hunted"
+            : row.HasPick ? "picked"
+            : "pick a take";
+
+        private static string Shorten(string prompt)
+        {
+            var line = (prompt ?? string.Empty).Replace("\r", " ").Replace("\n", " ").Trim();
+            return line.Length <= 140 ? line : line[..137] + "…";
+        }
+
+        /// <summary>Re-raises everything the board's buttons and headers are bound to. Marshalled, because
+        /// the sweeps call it from the render thread between submissions and <c>NotifyCanExecuteChanged</c>
+        /// touches WPF command state.</summary>
+        private void RefreshBoardState()
+        {
+            var dispatcher = Application.Current?.Dispatcher;
+            if (dispatcher != null && !dispatcher.CheckAccess())
+            {
+                dispatcher.Invoke(RefreshBoardState);
+                return;
+            }
+
+            foreach (var row in _board) row.RaiseState();
+            OnPropertyChanged(nameof(HasBoard));
+            OnPropertyChanged(nameof(HasDrafts));
+            OnPropertyChanged(nameof(ShowBoard));
+            OnPropertyChanged(nameof(HasAnyPick));
+            OnPropertyChanged(nameof(ArePromptsOpen));
+            OnPropertyChanged(nameof(PromptsToggleLabel));
+            OnPropertyChanged(nameof(HasUnfinishedPicks));
+            OnPropertyChanged(nameof(UnpickedCount));
+            FinishPickedCommand.NotifyCanExecuteChanged();
+            PickFirstEverywhereCommand.NotifyCanExecuteChanged();
+            ClearPicksCommand.NotifyCanExecuteChanged();
+            ToggleAllPromptsCommand.NotifyCanExecuteChanged();
+        }
+
+        // ── Board actions ───────────────────────────────────────────────────────────────────────────
+
+        /// <summary>Nothing on the board may submit while the queue — or another re-roll — owns the GPU.</summary>
+        bool IErosBoardHost.CanStartBoardJob => !IsProcessingQueue;
+
+        /// <summary>Clicking a tile does the obvious thing: it plays that take <i>and</i> makes it the one the
+        /// clip will be finished from. The ✓ badge is a readout, not a second step.</summary>
+        public void PickDraft(ErosSeedDraft? draft)
+        {
+            if (draft == null || !draft.HasVideo || !draft.Clip.CanAct) return;
+
+            var row = draft.Clip;
+            row.ApplyPick(draft.Slot);
+            row.Status = "picked";
+            row.Item.ChosenSampleSlot = draft.Slot;
+            row.Item.ChosenSeed = draft.Seed;
+            SaveQueueToFile();
+
+            ActivePreviewUri = draft.VideoPath;
+            RefreshBoardState();
+            UpdateHuntStatus();
+            MaybeAutoFinish();
+        }
+
+        /// <summary>Throws one draft away — the tile and the file. The clip keeps its other takes, and the
+        /// empty slot can be re-rolled into something better.</summary>
+        public void DeleteDraft(ErosSeedDraft? draft)
+        {
+            if (draft == null || !draft.Clip.CanAct) return;
+
+            var row = draft.Clip;
+            var path = draft.VideoPath;
+            if (ActivePreviewUri == path) ActivePreviewUri = null;
+
+            draft.Clear();
+            draft.Status = "deleted";
+            StoreDraft(row.Item, draft.Slot, null, -1);
+
+            if (row.PickedSlot == draft.Slot)
+            {
+                row.ApplyPick(0);
+                row.Item.ChosenSampleSlot = 0;
+                row.Item.ChosenSeed = -1;
+            }
+            row.Status = row.HasDrafts ? (row.HasPick ? "picked" : "pick a take") : "no takes left — 🎲 to hunt again";
+            if (!row.HasDrafts) row.Item.ErosStage = string.Empty;
+            SaveQueueToFile();
+
+            TryDelete(path);
+            RefreshBoardState();
+            UpdateHuntStatus();
+        }
+
+        private static void TryDelete(string? path)
+        {
+            if (string.IsNullOrEmpty(path)) return;
+            try { if (File.Exists(path)) File.Delete(path); } catch { /* the tile is gone either way */ }
+        }
+
+        /// <summary>
+        /// An edited description, spliced back into the clip's full prompt — preamble, wardrobe lock and
+        /// sound fields untouched.
+        ///
+        /// <para><b>And the takes go stale.</b> The finish pass re-samples the picked branch from the prompt
+        /// rather than reading a cached latent, so a prompt edited after the hunt would finish a video nobody
+        /// has ever seen. The old takes stay on screen to compare against, but the pick is dropped and
+        /// nothing can be picked again until the clip is re-rolled — which is the button this box exists
+        /// to be used before.</para>
+        /// </summary>
+        public void DescriptionEdited(ErosHuntClip? row, string description)
+        {
+            if (row == null) return;
+
+            var item = row.Item;
+            // Hydrating a row assigns the box the shot-per-line spelling of the description it already
+            // holds. That is a re-layout, not an edit, and staling every clip on it would cost a board.
+            if (CastPromptStamp.SameDescription(CastPromptStamp.ExtractDescription(item.Prompt), description)) return;
+
+            item.Prompt = CastPromptStamp.ReplaceDescription(item.Prompt, description);
+            row.Summary = Shorten(description ?? string.Empty);
+
+            if (row.HasDrafts && !row.IsFinished)
+            {
+                row.IsStale = !string.IsNullOrEmpty(item.HuntPromptStamp) && item.HuntPromptStamp != item.Prompt;
+                if (row.IsStale && row.HasPick)
+                {
+                    row.ApplyPick(0);
+                    item.ChosenSampleSlot = 0;
+                    item.ChosenSeed = -1;
+                }
+            }
+
+            row.Status = DescribeRow(row);
+            SaveQueueToFile();
+            RefreshBoardState();
+            UpdateHuntStatus();
+            AddLog($"{row.Title}: description edited" +
+                   (row.IsStale ? " — its takes are of the old wording, so re-roll the clip to see the new one." : "."));
+        }
+
+        public void PlayClipResult(ErosHuntClip? row)
+        {
+            if (row?.OutputPath == null) return;
+            ActivePreviewUri = row.OutputPath;
+        }
+
+        /// <summary>Hunts one slot again on a fresh seed. A board job, not a queue pass — it takes the GPU
+        /// for one submission and gives it straight back.</summary>
+        public void RerollDraft(ErosSeedDraft? draft)
+        {
+            if (draft == null || !draft.Clip.CanAct || IsProcessingQueue) return;
+            RunBoardJob(() => RerollDraftAsync(draft));
+        }
+
+        /// <summary>Hunts a whole clip again on a fresh base seed.</summary>
+        public void RerollClip(ErosHuntClip? row)
+        {
+            if (row is not { CanAct: true } || IsProcessingQueue) return;
+            RunBoardJob(() => RerollClipAsync(row));
+        }
+
+        /// <summary>Picks the first take that rendered on every unpicked clip — the "these are all fine"
+        /// button, and the way out of clicking down a long board.</summary>
+        private void PickFirstEverywhere()
+        {
+            foreach (var row in _board.Where(c => c.CanAct && c.HasDrafts && !c.HasPick))
+            {
+                var first = row.Drafts.FirstOrDefault(d => d.HasVideo);
+                if (first == null) continue;
+                row.ApplyPick(first.Slot);
+                row.Status = "picked";
+                row.Item.ChosenSampleSlot = first.Slot;
+                row.Item.ChosenSeed = first.Seed;
+            }
+            SaveQueueToFile();
+            RefreshBoardState();
+            UpdateHuntStatus();
+            MaybeAutoFinish();
+        }
+
+        /// <summary>Opens every row's prompt box, or shuts them all. They are shut by default: on a
+        /// twelve-clip board twelve open boxes are taller than the takes they belong to.</summary>
+        private void ToggleAllPrompts()
+        {
+            var open = !ArePromptsOpen;
+            foreach (var row in _board) row.IsDescriptionOpen = open;
+            OnPropertyChanged(nameof(ArePromptsOpen));
+            OnPropertyChanged(nameof(PromptsToggleLabel));
+        }
+
+        private void ClearPicks()
+        {
+            foreach (var row in _board.Where(c => c.CanAct && c.HasPick))
+            {
+                row.ApplyPick(0);
+                row.Status = row.HasDrafts ? "pick a take" : "not hunted";
+                row.Item.ChosenSampleSlot = 0;
+                row.Item.ChosenSeed = -1;
+            }
+            SaveQueueToFile();
+            RefreshBoardState();
+            UpdateHuntStatus();
+        }
+
+        /// <summary>Starts the finish sweep by itself once every hunted clip has been chosen — the last
+        /// click on the board is what sets the upscales going.</summary>
+        private void MaybeAutoFinish()
+        {
+            if (!AutoFinishWhenPicked || IsProcessingQueue) return;
+            if (!HasUnfinishedPicks) return;
+            // A clip whose hunt failed has neither drafts nor a pick and never will until it is retried;
+            // waiting on it would strand every clip that did land.
+            if (_board.Any(c => !c.IsFinished && !c.HasPick && !c.IsStale &&
+                                c.Item.ItemStatus != QueueItemStatus.Failed)) return;
+
+            AddLog("Every clip has a take picked — starting the finish sweep.");
+            _ = ProcessQueueAsync();
+        }
+
+        // ── The queue: hunt sweep, then finish sweep ────────────────────────────────────────────────
+
+        /// <summary>
+        /// This tab's drain loop, and the reason it is not the base class's. The base drains one item from
+        /// Pending to Completed and moves on; here the queue is crossed twice — every clip is hunted before
+        /// any is picked, and every pick is finished in one pass afterwards — so a long story is one
+        /// uninterrupted stretch of GPU, one sitting at the board, and one more stretch of GPU.
+        ///
+        /// <para>Pressing ▶ Generate again after picking runs only the second half: the hunt sweep skips
+        /// clips that already have drafts.</para>
+        /// </summary>
+        protected override async Task ProcessQueueAsync()
+        {
+            if (IsProcessingQueue) return;
+
+            IsProcessingQueue = true;
+            _queueCts?.Dispose();
+            _queueCts = new CancellationTokenSource();
+            var token = _queueCts.Token;
 
             try
             {
-                var clipLabel = item.IsStoryClip ? $", clip {item.ClipIndex}/{item.ClipCount}" : string.Empty;
-                AddLog($"=== {TabDisplayName} · EROS-Hybrid seed hunt ({(item.HasCharacter2 ? "2 sheets" : "1 sheet")}{clipLabel}) ===");
-
-                // Uploading the panels claims no GPU, so it happens before the lease rather than inside it.
-                var uploaded = await UploadPanelsAsync(item);
-                var prompt = CastPromptStamp.Detag(item.Prompt,
-                    ResolvePanels(item.Character1PanelPaths, item.Character1SheetPath, 1).Count,
-                    CastPromptStamp.IncludesCharacter2(item.Prompt, item.HasCharacter2)
-                        ? ResolvePanels(item.Character2PanelPaths, item.Character2SheetPath, 2).Count
-                        : 0);
-
-                var ts = DateTime.Now.ToString("yyyyMMdd_HHmmss");
-                var clipTag = item.IsStoryClip ? $"_c{item.ClipIndex:00}" : string.Empty;
-                var runToken = $"h3eros_{ts}{clipTag}";
-                var len = ClampLength(item.LengthSeconds);
-                var (dw, dh) = H3Canvas.Resolve(item.AspectRatio, item.PreviewMegapixels, 32);
-                var (fw, fh) = H3Canvas.Resolve(item.AspectRatio, item.Megapixels, 32);
-
-                AddLog($"References wired: {uploaded.Count} panel image(s) as <Picture 1>–<Picture {uploaded.Count}>.");
-                AddLog($"Hunt canvas ≈{dw}×{dh} ({item.PreviewMegapixels:0.##} MP), " +
-                       $"finished canvas ≈{fw}×{fh} ({item.Megapixels:0.0} MP), " +
-                       $"{len:0.#}s / {FramesForSeconds(len)} frames @ {DraftFrameRate}fps.");
-
-                // ── Phase 1 + 2: hunt, then pick. Re-roll loops both. ────────────────────────────
-                // A pick is only carried over from an earlier attempt when the seed it was made against
-                // came with it: the three previews are that seed and its two successors, so finishing a
-                // recorded slot on a freshly rolled seed would deliver a take nobody ever saw.
-                var chosen = item.ChosenSampleSlot > 0 && item.HuntBaseSeed >= 0 ? item.ChosenSampleSlot : 0;
-                _huntSeed = chosen > 0
-                    ? item.HuntBaseSeed
-                    : item.Seed >= 0 ? item.Seed : System.Random.Shared.NextInt64(0, long.MaxValue);
-                _huntRound = 0;
-                if (chosen > 0)
-                    AddLog($"Sample {chosen} was already picked for this clip (hunt seed {_huntSeed}) — " +
-                           "finishing it without hunting again.");
-
-                while (chosen == 0)
-                {
-                    token.ThrowIfCancellationRequested();
-                    item.HuntBaseSeed = _huntSeed;
-                    await RunHuntAsync(item, uploaded, prompt, len, runToken, token);
-                    chosen = await AwaitPickAsync(item, token);
-                    if (chosen == 0)
-                    {
-                        _huntRound++;
-                        _huntSeed = System.Random.Shared.NextInt64(0, long.MaxValue);
-                        AddLog($"Re-rolling the hunt on a fresh base seed ({_huntSeed}).");
-                    }
-                }
-
-                item.ChosenSampleSlot = chosen;
-                item.HuntBaseSeed = _huntSeed;
-                SaveQueueToFile();
-                AddLog($"Sample {chosen} picked — finishing it at {fw}×{fh}.");
-
-                // ── Phase 3: finish ─────────────────────────────────────────────────────────────
-                await RunFinishAsync(item, uploaded, prompt, len, runToken, chosen, ts, fw, fh, token);
+                await HuntSweepAsync(token);
+                await FinishSweepAsync(token);
             }
-            catch (Exception ex) when (ex is not OperationCanceledException)
+            catch (OperationCanceledException)
             {
-                // The queue loop decides whether this is a retry or a failure; it just needs the reason.
-                AddLog($"ERROR: {ex.Message}");
-                ProcessingStatus = $"Error: {ex.Message}";
-                throw;
+                AddLog("Queue stopped.");
+            }
+            catch (Exception ex)
+            {
+                AddLog($"Queue error: {ex.Message}");
             }
             finally
             {
-                IsAwaitingPick = false;
-                _pick = null;
+                IsProcessingQueue = false;
                 IsProcessing = false;
+                ProcessingStatus = token.IsCancellationRequested ? "Queue stopped" : "Queue finished";
+                UpdateQueueStatus();
+                RefreshBoardState();
+                UpdateHuntStatus();
+                SaveQueueToFile();
                 OnCanExecuteChanged();
             }
         }
 
-        /// <summary>Uploads this clip's panels — the same policy as H3 Cast: one reference per view,
-        /// never the assembled sheet, and character 2's only when the clip names them.</summary>
+        /// <summary>
+        /// Down the whole queue, three drafts per clip, without stopping. Clips that already have drafts are
+        /// skipped, so this is a no-op on the second press of ▶ Generate.
+        /// </summary>
+        private async Task HuntSweepAsync(CancellationToken token)
+        {
+            var todo = _board.Where(c => !c.IsFinished && !c.HasDrafts &&
+                                         c.Item.ItemStatus == QueueItemStatus.Pending).ToList();
+            if (todo.Count == 0) return;
+
+            AddLog($"=== Hunt sweep: {todo.Count} clip(s) × {SampleCount} drafts " +
+                   $"= {todo.Count * SampleCount} takes at {PreviewMegapixels:0.##} MP ===");
+
+            for (var i = 0; i < todo.Count; i++)
+            {
+                token.ThrowIfCancellationRequested();
+                var row = todo[i];
+                var item = row.Item;
+                var from = 100.0 * i / todo.Count;
+                var to = 100.0 * (i + 1) / todo.Count;
+
+                item.Status = "Hunting";
+                item.StartedAt ??= DateTime.Now;
+                UpdateQueueStatus();
+                HuntStatus = $"Hunting {row.Title} — {i + 1} of {todo.Count}";
+
+                try
+                {
+                    var baseSeed = item.Seed >= 0 ? item.Seed : System.Random.Shared.NextInt64(0, long.MaxValue);
+                    item.HuntBaseSeed = baseSeed;
+                    var seeds = Enumerable.Range(0, SampleCount).Select(n => baseSeed + n).ToArray();
+
+                    await HuntAsync(row, Enumerable.Range(1, SampleCount).ToArray(), seeds, from, to, token);
+
+                    item.Status = "Hunted";
+                    item.ErosStage = StageHunted;
+
+                    if (AutoPickSample) AutoPick(row);
+                }
+                catch (OperationCanceledException)
+                {
+                    item.ItemStatus = QueueItemStatus.Pending;
+                    throw;
+                }
+                catch (Exception ex)
+                {
+                    if (await TryHandleCrashAndRetryAsync(item, ex))
+                    {
+                        item.ItemStatus = QueueItemStatus.Pending;
+                        AddLog($"{row.Title}: reset to Pending — will hunt again after the ComfyUI restart.");
+                    }
+                    else
+                    {
+                        item.ItemStatus = QueueItemStatus.Failed;
+                        item.ErrorMessage = ex.Message;
+                        row.Status = $"hunt failed: {ex.Message}";
+                        AddLog($"{row.Title} FAILED to hunt: {ex.Message}");
+                    }
+                }
+
+                UpdateQueueStatus();
+                SaveQueueToFile();
+                RefreshBoardState();
+            }
+
+            var unpicked = UnpickedCount;
+            AddLog(unpicked > 0
+                ? $"=== Hunt sweep done. {unpicked} clip(s) are waiting for a take to be picked — " +
+                  "click a tile to watch it and choose it. The GPU is free until then. ==="
+                : "=== Hunt sweep done. ===");
+            UpdateHuntStatus();
+        }
+
+        /// <summary>Answers the board for an unattended run, taking the configured slot or the first take
+        /// that actually rendered.</summary>
+        private void AutoPick(ErosHuntClip row)
+        {
+            var draft = row.Drafts.FirstOrDefault(d => d.Slot == AutoPickSlot && d.HasVideo)
+                        ?? row.Drafts.FirstOrDefault(d => d.HasVideo);
+            if (draft == null) return;
+
+            Application.Current.Dispatcher.Invoke(() =>
+            {
+                row.ApplyPick(draft.Slot);
+                row.Status = "picked (auto)";
+            });
+            row.Item.ChosenSampleSlot = draft.Slot;
+            row.Item.ChosenSeed = draft.Seed;
+            AddLog($"{row.Title}: auto-picked take {draft.Slot} (seed {draft.Seed}).");
+        }
+
+        /// <summary>
+        /// Every clip that has a take picked and has not been finished, in queue order: the picked latent
+        /// upscaled, re-sampled, RIFE'd, muxed — and, as each story's last clip lands, joined.
+        /// </summary>
+        private async Task FinishSweepAsync(CancellationToken token)
+        {
+            var todo = _board.Where(c => c.HasPick && !c.IsFinished && !c.IsStale &&
+                                         c.Item.ItemStatus == QueueItemStatus.Pending).ToList();
+            if (todo.Count == 0)
+            {
+                if (UnpickedCount > 0)
+                    AddLog("Nothing to finish yet — pick a take on the board and the upscales start " +
+                           (AutoFinishWhenPicked ? "on their own." : "when you press ✨ Finish picked."));
+                return;
+            }
+
+            AddLog($"=== Finish sweep: {todo.Count} picked clip(s) → {Megapixels:0.0} MP ===");
+
+            for (var i = 0; i < todo.Count; i++)
+            {
+                token.ThrowIfCancellationRequested();
+                var row = todo[i];
+                var item = row.Item;
+                var from = 100.0 * i / todo.Count;
+                var to = 100.0 * (i + 1) / todo.Count;
+
+                item.ItemStatus = QueueItemStatus.Processing;
+                item.StartedAt = DateTime.Now;
+                row.IsBusy = true;
+                UpdateQueueStatus();
+                RefreshBoardState();
+                HuntStatus = $"Finishing {row.Title} — {i + 1} of {todo.Count}";
+
+                try
+                {
+                    await FinishAsync(row, from, to, token);
+                    item.ItemStatus = QueueItemStatus.Completed;
+                    item.CompletedAt = DateTime.Now;
+                    item.ErosStage = StageFinished;
+                    row.IsFinished = true;
+                    row.Status = "finished";
+                    AddLog($"Completed: {item.DisplayText}");
+                    // Never throws — a join problem must not push a rendered clip back to Pending.
+                    await CompleteStoryAsync(item, token);
+                }
+                catch (OperationCanceledException)
+                {
+                    item.ItemStatus = QueueItemStatus.Pending;
+                    row.Status = "stopped";
+                    throw;
+                }
+                catch (Exception ex)
+                {
+                    if (await TryHandleCrashAndRetryAsync(item, ex))
+                    {
+                        item.ItemStatus = QueueItemStatus.Pending;
+                        row.Status = "will retry after the ComfyUI restart";
+                        AddLog($"{row.Title}: reset to Pending — the pick is kept, only the upscale is redone.");
+                    }
+                    else
+                    {
+                        item.ItemStatus = QueueItemStatus.Failed;
+                        item.ErrorMessage = ex.Message;
+                        row.Status = $"finish failed: {ex.Message}";
+                        AddLog($"{row.Title} FAILED to finish: {ex.Message}");
+                    }
+                }
+                finally
+                {
+                    row.IsBusy = false;
+                }
+
+                UpdateQueueStatus();
+                SaveQueueToFile();
+                RefreshBoardState();
+            }
+        }
+
+        /// <summary>Runs one board button's work off the queue loop — a single re-roll, which is a GPU job
+        /// but not a queue pass.</summary>
+        private void RunBoardJob(Func<Task> job) => _ = RunBoardJobAsync(job);
+
+        private async Task RunBoardJobAsync(Func<Task> job)
+        {
+            if (IsProcessingQueue) return;
+            IsProcessingQueue = true;
+            _queueCts?.Dispose();
+            _queueCts = new CancellationTokenSource();
+            try
+            {
+                await job();
+            }
+            catch (OperationCanceledException) { AddLog("Re-roll stopped."); }
+            catch (Exception ex) { AddLog($"Re-roll failed: {ex.Message}"); }
+            finally
+            {
+                IsProcessingQueue = false;
+                IsProcessing = false;
+                ProcessingStatus = "Ready";
+                RefreshBoardState();
+                UpdateHuntStatus();
+                SaveQueueToFile();
+                OnCanExecuteChanged();
+            }
+        }
+
+        /// <summary>Hunts a single slot again on a fresh seed, leaving the clip's other takes alone. This is
+        /// what makes an empty or a bad tile cheap to replace — a third of a hunt, not a whole one.</summary>
+        private async Task RerollDraftAsync(ErosSeedDraft draft)
+        {
+            var row = draft.Clip;
+            var seed = System.Random.Shared.NextInt64(0, long.MaxValue);
+            AddLog($"{row.Title}: re-rolling take {draft.Slot} on seed {seed}.");
+
+            if (row.PickedSlot == draft.Slot)
+            {
+                row.ApplyPick(0);
+                row.Item.ChosenSampleSlot = 0;
+                row.Item.ChosenSeed = -1;
+            }
+            TryDelete(draft.VideoPath);
+            row.IsBusy = true;
+            try
+            {
+                await HuntAsync(row, new[] { draft.Slot }, new[] { seed }, 0, 100, _queueCts!.Token);
+                if (row.Item.ErosStage != StageFinished) row.Item.ErosStage = StageHunted;
+            }
+            finally { row.IsBusy = false; }
+        }
+
+        /// <summary>Throws a clip's three takes away and hunts it again on a fresh base seed. The prompt, the
+        /// cast and the canvas are unchanged — only the noise is.</summary>
+        private async Task RerollClipAsync(ErosHuntClip row)
+        {
+            var baseSeed = System.Random.Shared.NextInt64(0, long.MaxValue);
+            AddLog($"{row.Title}: re-rolling all {SampleCount} takes on base seed {baseSeed}.");
+
+            row.ApplyPick(0);
+            row.Item.ChosenSampleSlot = 0;
+            row.Item.ChosenSeed = -1;
+            row.Item.HuntBaseSeed = baseSeed;
+            foreach (var d in row.Drafts) TryDelete(d.VideoPath);
+
+            row.IsBusy = true;
+            try
+            {
+                await HuntAsync(row,
+                    Enumerable.Range(1, SampleCount).ToArray(),
+                    Enumerable.Range(0, SampleCount).Select(n => baseSeed + n).ToArray(),
+                    0, 100, _queueCts!.Token);
+                if (row.Item.ItemStatus == QueueItemStatus.Failed)
+                {
+                    row.Item.ItemStatus = QueueItemStatus.Pending;
+                    row.Item.ErrorMessage = null;
+                }
+                row.Item.Status = "Hunted";
+                row.Item.ErosStage = StageHunted;
+            }
+            finally { row.IsBusy = false; }
+        }
+
+        // ── Phase 1 — the hunt ──────────────────────────────────────────────────────────────────────
+
+        /// <summary>
+        /// One submission producing one draft per requested slot. The graph is pruned to just those slots'
+        /// preview sinks, so nothing downstream of the picker — the upscaler, the second pass, RIFE, the
+        /// final mux — is even in the prompt, and the requested samplers are all the GPU spends time on.
+        /// </summary>
+        private async Task HuntAsync(
+            ErosHuntClip row, IReadOnlyList<int> slots, IReadOnlyList<long> seeds,
+            double progressFrom, double progressTo, CancellationToken token)
+        {
+            var item = row.Item;
+            IsProcessing = true;
+
+            var uploaded = await UploadPanelsAsync(item);
+            var prompt = DetaggedPrompt(item);
+            var len = ClampLength(item.LengthSeconds);
+            var (dw, dh) = H3Canvas.Resolve(item.AspectRatio, item.PreviewMegapixels, 32);
+            var stamp = DateTime.Now.ToString("yyyyMMdd_HHmmssfff");
+            var clipTag = item.IsStoryClip ? $"c{item.ClipIndex:00}" : "c01";
+            var huntToken = $"h3eros_hunt_{stamp}_{clipTag}";
+
+            AddLog($"{row.Title}: hunting take(s) {string.Join(", ", slots)} at ≈{dw}×{dh} " +
+                   $"({item.PreviewMegapixels:0.##} MP), {len:0.#}s / {FramesForSeconds(len)} frames, " +
+                   $"seed(s) {string.Join(", ", seeds)}.");
+
+            var json = await LoadFileAsync(WorkflowFileName, token);
+            var root = ParseGraph(json);
+            ApplyCommonInputs(root, item, uploaded, prompt, len);
+
+            // What these takes are of. The finish re-samples from the prompt, so an edit after this point
+            // has to be visible as staleness rather than quietly changing what gets finished.
+            item.HuntPromptStamp = item.Prompt;
+
+            for (var i = 0; i < slots.Count; i++)
+            {
+                var (_, sink, noise) = SampleBranches[slots[i] - 1];
+                SetInput(root, noise, "noise_seed", seeds[i]);
+                SetInput(root, sink, "frame_rate", DraftFrameRate);
+                SetInput(root, sink, "save_output", true);
+                SetInput(root, sink, "filename_prefix", $"{OutputSubfolder}/{huntToken}_p{slots[i]}");
+            }
+
+            var keep = slots.Select(s => SampleBranches[s - 1].Sink).ToList();
+            json = PruneToOutputs(root.ToJsonString(), keep, out var pruned);
+            AddLog($"  Hunt graph: pruned to {keep.Count} preview sink(s), {pruned} node(s) removed.");
+
+            Application.Current.Dispatcher.Invoke(() =>
+            {
+                foreach (var s in slots)
+                {
+                    var d = row.Drafts[s - 1];
+                    d.Clear();
+                    d.IsRendering = true;
+                    d.Status = "rendering…";
+                }
+                // Whatever was stale is being re-hunted against the prompt as it now reads.
+                row.IsStale = false;
+                row.Status = "hunting…";
+                RefreshBoardState();
+            });
+
+            string promptId;
+            var lease = await AcquireLeaseAsync("H3Eros hunt", token);
+            try
+            {
+                ProcessingStatus = $"Hunting {row.Title}...";
+                promptId = await SubmitAsync(json, progressFrom, progressFrom + (progressTo - progressFrom) * 0.9, token);
+            }
+            finally
+            {
+                // Released the moment the submission returns: the picking that follows must not hold the GPU.
+                lease.Dispose();
+            }
+
+            ProcessingStatus = "Collecting the drafts...";
+            var byNode = await _comfyUIService.HttpClient.GetOutputsByNodeAsync(promptId, token);
+
+            var found = 0;
+            for (var i = 0; i < slots.Count; i++)
+            {
+                token.ThrowIfCancellationRequested();
+                var slot = slots[i];
+                var (_, sink, _) = SampleBranches[slot - 1];
+
+                string? local = null;
+                if (byNode.TryGetValue(sink, out var outs) && outs.Count > 0)
+                {
+                    var pick = outs.FirstOrDefault(f => f.EndsWith(".mp4", StringComparison.OrdinalIgnoreCase)) ?? outs[0];
+                    local = await ResolveOutputToLocalAsync(pick);
+                }
+                local ??= FindTokenVideoOnDisk($"{huntToken}_p{slot}");
+
+                if (local != null && File.Exists(local))
+                {
+                    SetDraft(row, slot, local, seeds[i]);
+                    found++;
+                }
+                else
+                {
+                    Application.Current.Dispatcher.Invoke(() =>
+                    {
+                        row.Drafts[slot - 1].IsRendering = false;
+                        row.Drafts[slot - 1].Status = "no output — 🎲 to try again";
+                    });
+                    StoreDraft(item, slot, null, -1);
+                    AddLog($"  Take {slot}: no output produced.");
+                }
+            }
+
+            if (found == 0)
+                throw new Exception("The hunt produced no drafts.");
+
+            ProcessingProgress = progressTo;
+            Application.Current.Dispatcher.Invoke(() =>
+            {
+                row.Status = DescribeRow(row);
+                RefreshBoardState();
+            });
+            AddLog($"  {row.Title}: {found}/{slots.Count} take(s) ready.");
+        }
+
+        /// <summary>Uploads this clip's panels — the same policy as H3 Cast: one reference per view, never
+        /// the assembled sheet, and character 2's only when the clip names them.</summary>
         private async Task<IReadOnlyList<string>> UploadPanelsAsync(H3CastQueueItem item)
         {
             ProcessingStatus = "Uploading character references...";
-            ProcessingProgress = 3;
 
             var panels1 = ResolvePanels(item.Character1PanelPaths, item.Character1SheetPath, 1);
             var includesCharacter2 = CastPromptStamp.IncludesCharacter2(item.Prompt, item.HasCharacter2);
             var panels2 = includesCharacter2
                 ? ResolvePanels(item.Character2PanelPaths, item.Character2SheetPath, 2)
                 : (IReadOnlyList<string>)Array.Empty<string>();
-            if (item.HasCharacter2 && !includesCharacter2)
-                AddLog("Character 2 is not named in this clip — their references are left out of it.");
 
             var uploaded = new List<string>();
             foreach (var panel in panels1.Concat(panels2))
@@ -509,172 +1227,63 @@ namespace FlipPix.UI.ViewModels.Video
             return uploaded;
         }
 
-        // ── Phase 1 — the hunt ──────────────────────────────────────────────────────────────────────
-
-        /// <summary>
-        /// One submission, three sample clips. The graph is pruned to its three preview sinks, so nothing
-        /// downstream of the picker — the upscaler, the 2nd pass, RIFE, the final mux — is even in the
-        /// prompt, and the three samplers are the only thing the GPU spends time on.
-        /// </summary>
-        private async Task RunHuntAsync(
-            H3CastQueueItem item, IReadOnlyList<string> uploaded, string prompt,
-            double lengthSeconds, string runToken, CancellationToken token)
-        {
-            ResetSamples();
-            var round = _huntRound;
-            var huntToken = $"{runToken}_h{round:00}";
-
-            var json = await LoadFileAsync(WorkflowFileName, token);
-            var root = ParseGraph(json);
-            ApplyCommonInputs(root, item, uploaded, prompt, lengthSeconds);
-
-            for (var i = 0; i < SampleCount; i++)
-            {
-                var (_, sink, noise) = SampleBranches[i];
-                SetInput(root, noise, "noise_seed", SeedForSlot(i + 1));
-                SetInput(root, sink, "frame_rate", DraftFrameRate);
-                SetInput(root, sink, "save_output", true);
-                SetInput(root, sink, "filename_prefix", $"{OutputSubfolder}/{huntToken}_p{i + 1}");
-            }
-
-            json = PruneToOutputs(root.ToJsonString(), SampleBranches.Select(b => b.Sink), out var pruned);
-            AddLog($"Hunt graph: pruned to the three preview sinks, {pruned} node(s) removed.");
-
-            var lease = await AcquireLeaseAsync("H3Eros hunt", token);
-            string promptId;
-            try
-            {
-                ProcessingProgress = 5;
-                ProcessingStatus = $"Hunting {SampleCount} seeds...";
-                HuntStatus = item.IsStoryClip
-                    ? $"Clip {item.ClipIndex}/{item.ClipCount} · hunting {SampleCount} seeds…"
-                    : $"Hunting {SampleCount} seeds…";
-                AddLog($"Hunt round {round + 1}: seeds {string.Join(", ", Enumerable.Range(1, SampleCount).Select(SeedForSlot))}.");
-
-                promptId = await SubmitAsync(json, 5, 55, token);
-            }
-            finally
-            {
-                lease.Dispose();
-            }
-
-            ProcessingStatus = "Collecting the samples...";
-            var byNode = await _comfyUIService.HttpClient.GetOutputsByNodeAsync(promptId, token);
-
-            var found = 0;
-            for (var i = 0; i < SampleCount; i++)
-            {
-                token.ThrowIfCancellationRequested();
-                var slot = i + 1;
-                var (_, sink, _) = SampleBranches[i];
-
-                string? local = null;
-                if (byNode.TryGetValue(sink, out var outs) && outs.Count > 0)
-                {
-                    var pick = outs.FirstOrDefault(f => f.EndsWith(".mp4", StringComparison.OrdinalIgnoreCase)) ?? outs[0];
-                    local = await ResolveOutputToLocalAsync(pick);
-                }
-                local ??= FindTokenVideoOnDisk($"{huntToken}_p{slot}");
-
-                if (local != null && File.Exists(local))
-                {
-                    SetSampleVideo(slot, local);
-                    found++;
-                    if (found == 1) ActivePreviewUri = local;
-                }
-                else
-                {
-                    SetSampleStatus(slot, "no output");
-                    AddLog($"  Sample {slot}: no output produced.");
-                }
-            }
-
-            if (found == 0)
-                throw new Exception("The hunt produced no sample previews.");
-
-            ProcessingProgress = 55;
-            AddLog($"Hunt complete: {found}/{SampleCount} samples ready.");
-        }
-
-        /// <summary>The noise seed of one preview slot: the round's base seed, offset by the slot, exactly
-        /// as the authored graph's <c>a</c>, <c>a+1</c>, <c>a+2</c> calculators did.</summary>
-        private long SeedForSlot(int slot) => _huntSeed + (slot - 1);
-
-        // ── Phase 2 — the pick ──────────────────────────────────────────────────────────────────────
-
-        /// <summary>
-        /// Parks the render until the strip is answered. The GPU lease is <b>not</b> held here — it was
-        /// released the moment the hunt's submission returned — so the rest of the app, and the other
-        /// tabs, keep working while three videos are being watched.
-        /// </summary>
-        private async Task<int> AwaitPickAsync(H3CastQueueItem item, CancellationToken token)
-        {
-            if (AutoPickSample)
-            {
-                var slot = Math.Clamp(AutoPickSlot, 1, SampleCount);
-                // Auto-pick must not choose a sample that never rendered.
-                if (!_samples.First(s => s.Slot == slot).HasVideo)
-                    slot = _samples.First(s => s.HasVideo).Slot;
-                AddLog($"Auto-pick is on — taking sample {slot} without waiting.");
-                Application.Current.Dispatcher.Invoke(() =>
-                {
-                    foreach (var s in _samples) s.IsSelected = s.Slot == slot;
-                });
-                return slot;
-            }
-
-            _pick = new TaskCompletionSource<int>(TaskCreationOptions.RunContinuationsAsynchronously);
-            IsAwaitingPick = true;
-            ProcessingStatus = "Waiting for you to pick a sample…";
-            HuntStatus = item.IsStoryClip
-                ? $"Clip {item.ClipIndex}/{item.ClipCount} · pick a sample to finish, or 🎲 re-roll"
-                : "Pick a sample to finish, or 🎲 re-roll";
-            AddLog("Waiting for a sample to be picked — ✓ Use this one finishes it, 🎲 Re-roll hunts again.");
-
-            try
-            {
-                using (token.Register(() => _pick?.TrySetCanceled(token)))
-                    return await _pick.Task;
-            }
-            finally
-            {
-                IsAwaitingPick = false;
-                _pick = null;
-            }
-        }
+        /// <summary>The clip's prompt with the picture-numbering tags resolved against the panels this item
+        /// actually uploads. Identical in both sweeps — a difference here is a different video.</summary>
+        private string DetaggedPrompt(H3CastQueueItem item) => CastPromptStamp.Detag(
+            item.Prompt,
+            ResolvePanels(item.Character1PanelPaths, item.Character1SheetPath, 1).Count,
+            CastPromptStamp.IncludesCharacter2(item.Prompt, item.HasCharacter2)
+                ? ResolvePanels(item.Character2PanelPaths, item.Character2SheetPath, 2).Count
+                : 0);
 
         // ── Phase 3 — the finish ────────────────────────────────────────────────────────────────────
 
         /// <summary>
-        /// The same file with the same first-pass inputs, so the picked sampler's latent comes straight
-        /// out of ComfyUI's execution cache instead of being sampled again — which is what makes the
-        /// finished clip the sample that was chosen rather than a new take of the same seed. Only the
-        /// picked branch is left in the graph; the other two are pruned with everything else the final
-        /// sink cannot reach.
+        /// The picked take, at full size. The same file and the same first-pass inputs as the hunt, with the
+        /// picked branch's own seed written back and everything the final sink cannot reach pruned away —
+        /// the other two samplers, their decodes and their sinks among them.
+        ///
+        /// <para>Sampling is deterministic, so re-running that one branch reproduces the latent the draft was
+        /// decoded from; what comes out is the take that was chosen, upscaled, not a new take of the same
+        /// seed. When a hunt and its finish happen to be adjacent submissions ComfyUI's execution cache
+        /// skips even that.</para>
         /// </summary>
-        private async Task RunFinishAsync(
-            H3CastQueueItem item, IReadOnlyList<string> uploaded, string prompt, double lengthSeconds,
-            string runToken, int chosen, string ts, int canvasW, int canvasH, CancellationToken token)
+        private async Task FinishAsync(ErosHuntClip row, double progressFrom, double progressTo,
+            CancellationToken token)
         {
+            var item = row.Item;
+            IsProcessing = true;
+            HasResult = false;
+
+            var chosen = item.ChosenSampleSlot;
+            var seed = item.ChosenSeed;
+            if (chosen is < 1 or > SampleCount || seed < 0)
+                throw new Exception("This clip has no usable pick — choose a take on the board first.");
+
+            var uploaded = await UploadPanelsAsync(item);
+            var prompt = DetaggedPrompt(item);
+            var len = ClampLength(item.LengthSeconds);
+            var ts = DateTime.Now.ToString("yyyyMMdd_HHmmss");
+            var clipTag = item.IsStoryClip ? $"_c{item.ClipIndex:00}" : string.Empty;
+            var runToken = $"h3eros_{ts}{clipTag}";
+            var (fw, fh) = H3Canvas.Resolve(item.AspectRatio, item.Megapixels, 32);
+
             var json = await LoadFileAsync(WorkflowFileName, token);
             var root = ParseGraph(json);
-            ApplyCommonInputs(root, item, uploaded, prompt, lengthSeconds);
+            ApplyCommonInputs(root, item, uploaded, prompt, len);
 
-            // Byte-identical to the hunt: every one of the three seeds is written back, because a
-            // different value on the *picked* branch is a cache miss and a different video.
-            for (var i = 0; i < SampleCount; i++)
-                SetInput(root, SampleBranches[i].Noise, "noise_seed", SeedForSlot(i + 1));
+            var (sampler, _, noise) = SampleBranches[chosen - 1];
+            SetInput(root, noise, "noise_seed", seed);
 
-            var sampler = SampleBranches[chosen - 1].Sampler;
             Link(root, NodeLatentSplit, "av_latent", sampler, DenoisedSlot);
-            // The graph's single-pass decode of the same latent — the author's "skip upscale" option.
-            // Nothing consumes it here, so the prune below removes it; it is repointed anyway so the
-            // graph never carries a link into a sampler that is about to be deleted.
+            // The graph's single-pass decode of the same latent — the author's "skip upscale" option. Nothing
+            // consumes it here, so the prune below removes it; it is repointed anyway so the graph never
+            // carries a link into a sampler that is about to be deleted.
             Link(root, NodeSinglePassVideo, "samples", sampler, DenoisedSlot);
             Link(root, NodeSinglePassAudio, "samples", sampler, DenoisedSlot);
 
-            // The upscale pass. Its own noise seed is fresh every finish — re-rolling it is how the
-            // authored graph offers variations of the same picked composition.
+            // The upscale pass. Its own noise seed is fresh every finish — re-rolling it is how the authored
+            // graph offers variations of the same picked composition.
             SetInput(root, NodeUpscaler, "mode", "megapixels");
             SetInput(root, NodeUpscaler, "mode.megapixels", item.Megapixels);
             SetInput(root, NodeUpscaleNoise, "noise_seed", System.Random.Shared.NextInt64(0, long.MaxValue));
@@ -702,22 +1311,16 @@ namespace FlipPix.UI.ViewModels.Video
             SetInput(root, NodeFinalSave, "filename_prefix", $"{OutputSubfolder}/{runToken}_final");
 
             json = PruneToOutputs(root.ToJsonString(), new[] { NodeFinalSave }, out var pruned);
-            AddLog($"Finish graph: the picked branch kept, {pruned} node(s) removed — the other two " +
-                   "samplers, their decodes and their sinks among them.");
+            AddLog($"{row.Title}: finishing take {chosen} (seed {seed}, {item.UpscaleSteps} fixed sigmas " +
+                   $"at {fw}×{fh}, {(item.UseRife ? $"RIFE → {DraftFrameRate * 2}fps" : $"{DraftFrameRate}fps")}). " +
+                   $"Finish graph: the picked branch kept, {pruned} node(s) removed.");
 
             var lease = await AcquireLeaseAsync("H3Eros finish", token);
             try
             {
-                ProcessingProgress = 60;
-                ProcessingStatus = $"Upscaling sample {chosen} to {canvasW}×{canvasH}...";
-                HuntStatus = item.IsStoryClip
-                    ? $"Clip {item.ClipIndex}/{item.ClipCount} · finishing sample {chosen}…"
-                    : $"Finishing sample {chosen}…";
-                AddLog($"Finishing (sample {chosen}, {item.UpscaleSteps} fixed sigmas at {canvasW}×{canvasH}, " +
-                       $"{(item.UseRife ? $"RIFE → {DraftFrameRate * 2}fps" : $"{DraftFrameRate}fps")}). " +
-                       "The first pass comes out of ComfyUI's cache, so only the upscale is sampled.");
-
-                var local = await SubmitAndRetrieveAsync(json, $"{runToken}_final", NodeFinalSave, 60, 95, token);
+                ProcessingStatus = $"Upscaling {row.Title} take {chosen} to {fw}×{fh}...";
+                var local = await SubmitAndRetrieveAsync(json, $"{runToken}_final", NodeFinalSave,
+                                                         progressFrom, progressTo, token);
                 if (local == null || !File.Exists(local))
                     throw new Exception("No output video was generated.");
 
@@ -735,19 +1338,17 @@ namespace FlipPix.UI.ViewModels.Video
                 item.OutputVideoPath = finalPath;
                 Application.Current.Dispatcher.Invoke(() =>
                 {
+                    row.OutputPath = finalPath;
                     ResultVideoPath = finalPath;
                     ActivePreviewUri = finalPath;
                     ResultVideoInfo = $"{TabDisplayName} • " +
                                       $"{(item.IsStoryClip ? $"clip {item.ClipIndex}/{item.ClipCount} • " : string.Empty)}" +
-                                      $"sample {chosen} • ≈{canvasW}×{canvasH} • {item.AspectRatio} • " +
-                                      $"{lengthSeconds:0.#}s • {fi.Length / 1024 / 1024.0:F1}MB";
+                                      $"take {chosen} • ≈{fw}×{fh} • {item.AspectRatio} • " +
+                                      $"{len:0.#}s • {fi.Length / 1024 / 1024.0:F1}MB";
                     HasResult = true;
                     OnCanExecuteChanged();
                 });
-                ProcessingProgress = 100;
-                ProcessingStatus = "Complete!";
-                HuntStatus = string.Empty;
-                AddLog($"=== Complete: {finalPath} ===");
+                AddLog($"=== {row.Title} complete: {finalPath} ===");
             }
             finally
             {
@@ -758,10 +1359,10 @@ namespace FlipPix.UI.ViewModels.Video
         // ── Graph patching ──────────────────────────────────────────────────────────────────────────
 
         /// <summary>
-        /// Everything both phases must agree on, written identically into both submissions. The prompt,
-        /// the references, the draft canvas, the length and the first-pass step count all feed the three
-        /// samplers, so a single difference between hunt and finish is a cache miss — and a finished clip
-        /// that is not the sample that was picked.
+        /// Everything both sweeps must agree on, written identically into both submissions. The prompt, the
+        /// references, the draft canvas, the length and the first-pass step count all feed the samplers, so a
+        /// single difference between hunt and finish is a different latent — and a finished clip that is not
+        /// the take that was picked.
         /// </summary>
         private void ApplyCommonInputs(
             JsonObject root, H3CastQueueItem item, IReadOnlyList<string> uploaded,
@@ -794,9 +1395,9 @@ namespace FlipPix.UI.ViewModels.Video
             SetInput(root, NodeSteps, "value", FirstPassSteps);
 
             // ── The draft canvas ──────────────────────────────────────────────
-            // ResolutionSelector sizes the previews only; the finished size is the upscaler's target and
-            // is set in the finish phase. Aspects the node's combo does not accept are resolved here and
-            // fed in as two PrimitiveInt nodes standing where its width and height outputs were.
+            // ResolutionSelector sizes the drafts only; the finished size is the upscaler's target and is set
+            // in the finish. Aspects the node's combo does not accept are resolved here and fed in as two
+            // PrimitiveInt nodes standing where its width and height outputs were.
             if (H3Canvas.RequiresLiteralCanvas(item.AspectRatio))
             {
                 var (cw, ch) = H3Canvas.Resolve(item.AspectRatio, item.PreviewMegapixels, 32);
@@ -812,14 +1413,6 @@ namespace FlipPix.UI.ViewModels.Video
                 SetInput(root, NodeResolution, "multiple", 32);
             }
         }
-
-        /// <summary>
-        /// Steps on the first pass — the one that produces the three samples. The graph's own
-        /// BasicScheduler count, kept as a constant rather than a dial: the hunt is a comparison between
-        /// three seeds, and it is only honest if every sample is sampled the same way as every other
-        /// hunt's.
-        /// </summary>
-        private const int FirstPassSteps = 12;
 
         private static JsonObject ParseGraph(string json) =>
             JsonNode.Parse(json)?.AsObject()
@@ -905,41 +1498,108 @@ namespace FlipPix.UI.ViewModels.Video
             }
         }
 
-        // ── Sample strip plumbing ───────────────────────────────────────────────────────────────────
+        // ── Draft bookkeeping ───────────────────────────────────────────────────────────────────────
 
-        private void ResetSamples() => Application.Current.Dispatcher.Invoke(() =>
+        /// <summary>Writes a landed draft onto both the board tile and the queue item, so it is on screen now
+        /// and still there after a restart.</summary>
+        private void SetDraft(ErosHuntClip row, int slot, string localPath, long seed)
         {
-            foreach (var s in _samples) s.Reset();
-            ActivePreviewUri = null;
-            OnPropertyChanged(nameof(HasSamples));
-        });
+            StoreDraft(row.Item, slot, localPath, seed);
 
-        private void SetSampleVideo(int slot, string localPath)
-        {
             Application.Current.Dispatcher.Invoke(() =>
             {
-                var sample = _samples.First(s => s.Slot == slot);
-                sample.VideoPath = localPath;
-                sample.VideoFileUri = localPath;
-                sample.Status = $"seed {SeedForSlot(slot)}";
-                OnPropertyChanged(nameof(HasSamples));
-                AddLog($"  Sample {slot} ready: {Path.GetFileName(localPath)}");
-                OnCanExecuteChanged();
+                var draft = row.Drafts[slot - 1];
+                draft.IsRendering = false;
+                draft.VideoPath = localPath;
+                draft.Seed = seed;
+                draft.Status = draft.SeedText;
+                RefreshBoardState();
+                AddLog($"  Take {slot} ready: {Path.GetFileName(localPath)}");
             });
 
-            var thumb = ExtractFirstFrame(localPath);
-            if (thumb != null)
-                Application.Current.Dispatcher.Invoke(() =>
-                    _samples.First(s => s.Slot == slot).ThumbnailImage = thumb);
+            // The first draft of the whole run auto-loads into the player, so there is something to watch
+            // the moment the sweep starts. After that the player follows the clicks.
+            if (string.IsNullOrEmpty(ActivePreviewUri))
+                Application.Current.Dispatcher.Invoke(() => ActivePreviewUri = localPath);
+
+            // FFmpeg, on a background thread: the sweep's continuations can land on the UI thread, and a
+            // second of blocked dispatcher per draft is a frozen window for the length of a hunt.
+            _ = Task.Run(() =>
+            {
+                var thumb = ExtractFirstFrame(localPath);
+                if (thumb != null)
+                    Application.Current?.Dispatcher.Invoke(() => row.Drafts[slot - 1].Thumbnail = thumb);
+            });
         }
 
-        private void SetSampleStatus(int slot, string status) =>
-            Application.Current.Dispatcher.Invoke(() => _samples.First(s => s.Slot == slot).Status = status);
+        /// <summary>The persisted half of a draft: path and seed at the slot's index, lists grown as needed
+        /// so a queue file written before the board existed still round-trips.</summary>
+        private static void StoreDraft(H3CastQueueItem item, int slot, string? path, long seed)
+        {
+            while (item.HuntSamplePaths.Count < SampleCount) item.HuntSamplePaths.Add(string.Empty);
+            while (item.HuntSampleSeeds.Count < SampleCount) item.HuntSampleSeeds.Add(-1);
+            item.HuntSamplePaths[slot - 1] = path ?? string.Empty;
+            item.HuntSampleSeeds[slot - 1] = seed;
+        }
+
+        /// <summary>Fills in tile images for drafts restored from the queue file, one at a time in the
+        /// background — a twelve-clip board is thirty-six FFmpeg calls, and none of them is urgent.</summary>
+        private void StartThumbnailSweep()
+        {
+            if (_thumbnailSweepRunning) return;
+            var missing = _board.SelectMany(c => c.Drafts)
+                                .Where(d => d.HasVideo && d.Thumbnail == null)
+                                .ToList();
+            if (missing.Count == 0) return;
+
+            _thumbnailSweepRunning = true;
+            _ = Task.Run(() =>
+            {
+                try
+                {
+                    foreach (var draft in missing)
+                    {
+                        var path = draft.VideoPath;
+                        if (string.IsNullOrEmpty(path)) continue;
+                        var thumb = ExtractFirstFrame(path);
+                        if (thumb == null) continue;
+                        Application.Current?.Dispatcher.Invoke(() => draft.Thumbnail = thumb);
+                    }
+                }
+                finally { _thumbnailSweepRunning = false; }
+            });
+        }
+
+        private void UpdateHuntStatus()
+        {
+            if (IsProcessingQueue) return;
+            var stale = _board.Count(c => c.IsStale);
+            var unpicked = UnpickedCount;
+            var pending = _board.Count(c => c.HasPick && !c.IsFinished);
+
+            // A stale clip is the one state that goes nowhere on its own: ▶ Generate skips it (it has
+            // drafts), and the finish sweep refuses it. Say so, or it looks like the queue simply stopped.
+            var staleNote = stale > 0
+                ? $"{stale} clip(s) reworded and waiting to be re-rolled"
+                : string.Empty;
+
+            var main = unpicked > 0
+                ? $"{unpicked} clip(s) waiting for a take — click a tile to watch it and choose it"
+                : pending > 0
+                    ? $"{pending} clip(s) picked and ready to finish"
+                    : _board.Count > 0 && _board.All(c => c.IsFinished)
+                        ? "every clip finished"
+                        : string.Empty;
+
+            HuntStatus = string.IsNullOrEmpty(staleNote) ? main
+                       : string.IsNullOrEmpty(main) ? staleNote
+                       : $"{staleNote} · {main}";
+        }
 
         /// <summary>
-        /// The tile image. Three simultaneous WPF <c>MediaElement</c>s render as solid black — the reason
-        /// every seed-hunt tab in this app shows still frames in the grid and plays the picked one in a
-        /// single shared player.
+        /// The tile image. Several simultaneous WPF <c>MediaElement</c>s render as solid black — with a whole
+        /// story on the board it would be dozens — which is why the tiles are still frames and the one being
+        /// watched plays in the single shared player.
         /// </summary>
         private BitmapImage? ExtractFirstFrame(string videoPath)
         {
@@ -982,9 +1642,9 @@ namespace FlipPix.UI.ViewModels.Video
         // ── Queue ───────────────────────────────────────────────────────────────────────────────────
 
         /// <summary>
-        /// The stock queue-add, with this tab's own settings frozen onto every item and any previous
-        /// pick cleared — a re-queued chain hunts again rather than silently finishing the samples of
-        /// whatever run put those numbers there.
+        /// The stock queue-add, with this tab's own settings frozen onto every item and any previous hunt
+        /// cleared — a re-queued chain hunts again rather than showing the drafts of whatever run put those
+        /// numbers there.
         /// </summary>
         protected override void AddToQueue()
         {
@@ -996,22 +1656,24 @@ namespace FlipPix.UI.ViewModels.Video
                 Queue[i].UpscaleSteps = UpscaleSteps;
                 Queue[i].UseRife = UseRife;
                 Queue[i].ChosenSampleSlot = 0;
+                Queue[i].ChosenSeed = -1;
                 Queue[i].HuntBaseSeed = -1;
+                Queue[i].HuntSamplePaths = new List<string>();
+                Queue[i].HuntSampleSeeds = new List<long>();
+                Queue[i].ErosStage = string.Empty;
             }
             if (Queue.Count > before) SaveQueueToFile();
+            SyncBoard();
         }
 
         protected override void OnCanExecuteChanged()
         {
             base.OnCanExecuteChanged();
-            OnPropertyChanged(nameof(HasSamples));
             OnPropertyChanged(nameof(HuntSummary));
             OnPropertyChanged(nameof(UpscaleSummary));
             OnPropertyChanged(nameof(LoadSummary));
             OnPropertyChanged(nameof(HasLoadWarning));
-            UseSampleCommand.NotifyCanExecuteChanged();
-            RerollSamplesCommand.NotifyCanExecuteChanged();
-            PreviewSampleCommand.NotifyCanExecuteChanged();
+            RefreshBoardState();
         }
     }
 }

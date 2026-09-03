@@ -256,6 +256,97 @@ namespace FlipPix.UI.Services
 
         #endregion
 
+        #region The description field
+
+        /// <summary>The fields that follow the description, in the order H3 expects them. Whichever comes
+        /// first is where the description ends.</summary>
+        private static readonly string[] TailAnchors = { "overall_soundscape:", "non_diegetic_music:" };
+
+        /// <summary>
+        /// Just the <c>integrated_multimodal_description</c> body — the field H3 actually renders motion
+        /// from — with its label, the reference preamble, the wardrobe lock and the two sound fields all
+        /// left behind.
+        ///
+        /// <para>This is the half of a prompt worth putting in front of someone: the preamble and the
+        /// wardrobe block are code-written and identical in every clip of a chain, and editing them by hand
+        /// is how a cast stops being wired correctly. Empty for a prompt carrying no label at all, which is
+        /// the honest answer — there is no description field to edit.</para>
+        /// </summary>
+        public static string ExtractDescription(string? prompt)
+        {
+            var t = prompt ?? string.Empty;
+            var start = t.IndexOf(BodyAnchor, StringComparison.OrdinalIgnoreCase);
+            if (start < 0) return string.Empty;
+            start += BodyAnchor.Length;
+            return t[start..TailStart(t, start)].Trim();
+        }
+
+        /// <summary>
+        /// Puts an edited description back into its prompt, leaving the preamble, the wardrobe lock and the
+        /// two sound fields exactly as they were. A prompt with no label gets one appended, so a hand-written
+        /// clip can still be given a description rather than silently swallowing the edit.
+        /// </summary>
+        public static string ReplaceDescription(string? prompt, string? description)
+        {
+            var t = prompt ?? string.Empty;
+            var body = (description ?? string.Empty).Trim();
+            var start = t.IndexOf(BodyAnchor, StringComparison.OrdinalIgnoreCase);
+
+            if (start < 0)
+            {
+                if (body.Length == 0) return t;
+                var head = t.TrimEnd();
+                return head.Length == 0 ? $"{BodyAnchor} {body}" : $"{head}\n\n{BodyAnchor} {body}";
+            }
+
+            var afterLabel = start + BodyAnchor.Length;
+            var tail = t[TailStart(t, afterLabel)..].TrimStart();
+            return t[..afterLabel] + " " + body + (tail.Length > 0 ? "\n\n" + tail : string.Empty);
+        }
+
+        /// <summary>Matches a shot header wherever it appears in a description body.</summary>
+        private static readonly Regex ShotHeaderRegex =
+            new(@"\s*(\[\s*Shot\s*\d+\s*\])", RegexOptions.IgnoreCase | RegexOptions.Compiled);
+
+        /// <summary>Collapses every run of whitespace to one space, for comparing two spellings of the
+        /// same description.</summary>
+        private static readonly Regex WhitespaceRunRegex = new(@"\s+", RegexOptions.Compiled);
+
+        /// <summary>
+        /// The same description with every <c>[Shot n]</c> starting its own line. Purely how it is laid out
+        /// for reading and editing — a description is a list of shots, and run together in one paragraph it
+        /// cannot be scanned, let alone edited.
+        /// </summary>
+        public static string ShotLines(string? description) =>
+            ShotHeaderRegex.Replace((description ?? string.Empty).Trim(), "\n$1").TrimStart();
+
+        /// <summary>
+        /// Whether two descriptions say the same thing, ignoring how they are laid out.
+        ///
+        /// <para>The board hands its box the <see cref="ShotLines"/> spelling while the prompt holds whatever
+        /// the writer produced, so a straight comparison would read every clip as edited the moment the board
+        /// was built — and staling a clip costs its takes.</para>
+        /// </summary>
+        public static bool SameDescription(string? a, string? b) =>
+            string.Equals(Flatten(a), Flatten(b), StringComparison.Ordinal);
+
+        private static string Flatten(string? text) =>
+            WhitespaceRunRegex.Replace((text ?? string.Empty).Trim(), " ");
+
+        /// <summary>Where the description stops: the first sound field after it, or the end of the prompt.</summary>
+        private static int TailStart(string prompt, int from)
+        {
+            var end = prompt.Length;
+            foreach (var anchor in TailAnchors)
+            {
+                var i = prompt.IndexOf(anchor, from, StringComparison.OrdinalIgnoreCase);
+                if (i >= 0 && i < end) end = i;
+            }
+            return end;
+        }
+
+        #endregion
+
         #region Stamping
 
         /// <summary>
