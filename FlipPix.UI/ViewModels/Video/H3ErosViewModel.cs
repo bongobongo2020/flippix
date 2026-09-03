@@ -74,6 +74,16 @@ namespace FlipPix.UI.ViewModels.Video
         private const string NodeUpscaledAudio = "190";   // VAEDecodeAudio of the 2nd pass
         private const string NodeRife = "165";            // RIFEInterpolation — 24 → 48 fps
         private const string NodeFinalSave = "34";        // VHS_VideoCombine — the finished clip
+        private const string NodeUnet = "171:4";          // UNETLoader — the model both sweeps sample with
+
+        /// <summary>The ComfyUI models folder the model dropdown offers, under <c>diffusion_models</c>.
+        /// Everything the server reports there is listed; nothing outside it is.</summary>
+        private const string ModelFolder = "h3-minimax/";
+
+        /// <summary>What <c>h3-eros.json</c> names in its UNETLoader. Kept as a constant so the dropdown
+        /// still has the shipped model in it when the server cannot be reached to enumerate the folder.</summary>
+        private const string ShippedModel =
+            "h3-minimax/10Eros_Max_h3_TURBO-hybrid_beta4_int8_convrot.safetensors";
 
         // Added to the graph, not present in the file: the two INT sources that stand in for
         // ResolutionSelector's outputs when the chosen aspect is one its combo does not accept.
@@ -118,6 +128,8 @@ namespace FlipPix.UI.ViewModels.Video
         private readonly ObservableCollection<ErosHuntClip> _board = new();
 
         private double _previewMegapixels = 0.15;
+        private string _selectedDiffusionModel = string.Empty;
+        private bool _isLoadingDiffusionModels;
         private int _upscaleSteps = 4;
         private bool _useRife = true;
         private bool _autoPickSample;
@@ -152,9 +164,21 @@ namespace FlipPix.UI.ViewModels.Video
             PickFirstEverywhereCommand = new RelayCommand(PickFirstEverywhere, () => HasBoard && !IsProcessingQueue);
             ClearPicksCommand = new RelayCommand(ClearPicks, () => HasAnyPick && !IsProcessingQueue);
             ToggleAllPromptsCommand = new RelayCommand(ToggleAllPrompts, () => HasBoard);
+            RefreshDiffusionModelsCommand = new RelayCommand(
+                () => _ = LoadDiffusionModelsAsync(), () => !_isLoadingDiffusionModels);
 
             Queue.CollectionChanged += (_, _) => Application.Current.Dispatcher.Invoke(SyncBoard);
             SyncBoard();
+
+            // The dropdown starts with what was chosen last run and the model the file ships, so the tab
+            // is usable before — and if — the server answers. Enumerating the folder is a network round
+            // trip, so it happens off the constructor's thread; this tab is on the window's startup path.
+            _selectedDiffusionModel = NormalizeModel(_settingsService.Settings?.H3ErosDiffusionModel);
+            DiffusionModelOptions.Add(new DiffusionModelOption(ShippedModel, LabelFor(ShippedModel) + " (shipped)"));
+            if (_selectedDiffusionModel.Length > 0 && _selectedDiffusionModel != ShippedModel)
+                DiffusionModelOptions.Add(new DiffusionModelOption(_selectedDiffusionModel, LabelFor(_selectedDiffusionModel)));
+            if (_selectedDiffusionModel.Length == 0) _selectedDiffusionModel = ShippedModel;
+            _ = LoadDiffusionModelsAsync();
 
             AddLog("H3 Eros initialized — one ▶ Generate hunts three drafts for every clip in the queue " +
                    "back to back, then you pick the good ones and only those are upscaled and joined");
@@ -195,6 +219,142 @@ namespace FlipPix.UI.ViewModels.Video
         };
 
         // ── The tab's own dials ─────────────────────────────────────────────────────────────────────
+
+        /// <summary>
+        /// The diffusion model both sweeps load — the point of the dropdown being to run the same story
+        /// through the different H3 checkpoints in <c>diffusion_models/h3-minimax</c> and compare them.
+        /// Stored as ComfyUI names it, so it drops straight into the UNETLoader's <c>unet_name</c>.
+        ///
+        /// <para>Persisted the moment it changes, so a comparison run survives a restart. It is also
+        /// frozen onto every queue item at Add to Queue: the finish re-samples the picked draft's branch,
+        /// so a hunt and a finish on different models would not be the take that was chosen.</para>
+        /// </summary>
+        public string SelectedDiffusionModel
+        {
+            get => _selectedDiffusionModel;
+            set
+            {
+                var name = NormalizeModel(value);
+                if (name.Length == 0 || _selectedDiffusionModel == name) return;
+                _selectedDiffusionModel = name;
+                OnPropertyChanged();
+                OnPropertyChanged(nameof(DiffusionModelSummary));
+
+                var settings = _settingsService.Settings;
+                if (settings != null)
+                {
+                    settings.H3ErosDiffusionModel = name;
+                    _settingsService.SaveSettings(settings);
+                }
+                AddLog($"Model: {LabelFor(name)} — the next hunt and everything queued after it sample with this.");
+            }
+        }
+
+        /// <summary>Every model the connected ComfyUI reports under <see cref="ModelFolder"/>, plus the
+        /// one the workflow ships and whatever was picked last run, so the list is never empty.</summary>
+        public ObservableCollection<DiffusionModelOption> DiffusionModelOptions { get; } = new();
+
+        /// <summary>Re-reads the folder from the server — for after a model has been dropped into it.</summary>
+        public RelayCommand RefreshDiffusionModelsCommand { get; }
+
+        /// <summary>The line under the dropdown: what is loaded, and the one caveat that bites.</summary>
+        public string DiffusionModelSummary =>
+            _isLoadingDiffusionModels
+                ? "Reading diffusion_models/h3-minimax from ComfyUI…"
+                : _selectedDiffusionModel.Contains("ref2va", StringComparison.OrdinalIgnoreCase) ||
+                  _selectedDiffusionModel.Contains("hybrid", StringComparison.OrdinalIgnoreCase)
+                    ? $"{DiffusionModelOptions.Count} model(s) in diffusion_models/h3-minimax."
+                    : "This graph feeds MiniMaxH3ReferenceToVideo — a model trained only for first/last-frame " +
+                      "work may render noise through it. Hunt one clip before queueing a story.";
+
+        /// <summary>
+        /// Fills <see cref="DiffusionModelOptions"/> from /object_info/UNETLoader, keeping only what lives
+        /// in <see cref="ModelFolder"/>. Asking the server rather than reading the disk is what makes this
+        /// work against a remote ComfyUI, where the models folder is not a path this machine has. A server
+        /// that cannot be reached leaves the list exactly as the constructor seeded it.
+        /// </summary>
+        private async Task LoadDiffusionModelsAsync()
+        {
+            if (_isLoadingDiffusionModels) return;
+            _isLoadingDiffusionModels = true;
+            Application.Current.Dispatcher.Invoke(() =>
+            {
+                RefreshDiffusionModelsCommand.NotifyCanExecuteChanged();
+                OnPropertyChanged(nameof(DiffusionModelSummary));
+            });
+            try
+            {
+                var all = await _comfyUIService.HttpClient.GetUnetFilenamesAsync();
+                var found = all
+                    .Where(n => n.Replace('\\', '/').StartsWith(ModelFolder, StringComparison.OrdinalIgnoreCase))
+                    .Select(n => n.Replace('\\', '/'))
+                    .Distinct(StringComparer.OrdinalIgnoreCase)
+                    .OrderBy(n => n, StringComparer.OrdinalIgnoreCase)
+                    .ToList();
+
+                if (found.Count == 0)
+                {
+                    AddLog("Model list: ComfyUI reported nothing under diffusion_models/h3-minimax — " +
+                           "keeping the model the workflow ships.");
+                    return;
+                }
+
+                // The chosen model survives the rebuild even when the server no longer has it: it stays in
+                // the list, labelled, so the tab does not silently start sampling with something else.
+                var keep = _selectedDiffusionModel;
+                Application.Current.Dispatcher.Invoke(() =>
+                {
+                    DiffusionModelOptions.Clear();
+                    foreach (var n in found)
+                        DiffusionModelOptions.Add(new DiffusionModelOption(
+                            n, LabelFor(n) + (n == ShippedModel ? " (shipped)" : string.Empty)));
+
+                    // The server's own spelling wins where it differs only in case, so the value written
+                    // into unet_name is byte-for-byte what ComfyUI offered.
+                    var match = found.FirstOrDefault(n => string.Equals(n, keep, StringComparison.OrdinalIgnoreCase));
+                    if (match == null && keep.Length > 0)
+                        DiffusionModelOptions.Add(new DiffusionModelOption(keep, LabelFor(keep) + " (not on server)"));
+
+                    // Written through the field, not the property: Clear() has already pushed null back
+                    // through the ComboBox's two-way SelectedValue binding, so the notification below is
+                    // what puts the selection back on screen — and the setter, seeing no change, would
+                    // never raise it. Going round the setter also skips a settings write on every startup.
+                    _selectedDiffusionModel = match ?? keep;
+                    OnPropertyChanged(nameof(SelectedDiffusionModel));
+                    OnPropertyChanged(nameof(DiffusionModelSummary));
+                });
+                AddLog($"Model list: {found.Count} model(s) in diffusion_models/h3-minimax.");
+            }
+            catch (Exception ex)
+            {
+                AddLog($"Model list could not be read ({ex.Message}) — keeping {LabelFor(_selectedDiffusionModel)}.");
+            }
+            finally
+            {
+                _isLoadingDiffusionModels = false;
+                Application.Current.Dispatcher.Invoke(() =>
+                {
+                    RefreshDiffusionModelsCommand.NotifyCanExecuteChanged();
+                    OnPropertyChanged(nameof(DiffusionModelSummary));
+                });
+            }
+        }
+
+        /// <summary>Slashes one way and no stray whitespace, so a name from settings, from the server and
+        /// from the workflow file all compare equal.</summary>
+        private static string NormalizeModel(string? name) =>
+            (name ?? string.Empty).Trim().Replace('\\', '/');
+
+        /// <summary>What the dropdown shows: the filename, without the folder or the extension.</summary>
+        private static string LabelFor(string name)
+        {
+            if (string.IsNullOrWhiteSpace(name)) return "(workflow default)";
+            var file = name.Replace('\\', '/');
+            var slash = file.LastIndexOf('/');
+            if (slash >= 0) file = file[(slash + 1)..];
+            var dot = file.LastIndexOf('.');
+            return dot > 0 ? file[..dot] : file;
+        }
 
         /// <summary>
         /// The megapixels the drafts are sampled at. Cheap on purpose — a queue of N clips costs 3N of
@@ -1106,7 +1266,7 @@ namespace FlipPix.UI.ViewModels.Video
 
             AddLog($"{row.Title}: hunting take(s) {string.Join(", ", slots)} at ≈{dw}×{dh} " +
                    $"({item.PreviewMegapixels:0.##} MP), {len:0.#}s / {FramesForSeconds(len)} frames, " +
-                   $"seed(s) {string.Join(", ", seeds)}.");
+                   $"seed(s) {string.Join(", ", seeds)}, model {LabelFor(item.DiffusionModel)}.");
 
             var json = await LoadFileAsync(WorkflowFileName, token);
             var root = ParseGraph(json);
@@ -1370,6 +1530,17 @@ namespace FlipPix.UI.ViewModels.Video
         {
             RequireClass(root, NodeRef2V, "MiniMaxH3ReferenceToVideo");
             RequireClass(root, NodeFinalSave, "VHS_VideoCombine");
+
+            // ── The model ─────────────────────────────────────────────────────
+            // The item's own, not the dropdown's: the finish re-samples the picked draft's branch, so
+            // hunting and finishing on different checkpoints would produce a clip that is not the take
+            // that was picked. Empty is a queue item written before the dropdown existed — leave the
+            // workflow file's own model alone.
+            if (!string.IsNullOrWhiteSpace(item.DiffusionModel))
+            {
+                RequireClass(root, NodeUnet, "UNETLoader");
+                SetInput(root, NodeUnet, "unet_name", item.DiffusionModel);
+            }
 
             // ── References ────────────────────────────────────────────────────
             // The graph ships none at all — the author's were LoadImageCrop nodes, a custom node this
@@ -1653,6 +1824,7 @@ namespace FlipPix.UI.ViewModels.Video
             for (var i = before; i < Queue.Count; i++)
             {
                 Queue[i].PreviewMegapixels = PreviewMegapixels;
+                Queue[i].DiffusionModel = SelectedDiffusionModel;
                 Queue[i].UpscaleSteps = UpscaleSteps;
                 Queue[i].UseRife = UseRife;
                 Queue[i].ChosenSampleSlot = 0;
@@ -1676,4 +1848,8 @@ namespace FlipPix.UI.ViewModels.Video
             RefreshBoardState();
         }
     }
+
+    /// <summary>One entry in the H3 Eros model dropdown. <c>Value</c> is what goes into the UNETLoader —
+    /// the server's own name, folder and extension included; <c>Label</c> is only what is shown.</summary>
+    public record DiffusionModelOption(string Value, string Label);
 }

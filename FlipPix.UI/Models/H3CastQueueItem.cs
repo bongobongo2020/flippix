@@ -161,6 +161,15 @@ namespace FlipPix.UI.Models
         public double PreviewMegapixels { get; set; } = 0.2;
 
         /// <summary>
+        /// 🌹 H3 Eros only — the diffusion model both sweeps load, as ComfyUI names it under
+        /// <c>diffusion_models</c> (e.g. <c>h3-minimax/minimax_h3_ref2va_pruned_int8_convrot.safetensors</c>).
+        /// Frozen onto the item at queue time so that changing the dropdown mid-run cannot finish a clip
+        /// with a different model than the one its drafts were hunted with — the finish re-samples the
+        /// picked branch, and a different model is a different latent. Empty means the workflow file's own.
+        /// </summary>
+        public string DiffusionModel { get; set; } = string.Empty;
+
+        /// <summary>
         /// 🌹 H3 Eros only — how many fixed sigmas the upscale pass runs (3, 4 or 5). The graph ships
         /// one ManualSigmas schedule per count and the render links the chosen one.
         /// </summary>

@@ -1207,6 +1207,36 @@
                                             <StackPanel>
                                                 <ctrl:SectionHeader Title="SETTINGS" Margin="0,0,0,10"/>
 
+                                                <!-- Which H3 checkpoint the hunt and the finish sample
+                                                     with. The list is whatever the connected ComfyUI
+                                                     reports under diffusion_models/h3-minimax, so
+                                                     dropping a model in and pressing the refresh button
+                                                     is enough. The choice is saved, and it is frozen onto
+                                                     every queue item, so a story queued on one model is
+                                                     finished on that same model. -->
+                                                <TextBlock Text="Model" FontSize="10" Foreground="{StaticResource TextSecondaryBrush}" Margin="0,0,0,4"/>
+                                                <Grid Margin="0,0,0,4">
+                                                    <Grid.ColumnDefinitions>
+                                                        <ColumnDefinition Width="*"/>
+                                                        <ColumnDefinition Width="Auto"/>
+                                                    </Grid.ColumnDefinitions>
+                                                    <ComboBox Grid.Column="0"
+                                                              ItemsSource="{Binding DiffusionModelOptions}"
+                                                              DisplayMemberPath="Label"
+                                                              SelectedValuePath="Value"
+                                                              SelectedValue="{Binding SelectedDiffusionModel}"
+                                                              Height="30" FontSize="11" Margin="0,0,6,0"
+                                                              ToolTip="The diffusion model both sweeps load, from diffusion_models/h3-minimax on the ComfyUI server. Change it to run the same story through a different H3 checkpoint and compare the takes side by side; the choice is remembered across restarts.&#x0a;&#x0a;It is frozen onto each clip when you press Add to Queue — the finish re-samples the picked draft's own branch, so a queue hunted on one model is always finished on that same model even if you change this afterwards.&#x0a;&#x0a;This graph drives MiniMaxH3ReferenceToVideo. A checkpoint trained only for first/last-frame work (fl2va) may render noise through it — hunt a single clip before committing a story to one."/>
+                                                    <Button Grid.Column="1" Content="&#x27F3;" Width="30" Height="30" FontSize="13"
+                                                            Command="{Binding RefreshDiffusionModelsCommand}"
+                                                            Background="{StaticResource SurfaceAltBrush}" Foreground="{DynamicResource TabAccentBrush}"
+                                                            BorderBrush="{StaticResource BorderBrush}" BorderThickness="1"
+                                                            ToolTip="Re-read diffusion_models/h3-minimax from ComfyUI — after dropping a new model into the folder, or after the server was restarted."/>
+                                                </Grid>
+                                                <TextBlock Text="{Binding DiffusionModelSummary}"
+                                                           FontSize="10" Foreground="{StaticResource TextMutedBrush}" FontStyle="Italic"
+                                                           TextWrapping="Wrap" Margin="0,0,0,10"/>
+
                                                 <TextBlock Text="Aspect ratio" FontSize="10" Foreground="{StaticResource TextSecondaryBrush}" Margin="0,0,0,4"/>
                                                 <ComboBox ItemsSource="{Binding AspectRatioOptions}"
                                                           SelectedItem="{Binding SelectedAspectRatio}"

@@ -176,6 +176,12 @@ public class ComfyUISettings
     // installed. Off by default so the tab works on a plain SCAIL install. Persisted per user.
     public bool Scail2Interpolate { get; set; } = false;
 
+    // H3 Eros tab: which diffusion_models/h3-minimax checkpoint the seed hunt and the finish are sampled
+    // with, as ComfyUI names it (e.g. "h3-minimax/minimax_h3_ref2va_pruned_int8_convrot.safetensors").
+    // Empty means "whatever the workflow file ships", which is what an install that has never touched the
+    // dropdown gets. Persisted per user so a comparison run survives a restart.
+    public string H3ErosDiffusionModel { get; set; } = string.Empty;
+
     // Painter (WAN 2.2 LightX2V) workflow model names — adjust to match your ComfyUI server
     public string PainterHighNoiseModel { get; set; } = @"wan\wan2.2_i2v_high_noise_14B_Q8_0.gguf";
     public string PainterLowNoiseModel { get; set; } = @"wan\wan2.2_i2v_low_noise_14B_Q8_0.gguf";
