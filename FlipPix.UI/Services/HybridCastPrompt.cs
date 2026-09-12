@@ -858,7 +858,7 @@ namespace FlipPix.UI.Services
             new(@"<\s*Subject\s+(\d+)\s*>", RegexOptions.IgnoreCase | RegexOptions.Compiled);
 
         private static readonly Regex PictureRegex =
-            new(@"<\s*Picture\s+(\d+)\s*>", RegexOptions.IgnoreCase | RegexOptions.Compiled);
+            new(@"<\s*Picture\s+([0-9]+)\s*>", RegexOptions.IgnoreCase | RegexOptions.Compiled);
 
         /// <summary>
         /// A subject or picture tag a model <i>meant</i> to write and did not quite: the opening bracket,

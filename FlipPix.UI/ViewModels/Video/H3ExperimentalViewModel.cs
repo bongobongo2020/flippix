@@ -341,7 +341,7 @@ namespace FlipPix.UI.ViewModels.Video
                     .ToList();
                 bodies = KeepRenderableClips(bodies);
                 bodies = bodies
-                    .Select(b => NormalizeTimestamps(b, len))
+                    .Select(b => NormalizeTimestamps(FoldDigits(b), len))
                     .Select((b, i) => NormalizeShots(b, i + 1))
                     // 6. The environment written into the description in code, ahead of [Shot 1]. The
                     //    writer was told the same thing in words, but only this is identical word for word
@@ -926,6 +926,26 @@ namespace FlipPix.UI.ViewModels.Video
                        "write those clips into the prompt box by hand.");
 
             return kept;
+        }
+
+        /// <summary>Rewrites every Unicode decimal digit as its ASCII one. Some local models slip into
+        /// another script's numerals mid-clip — a Qwen2.5-VL writer produced <c>At ۰۰:04.333</c> in
+        /// Persian digits. .NET's <c>\d</c> matches those, so <see cref="NormalizeTimestamps"/> caught the
+        /// timestamp and then threw when <c>int.Parse</c> refused it, which killed the whole Analyze after
+        /// every clip had been written. Folding also means H3 is given digits it can read.</summary>
+        private static string FoldDigits(string text)
+        {
+            var chars = text.ToCharArray();
+            var changed = false;
+            for (var i = 0; i < chars.Length; i++)
+            {
+                if (chars[i] <= '') continue;
+                var value = CharUnicodeInfo.GetDecimalDigitValue(chars[i]);
+                if (value < 0) continue;
+                chars[i] = (char)('0' + value);
+                changed = true;
+            }
+            return changed ? new string(chars) : text;
         }
 
         /// <summary>Pads cut timestamps into the guide's <c>MM:SS.mmm</c> shape — and rescues the
