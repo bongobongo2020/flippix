@@ -57,6 +57,7 @@ namespace FlipPix.UI.ViewModels.Video
                 LoadMember(CastMember1, s?.H3ExpressCast1Photo, s?.H3ExpressCast1Sex, s?.H3ExpressCast1Outfit, s?.H3ExpressCast1OutfitSource);
                 LoadMember(CastMember2, s?.H3ExpressCast2Photo, s?.H3ExpressCast2Sex, s?.H3ExpressCast2Outfit, s?.H3ExpressCast2OutfitSource);
                 _castOwnClothes = s?.H3ExpressCastOwnClothes ?? false;
+                _castPhotoEngine = NormalizeCastPhotoEngine(s?.H3ExpressCastPhotoEngine);
             }
             finally
             {
@@ -86,6 +87,63 @@ namespace FlipPix.UI.ViewModels.Video
             m.OutfitSource = source ?? string.Empty;
             m.PhotoPath = photo ?? string.Empty;
         }
+
+        // ── Who photographs the rest of the cast ────────────────────────────────────────────────────
+
+        private const string DefaultCastPhotoEngine = "krea2spicy";
+
+        private string _castPhotoEngine = DefaultCastPhotoEngine;
+
+        /// <summary>The text-to-image graphs a character with no photo of the user's can be photographed with. Only
+        /// the photo changes: the sheet is still built from it by Qwen-Image-Edit, which is what keeps the face.</summary>
+        public IReadOnlyList<DiffusionModelOption> CastPhotoEngineOptions { get; } = new[]
+        {
+            new DiffusionModelOption(DefaultCastPhotoEngine, "Krea2-Spicy (default)"),
+            new DiffusionModelOption("ideogram", "Ideogram 4 NSFW"),
+            new DiffusionModelOption("qwen", "Qwen Image 2512"),
+            new DiffusionModelOption("klein", "Klein X3n"),
+        };
+
+        private string NormalizeCastPhotoEngine(string? engine) =>
+            CastPhotoEngineOptions.FirstOrDefault(o => string.Equals(o.Value, engine?.Trim(), StringComparison.OrdinalIgnoreCase))?.Value
+            ?? DefaultCastPhotoEngine;
+
+        /// <summary>🍀's photo step reads this, once per story. Locked with the cast while anything renders, so one run
+        /// does not photograph its stories on two graphs.</summary>
+        public string CastPhotoEngine
+        {
+            get => _castPhotoEngine;
+            set
+            {
+                // Nothing selected is not a choice.
+                if (value == null) return;
+                var engine = NormalizeCastPhotoEngine(value);
+                if (_castPhotoEngine == engine) return;
+                _castPhotoEngine = engine;
+                OnPropertyChanged();
+                OnPropertyChanged(nameof(CastPhotoEngineSummary));
+
+                var settings = _settingsService.Settings;
+                if (settings != null)
+                {
+                    settings.H3ExpressCastPhotoEngine = engine;
+                    _settingsService.SaveSettings(settings);
+                }
+                AddLog($"Cast photos: {CastPhotoWorkflows.LabelFor(engine)} — characters without a photo of yours are " +
+                       "photographed with it from the next story on.");
+            }
+        }
+
+        protected override string LuckyPhotoEngine => _castPhotoEngine;
+
+        public string CastPhotoEngineSummary => _castPhotoEngine switch
+        {
+            "ideogram" => "Ideogram 4 (the NSFW graph), 12 steps. Lit and backed as a plain studio reference; the graph's " +
+                          "own \"beautiful girl\" aesthetic is left out so a man is photographed as one.",
+            "qwen" => "Qwen Image 2512 INT8 with the Lightning 8-step LoRA, as authored.",
+            "klein" => "Flux2 Klein 9B x3n, 4 steps, with the graph's anatomy and enhancer LoRAs as authored.",
+            _ => "FameGrid Krea2-Spicy — the famegrid selfie look, its LoRAs baked in.",
+        } + " Used only for characters without a photo on the CAST card; the sheet is built from the photo as always.";
 
         // ── What the card shows ─────────────────────────────────────────────────────────────────────
 

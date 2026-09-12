@@ -79,13 +79,29 @@ namespace FlipPix.UI.ViewModels.Video
         private const string FamegridCharLoraBase = "362";  // LoraLoaderModelOnly — the base chain's slot
         private const string FamegridCharLoraRefine = "363";// LoraLoaderModelOnly — the refine chain's slot
 
+        // Ideogram-4-NSFW.json — Ideogram 4 behind the KJ prompt builder, a dual-model CFG guider at 12 steps. The
+        // size comes from a FluxResolutionNode's fixed aspect enum; both its readers get literals instead, as the
+        // 🔤 Ideogram tab does it, and the prune drops it.
+        private const string IdeogramBuilderNode = "185";   // Ideogram4PromptBuilderKJ
+        private const string IdeogramLatentNode = "160";    // EmptyFlux2LatentImage
+        private const string IdeogramSeedNode = "197";      // Seed (rgthree) → RandomNoise 165
+        private const string IdeogramSaveNode = "203";      // SaveImage
+
+        // KlienX3n-Text-Ultimate-API.json — Flux2 Klein 9B (x3n), 4 steps res_2m/bong_tangent, its anatomy-slider and
+        // enhancer LoRAs as authored. The file also carries a refine branch that needs an input image; the prune
+        // drops it, as the Image Generator tab strips it.
+        private const string KleinPromptNode = "10";        // CLIPTextEncode
+        private const string KleinSamplerNode = "12";       // KSampler (seed only)
+        private const string KleinLatentNode = "11";        // EmptyLatentImage
+        private const string KleinSaveNode = "14";          // SaveImage
+
         /// <summary>
         /// Loads the chosen cast-photo graph and patches it for one portrait: the prompt,
         /// a fresh seed, a portrait canvas where the graph takes one, and a save prefix the caller
         /// can find again. Everything else is left exactly as the graph ships it — for Z-Image that
         /// is the lo-fi mobile-photo look of workflow/image/zimage/simple/Lo-Fi-Mobile.json.
         /// </summary>
-        /// <param name="engine">"zimage", "famegrid", "krea2", "krea2spicy" or "qwen".</param>
+        /// <param name="engine">"zimage", "famegrid", "krea2", "krea2spicy", "qwen", "ideogram" or "klein".</param>
         /// <param name="prefix">SaveImage filename_prefix — an output-subfolder path ending in a
         /// unique run token, so the caller's disk scan can find the file.</param>
         /// <param name="lora">A LoRA picked from the ✨ menu, or null for the workflow's own. Qwen and
@@ -163,6 +179,68 @@ namespace FlipPix.UI.ViewModels.Video
                     SetInput(ref json, QwenImgLatentNode, "height", 1600);
                     SetInput(ref json, QwenImgSaveNode, "filename_prefix", prefix);
                     return (json, QwenImgSaveNode);
+                }
+
+                case "ideogram": // Ideogram 4 NSFW — the prompt builder's photo style, re-lit and re-backed for a reference photo
+                {
+                    var json = await ReadWorkflowAsync("workflow/image/Ideogram-4-NSFW.json");
+                    var root = ParseGraph(json);
+                    RequireClass(root, IdeogramBuilderNode, "Ideogram4PromptBuilderKJ");
+                    RequireClass(root, IdeogramLatentNode, "EmptyFlux2LatentImage");
+                    RequireClass(root, IdeogramSeedNode, "Seed (rgthree)");
+                    RequireClass(root, IdeogramSaveNode, "SaveImage");
+                    json = root.ToJsonString();
+
+                    // Ideogram 4 wants multiples of 16; the builder measures its boxes on the same grid as the latent.
+                    SetInput(ref json, IdeogramLatentNode, "width", 1088);
+                    SetInput(ref json, IdeogramLatentNode, "height", 1600);
+                    SetInput(ref json, IdeogramBuilderNode, "width", 1088);
+                    SetInput(ref json, IdeogramBuilderNode, "height", 1600);
+                    SetInput(ref json, IdeogramBuilderNode, "high_level_description", prompt);
+                    SetInput(ref json, IdeogramSeedNode, "seed", seed);
+                    SetInput(ref json, IdeogramSaveNode, "filename_prefix", prefix);
+
+                    root = ParseGraph(json);
+                    var builder = (JsonObject)root[IdeogramBuilderNode]!["inputs"]!;
+                    // One full-frame element in the editor's own shape, as the file ships its demo.
+                    builder["elements_data"] = new JsonArray
+                    {
+                        new JsonObject
+                        {
+                            ["x"] = 0.0, ["y"] = 0.0, ["w"] = 1.0, ["h"] = 1.0,
+                            ["type"] = "obj", ["text"] = string.Empty, ["desc"] = prompt, ["palette"] = new JsonArray(),
+                        },
+                    }.ToJsonString();
+                    // As authored the look is "beautiful girl, perfect body" in dim night light — a woman whoever the
+                    // character is, lit for a mood. A cast photo is a plain reference, so the descriptors agree with
+                    // the prompt; the photo style and medium stay as authored.
+                    builder["aesthetics"] = string.Empty;
+                    builder["lighting"] = "soft even studio lighting";
+                    builder["background"] = "Plain light grey seamless studio background.";
+                    // Required by the server's builder and missing from the file: the editor's own defaults.
+                    builder["output_format"] = "compact";
+                    builder["coord_mode"] = "normalized";
+                    builder["bbox_order"] = "yx";
+
+                    return (PruneToOutput(root, IdeogramSaveNode).ToJsonString(), IdeogramSaveNode);
+                }
+
+                case "klein": // Klein X3n — Flux2 Klein 9B text-to-image, LoRAs as authored
+                {
+                    var json = await ReadWorkflowAsync("workflow/image/klein/KlienX3n-Text-Ultimate-API.json");
+                    var root = ParseGraph(json);
+                    RequireClass(root, KleinPromptNode, "CLIPTextEncode");
+                    RequireClass(root, KleinSamplerNode, "KSampler");
+                    RequireClass(root, KleinLatentNode, "EmptyLatentImage");
+                    RequireClass(root, KleinSaveNode, "SaveImage");
+                    json = root.ToJsonString();
+
+                    SetInput(ref json, KleinPromptNode, "text", prompt);
+                    SetInput(ref json, KleinSamplerNode, "seed", seed);
+                    SetInput(ref json, KleinLatentNode, "width", 1088);
+                    SetInput(ref json, KleinLatentNode, "height", 1600);
+                    SetInput(ref json, KleinSaveNode, "filename_prefix", prefix);
+                    return (PruneToOutput(ParseGraph(json), KleinSaveNode).ToJsonString(), KleinSaveNode);
                 }
 
                 case "krea2spicy": // Krea2-Spicy — the famegrid spicy selfie look, LoRAs baked in, nothing to pick
@@ -266,8 +344,35 @@ namespace FlipPix.UI.ViewModels.Video
             "krea2spicy" => "Krea2-Spicy",
             "qwen" => "Qwen 2.5.1.2",
             "famegrid" => "Z-Famegrid",
+            "ideogram" => "Ideogram 4",
+            "klein" => "Klein X3n",
             _ => "Z-Image",
         };
+
+        /// <summary>
+        /// Drops every node the save does not read, directly or through others. The authored files keep things for
+        /// whoever built them — previews, a text readout, a sigma plot, a second save on a branch that needs an input
+        /// image — and ComfyUI runs every output node it is sent, or fails validating one.
+        /// </summary>
+        private static JsonObject PruneToOutput(JsonObject root, string saveNode)
+        {
+            var keep = new HashSet<string>();
+            var pending = new Stack<string>();
+            pending.Push(saveNode);
+            while (pending.Count > 0)
+            {
+                var id = pending.Pop();
+                if (!keep.Add(id) || root[id]?["inputs"] is not JsonObject inputs) continue;
+                foreach (var (_, value) in inputs)
+                    if (value is JsonArray { Count: 2 } link && link[0] is JsonValue from &&
+                        from.TryGetValue<string>(out var source) && root.ContainsKey(source))
+                        pending.Push(source);
+            }
+
+            foreach (var id in root.Select(p => p.Key).Where(id => !keep.Contains(id)).ToList())
+                root.Remove(id);
+            return root;
+        }
 
         #region LoRA folders — the same resolution the Image Generator tab uses
 

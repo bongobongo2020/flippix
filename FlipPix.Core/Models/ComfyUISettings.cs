@@ -243,6 +243,9 @@ public class ComfyUISettings
     public string H3ExpressCast2OutfitSource { get; set; } = string.Empty;
     // Off: the cast wears the story's saved wardrobe. On: their own clothes, and saved clips are re-dressed.
     public bool H3ExpressCastOwnClothes { get; set; }
+    // The text-to-image graph a character with no photo of the user's is photographed with — a CastPhotoWorkflows
+    // engine key: krea2spicy, ideogram, qwen or klein. The sheet is still built from that photo by Qwen-Image-Edit.
+    public string H3ExpressCastPhotoEngine { get; set; } = "krea2spicy";
 
     // Seed Upscale tab: the folder its scan starts in. Empty means "the H3 4-Step output folder", which is
     // where the drafts it upscales are written.

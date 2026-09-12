@@ -8332,6 +8332,16 @@
                                                         <TextBlock Text="{Binding LoraSummary}" FontSize="10" TextWrapping="Wrap"
                                                                    Foreground="{StaticResource TextMutedBrush}" Margin="0,0,0,10"/>
 
+                                                        <TextBlock Text="Cast photos" FontSize="10" Foreground="{StaticResource TextSecondaryBrush}" Margin="0,0,0,4"/>
+                                                        <ComboBox ItemsSource="{Binding CastPhotoEngineOptions}"
+                                                                  DisplayMemberPath="Label" SelectedValuePath="Value"
+                                                                  SelectedValue="{Binding CastPhotoEngine}"
+                                                                  IsEnabled="{Binding CanEditCast}"
+                                                                  Height="30" FontSize="11" Margin="0,0,0,4"
+                                                                  ToolTip="The text-to-image workflow that photographs each story's characters when the CAST card has no photo of yours for them. The character sheet is then built from that photo as always. Locked while anything is rendering."/>
+                                                        <TextBlock Text="{Binding CastPhotoEngineSummary}" FontSize="10" TextWrapping="Wrap"
+                                                                   Foreground="{StaticResource TextMutedBrush}" Margin="0,0,0,10"/>
+
                                                         <TextBlock Text="Visual style" FontSize="10" Foreground="{StaticResource TextSecondaryBrush}" Margin="0,0,0,4"/>
                                                         <ComboBox ItemsSource="{Binding VisualStyleOptions}" DisplayMemberPath="Name"
                                                                   SelectedItem="{Binding VisualStyle, Mode=TwoWay}"
