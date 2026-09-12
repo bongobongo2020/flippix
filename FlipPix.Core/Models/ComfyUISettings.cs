@@ -213,6 +213,9 @@ public class ComfyUISettings
     // Persisted for the same reason the VR flag is: a folder of stories is rendered as one set, and
     // half of it on a different checkpoint is a folder of films that do not match each other.
     public bool H3BatchUseSingularity { get; set; }
+    // ✴️'s sub-option: the Singularity graph, its sigma shift kept, sampled er_sde/beta at 12 steps (the Eros
+    // sampler) instead of euler/simple at 10. Off by default — euler/simple is what the author measured.
+    public bool H3BatchSingularityErSde { get; set; }
 
     // H3 Express tab: H3 Batch without the seed hunt. Its own folder and model slot, so the two tabs can be
     // pointed at different folders, and its own Singularity flag — which defaults ON here, because the
@@ -220,6 +223,7 @@ public class ComfyUISettings
     public string H3ExpressFolder { get; set; } = string.Empty;
     public string H3ExpressDiffusionModel { get; set; } = string.Empty;
     public bool H3ExpressUseSingularity { get; set; } = true;
+    public bool H3ExpressSingularityErSde { get; set; }
     // An optional LoRA from loras/H3, spliced onto whichever checkpoint the tab samples. Empty is none.
     public string H3ExpressLora { get; set; } = string.Empty;
     public double H3ExpressLoraStrength { get; set; } = 1.0;

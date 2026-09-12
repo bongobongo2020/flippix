@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Collections.ObjectModel;
 using System.IO;
 using System.Linq;
+using System.Text.Json.Nodes;
 using System.Text.RegularExpressions;
 using System.Threading;
 using System.Threading.Tasks;
@@ -79,6 +80,7 @@ namespace FlipPix.UI.ViewModels.Video
         private string _batchStatus = string.Empty;
         private bool _renderAsVr;
         private bool _useSingularity;
+        private bool _singularityErSde;
         private BatchStory? _current;
         private BatchStory? _onBoard;
         private CancellationTokenSource? _batchCts;
@@ -109,6 +111,7 @@ namespace FlipPix.UI.ViewModels.Video
             // back when the last run left the box ticked — and only when the dropdown is still sitting on
             // a default, never over a checkpoint that was chosen on purpose.
             _useSingularity = RecallUseSingularity(_settingsService.Settings);
+            _singularityErSde = RecallSingularityErSde(_settingsService.Settings);
             var storedModel = (RecallDiffusionModel(_settingsService.Settings) ?? string.Empty)
                 .Trim().Replace('\\', '/');
             if (_useSingularity)
@@ -184,6 +187,14 @@ namespace FlipPix.UI.ViewModels.Video
         /// which is what the author measured that checkpoint at. Eros's twelve is for the hybrid.</summary>
         private const int SingularityFirstPassSteps = 10;
 
+        // ✴️'s er_sde sub-option: H3 Eros's sampler and scheduler written over the Singularity graph's
+        // euler/simple, on the nodes both graphs share ids for. The sigma shift is left on the model wire.
+        private const string ErSdeSampler = "er_sde";
+        private const string BetaScheduler = "beta";
+        private const string NodeFirstPassSampler = "22:6";       // KSamplerSelect → the three draft samplers
+        private const string NodeFirstPassScheduler = "22:7";     // BasicScheduler → their sigmas
+        private const string NodeUpscaleSamplerSelect = "135:30"; // KSamplerSelect → the second pass
+
         /// <summary>Whichever stack this batch is being rendered on. Both files are driven by the same
         /// node ids, so this is the entire switch.</summary>
         protected override string WorkflowFileName =>
@@ -196,12 +207,13 @@ namespace FlipPix.UI.ViewModels.Video
 
         /// <summary>
         /// The first pass's step count, which belongs to the stack rather than to the tab: the Singularity
-        /// checkpoint is sampled at ten steps, the Eros hybrid at twelve. Read live by both sweeps, which
+        /// checkpoint is sampled at ten steps, the Eros hybrid at twelve — and so is Singularity with the
+        /// er_sde sub-option, since that borrows Eros's sampler whole. Read live by both sweeps, which
         /// is why <see cref="CanChangeWorkflow"/> freezes the checkbox while anything is rendering — a
         /// finish at a different step count is not the take that was hunted.
         /// </summary>
         protected override int FirstPassSteps =>
-            UseSingularity ? SingularityFirstPassSteps : base.FirstPassSteps;
+            UseSingularity && !SingularityErSde ? SingularityFirstPassSteps : base.FirstPassSteps;
 
         protected override string OutputSubfolder => "h3_batch";
 
@@ -247,6 +259,12 @@ namespace FlipPix.UI.ViewModels.Video
 
         protected virtual void StoreUseSingularity(ComfyUISettings settings, bool value) =>
             settings.H3BatchUseSingularity = value;
+
+        protected virtual bool RecallSingularityErSde(ComfyUISettings? settings) =>
+            settings?.H3BatchSingularityErSde ?? false;
+
+        protected virtual void StoreSingularityErSde(ComfyUISettings settings, bool value) =>
+            settings.H3BatchSingularityErSde = value;
 
         protected virtual bool RecallRenderAsVr(ComfyUISettings? settings) => settings?.H3BatchRenderAsVr ?? false;
 
@@ -557,11 +575,75 @@ namespace FlipPix.UI.ViewModels.Video
         /// not change.</summary>
         public string UseSingularitySummary => UseSingularity
             ? "Every story is sampled on the Singularity stack — the Singularity ref2va checkpoint with " +
-              "the author's own attention, chunking and sigma-shift patches, euler/simple at " +
-              $"{SingularityFirstPassSteps} steps. The cast, the character reference sheets, the three " +
-              "drafts per clip, the upscale finish and the join are exactly as they are on H3 Eros."
+              "the author's own attention, chunking and sigma-shift patches, " +
+              (SingularityErSde
+                  ? $"sampled er_sde/beta at {base.FirstPassSteps} steps (the H3 Eros sampler). "
+                  : $"euler/simple at {SingularityFirstPassSteps} steps. ") +
+              "The cast, the character reference sheets, the three drafts per clip, the upscale finish " +
+              "and the join are exactly as they are on H3 Eros."
             : "Every story is sampled on the H3 Eros stack — the 10Eros hybrid checkpoint, er_sde/beta " +
               $"at {base.FirstPassSteps} steps — exactly as this tab has always run it.";
+
+        /// <summary>
+        /// ✴️'s sub-option: keep the Singularity graph — its checkpoint, its model patches and the 12/3 sigma
+        /// shift — but sample it the H3 Eros way, <c>er_sde</c>/<c>beta</c> at twelve steps, with
+        /// <c>er_sde</c> on the upscale pass too. The author's euler/simple at ten comes out softer than an
+        /// Eros render; this is the middle ground, and nobody has measured the checkpoint with it.
+        ///
+        /// <para>Only read while <see cref="UseSingularity"/> is on — off, the Eros graph already samples
+        /// er_sde/beta. Persisted, and locked mid-run for the reason <see cref="CanChangeWorkflow"/> gives.</para>
+        /// </summary>
+        public bool SingularityErSde
+        {
+            get => _singularityErSde;
+            set
+            {
+                if (_singularityErSde == value) return;
+                _singularityErSde = value;
+                OnPropertyChanged();
+                OnPropertyChanged(nameof(UseSingularitySummary));
+                OnPropertyChanged(nameof(HuntSummary));
+
+                var settings = _settingsService.Settings;
+                if (settings != null)
+                {
+                    StoreSingularityErSde(settings, value);
+                    _settingsService.SaveSettings(settings);
+                }
+
+                AddLog(value
+                    ? $"{TabDisplayName}: Singularity sampler → er_sde/beta at {base.FirstPassSteps} steps, " +
+                      "sigma shift kept."
+                    : $"{TabDisplayName}: Singularity sampler → euler/simple at {SingularityFirstPassSteps} " +
+                      "steps, as authored.");
+
+                if (UseSingularity && HasDrafts)
+                    AddLog("  Note: the board still holds drafts hunted with the other sampler. Finish one and " +
+                           "it is re-sampled with this one, which is not the take you picked — 🎲 re-roll " +
+                           "those clips, or clear the queue, before pressing ▶.");
+            }
+        }
+
+        /// <summary>
+        /// The stock inputs, then — Singularity with the er_sde sub-option — Eros's sampler and scheduler
+        /// over the graph's euler/simple. Both sweeps call this, so a hunt and its finish always agree. The
+        /// graph is still whole here (pruning comes after), so all three nodes are present.
+        /// </summary>
+        protected override void ApplyCommonInputs(
+            JsonObject root, H3CastQueueItem item, IReadOnlyList<string> uploaded,
+            string prompt, double lengthSeconds)
+        {
+            base.ApplyCommonInputs(root, item, uploaded, prompt, lengthSeconds);
+            if (!UseSingularity || !SingularityErSde) return;
+
+            RequireClass(root, NodeFirstPassSampler, "KSamplerSelect");
+            RequireClass(root, NodeFirstPassScheduler, "BasicScheduler");
+            RequireClass(root, NodeUpscaleSamplerSelect, "KSamplerSelect");
+            SetInput(root, NodeFirstPassSampler, "sampler_name", ErSdeSampler);
+            SetInput(root, NodeFirstPassScheduler, "scheduler", BetaScheduler);
+            SetInput(root, NodeUpscaleSamplerSelect, "sampler_name", ErSdeSampler);
+            AddLog($"  Sampler: {ErSdeSampler}/{BetaScheduler} at {FirstPassSteps} steps, sigma shift kept.");
+        }
 
         private async Task PickFolderAsync()
         {

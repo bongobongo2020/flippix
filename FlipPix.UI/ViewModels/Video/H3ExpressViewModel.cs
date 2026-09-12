@@ -99,6 +99,7 @@ namespace FlipPix.UI.ViewModels.Video
                         TryStartQueuedRegenerations();
                         break;
                     case nameof(UseSingularity):
+                    case nameof(SingularityErSde):
                         OnPropertyChanged(nameof(StackSummary));
                         break;
                     case nameof(ResearchPrompts):
@@ -156,6 +157,12 @@ namespace FlipPix.UI.ViewModels.Video
 
         protected override void StoreUseSingularity(ComfyUISettings settings, bool value) =>
             settings.H3ExpressUseSingularity = value;
+
+        protected override bool RecallSingularityErSde(ComfyUISettings? settings) =>
+            settings?.H3ExpressSingularityErSde ?? false;
+
+        protected override void StoreSingularityErSde(ComfyUISettings settings, bool value) =>
+            settings.H3ExpressSingularityErSde = value;
 
         // No VR mode: never read on, never stored, never active.
         protected override bool RecallRenderAsVr(ComfyUISettings? settings) => false;
@@ -922,9 +929,11 @@ namespace FlipPix.UI.ViewModels.Video
 
         public string RunButtonText => IsBatchRunning ? "⚡ Rendering…" : "⚡ Render every story";
 
-        public string StackSummary => UseSingularity
-            ? $"Singularity ref2va checkpoint · euler/simple · {FirstPassSteps} steps"
-            : $"H3 Eros hybrid checkpoint · er_sde/beta · {FirstPassSteps} steps";
+        public string StackSummary => !UseSingularity
+            ? $"H3 Eros hybrid checkpoint · er_sde/beta · {FirstPassSteps} steps"
+            : SingularityErSde
+                ? $"Singularity ref2va checkpoint · er_sde/beta + sigma shift · {FirstPassSteps} steps"
+                : $"Singularity ref2va checkpoint · euler/simple · {FirstPassSteps} steps";
 
         public string PromptBuildSummary => ResearchPrompts
             ? "MiniMax-H3 guide build · 3–5 shots per clip · medium-or-closer framing"
