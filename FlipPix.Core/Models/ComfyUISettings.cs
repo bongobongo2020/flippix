@@ -229,6 +229,9 @@ public class ComfyUISettings
     public double H3ExpressLoraStrength { get; set; } = 1.0;
     // A story whose clip prompts were saved on an earlier run renders from them instead of the clip writer.
     public bool H3ExpressReuseSavedPrompts { get; set; } = true;
+    // 📐 Clip prompts written to the MiniMax H3 Singularity prompt-writing spec (six-section full-reference
+    // prompts) instead of the researched/shipped writer.
+    public bool H3ExpressSpecPrompts { get; set; }
     // Saved stories added to the STORIES list from 📚 Story prompts (by story hash), put back on the next launch.
     public List<string> H3ExpressLibraryStories { get; set; } = new();
     // The run's own cast: a photo per character replaces the portrait the story would otherwise get. Outfit

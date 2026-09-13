@@ -37,19 +37,29 @@ namespace FlipPix.UI.Services
 
         private static readonly Regex ShotMarker = new(@"\[\s*Shot\s+\d+\s*\]", RegexOptions.IgnoreCase | RegexOptions.Compiled);
         private static readonly Regex Timestamp = new(@"\b\d{2}:\d{2}\.\d{3}\b", RegexOptions.Compiled);
+        /// <summary>Every label a clip can carry: the three-field builds' and the six-section 📐 Singularity spec
+        /// build's (<see cref="H3SpecPrompt"/>). Whichever the original has, the edit keeps.</summary>
         private static readonly string[] Fields =
-            { "integrated_multimodal_description:", "overall_soundscape:", "non_diegetic_music:" };
+        {
+            "integrated_multimodal_description:", "subject_definitions:", "summary:", "retention_analysis:",
+            "detailed_description:", "overall_soundscape:", "non_diegetic_music:",
+        };
 
         /// <summary>The user message for one clip. <paramref name="rejection"/> is empty on the first attempt.</summary>
         public static string BuildRequest(string clip, IReadOnlyList<Change> changes, string rejection)
         {
+            // A six-section clip names its characters <Subject N> in the shots and <Picture N> only where they are
+            // defined, so that is how the characters are pointed out to the editor.
+            var spec = clip.Contains("<Subject ", StringComparison.Ordinal);
+            string Tag(int n) => spec ? $"<Subject {n}>" : $"<Picture {n}>";
+
             var sb = new StringBuilder();
             sb.Append("The video prompt below was written for a cast who have since changed clothes. Edit it so ")
               .Append("it describes the NEW clothing.\n\n");
 
             foreach (var c in changes)
             {
-                sb.Append($"<Picture {c.Character}> is a {c.Noun}.\n");
+                sb.Append($"{Tag(c.Character)} is a {c.Noun}.\n");
                 sb.Append(c.From.Length > 0
                     ? $"  OLD outfit: {c.From.Trim().TrimEnd('.')}.\n"
                     : "  OLD outfit: whatever the prompt currently says they wear.\n");
@@ -62,13 +72,17 @@ namespace FlipPix.UI.Services
               .Append("colours, materials and fit — must describe the NEW outfit. Where the action touches a garment ")
               .Append("of the old outfit (tugging a jacket, a skirt swirling), point it at a matching item of the new ")
               .Append("outfit, or keep the action and drop the garment.\n")
-              .Append("2. Change NOTHING else. Keep every other word as it is: the three field labels, every [Shot n] ")
-              .Append("marker and every timestamp, every <Picture 1> / <Picture 2> tag, the camera, the action, the ")
+              .Append(spec
+                  ? "2. Change NOTHING else. Keep every other word as it is: all six section labels, every [Shot n] "
+                  : "2. Change NOTHING else. Keep every other word as it is: the three field labels, every [Shot n] ")
+              .Append(spec
+                  ? "marker and every timestamp, every <Picture n> and <Subject n> tag, the camera, the action, the "
+                  : "marker and every timestamp, every <Picture 1> / <Picture 2> tag, the camera, the action, the ")
               .Append("setting, the lighting, the sound and the music.\n")
               .Append("3. Do not add or change hair, face, skin, body, age or expression.\n");
             if (others.Count > 0)
-                sb.Append($"4. <Picture {others[0]}>'s clothing is not changing — leave every word about it exactly as it is.\n");
-            sb.Append("Reply with the complete edited prompt, starting with integrated_multimodal_description:\n");
+                sb.Append($"4. {Tag(others[0])}'s clothing is not changing — leave every word about it exactly as it is.\n");
+            sb.Append($"Reply with the complete edited prompt, starting with {FirstLabel(clip)}\n");
 
             if (rejection.Length > 0)
                 sb.Append($"\nYour previous attempt was rejected: {rejection} Start again from the original below.\n");
@@ -89,7 +103,7 @@ namespace FlipPix.UI.Services
             foreach (var field in Fields)
                 if (original.Contains(field, StringComparison.OrdinalIgnoreCase) &&
                     !edited.Contains(field, StringComparison.OrdinalIgnoreCase))
-                    return $"it lost the {field} field. Keep all three field labels.";
+                    return $"it lost the {field} field. Keep every field label the prompt has.";
 
             if (ShotMarker.Matches(original).Count != ShotMarker.Matches(edited).Count)
                 return $"it has {ShotMarker.Matches(edited).Count} [Shot n] markers where the prompt has " +
@@ -100,7 +114,7 @@ namespace FlipPix.UI.Services
             if (!before.SequenceEqual(after))
                 return "its timestamps differ from the prompt's. Copy every timestamp exactly.";
 
-            foreach (var tag in new[] { "<Picture 1>", "<Picture 2>" })
+            foreach (var tag in new[] { "<Picture 1>", "<Picture 2>", "<Subject 1>", "<Subject 2>" })
                 if (original.Contains(tag, StringComparison.Ordinal) && !edited.Contains(tag, StringComparison.Ordinal))
                     return $"it dropped the {tag} tag. Keep every tag exactly as written.";
 
@@ -109,6 +123,18 @@ namespace FlipPix.UI.Services
                 return $"it is {ratio:P0} of the prompt's length — rewrite only the clothing words, not the clip.";
 
             return null;
+        }
+
+        /// <summary>The label a clip opens with, for the "starting with" line of the request.</summary>
+        private static string FirstLabel(string clip)
+        {
+            var first = Fields
+                .Select(f => (Label: f, Index: clip.IndexOf(f, StringComparison.OrdinalIgnoreCase)))
+                .Where(f => f.Index >= 0)
+                .OrderBy(f => f.Index)
+                .Select(f => f.Label)
+                .FirstOrDefault();
+            return first ?? Fields[0];
         }
 
         /// <summary>

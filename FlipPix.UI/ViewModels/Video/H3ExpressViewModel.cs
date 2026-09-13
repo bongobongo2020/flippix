@@ -55,6 +55,7 @@ namespace FlipPix.UI.ViewModels.Video
                    workflowCoordinator, fileDialogService)
         {
             ResearchPrompts = true;
+            _specPrompts = _settingsService.Settings?.H3ExpressSpecPrompts ?? false;
 
             // The LoRA dropdown starts with None and whatever was chosen last run, so it is usable before —
             // and if — the server answers; the folder listing is a network round trip, off this thread.
@@ -935,9 +936,54 @@ namespace FlipPix.UI.ViewModels.Video
                 ? $"Singularity ref2va checkpoint · er_sde/beta + sigma shift · {FirstPassSteps} steps"
                 : $"Singularity ref2va checkpoint · euler/simple · {FirstPassSteps} steps";
 
-        public string PromptBuildSummary => ResearchPrompts
-            ? "MiniMax-H3 guide build · 3–5 shots per clip · medium-or-closer framing"
-            : "Shipped build · a cut roughly every 1.25 s";
+        public string PromptBuildSummary => _specPrompts
+            ? "Not used while 📐 Singularity spec prompts is on."
+            : ResearchPrompts
+                ? "MiniMax-H3 guide build · 3–5 shots per clip · medium-or-closer framing"
+                : "Shipped build · a cut roughly every 1.25 s";
+
+        // ── 📐 Singularity spec prompts ─────────────────────────────────────────────────────────────
+
+        private bool _specPrompts;
+
+        /// <summary>
+        /// On: every story's clips are written to the MiniMax H3 Singularity prompt-writing spec
+        /// (<see cref="H3SpecPrompt"/>) — six-section full-reference prompts — instead of by the 📚 build.
+        /// Remembered. A story whose saved prompts came from the other kind of build is written again, since
+        /// reusing them would render the build this switch just turned away from.
+        /// </summary>
+        public bool SingularitySpecPrompts
+        {
+            get => _specPrompts;
+            set
+            {
+                if (_specPrompts == value) return;
+                _specPrompts = value;
+                OnPropertyChanged();
+                OnPropertyChanged(nameof(SpecPromptsSummary));
+                OnPropertyChanged(nameof(PromptBuildSummary));
+
+                var settings = _settingsService.Settings;
+                if (settings != null)
+                {
+                    settings.H3ExpressSpecPrompts = value;
+                    _settingsService.SaveSettings(settings);
+                }
+                AddLog(value
+                    ? "📐 Singularity spec prompts ON — clips are written as six-section full-reference prompts " +
+                      "(subject_definitions, summary, retention_analysis, detailed_description, overall_soundscape, " +
+                      "non_diegetic_music). Stories saved by another build are written again."
+                    : "📐 Singularity spec prompts OFF — clips are written by the 📚 build. Stories saved by the spec " +
+                      "build are written again.");
+            }
+        }
+
+        protected override bool SpecPromptBuild => _specPrompts;
+
+        public string SpecPromptsSummary => _specPrompts
+            ? "On — each clip in the spec's six sections: cast and reference roles written by code, 3–5 shots of " +
+              "action and camera chains, physical feedback, concrete light and synced sound. Replaces the 📚 build."
+            : "Off — the clips are written by the 📚 build above.";
 
         /// <summary>"3 of 12 clips rendered" for the story in flight.</summary>
         public string ClipProgressText

@@ -388,6 +388,17 @@ namespace FlipPix.UI.ViewModels.Video
                 if (saved is { Clips.Count: 0 }) saved = null;
                 if (saved == null)
                     AddLog("📚 No saved prompts for this story yet — its clips are written now and saved for next time.");
+                else if (IsSpecSet(saved) != SpecPromptBuild)
+                {
+                    // Reusing them would render the build the 📐 switch says not to.
+                    AddLog(SpecPromptBuild
+                        ? $"📚 \"{saved.Title}\" has saved prompts from another build, and 📐 Singularity spec prompts " +
+                          "is on — its clips are written again to the spec, and the new set replaces the saved one " +
+                          "(kept in history)."
+                        : $"📚 \"{saved.Title}\" has saved prompts written to the 📐 Singularity spec, which is off — " +
+                          "its clips are written again, and the new set replaces the saved one (kept in history).");
+                    saved = null;
+                }
             }
 
             if (saved != null)
@@ -543,7 +554,9 @@ namespace FlipPix.UI.ViewModels.Video
                 Wardrobe = CastWardrobe.Trim(),
                 CastNouns = CastNouns(),
                 LengthSeconds = ClampLength(LengthSeconds),
-                PromptBuild = ResearchPrompts ? "researched" : "shipped",
+                // Read off the clips rather than the switches, which may have moved while the writer ran.
+                PromptBuild = clips.Any(H3SpecPrompt.IsSpecBody) ? H3SpecPrompt.BuildTag
+                            : ResearchPrompts ? "researched" : "shipped",
                 VisualStyle = VisualStyle.Name,
                 Origin = "Written by H3 Express",
             };
@@ -693,6 +706,11 @@ namespace FlipPix.UI.ViewModels.Video
         }
 
         // ── Helpers ─────────────────────────────────────────────────────────────────────────────────
+
+        /// <summary>Whether a saved set was written by the 📐 Singularity spec build — by its recorded build, or
+        /// by the shape of its clips when nothing was recorded.</summary>
+        private static bool IsSpecSet(SavedStoryPrompts saved) =>
+            saved.PromptBuild == H3SpecPrompt.BuildTag || saved.Clips.Any(H3SpecPrompt.IsSpecBody);
 
         private List<string> CastNouns()
         {

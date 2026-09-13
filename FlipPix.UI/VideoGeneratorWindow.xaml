@@ -8214,6 +8214,13 @@
                                                 <TextBlock Text="{Binding PromptBuildSummary}" FontSize="10" TextWrapping="Wrap"
                                                            Foreground="{StaticResource TextMutedBrush}" Margin="20,0,0,10"/>
 
+                                                <CheckBox Content="📐 Singularity spec prompts" IsChecked="{Binding SingularitySpecPrompts}"
+                                                          FontSize="11" FontWeight="SemiBold" Margin="0,0,0,2"
+                                                          Foreground="{StaticResource TextPrimaryBrush}"
+                                                          ToolTip="Write every story's clip prompts to the MiniMax H3 Singularity prompt-writing spec (prompts/MiniMax_H3_Singularity_Prompt_Writing_Specification_Enhanced_EN.md): the six-section full-reference format — subject_definitions, summary, retention_analysis, detailed_description, overall_soundscape, non_diegetic_music — with the cast bound to the reference photographs by code and written as &lt;Subject N&gt; in the shots, continuous action and camera chains, physical feedback, concrete lighting and synced sound. Replaces the 📚 build. A story saved by another build is written again."/>
+                                                <TextBlock Text="{Binding SpecPromptsSummary}" FontSize="10" TextWrapping="Wrap"
+                                                           Foreground="{StaticResource TextMutedBrush}" Margin="20,0,0,10"/>
+
                                                 <CheckBox Content="♻️ Reuse saved prompts" IsChecked="{Binding ReuseSavedPrompts}"
                                                           FontSize="11" FontWeight="SemiBold" Margin="0,0,0,2"
                                                           Foreground="{StaticResource TextPrimaryBrush}"

@@ -126,6 +126,29 @@ namespace FlipPix.UI.Services
         /// <summary>The H3 field the body proper begins at, used to find where the preamble ends.</summary>
         private const string BodyAnchor = "integrated_multimodal_description:";
 
+        /// <summary>Where a six-section body begins, and the section its shots are under — the 📐 Singularity spec
+        /// build (<see cref="H3SpecPrompt"/>).</summary>
+        private const string SpecBodyAnchor = "subject_definitions:";
+        private const string SpecDescriptionAnchor = "detailed_description:";
+
+        /// <summary>Where the body proper begins: whichever body-opening field comes first, or -1.</summary>
+        private static int BodyStart(string prompt)
+        {
+            var plain = prompt.IndexOf(BodyAnchor, StringComparison.OrdinalIgnoreCase);
+            var spec = prompt.IndexOf(SpecBodyAnchor, StringComparison.OrdinalIgnoreCase);
+            return plain < 0 ? spec : spec < 0 ? plain : Math.Min(plain, spec);
+        }
+
+        /// <summary>The label the description is written under, and where: the three-field description, else the
+        /// six-section one. Index -1 when there is neither.</summary>
+        private static (int Index, string Label) DescriptionLabel(string prompt)
+        {
+            var plain = prompt.IndexOf(BodyAnchor, StringComparison.OrdinalIgnoreCase);
+            return plain >= 0
+                ? (plain, BodyAnchor)
+                : (prompt.IndexOf(SpecDescriptionAnchor, StringComparison.OrdinalIgnoreCase), SpecDescriptionAnchor);
+        }
+
         #region Cast aliases
 
         /// <summary>Matches a picture reference in a prompt body, whatever number it carries.</summary>
@@ -319,9 +342,9 @@ namespace FlipPix.UI.Services
         public static string ExtractDescription(string? prompt)
         {
             var t = prompt ?? string.Empty;
-            var start = t.IndexOf(BodyAnchor, StringComparison.OrdinalIgnoreCase);
+            var (start, label) = DescriptionLabel(t);
             if (start < 0) return string.Empty;
-            start += BodyAnchor.Length;
+            start += label.Length;
             return t[start..TailStart(t, start)].Trim();
         }
 
@@ -334,7 +357,7 @@ namespace FlipPix.UI.Services
         {
             var t = prompt ?? string.Empty;
             var body = (description ?? string.Empty).Trim();
-            var start = t.IndexOf(BodyAnchor, StringComparison.OrdinalIgnoreCase);
+            var (start, label) = DescriptionLabel(t);
 
             if (start < 0)
             {
@@ -343,7 +366,7 @@ namespace FlipPix.UI.Services
                 return head.Length == 0 ? $"{BodyAnchor} {body}" : $"{head}\n\n{BodyAnchor} {body}";
             }
 
-            var afterLabel = start + BodyAnchor.Length;
+            var afterLabel = start + label.Length;
             var tail = t[TailStart(t, afterLabel)..].TrimStart();
             return t[..afterLabel] + " " + body + (tail.Length > 0 ? "\n\n" + tail : string.Empty);
         }
@@ -403,7 +426,7 @@ namespace FlipPix.UI.Services
             if (!t.StartsWith(ReferenceLinePrefix, StringComparison.OrdinalIgnoreCase))
                 return Canonicalize(StripWardrobeBlock(t).Trim());
 
-            var idx = t.IndexOf(BodyAnchor, StringComparison.OrdinalIgnoreCase);
+            var idx = BodyStart(t);
             if (idx > 0) return Canonicalize(t[idx..].Trim());
 
             // No H3 field to anchor on (a hand-written prompt, or a model that dropped the labels): fall back

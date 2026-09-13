@@ -311,6 +311,7 @@ namespace FlipPix.UI.ViewModels
                 if (e.LengthSeconds > 0) facts.Add($"{e.LengthSeconds.ToString("0.#", CultureInfo.CurrentCulture)} s per clip");
                 if (e.PromptBuild == "researched") facts.Add("Researched build");
                 else if (e.PromptBuild == "shipped") facts.Add("Shipped build");
+                else if (e.PromptBuild == H3SpecPrompt.BuildTag) facts.Add("Singularity spec build");
                 if (!string.IsNullOrWhiteSpace(e.VisualStyle)) facts.Add($"Style: {e.VisualStyle}");
                 if (e.UseCount > 0) facts.Add($"Used {e.UseCount}×");
                 if (e.EditedByHand) facts.Add("Edited by hand");

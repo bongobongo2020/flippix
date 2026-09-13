@@ -272,9 +272,13 @@ namespace FlipPix.UI.ViewModels.Video
                     AddLog($"Visual style locked: {VisualStyle.Name}");
                 // Always said out loud, both ways: a chain is filed to the library the moment it lands and
                 // the only record of which build wrote it is this line.
-                AddLog(ResearchPrompts
-                    ? H3ResearchPrompt.DescribeRun(clipCount, len)
-                    : H3ResearchPrompt.DescribeShippedRun(len));
+                // Read once: a switch flipped mid-run must not write half a chain in each build.
+                var spec = SpecPromptBuild;
+                AddLog(spec
+                    ? H3SpecPrompt.DescribeRun(clipCount, len)
+                    : ResearchPrompts
+                        ? H3ResearchPrompt.DescribeRun(clipCount, len)
+                        : H3ResearchPrompt.DescribeShippedRun(len));
 
                 if (StoryText.Length > 20000)
                     AddLog($"WARNING: the story is {StoryText.Length:N0} characters — a local model will very " +
@@ -300,19 +304,26 @@ namespace FlipPix.UI.ViewModels.Video
 
                 // ── Step 2 — one call per clip ─────────────────────────────────────────────────────
                 var system = await ReadSystemPromptAsync(
-                    ResearchPrompts ? H3ResearchPrompt.ClipSystemPromptFile : ClipSystemPromptFile, token);
+                    spec ? H3SpecPrompt.ClipSystemPromptFile
+                         : ResearchPrompts ? H3ResearchPrompt.ClipSystemPromptFile : ClipSystemPromptFile, token);
                 // Off: this tab's own pacing — roughly one cut per 1.25s, floored at 6 so a short clip is
                 // still cut like a fight and capped at 14 so a long one stays inside 500 words.
                 // On: the MiniMax-H3 guide's pacing instead — three to five shots across the clip, which is
                 // what its worked 15-second structures use (Rule 9 A–C, Rule 13, Rule 24).
-                var shots = ResearchPrompts ? H3ResearchPrompt.ShotCount(len) : ShippedShotCount(len);
+                // Spec: the same three to five — every shot there carries a whole action chain, camera chain,
+                // physical feedback and sound, and a cut a second leaves room for none of it.
+                var shots = spec ? H3SpecPrompt.ShotCount(len)
+                          : ResearchPrompts ? H3ResearchPrompt.ShotCount(len) : ShippedShotCount(len);
 
                 var clipBodies = await ClipChainWriter.WriteAsync(
                     _lmStudioService, model, system, clipCount,
-                    buildRequest: (i, reason) =>
-                        BuildClipRequest(setting, beats, environments, i, clipCount, len, shots, reason),
-                    normalize: NormalizeClipBody,
-                    validate: (i, body) => ValidateClip(body, EnvironmentFor(environments, i)),
+                    buildRequest: (i, reason) => spec
+                        ? BuildSpecClipRequest(setting, beats, environments, i, clipCount, len, shots, reason)
+                        : BuildClipRequest(setting, beats, environments, i, clipCount, len, shots, reason),
+                    normalize: raw => spec ? NormalizeSpecClipBody(raw) : NormalizeClipBody(raw),
+                    validate: (i, body) => spec
+                        ? ValidateSpecClip(body, EnvironmentFor(environments, i))
+                        : ValidateClip(body, EnvironmentFor(environments, i)),
                     onProgress: (n, total) =>
                         ProcessingStatus = $"H3 Prompt Writer: writing clip {n} of {total}...",
                     log: AddLog,
@@ -336,19 +347,30 @@ namespace FlipPix.UI.ViewModels.Video
                 //    line land in every clip even if a body still forgot the tag, because a two-hander
                 //    fight has both fighters on screen throughout — clipping either one's references is
                 //    how the duplicate-of-self render happens.
-                var bodies = clipBodies
-                    .Select((b, i) => SanitizeClipFields(CanonicalizeFieldLabels(b), i + 1))
-                    .ToList();
-                bodies = KeepRenderableClips(bodies);
-                bodies = bodies
-                    .Select(b => NormalizeTimestamps(FoldDigits(b), len))
-                    .Select((b, i) => NormalizeShots(b, i + 1))
-                    // 6. The environment written into the description in code, ahead of [Shot 1]. The
-                    //    writer was told the same thing in words, but only this is identical word for word
-                    //    in every clip that shares a place — and two wordings of one alley are two alleys
-                    //    to a model that renders them a job apart.
-                    .Select((b, i) => StoryContinuity.StampScene(b, EnvironmentFor(environments, i)))
-                    .ToList();
+                List<string> bodies;
+                if (spec)
+                {
+                    // The spec build's passes: the same repairs section by section, then the code-written
+                    // subject_definitions: and retention_analysis: around the writer's four sections. The place
+                    // goes into subject_definitions: word for word, which is what step 6 does for the others.
+                    bodies = FinishSpecClips(clipBodies, environments, setting, len);
+                }
+                else
+                {
+                    bodies = clipBodies
+                        .Select((b, i) => SanitizeClipFields(CanonicalizeFieldLabels(b), i + 1))
+                        .ToList();
+                    bodies = KeepRenderableClips(bodies);
+                    bodies = bodies
+                        .Select(b => NormalizeTimestamps(FoldDigits(b), len))
+                        .Select((b, i) => NormalizeShots(b, i + 1))
+                        // 6. The environment written into the description in code, ahead of [Shot 1]. The
+                        //    writer was told the same thing in words, but only this is identical word for word
+                        //    in every clip that shares a place — and two wordings of one alley are two alleys
+                        //    to a model that renders them a job apart.
+                        .Select((b, i) => StoryContinuity.StampScene(b, EnvironmentFor(environments, i)))
+                        .ToList();
+                }
 
                 var cleaned = JoinClips(bodies
                     .Select(b => CastPromptStamp.Apply(b, Panels1, Panels2, CastWardrobe,
@@ -375,17 +397,24 @@ namespace FlipPix.UI.ViewModels.Video
                     // line alone. Worth re-running Analyze when it appears.
                     if (HasCharacter2)
                     {
+                        // A spec clip names its cast as subjects in the shots; its pictures are only in the
+                        // code-written definitions, which name both by construction.
                         var untagged = SplitClips(cleaned)
                             .Select((body, i) => (Index: i + 1,
-                                                 Tagged: body.Contains("<Picture 1>", StringComparison.Ordinal) &&
-                                                        body.Contains("<Picture 2>", StringComparison.Ordinal)))
+                                                 Tagged: spec
+                                                     ? CastPromptStamp.ExtractDescription(body) is var shots &&
+                                                       shots.Contains("<Subject 1>", StringComparison.Ordinal) &&
+                                                       shots.Contains("<Subject 2>", StringComparison.Ordinal)
+                                                     : body.Contains("<Picture 1>", StringComparison.Ordinal) &&
+                                                       body.Contains("<Picture 2>", StringComparison.Ordinal)))
                             .Where(c => !c.Tagged)
                             .Select(c => c.Index)
                             .ToList();
                         if (untagged.Count > 0)
                             AddLog($"WARNING: clip(s) {string.Join(", ", untagged)} still name only one fighter — " +
                                    "the opponent in those clips rides on the stamped reference line instead of " +
-                                   "their own tag. Re-run Analyze, or tag <Picture 2> in those clips by hand.");
+                                   $"their own tag. Re-run Analyze, or tag {(spec ? "<Subject 2>" : "<Picture 2>")} " +
+                                   "in those clips by hand.");
                         else
                             AddLog("Cast check: every clip names both fighters — no duplicate-of-self renders.");
                     }
@@ -554,7 +583,8 @@ namespace FlipPix.UI.ViewModels.Video
                 // carries a multi-stage locomotion change tears the motion latent (Rule 35 / C2V §4.4), and
                 // a beat that carries three narrative moments comes back rushed (Rule 44). Null with the
                 // switch off, so the shared beat sheet is byte-for-byte what every other tab sends.
-                extraRules: ResearchPrompts ? H3ResearchPrompt.BeatSheetRules : null,
+                extraRules: SpecPromptBuild ? H3SpecPrompt.BeatSheetRules
+                          : ResearchPrompts ? H3ResearchPrompt.BeatSheetRules : null,
                 // Where every clip is, at what hour, in what light — decided once here for the whole
                 // chain. H3 renders each clip as an independent job and has never seen the one before it,
                 // so anything the plan leaves open is re-invented per clip, which is where a film that
@@ -1044,9 +1074,23 @@ namespace FlipPix.UI.ViewModels.Video
                 if (next >= 0 && next < end) end = next;
             }
 
-            var field = body[start..end];
+            var rebuilt = FoldShots(body[start..end], clipNumber);
+            if (rebuilt == null) return body;
+
+            var tail = end < body.Length ? "\n\n" + body[end..].TrimStart() : string.Empty;
+            return body[..start] + " " + rebuilt + tail;
+        }
+
+        /// <summary>
+        /// <see cref="NormalizeShots"/>'s fold on a description's own text: one <c>[Shot 1]</c>, a timestamp on
+        /// every marker after it, renumbered 1..N. Null when the text has no <c>[Shot]</c> marker at all.
+        /// <paramref name="separator"/> goes between shots — a space in the three-field builds, a blank line in
+        /// the 📐 spec build, whose format puts each shot on its own.
+        /// </summary>
+        private string? FoldShots(string field, int clipNumber, string separator = " ")
+        {
             var markers = ShotMarkerRegex.Matches(field);
-            if (markers.Count == 0) return body;
+            if (markers.Count == 0) return null;
 
             // Anything ahead of the first marker is prose the writer put before its own shots; it stays.
             var lead = field[..markers[0].Index].Trim();
@@ -1073,11 +1117,8 @@ namespace FlipPix.UI.ViewModels.Video
                        "before them — a style/setting block written as a shot of its own is what makes H3 " +
                        "open on the reference photographs instead of on the scene.");
 
-            var rebuilt = string.Join(" ", shots.Select((s, i) => $"[Shot {i + 1}] {s}".TrimEnd()));
-            if (lead.Length > 0) rebuilt = lead + " " + rebuilt;
-
-            var tail = end < body.Length ? "\n\n" + body[end..].TrimStart() : string.Empty;
-            return body[..start] + " " + rebuilt + tail;
+            var rebuilt = string.Join(separator, shots.Select((s, i) => $"[Shot {i + 1}] {s}".TrimEnd()));
+            return lead.Length > 0 ? lead + separator + rebuilt : rebuilt;
         }
     }
 }

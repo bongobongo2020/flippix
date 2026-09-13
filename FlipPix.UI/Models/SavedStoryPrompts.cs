@@ -54,8 +54,8 @@ namespace FlipPix.UI.Models
         /// a recalled story renders at this length rather than whatever the slider says.</summary>
         public double LengthSeconds { get; set; }
 
-        /// <summary>"researched", "shipped", or empty when not known (an entry imported from a prompt library
-        /// that did not record it).</summary>
+        /// <summary>"researched", "shipped", "singularity-spec" (<c>H3SpecPrompt.BuildTag</c>), or empty when not
+        /// known (an entry imported from a prompt library that did not record it).</summary>
         public string PromptBuild { get; set; } = string.Empty;
 
         public string VisualStyle { get; set; } = string.Empty;
