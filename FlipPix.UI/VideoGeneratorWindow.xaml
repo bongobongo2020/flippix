@@ -8253,7 +8253,7 @@
                                                                    Foreground="{DynamicResource TabAccentBrush}"/>
                                                     </Border>
                                                 </Grid>
-                                                <Slider Value="{Binding StoryDurationSeconds}" Minimum="5" Maximum="120"
+                                                <Slider Value="{Binding StoryDurationSeconds}" Minimum="5" Maximum="{Binding MaxStoryDurationSeconds}"
                                                         TickFrequency="5" IsSnapToTickEnabled="True" SmallChange="5" LargeChange="15"
                                                         Foreground="{DynamicResource TabAccentBrush}" Margin="0,0,0,8"
                                                         ToolTip="How long each story's finished film should be. Anything longer than one clip is written as a chain of clips and joined."/>

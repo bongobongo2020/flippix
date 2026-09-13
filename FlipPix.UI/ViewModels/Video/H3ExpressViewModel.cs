@@ -135,6 +135,10 @@ namespace FlipPix.UI.ViewModels.Video
 
         protected override string ChainLibraryFolder => "h3express";
 
+        /// <summary>Five minutes. The base's 120 s dated from writing the whole chain in one reply; this
+        /// tab's writer makes one call per clip, so a longer film is only more clips.</summary>
+        public override double MaxStoryDurationSeconds => 300;
+
         protected override string RunTokenPrefix => "h3express";
 
         protected override string QueueFilePath => Path.Combine(

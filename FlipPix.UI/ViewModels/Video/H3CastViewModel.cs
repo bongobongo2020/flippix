@@ -55,7 +55,7 @@ namespace FlipPix.UI.ViewModels.Video
     /// same idea applied twice.</item>
     /// </list>
     ///
-    /// <para><b>Length.</b> H3 tops out at ~15 seconds, so <see cref="StoryDurationSeconds"/> (5–120 s) is
+    /// <para><b>Length.</b> H3 tops out at ~15 seconds, so <see cref="StoryDurationSeconds"/> (5–120 s by default) is
     /// delivered as a <i>chain</i>: Analyze asks the LLM for <see cref="PlannedClipCount"/> complete H3
     /// prompts in one reply, separated by <c>=== CLIP n of N ===</c> headers, each one a consecutive beat of
     /// the same story. The prompt box holds the whole chain and stays editable; "Add to Queue" splits it on
@@ -1279,18 +1279,22 @@ namespace FlipPix.UI.ViewModels.Video
             }
         }
 
+        /// <summary>The longest finished video the duration slider allows. 120 s here; a tab that writes its
+        /// chain one clip per call can afford a longer one.</summary>
+        public virtual double MaxStoryDurationSeconds => 120;
+
         /// <summary>
-        /// Length of the <i>finished</i> video, 5–120 s in 5 s steps. H3 renders at most ~15 s in one pass, so
-        /// anything longer than <see cref="LengthSeconds"/> is written as a chain of
-        /// <see cref="PlannedClipCount"/> clips and queued one job per clip, rendered back to back with the
-        /// same sheets and joined when the last one lands.
+        /// Length of the <i>finished</i> video, 5 s to <see cref="MaxStoryDurationSeconds"/> in 5 s steps. H3
+        /// renders at most ~15 s in one pass, so anything longer than <see cref="LengthSeconds"/> is written as
+        /// a chain of <see cref="PlannedClipCount"/> clips and queued one job per clip, rendered back to back
+        /// with the same sheets and joined when the last one lands.
         /// </summary>
         public double StoryDurationSeconds
         {
             get => _storyDurationSeconds;
             set
             {
-                var snapped = Math.Clamp(Math.Round(value / 5.0) * 5.0, 5, 120);
+                var snapped = Math.Clamp(Math.Round(value / 5.0) * 5.0, 5, MaxStoryDurationSeconds);
                 if (Math.Abs(_storyDurationSeconds - snapped) < 0.0001) return;
                 _storyDurationSeconds = snapped;
                 OnPropertyChanged();
