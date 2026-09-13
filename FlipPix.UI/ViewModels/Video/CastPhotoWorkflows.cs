@@ -337,6 +337,17 @@ namespace FlipPix.UI.ViewModels.Video
             }
         }
 
+        /// <summary>
+        /// Whether a graph has been seen drawing the "Image blocked by safety filter" placeholder instead of the
+        /// portrait (<see cref="SafetyFilterPlaceholder"/>). Ideogram 4 does; the others have not been seen to, so
+        /// their photos are not checked.
+        /// </summary>
+        public static bool MayRenderSafetyPlaceholder(string engine) => engine == "ideogram";
+
+        /// <summary>What a photo the safety filter blocked twice is photographed with instead. Krea2-Spicy: its
+        /// LoRAs are baked in, so there is nothing to choose, and it is 🍀's own default.</summary>
+        public const string SafetyFallbackEngine = "krea2spicy";
+
         /// <summary>The engine's display name, for the logs.</summary>
         public static string LabelFor(string engine) => engine switch
         {

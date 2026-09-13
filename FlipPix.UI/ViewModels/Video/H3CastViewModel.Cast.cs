@@ -382,24 +382,9 @@ namespace FlipPix.UI.ViewModels.Video
                 }
 
                 var prompt = BuildCastPhotoPrompt(slot);
-                var ts = DateTime.Now.ToString("yyyyMMddHHmmss");
-                var runToken = $"cast_{slot.Index}_{ts}";
-                var seed = System.Random.Shared.NextInt64(0, 1_000_000_000_000_000L);
-
-                var (json, saveNode) = await CastPhotoWorkflows.BuildAsync(
-                    engine, $"{OutputSubfolder}/{runToken}", seed, prompt, AddLog, lora);
                 AddLog($"Character {slot.Index} ({slot.Description}): {label} portrait — {prompt}");
 
-                var promptId = await SubmitCastPhotoAsync(json, slot, CancellationToken.None);
-
-                slot.PhotoPhase = "Retrieving the photo…";
-                string? local = null;
-                var byNode = await _comfyUIService.HttpClient.GetOutputsByNodeAsync(promptId, CancellationToken.None);
-                if (byNode.TryGetValue(saveNode, out var outs) && outs.Count > 0)
-                    local = await ResolveImageToLocalAsync(outs[0]);
-                local ??= FindTokenImageOnDisk(runToken);
-                if (local == null || !File.Exists(local))
-                    throw new Exception($"Character {slot.Index}'s photo was not produced.");
+                var local = await RenderUnblockedCastPhotoAsync(slot, engine, lora, prompt, label);
                 local = await KeepCastPhotoAsync(local);
 
                 // Exactly what browsing for it does — the sheet build, the references and the
@@ -434,6 +419,82 @@ namespace FlipPix.UI.ViewModels.Video
                 slot.IsGeneratingPhoto = false;
                 OnCanExecuteChanged();
             }
+        }
+
+        /// <summary>
+        /// One portrait, never a refusal. Ideogram 4 answers a prompt it will not draw with a grey "Image blocked by
+        /// safety filter" card, which ComfyUI reports as an ordinary image (<see cref="SafetyFilterPlaceholder"/>).
+        /// Such a card is tried once more on a new seed; blocked again, the photo is taken with
+        /// <see cref="CastPhotoWorkflows.SafetyFallbackEngine"/> instead. A placeholder never reaches the card, the
+        /// cast folder or a sheet — if the fallback is blocked too, this throws.
+        /// </summary>
+        private async Task<string> RenderUnblockedCastPhotoAsync(
+            CharacterSlot slot, string engine, CastPhotoWorkflows.CastLora? lora, string prompt, string label)
+        {
+            if (!CastPhotoWorkflows.MayRenderSafetyPlaceholder(engine))
+                return await RenderCastPhotoAsync(slot, engine, lora, prompt, label);
+
+            for (var attempt = 1; attempt <= 2; attempt++)
+            {
+                var local = await RenderCastPhotoAsync(slot, engine, lora, prompt, label);
+                if (!await IsSafetyPlaceholderAsync(local)) return local;
+
+                AddLog(attempt == 1
+                    ? $"Character {slot.Index}: {label} returned its \"Image blocked by safety filter\" card " +
+                      $"({Path.GetFileName(local)}) — trying once more on a new seed."
+                    : $"Character {slot.Index}: {label} blocked it again ({Path.GetFileName(local)}) — photographing " +
+                      $"them with {CastPhotoWorkflows.LabelFor(CastPhotoWorkflows.SafetyFallbackEngine)} instead.");
+            }
+
+            var fallback = CastPhotoWorkflows.SafetyFallbackEngine;
+            var fallbackLabel = CastPhotoWorkflows.LabelFor(fallback);
+            var photo = await RenderCastPhotoAsync(slot, fallback, null, prompt, fallbackLabel);
+            if (await IsSafetyPlaceholderAsync(photo))
+                throw new Exception($"Character {slot.Index}'s photo was blocked by the safety filter twice on {label} " +
+                                    $"and again on {fallbackLabel}.");
+            return photo;
+        }
+
+        /// <summary>The pixel check, off the UI thread. A file that cannot be decoded is not called a placeholder —
+        /// the sheet build will say what is wrong with it.</summary>
+        private async Task<bool> IsSafetyPlaceholderAsync(string path)
+        {
+            try
+            {
+                return await Task.Run(() => SafetyFilterPlaceholder.IsPlaceholder(path));
+            }
+            catch (Exception ex)
+            {
+                AddLog($"WARNING: {Path.GetFileName(path)} could not be checked for the safety-filter card " +
+                       $"({ex.Message}) — it is used as it is.");
+                return false;
+            }
+        }
+
+        /// <summary>One submission of one portrait graph on a fresh seed, and the file it saved.</summary>
+        private async Task<string> RenderCastPhotoAsync(
+            CharacterSlot slot, string engine, CastPhotoWorkflows.CastLora? lora, string prompt, string label)
+        {
+            var ts = DateTime.Now.ToString("yyyyMMddHHmmss");
+            var runToken = $"cast_{slot.Index}_{ts}";
+            var seed = System.Random.Shared.NextInt64(0, 1_000_000_000_000_000L);
+
+            var (json, saveNode) = await CastPhotoWorkflows.BuildAsync(
+                engine, $"{OutputSubfolder}/{runToken}", seed, prompt, AddLog, lora);
+            AddLog($"Character {slot.Index}: {label}, seed {seed}.");
+            slot.PhotoPhase = $"Generating with {label}…";
+
+            var promptId = await SubmitCastPhotoAsync(json, slot, CancellationToken.None);
+
+            slot.PhotoPhase = "Retrieving the photo…";
+            string? local = null;
+            var byNode = await _comfyUIService.HttpClient.GetOutputsByNodeAsync(promptId, CancellationToken.None);
+            if (byNode.TryGetValue(saveNode, out var outs) && outs.Count > 0)
+                local = await ResolveImageToLocalAsync(outs[0]);
+            local ??= FindTokenImageOnDisk(runToken);
+            if (local == null || !File.Exists(local))
+                throw new Exception($"Character {slot.Index}'s photo was not produced.");
+            return local;
         }
 
         /// <summary>Where a generated cast photo is kept, or null to leave it in ComfyUI's output folder. ⚡ H3 Express

@@ -139,7 +139,8 @@ namespace FlipPix.UI.ViewModels.Video
         public string CastPhotoEngineSummary => _castPhotoEngine switch
         {
             "ideogram" => "Ideogram 4 (the NSFW graph), 12 steps. Lit and backed as a plain studio reference; the graph's " +
-                          "own \"beautiful girl\" aesthetic is left out so a man is photographed as one.",
+                          "own \"beautiful girl\" aesthetic is left out so a man is photographed as one. A \"blocked by " +
+                          "safety filter\" card is retried once on a new seed, then the photo is taken with Krea2-Spicy.",
             "qwen" => "Qwen Image 2512 INT8 with the Lightning 8-step LoRA, as authored.",
             "klein" => "Flux2 Klein 9B x3n, 4 steps, with the graph's anatomy and enhancer LoRAs as authored.",
             _ => "FameGrid Krea2-Spicy — the famegrid selfie look, its LoRAs baked in.",
