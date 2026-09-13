@@ -315,20 +315,25 @@ namespace FlipPix.UI.ViewModels.Video
                 var shots = spec ? H3SpecPrompt.ShotCount(len)
                           : ResearchPrompts ? H3ResearchPrompt.ShotCount(len) : ShippedShotCount(len);
 
+                // What each clip came back as. The spec build hands clip N the last shot and score clip N-1 was
+                // actually written with, so the cut between them continues the moment instead of restarting it.
+                var writtenBodies = new Dictionary<int, string>();
                 var clipBodies = await ClipChainWriter.WriteAsync(
                     _lmStudioService, model, system, clipCount,
                     buildRequest: (i, reason) => spec
-                        ? BuildSpecClipRequest(setting, beats, environments, i, clipCount, len, shots, reason)
+                        ? BuildSpecClipRequest(setting, beats, environments, i, clipCount, len, shots, reason,
+                                               writtenBodies.TryGetValue(i - 1, out var before) ? before : null)
                         : BuildClipRequest(setting, beats, environments, i, clipCount, len, shots, reason),
                     normalize: raw => spec ? NormalizeSpecClipBody(raw) : NormalizeClipBody(raw),
                     validate: (i, body) => spec
-                        ? ValidateSpecClip(body, EnvironmentFor(environments, i))
+                        ? ValidateSpecClip(body, EnvironmentFor(environments, i), beats, i)
                         : ValidateClip(body, EnvironmentFor(environments, i)),
                     onProgress: (n, total) =>
                         ProcessingStatus = $"H3 Prompt Writer: writing clip {n} of {total}...",
                     log: AddLog,
                     describe: b => $"{b.Length:N0} chars, {CountShots(b)} shots",
-                    token: token);
+                    token: token,
+                    onWritten: (i, body) => writtenBodies[i] = body);
 
                 // ── Step 3 — the deterministic passes, then stamp and join ─────────────────────────
                 // Each is cheap and each catches something a local model still slips through, even one
@@ -579,17 +584,22 @@ namespace FlipPix.UI.ViewModels.Video
                 imagePath: HasSceneImage ? SceneImagePath : null,
                 log: AddLog,
                 token: token,
-                // Two of the guide's failures are decided here rather than in the clip writer: a beat that
-                // carries a multi-stage locomotion change tears the motion latent (Rule 35 / C2V §4.4), and
-                // a beat that carries three narrative moments comes back rushed (Rule 44). Null with the
-                // switch off, so the shared beat sheet is byte-for-byte what every other tab sends.
-                extraRules: SpecPromptBuild ? H3SpecPrompt.BeatSheetRules
+                // Researched: two of the guide's failures are decided here rather than in the clip writer — a
+                // beat that carries a multi-stage locomotion change tears the motion latent (Rule 35 / C2V §4.4),
+                // and a beat that carries three narrative moments comes back rushed (Rule 44). Spec: the fight
+                // director's rules restated. Null with both off, so the shared beat sheet is byte-for-byte what
+                // every other tab sends.
+                extraRules: SpecPromptBuild ? H3SpecPrompt.DirectorBeatSheetRules(SpecCastCount)
                           : ResearchPrompts ? H3ResearchPrompt.BeatSheetRules : null,
                 // Where every clip is, at what hour, in what light — decided once here for the whole
                 // chain. H3 renders each clip as an independent job and has never seen the one before it,
                 // so anything the plan leaves open is re-invented per clip, which is where a film that
                 // cuts from midday to midnight and back comes from. See StoryContinuity.
-                continuity: true);
+                continuity: true,
+                // Spec: a fight director instead of the script supervisor, whose "invent nothing, action only"
+                // dropped every line of dialogue and split one blow across three clips. See H3SpecPrompt.
+                systemPrompt: SpecPromptBuild ? H3SpecPrompt.DirectorBeatSheetSystem(SpecCastCount, continuity: true) : null,
+                tokensPerBeat: SpecPromptBuild ? H3SpecPrompt.DirectorTokensPerBeat : 140);
         }
 
         // ── Step 2: one call per clip ──────────────────────────────────────────────────────────────

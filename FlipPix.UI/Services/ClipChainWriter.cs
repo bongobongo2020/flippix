@@ -59,7 +59,8 @@ namespace FlipPix.UI.Services
             Action<string> log,
             Func<string, string>? describe = null,
             int maxTokens = 3000,
-            CancellationToken token = default)
+            CancellationToken token = default,
+            Action<int, string>? onWritten = null)
         {
             var bodies = new List<string>(clipCount);
             var short_ = new List<int>();
@@ -79,6 +80,8 @@ namespace FlipPix.UI.Services
                 }
 
                 bodies.Add(body);
+                // Before the next clip's request is built, so a caller can hand that clip this one's ending.
+                onWritten?.Invoke(i, body);
                 log($"Clip {i + 1}/{clipCount} written" +
                     (describe != null ? $" ({describe(body)})" : string.Empty));
             }

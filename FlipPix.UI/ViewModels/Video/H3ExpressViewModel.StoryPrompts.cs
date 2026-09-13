@@ -399,6 +399,15 @@ namespace FlipPix.UI.ViewModels.Video
                           "its clips are written again, and the new set replaces the saved one (kept in history).");
                     saved = null;
                 }
+                else if (SpecPromptBuild && saved.PromptBuild != H3SpecPrompt.BuildTag && !saved.EditedByHand)
+                {
+                    // Written by the spec build before the fight director: beats with no dialogue, and clips that never
+                    // saw how the one before them ended. Reusing it would render exactly what that change fixes.
+                    AddLog($"📚 \"{saved.Title}\" has saved prompts from the earlier 📐 spec build, before the fight " +
+                           "director — its clips are written again, and the new set replaces the saved one (kept in " +
+                           "history). A set edited by hand is kept.");
+                    saved = null;
+                }
             }
 
             if (saved != null)

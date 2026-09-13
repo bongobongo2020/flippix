@@ -198,4 +198,84 @@ public class H3SpecPromptTests
         Assert.NotNull(ClipRedress.Validate(body, body.Replace("retention_analysis:", "retention:")));
         Assert.NotNull(ClipRedress.Validate(body, body.Replace("<Subject 2>", "the woman")));
     }
+
+    // ── Fight direction ─────────────────────────────────────────────────────────────────────────
+
+    [Fact]
+    public void The_next_clip_is_handed_the_last_shot_without_its_marker_and_the_score()
+    {
+        var body = SpecBody();
+
+        Assert.Equal("<Subject 1> lunges and <Subject 2>, wearing a red silk blouse, recoils.", H3SpecPrompt.LastShot(body));
+
+        var handoff = H3SpecPrompt.Handoff(body, castCount: 2);
+        Assert.Contains("<Subject 1> lunges and <Subject 2>", handoff);
+        Assert.DoesNotContain("[Shot 2]", handoff);
+        Assert.Contains("the same facing", handoff);
+        Assert.Contains("A low pulsing synth.", handoff);
+    }
+
+    [Fact]
+    public void There_is_no_handoff_from_a_clip_with_no_shots()
+    {
+        Assert.Equal(string.Empty, H3SpecPrompt.Handoff(null, castCount: 2));
+        Assert.Equal(string.Empty, H3SpecPrompt.Handoff("summary:\n[reference generation] Nothing.", castCount: 2));
+    }
+
+    [Fact]
+    public void An_N_A_score_is_not_handed_on()
+    {
+        var body = SpecBody().Replace("A low pulsing synth.", "N/A");
+        Assert.DoesNotContain("THE SCORE SO FAR", H3SpecPrompt.Handoff(body, castCount: 2));
+    }
+
+    [Fact]
+    public void A_beat_with_quoted_lines_must_have_them_spoken()
+    {
+        Assert.True(H3SpecPrompt.BeatHasLines("CHARACTER 2 swings at CHARACTER 1. CHARACTER 2: \"You're dead.\""));
+        Assert.True(H3SpecPrompt.BeatHasLines("CHARACTER 1: “Get up.”"));
+        Assert.False(H3SpecPrompt.BeatHasLines("CHARACTER 2 swings at CHARACTER 1 and misses."));
+
+        var silent = Normalized(MessyReply);
+        Assert.Null(H3SpecPrompt.Validate(silent, castCount: 2));
+        Assert.Contains("<d>", H3SpecPrompt.Validate(silent, castCount: 2, beatHasLines: true));
+
+        var spoken = silent.Replace("recoils against the wall.",
+            "recoils against the wall. <Subject 2> (S1) says: <d>[English] Get away from me.</d>");
+        Assert.Null(H3SpecPrompt.Validate(spoken, castCount: 2, beatHasLines: true));
+    }
+
+    [Fact]
+    public void A_two_hander_is_blocked_facing_each_other_with_both_fighters_working()
+    {
+        var duo = H3SpecPrompt.RulesFor(2, 15, 3, setting: null, hasContinuityPlan: true, lastClip: false);
+        Assert.Contains("FACE EACH OTHER", duo);
+        Assert.Contains("THE FIGHT", duo);
+        Assert.Contains("A line gets its own shot", duo);
+        Assert.DoesNotContain("write dialogue ONLY if", duo);
+
+        var solo = H3SpecPrompt.RulesFor(1, 15, 3, setting: null, hasContinuityPlan: true, lastClip: false);
+        Assert.DoesNotContain("THE FIGHT", solo);
+        Assert.Contains("One main action chain per shot", solo);
+    }
+
+    [Fact]
+    public void The_fight_director_beat_sheet_asks_for_dialogue_in_the_shape_the_parser_reads()
+    {
+        var system = H3SpecPrompt.DirectorBeatSheetSystem(castCount: 2, continuity: true);
+        Assert.Contains("fight director", system);
+        Assert.Contains("CHARACTER 2: \"<a line>\"", system);
+        Assert.Contains("dawn, morning, midday, afternoon", system);   // the shared continuity rules ride along
+        Assert.DoesNotContain("Invent no event", system);
+
+        // A director beat: action, a quoted line, then the environment suffix — the line stays in the beat.
+        var (_, beats) = StoryBeatSheet.Parse(
+            "SETTING: a bar at night\n" +
+            "1. CHARACTER 2 swings a bottle at CHARACTER 1, who ducks and drives him into the bar. " +
+            "CHARACTER 2: \"You're dead.\" [INT | the bar | night | neon signs]\n");
+
+        Assert.Single(beats);
+        Assert.Contains("CHARACTER 2: \"You're dead.\"", beats[0].Text);
+        Assert.Equal("INT | the bar | night | neon signs", beats[0].Env);
+    }
 }

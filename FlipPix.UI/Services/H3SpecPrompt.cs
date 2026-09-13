@@ -10,7 +10,7 @@ namespace FlipPix.UI.Services
     /// <summary>
     /// ⚡ H3 Express's 📐 <b>Singularity spec</b> prompt build: clip prompts written to
     /// <c>prompts/MiniMax_H3_Singularity_Prompt_Writing_Specification_Enhanced_EN.md</c>. The § numbers below are
-    /// that document's.
+    /// that document's; "Rule N" / "Issue N" are <c>prompts/documents/MINIMAX_H3_PROMPTING_GUIDE.md</c>'s.
     ///
     /// <para><b>What it changes.</b> The shipped and researched builds put a clip in three fields —
     /// <c>integrated_multimodal_description:</c> and the two sound fields. The spec is written for full-reference
@@ -32,6 +32,19 @@ namespace FlipPix.UI.Services
     /// stamp, the story-prompt store, the clip editor — carries them. The stamp's reference line and wardrobe
     /// lock still go ahead of <c>subject_definitions:</c>, where the guides put a task header.</para>
     ///
+    /// <para><b>Fight direction</b> (2026-09-13, user report). The first cut of this build rendered fights that
+    /// did not read as fights: the fighters faced the lens or the same way, a clip held one blow and no dialogue,
+    /// and the joined film played as separate clips. Each symptom came from a rule. The shared beat sheet is a
+    /// script supervisor told to invent nothing and to write physical action only, so the story's spoken lines
+    /// never reached a clip, and a long film split one blow into wind-up, contact and recoil across three clips.
+    /// The writer was told one action chain per shot, dialogue only if the beat carried words, and nothing about
+    /// which way anyone faces. And each clip saw the previous clip's <i>planned</i> beat, not how it actually
+    /// ended. So the beat sheet here is a fight director (<see cref="DirectorBeatSheetSystem"/>) writing
+    /// exchanges and dialogue on one escalating arc; the rule block faces the fighters toward each other and
+    /// puts both to work in every shot (<see cref="Blocking"/>, <see cref="FightRule"/>); a beat's quoted lines
+    /// must be spoken (<see cref="Validate"/>); and every clip is handed the last shot and score of the one
+    /// before it (<see cref="Handoff"/>).</para>
+    ///
     /// <para>WPF-free, so the tests can reach all of it.</para>
     /// </summary>
     public static class H3SpecPrompt
@@ -39,8 +52,13 @@ namespace FlipPix.UI.Services
         /// <summary>The per-clip system prompt this build writes against.</summary>
         public const string ClipSystemPromptFile = "h3pw_clip_singularity_spec.md";
 
-        /// <summary>What a saved story's <c>PromptBuild</c> says when this build wrote it.</summary>
-        public const string BuildTag = "singularity-spec";
+        /// <summary>What a saved story's <c>PromptBuild</c> says when this build wrote it. Changed when the fight
+        /// director came in, so a set the earlier build wrote is recognised and written again.</summary>
+        public const string BuildTag = "singularity-spec-fight";
+
+        /// <summary>The tag this build saved under before the fight director. Still a spec set; no longer a current
+        /// one.</summary>
+        public const string EarlierBuildTag = "singularity-spec";
 
         public const string SubjectDefinitions = "subject_definitions:";
         public const string Summary = "summary:";
@@ -72,6 +90,14 @@ namespace FlipPix.UI.Services
 
         private static readonly Regex ShotMarkerRegex =
             new(@"\[\s*Shot\s+\d+\s*\]", RegexOptions.IgnoreCase | RegexOptions.Compiled);
+
+        /// <summary>A shot's opening marker and its cut time — <c>[Shot 3] At 00:10.000,</c>.</summary>
+        private static readonly Regex ShotLeadRegex =
+            new(@"^\s*\[\s*Shot\s+\d+\s*\]\s*(?:At\s+[\d:.]+\s*,?\s*)?", RegexOptions.IgnoreCase | RegexOptions.Compiled);
+
+        /// <summary>A quoted line in a beat — straight or curly quotes, at least a couple of characters.</summary>
+        private static readonly Regex QuotedLineRegex =
+            new(@"[""“”][^""“”\n]{2,}[""“”]", RegexOptions.Compiled);
 
         /// <summary>A prompt split into its labelled sections. <see cref="Lead"/> is whatever came before the
         /// first label.</summary>
@@ -120,6 +146,28 @@ namespace FlipPix.UI.Services
             return sb.ToString();
         }
 
+        /// <summary>The last shot of a body's <c>detailed_description:</c>, its marker and cut time taken off —
+        /// the moment the next clip picks up. Empty when the body has no shots.</summary>
+        public static string LastShot(string? body)
+        {
+            var description = Parse(body)[DetailedDescription];
+            if (description.Length == 0) return string.Empty;
+
+            var markers = ShotMarkerRegex.Matches(description);
+            var last = markers.Count > 0 ? description[markers[markers.Count - 1].Index..] : description;
+            return ShotLeadRegex.Replace(last.Trim(), string.Empty, 1).Trim();
+        }
+
+        /// <summary>A body's <c>non_diegetic_music:</c>, or empty when it has none or says N/A.</summary>
+        public static string Score(string? body)
+        {
+            var music = Parse(body)[NonDiegeticMusic].Trim();
+            return music.Equals("N/A", StringComparison.OrdinalIgnoreCase) ? string.Empty : music;
+        }
+
+        /// <summary>Whether a beat carries a quoted line to be spoken.</summary>
+        public static bool BeatHasLines(string? beat) => QuotedLineRegex.IsMatch(beat ?? string.Empty);
+
         // ── Tags ────────────────────────────────────────────────────────────────────────────────────
 
         /// <summary>A picture tag, or a near miss of one — what the writer slips into from habit.</summary>
@@ -149,7 +197,9 @@ namespace FlipPix.UI.Services
         /// Null when the writer's reply can be rendered; otherwise why not, phrased for the retry. Run on the
         /// reply after <see cref="ToSubjectTags"/>.
         /// </summary>
-        public static string? Validate(string? reply, int castCount)
+        /// <param name="beatHasLines">The clip's beat carries quoted lines this clip must speak. A reply with no
+        /// <c>&lt;d&gt;</c> tag has dropped them, which is how a fight film comes out with no dialogue.</param>
+        public static string? Validate(string? reply, int castCount, bool beatHasLines = false)
         {
             var s = Parse(reply);
             var description = s[DetailedDescription];
@@ -180,6 +230,11 @@ namespace FlipPix.UI.Services
             if (strangers.Count > 0)
                 return $"it names <Subject {strangers[0]}>, but this clip's cast is {TagList(castCount)} only. " +
                        "Invent no character.";
+
+            if (beatHasLines && !description.Contains("<d>", StringComparison.OrdinalIgnoreCase))
+                return "the beat has quoted lines and detailed_description: speaks none of them. Speak every quoted " +
+                       "line of the beat, word for word, in its own shot: <Subject N> (S1) says: <d>[English] the " +
+                       "words</d>, with the other subject silent, mouth closed.";
 
             return null;
         }
@@ -273,20 +328,96 @@ namespace FlipPix.UI.Services
             sb.Append(label).Append('\n').Append(text);
         }
 
+        // ── The fight director's beat sheet ─────────────────────────────────────────────────────────
+
+        /// <summary>Output budget per beat for <see cref="DirectorBeatSheetSystem"/>. Its beats are two to four
+        /// sentences plus their lines, about twice the plain beat sheet's, and the shared call's 140 per beat would
+        /// cut a long film's sheet short.</summary>
+        public const int DirectorTokensPerBeat = 260;
+
+        /// <summary>
+        /// The beat sheet's system prompt for this build, in place of the shared script supervisor's. Same reply
+        /// shape — a SETTING line, one numbered line per beat, the environment suffix — so the shared parser,
+        /// fitter and continuity plan read it unchanged; the beat text now carries the exchange and its quoted
+        /// lines.
+        /// </summary>
+        public static string DirectorBeatSheetSystem(int castCount, bool continuity)
+        {
+            var duo = castCount > 1;
+            var env = continuity ? " [EXT | the alley behind the club | night | heavy rain, neon signs]" : string.Empty;
+            var action = duo ? "the fight" : "the action";
+
+            var sb = new StringBuilder();
+            sb.Append(duo
+                ? "You are a world-class fight director and action screenwriter. "
+                : "You are a world-class action director and screenwriter. ");
+            sb.Append("You turn one story into a fixed number of consecutive beats for a film that is shot clip by " +
+                      "clip and cut together into ONE continuous sequence: each beat is one clip. You do not write " +
+                      "camera directions, lighting or prose, only one line per beat saying what happens in it and " +
+                      "what is said.\n\n");
+            sb.Append("Reply in EXACTLY this shape, and nothing else:\n");
+            sb.Append("SETTING: <one sentence — place, time of day, weather, light, mood>\n");
+            sb.Append(duo
+                ? "1. <the exchange in beat 1> CHARACTER 2: \"<a line>\" CHARACTER 1: \"<a line>\"" + env + "\n" +
+                  "2. <the exchange in beat 2> CHARACTER 1: \"<a line>\"" + env + "\n"
+                : "1. <the action in beat 1> CHARACTER 1: \"<a line>\"" + env + "\n" +
+                  "2. <the action in beat 2>" + env + "\n");
+            sb.Append("(one numbered line per beat, through to the last; each beat and its lines on ONE line)\n\n");
+            sb.Append("How you direct it:\n");
+            sb.Append("- The story is your source, not your script. Keep its characters, its place, its stakes, its " +
+                      "turning points and its outcome, in its order. Inside that, invent freely: the choreography, " +
+                      "the reversals, the near misses, the dirty tricks and the dialogue that make it thrilling to " +
+                      "watch. Add no character and no location the story does not have.\n");
+            sb.Append(duo
+                ? "- Build the whole fight as ONE escalating arc: the standoff and first contact; exchanges that " +
+                  "trade the advantage back and forth; a reversal where the one losing turns it; the most violent " +
+                  "peak; and the story's outcome in the last beat. No beat is filler, and each one raises the stakes " +
+                  "on the one before.\n" +
+                  "- Every beat is an EXCHANGE, and both fighters act in it: who attacks and how, how the other " +
+                  "blocks, slips or takes it, the counter that comes back, and what it does to them. Nobody stands " +
+                  "waiting for their turn.\n" +
+                  "- The fighters face each other. End every beat by saying where they are relative to each other: " +
+                  "squared up two strides apart, one pinned against the wall, one on the ground with the other over " +
+                  "them.\n"
+                : "- Build the whole film as ONE escalating arc: the setup, the struggle getting harder, a reversal, " +
+                  "the peak, and the story's outcome in the last beat. No beat is filler.\n" +
+                  "- Every beat is one continuous action with a cause, a struggle and a consequence. End it by " +
+                  "saying where CHARACTER 1 is and what they are doing.\n");
+            sb.Append("- Beats hand off. Each beat opens exactly where the one before it ended, with the same " +
+                      "positions, grips, weapons and injuries, and ends mid-motion on its way into the next. No beat " +
+                      $"restarts {action}, and nothing the story has not resolved is resolved early.\n");
+            sb.Append("- Dialogue. Take the story's own spoken lines and put each one in the beat where it lands. " +
+                      (duo
+                          ? "Where the story gives none, write them: a threat, a taunt, a demand, a cry of fury, a " +
+                            "last word. Most beats carry one or two lines."
+                          : "Where the story gives none, write one where the moment wants a voice.") +
+                      " Every line is short, ten words at most, because it is spoken mid-fight; it is in the " +
+                      "character's voice and the story's tone, and it is written after the action as CHARACTER N: " +
+                      "\"the words\". Never narration.\n");
+            sb.Append("- Every beat names who acts and who it lands on, as " +
+                      (duo ? "CHARACTER 1 or CHARACTER 2" : "CHARACTER 1") + ", never by a name.\n");
+            sb.Append("- Emit EXACTLY the number of beats you are asked for, not one more and not one fewer. Two to " +
+                      "four sentences of action per beat, plus its lines.");
+            if (continuity) sb.Append(StoryBeatSheet.ContinuityRules);
+            return sb.ToString();
+        }
+
+        /// <summary>The director's rules restated in the beat sheet's user message, because a rule said once in a
+        /// system prompt is one a small local model drops by beat 6.</summary>
+        public static string DirectorBeatSheetRules(int castCount) => castCount > 1
+            ? "For every beat: an exchange in which BOTH fighters act, where it leaves them facing each other, and " +
+              "the line or lines spoken in it as CHARACTER N: \"...\", the story's own words where it has them and " +
+              "yours where it does not. Each beat picks up exactly where the one before it ended, and the fight " +
+              "escalates to the story's outcome in the last beat."
+            : "For every beat: one continuous action with a cause, a struggle and a consequence, and any line spoken " +
+              "in it as CHARACTER 1: \"...\". Each beat picks up exactly where the one before it ended.";
+
         // ── The request ─────────────────────────────────────────────────────────────────────────────
 
         /// <summary>Three to five shots across the clip, one per ~4.5 s — the same budget as the researched build.
         /// The spec asks each shot for a full action chain, camera chain, physical feedback and sound (§7), and
         /// warns against packing actions into shots (§16); a cut every second leaves no room for either.</summary>
         public static int ShotCount(double seconds) => H3ResearchPrompt.ShotCount(seconds);
-
-        /// <summary>Appended to the beat sheet, where a clip's workload is decided (§8, §16, §17).</summary>
-        public const string BeatSheetRules =
-            "Two extra rules for these beats:\n" +
-            "- Each beat is ONE continuous action that can be watched from start to finish: who starts in what " +
-            "state, what sets it off, what they do, what it does to someone or something, and the state it leaves " +
-            "them in. Never a list of separate events.\n" +
-            "- One main action per beat. A beat holding an arrival, a fight and an escape is three beats, not one.";
 
         /// <summary>Who the subjects are, and the tag rules the writer breaks most.</summary>
         public static string CastBlock(IReadOnlyList<CastMember> cast)
@@ -300,6 +431,40 @@ namespace FlipPix.UI.Services
                    "keeping the numbers exactly as the beat uses them. Never write <Picture N>, a name, or an untagged " +
                    "\"he\", \"she\" or \"the man\" for anyone on screen, and never describe a face, hair, skin, build " +
                    "or age.";
+        }
+
+        /// <summary>
+        /// The previous clip's last shot and score, for the clip after it (§12; Rule 12's "start Scene N+1 from that
+        /// exact visual beat"; Rule 26's placement across joins). Empty when there is no shot to hand over.
+        ///
+        /// <para>The beat the previous clip was <i>asked</i> for is not enough: two writers reading one plan end
+        /// their clips in different places, and the join between them is a jump in position, grip and damage.
+        /// What the previous writer actually wrote is what H3 rendered, so that is what the next clip continues.</para>
+        /// </summary>
+        public static string Handoff(string? previousBody, int castCount)
+        {
+            var last = LastShot(previousBody);
+            if (last.Length == 0) return string.Empty;
+
+            var sb = new StringBuilder();
+            sb.Append("THE PREVIOUS CLIP ENDED ON THIS SHOT — the film cuts straight from it into this clip:\n")
+              .Append(last).Append('\n')
+              .Append("[Shot 1] picks up that exact moment from a new angle: ")
+              .Append(castCount > 1
+                  ? "the same sides, the same facing, the same distance between them, "
+                  : "the same position, the same direction of travel, ")
+              .Append("the same grips, weapons, injuries, dirt and damage, and the motion that shot ended in still " +
+                      "under way. Never restart ")
+              .Append(castCount > 1 ? "the fight" : "the action")
+              .Append(", never reset anyone to a neutral stance, and never re-open on that shot's framing, because " +
+                      "the audience has just seen it.");
+
+            var score = Score(previousBody);
+            if (score.Length > 0)
+                sb.Append("\n\nTHE SCORE SO FAR — non_diegetic_music: continues this same cue with the same " +
+                          "instrumentation, and changes only its intensity with the action:\n").Append(score);
+
+            return sb.ToString();
         }
 
         /// <summary>The shot count and the cut times, and how the clip's last shot ends (§7, §12).</summary>
@@ -317,8 +482,8 @@ namespace FlipPix.UI.Services
                 ? "This is the story's last clip: its last shot may settle into the story's final state, with the " +
                   "camera still moving gently."
                 : $"The last shot runs to {H3ResearchPrompt.Timecode(seconds)} and its final state is still in " +
-                  "motion — a body moving, a camera travelling — on its way into the next clip. Never a held pose, " +
-                  "never a stare into the lens.");
+                  "motion — a blow on its way, a body moving, a camera travelling — on its way into the next clip, " +
+                  "on a different framing from [Shot 1]. Never a held pose, never a stare into the lens.");
             return sb.ToString();
         }
 
@@ -331,38 +496,78 @@ namespace FlipPix.UI.Services
             "direction, speed or amplitude, and the subject it follows); what physical or visual feedback the action " +
             "causes (dust, cloth, hair, sparks, debris, reflections, light); and what is heard.";
 
-        /// <summary>§11, §13 and §16's generic-language failures, in one line.</summary>
-        public const string ConcreteRule =
+        /// <summary>§11, §13 and §16's generic-language failures, in one line. A two-hander's per-shot workload is
+        /// <see cref="FightRule"/>'s exchange rather than one subject's action chain.</summary>
+        public static string ConcreteRule(int castCount) =>
             "CONCRETE, NOT GENERIC — never \"cinematic\", \"epic\", \"dynamic camera\" or \"cool effects\" in place of " +
             "an instruction someone could film. Light has a source, a direction and a behaviour on the surfaces it " +
-            "hits. Emotion is eyes, face, breath, posture, hands and what the subject is looking at. One main action " +
-            "chain per shot.";
+            "hits. Emotion is eyes, face, breath, posture, hands and what the subject is looking at." +
+            (castCount > 1 ? string.Empty : " One main action chain per shot.");
 
-        /// <summary>§12's screen direction. Fixed for the whole chain: the spec keeps direction consistent unless a
-        /// reversal is deliberate, and each clip here is rendered with no memory of the last.</summary>
-        public static string ScreenDirection(int castCount) => castCount > 1
-            ? "SCREEN DIRECTION — <Subject 1> starts on screen-left and <Subject 2> on screen-right, in every clip of " +
-              "this chain. Say where each is in any shot that holds both, and keep those sides unless the beat has " +
-              "one cross past the other — then describe the crossing."
+        /// <summary>
+        /// Where the fighters stand and which way they face (§12; Rule 16's held-apart positioning; Rule 26). The
+        /// sides are fixed for the whole chain, because each clip is rendered with no memory of the last.
+        ///
+        /// <para>Sides alone were not enough: a reference photograph is a frontal studio portrait, and a subject
+        /// the prompt never turns keeps facing where the photograph did, into the lens. So the facing is stated
+        /// for every shot that holds both, and the camera is kept on one side of the line between them.</para>
+        /// </summary>
+        public static string Blocking(int castCount) => castCount > 1
+            ? "BLOCKING — <Subject 1> holds screen-left and <Subject 2> screen-right, in every clip of this chain, and " +
+              "they FACE EACH OTHER: <Subject 1> turned toward screen-right, <Subject 2> toward screen-left, eyes " +
+              "locked on the opponent, bodies three-quarter to the camera so both faces read. Write it into every " +
+              "shot that holds both: where each one is, which way each faces, how far apart they are. Neither fighter " +
+              "faces the lens, turns their back on the other or stands beside the other looking the same way, unless " +
+              "the beat throws or spins one of them, and then say so and turn them back. The camera stays on one side " +
+              "of the line between them, so the sides never swap on a cut; a crossing is written out. In a single of " +
+              "one fighter, the other is just out of frame on their own side, and the eyeline goes there."
             : "SCREEN DIRECTION — keep <Subject 1>'s direction of travel the same from shot to shot unless the beat " +
               "turns them around, and say so when it does.";
 
-        /// <summary>§14: speaker IDs, sync, and the silence line H3 needs when nobody speaks.</summary>
+        /// <summary>A two-hander's workload per shot: one exchange with both fighters active (§8's action chain,
+        /// Rule 18's cause and effect). "One main action chain per shot" read as one fighter acting while the
+        /// other waited.</summary>
+        public const string FightRule =
+            "THE FIGHT — each shot holds ONE exchange, and both fighters work in it: the attack travels (the wind-up, " +
+            "the line the blow takes, its speed), the defender answers (blocks, slips, parries or takes it), the " +
+            "counter comes back, and the shot ends on what it did to them. Nobody stands still waiting for a turn. " +
+            "The exchanges get faster, harder and closer through the clip, and every hit that lands carries its " +
+            "consequence inside the same shot: the recoil, the stagger, the breath driven out, the grip lost, the " +
+            "blood. Use the space (walls, floor, furniture, rain), and what the fight breaks stays broken.";
+
+        /// <summary>§14's speaker IDs and sync; Issue 1's silence mandate; Issue 2 and Rule 19's single for a
+        /// spoken line. The beat's lines are spoken, and one short line may be added where the beat has none.</summary>
         public static string SpeechRule(int castCount)
         {
-            var silent = castCount > 1
+            var duo = castCount > 1;
+            var silent = duo
                 ? "<Subject 1> and <Subject 2> remain silent"
                 : "<Subject 1> remains silent";
+            var names = duo ? "CHARACTER N in the beat is <Subject N>" : "CHARACTER 1 in the beat is <Subject 1>";
+
             return
-                "SOUND AND SPEECH — write dialogue ONLY if the beat contains spoken words.\n" +
-                $"- No spoken words: in [Shot 1] write \"{silent}, and no voice, narration or voiceover is heard.\" " +
-                "and write no <d> tag anywhere.\n" +
-                "- Spoken words: give each speaker a stable speaker ID in the order they are first heard — (S1), then " +
-                "(S2) — and write the line inside its shot as <Subject N> (S1) says: <d>[English] the words</d>, about " +
-                "two words per second, the mouth moving in sync. A subject visible but not speaking during a line " +
-                "remains silent with the mouth closed.\n" +
-                "- Every sound in overall_soundscape: is tied to something visible in the shots — footsteps with the " +
-                "steps, the impact with the contact. No speech and no music there.";
+                $"DIALOGUE AND SOUND — the beat's quoted lines are spoken in this clip, word for word, each in the shot " +
+                $"where it lands; {names}. If the beat carries no line, you may give the clip one short line of at " +
+                "most ten words (a taunt, a threat, a demand) where the moment wants a voice, in the story's tone; " +
+                "otherwise the clip stays silent. Never narration.\n" +
+                "- Speaker IDs go in the order voices are first heard in this clip — (S1), then (S2) — whoever speaks " +
+                "first is (S1), and each keeps their ID in every shot.\n" +
+                (duo
+                    ? "- A line gets its own shot, framed on the speaker: a medium close-up of the speaker alone in " +
+                      "frame, still facing the opponent who is just out of frame on their own side, or over the " +
+                      "opponent's shoulder with the speaker's face toward the camera. Write it as <Subject N> (S1) " +
+                      "says: <d>[English] the words</d>, about two words a second with the mouth in sync, and write " +
+                      "that the other subject remains silent with the mouth closed. A line spoken in an open two-shot " +
+                      "comes out of the wrong face.\n" +
+                      "- In every shot without a line, both remain silent with their mouths closed. "
+                    : "- A line is framed at medium close-up or closer and written as <Subject 1> (S1) says: " +
+                      "<d>[English] the words</d>, about two words a second with the mouth in sync.\n" +
+                      "- In every shot without a line, the mouth stays closed. ") +
+                "Grunts, gasps and cries of effort are sounds for overall_soundscape:, never a <d> tag.\n" +
+                $"- A clip with no line at all says so once, in [Shot 1]: \"{silent}, and no voice, narration or " +
+                "voiceover is heard.\" and writes no <d> tag anywhere.\n" +
+                "- overall_soundscape: carries the ambience and the effects, each tied to something visible: the " +
+                "footfalls with the steps, the crack with the contact, cloth, breath. No speech and no music there.";
         }
 
         /// <summary>The whole per-clip rule block.</summary>
@@ -374,9 +579,10 @@ namespace FlipPix.UI.Services
             var sb = new StringBuilder();
             if (!hasContinuityPlan) sb.Append(H3ResearchPrompt.LightingLock(setting)).Append("\n\n");
             sb.Append(ShotPlan(seconds, shots, lastClip)).Append("\n\n");
+            sb.Append(Blocking(castCount)).Append("\n\n");
+            if (castCount > 1) sb.Append(FightRule).Append("\n\n");
             sb.Append(ShotQuestions).Append("\n\n");
-            sb.Append(ConcreteRule).Append("\n\n");
-            sb.Append(ScreenDirection(castCount)).Append("\n\n");
+            sb.Append(ConcreteRule(castCount)).Append("\n\n");
             sb.Append(SpeechRule(castCount));
             return sb.ToString();
         }
@@ -385,10 +591,12 @@ namespace FlipPix.UI.Services
         public static string DescribeRun(int clipCount, double seconds)
         {
             var shots = ShotCount(seconds);
-            return $"📐 Singularity spec prompts ON — {ClipSystemPromptFile}: six-section full-reference prompts " +
+            return $"📐 Singularity spec prompts ON — a fight-director beat sheet (exchanges and dialogue on one " +
+                   $"escalating arc), then {ClipSystemPromptFile}: six-section full-reference prompts " +
                    "(subject_definitions and retention_analysis written by code, the rest by the writer), " +
                    $"{shots} shots per {seconds.ToString("0.#", CultureInfo.InvariantCulture)}s clip (cuts at " +
-                   $"{string.Join(", ", H3ResearchPrompt.CutTimes(seconds, shots))}), <Subject N> tags, for all " +
+                   $"{string.Join(", ", H3ResearchPrompt.CutTimes(seconds, shots))}), fighters blocked facing each " +
+                   "other, each clip picking up the last shot of the one before, <Subject N> tags, for all " +
                    $"{clipCount} clip(s).";
         }
 

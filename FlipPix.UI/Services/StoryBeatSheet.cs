@@ -123,6 +123,10 @@ namespace FlipPix.UI.Services
         /// — <c>[EXT | the alley | night | heavy rain]</c> — so the chain has a plan for place, hour and
         /// light rather than a per-clip guess at them. Off by default: a caller that does not read
         /// <see cref="StoryBeat.Env"/> would only be paying for a longer reply.</param>
+        /// <param name="systemPrompt">A system prompt in place of <see cref="BuildSystem"/>'s script supervisor, for
+        /// a caller whose beats must carry more than the action — the 📐 spec build's fight director. It must ask
+        /// for the same reply shape, since <see cref="Parse"/> reads it. Null for everyone else.</param>
+        /// <param name="tokensPerBeat">Output budget per beat. A caller asking for longer beats raises it.</param>
         public static async Task<(string Setting, List<StoryBeat> Beats)> WriteAsync(
             LMStudioService lm,
             string model,
@@ -135,11 +139,13 @@ namespace FlipPix.UI.Services
             Action<string> log,
             CancellationToken token,
             string? extraRules = null,
-            bool continuity = false)
+            bool continuity = false,
+            string? systemPrompt = null,
+            int tokensPerBeat = 140)
         {
-            var system = BuildSystem(perBeatCast, continuity);
+            var system = systemPrompt ?? BuildSystem(perBeatCast, continuity);
             var user = BuildUser(story, clipCount, seconds, castBrief, perBeatCast, extraRules, continuity);
-            var maxTokens = Math.Min(8000, 800 + 140 * clipCount);
+            var maxTokens = Math.Min(8000, 800 + tokensPerBeat * clipCount);
 
             var setting = string.Empty;
             var beats = new List<(string Text, string Cast, string Env)>();
@@ -283,7 +289,7 @@ namespace FlipPix.UI.Services
         /// otherwise vary the environment for the reason a writer varies a word — to avoid repeating
         /// itself.</para>
         /// </summary>
-        private const string ContinuityRules =
+        internal const string ContinuityRules =
             "\n- End EVERY beat with the environment it happens in, in square brackets, in exactly this " +
             "shape: [EXT | <the place> | <time of day> | <weather and light>]. INT for indoors, EXT for " +
             "outdoors.\n" +

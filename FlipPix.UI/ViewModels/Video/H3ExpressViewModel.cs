@@ -985,8 +985,9 @@ namespace FlipPix.UI.ViewModels.Video
         protected override bool SpecPromptBuild => _specPrompts;
 
         public string SpecPromptsSummary => _specPrompts
-            ? "On — each clip in the spec's six sections: cast and reference roles written by code, 3–5 shots of " +
-              "action and camera chains, physical feedback, concrete light and synced sound. Replaces the 📚 build."
+            ? "On — a fight director turns the story into exchanges and dialogue on one escalating arc; each clip is " +
+              "written in the spec's six sections with the fighters facing each other, picking up the last shot of " +
+              "the clip before. Replaces the 📚 build."
             : "Off — the clips are written by the 📚 build above.";
 
         /// <summary>"3 of 12 clips rendered" for the story in flight.</summary>

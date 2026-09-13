@@ -41,20 +41,30 @@ namespace FlipPix.UI.ViewModels.Video
         private string NormalizeSpecClipBody(string raw) =>
             H3SpecPrompt.RenderWriterSections(H3SpecPrompt.ToSubjectTags(NormalizeClipBody(raw)));
 
-        /// <summary>The spec's own structure and cast checks, then the same hour-and-light check the other builds
-        /// get.</summary>
-        private string? ValidateSpecClip(string body, StoryContinuity.Environment environment) =>
-            H3SpecPrompt.Validate(body, SpecCastCount) ?? StoryContinuity.Contradiction(body, environment);
+        /// <summary>Whether this clip must speak its beat's quoted lines. A beat split across clips speaks them in
+        /// its last part only, or every part would say them again.</summary>
+        private static bool SpeaksBeatLines(StoryBeatSheet.StoryBeat beat) =>
+            H3SpecPrompt.BeatHasLines(beat.Text) && beat.Part == beat.PartCount;
+
+        /// <summary>The spec's own structure, cast and dialogue checks, then the same hour-and-light check the
+        /// other builds get.</summary>
+        private string? ValidateSpecClip(
+            string body, StoryContinuity.Environment environment, IReadOnlyList<StoryBeatSheet.StoryBeat> beats, int index) =>
+            H3SpecPrompt.Validate(body, SpecCastCount, index < beats.Count && SpeaksBeatLines(beats[index]))
+            ?? StoryContinuity.Contradiction(body, environment);
 
         /// <summary>
         /// One clip's user message for the spec build. The same context as the other builds' request — style,
         /// setting, continuity, cast, wardrobe, the neighbouring beats — with the cast named as subjects, the
-        /// spec's per-clip rules in place of the researched block, and the reason for a retry said out loud.
+        /// spec's per-clip rules in place of the researched block, the shot the previous clip actually ended on,
+        /// and the reason for a retry said out loud.
         /// </summary>
+        /// <param name="previousBody">The previous clip as its writer returned it, or null for the first clip and
+        /// for a clip whose predecessor came back empty.</param>
         private string BuildSpecClipRequest(
             string setting, IReadOnlyList<StoryBeatSheet.StoryBeat> beats,
             IReadOnlyList<StoryContinuity.Environment> environments, int index, int clipCount,
-            double seconds, int shots, string rejection)
+            double seconds, int shots, string rejection, string? previousBody)
         {
             var beat = beats[index];
             var environment = EnvironmentFor(environments, index);
@@ -78,15 +88,24 @@ namespace FlipPix.UI.ViewModels.Video
             var continuity = StoryContinuity.WriterBlock(environment, previousEnvironment);
             if (continuity.Length > 0) location += "\n\n" + continuity;
 
+            var handoff = index > 0 ? H3SpecPrompt.Handoff(previousBody, SpecCastCount) : string.Empty;
             var previous = index > 0
-                ? "THE CLIP BEFORE THIS ONE has already been rendered and showed this — do NOT show it " +
-                  $"again:\n{beats[index - 1].Text}"
-                : "This is the chain's FIRST clip: it opens the video, already in motion.";
+                ? "THE CLIP BEFORE THIS ONE played this beat — do NOT play it again:\n" + beats[index - 1].Text +
+                  "\n\n" + (handoff.Length > 0
+                      ? handoff
+                      : "Its shots are not available, so open [Shot 1] on the state that beat leaves the subjects in.")
+                : "This is the chain's FIRST clip: it opens the film, already in motion.";
 
             var next = !lastClip
-                ? "THE CLIP AFTER THIS ONE will show this — do NOT reach into it; end this clip mid-action, " +
+                ? "THE CLIP AFTER THIS ONE will play this — do NOT reach into it; end this clip mid-action, " +
                   $"on its way there:\n{beats[index + 1].Text}"
                 : "This is the chain's LAST clip: the story's final moment lands inside it.";
+
+            var lines = !H3SpecPrompt.BeatHasLines(beat.Text)
+                ? string.Empty
+                : SpeaksBeatLines(beat)
+                    ? " Speak every quoted line of it in this clip, word for word."
+                    : $" Its quoted lines are spoken in part {beat.PartCount} of {beat.PartCount}, not in this one.";
 
             var s = seconds.ToString("0.##", CultureInfo.InvariantCulture);
             var retry = rejection.Length > 0
@@ -106,8 +125,9 @@ namespace FlipPix.UI.ViewModels.Video
                                       hasContinuityPlan: !environment.IsEmpty, lastClip: lastClip) + "\n\n" +
                 $"THIS IS CLIP {index + 1} OF {clipCount}. It is {s} seconds long.\n\n" +
                 $"{previous}\n\n" +
-                $"THIS CLIP'S ACTION — expand ONLY this into continuous action chains, and fill the whole {s} " +
-                $"seconds with it:\n{beat.Text}{StoryBeatSheet.DescribePart(beat)}\n\n" +
+                $"THIS CLIP'S BEAT — direct it and fill the whole {s} seconds with it. Invent the blow-by-blow " +
+                "choreography inside it, but add no character, place or outcome it does not have:\n" +
+                $"{beat.Text}{StoryBeatSheet.DescribePart(beat)}{lines}\n\n" +
                 $"{next}\n\n" +
                 retry +
                 "Reply with summary:, detailed_description:, overall_soundscape: and non_diegetic_music:, each label " +
