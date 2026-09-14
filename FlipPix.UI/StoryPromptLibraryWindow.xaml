@@ -368,7 +368,7 @@
                                 <ctrl:SectionHeader Title="CLIPS" Margin="0"/>
                                 <TextBlock FontSize="10" Margin="12,2,0,0" TextWrapping="Wrap"
                                            Foreground="{StaticResource TextMutedBrush}"
-                                           Text="&lt;Picture 1&gt; and &lt;Picture 2&gt; are the cast. The reference line and wardrobe lock are added when a clip is queued."/>
+                                           Text="&lt;Picture 1&gt; and &lt;Picture 2&gt; are the cast. The reference line and wardrobe lock are added when a clip is queued. Type what a clip should do in the box under its heading and press 🔄 to have that one clip written again."/>
                             </StackPanel>
                             <Button Grid.Column="1" Content="＋ Add clip" Command="{Binding AddClipCommand}"
                                     Height="30" Padding="12,0" VerticalAlignment="Center"
@@ -442,6 +442,49 @@
                                                             CommandParameter="{Binding}" ToolTip="Remove this clip from the story."/>
                                                 </StackPanel>
                                             </Grid>
+                                            <!-- What this clip should do instead, and the button that writes it again. -->
+                                            <Grid Margin="0,0,0,8"
+                                                  Visibility="{Binding DataContext.CanRegenerateClips, RelativeSource={RelativeSource AncestorType=ItemsControl}, Converter={StaticResource BooleanToVisibilityConverter}}">
+                                                <Grid.ColumnDefinitions>
+                                                    <ColumnDefinition Width="*"/>
+                                                    <ColumnDefinition Width="Auto"/>
+                                                </Grid.ColumnDefinitions>
+                                                <Grid>
+                                                    <TextBox x:Name="DirectionBox"
+                                                             Text="{Binding Direction, UpdateSourceTrigger=PropertyChanged}"
+                                                             AcceptsReturn="True" TextWrapping="Wrap"
+                                                             MinHeight="32" MaxHeight="90"
+                                                             VerticalScrollBarVisibility="Auto"
+                                                             FontSize="11.5" Padding="8,6"
+                                                             Background="{StaticResource SurfaceBrush}"
+                                                             BorderBrush="{StaticResource BorderBrush}"
+                                                             ToolTip="What this clip should play instead, in your own words — the action, in order. Press 🔄 and the clip is written again to it: same cast, same clothes, same place, same length, and the clips either side untouched. The result lands in the box below as an unsaved edit."/>
+                                                    <TextBlock Text="What should this clip do? e.g. she ducks the swing and drives him into the shutter…"
+                                                               FontSize="11.5" Margin="10,0,8,0" VerticalAlignment="Top" Padding="0,7,0,0"
+                                                               IsHitTestVisible="False" TextTrimming="CharacterEllipsis"
+                                                               Foreground="{StaticResource TextMutedBrush}">
+                                                        <TextBlock.Style>
+                                                            <Style TargetType="TextBlock">
+                                                                <Setter Property="Visibility" Value="Collapsed"/>
+                                                                <Style.Triggers>
+                                                                    <DataTrigger Binding="{Binding Text, ElementName=DirectionBox}" Value="">
+                                                                        <Setter Property="Visibility" Value="Visible"/>
+                                                                    </DataTrigger>
+                                                                </Style.Triggers>
+                                                            </Style>
+                                                        </TextBlock.Style>
+                                                    </TextBlock>
+                                                </Grid>
+                                                <Button Grid.Column="1" Content="{Binding RegenerateLabel}"
+                                                        Command="{Binding DataContext.RegenerateClipCommand, RelativeSource={RelativeSource AncestorType=ItemsControl}}"
+                                                        CommandParameter="{Binding}"
+                                                        IsEnabled="{Binding CanRegenerate}"
+                                                        Height="32" Padding="12,0" Margin="8,0,0,0" FontSize="11"
+                                                        VerticalAlignment="Top"
+                                                        Style="{StaticResource AccentOutlineButtonStyle}"
+                                                        ToolTip="Write this one clip again, following the direction on the left as closely as it can. One call to the prompt writer; the other clips are not touched, and nothing is saved until 💾 Save."/>
+                                            </Grid>
+
                                             <TextBox Text="{Binding Text, UpdateSourceTrigger=PropertyChanged}"
                                                      AcceptsReturn="True" TextWrapping="Wrap"
                                                      VerticalScrollBarVisibility="Auto"
@@ -466,6 +509,7 @@
                 <ColumnDefinition Width="Auto"/>
                 <ColumnDefinition Width="Auto"/>
                 <ColumnDefinition Width="*"/>
+                <ColumnDefinition Width="Auto"/>
                 <ColumnDefinition Width="Auto"/>
                 <ColumnDefinition Width="Auto"/>
                 <ColumnDefinition Width="Auto"/>
@@ -507,7 +551,11 @@
                     Height="34" Padding="18,0" Margin="0,0,8,0" FontSize="13"
                     Style="{StaticResource AccentButtonStyle}"
                     ToolTip="Save this story's prompts (Ctrl+S). The version it replaces is kept in history."/>
-            <Button Grid.Column="5" Content="Close" Click="CloseButton_Click"
+            <Button Grid.Column="5" Content="⧉ Save as new…" Command="{Binding SaveAsNewCommand}"
+                    Height="34" Padding="14,0" Margin="0,0,8,0"
+                    Style="{StaticResource AccentOutlineButtonStyle}"
+                    ToolTip="Keep these clips as a second saved story under the name in the title box, leaving the original as it is. It is filed under its own name rather than the story's text, so the story file still renders the original — add the new one to the stories list from here to render it."/>
+            <Button Grid.Column="6" Content="Close" Click="CloseButton_Click"
                     Height="34" Padding="16,0"
                     Style="{StaticResource SecondaryButtonStyle}"/>
         </Grid>

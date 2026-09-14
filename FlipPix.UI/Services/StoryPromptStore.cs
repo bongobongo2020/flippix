@@ -91,6 +91,27 @@ namespace FlipPix.UI.Services
 
         private string PathFor(string hash) => Path.Combine(RootFolder, hash[..Math.Min(24, hash.Length)] + ".json");
 
+        /// <summary>
+        /// A key for a second set of prompts for the same story — what "Save as new" in 📚 Story Prompts files
+        /// its copy under.
+        ///
+        /// <para>A story's own key is the hash of its text, and only one set of prompts can be that story's. A
+        /// copy therefore gets a key of its own: the source's first twelve characters, so its ancestry is
+        /// readable in the folder, then a dash and ten random ones. The dash is what makes it impossible for a
+        /// copy to collide with a real story — <see cref="HashStory"/> returns hex and nothing else — and the
+        /// whole key is short enough to be its own file name (<see cref="PathFor"/> truncates at 24).</para>
+        ///
+        /// <para>Nothing looks a copy up by story text, so a copy is never handed to a story found in the
+        /// folder. It renders by being put on the stories list from the library, which carries its key.</para>
+        /// </summary>
+        public static string NewCopyKey(string? sourceHash)
+        {
+            var stem = (sourceHash ?? string.Empty).Replace("-", string.Empty);
+            if (stem.Length > 12) stem = stem[..12];
+            if (stem.Length == 0) stem = "copy";
+            return stem + "-" + Convert.ToHexString(RandomNumberGenerator.GetBytes(5)).ToLowerInvariant();
+        }
+
         // ── Reading ─────────────────────────────────────────────────────────────────────────────────
 
         /// <summary>Every saved story, most recently changed first. Copies — edit them, then
@@ -335,6 +356,7 @@ namespace FlipPix.UI.Services
                 if (!File.Exists(path)) return null;
                 var entry = JsonSerializer.Deserialize<SavedStoryPrompts>(File.ReadAllText(path));
                 if (entry == null || entry.Clips == null || entry.Clips.Count == 0) return null;
+                entry.ClipDirections ??= new List<string>();
                 entry.CastNouns ??= new List<string>();
                 return entry;
             }
@@ -387,6 +409,7 @@ namespace FlipPix.UI.Services
                     var entry = JsonSerializer.Deserialize<SavedStoryPrompts>(File.ReadAllText(file));
                     if (entry == null) continue;
                     entry.Clips ??= new List<string>();
+                    entry.ClipDirections ??= new List<string>();
                     entry.CastNouns ??= new List<string>();
                     if (string.IsNullOrEmpty(entry.StoryHash)) entry.StoryHash = HashStory(entry.StoryText);
                     if (entry.StoryHash.Length == 0 || entry.Clips.Count == 0) continue;

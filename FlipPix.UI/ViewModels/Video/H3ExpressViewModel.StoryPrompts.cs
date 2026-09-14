@@ -377,7 +377,12 @@ namespace FlipPix.UI.ViewModels.Video
             {
                 try
                 {
-                    saved = await StoryPrompts.FindAsync(StoryText, story?.Title ?? StoryTitle(), SourcePathOf(story));
+                    // A row put on the list from 📚 carries the key of the set it was added from, which for a
+                    // set saved under a new name is not the story's text hash. Look that row's own set up; only
+                    // a story read from the folder is matched by its text.
+                    saved = story is { IsFromLibrary: true, StoryHash.Length: > 0 }
+                        ? await StoryPrompts.FindByHashAsync(story.StoryHash)
+                        : await StoryPrompts.FindAsync(StoryText, story?.Title ?? StoryTitle(), SourcePathOf(story));
                 }
                 catch (Exception ex)
                 {
@@ -468,8 +473,12 @@ namespace FlipPix.UI.ViewModels.Video
         protected override async Task AnalyzeAsync()
         {
             var saved = _recalled;
+            // The story in the box must still be the one the set was recalled for. Its text hash says so for a
+            // story from the folder; for a saved story put on the list from 📚 — whose key may be its own rather
+            // than the text's, when it was saved under a new name — the row that recalled it says so.
             if (saved != null && ReuseSavedPrompts && HasStoryText &&
-                saved.StoryHash == StoryPromptStore.HashStory(StoryText))
+                (saved.StoryHash == StoryPromptStore.HashStory(StoryText) ||
+                 saved.StoryHash == CurrentStory?.StoryHash))
             {
                 await RecallStoryPromptsAsync(saved);
                 return;
@@ -552,9 +561,15 @@ namespace FlipPix.UI.ViewModels.Video
             if (clips.Count == 0) return;
 
             var story = CurrentStory;
+            // Written again for a saved story that came off the 📚 list: the new set replaces that row's own set,
+            // whose key may not be the story text's — writing it under the text's key would overwrite the story
+            // this one was saved as a new version of.
+            var hash = story is { IsFromLibrary: true, StoryHash.Length: > 0 }
+                ? story.StoryHash
+                : StoryPromptStore.HashStory(StoryText);
             var entry = new SavedStoryPrompts
             {
-                StoryHash = StoryPromptStore.HashStory(StoryText),
+                StoryHash = hash,
                 Title = story?.Title ?? StoryTitle(),
                 SourcePath = SourcePathOf(story) ?? string.Empty,
                 SourceFileName = story == null ? StoryFileName : story.IsFromLibrary ? string.Empty : story.FileName,
@@ -572,7 +587,7 @@ namespace FlipPix.UI.ViewModels.Video
 
             try
             {
-                var previous = await StoryPrompts.FindAsync(StoryText, adoptLegacy: false);
+                var previous = await StoryPrompts.FindByHashAsync(hash);
                 if (previous != null)
                 {
                     // A rename in the library outlives a rewrite, and so does where the story file was — a saved
@@ -580,6 +595,9 @@ namespace FlipPix.UI.ViewModels.Video
                     entry.Title = previous.Title;
                     entry.CreatedAt = previous.CreatedAt;
                     entry.UseCount = previous.UseCount;
+                    // A set saved under a new name stays one: it is still that story in another cut, and it must
+                    // not start being matched to the story file.
+                    entry.CopyOf = previous.CopyOf;
                     if (entry.SourcePath.Length == 0)
                     {
                         entry.SourcePath = previous.SourcePath;
@@ -696,7 +714,8 @@ namespace FlipPix.UI.ViewModels.Video
                     StoryPrompts,
                     () => Stories.Select(s => s.StoryHash).Where(h => h.Length > 0).ToList(),
                     AddLog,
-                    AddSavedStoryToRun);
+                    AddSavedStoryToRun,
+                    RewriteClipAsync);
                 var window = new StoryPromptLibraryWindow(vm)
                 {
                     Owner = Application.Current?.Windows.OfType<Window>().FirstOrDefault(w => w.IsActive)

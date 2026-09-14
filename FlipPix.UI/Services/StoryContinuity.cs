@@ -485,13 +485,28 @@ namespace FlipPix.UI.Services
         /// <para>Idempotent: a body already carrying a stamp has it replaced, so re-analysing or hand-editing
         /// a chain never stacks two environments on one clip.</para>
         /// </summary>
-        public static string StampScene(string body, Environment env)
+        public static string StampScene(string body, Environment env) =>
+            StampSceneText(body, SceneSentence(env));
+
+        /// <summary>The scene sentence a body already carries, or empty — what <see cref="StampScene"/> wrote
+        /// into it. Read off one clip so a rewrite of that clip can be stamped with the same words.</summary>
+        public static string SceneIn(string? body)
+        {
+            var match = Regex.Match(body ?? string.Empty, Regex.Escape(SceneMarker) + @"([^\[\n]*)");
+            return match.Success ? match.Groups[1].Value.Trim() : string.Empty;
+        }
+
+        /// <summary>
+        /// <see cref="StampScene"/> with the sentence already written — for a clip rewritten on its own, which
+        /// has no continuity plan to derive one from and must keep the one its neighbours were written with.
+        /// </summary>
+        public static string StampSceneText(string body, string? sceneSentence)
         {
             var text = (body ?? string.Empty);
             if (text.Length == 0) return text;
 
             text = StripScene(text);
-            var sentence = SceneSentence(env);
+            var sentence = (sceneSentence ?? string.Empty).Trim();
             if (sentence.Length == 0) return text;
 
             var stamp = SceneMarker + sentence + " ";

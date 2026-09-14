@@ -6,6 +6,7 @@ using System.Globalization;
 using System.IO;
 using System.Linq;
 using System.Text.RegularExpressions;
+using System.Threading;
 using System.Threading.Tasks;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
@@ -47,19 +48,28 @@ namespace FlipPix.UI.ViewModels
         private bool _reloadPending;
 
         private readonly Func<SavedStoryPrompts, bool>? _addToRun;
+        private readonly Func<ClipRewriteRequest, CancellationToken, Task<string>>? _rewriteClip;
+
+        /// <summary>One rewrite at a time: they all go to the same llama-server, and two clips of one story
+        /// being written at once makes each one's neighbour context a guess.</summary>
+        private bool _rewriting;
 
         /// <param name="folderHashes">The hashes of the stories on the tab's STORIES list right now, so the list
         /// here can mark which saved stories are already on it.</param>
         /// <param name="log">The tab's log — a save or a forget is worth a line there too.</param>
         /// <param name="addToRun">Puts a saved story on the tab's STORIES list; true when it was added. Null hides
         /// the buttons.</param>
+        /// <param name="rewriteClip">Writes one clip again to the direction typed under it. Null hides the 🔄
+        /// button.</param>
         public StoryPromptLibraryViewModel(StoryPromptStore store, Func<IReadOnlyCollection<string>> folderHashes,
-                                           Action<string> log, Func<SavedStoryPrompts, bool>? addToRun = null)
+                                           Action<string> log, Func<SavedStoryPrompts, bool>? addToRun = null,
+                                           Func<ClipRewriteRequest, CancellationToken, Task<string>>? rewriteClip = null)
         {
             _store = store;
             _folderHashes = folderHashes;
             _log = log;
             _addToRun = addToRun;
+            _rewriteClip = rewriteClip;
             Clips.CollectionChanged += (_, _) => RaiseEditorState();
         }
 
@@ -337,7 +347,7 @@ namespace FlipPix.UI.ViewModels
             (!string.Equals(EditorTitle.Trim(), _editing.Title, StringComparison.Ordinal) ||
              !string.Equals(EditorWardrobe.Trim(), (_editing.Wardrobe ?? string.Empty).Trim(), StringComparison.Ordinal) ||
              Clips.Count != _editing.Clips.Count ||
-             Clips.Any(c => c.IsEdited || c.IsNew));
+             Clips.Any(c => c.IsEdited || c.IsNew || c.IsDirectionEdited));
 
         public string DirtySummary
         {
@@ -355,6 +365,8 @@ namespace FlipPix.UI.ViewModels
                 if (!string.Equals(EditorWardrobe.Trim(), (_editing.Wardrobe ?? string.Empty).Trim(), StringComparison.Ordinal))
                     parts.Add("wardrobe changed");
                 if (!string.Equals(EditorTitle.Trim(), _editing.Title, StringComparison.Ordinal)) parts.Add("renamed");
+                var directed = Clips.Count(c => c.IsDirectionEdited && !c.IsEdited && !c.IsNew);
+                if (directed > 0) parts.Add($"{directed} direction note{(directed == 1 ? string.Empty : "s")}");
                 return "Unsaved: " + string.Join(", ", parts);
             }
         }
@@ -369,8 +381,10 @@ namespace FlipPix.UI.ViewModels
                 _editing = entry?.Clone();
                 if (_editing != null)
                 {
+                    var directions = _editing.ClipDirections;
                     for (var i = 0; i < _editing.Clips.Count; i++)
-                        AddClipRow(new ClipPromptRow(i + 1, _editing.Clips[i], isNew: false));
+                        AddClipRow(new ClipPromptRow(i + 1, _editing.Clips[i], isNew: false,
+                                                     direction: i < directions.Count ? directions[i] : null));
                 }
                 EditorTitle = _editing?.Title ?? string.Empty;
                 EditorWardrobe = _editing?.Wardrobe ?? string.Empty;
@@ -389,6 +403,7 @@ namespace FlipPix.UI.ViewModels
 
         private void AddClipRow(ClipPromptRow row, int at = -1)
         {
+            row.RegenerateOffered = CanRegenerateClips && !_rewriting;
             row.PropertyChanged += Clip_PropertyChanged;
             if (at < 0 || at >= Clips.Count) Clips.Add(row);
             else Clips.Insert(at, row);
@@ -396,7 +411,9 @@ namespace FlipPix.UI.ViewModels
 
         private void Clip_PropertyChanged(object? sender, PropertyChangedEventArgs e)
         {
-            if (e.PropertyName is nameof(ClipPromptRow.Text) or nameof(ClipPromptRow.IsEdited)) RaiseEditorState();
+            if (e.PropertyName is nameof(ClipPromptRow.Text) or nameof(ClipPromptRow.IsEdited)
+                                  or nameof(ClipPromptRow.IsDirectionEdited))
+                RaiseEditorState();
         }
 
         private void RaiseEditorState()
@@ -406,6 +423,7 @@ namespace FlipPix.UI.ViewModels
             OnPropertyChanged(nameof(DirtySummary));
             OnPropertyChanged(nameof(EditorFacts));
             SaveCommand.NotifyCanExecuteChanged();
+            SaveAsNewCommand.NotifyCanExecuteChanged();
             DiscardCommand.NotifyCanExecuteChanged();
             DeleteCommand.NotifyCanExecuteChanged();
             AddClipCommand.NotifyCanExecuteChanged();
@@ -431,13 +449,15 @@ namespace FlipPix.UI.ViewModels
         {
             if (_editing == null) return false;
 
-            var clips = Clips.Select(c => c.StoredText).Where(c => c.Length > 0).ToList();
+            var kept = Clips.Where(c => c.StoredText.Length > 0).ToList();
+            var clips = kept.Select(c => c.StoredText).ToList();
             if (clips.Count == 0) return false;
 
             var updated = _editing.Clone();
             updated.Title = EditorTitle.Trim().Length > 0 ? EditorTitle.Trim() : _editing.Title;
             updated.Wardrobe = EditorWardrobe.Trim();
             updated.Clips = clips;
+            updated.ClipDirections = DirectionsOf(kept);
             updated.EditedByHand = true;
             updated.ModifiedAt = DateTime.Now;
 
@@ -463,6 +483,84 @@ namespace FlipPix.UI.ViewModels
                 await LoadAsync();
             }
             return true;
+        }
+
+        /// <summary>The direction notes in clip order, with the empty tail dropped — a story nobody has typed a
+        /// note into saves no list at all.</summary>
+        private static List<string> DirectionsOf(IReadOnlyList<ClipPromptRow> rows)
+        {
+            var notes = rows.Select(r => r.Direction.Trim()).ToList();
+            while (notes.Count > 0 && notes[^1].Length == 0) notes.RemoveAt(notes.Count - 1);
+            return notes;
+        }
+
+        private bool CanSaveAsNew => _editing != null && Clips.Any(c => !string.IsNullOrWhiteSpace(c.Text));
+
+        /// <summary>
+        /// Files the editor as a <b>second</b> saved story under the name in the title box, leaving the one it
+        /// was opened from exactly as it is — a re-cut of a story you want to keep beside the original.
+        ///
+        /// <para>A copy cannot be filed under the story's own key: that key is the story's text, and only one set
+        /// of prompts can be the set for that text. It gets a key of its own (<see cref="StoryPromptStore.NewCopyKey"/>),
+        /// which means the folder scan will never hand it to the story's .txt — a copy is rendered by putting it
+        /// on the stories list from here, which carries its key to the render.</para>
+        /// </summary>
+        [RelayCommand(CanExecute = nameof(CanSaveAsNew))]
+        private async Task SaveAsNewAsync()
+        {
+            if (_editing == null) return;
+
+            var kept = Clips.Where(c => c.StoredText.Length > 0).ToList();
+            var clips = kept.Select(c => c.StoredText).ToList();
+            if (clips.Count == 0) return;
+
+            var source = _editing;
+            var name = EditorTitle.Trim();
+            if (name.Length == 0) name = source.Title;
+            // The same name twice in the list is two rows nobody can tell apart; renaming in the box first is the
+            // point of the button, so only say so when they did not.
+            if (string.Equals(name, source.Title, StringComparison.CurrentCultureIgnoreCase))
+                name = name + " (copy)";
+
+            var ask = $"Save these {clips.Count} clip prompt(s) as a new saved story called \"{name}\"?\n\n" +
+                      $"\"{source.Title}\" keeps the prompts it has now — this is a second version beside it, not a " +
+                      "replacement.\n\nIt is filed under its own name rather than under the story's text, so the " +
+                      "story's .txt in the folder still renders the original. To render this one, add it to the " +
+                      "stories list from here.";
+            if (Confirm?.Invoke(ask) != true) return;
+
+            var copy = source.Clone();
+            copy.StoryHash = StoryPromptStore.NewCopyKey(source.StoryHash);
+            copy.CopyOf = source.StoryHash;
+            copy.Title = name;
+            copy.Clips = clips;
+            copy.ClipDirections = DirectionsOf(kept);
+            copy.Wardrobe = EditorWardrobe.Trim();
+            copy.EditedByHand = true;
+            copy.Origin = $"Saved as a new version of \"{source.Title}\"";
+            copy.CreatedAt = DateTime.Now;
+            copy.ModifiedAt = DateTime.Now;
+            copy.UseCount = 0;
+            copy.LastUsedAt = null;
+
+            try
+            {
+                await _store.SaveAsync(copy);
+            }
+            catch (Exception ex)
+            {
+                _log($"📚 \"{name}\" could not be saved: {ex.Message}");
+                return;
+            }
+
+            _log($"📚 Saved \"{name}\" — a new version of \"{source.Title}\" with {clips.Count} clip prompt(s). " +
+                 "It is not matched to a story file: add it to the stories list to render it.");
+
+            // The editor moves to the copy: the edits are now saved, under the new name, and the story it came
+            // from is untouched on the list beside it.
+            _reloadPending = false;
+            LoadEditor(copy);
+            await LoadAsync(copy.StoryHash);
         }
 
         [RelayCommand(CanExecute = nameof(IsDirty))]
@@ -516,6 +614,73 @@ namespace FlipPix.UI.ViewModels
 
         [RelayCommand]
         private void RevertClip(ClipPromptRow? row) => row?.Revert();
+
+        // ── One clip, written again to a direction ──────────────────────────────────────────────────
+
+        /// <summary>Whether the 🔄 button is offered at all — it is the tab's clip writer doing the work, and a
+        /// window opened without it can still edit by hand.</summary>
+        public bool CanRegenerateClips => _rewriteClip != null;
+
+        /// <summary>
+        /// Writes one clip again so it plays what is typed in its direction box, and puts the result in that
+        /// clip's editor. <b>Nothing is saved</b>: the new text is an unsaved edit like any other, so 💾 Save
+        /// keeps it, Discard throws it away and ↺ puts the clip back to the version on disk.
+        /// </summary>
+        [RelayCommand]
+        private async Task RegenerateClipAsync(ClipPromptRow? row)
+        {
+            if (row == null || _rewriteClip == null || _editing == null) return;
+            if (_rewriting || !Clips.Contains(row)) return;
+            if (string.IsNullOrWhiteSpace(row.Direction))
+            {
+                _log("📚 Type what this clip should do in the box under its heading first, then press 🔄.");
+                return;
+            }
+
+            var index = Clips.IndexOf(row);
+            var request = new ClipRewriteRequest
+            {
+                Index = index,
+                ClipCount = Clips.Count,
+                Seconds = _editing.LengthSeconds,
+                Direction = row.Direction,
+                Body = row.StoredText,
+                Previous = index > 0 ? Clips[index - 1].StoredText : null,
+                Next = index + 1 < Clips.Count ? Clips[index + 1].StoredText : null,
+                Wardrobe = EditorWardrobe.Trim(),
+                CastNouns = _editing.CastNouns,
+                PromptBuild = _editing.PromptBuild,
+                Title = EditorTitle.Trim().Length > 0 ? EditorTitle.Trim() : _editing.Title,
+            };
+
+            SetRewriting(true, row);
+            try
+            {
+                var written = await _rewriteClip(request, CancellationToken.None);
+                // The editor may have moved on while the writer ran: a clip that is no longer on the board, or a
+                // board that is no longer this story's, must not be written into.
+                if (written.Length == 0 || !Clips.Contains(row)) return;
+                row.ApplyRewritten(written);
+            }
+            catch (OperationCanceledException) { }
+            catch (Exception ex)
+            {
+                _log($"📚 Clip {index + 1} could not be rewritten: {ex.Message}");
+            }
+            finally
+            {
+                SetRewriting(false, row);
+            }
+        }
+
+        /// <summary>One at a time: every clip's button is off while one is being written, and the one being
+        /// written says so.</summary>
+        private void SetRewriting(bool running, ClipPromptRow row)
+        {
+            _rewriting = running;
+            row.IsRegenerating = running;
+            foreach (var c in Clips) c.RegenerateOffered = CanRegenerateClips && !running;
+        }
 
         [RelayCommand]
         private void MoveClipUp(ClipPromptRow? row) => Move(row, -1);
@@ -676,6 +841,7 @@ namespace FlipPix.UI.ViewModels
 
         private readonly string _stored;
         private readonly string _original;
+        private readonly string _originalDirection;
         private readonly int _originalIndex;
 
         /// <summary>Per shot marker in the stored clip, in order: the exact whitespace in front of it, and
@@ -683,14 +849,17 @@ namespace FlipPix.UI.ViewModels
         private readonly List<(string Lead, bool Inserted)> _leads = new();
 
         /// <param name="text">The clip as stored.</param>
-        public ClipPromptRow(int index, string text, bool isNew)
+        /// <param name="direction">The note saved under this clip last time, if any.</param>
+        public ClipPromptRow(int index, string text, bool isNew, string? direction = null)
         {
             _originalIndex = index;
             _stored = (text ?? string.Empty).Trim();
             _original = ToDisplay(_stored);
+            _originalDirection = (direction ?? string.Empty).Trim();
             IsNew = isNew;
             Index = index;
             Text = _original;
+            Direction = _originalDirection;
         }
 
         /// <summary>
@@ -742,6 +911,44 @@ namespace FlipPix.UI.ViewModels
         [NotifyPropertyChangedFor(nameof(NamesCharacter1))]
         [NotifyPropertyChangedFor(nameof(NamesCharacter2))]
         private string _text = string.Empty;
+
+        /// <summary>
+        /// What the user wants this clip to do, in their words — the direction 🔄 writes the clip again to.
+        /// It is kept with the story (<see cref="SavedStoryPrompts.ClipDirections"/>) so the box is still
+        /// filled next time, and it never reaches a render: what renders is <see cref="Text"/>.
+        /// </summary>
+        [ObservableProperty]
+        [NotifyPropertyChangedFor(nameof(IsDirectionEdited))]
+        [NotifyPropertyChangedFor(nameof(CanRegenerate))]
+        private string _direction = string.Empty;
+
+        /// <summary>True while this clip is being written again.</summary>
+        [ObservableProperty]
+        [NotifyPropertyChangedFor(nameof(CanRegenerate))]
+        [NotifyPropertyChangedFor(nameof(RegenerateLabel))]
+        private bool _isRegenerating;
+
+        /// <summary>Set by the editor: whether 🔄 can be pressed at all right now — off while another clip is
+        /// being written, and off entirely when the window has no clip writer behind it.</summary>
+        [ObservableProperty]
+        [NotifyPropertyChangedFor(nameof(CanRegenerate))]
+        private bool _regenerateOffered;
+
+        public bool IsDirectionEdited =>
+            !string.Equals(Direction.Trim(), _originalDirection, StringComparison.Ordinal);
+
+        public bool CanRegenerate => RegenerateOffered && !IsRegenerating && Direction.Trim().Length > 0;
+
+        public string RegenerateLabel => IsRegenerating ? "✍ Writing…" : "🔄 Regenerate prompt for this clip";
+
+        /// <summary>Puts a clip written by the writer into the box, as the box shows a clip — one
+        /// <c>[Shot n]</c> per line, and the line breaks folded back out again when it is saved.</summary>
+        public void ApplyRewritten(string? storedBody)
+        {
+            var body = (storedBody ?? string.Empty).Trim();
+            if (body.Length == 0) return;
+            Text = ToDisplay(body);
+        }
 
         public string Header => $"CLIP {Index:00}";
 

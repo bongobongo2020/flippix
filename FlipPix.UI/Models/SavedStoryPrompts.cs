@@ -39,6 +39,14 @@ namespace FlipPix.UI.Models
         public List<string> Clips { get; set; } = new();
 
         /// <summary>
+        /// The note the user typed under each clip in 📚 Story Prompts — what that clip should do differently,
+        /// in their words — kept so the box is still filled in the next time the story is opened. Index-aligned
+        /// with <see cref="Clips"/>, shorter when the later clips have no note, and read by nothing but the
+        /// editor: it is direction for the rewrite, never part of a rendered prompt.
+        /// </summary>
+        public List<string> ClipDirections { get; set; } = new();
+
+        /// <summary>
         /// The wardrobe the clips were written against. Unlike the prompt library's entries, this one
         /// <b>is</b> put back on recall: the story is the same story, and its clip bodies describe these
         /// garments in their own prose, so a freshly derived wardrobe would dress the cast in one set of
@@ -74,11 +82,25 @@ namespace FlipPix.UI.Models
         /// <summary>How many renders have been started from these prompts instead of the clip writer.</summary>
         public int UseCount { get; set; }
 
+        /// <summary>
+        /// For a set saved under a new name from 📚 Story Prompts ("Save as new"), the
+        /// <see cref="StoryHash"/> of the set it was copied from; empty for every other entry.
+        ///
+        /// <para>A copy's key is <b>not</b> its story's text hash — two sets of prompts for one story cannot
+        /// both be it — so a copy is never matched to a story file found in the folder. It is reached by
+        /// name: put it on the stories list from the library, and the row carries its key to the render.</para>
+        /// </summary>
+        public string CopyOf { get; set; } = string.Empty;
+
+        /// <summary>True for a set saved under a new name from an existing one. See <see cref="CopyOf"/>.</summary>
+        public bool IsCopy => !string.IsNullOrEmpty(CopyOf);
+
         /// <summary>A copy that can be edited without touching the store's own.</summary>
         public SavedStoryPrompts Clone()
         {
             var copy = (SavedStoryPrompts)MemberwiseClone();
             copy.Clips = Clips.ToList();
+            copy.ClipDirections = ClipDirections.ToList();
             copy.CastNouns = CastNouns.ToList();
             return copy;
         }
