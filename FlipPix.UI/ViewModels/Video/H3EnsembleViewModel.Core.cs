@@ -55,8 +55,8 @@ namespace FlipPix.UI.ViewModels.Video
     /// </summary>
     public partial class H3EnsembleViewModel : VideoProcessingBaseViewModel
     {
-        // Workflow/output names are virtual so the 🪪🎬 H3 Multi tab — this same machinery on the
-        // MiniMax I2V turbo graph, see H3MultiViewModel — can substitute its own while inheriting everything else.
+        // Workflow/output names are virtual so a subclass rendering this same machinery through a
+        // different graph can substitute its own while inheriting everything else.
         /// <summary>The hybrid graph this tab renders through.</summary>
         protected virtual string WorkflowFileName => "workflow/video/h3-minimax/h3-cast-hybrid.json";
         private const string SheetWorkflowFileName = "workflow/image/qwen-edit/Qwen_Edit_2511_INT8_Convrot_WF.json";
