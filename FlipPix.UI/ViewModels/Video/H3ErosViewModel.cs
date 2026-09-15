@@ -1835,62 +1835,20 @@ namespace FlipPix.UI.ViewModels.Video
             var ts = DateTime.Now.ToString("yyyyMMdd_HHmmss");
             var clipTag = item.IsStoryClip ? $"_c{item.ClipIndex:00}" : string.Empty;
             var runToken = $"{RunTokenPrefix}_{ts}{clipTag}";
-            var (fw, fh) = H3Canvas.Resolve(item.AspectRatio, item.Megapixels, 32);
 
             var json = await LoadFileAsync(WorkflowFileName, token);
             var root = ParseGraph(json);
             ApplyCommonInputs(root, item, uploaded, prompt, len);
 
-            var (sampler, _, noise) = SampleBranches[chosen - 1];
-            SetInput(root, noise, "noise_seed", seed);
-
-            Link(root, NodeLatentSplit, "av_latent", sampler, DenoisedSlot);
-            // The graph's single-pass decode of the same latent — the author's "skip upscale" option. Nothing
-            // consumes it here, so the prune below removes it; it is repointed anyway so the graph never
-            // carries a link into a sampler that is about to be deleted.
-            Link(root, NodeSinglePassVideo, "samples", sampler, DenoisedSlot);
-            Link(root, NodeSinglePassAudio, "samples", sampler, DenoisedSlot);
-
-            // The upscale pass. Its own noise seed is fresh every finish — re-rolling it is how the authored
-            // graph offers variations of the same picked composition.
-            SetInput(root, NodeUpscaler, "mode", "megapixels");
-            SetInput(root, NodeUpscaler, "mode.megapixels", item.Megapixels);
-            SetInput(root, NodeUpscaleNoise, "noise_seed", System.Random.Shared.NextInt64(0, long.MaxValue));
-            Link(root, NodeUpscaleSampler, "sigmas",
-                 SigmaSchedules.TryGetValue(item.UpscaleSteps, out var sigmas) ? sigmas : SigmaSchedules[4], 0);
-
-            // Which decode feeds the mux, and whether RIFE stands between them.
-            var video = NodeUpscaledVideo;
-            var audio = NodeUpscaledAudio;
-            if (item.UseRife)
-            {
-                SetInput(root, NodeRife, "source_fps", (double)DraftFrameRate);
-                SetInput(root, NodeRife, "target_fps", (double)(DraftFrameRate * 2));
-                Link(root, NodeRife, "images", video, 0);
-                Link(root, NodeFinalSave, "images", NodeRife, 0);
-                SetInput(root, NodeFinalSave, "frame_rate", DraftFrameRate * 2);
-            }
-            else
-            {
-                Link(root, NodeFinalSave, "images", video, 0);
-                SetInput(root, NodeFinalSave, "frame_rate", DraftFrameRate);
-            }
-            Link(root, NodeFinalSave, "audio", audio, 0);
-            SetInput(root, NodeFinalSave, "save_output", true);
-            SetInput(root, NodeFinalSave, "filename_prefix", $"{OutputSubfolder}/{runToken}_final");
-
-            json = PruneToOutputs(root.ToJsonString(), new[] { NodeFinalSave }, out var pruned);
-            AddLog($"{row.Title}: finishing take {chosen} (seed {seed}, {item.UpscaleSteps} fixed sigmas " +
-                   $"at {fw}×{fh}, {(item.UseRife ? $"RIFE → {DraftFrameRate * 2}fps" : $"{DraftFrameRate}fps")}). " +
-                   $"Finish graph: the picked branch kept, {pruned} node(s) removed.");
-
+            var built = BuildFinish(root, row, item, chosen, seed, runToken);
+            var (fw, fh) = (built.Width, built.Height);
             var lease = await AcquireLeaseAsync($"{TabDisplayName} finish", token);
             try
             {
                 ProcessingStatus = NamesTakes
                     ? $"Upscaling {row.Title} take {chosen} to {fw}×{fh}..."
                     : $"Rendering {row.Title} at {fw}×{fh}...";
-                var local = await SubmitAndRetrieveAsync(json, $"{runToken}_final", NodeFinalSave,
+                var local = await SubmitAndRetrieveAsync(built.Json, $"{runToken}_final", built.Sink,
                                                          progressFrom, progressTo, token);
                 if (local == null || !File.Exists(local))
                     throw new Exception("No output video was generated.");
@@ -1925,6 +1883,79 @@ namespace FlipPix.UI.ViewModels.Video
             {
                 lease.Dispose();
             }
+        }
+
+        /// <summary>One clip's finish submission: the graph, already pruned to <see cref="Sink"/>, and the
+        /// canvas the file it produces will measure.</summary>
+        protected readonly record struct FinishSubmission(string Json, string Sink, int Width, int Height);
+
+        /// <summary>
+        /// Everything between <see cref="ApplyCommonInputs"/> and the submission: the picked branch's seed
+        /// written back, the second pass wired to it, RIFE in or out, the sink named, and the whole graph
+        /// pruned to what that sink can reach.
+        ///
+        /// <para>This is the part of a finish that belongs to the <b>stack</b> rather than to the tab. Both
+        /// stacks this class ships upscale in latent space off one of three hunted branches; a stack that
+        /// upscales in frame space, or relays one schedule across two samplers, has a different chain here
+        /// and no sigma schedules at all. A tab offering such a stack overrides this and keeps the naming,
+        /// the copy, the player and the log below it — which is the whole point of the seam.</para>
+        /// </summary>
+        protected virtual FinishSubmission BuildFinish(
+            JsonObject root, ErosHuntClip row, H3CastQueueItem item, int chosen, long seed, string runToken)
+        {
+            var (fw, fh) = H3Canvas.Resolve(item.AspectRatio, item.Megapixels, 32);
+            var (sampler, _, noise) = SampleBranches[chosen - 1];
+            SetInput(root, noise, "noise_seed", seed);
+
+            Link(root, NodeLatentSplit, "av_latent", sampler, DenoisedSlot);
+            // The graph's single-pass decode of the same latent — the author's "skip upscale" option. Nothing
+            // consumes it here, so the prune below removes it; it is repointed anyway so the graph never
+            // carries a link into a sampler that is about to be deleted.
+            Link(root, NodeSinglePassVideo, "samples", sampler, DenoisedSlot);
+            Link(root, NodeSinglePassAudio, "samples", sampler, DenoisedSlot);
+
+            // The upscale pass. Its own noise seed is fresh every finish — re-rolling it is how the authored
+            // graph offers variations of the same picked composition.
+            SetInput(root, NodeUpscaler, "mode", "megapixels");
+            SetInput(root, NodeUpscaler, "mode.megapixels", item.Megapixels);
+            SetInput(root, NodeUpscaleNoise, "noise_seed", System.Random.Shared.NextInt64(0, long.MaxValue));
+            Link(root, NodeUpscaleSampler, "sigmas",
+                 SigmaSchedules.TryGetValue(item.UpscaleSteps, out var sigmas) ? sigmas : SigmaSchedules[4], 0);
+
+            // Which decode feeds the mux, and whether RIFE stands between them.
+            WireSink(root, item, NodeUpscaledVideo, NodeUpscaledAudio, runToken);
+
+            var json = PruneToOutputs(root.ToJsonString(), new[] { NodeFinalSave }, out var pruned);
+            AddLog($"{row.Title}: finishing take {chosen} (seed {seed}, {item.UpscaleSteps} fixed sigmas " +
+                   $"at {fw}×{fh}, {(item.UseRife ? $"RIFE → {DraftFrameRate * 2}fps" : $"{DraftFrameRate}fps")}). " +
+                   $"Finish graph: the picked branch kept, {pruned} node(s) removed.");
+            return new FinishSubmission(json, NodeFinalSave, fw, fh);
+        }
+
+        /// <summary>
+        /// Points the final mux at the decodes that feed it, with RIFE in the chain or relinked out of it,
+        /// and names the file. Shared by every stack's finish: the sink, its frame rate and the run token
+        /// are the tab's, whatever produced the frames.
+        /// </summary>
+        protected void WireSink(JsonObject root, H3CastQueueItem item, string video, string audio,
+                                string runToken)
+        {
+            if (item.UseRife)
+            {
+                SetInput(root, NodeRife, "source_fps", (double)DraftFrameRate);
+                SetInput(root, NodeRife, "target_fps", (double)(DraftFrameRate * 2));
+                Link(root, NodeRife, "images", video, 0);
+                Link(root, NodeFinalSave, "images", NodeRife, 0);
+                SetInput(root, NodeFinalSave, "frame_rate", DraftFrameRate * 2);
+            }
+            else
+            {
+                Link(root, NodeFinalSave, "images", video, 0);
+                SetInput(root, NodeFinalSave, "frame_rate", DraftFrameRate);
+            }
+            Link(root, NodeFinalSave, "audio", audio, 0);
+            SetInput(root, NodeFinalSave, "save_output", true);
+            SetInput(root, NodeFinalSave, "filename_prefix", $"{OutputSubfolder}/{runToken}_final");
         }
 
         // ── Graph patching ──────────────────────────────────────────────────────────────────────────
@@ -1980,9 +2011,10 @@ namespace FlipPix.UI.ViewModels.Video
             // ResolutionSelector sizes the drafts only; the finished size is the upscaler's target and is set
             // in the finish. Aspects the node's combo does not accept are resolved here and fed in as two
             // PrimitiveInt nodes standing where its width and height outputs were.
+            var mp = SampledMegapixels(item);
             if (H3Canvas.RequiresLiteralCanvas(item.AspectRatio))
             {
-                var (cw, ch) = H3Canvas.Resolve(item.AspectRatio, item.PreviewMegapixels, 32);
+                var (cw, ch) = H3Canvas.Resolve(item.AspectRatio, mp, 32);
                 root[NodeCanvasWidth] = IntNode(cw, "Draft width");
                 root[NodeCanvasHeight] = IntNode(ch, "Draft height");
                 Retarget(root, NodeResolution, 0, NodeCanvasWidth);
@@ -1991,10 +2023,21 @@ namespace FlipPix.UI.ViewModels.Video
             else
             {
                 SetInput(root, NodeResolution, "aspect_ratio", item.AspectRatio);
-                SetInput(root, NodeResolution, "megapixels", item.PreviewMegapixels);
+                SetInput(root, NodeResolution, "megapixels", mp);
                 SetInput(root, NodeResolution, "multiple", 32);
             }
         }
+
+        /// <summary>
+        /// The megapixel budget the first pass actually samples at — the drafts' own size on the two stacks
+        /// this class ships, which is why it is the preview dial and not the quality one.
+        ///
+        /// <para>Virtual because that is only true of a stack that <i>upscales the latent</i>: a stack whose
+        /// finish is a frame-space upscale of the sampled canvas has no draft, and must sample at a real
+        /// size instead. Read by the one method both sweeps call, so a hunt and its finish can never
+        /// disagree about it.</para>
+        /// </summary>
+        protected virtual double SampledMegapixels(H3CastQueueItem item) => item.PreviewMegapixels;
 
         protected static JsonObject ParseGraph(string json) =>
             JsonNode.Parse(json)?.AsObject()

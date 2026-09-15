@@ -8193,17 +8193,32 @@
                                             <StackPanel>
                                                 <ctrl:SectionHeader Title="RENDER" Note="  · applies to every story" Margin="0,0,0,10"/>
 
-                                                <CheckBox Content="✴️ Singularity stack" IsChecked="{Binding UseSingularity}"
-                                                          IsEnabled="{Binding CanChangeWorkflow}"
-                                                          FontSize="11" FontWeight="SemiBold" Margin="0,0,0,2"
-                                                          Foreground="{StaticResource TextPrimaryBrush}"
-                                                          ToolTip="Sample every clip on h3-singularity.json (the Singularity ref2va checkpoint, euler/simple at 10 steps). Untick for the H3 Eros stack. Locked while anything is rendering, so a folder cannot come out half on each."/>
+                                                <TextBlock Text="Sampling stack" FontSize="10" FontWeight="SemiBold" Margin="0,0,0,4"
+                                                           Foreground="{StaticResource TextSecondaryBrush}"/>
+                                                <RadioButton Content="✴️ Singularity" GroupName="ExpressStack"
+                                                             IsChecked="{Binding StackIsSingularity, Mode=TwoWay}"
+                                                             IsEnabled="{Binding CanChangeWorkflow}"
+                                                             FontSize="11" Margin="0,0,0,2"
+                                                             Foreground="{StaticResource TextPrimaryBrush}"
+                                                             ToolTip="Sample every clip on h3-singularity.json (the Singularity ref2va checkpoint, euler/simple at 10 steps), composed at the draft canvas and lifted to the quality one by the 3D latent upscaler. Locked while anything is rendering, so a folder cannot come out half on one stack and half on another."/>
                                                 <CheckBox Content="er_sde/beta sampler (keep the sigma shift)" IsChecked="{Binding SingularityErSde}"
                                                           IsEnabled="{Binding CanChangeWorkflow}"
-                                                          Visibility="{Binding UseSingularity, Converter={StaticResource BooleanToVisibilityConverter}}"
+                                                          Visibility="{Binding StackIsSingularity, Converter={StaticResource BooleanToVisibilityConverter}}"
                                                           FontSize="11" Margin="20,2,0,2"
                                                           Foreground="{StaticResource TextPrimaryBrush}"
                                                           ToolTip="Keep the Singularity graph — checkpoint, patches and the 12/3 sigma shift — but sample it the H3 Eros way: er_sde/beta at 12 steps, and er_sde on the upscale pass. Euler/simple at 10 is the author's setting and tends to come out softer; this is untested on that checkpoint. Locked while anything is rendering."/>
+                                                <RadioButton Content="🍥 TaoMate relay" GroupName="ExpressStack"
+                                                             IsChecked="{Binding StackIsTaoMate, Mode=TwoWay}"
+                                                             IsEnabled="{Binding CanChangeWorkflow}"
+                                                             FontSize="11" Margin="0,2,0,2"
+                                                             Foreground="{StaticResource TextPrimaryBrush}"
+                                                             ToolTip="Sample every clip on h3-taomate.json — the author's TaoMate render. One ten-step linear/euler/beta57 schedule is split across two samplers: six steps on the fl2va checkpoint with comfy-kitchen attention and the 12/6 sigma shift, then the rest resampled on the TaoMate 3-step LoRA at 0.65. There is no draft canvas: the clip is painted at the Quality size and the finished frames are upscaled ×2 by RTX Video Super Resolution instead of the latent being lifted, so the file is twice the Quality canvas in each direction and the render costs more per clip. The cast, the sheets, the clip prompts and the join are unchanged. Locked while anything is rendering."/>
+                                                <RadioButton Content="🌹 H3 Eros" GroupName="ExpressStack"
+                                                             IsChecked="{Binding StackIsEros, Mode=TwoWay}"
+                                                             IsEnabled="{Binding CanChangeWorkflow}"
+                                                             FontSize="11" Margin="0,2,0,2"
+                                                             Foreground="{StaticResource TextPrimaryBrush}"
+                                                             ToolTip="Sample every clip on h3-eros.json — the 10Eros hybrid checkpoint, er_sde/beta at 12 steps — composed at the draft canvas and lifted to the quality one by the 3D latent upscaler. Locked while anything is rendering."/>
                                                 <TextBlock Text="{Binding StackSummary}" FontSize="10" TextWrapping="Wrap"
                                                            Foreground="{StaticResource TextMutedBrush}" Margin="20,0,0,10"/>
 
@@ -8238,7 +8253,7 @@
                                                           DisplayMemberPath="Label" SelectedValuePath="Value"
                                                           SelectedValue="{Binding Megapixels}"
                                                           Height="30" FontSize="11" Margin="0,0,0,12"
-                                                          ToolTip="The finished canvas every clip is upscaled to."/>
+                                                          ToolTip="On the Singularity and H3 Eros stacks, the finished canvas every clip is upscaled to. On 🍥 TaoMate there is no draft, so this is the canvas the model paints and the file lands at twice it in each direction — see the line under the stack."/>
 
                                                 <Grid Margin="0,0,0,2">
                                                     <Grid.ColumnDefinitions>
@@ -8291,7 +8306,7 @@
                                                                       DisplayMemberPath="Label" SelectedValuePath="Value"
                                                                       SelectedValue="{Binding SelectedDiffusionModel}"
                                                                       Height="30" FontSize="11" Margin="0,0,6,0"
-                                                                      ToolTip="The H3 checkpoint, from diffusion_models/h3-minimax on the server. Ticking Singularity moves this to the Singularity checkpoint."/>
+                                                                      ToolTip="The H3 checkpoint, from diffusion_models/h3-minimax on the server. Picking a stack above moves this to that stack's own checkpoint; change it afterwards and the choice sticks."/>
                                                             <Button Grid.Column="1" Content="&#x27F3;" Width="30" Height="30" FontSize="13"
                                                                     Command="{Binding RefreshDiffusionModelsCommand}"
                                                                     Background="{StaticResource SurfaceAltBrush}" Foreground="{DynamicResource TabAccentBrush}"
@@ -8355,18 +8370,23 @@
                                                                   Height="30" FontSize="11" Margin="0,0,0,10"
                                                                   ToolTip="The medium every clip is written in. Auto lets the writer choose from the story."/>
 
-                                                        <TextBlock Text="Composition canvas" FontSize="10" Foreground="{StaticResource TextSecondaryBrush}" Margin="0,0,0,4"/>
-                                                        <ComboBox ItemsSource="{Binding PreviewMegapixelOptions}"
-                                                                  DisplayMemberPath="Label" SelectedValuePath="Value"
-                                                                  SelectedValue="{Binding PreviewMegapixels}"
-                                                                  Height="30" FontSize="11" Margin="0,0,0,10"
-                                                                  ToolTip="The small canvas each clip is first sampled at, before it is upscaled to the Quality above in the same render."/>
+                                                        <!-- Both of these belong to a latent-upscale finish. 🍥 TaoMate paints at the
+                                                             Quality canvas and upscales the frames, so it has neither a draft to size
+                                                             nor a sigma schedule to pick — they are hidden rather than left to lie. -->
+                                                        <StackPanel Visibility="{Binding UsesDraftCanvas, Converter={StaticResource BooleanToVisibilityConverter}}">
+                                                            <TextBlock Text="Composition canvas" FontSize="10" Foreground="{StaticResource TextSecondaryBrush}" Margin="0,0,0,4"/>
+                                                            <ComboBox ItemsSource="{Binding PreviewMegapixelOptions}"
+                                                                      DisplayMemberPath="Label" SelectedValuePath="Value"
+                                                                      SelectedValue="{Binding PreviewMegapixels}"
+                                                                      Height="30" FontSize="11" Margin="0,0,0,10"
+                                                                      ToolTip="The small canvas each clip is first sampled at, before it is upscaled to the Quality above in the same render."/>
 
-                                                        <TextBlock Text="Upscale steps" FontSize="10" Foreground="{StaticResource TextSecondaryBrush}" Margin="0,0,0,4"/>
-                                                        <ComboBox ItemsSource="{Binding UpscaleStepOptions}"
-                                                                  SelectedItem="{Binding UpscaleSteps}"
-                                                                  Height="30" FontSize="11" Margin="0,0,0,10"
-                                                                  ToolTip="Fixed sigmas on the finishing pass. 4 is the default; 3 is quicker, 5 adds detail."/>
+                                                            <TextBlock Text="Upscale steps" FontSize="10" Foreground="{StaticResource TextSecondaryBrush}" Margin="0,0,0,4"/>
+                                                            <ComboBox ItemsSource="{Binding UpscaleStepOptions}"
+                                                                      SelectedItem="{Binding UpscaleSteps}"
+                                                                      Height="30" FontSize="11" Margin="0,0,0,10"
+                                                                      ToolTip="Fixed sigmas on the finishing pass. 4 is the default; 3 is quicker, 5 adds detail."/>
+                                                        </StackPanel>
 
                                                         <CheckBox Content="RIFE interpolation (24 → 48 fps)" IsChecked="{Binding UseRife}"
                                                                   FontSize="11" Foreground="{StaticResource TextPrimaryBrush}"/>

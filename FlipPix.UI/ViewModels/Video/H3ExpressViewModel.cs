@@ -78,6 +78,7 @@ namespace FlipPix.UI.ViewModels.Video
             UnqueueClipCommand = new RelayCommand(UnqueueSelectedClip,
                                                   () => SelectedClip != null && IsQueued(SelectedClip));
 
+            InitTaoMate();
             InitStoryPrompts();
             InitCast();
 
@@ -922,9 +923,17 @@ namespace FlipPix.UI.ViewModels.Video
         {
             get
             {
+                var fps = UseRife ? $"RIFE → {DraftFrameRate * 2} fps" : $"{DraftFrameRate} fps";
+                if (UseTaoMate)
+                {
+                    // No draft: the relay paints at the quality canvas and RTX doubles the frames.
+                    var (sw, sh) = H3Canvas.Resolve(ResolvedAspectRatio, Megapixels, 32);
+                    return $"One render per clip: relayed at ≈{sw}×{sh} ({Megapixels:0.##} MP), " +
+                           $"RTX ×{TaoMateUpscale:0.#} to ≈{sw * 2}×{sh * 2} ({fps}), then joined.";
+                }
+
                 var (dw, dh) = H3Canvas.Resolve(ResolvedAspectRatio, PreviewMegapixels, 32);
                 var (fw, fh) = H3Canvas.Resolve(ResolvedAspectRatio, Megapixels, 32);
-                var fps = UseRife ? $"RIFE → {DraftFrameRate * 2} fps" : $"{DraftFrameRate} fps";
                 return $"One render per clip: composed at ≈{dw}×{dh}, upscaled to ≈{fw}×{fh} " +
                        $"({UpscaleSteps} finishing steps, {fps}), then joined.";
             }
@@ -934,11 +943,14 @@ namespace FlipPix.UI.ViewModels.Video
 
         public string RunButtonText => IsBatchRunning ? "⚡ Rendering…" : "⚡ Render every story";
 
-        public string StackSummary => !UseSingularity
-            ? $"H3 Eros hybrid checkpoint · er_sde/beta · {FirstPassSteps} steps"
-            : SingularityErSde
-                ? $"Singularity ref2va checkpoint · er_sde/beta + sigma shift · {FirstPassSteps} steps"
-                : $"Singularity ref2va checkpoint · euler/simple · {FirstPassSteps} steps";
+        public string StackSummary => UseTaoMate
+            ? $"TaoMate relay · fl2va checkpoint · linear/euler/beta57 · {TaoMateSteps} steps, " +
+              $"6 then the TaoMate LoRA · RTX ×{TaoMateUpscale:0.#} finish"
+            : !UseSingularity
+                ? $"H3 Eros hybrid checkpoint · er_sde/beta · {FirstPassSteps} steps"
+                : SingularityErSde
+                    ? $"Singularity ref2va checkpoint · er_sde/beta + sigma shift · {FirstPassSteps} steps"
+                    : $"Singularity ref2va checkpoint · euler/simple · {FirstPassSteps} steps";
 
         public string PromptBuildSummary => _specPrompts
             ? "Not used while 📐 Singularity spec prompts is on."

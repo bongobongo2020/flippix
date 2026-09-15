@@ -224,6 +224,11 @@ public class ComfyUISettings
     public string H3ExpressDiffusionModel { get; set; } = string.Empty;
     public bool H3ExpressUseSingularity { get; set; } = true;
     public bool H3ExpressSingularityErSde { get; set; }
+    // 🍥 The third stack: the author's TaoMate relay (h3-taomate.json) — one ten-step schedule handed from
+    // the base weights to the TaoMate 3-step LoRA halfway through, finished with an RTX frame-space upscale
+    // instead of a latent one. Mutually exclusive with Singularity above; the Express tab's radio group
+    // keeps the two in step, and this wins if both are somehow set.
+    public bool H3ExpressUseTaoMate { get; set; }
     // An optional LoRA from loras/H3, spliced onto whichever checkpoint the tab samples. Empty is none.
     public string H3ExpressLora { get; set; } = string.Empty;
     public double H3ExpressLoraStrength { get; set; } = 1.0;

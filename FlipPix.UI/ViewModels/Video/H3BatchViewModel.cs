@@ -563,7 +563,32 @@ namespace FlipPix.UI.ViewModels.Video
         /// select a model the ComboBox has no row for, and the dropdown would go blank while the render
         /// path used a checkpoint nothing on screen names.</para>
         /// </summary>
-        private void OfferShippedModel()
+        /// <summary>
+        /// Turns ✴️ off <b>quietly</b> — without the log line the checkbox writes and without moving the
+        /// model dropdown.
+        ///
+        /// <para>For a fork whose own stack switch is taking the render over and is about to say so itself:
+        /// going through the property would announce a return to the Eros stack that is not happening, and
+        /// would park the dropdown on the Eros checkpoint for the one statement it takes the new stack to
+        /// move it again.</para>
+        /// </summary>
+        protected void ClearSingularity()
+        {
+            if (!_useSingularity) return;
+            _useSingularity = false;
+            OnPropertyChanged(nameof(UseSingularity));
+            OnPropertyChanged(nameof(UseSingularitySummary));
+            OnPropertyChanged(nameof(HuntSummary));
+
+            var settings = _settingsService.Settings;
+            if (settings != null)
+            {
+                StoreUseSingularity(settings, false);
+                _settingsService.SaveSettings(settings);
+            }
+        }
+
+        protected void OfferShippedModel()
         {
             var name = ShippedModel;
             if (DiffusionModelOptions.Any(o => string.Equals(o.Value, name, StringComparison.OrdinalIgnoreCase)))
