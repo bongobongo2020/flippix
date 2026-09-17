@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.Collections.ObjectModel;
 using System.ComponentModel;
@@ -604,9 +604,6 @@ namespace FlipPix.UI.ViewModels
         private void RemoveClip(ClipPromptRow? row)
         {
             if (row == null || !Clips.Contains(row)) return;
-            if (!string.IsNullOrWhiteSpace(row.Text) &&
-                Confirm?.Invoke($"Remove clip {row.Index} from this story? Nothing is saved until you press Save.") != true)
-                return;
             row.PropertyChanged -= Clip_PropertyChanged;
             Clips.Remove(row);
             Renumber();
