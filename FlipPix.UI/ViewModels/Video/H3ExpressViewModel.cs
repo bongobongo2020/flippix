@@ -79,6 +79,7 @@ namespace FlipPix.UI.ViewModels.Video
                                                   () => SelectedClip != null && IsQueued(SelectedClip));
 
             InitTaoMate();
+            InitSteps();
             InitStoryPrompts();
             InitCast();
 
@@ -103,6 +104,16 @@ namespace FlipPix.UI.ViewModels.Video
                     case nameof(UseSingularity):
                     case nameof(SingularityErSde):
                         OnPropertyChanged(nameof(StackSummary));
+                        // Both change what "authored" means for the loaded checkpoint, and ✴️'s sub-option
+                        // changes it without moving the model dropdown at all.
+                        RaiseStepsState();
+                        break;
+                    case nameof(SelectedDiffusionModel):
+                        // Steps are remembered per checkpoint — bring this one's own count back.
+                        OnStepsModelChanged();
+                        break;
+                    case nameof(CanChangeWorkflow):
+                        ResetStepsCommand.NotifyCanExecuteChanged();
                         break;
                     case nameof(ResearchPrompts):
                         OnPropertyChanged(nameof(PromptBuildSummary));
@@ -944,7 +955,7 @@ namespace FlipPix.UI.ViewModels.Video
         public string RunButtonText => IsBatchRunning ? "⚡ Rendering…" : "⚡ Render every story";
 
         public string StackSummary => UseTaoMate
-            ? $"TaoMate relay · fl2va checkpoint · linear/euler/beta57 · {TaoMateSteps} steps, " +
+            ? $"TaoMate relay · fl2va checkpoint · linear/euler/beta57 · {FirstPassSteps} steps, " +
               $"6 then the TaoMate LoRA · RTX ×{TaoMateUpscale:0.#} finish"
             : !UseSingularity
                 ? $"H3 Eros hybrid checkpoint · er_sde/beta · {FirstPassSteps} steps"

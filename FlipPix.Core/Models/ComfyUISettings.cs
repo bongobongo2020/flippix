@@ -229,6 +229,12 @@ public class ComfyUISettings
     // instead of a latent one. Mutually exclusive with Singularity above; the Express tab's radio group
     // keeps the two in step, and this wins if both are somehow set.
     public bool H3ExpressUseTaoMate { get; set; }
+    // Sampling steps per checkpoint: the first-pass step count the Express tab renders with, keyed by the
+    // model name it was set for (lowercased, forward slashes). A checkpoint that has never been set is not
+    // in here at all and renders at the step count its stack was authored at — Singularity's 10, the Eros
+    // hybrid's 12, the TaoMate relay's 10 — so this only ever holds the counts that were chosen on purpose.
+    public Dictionary<string, int> H3ExpressStepsByModel { get; set; } = new();
+
     // An optional LoRA from loras/H3, spliced onto whichever checkpoint the tab samples. Empty is none.
     public string H3ExpressLora { get; set; } = string.Empty;
     public double H3ExpressLoraStrength { get; set; } = 1.0;

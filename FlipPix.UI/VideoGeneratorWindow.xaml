@@ -2678,6 +2678,42 @@
                                                 <TextBlock Text="{Binding StackSummary}" FontSize="10" TextWrapping="Wrap"
                                                            Foreground="{StaticResource TextMutedBrush}" Margin="20,0,0,10"/>
 
+                                                <!-- Sampling steps. Per checkpoint and remembered, so each
+                                                     stack keeps its own count; frozen with the stack above,
+                                                     since the render reads it as each clip's graph is built. -->
+                                                <Grid Margin="0,0,0,2">
+                                                    <Grid.ColumnDefinitions>
+                                                        <ColumnDefinition Width="*"/>
+                                                        <ColumnDefinition Width="Auto"/>
+                                                        <ColumnDefinition Width="Auto"/>
+                                                    </Grid.ColumnDefinitions>
+                                                    <TextBlock Text="Sampling steps" FontSize="10" VerticalAlignment="Center"
+                                                               Foreground="{StaticResource TextSecondaryBrush}"/>
+                                                    <Border Grid.Column="1" Background="{StaticResource SurfaceAltBrush}" CornerRadius="4" Padding="8,1">
+                                                        <TextBlock Text="{Binding FirstPassStepCount}"
+                                                                   FontFamily="Consolas" FontSize="12" FontWeight="Bold"
+                                                                   Foreground="{DynamicResource TabAccentBrush}"/>
+                                                    </Border>
+                                                    <Button Grid.Column="2" Content="&#x21BA;" Width="22" Height="20" FontSize="11"
+                                                            Margin="6,0,0,0" Padding="0"
+                                                            Command="{Binding ResetStepsCommand}"
+                                                            Visibility="{Binding HasStepsOverride, Converter={StaticResource BooleanToVisibilityConverter}}"
+                                                            Background="{StaticResource SurfaceAltBrush}" Foreground="{DynamicResource TabAccentBrush}"
+                                                            BorderBrush="{StaticResource BorderBrush}" BorderThickness="1"
+                                                            ToolTip="Back to the count this stack is authored at, and forget the one saved for this checkpoint."/>
+                                                </Grid>
+                                                <!-- Minimum and Maximum before Value on purpose: a Slider still
+                                                     holding its 0-10 defaults would coerce a 12-step count down to
+                                                     10 and write that back through the two-way binding. -->
+                                                <Slider Minimum="{Binding MinStepsForStack}" Maximum="30"
+                                                        Value="{Binding FirstPassStepCount}"
+                                                        TickFrequency="1" IsSnapToTickEnabled="True" SmallChange="1" LargeChange="2"
+                                                        IsEnabled="{Binding CanChangeWorkflow}"
+                                                        Foreground="{DynamicResource TabAccentBrush}" Margin="0,0,0,2"
+                                                        ToolTip="Steps on the pass that paints the clip. Saved against the checkpoint in More options ▸ Model, so each one keeps its own — the Singularity build is authored at 10, the 10Eros hybrid at 12, and the TaoMate relay splits a 10-step schedule — and the setting is still there after a restart. Locked while anything is rendering: the count is read as each clip's graph is built, so a folder rendered half at one count is a folder of films that do not match."/>
+                                                <TextBlock Text="{Binding StepsSummary}" FontSize="10" TextWrapping="Wrap"
+                                                           Foreground="{StaticResource TextMutedBrush}" Margin="20,0,0,10"/>
+
                                                 <CheckBox Content="📚 Researched prompts" IsChecked="{Binding ResearchPrompts}"
                                                           FontSize="11" FontWeight="SemiBold" Margin="0,0,0,2"
                                                           Foreground="{StaticResource TextPrimaryBrush}"

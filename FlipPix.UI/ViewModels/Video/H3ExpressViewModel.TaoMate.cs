@@ -207,8 +207,13 @@ namespace FlipPix.UI.ViewModels.Video
         protected override string ShippedModel => UseTaoMate ? TaoMateModel : base.ShippedModel;
 
         /// <summary>Ten, both legs. The base's twelve is the Eros hybrid's and ✴️'s ten is the Singularity
-        /// checkpoint's; this one is the length of the schedule the relay splits.</summary>
-        protected override int FirstPassSteps => UseTaoMate ? TaoMateSteps : base.FirstPassSteps;
+        /// checkpoint's; this one is the length of the schedule the relay splits.
+        ///
+        /// <para>The count each stack is <i>authored</i> at, rather than the one the render uses: the steps
+        /// slider stores a count per checkpoint over the top of this, and
+        /// <see cref="FirstPassSteps"/> — overridden in H3ExpressViewModel.Steps.cs — is what the graph is
+        /// actually written with.</para></summary>
+        protected int AuthoredFirstPassSteps => UseTaoMate ? TaoMateSteps : base.FirstPassSteps;
 
         /// <summary>
         /// On this stack the model paints at the Quality dropdown's canvas, not at the draft one: the finish
