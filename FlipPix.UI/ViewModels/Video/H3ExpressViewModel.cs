@@ -36,6 +36,12 @@ namespace FlipPix.UI.ViewModels.Video
     /// and the prompt build written from the MiniMax-H3 guides. Singularity is remembered in its own
     /// settings slot; researched prompts are switched on at every launch, since that build is what this tab
     /// is for. There is no VR mode.</para>
+    ///
+    /// <para><b>The page is one job; the JOBS card is the rest of them.</b> Everything on the rail — the
+    /// folder, the cast, the stack, the canvas — is the job that is rendering, which is why it all freezes
+    /// the moment ⚡ Render is pressed. A second folder with a cast and a workflow of its own is composed
+    /// on the ➕ New job sheet instead and queued behind this one; it takes the page over between two
+    /// stories. See H3ExpressViewModel.Jobs.cs.</para>
     /// </summary>
     public partial class H3ExpressViewModel : H3BatchViewModel
     {
@@ -82,6 +88,7 @@ namespace FlipPix.UI.ViewModels.Video
             InitSteps();
             InitStoryPrompts();
             InitCast();
+            InitJobs();
 
             // A story's clips leave the board when the next story starts. The editor and any regenerate
             // still waiting for one of them go with it.
@@ -94,6 +101,8 @@ namespace FlipPix.UI.ViewModels.Video
                 {
                     case nameof(IsBatchRunning):
                         OnPropertyChanged(nameof(RunButtonText));
+                        OnPropertyChanged(nameof(JobQueueSummary));
+                        OnPropertyChanged(nameof(CanQueuePage));
                         TryStartQueuedRegenerations();
                         break;
                     case nameof(IsProcessingQueue):
@@ -660,6 +669,7 @@ namespace FlipPix.UI.ViewModels.Video
             PlayClipCommand?.NotifyCanExecuteChanged();
             OnPropertyChanged(nameof(CanEditCast));
             NotifyCastCommands();
+            RaiseQueueState();
         }
 
         private void RegenerateSelectedClip()
@@ -952,7 +962,16 @@ namespace FlipPix.UI.ViewModels.Video
 
         // ── What the page shows ─────────────────────────────────────────────────────────────────────
 
-        public string RunButtonText => IsBatchRunning ? "⚡ Rendering…" : "⚡ Render every story";
+        /// <summary>
+        /// What ▶ actually does, said on the button. With jobs queued it runs <i>them</i>, in the order the
+        /// JOBS card shows — the page is not put in front of the queue — so the button must not go on
+        /// promising the page's own folder.
+        /// </summary>
+        public string RunButtonText =>
+            IsBatchRunning ? "⚡ Rendering…"
+            : QueuedJobCount == 1 ? "⚡ Render the queued job"
+            : QueuedJobCount > 1 ? $"⚡ Render {QueuedJobCount} queued jobs"
+            : "⚡ Render every story";
 
         public string StackSummary => UseTaoMate
             ? $"TaoMate relay · fl2va checkpoint · linear/euler/beta57 · {FirstPassSteps} steps, " +

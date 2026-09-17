@@ -387,7 +387,9 @@ namespace FlipPix.UI.ViewModels.Video
         /// re-renders one of them after the run can still name it after its story.</summary>
         protected BatchStory? StoryOnBoard => _onBoard;
 
-        public bool CanStartBatch =>
+        /// <summary>Virtual because a tab that queues jobs can have nothing waiting on the list and still
+        /// have work to do — see ⚡ H3 Express, where the next job brings its own stories with it.</summary>
+        public virtual bool CanStartBatch =>
             !IsBatchRunning && !IsFeelingLucky && !IsProcessingQueue && !IsBuildingSheets &&
             _stories.Any(s => s.IsWaiting);
 
@@ -684,6 +686,27 @@ namespace FlipPix.UI.ViewModels.Video
         /// two new files in does not put the eighty finished ones back to Waiting; files that have
         /// disappeared drop out unless they have already produced something.
         /// </summary>
+        /// <summary>
+        /// Every story file in a folder, in name order — the same three extensions the scan below accepts.
+        /// Static and exception-free so the ⚡ H3 Express job composer can list a folder it is not rendering
+        /// from; an unreadable folder is an empty list, which the caller shows as "no stories".
+        /// </summary>
+        public static IReadOnlyList<string> ScanStoryFiles(string? folder)
+        {
+            if (string.IsNullOrWhiteSpace(folder)) return Array.Empty<string>();
+            try
+            {
+                return Directory.EnumerateFiles(folder)
+                    .Where(f => StoryExtensions.Contains(Path.GetExtension(f), StringComparer.OrdinalIgnoreCase))
+                    .OrderBy(f => f, StringComparer.OrdinalIgnoreCase)
+                    .ToList();
+            }
+            catch
+            {
+                return Array.Empty<string>();
+            }
+        }
+
         private void Rescan(bool reportEmpty)
         {
             if (!HasFolder) return;
@@ -778,6 +801,12 @@ namespace FlipPix.UI.ViewModels.Video
         /// marked Failed with the reason on its row and the loop moves to the next one — a folder left
         /// running overnight must not be stopped at 3 a.m. by one story the model would not write. Only
         /// ✕ Stop ends the run early.</para>
+        ///
+        /// <para><b>The outer loop is the job loop.</b> When the list runs dry,
+        /// <see cref="AdvanceToNextJobAsync"/> is asked whether there is another one — a second folder with
+        /// its own cast and its own render settings, queued while this one was running. Here there never is;
+        /// ⚡ H3 Express is where that is answered yes (see its JOBS card). Everything inside stays a single
+        /// pass over a single list, so a tab with no job queue runs exactly as it always did.</para>
         /// </summary>
         private async Task RunBatchAsync()
         {
@@ -788,12 +817,15 @@ namespace FlipPix.UI.ViewModels.Video
             var token = _batchCts.Token;
 
             IsBatchRunning = true;
+            OnBatchStarting();
             var startedAll = DateTime.Now;
             var done = 0;
             var failed = 0;
 
             try
             {
+              while (true)
+              {
                 var todo = _stories.Where(s => s.IsWaiting).ToList();
                 AddLog($"=== {TabDisplayName}{(RenderAsVr ? " · VR180" : string.Empty)}: " +
                        $"{todo.Count} story file(s) from {BatchFolder} ===");
@@ -807,7 +839,7 @@ namespace FlipPix.UI.ViewModels.Video
                     var startedOne = DateTime.Now;
                     story.State = BatchStoryState.Processing;
                     story.Detail = string.Empty;
-                    BatchStatus = $"Story {i + 1} of {todo.Count}: {story.Title}";
+                    BatchStatus = $"{BatchStatusPrefix}Story {i + 1} of {todo.Count}: {story.Title}";
 
                     try
                     {
@@ -871,6 +903,13 @@ namespace FlipPix.UI.ViewModels.Video
                     }
                 }
 
+                CurrentStory = null;
+                if (token.IsCancellationRequested) break;
+                // The list is empty. Another job queued behind this one takes the tab over — its folder, its
+                // cast and its own settings — and the loop starts again on its stories.
+                if (!await AdvanceToNextJobAsync(token)) break;
+              }
+
                 BatchStatus = token.IsCancellationRequested
                     ? $"Stopped — {done} done, {failed} failed."
                     : $"Batch finished — {done} done, {failed} failed, " +
@@ -894,10 +933,56 @@ namespace FlipPix.UI.ViewModels.Video
                 IsBatchRunning = false;
                 _batchCts?.Dispose();
                 _batchCts = null;
+                OnBatchFinished(token.IsCancellationRequested);
                 OnPropertyChanged(nameof(FolderSummary));
                 OnCanExecuteChanged();
             }
         }
+
+        // ── The job loop's three seams ──────────────────────────────────────────────────────────────
+
+        /// <summary>
+        /// Called on the run's own thread the moment ▶ is accepted, before the first story. A no-op here;
+        /// ⚡ H3 Express takes the rail's settings down as job 1 so the page can be edited into job 2 while
+        /// this one renders.
+        /// </summary>
+        protected virtual void OnBatchStarting() { }
+
+        /// <summary>
+        /// Asked when the story list has been walked to the end. Return true after putting another job's
+        /// stories and settings in place — the loop then runs them — and false to finish the run. False
+        /// here: one press of ▶ renders one folder.
+        /// </summary>
+        protected virtual Task<bool> AdvanceToNextJobAsync(CancellationToken token) => Task.FromResult(false);
+
+        /// <summary>Called once the run is over, stopped or not, after <see cref="IsBatchRunning"/> is
+        /// down.</summary>
+        protected virtual void OnBatchFinished(bool stopped) { }
+
+        /// <summary>What goes in front of "Story 3 of 12" in the status line. Empty here; a tab running a
+        /// queue of jobs says which job this is.</summary>
+        protected virtual string BatchStatusPrefix => string.Empty;
+
+        /// <summary>
+        /// Swaps the story list for another job's, on the UI thread. Rows are carried over as they are —
+        /// a job re-queued after it ran keeps what its stories produced — so the caller decides what is
+        /// waiting and what is done.
+        /// </summary>
+        protected void ReplaceStories(IEnumerable<BatchStory> stories)
+        {
+            Application.Current.Dispatcher.Invoke(() =>
+            {
+                _stories.Clear();
+                foreach (var s in stories) _stories.Add(s);
+                OnPropertyChanged(nameof(HasStories));
+                OnPropertyChanged(nameof(FolderSummary));
+                OnCanExecuteChanged();
+            });
+        }
+
+        /// <summary>The folder the list came from, for a job swap. Goes through the same setter the picker
+        /// does, so it is persisted and the summary follows.</summary>
+        protected void SetBatchFolder(string folder) => BatchFolder = folder ?? string.Empty;
 
         /// <summary>
         /// Tears the previous story down completely: the queue, the board, both cast cards with their

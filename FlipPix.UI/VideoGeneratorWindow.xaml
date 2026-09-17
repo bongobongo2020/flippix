@@ -2444,6 +2444,183 @@
                                                    Visibility="{Binding IsReadingOutfit, Converter={StaticResource BooleanToVisibilityConverter}}"/>
                                     </StackPanel>
                                 </DataTemplate>
+
+                                <!-- A small square glyph button on a job row: edit, move, requeue, remove. -->
+                                <Style x:Key="JobGlyphButtonStyle" TargetType="Button">
+                                    <Setter Property="Margin" Value="1,0,0,0"/>
+                                    <Setter Property="Padding" Value="0"/>
+                                    <Setter Property="Cursor" Value="Hand"/>
+                                    <Setter Property="Foreground" Value="{StaticResource TextMutedBrush}"/>
+                                    <Setter Property="Background" Value="Transparent"/>
+                                    <Setter Property="Template">
+                                        <Setter.Value>
+                                            <ControlTemplate TargetType="Button">
+                                                <Border x:Name="Bd" Background="{TemplateBinding Background}" CornerRadius="4">
+                                                    <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                                                </Border>
+                                                <ControlTemplate.Triggers>
+                                                    <Trigger Property="IsMouseOver" Value="True">
+                                                        <Setter TargetName="Bd" Property="Background" Value="{StaticResource SurfaceAltBrush}"/>
+                                                        <Setter Property="Foreground" Value="{DynamicResource TabAccentBrush}"/>
+                                                    </Trigger>
+                                                    <Trigger Property="IsEnabled" Value="False">
+                                                        <Setter Property="Opacity" Value="0.3"/>
+                                                    </Trigger>
+                                                </ControlTemplate.Triggers>
+                                            </ControlTemplate>
+                                        </Setter.Value>
+                                    </Setter>
+                                </Style>
+
+                                <!-- A cast face on a job row: a small round thumbnail, absent when there is none. -->
+                                <Style x:Key="JobFaceStyle" TargetType="Border">
+                                    <Setter Property="Width" Value="20"/>
+                                    <Setter Property="Height" Value="20"/>
+                                    <Setter Property="CornerRadius" Value="10"/>
+                                    <Setter Property="ClipToBounds" Value="True"/>
+                                    <Setter Property="BorderThickness" Value="1"/>
+                                    <Setter Property="BorderBrush" Value="{StaticResource BorderBrush}"/>
+                                    <Setter Property="Margin" Value="0,0,3,0"/>
+                                </Style>
+
+                                <!-- ═══ One job on the queue ════════════════════════════════════
+                                     The row is the job: its place in the pipeline, what it renders,
+                                     who is in it and on what stack. A queued job can be opened (✎),
+                                     moved or dropped; the one rendering can only be watched; a
+                                     finished one can be sent round again (↻). -->
+                                <DataTemplate x:Key="ExpressJobRowTemplate">
+                                    <Border Margin="0,3" CornerRadius="6" Padding="8,7"
+                                            BorderThickness="1" ToolTip="{Binding Tooltip}">
+                                        <Border.Style>
+                                            <Style TargetType="Border">
+                                                <Setter Property="Background" Value="{StaticResource SurfaceBrush}"/>
+                                                <Setter Property="BorderBrush" Value="{StaticResource BorderBrush}"/>
+                                                <Style.Triggers>
+                                                    <DataTrigger Binding="{Binding IsRunning}" Value="True">
+                                                        <Setter Property="BorderBrush" Value="{DynamicResource TabAccentBrush}"/>
+                                                    </DataTrigger>
+                                                    <DataTrigger Binding="{Binding IsFinished}" Value="True">
+                                                        <Setter Property="Background" Value="{StaticResource SurfaceAltBrush}"/>
+                                                    </DataTrigger>
+                                                </Style.Triggers>
+                                            </Style>
+                                        </Border.Style>
+                                        <Grid>
+                                            <Grid.ColumnDefinitions>
+                                                <ColumnDefinition Width="Auto"/>
+                                                <ColumnDefinition Width="*"/>
+                                                <ColumnDefinition Width="Auto"/>
+                                            </Grid.ColumnDefinitions>
+
+                                            <!-- ①②③ — where in the pipeline this job is. -->
+                                            <TextBlock Grid.Column="0" Text="{Binding Ordinal}" FontSize="15"
+                                                       VerticalAlignment="Top" Margin="0,-1,8,0">
+                                                <TextBlock.Style>
+                                                    <Style TargetType="TextBlock">
+                                                        <Setter Property="Foreground" Value="{StaticResource TextFaintBrush}"/>
+                                                        <Style.Triggers>
+                                                            <DataTrigger Binding="{Binding IsRunning}" Value="True">
+                                                                <Setter Property="Foreground" Value="{DynamicResource TabAccentBrush}"/>
+                                                            </DataTrigger>
+                                                            <DataTrigger Binding="{Binding IsFinished}" Value="True">
+                                                                <Setter Property="Foreground" Value="{StaticResource SuccessBrush}"/>
+                                                            </DataTrigger>
+                                                        </Style.Triggers>
+                                                    </Style>
+                                                </TextBlock.Style>
+                                            </TextBlock>
+
+                                            <StackPanel Grid.Column="1">
+                                                <Grid>
+                                                    <TextBlock Text="{Binding Title}" FontSize="11" FontWeight="SemiBold"
+                                                               TextTrimming="CharacterEllipsis" Margin="0,0,74,0"
+                                                               Foreground="{StaticResource TextPrimaryBrush}"/>
+                                                    <TextBlock Text="{Binding StateText}" FontSize="9"
+                                                               HorizontalAlignment="Right" VerticalAlignment="Center">
+                                                        <TextBlock.Style>
+                                                            <Style TargetType="TextBlock">
+                                                                <Setter Property="Foreground" Value="{StaticResource TextMutedBrush}"/>
+                                                                <Style.Triggers>
+                                                                    <DataTrigger Binding="{Binding IsRunning}" Value="True">
+                                                                        <Setter Property="Foreground" Value="{DynamicResource TabAccentBrush}"/>
+                                                                        <Setter Property="FontWeight" Value="SemiBold"/>
+                                                                    </DataTrigger>
+                                                                    <DataTrigger Binding="{Binding StateText}" Value="finished">
+                                                                        <Setter Property="Foreground" Value="{StaticResource SuccessTextBrush}"/>
+                                                                    </DataTrigger>
+                                                                    <DataTrigger Binding="{Binding StateText}" Value="stopped">
+                                                                        <Setter Property="Foreground" Value="{StaticResource DangerBrush}"/>
+                                                                    </DataTrigger>
+                                                                </Style.Triggers>
+                                                            </Style>
+                                                        </TextBlock.Style>
+                                                    </TextBlock>
+                                                </Grid>
+                                                <TextBlock Text="{Binding StoriesLine}" FontSize="10" Margin="0,1,0,0"
+                                                           Foreground="{StaticResource TextMutedBrush}"/>
+
+                                                <!-- The faces this job casts with, then what it renders on. -->
+                                                <StackPanel Orientation="Horizontal" Margin="0,5,0,0">
+                                                    <Border Style="{StaticResource JobFaceStyle}"
+                                                            Visibility="{Binding Cast1Preview, Converter={StaticResource NotNullToVisibilityConverter}}">
+                                                        <Image Source="{Binding Cast1Preview}" Stretch="UniformToFill"/>
+                                                    </Border>
+                                                    <Border Style="{StaticResource JobFaceStyle}" Margin="0,0,6,0"
+                                                            Visibility="{Binding Cast2Preview, Converter={StaticResource NotNullToVisibilityConverter}}">
+                                                        <Image Source="{Binding Cast2Preview}" Stretch="UniformToFill"/>
+                                                    </Border>
+                                                    <TextBlock Text="{Binding RenderLine}" FontSize="10"
+                                                               VerticalAlignment="Center" TextTrimming="CharacterEllipsis"
+                                                               Foreground="{StaticResource TextSecondaryBrush}"/>
+                                                </StackPanel>
+                                            </StackPanel>
+
+                                            <!-- What can be done to it, by state. -->
+                                            <StackPanel Grid.Column="2" Orientation="Horizontal" VerticalAlignment="Top">
+                                                <Button Content="&#x270E;" Width="22" Height="20" FontSize="11"
+                                                        Style="{StaticResource JobGlyphButtonStyle}"
+                                                        Command="{Binding DataContext.EditJobCommand, RelativeSource={RelativeSource AncestorType=ItemsControl}}"
+                                                        CommandParameter="{Binding}"
+                                                        Visibility="{Binding IsQueued, Converter={StaticResource BooleanToVisibilityConverter}}"
+                                                        ToolTip="Open this job and change its folder, its cast or its settings."/>
+                                                <Button Content="&#x2191;" Width="20" Height="20" FontSize="11"
+                                                        Style="{StaticResource JobGlyphButtonStyle}"
+                                                        Command="{Binding DataContext.MoveJobUpCommand, RelativeSource={RelativeSource AncestorType=ItemsControl}}"
+                                                        CommandParameter="{Binding}"
+                                                        Visibility="{Binding IsQueued, Converter={StaticResource BooleanToVisibilityConverter}}"
+                                                        ToolTip="Run this job sooner."/>
+                                                <Button Content="&#x2193;" Width="20" Height="20" FontSize="11"
+                                                        Style="{StaticResource JobGlyphButtonStyle}"
+                                                        Command="{Binding DataContext.MoveJobDownCommand, RelativeSource={RelativeSource AncestorType=ItemsControl}}"
+                                                        CommandParameter="{Binding}"
+                                                        Visibility="{Binding IsQueued, Converter={StaticResource BooleanToVisibilityConverter}}"
+                                                        ToolTip="Run this job later."/>
+                                                <Button Content="&#x21BB;" Width="22" Height="20" FontSize="11"
+                                                        Style="{StaticResource JobGlyphButtonStyle}"
+                                                        Command="{Binding DataContext.RequeueJobCommand, RelativeSource={RelativeSource AncestorType=ItemsControl}}"
+                                                        CommandParameter="{Binding}"
+                                                        Visibility="{Binding IsFinished, Converter={StaticResource BooleanToVisibilityConverter}}"
+                                                        ToolTip="Put this job back on the queue with every story waiting again."/>
+                                                <Button Content="&#x2715;" Width="20" Height="20" FontSize="10"
+                                                        Command="{Binding DataContext.RemoveJobCommand, RelativeSource={RelativeSource AncestorType=ItemsControl}}"
+                                                        CommandParameter="{Binding}"
+                                                        ToolTip="Take this job off the list. Nothing on disk is touched.">
+                                                    <Button.Style>
+                                                        <Style TargetType="Button" BasedOn="{StaticResource JobGlyphButtonStyle}">
+                                                            <Setter Property="Visibility" Value="Visible"/>
+                                                            <Style.Triggers>
+                                                                <DataTrigger Binding="{Binding IsRunning}" Value="True">
+                                                                    <Setter Property="Visibility" Value="Collapsed"/>
+                                                                </DataTrigger>
+                                                            </Style.Triggers>
+                                                        </Style>
+                                                    </Button.Style>
+                                                </Button>
+                                            </StackPanel>
+                                        </Grid>
+                                    </Border>
+                                </DataTemplate>
+
                             </Grid.Resources>
                             <Grid.ColumnDefinitions>
                                 <ColumnDefinition Width="340"/>
@@ -2462,6 +2639,69 @@
                                                            Text="A folder of stories in, finished films out. No seed hunt: every clip is rendered once, in order, and each story is joined."/>
                                             </StackPanel>
                                         </Border>
+
+                                        <!-- ─── The job queue ───────────────────────────────────────
+                                             The pipeline, at the top of the rail, because everything under
+                                             it is one job — the one ⚡ Render runs, and the one the page is
+                                             frozen on while it does. ➕ composes another somewhere the
+                                             render is not reading (ExpressJobWindow) and lines it up behind
+                                             this one; it takes the tab over between two stories, bringing
+                                             its own folder, cast and stack with it. -->
+                                        <Border Style="{StaticResource SectionCardStyle}">
+                                            <StackPanel>
+                                                <Grid Margin="0,0,0,8">
+                                                    <Grid.ColumnDefinitions>
+                                                        <ColumnDefinition Width="*"/>
+                                                        <ColumnDefinition Width="Auto"/>
+                                                    </Grid.ColumnDefinitions>
+                                                    <ctrl:SectionHeader Grid.Column="0" Title="JOBS" Note="  · run in order"/>
+                                                    <Button Grid.Column="1" Content="Clear finished" Height="20" Padding="7,0" FontSize="9"
+                                                            VerticalAlignment="Top"
+                                                            Style="{StaticResource JobGlyphButtonStyle}"
+                                                            Command="{Binding ClearFinishedJobsCommand}"
+                                                            Visibility="{Binding HasFinishedJobs, Converter={StaticResource BooleanToVisibilityConverter}}"
+                                                            ToolTip="Take the jobs that have finished off the list."/>
+                                                </Grid>
+
+                                                <ItemsControl ItemsSource="{Binding Jobs}"
+                                                              ItemTemplate="{StaticResource ExpressJobRowTemplate}"
+                                                              Visibility="{Binding HasJobs, Converter={StaticResource BooleanToVisibilityConverter}}"
+                                                              Margin="0,0,0,8"/>
+
+                                                <!-- ▶ is here as well as in the header strip because this is
+                                                     where the plan is: with a queue, ▶ starts at ① and works
+                                                     down it. The page is never put in front of the queue. -->
+                                                <Button Content="{Binding StartQueueText}"
+                                                        Command="{Binding StartBatchCommand}"
+                                                        Height="34" FontSize="12" Margin="0,0,0,6"
+                                                        Style="{StaticResource AccentButtonStyle}"
+                                                        Visibility="{Binding HasQueuedJobs, Converter={StaticResource BooleanToVisibilityConverter}}"
+                                                        ToolTip="Render the jobs above, in this order — each one's own folder, cast and render settings applied as its turn comes. Same as ⚡ Render at the top of the page."/>
+                                                <Button Content="&#x2715; Stop" Command="{Binding StopBatchCommand}"
+                                                        Height="30" FontSize="11" Margin="0,0,0,6"
+                                                        Style="{StaticResource DangerButtonStyle}"
+                                                        Visibility="{Binding IsBatchRunning, Converter={StaticResource BooleanToVisibilityConverter}}"
+                                                        ToolTip="Cut the current story short and stop. Films already made are kept, and the jobs still queued stay on the list."/>
+
+                                                <Button Content="➕ Queue another job…" Command="{Binding NewJobCommand}"
+                                                        Height="34" FontSize="12"
+                                                        Style="{StaticResource AccentOutlineButtonStyle}"
+                                                        ToolTip="Set up a whole second job — its own folder of stories, its own cast photos and its own render workflow — and line it up behind whatever is running. It does not touch the run in progress: it starts when that one's last film is joined."/>
+
+                                                <!-- The page's own folder is not in the queue; this is how it
+                                                     gets there, rather than by being slipped in ahead of it. -->
+                                                <Button Content="➕ Add this page as a job"
+                                                        Command="{Binding QueuePageCommand}"
+                                                        Height="30" FontSize="11" Margin="0,6,0,0"
+                                                        Style="{StaticResource SecondaryButtonStyle}"
+                                                        Visibility="{Binding CanQueuePage, Converter={StaticResource BooleanToVisibilityConverter}}"
+                                                        ToolTip="Put the folder, cast and settings on this page at the end of the queue, as a job of its own. Without this they are not part of a queued run."/>
+
+                                                <TextBlock Text="{Binding JobQueueSummary}" FontSize="10" TextWrapping="Wrap"
+                                                           Foreground="{StaticResource TextMutedBrush}" Margin="0,6,0,0"/>
+                                            </StackPanel>
+                                        </Border>
+
 
                                         <!-- ─── Stories ─────────────────────────────────────────── -->
                                         <Border Style="{StaticResource SectionCardStyle}">
@@ -2657,7 +2897,7 @@
                                                              FontSize="11" Margin="0,0,0,2"
                                                              Foreground="{StaticResource TextPrimaryBrush}"
                                                              ToolTip="Sample every clip on h3-singularity.json (the Singularity ref2va checkpoint, euler/simple at 10 steps), composed at the draft canvas and lifted to the quality one by the 3D latent upscaler. Locked while anything is rendering, so a folder cannot come out half on one stack and half on another."/>
-                                                <CheckBox Content="er_sde/beta sampler (keep the sigma shift)" IsChecked="{Binding SingularityErSde}"
+                                                <CheckBox Content="er__sde/beta sampler (keep the sigma shift)" IsChecked="{Binding SingularityErSde}"
                                                           IsEnabled="{Binding CanChangeWorkflow}"
                                                           Visibility="{Binding StackIsSingularity, Converter={StaticResource BooleanToVisibilityConverter}}"
                                                           FontSize="11" Margin="20,2,0,2"
