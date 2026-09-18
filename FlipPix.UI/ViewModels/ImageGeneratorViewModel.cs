@@ -177,7 +177,6 @@ namespace FlipPix.UI.ViewModels
             SendToCameraAngleCommand = new RelayCommand(SendToCameraAngle);
             SendToVideoGeneratorCommand = new RelayCommand(SendToVideoGenerator);
             SendToStoryCommand = new RelayCommand(SendToStory);
-            OpenKeyframesInMiniMaxFflfCommand = new RelayCommand(OpenKeyframesInMiniMaxFflf);
             NavigateToVideoGeneratorCommand = new RelayCommand(NavigateToVideoGenerator);
             NavigateToEnhanceVideoCommand = new RelayCommand(NavigateToEnhanceVideo);
             RefreshLorasCommand = new RelayCommand(RefreshLoras);
@@ -544,7 +543,6 @@ namespace FlipPix.UI.ViewModels
         public ICommand SendToCameraAngleCommand { get; }
         public ICommand SendToVideoGeneratorCommand { get; }
         public ICommand SendToStoryCommand { get; }
-        public ICommand OpenKeyframesInMiniMaxFflfCommand { get; }
         public ICommand NavigateToVideoGeneratorCommand { get; }
         public ICommand NavigateToEnhanceVideoCommand { get; }
         public ICommand RefreshLorasCommand { get; }
@@ -3393,67 +3391,6 @@ namespace FlipPix.UI.ViewModels
                 AddLog($"ERROR sending to Story Image Q: {ex.Message}");
                 _logger.LogError($"Error sending to Story Image Q: {ex}");
                 System.Windows.MessageBox.Show($"Error sending image to Story Image Q tab:\n\n{ex.Message}", "Error", System.Windows.MessageBoxButton.OK, System.Windows.MessageBoxImage.Error);
-            }
-        }
-
-        /// <summary>
-        /// Opens the Video Generator's 🌀🎯 MiniMax FFLF tab and hands it this Story Image Q session's
-        /// generated keyframes as a folder: the first still becomes the opening frame and each one after
-        /// it becomes a keyframe a clip has to arrive at. A ten-keyframe run is more than one chain holds,
-        /// so the tab walks it as a series of takes, each opening on the keyframe the last one ended with.
-        /// </summary>
-        private void OpenKeyframesInMiniMaxFflf()
-        {
-            if (_serviceProvider == null) return;
-
-            try
-            {
-                var folder = _storyGeneratorQ.KeyframeOutputFolder;
-                if (string.IsNullOrEmpty(folder) || !Directory.Exists(folder))
-                {
-                    System.Windows.MessageBox.Show(
-                        "No generated keyframes found yet. Generate the story images first, then try again.",
-                        "No Keyframes", System.Windows.MessageBoxButton.OK, System.Windows.MessageBoxImage.Information);
-                    return;
-                }
-
-                var pngCount = Directory.EnumerateFiles(folder, "*.png").Count();
-                if (pngCount < 2)
-                {
-                    System.Windows.MessageBox.Show(
-                        $"Need at least 2 generated keyframes — an opening frame and something for the "
-                        + $"first clip to reach (found {pngCount}).",
-                        "Not Enough Keyframes", System.Windows.MessageBoxButton.OK, System.Windows.MessageBoxImage.Warning);
-                    return;
-                }
-
-                var videoWindow = _serviceProvider.GetService(typeof(VideoGeneratorWindow)) as VideoGeneratorWindow;
-                if (videoWindow == null)
-                {
-                    AddLog("ERROR: Failed to open Video Generator window");
-                    System.Windows.MessageBox.Show("Could not open Video Generator window.", "Error", System.Windows.MessageBoxButton.OK, System.Windows.MessageBoxImage.Warning);
-                    return;
-                }
-
-                if (!videoWindow.IsVisible) videoWindow.Show();
-                videoWindow.WindowState = System.Windows.WindowState.Normal;
-                videoWindow.Activate();
-                videoWindow.Focus();
-
-                if (videoWindow.DataContext is VideoGeneratorViewModel vm)
-                {
-                    // MiniMax FFLF is the fourth tab in VideoGeneratorWindow's TabControl.
-                    vm.SelectedTabIndex = 3;
-                    vm.MiniMaxFflfVM.LoadFolder(folder);
-                    AddLog($"Opened MiniMax FFLF with {pngCount} keyframes from: {folder}");
-                    StatusBarMessage = $"Loaded {pngCount} keyframes into MiniMax FFLF";
-                }
-            }
-            catch (Exception ex)
-            {
-                AddLog($"ERROR opening MiniMax FFLF: {ex.Message}");
-                _logger.LogError($"Error opening MiniMax FFLF: {ex}");
-                System.Windows.MessageBox.Show($"Error opening MiniMax FFLF:\n\n{ex.Message}", "Error", System.Windows.MessageBoxButton.OK, System.Windows.MessageBoxImage.Error);
             }
         }
 

@@ -1,0 +1,1056 @@
+using System;
+using System.Collections.Generic;
+using System.Collections.ObjectModel;
+using System.IO;
+using System.Linq;
+using System.Text.Json.Nodes;
+using System.Threading;
+using System.Threading.Tasks;
+using CommunityToolkit.Mvvm.Input;
+using FlipPix.ComfyUI.Services;
+using FlipPix.Core.Interfaces;
+using FlipPix.Core.Models;
+using FlipPix.UI.Models;
+using FlipPix.UI.Services;
+using Application = System.Windows.Application;
+
+namespace FlipPix.UI.ViewModels.Video
+{
+    /// <summary>
+    /// "⚡ H3 Express" — 🗂️ H3 Batch without the seed hunt. A folder of story <c>.txt</c> files goes in,
+    /// and each one comes out as a joined film, rendered one clip at a time.
+    ///
+    /// <para><b>What it leaves out.</b> Batch hunts three drafts for every clip, takes the first, then
+    /// re-samples that branch and upscales it — so each clip is a hunt submission <i>and</i> a finish
+    /// submission, and two of the three drafts are thrown away unseen. Here there is nothing to choose
+    /// between and nobody choosing, so the hunt is skipped outright: every clip is given its seed up front
+    /// and goes straight to the finish graph — one submission per clip, composed at the draft canvas and
+    /// latent-upscaled to the finished one inside the same graph.</para>
+    ///
+    /// <para><b>What it keeps.</b> Everything else is Batch's loop, unchanged: a fresh cast per story, the
+    /// wardrobe, the Krea2-Spicy portraits, the sheets, the clip writer, the queue, the finish sweep and the
+    /// join. It only swaps <see cref="H3ErosViewModel.RunSweepsAsync"/>, so a fix to the render path is a
+    /// fix here too.</para>
+    ///
+    /// <para><b>Defaults.</b> ✴️ Singularity and 📚 Researched prompts both start on — the quickest stack
+    /// and the prompt build written from the MiniMax-H3 guides. Singularity is remembered in its own
+    /// settings slot; researched prompts are switched on at every launch, since that build is what this tab
+    /// is for. There is no VR mode.</para>
+    ///
+    /// <para><b>The page is one job; the JOBS card is the rest of them.</b> Everything on the rail — the
+    /// folder, the cast, the stack, the canvas — is the job that is rendering, which is why it all freezes
+    /// the moment ⚡ Render is pressed. A second folder with a cast and a workflow of its own is composed
+    /// on the ➕ New job sheet instead and queued behind this one; it takes the page over between two
+    /// stories. See H3ExpressViewModel.Jobs.cs.</para>
+    /// </summary>
+    public partial class H3ExpressViewModel : H3BatchViewModel
+    {
+        /// <summary>The sampler branch every clip renders on. A finish needs a branch to keep; with no hunt,
+        /// branch 1 is simply the one kept.</summary>
+        private const int RenderSlot = 1;
+
+        public H3ExpressViewModel(
+            ComfyUIService comfyUIService,
+            LMStudioService lmStudioService,
+            IAppLogger logger,
+            FlipPix.Core.Services.SettingsService settingsService,
+            IServiceProvider? serviceProvider,
+            WorkflowQueueCoordinator workflowCoordinator,
+            IFileDialogService fileDialogService)
+            : base(comfyUIService, lmStudioService, logger, settingsService, serviceProvider,
+                   workflowCoordinator, fileDialogService)
+        {
+            ResearchPrompts = true;
+            _specPrompts = _settingsService.Settings?.H3ExpressSpecPrompts ?? false;
+
+            // The LoRA dropdown starts with None and whatever was chosen last run, so it is usable before —
+            // and if — the server answers; the folder listing is a network round trip, off this thread.
+            _selectedLora = NormalizeLora(_settingsService.Settings?.H3ExpressLora);
+            _loraStrength = Math.Clamp(_settingsService.Settings?.H3ExpressLoraStrength ?? 1.0,
+                                       MinLoraStrength, MaxLoraStrength);
+            LoraOptions.Add(NoLora);
+            if (_selectedLora.Length > 0) LoraOptions.Add(new DiffusionModelOption(_selectedLora, LabelFor(_selectedLora)));
+            RefreshLorasCommand = new RelayCommand(() => _ = LoadLorasAsync(), () => !_isLoadingLoras);
+            _ = LoadLorasAsync();
+
+            PlayStoryCommand = new RelayCommand<BatchStory>(PlayStory);
+            SelectClipCommand = new RelayCommand<ErosHuntClip>(SelectClip);
+            PlayClipCommand = new RelayCommand<ErosHuntClip>(PlayClip, row => row?.OutputPath != null);
+            CloseClipEditorCommand = new RelayCommand(() => SelectedClip = null);
+            RegenerateClipCommand = new RelayCommand(RegenerateSelectedClip, () => CanRegenerateSelectedClip);
+            RevertClipPromptCommand = new RelayCommand(
+                () => { if (SelectedClip != null) ClipPromptDraft = SelectedClip.Item.Prompt; },
+                () => IsClipPromptEdited);
+            UnqueueClipCommand = new RelayCommand(UnqueueSelectedClip,
+                                                  () => SelectedClip != null && IsQueued(SelectedClip));
+
+            InitTaoMate();
+            InitSteps();
+            InitStoryPrompts();
+            InitCast();
+            InitJobs();
+
+            // A story's clips leave the board when the next story starts. The editor and any regenerate
+            // still waiting for one of them go with it.
+            HuntBoard.CollectionChanged += (_, _) => OnBoardChanged();
+
+            // The summaries below are computed; say when what they are computed from moves.
+            PropertyChanged += (_, e) =>
+            {
+                switch (e.PropertyName)
+                {
+                    case nameof(IsBatchRunning):
+                        OnPropertyChanged(nameof(RunButtonText));
+                        OnPropertyChanged(nameof(JobQueueSummary));
+                        OnPropertyChanged(nameof(CanQueuePage));
+                        TryStartQueuedRegenerations();
+                        break;
+                    case nameof(IsProcessingQueue):
+                    case nameof(IsFeelingLucky):
+                    case nameof(IsBuildingSheets):
+                        TryStartQueuedRegenerations();
+                        break;
+                    case nameof(UseSingularity):
+                    case nameof(SingularityErSde):
+                        OnPropertyChanged(nameof(StackSummary));
+                        // Both change what "authored" means for the loaded checkpoint, and ✴️'s sub-option
+                        // changes it without moving the model dropdown at all.
+                        RaiseStepsState();
+                        break;
+                    case nameof(SelectedDiffusionModel):
+                        // Steps are remembered per checkpoint — bring this one's own count back.
+                        OnStepsModelChanged();
+                        break;
+                    case nameof(CanChangeWorkflow):
+                        ResetStepsCommand.NotifyCanExecuteChanged();
+                        break;
+                    case nameof(ResearchPrompts):
+                        OnPropertyChanged(nameof(PromptBuildSummary));
+                        break;
+                    case nameof(Megapixels):
+                    case nameof(SelectedAspectRatio):
+                        OnPropertyChanged(nameof(HuntSummary));
+                        break;
+                    case nameof(ProcessingProgress):
+                    case nameof(HasBoard):
+                        OnPropertyChanged(nameof(ClipProgressText));
+                        break;
+                }
+            };
+        }
+
+        protected override void LogIntro() =>
+            AddLog("H3 Express initialized — point it at a folder of story .txt files and press ⚡ Render. " +
+                   "Each story gets its own cast, sheets and clips, then ONE render per clip — no seed hunt — " +
+                   "and the joined film. ✴️ Singularity and 📚 researched prompts are on by default.");
+
+        // ── Identity ────────────────────────────────────────────────────────────────────────────────
+
+        protected override string OutputSubfolder => "h3_express";
+
+        protected override string FileStemPrefix => "H3Express";
+
+        protected override string OutputFolderName => "H3Express";
+
+        protected override string TabDisplayName => "H3 Express";
+
+        protected override string ChainLibraryFolder => "h3express";
+
+        /// <summary>Five minutes. The base's 120 s dated from writing the whole chain in one reply; this
+        /// tab's writer makes one call per clip, so a longer film is only more clips.</summary>
+        public override double MaxStoryDurationSeconds => 300;
+
+        protected override string RunTokenPrefix => "h3express";
+
+        protected override string QueueFilePath => Path.Combine(
+            Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData),
+            "FlipPix", "queue", "h3express_queue.json");
+
+        protected override string? RecallDiffusionModel(ComfyUISettings? settings) =>
+            settings?.H3ExpressDiffusionModel;
+
+        protected override void StoreDiffusionModel(ComfyUISettings settings, string name) =>
+            settings.H3ExpressDiffusionModel = name;
+
+        protected override string? RecallBatchFolder(ComfyUISettings? settings) => settings?.H3ExpressFolder;
+
+        protected override void StoreBatchFolder(ComfyUISettings settings, string folder) =>
+            settings.H3ExpressFolder = folder;
+
+        /// <summary>On unless it has been switched off here — the default the tab was asked for.</summary>
+        protected override bool RecallUseSingularity(ComfyUISettings? settings) =>
+            settings?.H3ExpressUseSingularity ?? true;
+
+        protected override void StoreUseSingularity(ComfyUISettings settings, bool value) =>
+            settings.H3ExpressUseSingularity = value;
+
+        protected override bool RecallSingularityErSde(ComfyUISettings? settings) =>
+            settings?.H3ExpressSingularityErSde ?? false;
+
+        protected override void StoreSingularityErSde(ComfyUISettings settings, bool value) =>
+            settings.H3ExpressSingularityErSde = value;
+
+        // No VR mode: never read on, never stored, never active.
+        protected override bool RecallRenderAsVr(ComfyUISettings? settings) => false;
+
+        protected override void StoreRenderAsVr(ComfyUISettings settings, bool value) { }
+
+        protected override bool VrPipelineActive => false;
+
+        // ── The LoRA ────────────────────────────────────────────────────────────────────────────────
+
+        /// <summary>Where the dropdown looks, as ComfyUI names it: relative to the loras root.</summary>
+        private const string LoraFolder = "H3/";
+
+        /// <summary>The node the LoRA is spliced in as. Node 21 is the rgthree Power Lora Loader both stacks
+        /// ship empty — the same seat 🥽 H3 VR splices its LoRA onto.</summary>
+        private const string NodeLora = "h3express_lora";
+        private const string NodePowerLora = "21";
+
+        public const double MinLoraStrength = 0.0;
+        public const double MaxLoraStrength = 2.0;
+
+        private static readonly DiffusionModelOption NoLora = new(string.Empty, "None");
+
+        private string _selectedLora = string.Empty;
+        private double _loraStrength = 1.0;
+        private bool _isLoadingLoras;
+        private bool _rebuildingLoras;
+
+        /// <summary>None, then every LoRA the server reports under loras/H3.</summary>
+        public ObservableCollection<DiffusionModelOption> LoraOptions { get; } = new();
+
+        public RelayCommand RefreshLorasCommand { get; }
+
+        /// <summary>
+        /// The LoRA every clip is rendered with, as ComfyUI names it (<c>H3/…safetensors</c>), or empty for
+        /// none. Read live at submit, like the stack switch, so a clip regenerated after a change picks the
+        /// change up; the dropdown is locked while anything renders, so one story cannot come out on two.
+        /// </summary>
+        public string SelectedLora
+        {
+            get => _selectedLora;
+            set
+            {
+                // A rebuild's Clear() pushes null back through the two-way binding; that is not a choice.
+                if (_rebuildingLoras) return;
+                var name = NormalizeLora(value);
+                if (_selectedLora == name) return;
+                _selectedLora = name;
+                OnPropertyChanged();
+                OnPropertyChanged(nameof(HasLora));
+                OnPropertyChanged(nameof(LoraSummary));
+
+                var settings = _settingsService.Settings;
+                if (settings != null)
+                {
+                    settings.H3ExpressLora = name;
+                    _settingsService.SaveSettings(settings);
+                }
+                AddLog(name.Length == 0
+                    ? "LoRA: none — clips are rendered on the bare checkpoint."
+                    : $"LoRA: {LabelFor(name)} at {LoraStrength:0.00} — every clip rendered from now on uses it.");
+            }
+        }
+
+        public bool HasLora => _selectedLora.Length > 0;
+
+        /// <summary>The LoRA's <c>strength_model</c>. 0 leaves it out of the graph altogether.</summary>
+        public double LoraStrength
+        {
+            get => _loraStrength;
+            set
+            {
+                var v = Math.Clamp(Math.Round(value, 2), MinLoraStrength, MaxLoraStrength);
+                if (Math.Abs(_loraStrength - v) < 0.0001) return;
+                _loraStrength = v;
+                OnPropertyChanged();
+                OnPropertyChanged(nameof(LoraSummary));
+
+                var settings = _settingsService.Settings;
+                if (settings != null)
+                {
+                    settings.H3ExpressLoraStrength = v;
+                    _settingsService.SaveSettings(settings);
+                }
+            }
+        }
+
+        public string LoraSummary =>
+            _isLoadingLoras ? "Reading loras/H3 from ComfyUI…"
+            : !HasLora ? $"No LoRA. {Math.Max(0, LoraOptions.Count - 1)} available in loras/H3."
+            : LoraStrength <= 0.0 ? $"{LabelFor(_selectedLora)} at 0 — left out of the graph."
+            : $"{LabelFor(_selectedLora)} at {LoraStrength:0.00}, on top of the checkpoint above.";
+
+        private static string NormalizeLora(string? name) => (name ?? string.Empty).Trim().Replace('\\', '/');
+
+        /// <summary>
+        /// Fills <see cref="LoraOptions"/> from /object_info/LoraLoader, keeping only what lives in
+        /// <see cref="LoraFolder"/>. A server that cannot be reached leaves the list as the constructor seeded
+        /// it; a chosen LoRA the server no longer has stays in the list, labelled, rather than silently
+        /// dropping to none.
+        /// </summary>
+        private async Task LoadLorasAsync()
+        {
+            if (_isLoadingLoras) return;
+            _isLoadingLoras = true;
+            Application.Current.Dispatcher.Invoke(() =>
+            {
+                RefreshLorasCommand.NotifyCanExecuteChanged();
+                OnPropertyChanged(nameof(LoraSummary));
+            });
+            try
+            {
+                var all = await _comfyUIService.HttpClient.GetLoraFilenamesAsync();
+                var found = all
+                    .Select(NormalizeLora)
+                    .Where(n => n.StartsWith(LoraFolder, StringComparison.OrdinalIgnoreCase))
+                    .Distinct(StringComparer.OrdinalIgnoreCase)
+                    .OrderBy(n => n, StringComparer.OrdinalIgnoreCase)
+                    .ToList();
+
+                var keep = _selectedLora;
+                Application.Current.Dispatcher.Invoke(() =>
+                {
+                    _rebuildingLoras = true;
+                    try
+                    {
+                        LoraOptions.Clear();
+                        LoraOptions.Add(NoLora);
+                        foreach (var n in found) LoraOptions.Add(new DiffusionModelOption(n, LabelFor(n)));
+
+                        // The server's own spelling wins where it differs only in case, so lora_name is
+                        // byte-for-byte what ComfyUI offered.
+                        var match = found.FirstOrDefault(n => string.Equals(n, keep, StringComparison.OrdinalIgnoreCase));
+                        if (match == null && keep.Length > 0)
+                            LoraOptions.Add(new DiffusionModelOption(keep, LabelFor(keep) + " (not on server)"));
+                        _selectedLora = match ?? keep;
+                    }
+                    finally
+                    {
+                        _rebuildingLoras = false;
+                    }
+                    // The notification is what puts the selection back on screen after Clear() blanked it.
+                    OnPropertyChanged(nameof(SelectedLora));
+                    OnPropertyChanged(nameof(HasLora));
+                });
+                AddLog($"LoRA list: {found.Count} in loras/H3.");
+            }
+            catch (Exception ex)
+            {
+                AddLog($"LoRA list could not be read ({ex.Message}).");
+            }
+            finally
+            {
+                _isLoadingLoras = false;
+                Application.Current.Dispatcher.Invoke(() =>
+                {
+                    RefreshLorasCommand.NotifyCanExecuteChanged();
+                    OnPropertyChanged(nameof(LoraSummary));
+                });
+            }
+        }
+
+        /// <summary>
+        /// The stock inputs, then the chosen LoRA spliced in after node 21 — so every reader of the model
+        /// (the guiders and scheduler on Eros, the sigma shift on Singularity) samples through it.
+        /// </summary>
+        protected override void ApplyCommonInputs(
+            JsonObject root, H3CastQueueItem item, IReadOnlyList<string> uploaded,
+            string prompt, double lengthSeconds)
+        {
+            base.ApplyCommonInputs(root, item, uploaded, prompt, lengthSeconds);
+
+            var lora = _selectedLora;
+            var strength = _loraStrength;
+            if (lora.Length == 0 || strength <= 0.0) return;
+
+            RequireClass(root, NodePowerLora, "Power Lora Loader (rgthree)");
+
+            // Retarget first, while the LoRA node does not exist yet: it rewrites every reader of node 21,
+            // and a node added before the call would have its own input pointed at itself.
+            Retarget(root, NodePowerLora, 0, NodeLora);
+            root[NodeLora] = new JsonObject
+            {
+                ["inputs"] = new JsonObject
+                {
+                    ["lora_name"] = lora,
+                    ["strength_model"] = strength,
+                    ["model"] = new JsonArray(NodePowerLora, 0)
+                },
+                ["class_type"] = "LoraLoaderModelOnly",
+                ["_meta"] = new JsonObject { ["title"] = "H3 Express LoRA" }
+            };
+
+            AddLog($"  LoRA {LabelFor(lora)} at {strength:0.00}.");
+        }
+
+        // ── The render: no hunt ─────────────────────────────────────────────────────────────────────
+
+        /// <summary>Nothing to arrange. The Eros version turns on auto-pick so a hunt does not park at the
+        /// board; with no hunt there is no board to park at.</summary>
+        protected override void PrepareForUnattendedRun() { }
+
+        /// <summary>A clip here is a render, not a picked take.</summary>
+        protected override bool NamesTakes => false;
+
+        protected override string LuckyRenderPhase => "Rendering and joining…";
+
+        /// <summary>
+        /// Every waiting clip gets its seed and its branch now, then the finish sweep renders them in queue
+        /// order — each one a single submission, and the story joined when its last clip lands.
+        ///
+        /// <para>The seed is the clip's own when it has one, as the hunt would have used for take 1, so a
+        /// story's clips still share a seed. The prompt stamp is written the way a hunt writes it, so a clip
+        /// is never read as reworded-since-hunted and skipped.</para>
+        /// </summary>
+        protected override async Task RunSweepsAsync(CancellationToken token)
+        {
+            var toSeed = HuntBoard.Where(c => !c.IsFinished && !c.HasPick &&
+                                              c.Item.ItemStatus == QueueItemStatus.Pending).ToList();
+            foreach (var row in toSeed)
+            {
+                var item = row.Item;
+                var seed = item.Seed >= 0 ? item.Seed : Random.Shared.NextInt64(0, long.MaxValue);
+                item.HuntBaseSeed = seed;
+                item.ChosenSampleSlot = RenderSlot;
+                item.ChosenSeed = seed;
+                item.HuntPromptStamp = item.Prompt;
+                Application.Current.Dispatcher.Invoke(() =>
+                {
+                    row.ApplyPick(RenderSlot);
+                    row.Status = "waiting";
+                });
+            }
+
+            if (toSeed.Count > 0)
+            {
+                SaveQueueToFile();
+                AddLog($"=== ⚡ Express: {toSeed.Count} clip(s), one render each — no seed hunt ===");
+            }
+
+            try
+            {
+                await FinishSweepAsync(token);
+                // Regenerates asked for while the story rendered, before the batch moves on and clears
+                // the board — after that there is no clip left to re-render.
+                await DrainRegenerationsAsync(token);
+            }
+            catch (OperationCanceledException)
+            {
+                ClearRegenerations("the render was stopped");
+                throw;
+            }
+        }
+
+        /// <summary>
+        /// Named after the story on the board, not only the one in flight. A clip regenerated after the run
+        /// has ended is still one of that story's clips, and has to overwrite its own file and re-join the
+        /// same film, not start a new one under the bare prefix.
+        /// </summary>
+        protected override string OutputFileStem =>
+            (CurrentStory ?? StoryOnBoard) is { } story ? $"{FileStemPrefix}_{SafeName(story.Title)}" : FileStemPrefix;
+
+        /// <summary>The ordinary finish, captioned for a tab that has no takes: "the-oasis · Clip 3 / 12".</summary>
+        protected override async Task FinishAsync(ErosHuntClip row, double progressFrom, double progressTo,
+            CancellationToken token)
+        {
+            await base.FinishAsync(row, progressFrom, progressTo, token);
+            if (row.OutputPath == null) return;
+
+            Application.Current.Dispatcher.Invoke(() => ShowInPlayer(row.OutputPath, ClipCaption(row)));
+        }
+
+        private string ClipCaption(ErosHuntClip row) =>
+            (CurrentStory ?? StoryOnBoard)?.Title is { } story ? $"{story} · {row.Title}" : row.Title;
+
+        // ── One clip: its prompt, edited and re-rendered ────────────────────────────────────────────
+
+        /// <summary>A regenerate waiting for the GPU: the clip, the prompt to render it from, and whether
+        /// to roll it a new seed.</summary>
+        private sealed record ClipRegeneration(ErosHuntClip Row, string Prompt, bool NewSeed);
+
+        /// <summary>Everything a regenerate changes on a clip, so a failed or stopped one can put it back.
+        /// The old file is only overwritten when the new render lands, so until then the clip on disk is
+        /// still the one this describes.</summary>
+        private sealed record ClipSnapshot(
+            string Prompt, string HuntPromptStamp, long HuntBaseSeed, int ChosenSampleSlot, long ChosenSeed,
+            QueueItemStatus ItemStatus, string? ErrorMessage, string ErosStage, DateTime? StartedAt,
+            DateTime? CompletedAt, int PickedSlot, bool IsFinished, string? OutputPath, string Summary,
+            string Status, bool HasResult);
+
+        private readonly List<ClipRegeneration> _regenerations = new();
+        private ErosHuntClip? _selectedClip;
+        private string _clipPromptDraft = string.Empty;
+        private bool _regenerateWithNewSeed;
+
+        public RelayCommand<ErosHuntClip> SelectClipCommand { get; }
+        public RelayCommand CloseClipEditorCommand { get; }
+        public RelayCommand RegenerateClipCommand { get; }
+        public RelayCommand RevertClipPromptCommand { get; }
+        public RelayCommand UnqueueClipCommand { get; }
+
+        /// <summary>The clip whose prompt the editor under the chips is showing, or null when it is shut.</summary>
+        public ErosHuntClip? SelectedClip
+        {
+            get => _selectedClip;
+            set
+            {
+                if (_selectedClip == value) return;
+                if (_selectedClip != null)
+                {
+                    _selectedClip.IsSelected = false;
+                    _selectedClip.PropertyChanged -= SelectedClip_PropertyChanged;
+                }
+                _selectedClip = value;
+                if (value != null)
+                {
+                    value.IsSelected = true;
+                    value.PropertyChanged += SelectedClip_PropertyChanged;
+                }
+
+                // A clip waiting to be regenerated shows the prompt it is waiting with, not the one it has.
+                _clipPromptDraft = value == null
+                    ? string.Empty
+                    : _regenerations.FirstOrDefault(r => r.Row == value)?.Prompt ?? value.Item.Prompt;
+
+                OnPropertyChanged();
+                OnPropertyChanged(nameof(HasSelectedClip));
+                OnPropertyChanged(nameof(ClipPromptDraft));
+                RaiseClipEditorState();
+            }
+        }
+
+        public bool HasSelectedClip => _selectedClip != null;
+
+        /// <summary>
+        /// The editor's text. It starts as the clip's full prompt — exactly what its render was given, the
+        /// reference line and wardrobe lock included — and nothing is written back to the clip until
+        /// Regenerate is pressed, so an edit can be abandoned by picking another clip.
+        /// </summary>
+        public string ClipPromptDraft
+        {
+            get => _clipPromptDraft;
+            set
+            {
+                if (_clipPromptDraft == value) return;
+                _clipPromptDraft = value ?? string.Empty;
+                OnPropertyChanged();
+                RaiseClipEditorState();
+            }
+        }
+
+        /// <summary>True when the editor no longer says what the clip was rendered from.</summary>
+        public bool IsClipPromptEdited => _selectedClip != null && _clipPromptDraft != _selectedClip.Item.Prompt;
+
+        /// <summary>
+        /// Off, a regenerate keeps the clip's seed, so the new render differs only where the prompt does.
+        /// On, it rolls a new one — a different take of the same words, for a clip whose prompt was fine and
+        /// whose render was not.
+        /// </summary>
+        public bool RegenerateWithNewSeed
+        {
+            get => _regenerateWithNewSeed;
+            set { if (_regenerateWithNewSeed == value) return; _regenerateWithNewSeed = value; OnPropertyChanged(); }
+        }
+
+        /// <summary>"the-oasis · Clip 3 / 12 · seed 4815162342".</summary>
+        public string SelectedClipHeader
+        {
+            get
+            {
+                if (_selectedClip == null) return string.Empty;
+                var seed = _selectedClip.Item.ChosenSeed;
+                return ClipCaption(_selectedClip) + (seed >= 0 ? $" · seed {seed}" : string.Empty);
+            }
+        }
+
+        /// <summary>Where the selected clip is, in the words the editor shows beside its header.</summary>
+        public string SelectedClipStatus
+        {
+            get
+            {
+                var row = _selectedClip;
+                if (row == null) return string.Empty;
+                if (row.IsBusy) return "rendering…";
+                if (IsQueued(row)) return "regenerate queued — it runs when the GPU is free";
+                if (!string.IsNullOrEmpty(row.Status)) return row.Status;
+                return row.IsFinished ? "finished" : "waiting to render";
+            }
+        }
+
+        /// <summary>The button says which of its three things a press will do.</summary>
+        public string RegenerateButtonText
+        {
+            get
+            {
+                var row = _selectedClip;
+                if (row != null && IsQueued(row)) return "⏳ Update queued regenerate";
+                if (row != null && SweepWillRender(row)) return "✓ Render with this prompt";
+                return IsProcessingQueue ? "⏳ Queue regenerate" : "⚡ Regenerate clip";
+            }
+        }
+
+        public string RegenerateTip =>
+            IsBatchRunning && !IsProcessingQueue
+                ? "Available once the story's clips are rendering — the cast, portraits and sheets are being made now."
+                : "Renders this one clip again from the prompt in the box, overwrites its file and re-joins the story's " +
+                  "film. The other clips are not touched.\n\nWhile something is rendering it waits its turn. A clip that " +
+                  "has not rendered yet simply renders from the new prompt when the run reaches it.";
+
+        private bool CanRegenerateSelectedClip
+        {
+            get
+            {
+                var row = _selectedClip;
+                if (row == null || row.IsBusy || !HuntBoard.Contains(row)) return false;
+                if (string.IsNullOrWhiteSpace(_clipPromptDraft)) return false;
+                // A render holds the GPU and drains the queue when it ends. Outside one, only the cast and
+                // sheet phases of a run — which have no board of their own to render — keep it shut.
+                return IsProcessingQueue || (!IsBatchRunning && !IsFeelingLucky && !IsBuildingSheets);
+            }
+        }
+
+        private bool IsQueued(ErosHuntClip row) => _regenerations.Any(r => r.Row == row);
+
+        /// <summary>A clip the sweep in flight has yet to reach: seeded, waiting, not on the GPU. There is
+        /// nothing to regenerate — the sweep renders it from whatever its prompt says when it gets there.</summary>
+        private bool SweepWillRender(ErosHuntClip row) =>
+            IsBatchRunning && IsProcessingQueue && !row.IsBusy && !row.IsFinished && row.HasPick &&
+            row.Item.ItemStatus == QueueItemStatus.Pending;
+
+        /// <summary>The 📝 under a chip opens that clip's prompt beside the player; pressed again on the open
+        /// clip, it shuts the editor. It does not touch the player — the chip itself is what plays.</summary>
+        private void SelectClip(ErosHuntClip? row)
+        {
+            if (row == null) return;
+            SelectedClip = row == _selectedClip ? null : row;
+        }
+
+        /// <summary>A click on the chip plays that clip, and nothing else. Pressed on the clip already in the
+        /// player, it starts it again from the top.</summary>
+        public RelayCommand<ErosHuntClip> PlayClipCommand { get; }
+
+        private void PlayClip(ErosHuntClip? row)
+        {
+            if (row?.OutputPath is not { } path) return;
+            if (string.Equals(ActivePreviewUri, path, StringComparison.OrdinalIgnoreCase))
+            {
+                // The same source is not a change, so the window would not hear about it; it restarts a source it
+                // is told about again.
+                OnPropertyChanged(nameof(ActivePreviewUri));
+                return;
+            }
+            ShowInPlayer(path, ClipCaption(row));
+        }
+
+        private void SelectedClip_PropertyChanged(object? sender, System.ComponentModel.PropertyChangedEventArgs e) =>
+            RaiseClipEditorState();
+
+        private void RaiseClipEditorState()
+        {
+            OnPropertyChanged(nameof(IsClipPromptEdited));
+            OnPropertyChanged(nameof(SelectedClipHeader));
+            OnPropertyChanged(nameof(SelectedClipStatus));
+            OnPropertyChanged(nameof(RegenerateButtonText));
+            OnPropertyChanged(nameof(RegenerateTip));
+            RegenerateClipCommand?.NotifyCanExecuteChanged();
+            SaveClipToStoryCommand?.NotifyCanExecuteChanged();
+            OnPropertyChanged(nameof(SaveClipToStoryTip));
+            RevertClipPromptCommand?.NotifyCanExecuteChanged();
+            UnqueueClipCommand?.NotifyCanExecuteChanged();
+        }
+
+        protected override void OnCanExecuteChanged()
+        {
+            base.OnCanExecuteChanged();
+            RaiseClipEditorState();
+            // A chip becomes playable when its clip lands, and every landing comes through here.
+            PlayClipCommand?.NotifyCanExecuteChanged();
+            OnPropertyChanged(nameof(CanEditCast));
+            NotifyCastCommands();
+            RaiseQueueState();
+        }
+
+        private void RegenerateSelectedClip()
+        {
+            var row = _selectedClip;
+            if (row == null || !CanRegenerateSelectedClip) return;
+            var prompt = _clipPromptDraft;
+
+            if (SweepWillRender(row))
+            {
+                var edited = prompt != row.Item.Prompt;
+                ApplyPrompt(row, prompt, RegenerateWithNewSeed);
+                SaveQueueToFile();
+                AddLog($"{ClipCaption(row)}: prompt edited — it renders from the new one when the run reaches it.");
+                if (edited) _ = SaveClipToStoryAsync(row, prompt, manual: false);
+                RaiseClipEditorState();
+                return;
+            }
+
+            // One request per clip: pressing again while it waits replaces what it is waiting with.
+            var at = _regenerations.FindIndex(r => r.Row == row);
+            var request = new ClipRegeneration(row, prompt, RegenerateWithNewSeed);
+            if (at >= 0) _regenerations[at] = request;
+            else _regenerations.Add(request);
+            row.IsRerollQueued = true;
+
+            if (IsProcessingQueue)
+                AddLog($"{ClipCaption(row)}: regenerate {(at >= 0 ? "updated" : "queued")} — it runs when the " +
+                       $"render on the GPU finishes ({_regenerations.Count} waiting).");
+            else
+                _ = RunRegenerationsAsync();
+
+            RaiseClipEditorState();
+        }
+
+        private void UnqueueSelectedClip()
+        {
+            var row = _selectedClip;
+            if (row == null || _regenerations.RemoveAll(r => r.Row == row) == 0) return;
+            row.IsRerollQueued = false;
+            AddLog($"{ClipCaption(row)}: regenerate taken back out of the queue.");
+            RaiseClipEditorState();
+        }
+
+        /// <summary>Writes a prompt onto a clip the way a render expects to find it: the stamp matching, so
+        /// the finish sweep never reads it as reworded-since-seeded and skips it.</summary>
+        private static void ApplyPrompt(ErosHuntClip row, string prompt, bool newSeed)
+        {
+            var item = row.Item;
+            item.Prompt = prompt;
+            item.HuntPromptStamp = prompt;
+            if (newSeed || item.ChosenSeed < 0)
+            {
+                var seed = Random.Shared.NextInt64(0, long.MaxValue);
+                item.HuntBaseSeed = seed;
+                item.ChosenSeed = seed;
+            }
+            item.ChosenSampleSlot = RenderSlot;
+            row.ApplyPick(RenderSlot);
+            row.IsStale = false;
+            row.Summary = Shorten(CastPromptStamp.ExtractDescription(prompt));
+        }
+
+        /// <summary>A regenerate pressed with the GPU free: its own short run, holding the queue flag so
+        /// ⚡ Render and the stack switches wait for it, and draining whatever is pressed meanwhile.</summary>
+        private async Task RunRegenerationsAsync()
+        {
+            if (IsProcessingQueue) return;
+
+            IsProcessingQueue = true;
+            _queueCts?.Dispose();
+            _queueCts = new CancellationTokenSource();
+            var token = _queueCts.Token;
+
+            try
+            {
+                await DrainRegenerationsAsync(token);
+            }
+            catch (OperationCanceledException)
+            {
+                AddLog("Regenerate stopped.");
+            }
+            catch (Exception ex)
+            {
+                AddLog($"Regenerate error: {ex.Message}");
+            }
+            finally
+            {
+                if (token.IsCancellationRequested) ClearRegenerations("the regenerate was stopped");
+                IsProcessingQueue = false;
+                IsProcessing = false;
+                ProcessingStatus = token.IsCancellationRequested ? "Stopped" : "Ready";
+                UpdateQueueStatus();
+                RefreshBoardState();
+                SaveQueueToFile();
+                OnCanExecuteChanged();
+            }
+        }
+
+        /// <summary>Runs every waiting regenerate in the order they were pressed. It re-reads its list each
+        /// pass, so one pressed while another renders joins the back of the same run.</summary>
+        private async Task DrainRegenerationsAsync(CancellationToken token)
+        {
+            while (_regenerations.Count > 0)
+            {
+                token.ThrowIfCancellationRequested();
+                var request = _regenerations[0];
+                _regenerations.RemoveAt(0);
+                request.Row.IsRerollQueued = false;
+                RaiseClipEditorState();
+
+                if (!HuntBoard.Contains(request.Row) || request.Row.IsBusy)
+                {
+                    AddLog($"{request.Row.Title}: regenerate dropped — the clip is no longer on the board.");
+                    continue;
+                }
+
+                await RegenerateAsync(request, token);
+            }
+        }
+
+        /// <summary>
+        /// One clip, rendered again from the requested prompt. Its file is overwritten in place and the story
+        /// re-joined, so the film on the STORIES list is the one with the new clip in it.
+        ///
+        /// <para>A render that fails or is stopped puts the clip back exactly as it was — prompt, seed, state —
+        /// because its old file is still the one on disk, and the prompt shown for a clip must be the prompt
+        /// that made it. The edit is not lost: it stays in the box to be tried again.</para>
+        /// </summary>
+        private async Task RegenerateAsync(ClipRegeneration request, CancellationToken token)
+        {
+            var row = request.Row;
+            var item = row.Item;
+            var before = new ClipSnapshot(
+                item.Prompt, item.HuntPromptStamp, item.HuntBaseSeed, item.ChosenSampleSlot, item.ChosenSeed,
+                item.ItemStatus, item.ErrorMessage, item.ErosStage, item.StartedAt, item.CompletedAt,
+                row.PickedSlot, row.IsFinished, row.OutputPath, row.Summary, row.Status, HasResult);
+
+            var reworded = request.Prompt != item.Prompt;
+            ApplyPrompt(row, request.Prompt, request.NewSeed);
+            AddLog($"=== ⚡ Regenerating {ClipCaption(row)} — {(reworded ? "edited prompt" : "same prompt")}, " +
+                   $"{(item.ChosenSeed == before.ChosenSeed ? "same" : "new")} seed {item.ChosenSeed} ===");
+
+            // The player may have this clip or the joined film open, and both files are about to be rewritten.
+            Application.Current.Dispatcher.Invoke(() => ShowInPlayer(null, string.Empty));
+
+            item.ItemStatus = QueueItemStatus.Processing;
+            item.ErrorMessage = null;
+            item.StartedAt = DateTime.Now;
+            row.IsFinished = false;
+            row.IsBusy = true;
+            row.Status = "regenerating…";
+            UpdateQueueStatus();
+            RefreshBoardState();
+
+            try
+            {
+                await FinishAsync(row, 0, 100, token);
+                item.ItemStatus = QueueItemStatus.Completed;
+                item.CompletedAt = DateTime.Now;
+                item.ErosStage = StageFinished;
+                row.IsFinished = true;
+                row.Status = "finished · regenerated";
+                AddLog($"{ClipCaption(row)}: regenerated.");
+                // The prompt that made the file is the one the story keeps from now on.
+                if (reworded) _ = SaveClipToStoryAsync(row, item.Prompt, manual: false);
+
+                // Never throws. Joins only when every clip of the story is done, as after a run.
+                await CompleteStoryAsync(item, token);
+                UpdateStoryAfterRegenerate();
+            }
+            catch (Exception ex)
+            {
+                item.Prompt = before.Prompt;
+                item.HuntPromptStamp = before.HuntPromptStamp;
+                item.HuntBaseSeed = before.HuntBaseSeed;
+                item.ChosenSampleSlot = before.ChosenSampleSlot;
+                item.ChosenSeed = before.ChosenSeed;
+                item.ItemStatus = before.ItemStatus;
+                item.ErrorMessage = before.ErrorMessage;
+                item.ErosStage = before.ErosStage;
+                item.StartedAt = before.StartedAt;
+                item.CompletedAt = before.CompletedAt;
+                row.ApplyPick(before.PickedSlot);
+                row.IsFinished = before.IsFinished;
+                row.OutputPath = before.OutputPath;
+                row.Summary = before.Summary;
+                HasResult = before.HasResult;
+
+                if (ex is OperationCanceledException)
+                {
+                    row.Status = before.Status;
+                    AddLog($"{ClipCaption(row)}: regenerate stopped — the clip is as it was.");
+                    throw;
+                }
+
+                row.Status = $"regenerate failed: {ex.Message}";
+                AddLog($"{ClipCaption(row)} FAILED to regenerate: {ex.Message} — the clip is as it was, " +
+                       "and the edited prompt is still in the box.");
+            }
+            finally
+            {
+                row.IsBusy = false;
+                UpdateQueueStatus();
+                SaveQueueToFile();
+                RefreshBoardState();
+                RaiseClipEditorState();
+            }
+        }
+
+        /// <summary>
+        /// A story whose every clip is now done gets the re-joined film on its row — and, outside a run, is
+        /// Done, even if the run had marked it Failed for the clip that has just been fixed. Inside a run the
+        /// batch loop makes that call itself when the story's render returns.
+        /// </summary>
+        private void UpdateStoryAfterRegenerate()
+        {
+            if (StoryOnBoard is not { } story || Queue.Count == 0) return;
+            if (Queue.Any(q => q.ItemStatus != QueueItemStatus.Completed)) return;
+
+            Application.Current.Dispatcher.Invoke(() =>
+            {
+                if (!string.IsNullOrEmpty(ResultVideoPath)) story.OutputPath = ResultVideoPath;
+                if (IsBatchRunning) return;
+                story.State = BatchStoryState.Done;
+                story.Detail = string.Empty;
+                story.ClipCount = Queue.Count;
+            });
+            OnPropertyChanged(nameof(FolderSummary));
+        }
+
+        /// <summary>Starts regenerates that were waiting on something other than a render — the tail of a
+        /// run, or a press that landed just as the last render let go of the GPU.</summary>
+        private void TryStartQueuedRegenerations()
+        {
+            if (_regenerations.Count == 0) return;
+            Application.Current?.Dispatcher.InvokeAsync(() =>
+            {
+                if (_regenerations.Count == 0 || IsProcessingQueue || IsBatchRunning ||
+                    IsFeelingLucky || IsBuildingSheets) return;
+                _ = RunRegenerationsAsync();
+            });
+        }
+
+        private void ClearRegenerations(string why)
+        {
+            if (_regenerations.Count == 0) return;
+            var n = _regenerations.Count;
+            foreach (var r in _regenerations) r.Row.IsRerollQueued = false;
+            _regenerations.Clear();
+            AddLog($"{n} queued regenerate(s) dropped — {why}. Press Regenerate again to run one.");
+            RaiseClipEditorState();
+        }
+
+        private void OnBoardChanged()
+        {
+            if (_selectedClip != null && !HuntBoard.Contains(_selectedClip)) SelectedClip = null;
+            // An empty board belongs to no story; the next one's Analyze names its own.
+            if (HuntBoard.Count == 0)
+            {
+                _boardStoryHash = string.Empty;
+                _boardVariantKey = string.Empty;
+            }
+
+            var gone = _regenerations.RemoveAll(r => !HuntBoard.Contains(r.Row));
+            if (gone > 0)
+                AddLog($"{gone} queued regenerate(s) dropped — their story's clips have left the board.");
+        }
+
+        /// <summary>What one clip costs and produces, in one line under the settings.</summary>
+        public override string HuntSummary
+        {
+            get
+            {
+                var fps = UseRife ? $"RIFE → {DraftFrameRate * 2} fps" : $"{DraftFrameRate} fps";
+                if (UseTaoMate)
+                {
+                    // No draft: the relay paints at the quality canvas and RTX doubles the frames.
+                    var (sw, sh) = H3Canvas.Resolve(ResolvedAspectRatio, Megapixels, 32);
+                    return $"One render per clip: relayed at ≈{sw}×{sh} ({Megapixels:0.##} MP), " +
+                           $"RTX ×{TaoMateUpscale:0.#} to ≈{sw * 2}×{sh * 2} ({fps}), then joined.";
+                }
+
+                var (dw, dh) = H3Canvas.Resolve(ResolvedAspectRatio, PreviewMegapixels, 32);
+                var (fw, fh) = H3Canvas.Resolve(ResolvedAspectRatio, Megapixels, 32);
+                return $"One render per clip: composed at ≈{dw}×{dh}, upscaled to ≈{fw}×{fh} " +
+                       $"({UpscaleSteps} finishing steps, {fps}), then joined.";
+            }
+        }
+
+        // ── What the page shows ─────────────────────────────────────────────────────────────────────
+
+        /// <summary>
+        /// What ▶ actually does, said on the button. With jobs queued it runs <i>them</i>, in the order the
+        /// JOBS card shows — the page is not put in front of the queue — so the button must not go on
+        /// promising the page's own folder.
+        /// </summary>
+        public string RunButtonText =>
+            IsBatchRunning ? "⚡ Rendering…"
+            : QueuedJobCount == 1 ? "⚡ Render the queued job"
+            : QueuedJobCount > 1 ? $"⚡ Render {QueuedJobCount} queued jobs"
+            : "⚡ Render every story";
+
+        public string StackSummary => UseTaoMate
+            ? $"TaoMate relay · fl2va checkpoint · linear/euler/beta57 · {FirstPassSteps} steps, " +
+              $"6 then the TaoMate LoRA · RTX ×{TaoMateUpscale:0.#} finish"
+            : !UseSingularity
+                ? $"H3 Eros hybrid checkpoint · er_sde/beta · {FirstPassSteps} steps"
+                : SingularityErSde
+                    ? $"Singularity ref2va checkpoint · er_sde/beta + sigma shift · {FirstPassSteps} steps"
+                    : $"Singularity ref2va checkpoint · euler/simple · {FirstPassSteps} steps";
+
+        public string PromptBuildSummary => _specPrompts
+            ? "Not used while 📐 Singularity spec prompts is on."
+            : ResearchPrompts
+                ? "MiniMax-H3 guide build · 3–5 shots per clip · medium-or-closer framing"
+                : "Shipped build · a cut roughly every 1.25 s";
+
+        // ── 📐 Singularity spec prompts ─────────────────────────────────────────────────────────────
+
+        private bool _specPrompts;
+
+        /// <summary>
+        /// On: every story's clips are written to the MiniMax H3 Singularity prompt-writing spec
+        /// (<see cref="H3SpecPrompt"/>) — six-section full-reference prompts — instead of by the 📚 build.
+        /// Remembered. A story whose saved prompts came from the other kind of build is written again, since
+        /// reusing them would render the build this switch just turned away from.
+        /// </summary>
+        public bool SingularitySpecPrompts
+        {
+            get => _specPrompts;
+            set
+            {
+                if (_specPrompts == value) return;
+                _specPrompts = value;
+                OnPropertyChanged();
+                OnPropertyChanged(nameof(SpecPromptsSummary));
+                OnPropertyChanged(nameof(PromptBuildSummary));
+
+                var settings = _settingsService.Settings;
+                if (settings != null)
+                {
+                    settings.H3ExpressSpecPrompts = value;
+                    _settingsService.SaveSettings(settings);
+                }
+                AddLog(value
+                    ? "📐 Singularity spec prompts ON — clips are written as six-section full-reference prompts " +
+                      "(subject_definitions, summary, retention_analysis, detailed_description, overall_soundscape, " +
+                      "non_diegetic_music). Stories saved by another build are written again."
+                    : "📐 Singularity spec prompts OFF — clips are written by the 📚 build. Stories saved by the spec " +
+                      "build are written again.");
+            }
+        }
+
+        protected override bool SpecPromptBuild => _specPrompts;
+
+        public string SpecPromptsSummary => _specPrompts
+            ? "On — a fight director turns the story into exchanges and dialogue on one escalating arc; each clip is " +
+              "written in the spec's six sections with the fighters facing each other, picking up the last shot of " +
+              "the clip before. Replaces the 📚 build."
+            : "Off — the clips are written by the 📚 build above.";
+
+        /// <summary>"3 of 12 clips rendered" for the story in flight.</summary>
+        public string ClipProgressText
+        {
+            get
+            {
+                var total = HuntBoard.Count;
+                if (total == 0) return string.Empty;
+                var done = HuntBoard.Count(c => c.IsFinished);
+                return $"{done} of {total} clip{(total == 1 ? string.Empty : "s")} rendered";
+            }
+        }
+
+        /// <summary>Plays a finished story's joined film in the player.</summary>
+        public RelayCommand<BatchStory> PlayStoryCommand { get; }
+
+        private void PlayStory(BatchStory? story)
+        {
+            if (story?.HasOutput != true) return;
+            ShowInPlayer(story.OutputPath, $"{story.Title} · joined film");
+        }
+    }
+}

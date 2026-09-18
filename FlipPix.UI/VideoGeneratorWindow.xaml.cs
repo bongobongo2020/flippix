@@ -49,7 +49,9 @@ namespace FlipPix.UI
             // Drive the seed-preview player Sources from code-behind: a string {Binding} to
             // MediaElement.Source silently fails to load the Z:\ output paths (black frame, no
             // MediaOpened/MediaFailed). Set an absolute Uri explicitly instead.
-            _viewModel.ErosConvRotVM.PropertyChanged += ErosConvRotVM_PropertyChanged;
+            _viewModel.H3VrVM.PropertyChanged += H3VrVM_PropertyChanged;
+            _viewModel.H3ExpressVM.PropertyChanged += H3ExpressVM_PropertyChanged;
+            _viewModel.SeedUpscaleVM.PropertyChanged += SeedUpscaleVM_PropertyChanged;
         }
 
         private void OnLoaded(object sender, RoutedEventArgs e)
@@ -57,7 +59,9 @@ namespace FlipPix.UI
             _windowPositionService.EnsureWindowVisible(this);
             // Pick up a video that was already loaded before this window's handlers wired up.
             ApplyScail2RefSource();
-            ApplyErosConvRotSource();
+            ApplyH3VrSource();
+            ApplyH3ExpressSource();
+            ApplySeedUpscaleSource();
         }
 
         private void Header_MouseLeftButtonDown(object sender, MouseButtonEventArgs e)
@@ -80,35 +84,18 @@ namespace FlipPix.UI
                 MiniMaxI2VVideoPlayer.Play();
             }
 
-            if (MiniMaxCharacterVideoPlayer != null && MiniMaxCharacterVideoPlayer.Source != null)
+            if (H3VrVideoPlayer != null && H3VrVideoPlayer.Source != null)
             {
-                MiniMaxCharacterVideoPlayer.Position = System.TimeSpan.Zero;
-                MiniMaxCharacterVideoPlayer.Play();
+                H3VrVideoPlayer.Position = System.TimeSpan.Zero;
+                H3VrVideoPlayer.Play();
             }
 
-            if (H3ChainVideoPlayer != null && H3ChainVideoPlayer.Source != null)
+            if (H3ExpressVideoPlayer != null && H3ExpressVideoPlayer.Source != null)
             {
-                H3ChainVideoPlayer.Position = System.TimeSpan.Zero;
-                H3ChainVideoPlayer.Play();
+                H3ExpressVideoPlayer.Position = System.TimeSpan.Zero;
+                H3ExpressVideoPlayer.Play();
             }
 
-            if (H3DuoVideoPlayer != null && H3DuoVideoPlayer.Source != null)
-            {
-                H3DuoVideoPlayer.Position = System.TimeSpan.Zero;
-                H3DuoVideoPlayer.Play();
-            }
-
-            if (H3ExperimentalVideoPlayer != null && H3ExperimentalVideoPlayer.Source != null)
-            {
-                H3ExperimentalVideoPlayer.Position = System.TimeSpan.Zero;
-                H3ExperimentalVideoPlayer.Play();
-            }
-
-            if (H3MultiVideoPlayer != null && H3MultiVideoPlayer.Source != null)
-            {
-                H3MultiVideoPlayer.Position = System.TimeSpan.Zero;
-                H3MultiVideoPlayer.Play();
-            }
         }
 
         // Never seek a scrub preview to the exact end of the clip. Landing on the final
@@ -138,22 +125,93 @@ namespace FlipPix.UI
         // WAN processes the clip in 81-frame chunks; the timeline marks each boundary.
         private const int ScailChunkFrames = 81;
 
-        private void ErosConvRotVM_PropertyChanged(object? sender, System.ComponentModel.PropertyChangedEventArgs e)
+
+        // ────────────────────────────────────────────────────────────────────
+        // Shared seed-board players — H3 VR, H3 Express and Seed Upscale each follow
+        // their view model's ActivePreviewUri, which changes on every tile click, so
+        // the player has to start playing on its own each time.
+        //
+        // The Source is built here as an ABSOLUTE Uri rather than bound as a string:
+        // WPF's string→Uri conversion silently fails to open the Z:\output paths these
+        // drafts live on — no MediaOpened, no MediaFailed, just a black frame. The
+        // element is also never collapsed, because a collapsed MediaElement will not
+        // open media at all. Both mistakes have already cost this app a working preview
+        // once each; see project_fflfseedhunt_preview_player.
+        // ────────────────────────────────────────────────────────────────────
+
+
+        private void H3VrVM_PropertyChanged(object? sender, System.ComponentModel.PropertyChangedEventArgs e)
         {
-            if (e.PropertyName != nameof(ViewModels.Video.ErosConvRotViewModel.ActivePreviewUri)) return;
-            if (Dispatcher.CheckAccess()) ApplyErosConvRotSource();
-            else Dispatcher.Invoke(ApplyErosConvRotSource);
+            if (e.PropertyName != nameof(ViewModels.Video.H3VrViewModel.ActivePreviewUri)) return;
+            if (Dispatcher.CheckAccess()) ApplyH3VrSource();
+            else Dispatcher.Invoke(ApplyH3VrSource);
         }
 
-        private void ApplyErosConvRotSource()
+        private void ApplyH3VrSource() =>
+            ApplySharedPlayerSource(H3VrVideoPlayer, _viewModel.H3VrVM.ActivePreviewUri);
+
+        private void H3VrPlayer_MediaOpened(object sender, RoutedEventArgs e) => H3VrVideoPlayer.Play();
+
+        private void H3VrPlayer_MediaEnded(object sender, RoutedEventArgs e)
         {
-            var p = ErosConvRotPlayer;
-            if (p == null) return;
-            var path = _viewModel.ErosConvRotVM.ActivePreviewUri;
+            H3VrVideoPlayer.Position = System.TimeSpan.FromMilliseconds(1);
+            H3VrVideoPlayer.Play();
+        }
+
+        private void H3VrPlayer_MediaFailed(object sender, ExceptionRoutedEventArgs e) =>
+            _viewModel.H3VrVM.ReportPreviewFailed(e.ErrorException?.Message ?? "unknown media error");
+
+        private void H3ExpressVM_PropertyChanged(object? sender, System.ComponentModel.PropertyChangedEventArgs e)
+        {
+            if (e.PropertyName != nameof(ViewModels.Video.H3ExpressViewModel.ActivePreviewUri)) return;
+            if (Dispatcher.CheckAccess()) ApplyH3ExpressSource();
+            else Dispatcher.Invoke(ApplyH3ExpressSource);
+        }
+
+        private void ApplyH3ExpressSource() =>
+            ApplySharedPlayerSource(H3ExpressVideoPlayer, _viewModel.H3ExpressVM.ActivePreviewUri);
+
+        private void H3ExpressPlayer_MediaOpened(object sender, RoutedEventArgs e) => H3ExpressVideoPlayer.Play();
+
+        private void H3ExpressPlayer_MediaEnded(object sender, RoutedEventArgs e)
+        {
+            H3ExpressVideoPlayer.Position = System.TimeSpan.FromMilliseconds(1);
+            H3ExpressVideoPlayer.Play();
+        }
+
+        private void H3ExpressPlayer_MediaFailed(object sender, ExceptionRoutedEventArgs e) =>
+            _viewModel.H3ExpressVM.ReportPreviewFailed(e.ErrorException?.Message ?? "unknown media error");
+
+        private void SeedUpscaleVM_PropertyChanged(object? sender, System.ComponentModel.PropertyChangedEventArgs e)
+        {
+            if (e.PropertyName != nameof(ViewModels.Video.SeedUpscaleViewModel.ActivePreviewUri)) return;
+            if (Dispatcher.CheckAccess()) ApplySeedUpscaleSource();
+            else Dispatcher.Invoke(ApplySeedUpscaleSource);
+        }
+
+        private void ApplySeedUpscaleSource() =>
+            ApplySharedPlayerSource(SeedUpscaleVideoPlayer, _viewModel.SeedUpscaleVM.ActivePreviewUri);
+
+        private void SeedUpscalePlayer_MediaOpened(object sender, RoutedEventArgs e) => SeedUpscaleVideoPlayer.Play();
+
+        private void SeedUpscalePlayer_MediaEnded(object sender, RoutedEventArgs e)
+        {
+            SeedUpscaleVideoPlayer.Position = System.TimeSpan.FromMilliseconds(1);
+            SeedUpscaleVideoPlayer.Play();
+        }
+
+        private void SeedUpscalePlayer_MediaFailed(object sender, ExceptionRoutedEventArgs e) =>
+            _viewModel.SeedUpscaleVM.ReportPreviewFailed(e.ErrorException?.Message ?? "unknown media error");
+
+        /// <summary>Points a seed-board player at a file, as an absolute Uri. Clicking the
+        /// same tile twice replays it rather than doing nothing.</summary>
+        private static void ApplySharedPlayerSource(System.Windows.Controls.MediaElement? player, string? path)
+        {
+            if (player == null) return;
             if (string.IsNullOrEmpty(path))
             {
-                p.Stop();
-                p.Source = null;
+                player.Stop();
+                player.Source = null;
                 return;
             }
 
@@ -161,31 +219,14 @@ namespace FlipPix.UI
             try { target = new Uri(System.IO.Path.GetFullPath(path), UriKind.Absolute); }
             catch { target = new Uri(path, UriKind.RelativeOrAbsolute); }
 
-            if (string.Equals(p.Source?.OriginalString, target.OriginalString, StringComparison.OrdinalIgnoreCase))
+            if (string.Equals(player.Source?.OriginalString, target.OriginalString, StringComparison.OrdinalIgnoreCase))
             {
-                p.Position = System.TimeSpan.Zero;
-                p.Play();
+                player.Position = System.TimeSpan.Zero;
+                player.Play();
                 return;
             }
-            p.Stop();
-            p.Source = target; // MediaOpened handler starts playback.
-        }
-
-        private void ErosConvRotPlayer_MediaOpened(object sender, RoutedEventArgs e)
-        {
-            _viewModel.ErosConvRotVM.ReportPreviewOpened(ErosConvRotPlayer.Source?.OriginalString ?? "");
-            ErosConvRotPlayer.Play();
-        }
-
-        private void ErosConvRotPlayer_MediaEnded(object sender, RoutedEventArgs e)
-        {
-            ErosConvRotPlayer.Position = System.TimeSpan.FromMilliseconds(1);
-            ErosConvRotPlayer.Play();
-        }
-
-        private void ErosConvRotPlayer_MediaFailed(object sender, ExceptionRoutedEventArgs e)
-        {
-            _viewModel.ErosConvRotVM.ReportPreviewFailed(e.ErrorException?.Message ?? "unknown media error");
+            player.Stop();
+            player.Source = target; // MediaOpened starts playback.
         }
 
         // ──────────────────────────────────────────────────────────────────────
@@ -241,6 +282,37 @@ namespace FlipPix.UI
 
         private void Scail2RefPlayer_MediaEnded(object sender, RoutedEventArgs e)
             => _scail2IsPlaying = false;
+
+        /// <summary>
+        /// Opens the picture behind a cast thumbnail at full size, in whatever the user has set as their
+        /// image viewer — the card's frames are 92px tall, which shows which photo is loaded but not whether
+        /// the face in it is the right one.
+        ///
+        /// <para>Tag carries the path (SourcePath on the photo, SheetPath on the built sheet); an empty
+        /// frame, or a file that has since been moved or deleted, does nothing rather than raising a shell
+        /// error the user cannot act on.</para>
+        /// </summary>
+        private void CastThumbnail_MouseLeftButtonUp(object sender, MouseButtonEventArgs e)
+        {
+            if (sender is not FrameworkElement { Tag: string path } || string.IsNullOrWhiteSpace(path)) return;
+            if (!System.IO.File.Exists(path)) return;
+
+            try
+            {
+                System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo
+                {
+                    FileName = path,
+                    UseShellExecute = true,   // the shell, not us, decides which viewer opens it
+                });
+                e.Handled = true;
+            }
+            catch (Exception ex)
+            {
+                System.Windows.MessageBox.Show(
+                    $"Could not open {System.IO.Path.GetFileName(path)}: {ex.Message}",
+                    "FlipPix", MessageBoxButton.OK, MessageBoxImage.Warning);
+            }
+        }
 
         /// <summary>
         /// Opens a cast card's ✨ Generate menu on a left click (WPF only opens a Button's ContextMenu
@@ -450,16 +522,12 @@ namespace FlipPix.UI
         {
             _scrubTimerScail2?.Stop();
 
-            ErosConvRotPlayer?.Stop();
             Scail2RefVideoPlayer?.Stop();
             Scail2VideoPlayer?.Stop();
             MiniMaxI2VVideoPlayer?.Stop();
-            MiniMaxFflfVideoPlayer?.Stop();
-            MiniMaxCharacterVideoPlayer?.Stop();
-            H3ChainVideoPlayer?.Stop();
-            H3DuoVideoPlayer?.Stop();
-            H3ExperimentalVideoPlayer?.Stop();
-            H3MultiVideoPlayer?.Stop();
+            H3VrVideoPlayer?.Stop();
+            H3ExpressVideoPlayer?.Stop();
+            SeedUpscaleVideoPlayer?.Stop();
         }
 
         protected override void OnClosing(System.ComponentModel.CancelEventArgs e)

@@ -6,6 +6,7 @@
     <BooleanToVisibilityConverter x:Key="BooleanToVisibilityConverter"/>
     <converters:SubtractConverter x:Key="SubtractConverter"/>
     <converters:StringToVisibilityConverter x:Key="StringToVisibilityConverter"/>
+    <converters:NotNullToVisibilityConverter x:Key="NotNullToVisibilityConverter"/>
 
     <!-- ============================================================= -->
     <!--  DESIGN TOKENS                                                -->

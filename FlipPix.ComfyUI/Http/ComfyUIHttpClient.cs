@@ -1493,31 +1493,49 @@ public class ComfyUIHttpClient : IDisposable
     /// These are paths relative to the loras root, exactly as the server resolves them (so they work
     /// even when the loras live on a remote/mounted drive the client can't see on disk).
     /// </summary>
-    public async Task<List<string>> GetLoraFilenamesAsync(CancellationToken cancellationToken = default)
+    public Task<List<string>> GetLoraFilenamesAsync(CancellationToken cancellationToken = default) =>
+        GetComboOptionsAsync("LoraLoader", "lora_name", cancellationToken);
+
+    /// <summary>
+    /// Returns every diffusion-model filename ComfyUI exposes (from /object_info/UNETLoader's unet_name
+    /// enum). These are paths relative to the <c>diffusion_models</c> root, with forward slashes, exactly
+    /// as the server resolves them — so a tab can offer the models on a remote server it cannot see on
+    /// disk, and the string it picks drops straight into a UNETLoader's <c>unet_name</c>.
+    /// </summary>
+    public Task<List<string>> GetUnetFilenamesAsync(CancellationToken cancellationToken = default) =>
+        GetComboOptionsAsync("UNETLoader", "unet_name", cancellationToken);
+
+    /// <summary>
+    /// The values one node class declares for one combo input, read from /object_info/&lt;class&gt;. Empty
+    /// when the server is unreachable or does not have the class, so a caller can fall back to whatever
+    /// its workflow already names rather than showing an error.
+    /// </summary>
+    private async Task<List<string>> GetComboOptionsAsync(
+        string nodeClass, string inputName, CancellationToken cancellationToken)
     {
         var result = new List<string>();
         try
         {
             using var cts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
             cts.CancelAfter(TimeSpan.FromSeconds(15));
-            var response = await _httpClient.GetAsync("/object_info/LoraLoader", cts.Token);
+            var response = await _httpClient.GetAsync($"/object_info/{nodeClass}", cts.Token);
             if (!response.IsSuccessStatusCode)
             {
-                _logger.LogInfo($"GetLoraFilenamesAsync: /object_info/LoraLoader returned {response.StatusCode}");
+                _logger.LogInfo($"GetComboOptionsAsync: /object_info/{nodeClass} returned {response.StatusCode}");
                 return result;
             }
 
             var json = await response.Content.ReadAsStringAsync(cts.Token);
             using var doc = JsonDocument.Parse(json);
 
-            // Shape: { "LoraLoader": { "input": { "required": { "lora_name": [ [names...], {..} ] } } } }
-            if (doc.RootElement.TryGetProperty("LoraLoader", out var node) &&
+            // Shape: { "<class>": { "input": { "required": { "<input>": [ [names...], {..} ] } } } }
+            if (doc.RootElement.TryGetProperty(nodeClass, out var node) &&
                 node.TryGetProperty("input", out var input) &&
                 input.TryGetProperty("required", out var required) &&
-                required.TryGetProperty("lora_name", out var loraName) &&
-                loraName.ValueKind == JsonValueKind.Array && loraName.GetArrayLength() > 0)
+                required.TryGetProperty(inputName, out var combo) &&
+                combo.ValueKind == JsonValueKind.Array && combo.GetArrayLength() > 0)
             {
-                var names = loraName[0];
+                var names = combo[0];
                 if (names.ValueKind == JsonValueKind.Array)
                 {
                     foreach (var item in names.EnumerateArray())
@@ -1525,11 +1543,11 @@ public class ComfyUIHttpClient : IDisposable
                             result.Add(item.GetString()!);
                 }
             }
-            _logger.LogInfo($"GetLoraFilenamesAsync: {result.Count} LoRAs reported by ComfyUI");
+            _logger.LogInfo($"GetComboOptionsAsync: {result.Count} value(s) for {nodeClass}.{inputName}");
         }
         catch (Exception ex)
         {
-            _logger.LogWarning($"GetLoraFilenamesAsync failed: {ex.Message}");
+            _logger.LogWarning($"GetComboOptionsAsync({nodeClass}.{inputName}) failed: {ex.Message}");
         }
         return result;
     }

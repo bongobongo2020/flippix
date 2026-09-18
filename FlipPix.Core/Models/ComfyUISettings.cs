@@ -157,10 +157,12 @@ public class ComfyUISettings
     // safe on a 24GB card; persisted so the choice survives restarts.
     public int Scail2VideoBatchSize { get; set; } = 40;
 
-    // Scail 2 tab: output resolution override for the final SCAIL II video, as "WxH" (e.g. "1280x720").
-    // Empty or "0x0" keeps the workflow's authored ResolutionMaster default; a concrete value forces the
-    // generation canvas (EmptyImage node 30) to exactly that size. Persisted so the choice survives restarts.
-    public string Scail2Resolution { get; set; } = "0x0";
+    // Scail 2 tab: output resolution for the final SCAIL II video. "auto" (the default) sizes the
+    // generation canvas from the driving video's own aspect ratio at ≈960×544 worth of pixels, so the
+    // character image is never stretched onto a canvas of a different shape. A concrete "WxH" (e.g.
+    // "1280x720") forces that exact canvas instead, and "0x0" keeps the workflow's authored 640×960 one.
+    // Persisted so the choice survives restarts.
+    public string Scail2Resolution { get; set; } = "auto";
 
     // Scail 2 tab: keep the driving video's original background (SCAIL2 "replacement" mode, node 39) and
     // regenerate only the swapped character, instead of regenerating the whole frame ("animation" mode).
@@ -173,6 +175,95 @@ public class ComfyUISettings
     // the frame rate and the resolution at the cost of a longer run, and needs the RIFE + nvidia-vfx nodes
     // installed. Off by default so the tab works on a plain SCAIL install. Persisted per user.
     public bool Scail2Interpolate { get; set; } = false;
+
+    // H3 Eros tab: which diffusion_models/h3-minimax checkpoint the seed hunt and the finish are sampled
+    // with, as ComfyUI names it (e.g. "h3-minimax/minimax_h3_ref2va_pruned_int8_convrot.safetensors").
+    // Empty means "whatever the workflow file ships", which is what an install that has never touched the
+    // dropdown gets. Persisted per user so a comparison run survives a restart.
+    public string H3ErosDiffusionModel { get; set; } = string.Empty;
+
+    // H3 4-Step tab: the same dropdown, its own slot. Kept separate from H3ErosDiffusionModel because the
+    // two tabs render different graphs — Eros's twelve-step hybrid and the 4-step turbo checkpoint are not
+    // interchangeable, and sharing one field would have each tab silently reset the other's choice.
+    public string H34StepDiffusionModel { get; set; } = string.Empty;
+
+    // H3 VR tab: the same dropdown again, its own slot. The VR180 SBS LoRA sits on top of whichever
+    // checkpoint is chosen here, so the choice that reads best in a headset is not necessarily the one
+    // either of the other two tabs settled on.
+    public string H3VrDiffusionModel { get; set; } = string.Empty;
+
+    // Where already-built character sheets are kept, so loading a cast photo the app has seen before brings
+    // its sheet back instead of paying Qwen-Image-Edit for it again. Empty means the default,
+    // Pictures/cast/sheets; ⚡ H3 Express keeps the cast photos it generates one level up, in Pictures/cast.
+    public string CastSheetLibraryFolder { get; set; } = string.Empty;
+
+    // H3 Batch tab: the folder of story .txt files it walks, and its own diffusion-model slot. The folder
+    // is remembered because a batch folder is a place you come back to, often with two more files in it.
+    public string H3BatchFolder { get; set; } = string.Empty;
+    public string H3BatchDiffusionModel { get; set; } = string.Empty;
+
+    // H3 Batch tab: whether the batch renders every story through the H3 VR workflow (the VR180 SBS LoRA
+    // on top of the same Eros hunt) rather than as ordinary flat films. Persisted because a folder of
+    // stories is usually all one kind of film — once it is a VR folder it stays one.
+    public bool H3BatchRenderAsVr { get; set; }
+
+    // H3 Batch tab: whether the batch renders every story through the Singularity stack
+    // (h3-singularity.json — the Singularity ref2va checkpoint, the comfy-kitchen attention backend,
+    // chunked feed-forward, fp16 accumulation, euler/simple at 10 steps) instead of the Eros one.
+    // Persisted for the same reason the VR flag is: a folder of stories is rendered as one set, and
+    // half of it on a different checkpoint is a folder of films that do not match each other.
+    public bool H3BatchUseSingularity { get; set; }
+    // ✴️'s sub-option: the Singularity graph, its sigma shift kept, sampled er_sde/beta at 12 steps (the Eros
+    // sampler) instead of euler/simple at 10. Off by default — euler/simple is what the author measured.
+    public bool H3BatchSingularityErSde { get; set; }
+
+    // H3 Express tab: H3 Batch without the seed hunt. Its own folder and model slot, so the two tabs can be
+    // pointed at different folders, and its own Singularity flag — which defaults ON here, because the
+    // quickest stack is the one a tab named for speed should start on.
+    public string H3ExpressFolder { get; set; } = string.Empty;
+    public string H3ExpressDiffusionModel { get; set; } = string.Empty;
+    public bool H3ExpressUseSingularity { get; set; } = true;
+    public bool H3ExpressSingularityErSde { get; set; }
+    // 🍥 The third stack: the author's TaoMate relay (h3-taomate.json) — one ten-step schedule handed from
+    // the base weights to the TaoMate 3-step LoRA halfway through, finished with an RTX frame-space upscale
+    // instead of a latent one. Mutually exclusive with Singularity above; the Express tab's radio group
+    // keeps the two in step, and this wins if both are somehow set.
+    public bool H3ExpressUseTaoMate { get; set; }
+    // Sampling steps per checkpoint: the first-pass step count the Express tab renders with, keyed by the
+    // model name it was set for (lowercased, forward slashes). A checkpoint that has never been set is not
+    // in here at all and renders at the step count its stack was authored at — Singularity's 10, the Eros
+    // hybrid's 12, the TaoMate relay's 10 — so this only ever holds the counts that were chosen on purpose.
+    public Dictionary<string, int> H3ExpressStepsByModel { get; set; } = new();
+
+    // An optional LoRA from loras/H3, spliced onto whichever checkpoint the tab samples. Empty is none.
+    public string H3ExpressLora { get; set; } = string.Empty;
+    public double H3ExpressLoraStrength { get; set; } = 1.0;
+    // A story whose clip prompts were saved on an earlier run renders from them instead of the clip writer.
+    public bool H3ExpressReuseSavedPrompts { get; set; } = true;
+    // 📐 Clip prompts written to the MiniMax H3 Singularity prompt-writing spec (six-section full-reference
+    // prompts) instead of the researched/shipped writer.
+    public bool H3ExpressSpecPrompts { get; set; }
+    // Saved stories added to the STORIES list from 📚 Story prompts (by story hash), put back on the next launch.
+    public List<string> H3ExpressLibraryStories { get; set; } = new();
+    // The run's own cast: a photo per character replaces the portrait the story would otherwise get. Outfit
+    // is what the photo shows, read by the vision model; OutfitSource is the photo it was read from.
+    public string H3ExpressCast1Photo { get; set; } = string.Empty;
+    public string H3ExpressCast1Sex { get; set; } = "Male";
+    public string H3ExpressCast1Outfit { get; set; } = string.Empty;
+    public string H3ExpressCast1OutfitSource { get; set; } = string.Empty;
+    public string H3ExpressCast2Photo { get; set; } = string.Empty;
+    public string H3ExpressCast2Sex { get; set; } = "Female";
+    public string H3ExpressCast2Outfit { get; set; } = string.Empty;
+    public string H3ExpressCast2OutfitSource { get; set; } = string.Empty;
+    // Off: the cast wears the story's saved wardrobe. On: their own clothes, and saved clips are re-dressed.
+    public bool H3ExpressCastOwnClothes { get; set; }
+    // The text-to-image graph a character with no photo of the user's is photographed with — a CastPhotoWorkflows
+    // engine key: krea2spicy, ideogram, qwen or klein. The sheet is still built from that photo by Qwen-Image-Edit.
+    public string H3ExpressCastPhotoEngine { get; set; } = "krea2spicy";
+
+    // Seed Upscale tab: the folder its scan starts in. Empty means "the H3 4-Step output folder", which is
+    // where the drafts it upscales are written.
+    public string SeedUpscaleFolder { get; set; } = string.Empty;
 
     // Painter (WAN 2.2 LightX2V) workflow model names — adjust to match your ComfyUI server
     public string PainterHighNoiseModel { get; set; } = @"wan\wan2.2_i2v_high_noise_14B_Q8_0.gguf";

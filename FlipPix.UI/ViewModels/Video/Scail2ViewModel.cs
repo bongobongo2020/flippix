@@ -131,8 +131,17 @@ namespace FlipPix.UI.ViewModels.Video
             if (savedBatch >= 8) _videoBatchSize = savedBatch;
 
             // Restore the persisted output-resolution choice (backing field so no redundant save fires).
-            var savedRes = _settingsService.Settings?.Scail2Resolution;
-            if (!string.IsNullOrWhiteSpace(savedRes)) _outputResolution = savedRes.Trim();
+            // The two old defaults — "0x0" (the authored 640×960 portrait) and "960x544" — are migrated to
+            // "auto". Neither was ever a deliberate aspect choice, and both forced a fixed canvas onto
+            // whatever the source video was, which is what stretched the character image (see
+            // ComputeOutputResolution). Explicitly picked presets are left alone. Nothing is saved here, so
+            // the migration simply re-runs on the next launch.
+            var savedRes = _settingsService.Settings?.Scail2Resolution?.Trim();
+            if (!string.IsNullOrWhiteSpace(savedRes))
+                _outputResolution = savedRes.Equals("0x0", StringComparison.OrdinalIgnoreCase)
+                                 || savedRes.Equals("960x544", StringComparison.OrdinalIgnoreCase)
+                    ? AutoResolutionToken
+                    : savedRes;
 
             // Restore the persisted "keep original background" choice. ReplaceBackground is the inverse:
             // keep-original == replacement mode == !ReplaceBackground. Set the inherited property directly
@@ -485,6 +494,14 @@ namespace FlipPix.UI.ViewModels.Video
         private const int AuthoredCanvasWidth = 640;
         private const int AuthoredCanvasHeight = 960;
 
+        // "Auto" resolution sentinel: instead of a fixed WxH, the generation canvas is derived from the
+        // driving video's own aspect ratio at the same pixel budget the fixed 960×544 preset used, so a
+        // portrait clip generates portrait and a landscape clip landscape. Every fixed preset forced its
+        // own aspect onto the source, and node 199:500 resizes the character image onto that canvas — so a
+        // 16:9 character image on a 640×960 canvas (or the reverse) came out visibly stretched.
+        private const string AutoResolutionToken = "auto";
+        private const int AutoPixelBudget = 960 * 544;   // ≈522k px — the measured VRAM sweet spot
+
         private int _videoBatchSize = 40;
         public int VideoBatchSize
         {
@@ -504,13 +521,13 @@ namespace FlipPix.UI.ViewModels.Video
             }
         }
 
-        // Output resolution for the final SCAIL II video, as "WxH" (e.g. "1280x720"). Defaults to
-        // 960×544 — the measured sweet spot that survives long clips without OOM (see node-45 comment
-        // in UpdateWorkflowParameters). "0x0" (or empty) instead keeps the workflow's authored
-        // ResolutionMaster default (480×853 portrait); any concrete value forces the generation canvas
-        // (EmptyImage node 30) to exactly that size. Pushing to 1280×720 is only safe on short trims,
-        // as it OOMs the server on full-length clips. Persisted so the choice survives restarts.
-        private string _outputResolution = "960x544";
+        // Output resolution for the final SCAIL II video, as "WxH" (e.g. "1280x720"). Defaults to "auto":
+        // the driving video's own aspect ratio at ≈960×544 worth of pixels — the measured sweet spot that
+        // survives long clips without OOM. Any concrete value instead forces the generation canvas to
+        // exactly that size, which crops the driving video and the character image to that aspect;
+        // "0x0" (or empty) keeps the workflow's authored 640×960 canvas. Pushing to 1280×720 is only safe
+        // on short trims, as it OOMs the server on full-length clips. Persisted across restarts.
+        private string _outputResolution = AutoResolutionToken;
         public string OutputResolution
         {
             get => _outputResolution;
@@ -572,8 +589,9 @@ namespace FlipPix.UI.ViewModels.Video
             }
         }
 
-        // Parses OutputResolution into (width, height). Returns (0, 0) for the "keep authored default"
-        // sentinel or any unparseable/non-positive value, so the workflow is left untouched in that case.
+        // Parses OutputResolution into (width, height). Returns (0, 0) for "auto", for the "keep authored
+        // default" sentinel, and for any unparseable/non-positive value, so those cases fall through to
+        // ComputeOutputResolution below.
         private (int width, int height) ParseOutputResolution()
         {
             var parts = (_outputResolution ?? string.Empty).Split('x', 'X');
@@ -584,6 +602,48 @@ namespace FlipPix.UI.ViewModels.Video
                 return (w, h);
             return (0, 0);
         }
+
+        // True when the canvas follows the driving video's aspect ratio instead of a fixed preset.
+        private bool IsAutoResolution =>
+            AutoResolutionToken.Equals(_outputResolution, StringComparison.OrdinalIgnoreCase);
+
+        /// <summary>
+        /// The canvas the whole SCAIL II loop generates at. The base view model resolves this once per run
+        /// and uses it for two things: it is written into node 199:89 (see UpdateWorkflowParameters), and
+        /// the character image is centre-cropped to this aspect ratio before it is uploaded.
+        ///
+        /// That crop is the fix for stretched output. Node 199:500 resizes the character image onto this
+        /// canvas, and it was authored with keep_proportion "stretch", so a character image that reached
+        /// it at a different aspect ratio was squashed — and the whole video was generated from it.
+        /// <see cref="WanScailGgufViewModel"/> returns (0, 0) here, which skipped the crop entirely, so a
+        /// portrait character image on the landscape canvas (or the reverse) went in distorted. The node
+        /// is now "crop"/centre as well, so a mismatch is cropped rather than distorted even if this
+        /// crop is skipped (ffmpeg missing, or a user-supplied final image).
+        ///
+        /// "auto" (the default) sizes the canvas from the driving video itself, so the character image —
+        /// which Stage A already renders at the pose frame's aspect — needs no crop at all.
+        /// </summary>
+        protected override (int Width, int Height) ComputeOutputResolution(int videoW, int videoH, int maxEdge)
+        {
+            var (w, h) = ParseOutputResolution();
+            if (w > 0 && h > 0) return (w, h);                   // fixed preset
+
+            if (IsAutoResolution && videoW > 0 && videoH > 0)
+                return FitToPixelBudget(videoW, videoH, AutoPixelBudget);
+
+            return (AuthoredCanvasWidth, AuthoredCanvasHeight);  // "0x0" = the authored 640×960 canvas
+        }
+
+        // Largest canvas at the source's aspect ratio that fits a pixel budget, both edges snapped to 16
+        // (node 199:89 is divisible_by 16, and the WAN latent wants the same alignment).
+        private static (int Width, int Height) FitToPixelBudget(int srcW, int srcH, int budgetPixels)
+        {
+            var scale = Math.Sqrt(budgetPixels / ((double)srcW * srcH));
+            return (SnapToCanvasBlock(srcW * scale), SnapToCanvasBlock(srcH * scale));
+        }
+
+        private static int SnapToCanvasBlock(double value)
+            => Math.Max(256, (int)Math.Round(value / 16.0) * 16);
 
         #endregion
 
@@ -1587,7 +1647,13 @@ namespace FlipPix.UI.ViewModels.Video
             // 60→61, 80→81 — 81 being the workflow's authored value).
             int windowFrames = Math.Max(5, (int)Math.Round(VideoBatchSize / 4.0) * 4 + 1);
 
-            var (outResW, outResH) = ParseOutputResolution();
+            // Generation canvas. The base view model already resolved this through
+            // ComputeOutputResolution (and centre-cropped the character image to it before upload), so use
+            // what it passed down; fall back to the raw setting only if it could not read the driving
+            // video's dimensions.
+            var (outResW, outResH) = (outputWidth, outputHeight);
+            if (outResW <= 0 || outResH <= 0)
+                (outResW, outResH) = ParseOutputResolution();
 
             AddLog($"Updating SCAIL2 segmentation-control workflow: whole video, fps={fps}, " +
                    $"subject=\"{subject}\", replacementMode={replacementMode}, skip={skipFrames} frames, " +
@@ -1648,7 +1714,9 @@ namespace FlipPix.UI.ViewModels.Video
                     { "width", outResW },
                     { "height", outResH }
                 });
-                AddLog($"SCAIL2 output resolution override: {outResW}×{outResH} (Resize Image Video node 199:89)");
+                AddLog($"SCAIL2 output resolution: {outResW}×{outResH} " +
+                       $"({(IsAutoResolution ? "auto — matches the driving video's aspect" : "fixed preset")}, " +
+                       $"Resize Image Video node 199:89)");
             }
             else
             {

@@ -71,105 +71,97 @@ namespace FlipPix.UI.ViewModels.Video
                            "outfits themselves, which is where between-clip costume changes come from. " +
                            "Fill the wardrobe box in by hand, or press 🎽 Derive again.");
 
-                AnalyzePhase = "Reading the system prompt…";
-                var systemPrompt = await ReadSystemPromptAsync(SystemPromptFile, token);
+                // The chain is written one clip at a time — one beat-sheet call, then one call per
+                // clip. See H3EnsembleViewModel.ChainWriter.cs for the failure the single reply had.
+                // A lone clip was never that failure and keeps the request this tab has always sent.
+                string assembled;
                 if (clipCount > 1)
                 {
-                    systemPrompt += "\n\n" + await ReadSystemPromptAsync(StorySystemPromptFile, token);
-                    if (!fromImage)
-                        systemPrompt += "\n\nNOTE FOR THIS RUN: there is no location image. Wherever the rules " +
-                                        "above say to read the setting or the wardrobe off the location " +
-                                        "image, read them off the STORY instead — decide each of them once, " +
-                                        "and then repeat that wording verbatim in every clip.";
-                }
-
-                var draft = PromptClipCount > 1
-                    ? "(the prompt box holds a previous sequence — ignore it and write a fresh one)"
-                    : !HasPrompt
-                        ? "(none — invent a sequence that suits the material above)"
-                        : HybridCastPrompt.Strip(Prompt).Trim();
-
-                var lengthBlock = clipCount > 1
-                    ? $"Story sequence: write {clipCount} clips that together tell ONE continuous story " +
-                      $"running about {clipCount * len:0.##} seconds in total. Each clip is {len:0.##} " +
-                      "seconds long and is rendered separately, so each one must be a complete, " +
-                      "self-contained set of the four sections. Separate them with a line spelled exactly " +
-                      $"\"=== CLIP n of {clipCount} ===\", numbered 1 to {clipCount} in order.\n"
-                    : $"Target duration: {len:0.##} seconds.\n";
-
-                var keyBlock = BuildKeyframeBrief(keys, len, clipCount);
-                var castBlock = BuildCastBrief(clipCount);
-                var setBlock = BuildLocationBrief();
-
-                // Ahead of the story rather than after it: the writer decides the medium in its first
-                // sentence, and a rule that arrives after the material has already been read is one the
-                // opening of [Shot 1] has stopped listening to.
-                var styleRule = H3VisualStyles.Rule(VisualStyle);
-
-                string userMessage;
-                if (fromImage)
-                {
-                    var story = HasStoryText
-                        ? StoryText.Trim()
-                        : "(none — invent a story that suits the location and carry it from beginning to end)";
-
-                    userMessage =
-                        "Image role: this image is the LOCATION the video is set in — its setting, " +
-                        "architecture, lighting, art style, mood and the wardrobe the cast wears. " +
-                        "Any people visible in it are NOT the cast: they are scenery, and you must not write " +
-                        "them into the video.\n" +
-                        setBlock +
-                        keyBlock +
-                        castBlock + "\n" +
-                        lengthBlock +
-                        styleRule +
-                        $"Story the video must tell:\n{story}\n" +
-                        $"Draft idea from the user:\n{draft}";
+                    assembled = AssembleChain(
+                        await WriteChainClipByClipAsync(model, len, clipCount, token));
                 }
                 else
                 {
-                    var wholeStory = clipCount > 1
-                        ? $"Together the {clipCount} clips must tell the whole story below, beginning to end — " +
-                          "split it into that many beats before writing anything, one beat per clip.\n"
-                        : $"The whole story has to be told inside {len:0.##} seconds, so pick the beats that " +
-                          "carry it and compress the rest; do not stop halfway through.\n";
+                    // clipCount == 1 throughout this branch: the request builders below still carry
+                    // their "clipCount > 1" wording, which is now unreachable from here.
+                    AnalyzePhase = "Reading the system prompt…";
+                    var systemPrompt = await ReadSystemPromptAsync(SystemPromptFile, token);
+                    var draft = PromptClipCount > 1
+                        ? "(the prompt box holds a previous sequence — ignore it and write a fresh one)"
+                        : !HasPrompt
+                            ? "(none — invent a sequence that suits the material above)"
+                            : HybridCastPrompt.Strip(Prompt).Trim();
 
-                    userMessage =
-                        "There is NO reference image of the location. The material below is the only source: " +
-                        "read the setting, period, time of day, weather, lighting and mood out of it and " +
-                        "write them into the prompt explicitly, keeping them consistent from the first shot " +
-                        "to the last.\n" +
-                        keyBlock +
-                        castBlock + "\n" +
-                        lengthBlock +
-                        wholeStory +
-                        styleRule +
-                        (HasStoryText ? $"The story:\n{StoryText.Trim()}\n" : string.Empty) +
-                        $"Draft idea from the user:\n{draft}";
+                    var lengthBlock = clipCount > 1
+                        ? $"Story sequence: write {clipCount} clips that together tell ONE continuous story " +
+                          $"running about {clipCount * len:0.##} seconds in total. Each clip is {len:0.##} " +
+                          "seconds long and is rendered separately, so each one must be a complete, " +
+                          "self-contained set of the four sections. Separate them with a line spelled exactly " +
+                          $"\"=== CLIP n of {clipCount} ===\", numbered 1 to {clipCount} in order.\n"
+                        : $"Target duration: {len:0.##} seconds.\n";
+
+                    var keyBlock = BuildKeyframeBrief(keys, len, clipCount);
+                    var castBlock = BuildCastBrief(clipCount);
+                    var setBlock = BuildLocationBrief();
+
+                    // Ahead of the story rather than after it: the writer decides the medium in its first
+                    // sentence, and a rule that arrives after the material has already been read is one the
+                    // opening of [Shot 1] has stopped listening to.
+                    var styleRule = H3VisualStyles.Rule(VisualStyle);
+
+                    string userMessage;
+                    if (fromImage)
+                    {
+                        var story = HasStoryText
+                            ? StoryText.Trim()
+                            : "(none — invent a story that suits the location and carry it from beginning to end)";
+
+                        userMessage =
+                            "Image role: this image is the LOCATION the video is set in — its setting, " +
+                            "architecture, lighting, art style, mood and the wardrobe the cast wears. " +
+                            "Any people visible in it are NOT the cast: they are scenery, and you must not write " +
+                            "them into the video.\n" +
+                            setBlock +
+                            keyBlock +
+                            castBlock + "\n" +
+                            lengthBlock +
+                            styleRule +
+                            $"Story the video must tell:\n{story}\n" +
+                            $"Draft idea from the user:\n{draft}";
+                    }
+                    else
+                    {
+                        var wholeStory = clipCount > 1
+                            ? $"Together the {clipCount} clips must tell the whole story below, beginning to end — " +
+                              "split it into that many beats before writing anything, one beat per clip.\n"
+                            : $"The whole story has to be told inside {len:0.##} seconds, so pick the beats that " +
+                              "carry it and compress the rest; do not stop halfway through.\n";
+
+                        userMessage =
+                            "There is NO reference image of the location. The material below is the only source: " +
+                            "read the setting, period, time of day, weather, lighting and mood out of it and " +
+                            "write them into the prompt explicitly, keeping them consistent from the first shot " +
+                            "to the last.\n" +
+                            keyBlock +
+                            castBlock + "\n" +
+                            lengthBlock +
+                            wholeStory +
+                            styleRule +
+                            (HasStoryText ? $"The story:\n{StoryText.Trim()}\n" : string.Empty) +
+                            $"Draft idea from the user:\n{draft}";
+                    }
+
+                    const int maxTokens = 5000;
+                    AnalyzePhase = $"Writing the prompt — {_lmStudioService.DescribeTarget(model)}…";
+                    var reply = fromImage
+                        ? await _lmStudioService.AnalyzeImageWithSystemPromptAsync(
+                            model, EnvironmentPath, userMessage, systemPrompt,
+                            maxTokens: maxTokens, cancellationToken: token)
+                        : await _lmStudioService.SendTextChatAsync(
+                            model, systemPrompt, userMessage, maxTokens: maxTokens,
+                            cancellationToken: token);
+                    assembled = AssembleChain(CleanOutput(reply));
                 }
-
-                var maxTokens = Math.Min(32000, 5000 + 2200 * (Math.Max(1, clipCount) - 1));
-
-                // A chain is the one call in this app that asks a model for N structurally identical blocks
-                // in a single turn, so it is the one call that needs repetition controls and a scratchpad to
-                // plan the beats in. A single clip keeps the request the tabs have always sent.
-                LlmSampling? sampling = clipCount > 1 ? LlmSampling.StoryChain : null;
-
-                async Task<string> AskAsync(string message, LlmSampling? how) => fromImage
-                    ? await _lmStudioService.AnalyzeImageWithSystemPromptAsync(
-                        model, EnvironmentPath, message, systemPrompt,
-                        maxTokens: maxTokens, cancellationToken: token, sampling: how)
-                    : await _lmStudioService.SendTextChatAsync(
-                        model, systemPrompt, message, maxTokens: maxTokens,
-                        cancellationToken: token, sampling: how);
-
-                AnalyzePhase = clipCount > 1
-                    ? $"Writing {clipCount} clips — {_lmStudioService.DescribeTarget(model)}…"
-                    : $"Writing the prompt — {_lmStudioService.DescribeTarget(model)}…";
-                var assembled = AssembleChain(CleanOutput(await AskAsync(userMessage, sampling)));
-
-                if (clipCount > 1 && !string.IsNullOrWhiteSpace(assembled))
-                    assembled = await BreakLoopAsync(assembled, userMessage, AskAsync, token);
 
                 if (!string.IsNullOrWhiteSpace(assembled))
                 {

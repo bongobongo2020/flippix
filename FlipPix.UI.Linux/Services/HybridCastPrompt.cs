@@ -855,7 +855,7 @@ namespace FlipPix.UI.Linux.Services
             new(@"<\s*Subject\s+(\d+)\s*>", RegexOptions.IgnoreCase | RegexOptions.Compiled);
 
         private static readonly Regex PictureRegex =
-            new(@"<\s*Picture\s+(\d+)\s*>", RegexOptions.IgnoreCase | RegexOptions.Compiled);
+            new(@"<\s*Picture\s+([0-9]+)\s*>", RegexOptions.IgnoreCase | RegexOptions.Compiled);
 
         /// <summary>Whether the body casts a given subject — what decides, per clip of a chain, whose
         /// reference photographs are uploaded at all.</summary>

@@ -16,35 +16,47 @@ using MessageBox = System.Windows.MessageBox;
 namespace FlipPix.UI.ViewModels.Video
 {
     /// <summary>
-    /// "H3 Experimental" tab — the 🪪🌀 H3 Duo flow with the prompt writing routed through the
-    /// <b>ComfyUI-MiniMaxH3-Prompt-Writer</b> (duckyshell), reached as an MCP-style tool call against the
-    /// llama-server the app is already configured to talk to (10.0.0.138 in the usual setup).
+    /// "H3 Experimental" tab — the 🪪🌀 H3 Duo flow with the story-to-clip-chain writing done
+    /// <b>one clip per LLM call</b>, against a beat sheet derived from the story first.
     ///
-    /// <para><b>How the tool loop works.</b> llama-server exposes tool calling client-side: the model emits
-    /// a <c>tool_calls</c> reply and the <i>client</i> is handed the call to execute. So the flow here runs
-    /// in two turns — exactly the shape the ComfyUI extension's own backend uses:</para>
+    /// <para><b>Why one call per clip.</b> This tab used to write the whole chain in a single reply:
+    /// a tool-call turn that produced a long creative brief, then one turn that was handed the H3
+    /// Prompt Writer's system wrapper, the official MiniMax guide and a chain layer (~450 lines of
+    /// system prompt) and asked for all N clips at once. A local model cannot hold that. Observed on a
+    /// 12-clip run: the reply stopped at 7 clips, the two picture tags started swapping between the
+    /// fighters around clip 2, arrived malformed from clip 3 (<c>&lt;Picture 2</c>, <c>&lt;P 1&gt;</c>),
+    /// and clip 7 was tag-per-noun word-salad. None of that is fixable downstream, which is why this
+    /// file used to carry a brief stabiliser, a runaway truncator, a clip dropper and an opponent
+    /// re-tagger — four passes cleaning up after one call that was too big.</para>
+    ///
+    /// <para><b>The flow now.</b> Three deterministic steps, each small enough for a local model:</para>
     /// <list type="number">
-    /// <item><b>The model submits a Creative Brief.</b> One chat turn that offers the model a single tool,
-    /// <c>h3_prompt_writer</c>, with <c>tool_choice</c> forced to it. The model's whole job in that turn is
-    /// to read the story and call the tool with the brief: the story's events in order, the setting, the
-    /// cast in their <c>&lt;Picture N&gt;</c> tags, and the fight budget — how the chain's N clips are
-    /// shared across the story's own action.</item>
-    /// <item><b>FlipPix executes the tool</b> — it plays the prompt-writer server. The brief, the locked
-    /// wardrobe, the cast tags and the N × S-second clip plan are sent back to the same llama-server
-    /// wrapped in the H3 Prompt Writer's own system wrapper plus the official MiniMax prompt-writing guide
-    /// it bundles (both copied verbatim from the repo into <c>prompts/prompt2json/h3pw_*.md</c>), under
-    /// the chain layer (<c>h3pw_chain.md</c>) that carries this tab's rules: headers, self-contained
-    /// clips, tag-only identity, the wardrobe lock, and the action-expansion rule — the story's fight is
-    /// dissected wind-up → strike → contact → recoil → fall → recovery, shot count scaled to each clip's
-    /// seconds, and <b>nothing outside the story's own action is invented</b>. The tool's result is the
-    /// clip chain, which lands in the prompt box and flows through the stock Duo queue/render/FFmpeg-join
-    /// machinery unchanged.</item>
+    /// <item><b>The beat sheet.</b> One short call turns the story into a one-line SETTING and exactly
+    /// N numbered beats — the story's own action divided across the chain, N being the tab's clip plan
+    /// and not the model's to choose. A reply with the wrong count is re-asked once and then filled in
+    /// deterministically from the story's own units (<see cref="FallbackBeats"/>), so the step cannot
+    /// fail the run.</item>
+    /// <item><b>N clip calls.</b> One call per clip, each given the fixed context (style, setting,
+    /// cast tags, wardrobe lock) plus three lines of story: the previous beat for continuity, this
+    /// clip's beat to write, and the next beat so the clip ends mid-action. ~400 tokens out. A clip
+    /// that comes back without its description, or missing a fighter's tag, is asked for once more.
+    /// The chain has N clips because the loop ran N times.</item>
+    /// <item><b>Stamp and join.</b> Unchanged: each body gets its reference line and wardrobe block,
+    /// and the clips are joined behind <c>=== CLIP n of N ===</c> headers into the prompt box, where
+    /// Add to Queue turns each one into its own job.</item>
     /// </list>
+    ///
+    /// <para>The cheap deterministic passes are kept, because they cost nothing and a local model still
+    /// slips: field labels are canonicalised, an unpunctuated runaway inside a field is cut back to its
+    /// last complete sentence, timestamps are padded to <c>MM:SS.mmm</c>, and the keyframe leftovers the
+    /// old base guide taught the model to write — the anchor line, the style block emitted as a second
+    /// <c>[Shot 1]</c> — are folded away. Those two are what make H3 render the character sheet as the
+    /// video's opening frame.</para>
     ///
     /// <para>Everything else is inherited: the story/scene inputs, the wardrobe derived once and locked
     /// (populated automatically the moment a story lands, as always), the two character cards and their
     /// panel-split sheets, the queue, and the turbo render (draft → 2× latent upscale → finish) on this
-    /// tab's own copy of the Duo graph.</para>
+    /// tab's own copy of the Duo graph. <see cref="H3ErosViewModel"/> inherits this whole path.</para>
     ///
     /// <para><b>When the run starts.</b> Loading a story .txt derives the wardrobe and nothing else —
     /// the chain is written against the clip plan, and the plan is wrong until the video time says what
@@ -53,42 +65,6 @@ namespace FlipPix.UI.ViewModels.Video
     /// </summary>
     public partial class H3ExperimentalViewModel : H3DuoViewModel
     {
-        // ── The MCP-style tool the model is offered in turn 1. The name matches what the user's
-        //    llama-server MCP config would expose; since llama-server hands tool calls back to the
-        //    client, FlipPix executes it either way. ────────────────────────────────────────────
-        private const string PromptWriterTool = "h3_prompt_writer";
-
-        private const string PromptWriterToolDescription =
-            "The MiniMax H3 Prompt Writer. Give it a creative brief for a story video chain and it returns " +
-            "complete H3 prompts, one per clip, in the official MiniMax format. Call it once per chain.";
-
-        /// <summary>The JSON Schema of the tool's arguments — the grammar llama-server constrains the call to.</summary>
-        private const string PromptWriterToolSchema = """
-            {
-              "type": "object",
-              "properties": {
-                "creative_brief": {
-                  "type": "string",
-                  "description": "The complete creative brief for the whole chain, in plain language: the story's events in their order, the setting (period, place, time of day, weather, mood), the visual style, how each character is cast onto their <Picture N> tag, and the fight budget - how the N clips are shared across the story's own action, which exchange each clip dissects and from what angles. Quote the wardrobe wording given to you. Expand ONLY the story's own action; invent no new events."
-                },
-                "clip_count": {
-                  "type": "integer",
-                  "description": "How many clips the chain has (the number given in the request)."
-                },
-                "seconds_per_clip": {
-                  "type": "number",
-                  "description": "Duration of each clip in seconds (the number given in the request)."
-                }
-              },
-              "required": ["creative_brief", "clip_count", "seconds_per_clip"]
-            }
-            """;
-
-        // ── The H3 Prompt Writer's own files, copied verbatim from duckyshell/ComfyUI-MiniMaxH3-Prompt-Writer ──
-        private const string WrapperFile = "h3pw_system_wrapper.md";   // backend/system_prompts.py SYSTEM_WRAPPER
-        private const string GuideFile = "h3pw_guide_base.md";         // guides/VIDEO_PROMPT_WRITING_GUIDE_base_en.md
-        private const string ChainFile = "h3pw_chain.md";              // this tab's chain/action-expansion layer
-
         public H3ExperimentalViewModel(
             ComfyUIService comfyUIService,
             LMStudioService lmStudioService,
@@ -106,18 +82,24 @@ namespace FlipPix.UI.ViewModels.Video
             StoryDurationSeconds = 120;
 
             // The tab's own store, so its story chains and the I2V tab's takes never share a picker.
-            _chainLibrary = new ScenePromptLibrary(AddLog, ScenePromptLibrary.FolderFor("h3experimental"));
+            _chainLibrary = new ScenePromptLibrary(AddLog, ScenePromptLibrary.FolderFor(ChainLibraryFolder));
             OpenChainLibraryCommand = new RelayCommand(async () => await OpenChainLibraryAsync());
             SaveChainCommand = new RelayCommand(async () => await SaveCurrentChainAsync(manual: true));
 
-            AddLog("H3 Experimental initialized — story chains are written through the H3 Prompt Writer " +
-                   "tool (brief → official MiniMax guide → clips); a story derives the wardrobe, and " +
-                   "setting the video time runs the writer");
+            QueueReadiness = DescribeQueueReadiness();
+
+            AddLog("H3 Experimental initialized — a story is divided into one beat per clip and then " +
+                   "written one clip per call; a story derives the wardrobe, and setting the video time " +
+                   "runs the writer");
 
             // Off the constructor's thread: the index is read from disk and this tab is on the Video
             // Generator's startup path.
             _ = PrimeChainLibraryAsync();
         }
+
+        /// <summary>The store the chain library files this tab's story chains under. Its own, so a derived
+        /// tab's takes and this one's never share a picker.</summary>
+        protected virtual string ChainLibraryFolder => "h3experimental";
 
         /// <summary>The Duo graph's copy under this tab's name — experiments cannot break the Duo tab's file.</summary>
         protected override string WorkflowFileName => "workflow/video/h3-minimax/h3-experimental.json";
@@ -140,6 +122,59 @@ namespace FlipPix.UI.ViewModels.Video
         // through values fires one run, not one per click.
         private CancellationTokenSource? _autoAnalyzeCts;
 
+        private bool _researchPrompts;
+
+        /// <summary>
+        /// The 📚 <b>Researched prompts</b> switch: which of the two prompt builds writes the chain.
+        ///
+        /// <para><b>Off</b> — the build this tab has always used: <c>h3pw_clip.md</c>, a cut roughly every
+        /// 1.25 seconds, and no instruction about shot size, silence, screen sides or the audio fields.
+        /// Nothing about a run with this off differs by a byte from before the switch existed.</para>
+        ///
+        /// <para><b>On</b> — <see cref="H3ResearchPrompt"/>: <c>h3pw_clip_research.md</c> plus a per-clip
+        /// rule block, both written off the guides in <c>prompts/documents/</c>. The shot budget drops to
+        /// the guide's own three-to-five cuts with the cut times handed over explicitly, every shot is held
+        /// at medium or closer, non-speaking mouths are made explicitly silent, a spoken line gets the
+        /// speaker's face alone in frame, the fighters are given screen sides, the lighting is locked to
+        /// the beat sheet's setting line, and speech is kept out of <c>overall_soundscape:</c>.</para>
+        ///
+        /// <para>It is a switch rather than a replacement precisely so the two can be run against the same
+        /// story, the same cast and the same seeds, and compared on the finished clips.</para>
+        /// </summary>
+        public bool ResearchPrompts
+        {
+            get => _researchPrompts;
+            set
+            {
+                if (_researchPrompts == value) return;
+                _researchPrompts = value;
+                OnPropertyChanged();
+                OnPropertyChanged(nameof(ResearchPromptsSummary));
+            }
+        }
+
+        /// <summary>The line under the switch, saying what it will do to the run about to be written.</summary>
+        public string ResearchPromptsSummary
+        {
+            get
+            {
+                var len = ClampLength(LengthSeconds);
+                return ResearchPrompts
+                    ? $"On — the MiniMax-H3 guide's build: {H3ResearchPrompt.ShotCount(len)} shots per " +
+                      $"{len:0.#}s clip (cuts at " +
+                      $"{string.Join(", ", H3ResearchPrompt.CutTimes(len, H3ResearchPrompt.ShotCount(len)))}" +
+                      "), medium-or-closer framing, silence mandates, isolated speakers, screen sides, a " +
+                      "lighting lock and voices kept out of the soundscape."
+                    : $"Off — the shipped build: {ShippedShotCount(len)} shots per {len:0.#}s clip, no " +
+                      "framing floor, no silence mandate, no screen sides. Leave it off for the clips you " +
+                      "want to compare against.";
+            }
+        }
+
+        /// <summary>The shot budget this tab has always used — a cut roughly every 1.25 seconds.</summary>
+        private static int ShippedShotCount(double seconds) =>
+            Math.Clamp((int)Math.Round(seconds * 0.8, MidpointRounding.AwayFromZero), 6, 14);
+
         /// <summary>
         /// A story .txt landing derives the wardrobe (the stock debounce on the story text already does
         /// that) but does <b>not</b> start the chain — the clip plan is wrong until the video time says
@@ -149,6 +184,9 @@ namespace FlipPix.UI.ViewModels.Video
         /// </summary>
         protected override void OnLengthSecondsChanged()
         {
+            // The switch's line quotes this clip's shot count and cut times, so it moves with the slider.
+            OnPropertyChanged(nameof(ResearchPromptsSummary));
+
             if (!HasStoryText) return; // the prompt-writer flow is story-driven; nothing to auto-run
             // A recall is restoring the length a saved chain was written at — the chain is already written,
             // and running the writer again would overwrite it two seconds later.
@@ -199,8 +237,8 @@ namespace FlipPix.UI.ViewModels.Video
         // ── The flow ────────────────────────────────────────────────────────────────────────────────
 
         /// <summary>
-        /// Story runs go through the two-turn prompt-writer tool loop; a scene image with no story keeps
-        /// the stock flow — the prompt writer's whole premise is a story brief to expand.
+        /// Story runs are written clip by clip: one call for the beat sheet, then one call per clip. A
+        /// scene image with no story keeps the stock flow — there is nothing to divide into beats.
         /// </summary>
         protected override async Task AnalyzeAsync()
         {
@@ -211,6 +249,7 @@ namespace FlipPix.UI.ViewModels.Video
             }
 
             IsAnalyzing = true;
+            IsWritingPrompt = true;
             _analyzeCts?.Dispose();
             _analyzeCts = new CancellationTokenSource();
             var token = _analyzeCts.Token;
@@ -227,167 +266,116 @@ namespace FlipPix.UI.ViewModels.Video
                 var clipCount = PlannedClipCount;
 
                 AddLog($"H3 Prompt Writer: writing a {clipCount}-clip chain ({clipCount} × {len:0.#}s = " +
-                       $"{clipCount * len:0.#}s continuous) from the story — via {_lmStudioService.DescribeTarget(model)}");
+                       $"{clipCount * len:0.#}s continuous) one clip at a time — via " +
+                       $"{_lmStudioService.DescribeTarget(model)}");
                 if (!VisualStyle.IsAuto)
                     AddLog($"Visual style locked: {VisualStyle.Name}");
+                // Always said out loud, both ways: a chain is filed to the library the moment it lands and
+                // the only record of which build wrote it is this line.
+                // Read once: a switch flipped mid-run must not write half a chain in each build.
+                var spec = SpecPromptBuild;
+                AddLog(spec
+                    ? H3SpecPrompt.DescribeRun(clipCount, len)
+                    : ResearchPrompts
+                        ? H3ResearchPrompt.DescribeRun(clipCount, len)
+                        : H3ResearchPrompt.DescribeShippedRun(len));
 
                 if (StoryText.Length > 20000)
                     AddLog($"WARNING: the story is {StoryText.Length:N0} characters — a local model will very " +
                            "likely truncate it. Cut it down to the beats you want on screen.");
 
-                // The wardrobe is still decided here, ahead of the chain, exactly as on the Duo tab — the
-                // tool's result is stamped with it and the sheets are built from it.
+                // The wardrobe is still decided here, ahead of the chain, exactly as on the Duo tab — every
+                // clip call is handed it verbatim and the sheets are built from it.
                 if (!await EnsureWardrobeAsync(token, model))
                     AddLog("WARNING: the wardrobe could not be written — the clips will each describe the " +
                            "outfits themselves, which is where between-clip costume changes come from.");
 
-                // ── Turn 1 — the model submits the Creative Brief through the tool call ─────────────
-                ProcessingStatus = "H3 Prompt Writer: preparing the creative brief...";
+                // ── Step 1 — the beat sheet: the story divided into exactly clipCount beats ─────────
+                ProcessingStatus = $"H3 Prompt Writer: dividing the story into {clipCount} beats...";
+                var (setting, beats) = await BuildBeatSheetAsync(model, clipCount, len, token);
 
-                var briefSystem =
-                    "You are the director of a MiniMax H3 story chain. You never write video prompts yourself — " +
-                    "that is what the h3_prompt_writer tool is for. Your one job this turn is to call that tool " +
-                    "with the best possible creative brief: the story's events in their order, the setting read " +
-                    "out of the prose (period, place, time of day, weather, mood), the visual style — yours to " +
-                    "choose only when the request does not hand you one, and otherwise quoted back word for " +
-                    "word — each character cast onto their <Picture N> tag, the quoted wardrobe, and above " +
-                    "all the FIGHT BUDGET — how the chain's clips are shared across the story's own action: " +
-                    "which exchange each clip dissects (wind-up, strike, contact, recoil, fall, recovery) and " +
-                    "from what angles, so the story's final event lands in the final clip. The story's own " +
-                    "action is expanded and NOTHING is invented: no new events, journeys, locations, " +
-                    "conversations or outcomes the prose does not contain. Call the tool exactly once.";
+                // The continuity plan: one environment per clip, with every gap the beat sheet left filled
+                // from the clip before it. Built before a single clip is written, because it is what the
+                // clip requests are held to — and printed, because a move the story did not ask for is
+                // something to catch here rather than in the finished film.
+                var environments = StoryContinuity.Plan(beats.Select(b => b.Env).ToList(), setting,
+                                                       beats.Select(b => b.Text).ToList());
+                foreach (var line in StoryContinuity.Describe(environments)) AddLog(line);
 
-                var briefUser = BuildBriefRequest(len, clipCount);
+                // ── Step 2 — one call per clip ─────────────────────────────────────────────────────
+                var system = await ReadSystemPromptAsync(
+                    spec ? H3SpecPrompt.ClipSystemPromptFile
+                         : ResearchPrompts ? H3ResearchPrompt.ClipSystemPromptFile : ClipSystemPromptFile, token);
+                // Off: this tab's own pacing — roughly one cut per 1.25s, floored at 6 so a short clip is
+                // still cut like a fight and capped at 14 so a long one stays inside 500 words.
+                // On: the MiniMax-H3 guide's pacing instead — three to five shots across the clip, which is
+                // what its worked 15-second structures use (Rule 9 A–C, Rule 13, Rule 24).
+                // Spec: the same three to five — every shot there carries a whole action chain, camera chain,
+                // physical feedback and sound, and a cut a second leaves room for none of it.
+                var shots = spec ? H3SpecPrompt.ShotCount(len)
+                          : ResearchPrompts ? H3ResearchPrompt.ShotCount(len) : ShippedShotCount(len);
 
-                var call = await _lmStudioService.CallToolAsync(
-                    model,
-                    briefSystem,
-                    briefUser,
-                    PromptWriterTool,
-                    PromptWriterToolDescription,
-                    PromptWriterToolSchema,
-                    maxTokens: Math.Min(32000, 2500 + 1200 * clipCount),
-                    cancellationToken: token,
-                    sampling: LlmSampling.StoryChainBrief);
+                // What each clip came back as. The spec build hands clip N the last shot and score clip N-1 was
+                // actually written with, so the cut between them continues the moment instead of restarting it.
+                var writtenBodies = new Dictionary<int, string>();
+                var clipBodies = await ClipChainWriter.WriteAsync(
+                    _lmStudioService, model, system, clipCount,
+                    buildRequest: (i, reason) => spec
+                        ? BuildSpecClipRequest(setting, beats, environments, i, clipCount, len, shots, reason,
+                                               writtenBodies.TryGetValue(i - 1, out var before) ? before : null)
+                        : BuildClipRequest(setting, beats, environments, i, clipCount, len, shots, reason),
+                    normalize: raw => spec ? NormalizeSpecClipBody(raw) : NormalizeClipBody(raw),
+                    validate: (i, body) => spec
+                        ? ValidateSpecClip(body, EnvironmentFor(environments, i), beats, i)
+                        : ValidateClip(body, EnvironmentFor(environments, i)),
+                    onProgress: (n, total) =>
+                        ProcessingStatus = $"H3 Prompt Writer: writing clip {n} of {total}...",
+                    log: AddLog,
+                    describe: b => $"{b.Length:N0} chars, {CountShots(b)} shots",
+                    token: token,
+                    onWritten: (i, body) => writtenBodies[i] = body);
 
-                if (call == null)
-                    throw new Exception("the brief came back neither as a tool call nor as schema-constrained " +
-                                        "JSON — this model/chat-template pair emits neither. Load a model whose " +
-                                        "template supports tool calling, or use the 🪪🌀 H3 Duo tab.");
-
-                // Grammar-constrained as the call is, a local model occasionally emits an arguments string
-                // that is not clean JSON (an unescaped quote or newline inside the brief). One retry before
-                // giving up on the shape; the last attempt's raw payload stands as the brief if even the
-                // retry will not parse — a degraded brief beats a dead run.
-                var (brief, briefClips, briefSeconds) = ParseBriefCall(call.Function.Arguments);
-                if (string.IsNullOrWhiteSpace(brief))
-                {
-                    AddLog("The brief came back malformed — asking the model to submit it again...");
-                    var retry = await _lmStudioService.CallToolAsync(
-                        model,
-                        briefSystem,
-                        briefUser,
-                        PromptWriterTool,
-                        PromptWriterToolDescription,
-                        PromptWriterToolSchema,
-                        maxTokens: Math.Min(32000, 2500 + 1200 * clipCount),
-                        cancellationToken: token,
-                        sampling: LlmSampling.StoryChainBrief);
-                    if (retry != null)
-                    {
-                        call = retry;
-                        (brief, briefClips, briefSeconds) = ParseBriefCall(call.Function.Arguments,
-                            fallbackToRaw: true);
-                    }
-                }
-
-                if (string.IsNullOrWhiteSpace(brief))
-                    throw new Exception("the prompt writer was called with an empty creative brief.");
-
-                // The brief runs away into word-salad too, and that is the worse of the two failures: the
-                // writer reads the budget line for a clip and writes what it says, so one degenerate line
-                // in the brief becomes a degenerate clip — and the brief's tail is where the chain's
-                // ending lives. One clean re-submission before falling back to the cut.
-                (brief, briefClips, briefSeconds) = await StabilizeBriefAsync(
-                    model, briefSystem, briefUser, clipCount,
-                    (brief, briefClips, briefSeconds), token);
-
-                // A brief has to carry a budget line per clip to be worth anything downstream: the writer
-                // reads that line and writes the clip from it. A schema-constrained reply that came back
-                // as three terse sentences parses perfectly and still starves the chain, so say so rather
-                // than letting a thin brief pass as a good one.
-                if (brief.Length < 120 * clipCount)
-                    AddLog($"WARNING: the brief is only {brief.Length:N0} characters for {clipCount} clips — " +
-                           "too thin to budget them individually, so the writer will be inventing the shot " +
-                           "breakdown itself. Re-run Analyze if the chain comes back generic.");
-
-                if (briefClips != clipCount)
-                    AddLog($"Note: the brief budgets {briefClips} clips; the chain will be written as " +
-                           $"{clipCount} (the tab's plan).");
-
-                AddLog($"Brief submitted through the {call.Function.Name} tool ({brief.Length:N0} chars) — " +
-                       "executing the prompt writer: official MiniMax guide + the chain rules...");
-
-                // ── Turn 2 — FlipPix executes the tool: wrapper + guide + chain layer ───────────────
-                ProcessingStatus = "H3 Prompt Writer: writing the clip chain...";
-
-                var system = string.Join("\n\n",
-                    await ReadSystemPromptAsync(WrapperFile, token),
-                    await ReadSystemPromptAsync(GuideFile, token),
-                    await ReadSystemPromptAsync(ChainFile, token));
-
-                var user = BuildWriterRequest(brief, len, clipCount, briefSeconds);
-
-                // Headroom as in the stock flow, tightened: the guide budgets 350–500 words per clip, so
-                // 2,000 tokens per extra clip is ~2.5× what an honest clip needs — and a reply that
-                // degenerates cannot burn an afternoon running to an 11k-token ceiling.
-                var maxTokens = Math.Min(48000, 6000 + 2000 * (Math.Max(1, clipCount) - 1));
-
-                var result = HasSceneImage
-                    ? await _lmStudioService.AnalyzeImageWithSystemPromptAsync(
-                        model,
-                        SceneImagePath,
-                        user,
-                        system,
-                        maxTokens: maxTokens,
-                        cancellationToken: token,
-                        sampling: LlmSampling.StoryChainFormatted)
-                    : await _lmStudioService.SendTextChatAsync(
-                        model,
-                        system,
-                        user,
-                        maxTokens: maxTokens,
-                        cancellationToken: token,
-                        sampling: LlmSampling.StoryChainFormatted);
-
-                // ── Post-writing passes, all deterministic on the clip bodies ──────────────────
-                // 1. The runaway guard: a reply that collapsed into unpunctuated word-salad (observed:
-                //    one clip's description turning into 141,000 characters of noun-associations that ran
-                //    to the token ceiling) is truncated at its last complete sentence, and clip bodies
-                //    left structurally incomplete by the cut are dropped — a shorter honest chain beats
-                //    a full-length one with a clip that cannot render.
-                // 2. Every clip of a two-person fight must name BOTH fighters — an opponent left as an
-                //    untagged pronoun has no identity in that clip, and renders as the tagged fighter
-                //    fighting a duplicate of themselves (the failure this pass exists to prevent).
-                //    Offending bodies get one focused rewrite turn each; whatever survives is warned about.
-                // 3. Timestamps are padded to the guide's MM:SS.mmm shape — models write "00:9.3".
-                // 4. Stamping is NON-selective on this tab: both cast members' references and wardrobe
+                // ── Step 3 — the deterministic passes, then stamp and join ─────────────────────────
+                // Each is cheap and each catches something a local model still slips through, even one
+                // clip at a time:
+                // 1. Field labels canonicalised — every pass below matches them ordinally against the
+                //    guide's spelling, and a model that writes "## Overall Soundscape:" would otherwise
+                //    read as a clip with no fields at all.
+                // 2. An unpunctuated runaway inside a field cut back to its last complete sentence.
+                // 3. Timestamps padded to the guide's MM:SS.mmm shape — models write "00:9.3".
+                // 4. The keyframe leftovers cut: an anchor line ahead of the fields, and a [Shot] marker
+                //    with no timestamp behind it — which is how a writer emits its style/setting
+                //    restatement, as a second [Shot 1] ahead of the real opening shot. Both tell H3 the
+                //    reference photographs are the frame it opens on, and that is the character sheet
+                //    showing up inside the video.
+                // 5. Stamping is NON-selective on this tab: both cast members' references and wardrobe
                 //    line land in every clip even if a body still forgot the tag, because a two-hander
                 //    fight has both fighters on screen throughout — clipping either one's references is
                 //    how the duplicate-of-self render happens.
-                var bodies = SplitClips(TruncateDegenerateTail(CleanOutput(result)))
-                    .Select((b, i) => SanitizeClipFields(b, i + 1))
-                    .ToList();
-                var dropped = bodies.Where(b => !KeepsClipStructure(b)).ToList();
-                if (dropped.Count > 0)
-                    AddLog($"WARNING: {dropped.Count} clip(s) came back structurally incomplete (missing " +
-                           "fields) and were dropped. Re-run Analyze, or write the missing clips into the " +
-                           "prompt box by hand.");
-                bodies = bodies.Where(KeepsClipStructure).ToList();
-                if (HasCharacter2 && bodies.Count > 0)
-                    bodies = await RepairUntaggedOpponentAsync(model, bodies, token);
-                var perClipSeconds = briefSeconds > 0 ? briefSeconds : len;
-                bodies = bodies.Select(b => NormalizeTimestamps(b, perClipSeconds)).ToList();
+                List<string> bodies;
+                if (spec)
+                {
+                    // The spec build's passes: the same repairs section by section, then the code-written
+                    // subject_definitions: and retention_analysis: around the writer's four sections. The place
+                    // goes into subject_definitions: word for word, which is what step 6 does for the others.
+                    bodies = FinishSpecClips(clipBodies, environments, setting, len);
+                }
+                else
+                {
+                    bodies = clipBodies
+                        .Select((b, i) => SanitizeClipFields(CanonicalizeFieldLabels(b), i + 1))
+                        .ToList();
+                    bodies = KeepRenderableClips(bodies);
+                    bodies = bodies
+                        .Select(b => NormalizeTimestamps(FoldDigits(b), len))
+                        .Select((b, i) => NormalizeShots(b, i + 1))
+                        // 6. The environment written into the description in code, ahead of [Shot 1]. The
+                        //    writer was told the same thing in words, but only this is identical word for word
+                        //    in every clip that shares a place — and two wordings of one alley are two alleys
+                        //    to a model that renders them a job apart.
+                        .Select((b, i) => StoryContinuity.StampScene(b, EnvironmentFor(environments, i)))
+                        .ToList();
+                }
 
                 var cleaned = JoinClips(bodies
                     .Select(b => CastPromptStamp.Apply(b, Panels1, Panels2, CastWardrobe,
@@ -414,17 +402,24 @@ namespace FlipPix.UI.ViewModels.Video
                     // line alone. Worth re-running Analyze when it appears.
                     if (HasCharacter2)
                     {
+                        // A spec clip names its cast as subjects in the shots; its pictures are only in the
+                        // code-written definitions, which name both by construction.
                         var untagged = SplitClips(cleaned)
                             .Select((body, i) => (Index: i + 1,
-                                                 Tagged: body.Contains("<Picture 1>", StringComparison.Ordinal) &&
-                                                        body.Contains("<Picture 2>", StringComparison.Ordinal)))
+                                                 Tagged: spec
+                                                     ? CastPromptStamp.ExtractDescription(body) is var shots &&
+                                                       shots.Contains("<Subject 1>", StringComparison.Ordinal) &&
+                                                       shots.Contains("<Subject 2>", StringComparison.Ordinal)
+                                                     : body.Contains("<Picture 1>", StringComparison.Ordinal) &&
+                                                       body.Contains("<Picture 2>", StringComparison.Ordinal)))
                             .Where(c => !c.Tagged)
                             .Select(c => c.Index)
                             .ToList();
                         if (untagged.Count > 0)
                             AddLog($"WARNING: clip(s) {string.Join(", ", untagged)} still name only one fighter — " +
                                    "the opponent in those clips rides on the stamped reference line instead of " +
-                                   "their own tag. Re-run Analyze, or tag <Picture 2> in those clips by hand.");
+                                   $"their own tag. Re-run Analyze, or tag {(spec ? "<Subject 2>" : "<Picture 2>")} " +
+                                   "in those clips by hand.");
                         else
                             AddLog("Cast check: every clip names both fighters — no duplicate-of-self renders.");
                     }
@@ -457,6 +452,7 @@ namespace FlipPix.UI.ViewModels.Video
             }
             finally
             {
+                IsWritingPrompt = false;
                 IsAnalyzing = false;
                 _analyzeCts?.Dispose();
                 _analyzeCts = null;
@@ -473,6 +469,22 @@ namespace FlipPix.UI.ViewModels.Video
         // is only ever rewritten while it still says what we last put there — a render's own progress is
         // never stomped.
         private string _readinessStatus = string.Empty;
+        private string _queueReadiness = string.Empty;
+
+        /// <summary>
+        /// The reason Add to Queue is enabled or greyed out, always current, on a line of its own under the
+        /// button.
+        ///
+        /// <para>This exists because the status line cannot carry it. That line belongs to whatever is
+        /// rendering, so <see cref="RefreshQueueReadinessStatus"/> stays silent for the whole length of a
+        /// queue run — and a queue run is exactly when this tab is used to prepare the next story, which is
+        /// when the button being greyed out needs explaining most.</para>
+        /// </summary>
+        public string QueueReadiness
+        {
+            get => _queueReadiness;
+            private set { if (_queueReadiness != value) { _queueReadiness = value; OnPropertyChanged(); } }
+        }
 
         /// <summary>
         /// Puts the reason Add to Queue is greyed out on the status line, and keeps it current: the usual
@@ -493,17 +505,20 @@ namespace FlipPix.UI.ViewModels.Video
         protected override void OnCanExecuteChanged()
         {
             base.OnCanExecuteChanged();
+            // Unconditional, unlike the status line: this one has no other owner to defer to.
+            QueueReadiness = DescribeQueueReadiness();
             RefreshQueueReadinessStatus();
         }
 
         /// <summary>
-        /// What the status line says once the writer has stopped — the reason
-        /// <see cref="H3CastViewModel.CanGenerate"/> is false, said out loud. Building the sheets is the
-        /// usual answer: the chain writes fine without them, but a job cannot be queued until every loaded
-        /// character has one.
+        /// The reason <see cref="H3CastViewModel.CanGenerate"/> is false, said out loud. Building the sheets
+        /// is the usual answer: the chain writes fine without them, but a job cannot be queued until every
+        /// loaded character has one.
         /// </summary>
         private string DescribeQueueReadiness()
         {
+            if (IsWritingPrompt)
+                return "The H3 Prompt Writer is still writing — Add to Queue unlocks when the chain lands.";
             if (string.IsNullOrWhiteSpace(Prompt))
                 return "No prompt written — press Analyze to run the H3 Prompt Writer.";
 
@@ -513,213 +528,214 @@ namespace FlipPix.UI.ViewModels.Video
                 return $"{clips} — load character 1 and build the sheets before queueing.";
             if (!AllSheetsReady)
                 return $"{clips} — press 🃏 Build Sheets; Add to Queue stays off until every " +
-                       "character has a sheet.";
+                       "character has a sheet." +
+                       (IsProcessing || IsProcessingQueue
+                            ? " The build waits for the GPU and starts when the current render finishes."
+                            : string.Empty);
 
-            return $"{clips} — ready to queue.";
+            // Add to Queue only stages the job now — ▶ Generate is what starts the GPU — so the
+            // readiness line has to say which of the two the tab is waiting on.
+            if (HasPendingItems)
+                return IsProcessingQueue
+                    ? $"{clips} — ready to queue; the queue is running, so it renders after what is "
+                      + "already in it."
+                    : $"{clips} — ready to queue. Nothing is rendering: press ▶ Generate to start "
+                      + "the queue when you have added everything you want in this run.";
+
+            return $"{clips} — ready to queue. Queueing does not start a render; press ▶ Generate "
+                   + "when the queue holds everything you want in this run.";
         }
 
-        // ── Request builders ───────────────────────────────────────────────────────────────────────
-
-        /// <summary>Turn 1's user message: the story, the cast in their tags, the locked wardrobe, and the
-        /// N × S-second plan the brief has to budget the fight across.</summary>
-        private string BuildBriefRequest(double len, int clipCount)
+        /// <summary>The base tab writes the whole chain in one reply; this one writes it clip by clip, and
+        /// the line under the duration slider is the only place that difference is visible before a run
+        /// starts.</summary>
+        public override string ClipPlanSummary
         {
-            var wardrobe = HasCastWardrobe
-                ? "The wardrobe, already decided and locked — quote it word for word inside the brief:\n" +
-                  CastWardrobe.Trim()
-                : "No wardrobe has been decided — the brief must dress the cast itself (read the outfits off " +
-                  "the story and the setting it calls for) and word them identically every time they appear.";
-
-            // The style, like the wardrobe, is settled before the brief rather than after it: the brief is
-            // what the writer reads the medium out of, so a style the brief picked for itself is one the
-            // clips keep whatever the writer is told a turn later.
-            var style = VisualStyle.IsAuto
-                ? "The visual style is the brief's to choose — read the medium off the story's period, place " +
-                  "and tone (live action, documentary, 3D CG, stop-motion, painted, graphic and animated are " +
-                  "all equally available, and anime is not the default), and state it in the brief as the one " +
-                  "medium every clip opens in."
-                : "THE VISUAL STYLE IS ALREADY DECIDED and is NOT the brief's to choose. Quote these words " +
-                  "inside the brief, verbatim, as the medium every clip opens in, and describe every clip's " +
-                  "look — lighting, palette, texture, how motion renders — as this medium would look. Never " +
-                  "name another style anywhere:\n" + VisualStyle.Clause;
-
-            var cast = HasCharacter2
-                ? $"Two character reference images are attached to every clip: <Picture 1> (Character 1) and " +
-                  "<Picture 2> (Character 2). Cast the story's people onto those tags — and budget BOTH fighters " +
-                  "into every clip: in a two-person fight both are on screen throughout, so the brief's per-clip " +
-                  "plan names what EACH of them is doing in that clip."
-                : "One character reference image is attached to every clip: <Picture 1> (Character 1). Cast " +
-                  "the story's protagonist onto that tag.";
-
-            return
-                $"{cast}\n" +
-                $"{style}\n" +
-                $"{wardrobe}\n" +
-                $"The chain: {clipCount} clips, each {len:0.##} seconds, that together run the whole story " +
-                $"continuously ({clipCount} × {len:0.##}s ≈ {clipCount * len:0.##}s total).\n\n" +
-                "THE ACTION IS THE PLOT: the runtime is longer than the prose, and every extra second comes " +
-                "from slowing the story's OWN action down — its fights above all, each exchange dissected " +
-                "into wind-up, strike, contact, recoil, fall and recovery, each movement with its own shots " +
-                "and angles — never from new events, journeys, locations or outcomes the story does not " +
-                "narrate. Budget the clips across the story's events so its FINAL event is what the LAST " +
-                "clip shows, and say that budget in the brief, clip by clip.\n\n" +
-                $"The story:\n{StoryText.Trim()}";
-        }
-
-        /// <summary>Turn 2's user message: the brief the tool was called with, plus everything the writer
-        /// needs that is not the model's to decide — the wardrobe, the tag map, the clip plan and the
-        /// per-clip shot target scaled to the clip's seconds.</summary>
-        private string BuildWriterRequest(string brief, double len, int clipCount, double briefSeconds)
-        {
-            var seconds = briefSeconds > 0 ? briefSeconds : len;
-            var shots = Math.Clamp((int)Math.Round(seconds * 0.8, MidpointRounding.AwayFromZero), 6, 14);
-
-            var wardrobe = HasCastWardrobe
-                ? "The wardrobe — ALREADY DECIDED, not yours to choose. Each line below opens 'Character N " +
-                  "wears …'; the garments after that prefix are the outfit. Attach them to the character's tag the " +
-                  "first time they appear in a clip — '<Picture N>, wearing <those garments>,' — in exactly those " +
-                  "words, and keep that wording identical everywhere else it is mentioned. This quote is the ONLY " +
-                  "clothing wording you may use: never re-dress the cast from the story's own prose — where the " +
-                  "story describes clothing differently or more floridly than the quote, the quote wins, word for " +
-                  "word:\n" +
-                  CastWardrobe.Trim()
-                : "No wardrobe was decided ahead of this run: read the outfits off the brief's setting, write " +
-                  "them out in full once, and then use the identical wording in every clip.";
-
-            var cast = HasCharacter2
-                ? "Two character reference images are attached to every clip: <Picture 1> (Character 1) and " +
-                  "<Picture 2> (Character 2). Refer to the characters ONLY by those tags — never describe " +
-                  "their hair, faces, skin, build or age; the tags carry all of it. Write what they DO. " +
-                  "BOTH FIGHTERS ARE TAGGED IN EVERY CLIP — this is a hard rule: name <Picture 1> AND " +
-                  "<Picture 2> at each fighter's first appearance in every clip, and wherever either is " +
-                  "named, struck, grabbed or reacted to after that. A fighter must NEVER appear only as an " +
-                  "untagged pronoun or label — no 'he', 'his chest', 'the man', 'her opponent' standing in " +
-                  "for a character the clip has not tagged; the tag replaces the name everywhere ('drives " +
-                  "her knee into <Picture 2>’s nose'). A clip that names only one fighter renders that " +
-                  "fighter fighting a duplicate of themselves — the failure this rule exists to prevent. " +
-                  "Never mention 'the story', 'this clip' or the viewer; write only what is seen and heard."
-                : "One character reference image is attached to every clip: <Picture 1> (Character 1). Refer " +
-                  "to the character ONLY by that tag — never describe their hair, face, skin, build or age; " +
-                  "the tag carries all of it. Write what they DO. Never mention 'the story', 'this clip' " +
-                  "or the viewer; write only what is seen and heard.";
-
-            return
-                "Mode: T2VA body with character references — there is NO first-frame image, so every clip " +
-                "begins directly with the three core fields; never write the I2VA/FL2VA/L2VA anchor line. The " +
-                "multi-shot structure is explicitly required by this brief — a fight chain cut like a music " +
-                "video is the user's intent, not cinematic embellishment.\n\n" +
-                // Ahead of the brief, not after it: the medium is decided in the opening words of [Shot 1],
-                // and a rule that arrives after the material has been read is one that opening has stopped
-                // listening to. Same block the stock tab uses, so a style behaves identically on both.
-                H3VisualStyles.Rule(VisualStyle) +
-                "\nCreative brief from the director:\n" +
-                $"{brief.Trim()}\n\n" +
-                $"{cast}\n" +
-                $"{wardrobe}\n\n" +
-                $"The chain: write {clipCount} clips, each {seconds.ToString("0.##", CultureInfo.InvariantCulture)} " +
-                "seconds long, that together play the story continuously from its first action to its last. " +
-                $"Separate them with the \"=== CLIP n of {clipCount} ===\" headers. Each clip carries roughly " +
-                $"{shots} shots scaled to its {seconds.ToString("0.##", CultureInfo.InvariantCulture)} seconds, " +
-                "every timestamp inside the clip's own duration; each clip opens already in motion and ends " +
-                "mid-action so the cuts read as one continuous take.\n" +
-                "Hard limits, enforced after the reply: every sentence is a complete sentence that ends with " +
-                "its own punctuation — never write an unbroken chain of words; each clip's three fields are " +
-                "complete before the next clip's header; and after the last clip the reply stops.";
-        }
-
-        /// <summary>Pulls <c>creative_brief</c> / <c>clip_count</c> / <c>seconds_per_clip</c> out of the tool
-        /// call's arguments. Defensive on every field: a local model's arguments string can arrive wrapped,
-        /// partial, or with the numbers as text — the plan the tab already holds is the fallback. A payload
-        /// that is not clean JSON returns empty (the caller retries), unless <paramref name="fallbackToRaw"/>
-        /// is set — the last attempt's raw text then stands as the brief.</summary>
-        private static (string Brief, int Clips, double Seconds) ParseBriefCall(string? arguments, bool fallbackToRaw = false)
-        {
-            var empty = (string.Empty, 0, 0.0);
-            if (string.IsNullOrWhiteSpace(arguments)) return empty;
-
-            try
+            get
             {
-                var node = JsonNode.Parse(arguments);
-                if (node is not JsonObject obj) return empty;
-
-                var brief = obj["creative_brief"]?.GetValue<string>() ?? string.Empty;
-                var clips = obj["clip_count"]?.GetValue<int>() ?? 0;
-                var seconds = obj["seconds_per_clip"] is JsonValue sv && sv.TryGetValue<double>(out var d) ? d : 0.0;
-
-                return string.IsNullOrWhiteSpace(brief) ? empty : (brief.Trim(), clips, seconds);
-            }
-            catch
-            {
-                // An arguments string that is not clean JSON: empty, so the caller retries — and on the
-                // final attempt the raw payload itself is the brief.
-                return fallbackToRaw ? (arguments.Trim(), 0, 0.0) : empty;
+                var clip = ClampLength(LengthSeconds);
+                var n = PlannedClipCount;
+                if (n <= 1) return $"One clip of {clip:0.#}s — a single H3 pass.";
+                return $"{n} clips × {clip:0.#}s → {n * clip:0.#}s of video. Analyze divides the story into " +
+                       $"{n} beats and then writes one clip per beat, one call each; Add to Queue enqueues " +
+                       "one job per clip, and they are joined into a single file when the last one lands.";
             }
         }
 
-        // ── Post-writing passes ─────────────────────────────────────────────────────────────────
+        // ── Step 1: the beat sheet ─────────────────────────────────────────────────────────────────
+
+        /// <summary>The story divided into exactly <paramref name="clipCount"/> beats, plus the one-line
+        /// setting every clip restates. All of the work is <see cref="StoryBeatSheet"/>'s, shared with the
+        /// 🪪🎬 H3 Multi and 🪪👥⚡ H3 Cast Hybrid tabs; this only says how the cast is named here.</summary>
+        private Task<(string Setting, List<StoryBeatSheet.StoryBeat> Beats)> BuildBeatSheetAsync(
+            string model, int clipCount, double len, CancellationToken token)
+        {
+            var castBrief = HasCharacter2
+                ? "There are two characters. Call them CHARACTER 1 and CHARACTER 2 and nothing else — never " +
+                  "by the names the story gives them. Read which of the story's people is which from the " +
+                  "order the story introduces them, and keep that mapping identical in every beat: whoever " +
+                  "strikes in beat 3 carries the same number in beat 9."
+                : "There is one character. Call them CHARACTER 1 and nothing else — never by the name the " +
+                  "story gives them.";
+
+            return StoryBeatSheet.WriteAsync(
+                _lmStudioService, model, StoryText, clipCount, len, castBrief,
+                perBeatCast: false,
+                imagePath: HasSceneImage ? SceneImagePath : null,
+                log: AddLog,
+                token: token,
+                // Researched: two of the guide's failures are decided here rather than in the clip writer — a
+                // beat that carries a multi-stage locomotion change tears the motion latent (Rule 35 / C2V §4.4),
+                // and a beat that carries three narrative moments comes back rushed (Rule 44). Spec: the fight
+                // director's rules restated. Null with both off, so the shared beat sheet is byte-for-byte what
+                // every other tab sends.
+                extraRules: SpecPromptBuild ? H3SpecPrompt.DirectorBeatSheetRules(SpecCastCount)
+                          : ResearchPrompts ? H3ResearchPrompt.BeatSheetRules : null,
+                // Where every clip is, at what hour, in what light — decided once here for the whole
+                // chain. H3 renders each clip as an independent job and has never seen the one before it,
+                // so anything the plan leaves open is re-invented per clip, which is where a film that
+                // cuts from midday to midnight and back comes from. See StoryContinuity.
+                continuity: true,
+                // Spec: a fight director instead of the script supervisor, whose "invent nothing, action only"
+                // dropped every line of dialogue and split one blow across three clips. See H3SpecPrompt.
+                systemPrompt: SpecPromptBuild ? H3SpecPrompt.DirectorBeatSheetSystem(SpecCastCount, continuity: true) : null,
+                tokensPerBeat: SpecPromptBuild ? H3SpecPrompt.DirectorTokensPerBeat : 140);
+        }
+
+        // ── Step 2: one call per clip ──────────────────────────────────────────────────────────────
+
+        /// <summary>The base cleanup plus this tab's field-label canonicalisation — a writer that gets
+        /// terser as a chain goes on starts typing the three labels as headings or bullets
+        /// ("## Overall Soundscape:"), and every pass after this one matches them ordinally against the
+        /// guide's spelling.</summary>
+        protected override string NormalizeClipBody(string raw) =>
+            CanonicalizeFieldLabels(base.NormalizeClipBody(raw));
 
         /// <summary>
-        /// Keeps a degenerate creative brief out of the writer turn. The brief is one long string, and the
-        /// runaway that hits the clip writer hits it the same way — the observed one walked the thesaurus
-        /// from the middle of clip 8's budget line to the token ceiling, and the writer then copied that
-        /// salad, verbatim, into the description of every clip it fed.
-        ///
-        /// <para>A clean brief passes through untouched. A degenerate one is re-submitted once — a fresh
-        /// sample usually lands fine — and whichever of the two carries more healthy prose is cut back to
-        /// its last complete sentence. Truncation is the fallback, not the goal: the tail of a brief is
-        /// where the story's ending is budgeted, so it is worth one more call to keep it.</para>
+        /// What makes a clip renderable here: the description H3 renders from, — in a two-hander — both
+        /// fighters named by their tags, and a scene whose light does not contradict the hour the chain is
+        /// being told in. A fighter left as an untagged pronoun renders as a duplicate of the tagged one,
+        /// which is the failure this tab exists to avoid.
         /// </summary>
-        private async Task<(string Brief, int Clips, double Seconds)> StabilizeBriefAsync(
-            string model, string briefSystem, string briefUser, int clipCount,
-            (string Brief, int Clips, double Seconds) submitted, CancellationToken token)
+        private string? ValidateClip(string body, StoryContinuity.Environment environment)
         {
-            if (DegenerateCutIndex(submitted.Brief) < 0) return submitted;
+            if (!HasFieldContent(body, ClipFieldLabels[0]))
+                return "it carried no integrated_multimodal_description to render. Reply with the three " +
+                       "fields and nothing else, starting with that label.";
 
-            AddLog("WARNING: the creative brief degenerated into unpunctuated word-salad — the writer would " +
-                   "copy that into every clip it budgets. Asking for the brief once more...");
+            if (HasCharacter2 && !NamesBothFighters(body))
+                return "it did not name both characters by their tags. Every character in the beat above " +
+                       "appears as <Picture 1> or <Picture 2> — at their first appearance and wherever they " +
+                       "are struck, grabbed, named or reacted to. Write it again.";
 
-            var retry = await _lmStudioService.CallToolAsync(
-                model,
-                briefSystem,
-                briefUser,
-                PromptWriterTool,
-                PromptWriterToolDescription,
-                PromptWriterToolSchema,
-                maxTokens: Math.Min(32000, 2500 + 1200 * clipCount),
-                cancellationToken: token,
-                sampling: LlmSampling.StoryChainBrief);
-
-            if (retry != null)
-            {
-                var second = ParseBriefCall(retry.Function.Arguments);
-                if (!string.IsNullOrWhiteSpace(second.Brief) &&
-                    HealthyLength(second.Brief) > HealthyLength(submitted.Brief))
-                {
-                    submitted = second;
-                    if (DegenerateCutIndex(submitted.Brief) < 0)
-                    {
-                        AddLog("The re-submitted brief is clean.");
-                        return submitted;
-                    }
-                }
-            }
-
-            var cut = DegenerateCutIndex(submitted.Brief);
-            if (cut < 0) return submitted;
-
-            AddLog($"WARNING: {submitted.Brief.Length - cut:N0} characters of word-salad cut off the end of " +
-                   "the brief — the last clips are budgeted from a brief that stops early. Check how the " +
-                   "chain ends, or re-run Analyze.");
-            return (submitted.Brief[..cut].TrimEnd(), submitted.Clips, submitted.Seconds);
+            // The hour is the one continuity failure worth a whole rewrite: a clip written in sunlight
+            // inside a story that has been dark since beat 4 renders as a cut to another day, and no
+            // downstream pass can repair prose that describes the wrong light.
+            return StoryContinuity.Contradiction(body, environment);
         }
 
-        /// <summary>How much of a text is healthy prose — its whole length, or the index the runaway
-        /// starts at. The measure the two brief submissions are compared on.</summary>
-        private static int HealthyLength(string text)
+        /// <summary>
+        /// One clip's user message: the fixed context every clip shares (style, setting, cast tags, wardrobe
+        /// lock, length, shot count) and the three lines of story that make this clip this clip — the beat
+        /// before it for continuity, its own beat to write, and the beat after it so it ends mid-action.
+        ///
+        /// <para>It is short on purpose. What used to be sent here was a thousand-word creative brief for the
+        /// whole chain, and a model handed the whole story writes a little of all of it into every clip.</para>
+        /// </summary>
+        private string BuildClipRequest(
+            string setting, IReadOnlyList<StoryBeatSheet.StoryBeat> beats,
+            IReadOnlyList<StoryContinuity.Environment> environments, int index, int clipCount,
+            double seconds, int shots, string rejection)
         {
-            var cut = DegenerateCutIndex(text);
-            return cut < 0 ? (text?.Length ?? 0) : cut;
+            var beat = beats[index];
+            var environment = EnvironmentFor(environments, index);
+            var previousEnvironment = index > 0 ? EnvironmentFor(environments, index - 1)
+                                                : (StoryContinuity.Environment?)null;
+
+            var cast = HasCharacter2
+                ? "CAST — two reference photographs are attached to this clip. <Picture 1> is CHARACTER 1 " +
+                  $"(a {CastDescriptor.SexOf(1) ?? "person"}); <Picture 2> is CHARACTER 2 " +
+                  $"(a {CastDescriptor.SexOf(2) ?? "person"}). The beat below says which of them does what — " +
+                  "keep the numbers exactly as it uses them, and name BOTH by their tags in this clip."
+                : "CAST — one reference photograph is attached to this clip. <Picture 1> is CHARACTER 1 " +
+                  $"(a {CastDescriptor.SexOf(1) ?? "person"}).";
+
+            var wardrobe = HasCastWardrobe
+                ? "WARDROBE — already decided, not yours to choose. Each line opens 'Character N wears …'; " +
+                  "attach the garments after that prefix to that character's tag the first time they appear " +
+                  "in this clip — '<Picture N>, wearing <those garments>,' — in exactly these words. This is " +
+                  "the only clothing wording you may use; where the beat describes clothing differently, this " +
+                  "wins:\n" + CastWardrobe.Trim()
+                : "WARDROBE — none was decided. Read the outfits off the setting, write them out once in full " +
+                  "when each character first appears, and keep that wording for the rest of the clip.";
+
+            // The setting sentence is the chain's mood and place in prose; the continuity block under it
+            // is this clip's own place, hour and light as facts. Both are sent: the first is what the scene
+            // is, the second is what may not move between clips — and it is the second that stops a film
+            // cutting from midday to midnight for no reason (see StoryContinuity).
+            var location = setting.Length > 0
+                ? $"SETTING — the same story world in every clip of this chain, restated inside [Shot 1]:\n{setting}"
+                : "SETTING — read it off the beat below, and restate it inside [Shot 1].";
+
+            var continuity = StoryContinuity.WriterBlock(environment, previousEnvironment);
+            if (continuity.Length > 0) location += "\n\n" + continuity;
+
+            var previous = index > 0
+                ? "THE CLIP BEFORE THIS ONE has already been rendered and showed this — do NOT show it " +
+                  $"again:\n{beats[index - 1].Text}"
+                : "This is the chain's FIRST clip: it opens the video, already in motion.";
+
+            var next = index + 1 < beats.Count
+                ? "THE CLIP AFTER THIS ONE will show this — do NOT reach into it; end this clip mid-action, " +
+                  $"on its way there:\n{beats[index + 1].Text}"
+                : "This is the chain's LAST clip: the story's final moment lands inside it.";
+
+            var part = StoryBeatSheet.DescribePart(beat);
+
+            var s = seconds.ToString("0.##", CultureInfo.InvariantCulture);
+            var whole = (int)Math.Floor(seconds);
+            var millis = (int)Math.Round((seconds - whole) * 1000);
+
+            // The researched build's rule block sits between the fixed context and the beat: after the
+            // cast and the wardrobe it refers to, and ahead of the action it constrains. Every rule in
+            // it is cited to the guides in prompts/documents/ — see H3ResearchPrompt.
+            var research = ResearchPrompts
+                ? H3ResearchPrompt.RulesFor(index, HasCharacter2, seconds, shots, setting,
+                                            hasContinuityPlan: !environment.IsEmpty) + "\n\n"
+                : string.Empty;
+
+            // The shot line is the one piece of the fixed context the two builds word differently: the
+            // researched build hands over the exact cut times, because a writer left to choose them
+            // reuses the ones it saw in an example whatever this clip's length is (Rule 27's timestamp
+            // note), which puts the last beat a third of the way in and leaves the tail as dead air.
+            var pacing = ResearchPrompts
+                ? $"THIS IS CLIP {index + 1} OF {clipCount}. It is {s} seconds long. Its shot count and " +
+                  "its cut times are in the SHOT PLAN above and are not yours to change."
+                : $"THIS IS CLIP {index + 1} OF {clipCount}. It is {s} seconds long and carries about " +
+                  $"{shots} shots — one cut roughly every second and a half. Every timestamp after " +
+                  $"[Shot 1] falls inside 00:00.000–{whole / 60:00}:{whole % 60:00}.{millis:000}.";
+
+            return
+                // The mode line first: it is the one thing that decides whether H3 opens on the scene or on
+                // the reference photographs themselves.
+                "Mode: character-reference video. The attached pictures are studio reference photographs of " +
+                "the cast — plain backdrop, neutral standing pose, shot for identity alone. They are NOT " +
+                "frames of this video and the viewer never sees them. Write no alignment or anchor line; " +
+                "begin with integrated_multimodal_description: and open [Shot 1] on the setting and the " +
+                "action below.\n\n" +
+                H3VisualStyles.Rule(VisualStyle) + "\n" +
+                $"{location}\n\n" +
+                $"{cast}\n\n" +
+                $"{wardrobe}\n\n" +
+                research +
+                $"{pacing}\n\n" +
+                $"{previous}\n\n" +
+                $"THIS CLIP'S ACTION — expand ONLY this, and fill the whole {s} seconds with it:\n" +
+                $"{beat.Text}{part}\n\n" +
+                $"{next}\n\n" +
+                "Reply with the three fields and nothing else.";
         }
+
 
         /// <summary>The three H3 field labels, in the order the guide writes them.</summary>
         private static readonly string[] ClipFieldLabels =
@@ -730,14 +746,58 @@ namespace FlipPix.UI.ViewModels.Video
         };
 
         /// <summary>
+        /// The same three labels as the writer actually types them: any case, any of the three word
+        /// separators, and with a markdown heading or bullet in front. <c>CleanOutput</c> already strips
+        /// <c>**</c>, so what survives is <c>## Overall Soundscape:</c>, <c>- non-diegetic music:</c>,
+        /// <c>Integrated Multimodal Description:</c> and so on. Every downstream pass matches the labels
+        /// with an ordinal comparison against the canonical spelling, so a clip written in any of those
+        /// variants read as a clip with no fields at all — which is what dropped ten clips of a twelve-clip
+        /// chain on the observed run. Anchored to the start of a line: a field label is something the
+        /// writer puts on its own line, and an unanchored match would rewrite the words mid-description.
+        /// </summary>
+        private static readonly (Regex Pattern, string Canonical)[] FieldLabelVariants =
+            ClipFieldLabels.Select(label => (
+                new Regex(
+                    @"^[ \t]*(?:[-*•>]\s*)?(?:#{1,6}\s*)?" +
+                    Regex.Escape(label.TrimEnd(':')).Replace("_", @"[ _\-]") +
+                    @"[ \t]*:[ \t]*",
+                    RegexOptions.IgnoreCase | RegexOptions.Multiline | RegexOptions.Compiled),
+                label + " ")).ToArray();
+
+        /// <summary>
+        /// Rewrites every recognised spelling of the three field labels into the canonical one, so the
+        /// sanitizer, the structure check and the shot pass all see the fields the writer meant to write.
+        /// A body already in canonical form passes through unchanged.
+        /// </summary>
+        private static string CanonicalizeFieldLabels(string body)
+        {
+            if (string.IsNullOrWhiteSpace(body)) return body;
+            foreach (var (pattern, canonical) in FieldLabelVariants)
+                body = pattern.Replace(body, canonical);
+            return body;
+        }
+
+        /// <summary>
+        /// The base guide's keyframe alignment instructions — the I2VA anchor line and the FL2VA/L2VA
+        /// alignment line. Both are meaningless on this tab, where the pictures are studio reference
+        /// photographs rather than frames, and telling H3 that a reference is "fully referenced" at the
+        /// 0.00-second mark is precisely how the character sheet ends up as the video's opening frame.
+        /// The per-clip system prompt (<c>h3pw_clip.md</c>) forbids them in words; they are cut here as
+        /// well, because models carry the habit in from the MiniMax guide they were trained on.
+        /// </summary>
+        private static readonly Regex KeyframeAnchorLineRegex = new(
+            @"^[ \t]*(?:For the target video,[^\n]*?fully referenced\.?|How the reference pictures align[^\n]*)[ \t]*$",
+            RegexOptions.Multiline | RegexOptions.IgnoreCase | RegexOptions.Compiled);
+
+        /// <summary>
         /// The runaway guard applied field by field <i>inside</i> one clip.
         /// <see cref="TruncateDegenerateTail"/> only ever sees the end of the whole reply, so a clip that
         /// degenerated in the middle of the chain — the common case, because the model recovers at the next
         /// field label and writes the following clips normally — carried its word-salad through untouched
         /// and rendered it. Cutting each field back to its own last complete sentence removes the salad and
         /// keeps the clip: the structure survives, so the clip is not dropped for the sake of one bad field.
-        /// A field that is salad end to end comes back empty and the clip fails
-        /// <see cref="KeepsClipStructure"/> instead.
+        /// A field that is salad end to end comes back empty, and
+        /// <see cref="KeepRenderableClips"/> then decides whether what is left still renders.
         /// </summary>
         private string SanitizeClipFields(string body, int clipNumber)
         {
@@ -752,6 +812,15 @@ namespace FlipPix.UI.ViewModels.Video
 
             var parts = new List<string>();
             var preamble = body[..marks[0].Index].Trim();
+            if (preamble.Length > 0)
+            {
+                var kept = KeyframeAnchorLineRegex.Replace(preamble, string.Empty).Trim();
+                if (kept.Length != preamble.Length)
+                    AddLog($"Clip {clipNumber}: the base guide's keyframe anchor line was dropped "
+                           + "— the attached pictures are reference photographs of the cast, not "
+                           + "frames of the video, and an anchor line renders them as the first frame.");
+                preamble = kept;
+            }
             if (preamble.Length > 0) parts.Add(preamble);
 
             var removed = 0;
@@ -837,20 +906,6 @@ namespace FlipPix.UI.ViewModels.Video
             return text.Length > RunawaySuffixLimit ? 0 : -1;
         }
 
-        /// <summary>
-        /// Cuts a degenerate reply at its last complete sentence (see <see cref="DegenerateCutIndex"/>),
-        /// logging what was removed. Healthy text passes through untouched.
-        /// </summary>
-        private string TruncateDegenerateTail(string text)
-        {
-            var cut = DegenerateCutIndex(text);
-            if (cut < 0) return text;
-
-            AddLog($"WARNING: the writer degenerated — {text.Length - cut:N0} characters of unpunctuated " +
-                   "word-salad truncated to the last complete sentence.");
-            return text[..cut].TrimEnd();
-        }
-
         /// <summary>Whether a clip body (canonical form) names BOTH fighters by tag. The hard rule this
         /// tab enforces: a two-person fight has both fighters on screen in every clip, and a fighter who
         /// appears only as an untagged pronoun renders as the other fighter fighting a duplicate of
@@ -859,75 +914,78 @@ namespace FlipPix.UI.ViewModels.Video
             body.Contains("<Picture 1>", StringComparison.Ordinal) &&
             body.Contains("<Picture 2>", StringComparison.Ordinal);
 
-        /// <summary>Whether a clip body still carries the three H3 field labels <i>with something under
-        /// each of them</i> — the structure a repair turn must preserve to be worth keeping. A retagged
-        /// clip that lost its labels is worse than an untagged clip that kept them: the stamped reference
-        /// line already carries both fighters, so the structure is the part that cannot be sacrificed. The
-        /// content half of the test is what drops a clip <see cref="SanitizeClipFields"/> emptied — a field
-        /// that was word-salad end to end leaves a bare label, and a bare label renders nothing.</summary>
-        private static bool KeepsClipStructure(string body) =>
-            ClipFieldLabels.All(label => HasFieldContent(body, label));
-
         /// <summary>
-        /// One focused rewrite turn per offending clip: the body comes back with the opponent named by their
-        /// tag at every point the prose acted on them, and nothing else changed. A repair that fails its own
-        /// goal is discarded — the original body stands and the warning after stamping names the clip.
+        /// The clips of a written chain that are worth queueing, with what was missing from the rest said
+        /// out loud.
+        ///
+        /// <para>The bar is <c>integrated_multimodal_description:</c> — the field H3 actually renders from.
+        /// A clip without it is a clip with nothing to render and is dropped, as before. The two audio
+        /// fields are not that: a clip missing <c>overall_soundscape:</c> or <c>non_diegetic_music:</c>
+        /// renders its picture exactly as written and comes back quieter than the rest of the chain, which
+        /// is worth far more than the hole it leaves in a story when the clip is thrown away. Dropping on
+        /// all three is what turned a twelve-clip 120-second chain into two clips on the observed run: a
+        /// local writer that gets terser as the chain goes on stops writing the audio fields long before
+        /// it stops writing the description.</para>
+        ///
+        /// <para>Both outcomes name the clip numbers and the fields, because "10 clip(s) came back
+        /// structurally incomplete" said nothing about which clips or what they were missing.</para>
         /// </summary>
-        private async Task<List<string>> RepairUntaggedOpponentAsync(
-            string model, List<string> bodies, CancellationToken token)
+        private List<string> KeepRenderableClips(List<string> bodies)
         {
-            const string repairSystem =
-                "You repair one clip of a MiniMax H3 two-person fight. The clip you are given names at most one " +
-                "fighter by their reference tag; one or both fighters appear only as an untagged pronoun or " +
-                "label ('he', 'his chest', 'the man', 'her opponent'). Rewrite the clip so BOTH fighters are " +
-                "named by their tags — <Picture 1> and <Picture 2> — at each fighter's first appearance, and " +
-                "the tag replaces the name or pronoun at every point after that where either is named, " +
-                "struck, grabbed or reacted to ('drives her knee into <Picture 2>'s nose', '<Picture 2> " +
-                "roars'). Close-ups of a body part belong to the fighter whose part it is — say the tag. " +
-                "Change NOTHING else. The clip's structure is sacred: the three field labels " +
-                "'integrated_multimodal_description:', 'overall_soundscape:' and 'non_diegetic_music:' appear " +
-                "exactly as they do in the input, in the same order, with the same shots, timestamps and " +
-                "wording everywhere the pronoun was not standing in for the untagged fighter. Return only " +
-                "the rewritten clip — no headers, no commentary.";
+            var kept = new List<string>();
+            var dropped = new List<int>();
+            var quiet = new List<string>();
 
             for (var i = 0; i < bodies.Count; i++)
             {
-                if (NamesBothFighters(bodies[i])) continue;
+                var clipNumber = i + 1;
+                var missing = ClipFieldLabels
+                    .Where(label => !HasFieldContent(bodies[i], label))
+                    .Select(label => label.TrimEnd(':'))
+                    .ToList();
 
-                token.ThrowIfCancellationRequested();
-                AddLog($"Cast repair: clip {i + 1} names only one fighter — retagging the opponent...");
-                try
+                if (!HasFieldContent(bodies[i], ClipFieldLabels[0]))
                 {
-                    var rewritten = CleanOutput(await _lmStudioService.SendTextChatAsync(
-                        model,
-                        repairSystem,
-                        bodies[i],
-                        maxTokens: 4000,
-                        cancellationToken: token));
+                    dropped.Add(clipNumber);
+                    continue;
+                }
 
-                    // Both gates or nothing: the rewrite must name both fighters AND still be a structurally
-                    // intact H3 clip. A repair that retags but drops the field labels is discarded — the
-                    // stamped reference line carries both fighters anyway, so structure is not for sale.
-                    if (!string.IsNullOrWhiteSpace(rewritten) && NamesBothFighters(rewritten) &&
-                        KeepsClipStructure(rewritten))
-                        bodies[i] = rewritten;
-                    else
-                        AddLog($"Cast repair: clip {i + 1} could not be retagged without losing the clip's " +
-                               "structure — keeping the original body (the stamped reference line still " +
-                               "carries both fighters).");
-                }
-                catch (OperationCanceledException)
-                {
-                    throw;
-                }
-                catch (Exception ex)
-                {
-                    AddLog($"Cast repair: clip {i + 1} failed ({ex.Message}) — keeping the original body " +
-                           "(the stamped reference line still carries both fighters).");
-                }
+                if (missing.Count > 0)
+                    quiet.Add($"{clipNumber} (no {string.Join(", no ", missing)})");
+                kept.Add(bodies[i]);
             }
 
-            return bodies;
+            if (quiet.Count > 0)
+                AddLog($"Note: clip(s) {string.Join("; ", quiet)} came back without their audio field(s). " +
+                       "They are kept and queued — the picture is written in full and only the sound is " +
+                       "missing, so those clips render quieter than the rest of the chain.");
+
+            if (dropped.Count > 0)
+                AddLog($"WARNING: clip(s) {string.Join(", ", dropped)} came back with no " +
+                       $"{ClipFieldLabels[0].TrimEnd(':')} to render and were dropped. Re-run Analyze, or " +
+                       "write those clips into the prompt box by hand.");
+
+            return kept;
+        }
+
+        /// <summary>Rewrites every Unicode decimal digit as its ASCII one. Some local models slip into
+        /// another script's numerals mid-clip — a Qwen2.5-VL writer produced <c>At ۰۰:04.333</c> in
+        /// Persian digits. .NET's <c>\d</c> matches those, so <see cref="NormalizeTimestamps"/> caught the
+        /// timestamp and then threw when <c>int.Parse</c> refused it, which killed the whole Analyze after
+        /// every clip had been written. Folding also means H3 is given digits it can read.</summary>
+        private static string FoldDigits(string text)
+        {
+            var chars = text.ToCharArray();
+            var changed = false;
+            for (var i = 0; i < chars.Length; i++)
+            {
+                if (chars[i] <= '') continue;
+                var value = CharUnicodeInfo.GetDecimalDigitValue(chars[i]);
+                if (value < 0) continue;
+                chars[i] = (char)('0' + value);
+                changed = true;
+            }
+            return changed ? new string(chars) : text;
         }
 
         /// <summary>Pads cut timestamps into the guide's <c>MM:SS.mmm</c> shape — and rescues the
@@ -983,6 +1041,94 @@ namespace FlipPix.UI.ViewModels.Video
 
             static string Format(int minutes, int seconds, int millis) =>
                 $"At {minutes:00}:{seconds:00}.{millis:000}";
+        }
+
+        /// <summary>Matches a <c>[Shot n]</c> marker however it is spaced.</summary>
+        private static readonly Regex ShotMarkerRegex =
+            new(@"\[\s*Shot\s+\d+\s*\]", RegexOptions.IgnoreCase | RegexOptions.Compiled);
+
+        /// <summary>The timestamp every shot but the first opens with. Read after
+        /// <see cref="NormalizeTimestamps"/> has run, so the shape is already the guide's.</summary>
+        private static readonly Regex ShotOpensWithTimestampRegex =
+            new(@"^[\s,;:.\-–—]*[Aa]t\s+\d", RegexOptions.Compiled);
+
+        /// <summary>
+        /// Folds a clip's shot markers back into the shape the guide actually defines: exactly one
+        /// <c>[Shot 1]</c>, and a timestamp on every marker after it.
+        ///
+        /// <para>MiniMax's own prompt-writing guide documents only the keyframe tasks, in which
+        /// <c>[Shot 1]</c> opens by establishing the reference picture's own composition.
+        /// <c>h3pw_clip.md</c> overrides that in words, but the habit survives as a subject-less
+        /// style-and-setting block emitted as its own <c>[Shot 1]</c> ahead of the real opening shot —
+        /// every clip of the observed chain carried two <c>[Shot 1]</c> markers. A clip
+        /// whose first shot is a static anchor with no camera and no cast is a clip H3 resolves out of
+        /// the reference photographs themselves: studio backdrop, neutral pose, the cast lined up — the
+        /// character sheet turning up inside the video.</para>
+        ///
+        /// <para>A marker after the first whose text does not open with a timestamp is not a shot by the
+        /// guide's own rule, so the marker is dropped and its text joins the shot before it — which puts
+        /// the style and setting inside <c>[Shot 1]</c>, exactly where the chain layer asks for them.
+        /// What survives is renumbered 1..N so the numbering is strictly increasing again.</para>
+        /// </summary>
+        private string NormalizeShots(string body, int clipNumber)
+        {
+            var label = ClipFieldLabels[0];
+            var start = body.IndexOf(label, StringComparison.Ordinal);
+            if (start < 0) return body;
+            start += label.Length;
+
+            var end = body.Length;
+            for (var i = 1; i < ClipFieldLabels.Length; i++)
+            {
+                var next = body.IndexOf(ClipFieldLabels[i], start, StringComparison.Ordinal);
+                if (next >= 0 && next < end) end = next;
+            }
+
+            var rebuilt = FoldShots(body[start..end], clipNumber);
+            if (rebuilt == null) return body;
+
+            var tail = end < body.Length ? "\n\n" + body[end..].TrimStart() : string.Empty;
+            return body[..start] + " " + rebuilt + tail;
+        }
+
+        /// <summary>
+        /// <see cref="NormalizeShots"/>'s fold on a description's own text: one <c>[Shot 1]</c>, a timestamp on
+        /// every marker after it, renumbered 1..N. Null when the text has no <c>[Shot]</c> marker at all.
+        /// <paramref name="separator"/> goes between shots — a space in the three-field builds, a blank line in
+        /// the 📐 spec build, whose format puts each shot on its own.
+        /// </summary>
+        private string? FoldShots(string field, int clipNumber, string separator = " ")
+        {
+            var markers = ShotMarkerRegex.Matches(field);
+            if (markers.Count == 0) return null;
+
+            // Anything ahead of the first marker is prose the writer put before its own shots; it stays.
+            var lead = field[..markers[0].Index].Trim();
+
+            var shots = new List<string>();
+            var folded = 0;
+            for (var i = 0; i < markers.Count; i++)
+            {
+                var from = markers[i].Index + markers[i].Length;
+                var to = i + 1 < markers.Count ? markers[i + 1].Index : field.Length;
+                var text = field[from..to].Trim();
+
+                if (shots.Count > 0 && !ShotOpensWithTimestampRegex.IsMatch(text))
+                {
+                    shots[^1] = (shots[^1] + " " + text).Trim();
+                    folded++;
+                    continue;
+                }
+                shots.Add(text);
+            }
+
+            if (folded > 0)
+                AddLog($"Clip {clipNumber}: {folded} timestamp-less [Shot] marker(s) folded into the shot " +
+                       "before them — a style/setting block written as a shot of its own is what makes H3 " +
+                       "open on the reference photographs instead of on the scene.");
+
+            var rebuilt = string.Join(separator, shots.Select((s, i) => $"[Shot {i + 1}] {s}".TrimEnd()));
+            return lead.Length > 0 ? lead + separator + rebuilt : rebuilt;
         }
     }
 }

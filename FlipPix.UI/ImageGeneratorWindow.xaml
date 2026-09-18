@@ -2202,40 +2202,6 @@
                                         </StackPanel>
                                     </Border>
 
-                                    <!-- Send generated keyframes to MiniMax FFLF (continuous shot) -->
-                                    <Button Content="🎯 Open in MiniMax FFLF"
-                                           Command="{Binding OpenKeyframesInMiniMaxFflfCommand}"
-                                           HorizontalAlignment="Stretch"
-                                           Height="40"
-                                           Foreground="White"
-                                           BorderThickness="0"
-                                           FontSize="12"
-                                           FontWeight="SemiBold"
-                                           Margin="0,0,0,10"
-                                           ToolTip="Opens the Video Generator's MiniMax FFLF tab with this session's keyframes loaded as the chain: the first still is the opening frame and each one after it is a keyframe a clip has to arrive at.&#x0a;&#x0a;A chain holds five keyframes at most, so a ten-keyframe run is walked as a series of takes — each one opening on the keyframe the last ended with, so they join.">
-                                        <Button.Style>
-                                            <Style TargetType="Button">
-                                                <Setter Property="Background" Value="{StaticResource AccentVioletBrush}"/>
-                                                <Setter Property="Template">
-                                                    <Setter.Value>
-                                                        <ControlTemplate TargetType="Button">
-                                                            <Border Background="{TemplateBinding Background}"
-                                                                   CornerRadius="8"
-                                                                   Padding="{TemplateBinding Padding}">
-                                                                <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center"/>
-                                                            </Border>
-                                                        </ControlTemplate>
-                                                    </Setter.Value>
-                                                </Setter>
-                                                <Style.Triggers>
-                                                    <Trigger Property="IsMouseOver" Value="True">
-                                                        <Setter Property="Background" Value="#6D28D9"/>
-                                                    </Trigger>
-                                                </Style.Triggers>
-                                            </Style>
-                                        </Button.Style>
-                                    </Button>
-
                                     <!-- Prompt JSON File (moved below analyze button) -->
                                     <TextBlock Text="Prompts JSON File"
                                                FontSize="12"

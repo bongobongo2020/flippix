@@ -79,8 +79,75 @@ namespace FlipPix.UI.Services
             "and ignore any other clothing wording anywhere below; nobody changes, adds, removes or restyles a " +
             "garment unless this block says so:";
 
+        /// <summary>
+        /// The sentence that stops H3 rendering the reference sheet instead of the video: no studio
+        /// backdrop, no neutral pose, and — the part that does the work — no duplicate of one person and no
+        /// grid or split-screen layout. Several photographs of one person are a strong pull toward a frame
+        /// laid out like the sheet, and this is what resists it.
+        ///
+        /// <para>Held as a constant because <see cref="MakeStereo"/> has to find it again word for word in
+        /// an already-stamped prompt.</para>
+        /// </summary>
+        public const string SceneRule =
+            "These references are NOT the scene: never show the same person more than once in a frame, " +
+            "never line the cast up side by side against a plain backdrop, and do not copy the " +
+            "references' plain background, their neutral standing pose, or any panel, grid or " +
+            "split-screen layout into the video.";
+
+        /// <summary>
+        /// <see cref="SceneRule"/> for a tab whose output is a <b>stereoscopic side-by-side pair</b> —
+        /// 🥽🎯 H3 VR.
+        ///
+        /// <para><b>Why the ordinary rule cannot be used there.</b> A VR180 SBS frame <i>is</i> a
+        /// split-screen layout in which the same person appears twice, so <see cref="SceneRule"/> forbids
+        /// exactly what the LoRA is for. Sent together, the two instructions contradict each other, and the
+        /// only reading that satisfies both literally is the one the model actually took: split the frame,
+        /// and put a <b>different person in each half</b>. That is the "second character" a solo cast was
+        /// coming back with — not an invented partner standing beside her, but her other eye rendered as
+        /// somebody else.</para>
+        ///
+        /// <para>So this version keeps the two halves of the rule that still apply — no studio backdrop, no
+        /// neutral pose — and replaces the anti-duplication half with the duplication the format requires,
+        /// stated precisely enough to be a constraint rather than a licence: one person per half, the same
+        /// person in both, and no duplicate inside either half.</para>
+        /// </summary>
+        public const string StereoSceneRule =
+            "These references are NOT the scene: do not copy the references' plain background or their " +
+            "neutral standing pose into the video, and do not line the cast up against a plain backdrop " +
+            "the way the references do. This video's frame IS a stereoscopic side-by-side pair and must be " +
+            "split down the middle: the left half is the left eye's view and the right half is the right " +
+            "eye's view of ONE single scene at ONE single moment. Everyone in the scene therefore appears " +
+            "once in the left half and once in the right half, and the two are the SAME person — the same " +
+            "face, the same clothing, the same pose, the same position in the scene — differing only by a " +
+            "small horizontal parallax shift. Never put a different person, a different pose or a different " +
+            "moment in the two halves, and never show the same person twice inside one half. The frame is " +
+            "one scene seen by two eyes, never two scenes and never two casts.";
+
         /// <summary>The H3 field the body proper begins at, used to find where the preamble ends.</summary>
         private const string BodyAnchor = "integrated_multimodal_description:";
+
+        /// <summary>Where a six-section body begins, and the section its shots are under — the 📐 Singularity spec
+        /// build (<see cref="H3SpecPrompt"/>).</summary>
+        private const string SpecBodyAnchor = "subject_definitions:";
+        private const string SpecDescriptionAnchor = "detailed_description:";
+
+        /// <summary>Where the body proper begins: whichever body-opening field comes first, or -1.</summary>
+        private static int BodyStart(string prompt)
+        {
+            var plain = prompt.IndexOf(BodyAnchor, StringComparison.OrdinalIgnoreCase);
+            var spec = prompt.IndexOf(SpecBodyAnchor, StringComparison.OrdinalIgnoreCase);
+            return plain < 0 ? spec : spec < 0 ? plain : Math.Min(plain, spec);
+        }
+
+        /// <summary>The label the description is written under, and where: the three-field description, else the
+        /// six-section one. Index -1 when there is neither.</summary>
+        private static (int Index, string Label) DescriptionLabel(string prompt)
+        {
+            var plain = prompt.IndexOf(BodyAnchor, StringComparison.OrdinalIgnoreCase);
+            return plain >= 0
+                ? (plain, BodyAnchor)
+                : (prompt.IndexOf(SpecDescriptionAnchor, StringComparison.OrdinalIgnoreCase), SpecDescriptionAnchor);
+        }
 
         #region Cast aliases
 
@@ -179,14 +246,170 @@ namespace FlipPix.UI.Services
         }
 
         /// <summary>
+        /// A picture tag a model <i>meant</i> to write and did not quite: an opening angle bracket, an
+        /// optional space, some spelling of "Picture", the number — and then anything or nothing where the
+        /// closing bracket belongs.
+        ///
+        /// <para>Observed on H3 Duo 2026-09-02: from clip 4 of a 12-clip chain onwards, every tag arrived as
+        /// <c>&lt;Picture 1</c> with no closing bracket, and by clip 10 as <c>&lt; Picture 2</c> with a space
+        /// after the bracket as well. Earlier, on H3 Eros, as <c>&lt;P 1&gt;</c>. None of those match
+        /// <see cref="PictureTagRegex"/>, and the consequences are silent and total: the tag is never
+        /// resolved to a reference, so H3 is handed the literal text; and because
+        /// <see cref="IncludesCharacter2"/> and the selective cast read the same regex, a clip whose only
+        /// mention of character 2 was malformed is submitted <b>with character 2's photographs left off
+        /// altogether</b> — which is the clip that comes back with a stranger in it.</para>
+        ///
+        /// <para>The opening <c>&lt;</c> is what makes this safe to repair: prose does not contain it, so a
+        /// match is always a tag that was aimed at and missed.</para>
+        /// </summary>
+        /// <para>The closing bracket and the space in front of it are consumed <i>together or not at
+        /// all</i> — <c>(?:\s*&gt;)?</c>, never <c>\s*&gt;?</c>. The loose form swallows the space after an
+        /// unclosed tag and welds the tag to the next word (<c>&lt;Picture 1&gt;leaps</c>), which trades one
+        /// malformation for another.</para>
+        private static readonly Regex BrokenPictureTagRegex =
+            new(@"<\s*(?:Picture|Pictuer|Picutre|Pic|P)\s*(\d{1,2})(?:\s*>)?",
+                RegexOptions.IgnoreCase | RegexOptions.Compiled);
+
+        /// <summary>
+        /// A cast alias run straight into the next word — <c>@char1_frontkicks off his collarbone</c>,
+        /// observed in the same chain. <see cref="CastTagRegex"/> ends on <c>\b</c>, so this matches
+        /// <i>nothing at all</i>: the alias is not seen, and the character it names loses their references
+        /// for that clip exactly as a malformed picture tag does.
+        /// </summary>
+        private static readonly Regex RunOnAliasRegex =
+            new(@"(?<![\w@])(@char\d+(?:_(?:front|back|face|v\d+))?)(?=[A-Za-z])",
+                RegexOptions.IgnoreCase | RegexOptions.Compiled);
+
+        /// <summary>
+        /// Repairs the near-miss cast tags a model writes when a long reply starts to drift, so they resolve
+        /// to references instead of being silently dropped. Idempotent, and a no-op on a clean body.
+        ///
+        /// <para>Public because it is worth running — and reporting — before a prompt is stamped, so the
+        /// tab can say how many tags it had to mend rather than repairing them invisibly.</para>
+        /// </summary>
+        public static string RepairTags(string? body)
+        {
+            if (string.IsNullOrEmpty(body)) return body ?? string.Empty;
+            body = RunOnAliasRegex.Replace(body, "$1 ");
+            return BrokenPictureTagRegex.Replace(body, m => $"<Picture {m.Groups[1].Value}>");
+        }
+
+        /// <summary>How many tags <see cref="RepairTags"/> would mend — what the tab reports.</summary>
+        public static int CountBrokenTags(string? body)
+        {
+            if (string.IsNullOrEmpty(body)) return 0;
+            var broken = RunOnAliasRegex.Matches(body).Count;
+            foreach (Match m in BrokenPictureTagRegex.Matches(body))
+                if (m.Value != $"<Picture {m.Groups[1].Value}>") broken++;
+            return broken;
+        }
+
+        /// <summary>
         /// Puts a body into the one form everything here is written against: two characters, named
         /// <c>&lt;Picture 1&gt;</c> and <c>&lt;Picture 2&gt;</c>. Both the numbered slots of an already-stamped
         /// prompt and the aliases of a tagged one collapse to it.
+        ///
+        /// <para>Near-miss tags are mended first (<see cref="RepairTags"/>). It happens here rather than at
+        /// the call sites because every path into the stamp — Analyze, a re-stamp after a wardrobe edit, Add
+        /// to Queue, a prompt typed by hand — goes through <see cref="Strip"/>, and a tag that is still
+        /// broken by the time it reaches the queue costs a render.</para>
         /// </summary>
         private static string Canonicalize(string body)
         {
+            body = RepairTags(body);
             body = CastTagRegex.Replace(body, m => m.Groups[1].Value == "1" ? "<Picture 1>" : "<Picture 2>");
             return PictureTagRegex.Replace(body, m => m.Groups[1].Value == "1" ? "<Picture 1>" : "<Picture 2>");
+        }
+
+        #endregion
+
+        #region The description field
+
+        /// <summary>The fields that follow the description, in the order H3 expects them. Whichever comes
+        /// first is where the description ends.</summary>
+        private static readonly string[] TailAnchors = { "overall_soundscape:", "non_diegetic_music:" };
+
+        /// <summary>
+        /// Just the <c>integrated_multimodal_description</c> body — the field H3 actually renders motion
+        /// from — with its label, the reference preamble, the wardrobe lock and the two sound fields all
+        /// left behind.
+        ///
+        /// <para>This is the half of a prompt worth putting in front of someone: the preamble and the
+        /// wardrobe block are code-written and identical in every clip of a chain, and editing them by hand
+        /// is how a cast stops being wired correctly. Empty for a prompt carrying no label at all, which is
+        /// the honest answer — there is no description field to edit.</para>
+        /// </summary>
+        public static string ExtractDescription(string? prompt)
+        {
+            var t = prompt ?? string.Empty;
+            var (start, label) = DescriptionLabel(t);
+            if (start < 0) return string.Empty;
+            start += label.Length;
+            return t[start..TailStart(t, start)].Trim();
+        }
+
+        /// <summary>
+        /// Puts an edited description back into its prompt, leaving the preamble, the wardrobe lock and the
+        /// two sound fields exactly as they were. A prompt with no label gets one appended, so a hand-written
+        /// clip can still be given a description rather than silently swallowing the edit.
+        /// </summary>
+        public static string ReplaceDescription(string? prompt, string? description)
+        {
+            var t = prompt ?? string.Empty;
+            var body = (description ?? string.Empty).Trim();
+            var (start, label) = DescriptionLabel(t);
+
+            if (start < 0)
+            {
+                if (body.Length == 0) return t;
+                var head = t.TrimEnd();
+                return head.Length == 0 ? $"{BodyAnchor} {body}" : $"{head}\n\n{BodyAnchor} {body}";
+            }
+
+            var afterLabel = start + label.Length;
+            var tail = t[TailStart(t, afterLabel)..].TrimStart();
+            return t[..afterLabel] + " " + body + (tail.Length > 0 ? "\n\n" + tail : string.Empty);
+        }
+
+        /// <summary>Matches a shot header wherever it appears in a description body.</summary>
+        private static readonly Regex ShotHeaderRegex =
+            new(@"\s*(\[\s*Shot\s*\d+\s*\])", RegexOptions.IgnoreCase | RegexOptions.Compiled);
+
+        /// <summary>Collapses every run of whitespace to one space, for comparing two spellings of the
+        /// same description.</summary>
+        private static readonly Regex WhitespaceRunRegex = new(@"\s+", RegexOptions.Compiled);
+
+        /// <summary>
+        /// The same description with every <c>[Shot n]</c> starting its own line. Purely how it is laid out
+        /// for reading and editing — a description is a list of shots, and run together in one paragraph it
+        /// cannot be scanned, let alone edited.
+        /// </summary>
+        public static string ShotLines(string? description) =>
+            ShotHeaderRegex.Replace((description ?? string.Empty).Trim(), "\n$1").TrimStart();
+
+        /// <summary>
+        /// Whether two descriptions say the same thing, ignoring how they are laid out.
+        ///
+        /// <para>The board hands its box the <see cref="ShotLines"/> spelling while the prompt holds whatever
+        /// the writer produced, so a straight comparison would read every clip as edited the moment the board
+        /// was built — and staling a clip costs its takes.</para>
+        /// </summary>
+        public static bool SameDescription(string? a, string? b) =>
+            string.Equals(Flatten(a), Flatten(b), StringComparison.Ordinal);
+
+        private static string Flatten(string? text) =>
+            WhitespaceRunRegex.Replace((text ?? string.Empty).Trim(), " ");
+
+        /// <summary>Where the description stops: the first sound field after it, or the end of the prompt.</summary>
+        private static int TailStart(string prompt, int from)
+        {
+            var end = prompt.Length;
+            foreach (var anchor in TailAnchors)
+            {
+                var i = prompt.IndexOf(anchor, from, StringComparison.OrdinalIgnoreCase);
+                if (i >= 0 && i < end) end = i;
+            }
+            return end;
         }
 
         #endregion
@@ -203,7 +426,7 @@ namespace FlipPix.UI.Services
             if (!t.StartsWith(ReferenceLinePrefix, StringComparison.OrdinalIgnoreCase))
                 return Canonicalize(StripWardrobeBlock(t).Trim());
 
-            var idx = t.IndexOf(BodyAnchor, StringComparison.OrdinalIgnoreCase);
+            var idx = BodyStart(t);
             if (idx > 0) return Canonicalize(t[idx..].Trim());
 
             // No H3 field to anchor on (a hand-written prompt, or a model that dropped the labels): fall back
@@ -358,10 +581,7 @@ namespace FlipPix.UI.Services
 
             sb.Append($" Take ONLY {each} identity from {own} — face, facial features, hair, skin " +
                       $"and build — and keep {them} identical and unchanged from the first frame to the last. ");
-            sb.Append("These references are NOT the scene: never show the same person more than once in a frame, " +
-                      "never line the cast up side by side against a plain backdrop, and do not copy the " +
-                      "references' plain background, their neutral standing pose, or any panel, grid or " +
-                      "split-screen layout into the video. ");
+            sb.Append(SceneRule).Append(' ');
 
             // The clothing sentence is the one part of this line that depends on how the sheets were made —
             // see CastInfo.SheetsShowWardrobe.
@@ -375,6 +595,20 @@ namespace FlipPix.UI.Services
                   $"dress {them} strictly in the outfit written there, unchanged throughout.");
             return sb.ToString();
         }
+
+        /// <summary>
+        /// Swaps <see cref="SceneRule"/> for <see cref="StereoSceneRule"/> in an <b>already-stamped</b>
+        /// prompt. A no-op on a prompt that does not carry the rule, so it is safe to call on anything.
+        ///
+        /// <para>Done as a substitution at submit time rather than as another flag on
+        /// <see cref="CastInfo"/> deliberately: a flag would only reach prompts stamped after it existed,
+        /// and a queue full of clips already written and hunted would keep rendering the contradiction
+        /// until every one of them was re-queued. The rule is code-written and identical in every prompt in
+        /// the repository's history, so finding it by its own text is exact.</para>
+        /// </summary>
+        public static string MakeStereo(string? prompt) =>
+            string.IsNullOrEmpty(prompt) ? prompt ?? string.Empty
+                                         : prompt.Replace(SceneRule, StereoSceneRule, StringComparison.Ordinal);
 
         /// <summary>Names the pictures one character occupies, and insists they are one person.</summary>
         private static string DescribeCharacter(int character, int panels, string? sex)

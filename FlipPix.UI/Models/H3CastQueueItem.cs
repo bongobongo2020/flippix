@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Text.Json.Serialization;
@@ -152,6 +152,110 @@ namespace FlipPix.UI.Models
         /// default. The H3 Cast graph has no such switch and ignores this.
         /// </summary>
         public bool UseAudioEnhancement { get; set; } = true;
+
+        /// <summary>
+        /// 🌹 H3 Eros only — the megapixels the three seed previews are sampled at. Small on purpose:
+        /// the hunt exists to compare compositions cheaply, and <see cref="Megapixels"/> is what the
+        /// picked one is finished at.
+        /// </summary>
+        public double PreviewMegapixels { get; set; } = 0.2;
+
+        /// <summary>
+        /// 🌹 H3 Eros only — the diffusion model both sweeps load, as ComfyUI names it under
+        /// <c>diffusion_models</c> (e.g. <c>h3-minimax/minimax_h3_ref2va_pruned_int8_convrot.safetensors</c>).
+        /// Frozen onto the item at queue time so that changing the dropdown mid-run cannot finish a clip
+        /// with a different model than the one its drafts were hunted with — the finish re-samples the
+        /// picked branch, and a different model is a different latent. Empty means the workflow file's own.
+        /// </summary>
+        public string DiffusionModel { get; set; } = string.Empty;
+
+        /// <summary>
+        /// 🌹 H3 Eros only — how many fixed sigmas the upscale pass runs (3, 4 or 5). The graph ships
+        /// one ManualSigmas schedule per count and the render links the chosen one.
+        /// </summary>
+        public int UpscaleSteps { get; set; } = 4;
+
+        /// <summary>
+        /// 🥽 H3 VR only — the strength the VR180 SBS LoRA is applied at, frozen here at Add to Queue.
+        /// The finish re-samples the picked draft's branch, so hunting and finishing at different LoRA
+        /// strengths would produce a clip that is not the take that was picked. 1.0 is the model card's
+        /// own figure; 0 disables the LoRA and renders a flat clip in a wide frame.
+        /// </summary>
+        public double VrLoraStrength { get; set; } = 1.0;
+
+        /// <summary>
+        /// 🥽 H3 VR only — render this clip first-person, because its cast is one character. Frozen at Add
+        /// to Queue beside <see cref="VrLoraStrength"/>, and for the same reason: it changes the prompt, and
+        /// the finish re-samples the picked draft from the prompt. Meaningless when
+        /// <see cref="HasCharacter2"/> is true; the tab never sets it then.
+        /// </summary>
+        public bool SoloPov { get; set; }
+
+        /// <summary>
+        /// 🌹 H3 Eros only — RIFE frame interpolation on the finished clip, 24 → 48 fps. On by default,
+        /// which is how the authored graph runs.
+        /// </summary>
+        public bool UseRife { get; set; } = true;
+
+        /// <summary>
+        /// 🌹 H3 Eros only — which of the three seed previews was picked, 1-3, or 0 while the hunt has
+        /// not run or is waiting on the user. Written back onto the item so a re-run of a completed
+        /// story clip finishes the same sample rather than hunting again.
+        /// </summary>
+        public int ChosenSampleSlot { get; set; }
+
+        /// <summary>
+        /// 🌹 H3 Eros only — the base noise seed the hunt that produced <see cref="ChosenSampleSlot"/>
+        /// ran on, or -1 when no hunt has run. The three previews start here: slot <i>n</i> is this seed
+        /// plus <i>n-1</i>, unless a single slot has since been re-rolled on its own, which is why
+        /// <see cref="HuntSampleSeeds"/> — not this — is what the finish pass reads.
+        /// </summary>
+        public long HuntBaseSeed { get; set; } = -1;
+
+        /// <summary>
+        /// 🌹 H3 Eros only — the draft each preview slot produced, in slot order, as a local file path.
+        /// Empty string = that slot is unfilled (never hunted, deleted, or failed).
+        ///
+        /// <para>Persisted with the queue so the whole hunt survives a restart: the tab hunts every clip
+        /// in the story before anything is picked, and a board of thirty-six drafts that vanished when
+        /// the app closed would have to be paid for twice.</para>
+        /// </summary>
+        public List<string> HuntSamplePaths { get; set; } = new();
+
+        /// <summary>
+        /// 🌹 H3 Eros only — the noise seed each preview slot was sampled on, in slot order (-1 = unfilled).
+        /// Kept per slot rather than derived from <see cref="HuntBaseSeed"/> because a single draft can be
+        /// re-rolled on its own; the finish pass writes the chosen slot's seed back into the graph, so a
+        /// wrong number here finishes a take nobody saw.
+        /// </summary>
+        public List<long> HuntSampleSeeds { get; set; } = new();
+
+        /// <summary>
+        /// 🌹 H3 Eros only — the noise seed of the picked draft, or -1 when nothing is picked. Written
+        /// alongside <see cref="ChosenSampleSlot"/> so the finish never has to re-derive it.
+        /// </summary>
+        public long ChosenSeed { get; set; } = -1;
+
+        /// <summary>
+        /// 🌹 H3 Eros only — where this clip is in the tab's three-stage pipeline:
+        /// <c>""</c> not hunted yet · <c>"hunted"</c> its drafts are on the board waiting to be picked ·
+        /// <c>"finished"</c> the picked draft has been upscaled and the clip file exists.
+        ///
+        /// <para>Separate from <see cref="BaseQueueItem.Status"/> on purpose: a hunted clip is still a
+        /// Pending queue item — there is GPU work left to do on it — and the base class's drain loop,
+        /// its story-join check and its retry handling all read that.</para>
+        /// </summary>
+        public string ErosStage { get; set; } = string.Empty;
+
+        /// <summary>
+        /// 🌹 H3 Eros only — the exact <see cref="Prompt"/> the drafts on the board were hunted with.
+        ///
+        /// <para>The board lets the description be edited in place, and the finish pass <i>re-samples</i> the
+        /// picked branch from the prompt rather than reading a cached latent — so a prompt edited after the
+        /// hunt would finish a video nobody ever saw. Comparing this against the current prompt is how the
+        /// tab knows a clip's takes have gone stale, and it is persisted so that survives a restart.</para>
+        /// </summary>
+        public string HuntPromptStamp { get; set; } = string.Empty;
 
         /// <summary>
         /// Groups the clips of one story so they render in order, sort together on disk and can be joined

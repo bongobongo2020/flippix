@@ -1,0 +1,364 @@
+{
+  "171:4": {
+    "inputs": {
+      "unet_name": "h3-minimax/minimax_h3_fl2va_pruned_int8_convrot.safetensors",
+      "weight_dtype": "default"
+    },
+    "class_type": "UNETLoader",
+    "_meta": {
+      "title": "UNETLoader"
+    }
+  },
+  "171:3": {
+    "inputs": {
+      "clip_name": "qwen3vl_32b_minimax_h3_nvfp4_awq.safetensors",
+      "type": "minimax",
+      "device": "default"
+    },
+    "class_type": "CLIPLoader",
+    "_meta": {
+      "title": "CLIPLoader"
+    }
+  },
+  "171:2": {
+    "inputs": {
+      "vae_name": "minimax_h3_video_vae_int8_convrot.safetensors"
+    },
+    "class_type": "VAELoader",
+    "_meta": {
+      "title": "VAELoader"
+    }
+  },
+  "171:1": {
+    "inputs": {
+      "vae_name": "minimax_h3_audio_vae_fp32.safetensors"
+    },
+    "class_type": "VAELoader",
+    "_meta": {
+      "title": "VAELoader"
+    }
+  },
+  "21": {
+    "inputs": {
+      "model": [
+        "171:4",
+        0
+      ],
+      "PowerLoraLoaderHeaderWidget": {
+        "type": "PowerLoraLoaderHeaderWidget"
+      },
+      "âž• Add Lora": ""
+    },
+    "class_type": "Power Lora Loader (rgthree)",
+    "_meta": {
+      "title": "Power Lora Loader (rgthree)"
+    }
+  },
+  "tm:attn": {
+    "inputs": {
+      "model": [
+        "21",
+        0
+      ],
+      "attention": "comfy kitchen attention"
+    },
+    "class_type": "ModelAttentionBackend",
+    "_meta": {
+      "title": "ModelAttentionBackend"
+    }
+  },
+  "tm:shift": {
+    "inputs": {
+      "model": [
+        "tm:attn",
+        0
+      ],
+      "shift_video": 12.0,
+      "shift_audio": 6.0
+    },
+    "class_type": "MiniMaxH3SigmaShift",
+    "_meta": {
+      "title": "MiniMaxH3SigmaShift"
+    }
+  },
+  "tm:tao": {
+    "inputs": {
+      "model": [
+        "21",
+        0
+      ],
+      "lora_name": "H3/taomate_h3_3step_comfy.safetensors",
+      "strength_model": 0.65
+    },
+    "class_type": "LoraLoaderModelOnly",
+    "_meta": {
+      "title": "TaoMate 3-step"
+    }
+  },
+  "22:11": {
+    "inputs": {
+      "value": "The story's own clip prompt is written into this node at submit time - H3 Express overwrites it on every clip. Whatever is left here is never rendered."
+    },
+    "class_type": "PrimitiveStringMultiline",
+    "_meta": {
+      "title": "Prompt"
+    }
+  },
+  "22:23": {
+    "inputs": {
+      "value": 7.0
+    },
+    "class_type": "PrimitiveFloat",
+    "_meta": {
+      "title": "Video Length (seconds)"
+    }
+  },
+  "22:24": {
+    "inputs": {
+      "expression": "max(5, round(a * 24)) + (5 - (max(5, round(a * 24)) % 17)) % 17",
+      "values.a": [
+        "22:23",
+        0
+      ]
+    },
+    "class_type": "ComfyMathExpression",
+    "_meta": {
+      "title": "ComfyMathExpression"
+    }
+  },
+  "22:9": {
+    "inputs": {
+      "aspect_ratio": "16:9 (Widescreen)",
+      "megapixels": 0.8,
+      "multiple": 32
+    },
+    "class_type": "ResolutionSelector",
+    "_meta": {
+      "title": "Resolution Selector (Size)"
+    }
+  },
+  "22:8": {
+    "inputs": {
+      "value": 10
+    },
+    "class_type": "INTConstant",
+    "_meta": {
+      "title": "TOTAL STEPS"
+    }
+  },
+  "5": {
+    "inputs": {
+      "clip": [
+        "171:3",
+        0
+      ],
+      "vae": [
+        "171:2",
+        0
+      ],
+      "audio_vae": [
+        "171:1",
+        0
+      ],
+      "prompt": [
+        "22:11",
+        0
+      ],
+      "width": [
+        "22:9",
+        0
+      ],
+      "height": [
+        "22:9",
+        1
+      ],
+      "length": [
+        "22:24",
+        1
+      ],
+      "ref_image_size": "match"
+    },
+    "class_type": "MiniMaxH3ReferenceToVideo",
+    "_meta": {
+      "title": "MiniMaxH3ReferenceToVideo"
+    }
+  },
+  "tm:neg": {
+    "inputs": {
+      "clip": [
+        "171:3",
+        0
+      ],
+      "text": ""
+    },
+    "class_type": "CLIPTextEncode",
+    "_meta": {
+      "title": "Negative"
+    }
+  },
+  "tm:pass1": {
+    "inputs": {
+      "model": [
+        "tm:shift",
+        0
+      ],
+      "positive": [
+        "5",
+        0
+      ],
+      "negative": [
+        "tm:neg",
+        0
+      ],
+      "latent_image": [
+        "5",
+        1
+      ],
+      "eta": 0.5,
+      "sampler_name": "linear/euler",
+      "scheduler": "beta57",
+      "steps": [
+        "22:8",
+        0
+      ],
+      "steps_to_run": 6,
+      "denoise": 1.0,
+      "cfg": 1.0,
+      "seed": 0,
+      "sampler_mode": "standard",
+      "bongmath": true
+    },
+    "class_type": "ClownsharKSampler_Beta",
+    "_meta": {
+      "title": "Pass 1 - base weights"
+    }
+  },
+  "tm:pass2": {
+    "inputs": {
+      "model": [
+        "tm:tao",
+        0
+      ],
+      "positive": [
+        "5",
+        0
+      ],
+      "negative": [
+        "tm:neg",
+        0
+      ],
+      "latent_image": [
+        "tm:pass1",
+        0
+      ],
+      "eta": 0.5,
+      "sampler_name": "linear/euler",
+      "scheduler": "beta57",
+      "steps": [
+        "22:8",
+        0
+      ],
+      "steps_to_run": -1,
+      "denoise": 1.0,
+      "cfg": 1.0,
+      "seed": 0,
+      "sampler_mode": "resample",
+      "bongmath": true
+    },
+    "class_type": "ClownsharKSampler_Beta",
+    "_meta": {
+      "title": "Pass 2 - TaoMate resample"
+    }
+  },
+  "189": {
+    "inputs": {
+      "samples": [
+        "tm:pass2",
+        0
+      ],
+      "vae": [
+        "171:2",
+        0
+      ]
+    },
+    "class_type": "VAEDecode",
+    "_meta": {
+      "title": "Final Decode"
+    }
+  },
+  "190": {
+    "inputs": {
+      "samples": [
+        "tm:pass2",
+        0
+      ],
+      "vae": [
+        "171:1",
+        0
+      ]
+    },
+    "class_type": "VAEDecodeAudio",
+    "_meta": {
+      "title": "Final Audio Decode"
+    }
+  },
+  "tm:rtx": {
+    "inputs": {
+      "images": [
+        "189",
+        0
+      ],
+      "resize_type": "scale by multiplier",
+      "quality": "ULTRA",
+      "resize_type.scale": 2.0
+    },
+    "class_type": "RTXVideoSuperResolution",
+    "_meta": {
+      "title": "RTX Video Super Resolution"
+    }
+  },
+  "165": {
+    "inputs": {
+      "images": [
+        "tm:rtx",
+        0
+      ],
+      "source_fps": 24.0,
+      "target_fps": 48.0,
+      "scale": 1,
+      "model_name": "flownet.pkl",
+      "batch_size": 8,
+      "use_fp16": true
+    },
+    "class_type": "RIFEInterpolation",
+    "_meta": {
+      "title": "RIFEInterpolation"
+    }
+  },
+  "34": {
+    "inputs": {
+      "frame_rate": 48,
+      "loop_count": 0,
+      "filename_prefix": "h3_taomate/final",
+      "format": "video/h264-mp4",
+      "pix_fmt": "yuv420p",
+      "crf": 16,
+      "save_metadata": false,
+      "trim_to_audio": false,
+      "pingpong": false,
+      "save_output": true,
+      "images": [
+        "165",
+        0
+      ],
+      "audio": [
+        "190",
+        0
+      ]
+    },
+    "class_type": "VHS_VideoCombine",
+    "_meta": {
+      "title": "Final Video"
+    }
+  }
+}

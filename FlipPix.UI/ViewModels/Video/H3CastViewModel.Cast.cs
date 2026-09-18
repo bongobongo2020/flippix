@@ -44,9 +44,10 @@ namespace FlipPix.UI.ViewModels.Video
         private bool _isDerivingCast;
         private CancellationTokenSource? _castCts;
 
-        /// <summary>slot index → <c>"kind|role"</c> as the automatic pass last wrote it. A slot whose
-        /// live kind and Part still match its stamp is one the user has not touched since, so a later
-        /// pass may rewrite it; anything else is the user's own work and stands.</summary>
+        /// <summary>slot index → <c>"kind|role"</c> as the automatic pass last wrote it. A field that
+        /// still matches its half of the stamp is one the user has not touched since, so a later pass may
+        /// rewrite it; anything else is the user's own work and stands. Read through
+        /// <see cref="AutoStampFor"/>.</summary>
         private readonly Dictionary<int, string> _autoCastStamp = new();
 
         #region Cast detection — the story names them, the tab casts them
@@ -82,36 +83,7 @@ namespace FlipPix.UI.ViewModels.Video
                     return;
                 }
 
-                // Silent when there is nothing free to fill: both cards already say something the
-                // user put there, and "your cast is full" is not news.
-                if (!SlotIsFree(_character1) && !SlotIsFree(_character2)) return;
-
-                _isDerivingCast = true;
-                IsAnalyzing = true;
-                try
-                {
-                    var model = await ResolveLlmModelAsync(token, quiet: true);
-                    if (model == null) return;
-
-                    AddLog($"Reading the cast out of the story — sending to {_lmStudioService.DescribeTarget(model)}…");
-                    var reply = await CastPhotoWorkflows.AskCastAsync(
-                        _lmStudioService, model, StoryText, CastSlots, personKindsOnly: true, token);
-                    token.ThrowIfCancellationRequested();
-
-                    var detected = CastPhotoWorkflows.ParseCastLines(reply, CastSlots);
-                    if (detected.Count == 0)
-                    {
-                        AddLog("The cast could not be read out of the story — set the sex and Part on " +
-                               "the cards by hand.");
-                        return;
-                    }
-                    ApplyDetectedCast(detected);
-                }
-                finally
-                {
-                    _isDerivingCast = false;
-                    IsAnalyzing = false;
-                }
+                await DeriveCastNowAsync(token, quiet: true);
             }
             catch (OperationCanceledException) { }
             catch (Exception ex)
@@ -126,17 +98,100 @@ namespace FlipPix.UI.ViewModels.Video
         }
 
         /// <summary>
-        /// Whether the automatic cast pass may write this card: never one with a photo (browsed or
-        /// generated — a photo is the user saying "this one is cast"), and otherwise either a pristine
-        /// card (default sex, no Part) or one this pass itself filled and the user has not touched
-        /// since.
+        /// The cast pass itself, without the 2.5 s debounce in front of it: read the story's two leads and
+        /// write their sex and Part into whichever cards are still free.
+        ///
+        /// <para>Split out of <see cref="AutoDeriveCastAsync"/> so 🍀 I'm Feeling Lucky can <b>await</b> it.
+        /// A run that starts by generating photographs cannot wait out a debounce and hope — a card with no
+        /// Part on it yet produces a portrait of nobody in particular, and the whole chain is then built on
+        /// that.</para>
+        ///
+        /// <para>Silent, and a no-op, when both cards already say something: a photo, a hand-written Part or
+        /// a hand-set sex all mark a slot as spoken for, and this must never overwrite them.</para>
+        /// </summary>
+        protected async Task DeriveCastNowAsync(CancellationToken token, bool quiet)
+        {
+            LastDetectedCast = null;
+            if (!SlotIsFree(_character1) && !SlotIsFree(_character2)) return;
+
+            _isDerivingCast = true;
+            IsAnalyzing = true;
+            try
+            {
+                var model = await ResolveLlmModelAsync(token, quiet);
+                if (model == null) return;
+
+                AddLog($"Reading the cast out of the story — sending to {_lmStudioService.DescribeTarget(model)}…");
+                var reply = await CastPhotoWorkflows.AskCastAsync(
+                    _lmStudioService, model, StoryText, CastSlots, personKindsOnly: true, token);
+                token.ThrowIfCancellationRequested();
+
+                var detected = CastPhotoWorkflows.ParseCastLines(reply, CastSlots);
+                LastDetectedCast = detected.Count == 0 ? null : detected.Take(CastSlots).ToList();
+                if (detected.Count == 0)
+                {
+                    AddLog("The cast could not be read out of the story — set the sex and Part on " +
+                           "the cards by hand.");
+                    return;
+                }
+                ApplyDetectedCast(detected);
+            }
+            finally
+            {
+                _isDerivingCast = false;
+                // See the wardrobe pass: the shared busy flag is only ours to clear while nothing else
+                // is holding it.
+                if (!IsWritingPrompt) IsAnalyzing = false;
+            }
+        }
+
+        /// <summary>
+        /// What the last cast pass read out of the story — kind and Part per character, in the story's own order —
+        /// whether or not it could write them onto the cards. A card with a photo keeps its sex, so this is the
+        /// only record of the sex the story gives that character; ⚡ H3 Express matches its photos to it.
+        /// Null when the pass did not run or read nothing.
+        /// </summary>
+        protected IReadOnlyList<(string Kind, string Role)>? LastDetectedCast { get; private set; }
+
+        /// <summary>The kind and Part this pass last wrote into a slot, or nulls if it never wrote one.
+        /// Split apart because the two are answerable separately: the user moving the sex dropdown on a
+        /// card does not make its Part theirs, and vice versa.</summary>
+        private (string? Kind, string? Role) AutoStampFor(int index)
+        {
+            if (!_autoCastStamp.TryGetValue(index, out var stamp)) return (null, null);
+            var bar = stamp.IndexOf('|');
+            return bar < 0 ? (null, null) : (stamp[..bar], stamp[(bar + 1)..]);
+        }
+
+        /// <summary>
+        /// Whether the automatic cast pass may write this card's Part — either a card with no Part on it
+        /// yet, or one this pass itself filled and the user has not typed over since.
+        ///
+        /// <para><b>A photo does not stop it.</b> The picture says who this character <i>is</i>; the Part
+        /// says who they are <i>in this story</i>, and pasting a new story is exactly the moment those two
+        /// stop agreeing. Blocking on the photo meant a tab whose cast had been picked first — which is how
+        /// H3 Eros is used — kept the previous story's parts under the cards while the wardrobe, which
+        /// never asked about photos, re-dressed everyone for the new one. The sex is a separate question,
+        /// and there the photo does decide: see <see cref="SlotKindIsFree"/>.</para>
         /// </summary>
         private bool SlotIsFree(CharacterSlot c)
         {
-            if (c.HasSource) return false;
-            if (_autoCastStamp.TryGetValue(c.Index, out var stamp))
-                return stamp == $"{c.Kind}|{c.Role}";
+            var (_, role) = AutoStampFor(c.Index);
+            if (role != null) return role == c.Role;
             return !c.HasRole && (c.Kind == CharacterSlot.Male || c.Kind == CharacterSlot.Female);
+        }
+
+        /// <summary>
+        /// Whether the pass may also set this card's <i>sex</i>. A browsed or generated photo pins it — the
+        /// picture decides who is on screen, and flipping a photographed woman to "Male" because the new
+        /// story's first lead is a man would leave the card describing somebody who is not in it. Without a
+        /// photo it is the same rule as the Part: ours to move until the user moves it.
+        /// </summary>
+        private bool SlotKindIsFree(CharacterSlot c)
+        {
+            if (c.HasSource) return false;
+            var (kind, _) = AutoStampFor(c.Index);
+            return kind == null || kind == c.Kind;
         }
 
         /// <summary>
@@ -155,16 +210,21 @@ namespace FlipPix.UI.ViewModels.Video
             {
                 if (i < taken.Count)
                 {
-                    free[i].Kind = taken[i].Kind;
+                    // The sex only moves on a card whose photo has not already answered it.
+                    if (SlotKindIsFree(free[i])) free[i].Kind = taken[i].Kind;
                     free[i].Role = taken[i].Role;
-                    _autoCastStamp[free[i].Index] = $"{taken[i].Kind}|{taken[i].Role}";
+                    // Stamped from the live card, not from what was detected: the kind may have been
+                    // left alone above, and the Role setter trims. A stamp that does not match what the
+                    // card now reads would look like the user's own edit on the next story.
+                    _autoCastStamp[free[i].Index] = $"{free[i].Kind}|{free[i].Role}";
                 }
                 else if (_autoCastStamp.ContainsKey(free[i].Index))
                 {
                     // Only auto-filled cards are retired — a pristine card stays pristine, and the
                     // user's own cards were never in this list.
                     free[i].Role = string.Empty;
-                    free[i].Kind = free[i].Index % 2 == 0 ? CharacterSlot.Female : CharacterSlot.Male;
+                    if (SlotKindIsFree(free[i]))
+                        free[i].Kind = free[i].Index % 2 == 0 ? CharacterSlot.Female : CharacterSlot.Male;
                     _autoCastStamp.Remove(free[i].Index);
                     retired++;
                 }
@@ -177,6 +237,57 @@ namespace FlipPix.UI.ViewModels.Video
                 ? $"Cast from the story: {who} — retired {retired} character(s) the story no longer lists."
                 : $"Cast from the story: {who}") +
                 " Check each card's sex and Part, then ✨ Generate or browse a photo.");
+        }
+
+        /// <summary>
+        /// Whether there is anything for 🧹 to throw away: a Part on either card, or a wardrobe. The kinds
+        /// are deliberately not counted — every card always has one, so counting them would leave the button
+        /// permanently enabled and pressing it on a pristine tab would do nothing visible.
+        /// </summary>
+        public bool HasDerivedCast => HasCastWardrobe || _character1.HasRole || _character2.HasRole;
+
+        /// <summary>
+        /// The 🧹 button: throws away everything the story wrote about the cast — both cards' Part, the sex
+        /// of any card no photo has answered for, the record of what the automatic pass last filled in, and
+        /// the wardrobe with them — and hands the whole question back to whatever story is in the box now.
+        ///
+        /// <para><b>Why a button and not an automatic reset.</b> The automatic pass is deliberately
+        /// conservative: a card the user typed over is theirs and is never overwritten, and a card it filled
+        /// itself is only rewritten while it still reads exactly as it left it (see
+        /// <see cref="SlotIsFree"/>). That is right while one story is being worked on, and wrong the moment a
+        /// different story is pasted in — the new film then inherits the previous one's parts, the wardrobe is
+        /// re-derived around characters who are not in it, and every clip is written for the wrong cast.
+        /// Nothing here can tell a pasted rewrite from a pasted replacement, so the answer is one press rather
+        /// than a guess.</para>
+        ///
+        /// <para><b>What it leaves alone.</b> The photos, the built sheets and the prompt box: those were
+        /// chosen or written, not derived from the story text. A sheet built in the old wardrobe reports
+        /// itself stale as soon as the new one lands, exactly as it does after 🎽 Derive.</para>
+        /// </summary>
+        private void ClearDerivedCast()
+        {
+            foreach (var c in new[] { _character1, _character2 })
+            {
+                c.Role = string.Empty;
+                // The photo is what pins the sex — see SlotKindIsFree. A card with a picture on it keeps the
+                // kind the picture shows; an empty one goes back to the default the pass is free to move.
+                if (!c.HasSource) c.Kind = c.Index % 2 == 0 ? CharacterSlot.Female : CharacterSlot.Male;
+            }
+
+            // Nothing on the cards is ours any more, so nothing is stamped: the next pass sees two free
+            // slots rather than two it filled and must leave standing.
+            _autoCastStamp.Clear();
+
+            // The outfits describe these characters, so they go with them — and clearing the box is also what
+            // puts the wardrobe back under the story's control when the user had unlocked it (see
+            // ClearWardrobe). It re-arms the wardrobe debounce; ScheduleCastDerive below re-arms the cast's.
+            ClearWardrobe();
+
+            AddLog("Cast cleared: both Parts, the sexes no photo had answered for, and the wardrobe. The " +
+                   "story in the box re-casts itself a couple of seconds after it stops changing — press " +
+                   "🎽 Derive to do the wardrobe now, and Analyze to rewrite the clips. Photos, sheets and " +
+                   "the prompt box are untouched.");
+            ScheduleCastDerive();
         }
 
         #endregion
@@ -271,24 +382,10 @@ namespace FlipPix.UI.ViewModels.Video
                 }
 
                 var prompt = BuildCastPhotoPrompt(slot);
-                var ts = DateTime.Now.ToString("yyyyMMddHHmmss");
-                var runToken = $"cast_{slot.Index}_{ts}";
-                var seed = System.Random.Shared.NextInt64(0, 1_000_000_000_000_000L);
-
-                var (json, saveNode) = await CastPhotoWorkflows.BuildAsync(
-                    engine, $"{OutputSubfolder}/{runToken}", seed, prompt, AddLog, lora);
                 AddLog($"Character {slot.Index} ({slot.Description}): {label} portrait — {prompt}");
 
-                var promptId = await SubmitCastPhotoAsync(json, slot, CancellationToken.None);
-
-                slot.PhotoPhase = "Retrieving the photo…";
-                string? local = null;
-                var byNode = await _comfyUIService.HttpClient.GetOutputsByNodeAsync(promptId, CancellationToken.None);
-                if (byNode.TryGetValue(saveNode, out var outs) && outs.Count > 0)
-                    local = await ResolveImageToLocalAsync(outs[0]);
-                local ??= FindTokenImageOnDisk(runToken);
-                if (local == null || !File.Exists(local))
-                    throw new Exception($"Character {slot.Index}'s photo was not produced.");
+                var local = await RenderUnblockedCastPhotoAsync(slot, engine, lora, prompt, label);
+                local = await KeepCastPhotoAsync(local);
 
                 // Exactly what browsing for it does — the sheet build, the references and the
                 // refine pass all take it from there. A portrait is not yet a reference; the
@@ -301,6 +398,13 @@ namespace FlipPix.UI.ViewModels.Video
                 });
                 AddLog($"Character {slot.Index}: photo generated — {Path.GetFileName(local)}.");
                 slot.PhotoPhase = "Photo ready — build the sheet with 🪪";
+
+                // A photo generated a moment ago has never had a sheet built from it, so this all but always
+                // misses. It is here anyway because ✨ Generate can be pressed on a card whose photo was
+                // regenerated from the same seed, and because the two ways a photo reaches a card should not
+                // behave differently.
+                await AdoptSheetFromLibraryAsync(slot);
+                if (slot.HasSheet) slot.PhotoPhase = "Photo ready — its sheet came back from the library";
             }
             catch (Exception ex)
             {
@@ -314,6 +418,119 @@ namespace FlipPix.UI.ViewModels.Video
                 lease?.Dispose();
                 slot.IsGeneratingPhoto = false;
                 OnCanExecuteChanged();
+            }
+        }
+
+        /// <summary>
+        /// One portrait, never a refusal. Ideogram 4 answers a prompt it will not draw with a grey "Image blocked by
+        /// safety filter" card, which ComfyUI reports as an ordinary image (<see cref="SafetyFilterPlaceholder"/>).
+        /// Such a card is tried once more on a new seed; blocked again, the photo is taken with
+        /// <see cref="CastPhotoWorkflows.SafetyFallbackEngine"/> instead. A placeholder never reaches the card, the
+        /// cast folder or a sheet — if the fallback is blocked too, this throws.
+        /// </summary>
+        private async Task<string> RenderUnblockedCastPhotoAsync(
+            CharacterSlot slot, string engine, CastPhotoWorkflows.CastLora? lora, string prompt, string label)
+        {
+            if (!CastPhotoWorkflows.MayRenderSafetyPlaceholder(engine))
+                return await RenderCastPhotoAsync(slot, engine, lora, prompt, label);
+
+            for (var attempt = 1; attempt <= 2; attempt++)
+            {
+                var local = await RenderCastPhotoAsync(slot, engine, lora, prompt, label);
+                if (!await IsSafetyPlaceholderAsync(local)) return local;
+
+                AddLog(attempt == 1
+                    ? $"Character {slot.Index}: {label} returned its \"Image blocked by safety filter\" card " +
+                      $"({Path.GetFileName(local)}) — trying once more on a new seed."
+                    : $"Character {slot.Index}: {label} blocked it again ({Path.GetFileName(local)}) — photographing " +
+                      $"them with {CastPhotoWorkflows.LabelFor(CastPhotoWorkflows.SafetyFallbackEngine)} instead.");
+            }
+
+            var fallback = CastPhotoWorkflows.SafetyFallbackEngine;
+            var fallbackLabel = CastPhotoWorkflows.LabelFor(fallback);
+            var photo = await RenderCastPhotoAsync(slot, fallback, null, prompt, fallbackLabel);
+            if (await IsSafetyPlaceholderAsync(photo))
+                throw new Exception($"Character {slot.Index}'s photo was blocked by the safety filter twice on {label} " +
+                                    $"and again on {fallbackLabel}.");
+            return photo;
+        }
+
+        /// <summary>The pixel check, off the UI thread. A file that cannot be decoded is not called a placeholder —
+        /// the sheet build will say what is wrong with it.</summary>
+        private async Task<bool> IsSafetyPlaceholderAsync(string path)
+        {
+            try
+            {
+                return await Task.Run(() => SafetyFilterPlaceholder.IsPlaceholder(path));
+            }
+            catch (Exception ex)
+            {
+                AddLog($"WARNING: {Path.GetFileName(path)} could not be checked for the safety-filter card " +
+                       $"({ex.Message}) — it is used as it is.");
+                return false;
+            }
+        }
+
+        /// <summary>One submission of one portrait graph on a fresh seed, and the file it saved.</summary>
+        private async Task<string> RenderCastPhotoAsync(
+            CharacterSlot slot, string engine, CastPhotoWorkflows.CastLora? lora, string prompt, string label)
+        {
+            var ts = DateTime.Now.ToString("yyyyMMddHHmmss");
+            var runToken = $"cast_{slot.Index}_{ts}";
+            var seed = System.Random.Shared.NextInt64(0, 1_000_000_000_000_000L);
+
+            var (json, saveNode) = await CastPhotoWorkflows.BuildAsync(
+                engine, $"{OutputSubfolder}/{runToken}", seed, prompt, AddLog, lora);
+            AddLog($"Character {slot.Index}: {label}, seed {seed}.");
+            slot.PhotoPhase = $"Generating with {label}…";
+
+            var promptId = await SubmitCastPhotoAsync(json, slot, CancellationToken.None);
+
+            slot.PhotoPhase = "Retrieving the photo…";
+            string? local = null;
+            var byNode = await _comfyUIService.HttpClient.GetOutputsByNodeAsync(promptId, CancellationToken.None);
+            if (byNode.TryGetValue(saveNode, out var outs) && outs.Count > 0)
+                local = await ResolveImageToLocalAsync(outs[0]);
+            local ??= FindTokenImageOnDisk(runToken);
+            if (local == null || !File.Exists(local))
+                throw new Exception($"Character {slot.Index}'s photo was not produced.");
+            return local;
+        }
+
+        /// <summary>Where a generated cast photo is kept, or null to leave it in ComfyUI's output folder. ⚡ H3 Express
+        /// keeps its cast beside the sheet library (<see cref="CastSheetLibrary.PhotoFolder"/>).</summary>
+        protected virtual string? CastPhotoArchiveFolder => null;
+
+        /// <summary>
+        /// Copies a freshly generated photo into <see cref="CastPhotoArchiveFolder"/> and returns the copy, which is
+        /// what goes on the card — so the sheet library files a path that outlives the output folder. The original
+        /// when there is nowhere to keep it or the copy fails.
+        /// </summary>
+        private async Task<string> KeepCastPhotoAsync(string local)
+        {
+            var folder = CastPhotoArchiveFolder;
+            if (string.IsNullOrWhiteSpace(folder)) return local;
+
+            try
+            {
+                var target = Path.Combine(folder, Path.GetFileName(local));
+                if (string.Equals(Path.GetFullPath(local), Path.GetFullPath(target), StringComparison.OrdinalIgnoreCase))
+                    return local;
+
+                // The name carries the run's timestamp, so a file already there is this same photo.
+                await Task.Run(() =>
+                {
+                    Directory.CreateDirectory(folder);
+                    if (!File.Exists(target)) File.Copy(local, target);
+                });
+                AddLog($"Cast photo kept in {folder}.");
+                return target;
+            }
+            catch (Exception ex)
+            {
+                AddLog($"WARNING: the cast photo could not be copied to {folder} ({ex.Message}) — it is used from " +
+                       $"{Path.GetDirectoryName(local)}.");
+                return local;
             }
         }
 
